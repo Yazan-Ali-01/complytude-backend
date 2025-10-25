@@ -1,0 +1,142 @@
+---
+description: Modern, modular NestJS backend built on Fastify.
+    The project follows clean architecture principles — feature-based modules, dependency injection,
+    DTO validation, and separation of concerns between controllers, services, and infrastructure.
+alwaysApply: true
+---
+
+
+project:
+  type: "nestjs"
+  language: "typescript"
+  description: >
+    Modern, modular NestJS backend built on Fastify.
+    The project follows clean architecture principles — feature-based modules, dependency injection,
+    DTO validation, JWT-based authentication, caching, and Swagger documentation.
+
+guidelines:
+  - Use modular architecture: each feature lives under /src/modules/.
+  - Use dependency injection; never instantiate services manually.
+  - Use `@nestjs/config` for environment variables and configuration.
+  - Use `Fastify` as the HTTP adapter (default in Nest 10+). Ensure all middleware are Fastify-compatible.
+  - Use `@nestjs/passport` + `@nestjs/jwt` for authentication.
+  - Use `@nestjs/cache-manager` for caching (in-memory or Redis).
+  - Use `@nestjs/swagger` for API documentation.
+  - Controllers handle request/response only — no business logic.
+  - Services contain logic and call repositories or external APIs.
+  - DTOs validate inputs using `class-validator` and `class-transformer`.
+  - Global ValidationPipe: `{ whitelist: true, transform: true }`.
+  - Never use `any` unless absolutely necessary.
+  - Keep module boundaries clear — no circular imports.
+  - Naming convention: `*.controller.ts`, `*.service.ts`, `*.module.ts`, `*.dto.ts`.
+
+structure:
+  base_dir: "src"
+  folders:
+    - name: "common"
+      description: >
+        Cross-cutting utilities:
+        - guards/
+        - interceptors/
+        - filters/
+        - decorators/
+        - pipes/
+        - helpers/
+    - name: "config"
+      description: >
+        Environment configs loaded via @nestjs/config.
+        Use schema validation (Joi/Zod) for type safety.
+    - name: "modules"
+      description: >
+        Each feature module includes:
+          - controller
+          - service
+          - module
+          - dto
+          - entities or repositories
+    - name: "prisma"
+      description: >
+        Database integration layer. Contains PrismaService and repository logic.
+    - name: "main.ts"
+      description: >
+        Entry point. Bootstraps Fastify, sets global pipes, filters, Swagger, and CORS.
+
+naming:
+  conventions:
+    modules: "{feature}.module.ts"
+    controllers: "{feature}.controller.ts"
+    services: "{feature}.service.ts"
+    dtos: "{action}.dto.ts"
+  notes: >
+    Keep folder names consistent with feature/module names.
+
+dependencies:
+  core:
+    - "@nestjs/core"
+    - "@nestjs/common"
+    - "@nestjs/platform-fastify"
+    - "@nestjs/config"
+    - "@nestjs/passport"
+    - "@nestjs/jwt"
+    - "@nestjs/cache-manager"
+    - "@nestjs/swagger"
+    - "passport"
+    - "passport-jwt"
+    - "class-validator"
+    - "class-transformer"
+  optional:
+    - "@nestjs/schedule"
+    - "@nestjs/bullmq"
+    - "@nestjs/terminus"
+
+best_practices:
+  - Use Fastify by default:
+    code: |
+      import { NestFactory } from '@nestjs/core';
+      import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+      import { AppModule } from './app.module';
+      import { ValidationPipe } from '@nestjs/common';
+      import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+      async function bootstrap() {
+        const app = await NestFactory.create<NestFastifyApplication>(
+          AppModule,
+          new FastifyAdapter(),
+        );
+
+        app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+        const config = new DocumentBuilder()
+          .setTitle('API Docs')
+          .setDescription('Auto-generated API documentation')
+          .setVersion('1.0')
+          .addBearerAuth()
+          .build();
+
+        const document = SwaggerModule.createDocument(app, config);
+        SwaggerModule.setup('docs', app, document);
+
+        await app.listen(3000, '0.0.0.0');
+      }
+      bootstrap();
+  - Use JWT auth strategy with Passport.
+  - Register CacheModule globally with TTL and optional Redis adapter.
+  - Export only needed providers from each module.
+  - Configure all secrets in `.env` and load via ConfigModule.
+
+quality:
+  checks:
+    - Linting: ESLint with @typescript-eslint/recommended
+    - Formatting: Prettier (2-space indent, trailing commas)
+    - Validation: Global ValidationPipe enabled
+    - Type Safety: No implicit any
+    - Documentation: Swagger must be accessible under `/docs`
+    - Error Handling: Use global HttpExceptionFilter
+
+metadata:
+  author: "Yazan Ali"
+  version: "1.1"
+  updated: "2025-10-21"
+  note: >
+    This project follows NestJS 10+ architecture with Fastify as default.
+    Authentication handled via Passport + JWT, caching via CacheManager, and API docs via Swagger.
