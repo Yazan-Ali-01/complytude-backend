@@ -151,12 +151,20 @@ export class TemplateVersionsService {
     }
   }
 
-  async getCurrentVersion(templateId: string): Promise<TemplateVersion | null> {
+  async getCurrentVersion(
+    templateId: string,
+    client?: PoolClient,
+  ): Promise<TemplateVersion | null> {
     try {
-      const result = await this.databaseService.query<TemplateVersion>(
-        'SELECT * FROM public.template_versions WHERE template_id = $1 AND is_active = true',
-        [templateId],
-      );
+      const result = client
+        ? await client.query<TemplateVersion>(
+            'SELECT * FROM public.template_versions WHERE template_id = $1 AND is_active = true',
+            [templateId],
+          )
+        : await this.databaseService.query<TemplateVersion>(
+            'SELECT * FROM public.template_versions WHERE template_id = $1 AND is_active = true',
+            [templateId],
+          );
 
       if (result.rows.length === 0) {
         return null;
@@ -220,11 +228,11 @@ export class TemplateVersionsService {
       ...version,
       fields:
         typeof version.fields === 'string'
-          ? JSON.parse(version.fields)
+          ? JSON.parse(version.fields as string)
           : version.fields,
       metadata:
         typeof version.metadata === 'string'
-          ? JSON.parse(version.metadata)
+          ? JSON.parse(version.metadata as string)
           : version.metadata,
     };
   }

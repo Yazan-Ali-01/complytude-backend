@@ -14,6 +14,7 @@ import {
 } from './dto/create-template.dto';
 import { TemplateVersionsService } from './template-versions.service';
 import { RulesetsService } from './rulesets.service';
+import { PoolClient } from 'pg';
 
 @Injectable()
 export class TemplatesService {
@@ -193,7 +194,7 @@ export class TemplatesService {
         `SELECT COUNT(*) as count FROM (${query}) as filtered`,
         params,
       );
-      const total = parseInt(countResult.rows[0].count, 10);
+      const total = parseInt(countResult.rows[0].count as string, 10);
 
       // Add pagination
       const offset = (page - 1) * limit;
@@ -251,12 +252,17 @@ export class TemplatesService {
     }
   }
 
-  async findByKey(key: string): Promise<Template> {
+  async findByKey(key: string, client?: PoolClient): Promise<Template> {
     try {
-      const result = await this.databaseService.query<Template>(
-        'SELECT * FROM public.templates WHERE key = $1',
-        [key],
-      );
+      const result = client
+        ? await client.query<Template>(
+            'SELECT * FROM public.templates WHERE key = $1',
+            [key],
+          )
+        : await this.databaseService.query<Template>(
+            'SELECT * FROM public.templates WHERE key = $1',
+            [key],
+          );
 
       if (result.rows.length === 0) {
         throw new NotFoundException(`Template with key "${key}" not found`);
@@ -272,44 +278,70 @@ export class TemplatesService {
     }
   }
 
-  async findByKeyWithDetails(key: string): Promise<TemplateWithDetails> {
+  async findByKeyWithDetails(
+    key: string,
+    client?: PoolClient,
+  ): Promise<TemplateWithDetails> {
     try {
-      const template = await this.findByKey(key);
+      const template = await this.findByKey(key, client);
 
       // Fetch category details
       let category;
       if (template.category_id) {
-        const categoryResult = await this.databaseService.query(
-          'SELECT id, code, name FROM public.categories WHERE id = $1',
-          [template.category_id],
-        );
+        const categoryResult = client
+          ? await client.query(
+              'SELECT id, code, name FROM public.categories WHERE id = $1',
+              [template.category_id],
+            )
+          : await this.databaseService.query(
+              'SELECT id, code, name FROM public.categories WHERE id = $1',
+              [template.category_id],
+            );
         category = categoryResult.rows[0];
       }
 
       // Fetch authority details
       let authority;
       if (template.authority_id) {
-        const authorityResult = await this.databaseService.query(
-          'SELECT id, code, name FROM public.authorities WHERE id = $1',
-          [template.authority_id],
-        );
+        const authorityResult = client
+          ? await client.query(
+              'SELECT id, code, name FROM public.authorities WHERE id = $1',
+              [template.authority_id],
+            )
+          : await this.databaseService.query(
+              'SELECT id, code, name FROM public.authorities WHERE id = $1',
+              [template.authority_id],
+            );
         authority = authorityResult.rows[0];
       }
 
       // Fetch rulesets
-      const rulesetsResult = await this.databaseService.query(
-        `
+      const rulesetsResult = client
+        ? await client.query(
+            `
         SELECT r.id, r.key, r.name
         FROM public.rulesets r
         INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
         WHERE tr.template_id = $1
       `,
-        [template.id],
-      );
+            [template.id],
+          )
+        : await this.databaseService.query(
+            `
+        SELECT r.id, r.key, r.name
+        FROM public.rulesets r
+        INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
+        WHERE tr.template_id = $1
+      `,
+            [template.id],
+          );
 
       // Fetch current version details
       const currentVersion =
-        await this.templateVersionsService.getCurrentVersion(template.id);
+        await this.templateVersionsService.getCurrentVersion(
+          template.id,
+          client,
+        );
 
       return {
         ...template,
@@ -413,17 +445,6 @@ export class TemplatesService {
           values.push(JSON.stringify(updateTemplateDto.metadata));
         }
 
-        // Update template if there are fields to update
-        if (updateFields.length > 0) {
-          updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-          values.push(key);
-
-          await client.query(
-            `UPDATE public.templates SET ${updateFields.join(', ')} WHERE key = $${paramIndex}`,
-            values,
-          );
-        }
-
         // If fields or file_url updated, create new version
         if (
           updateTemplateDto.fields ||
@@ -431,7 +452,10 @@ export class TemplatesService {
           updateTemplateDto.version
         ) {
           const currentVersion =
-            await this.templateVersionsService.getCurrentVersion(existing.id);
+            await this.templateVersionsService.getCurrentVersion(
+              existing.id,
+              client,
+            );
           const newVersion =
             updateTemplateDto.version ||
             this.incrementVersion(existing.current_version);
@@ -449,6 +473,21 @@ export class TemplatesService {
             updateTemplateDto.metadata || {},
             updatedBy,
             client,
+          );
+
+          // Update template's current_version field
+          updateFields.push(`current_version = $${paramIndex++}`);
+          values.push(newVersion);
+        }
+
+        // Update template if there are fields to update
+        if (updateFields.length > 0) {
+          updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+          values.push(key);
+
+          await client.query(
+            `UPDATE public.templates SET ${updateFields.join(', ')} WHERE key = $${paramIndex}`,
+            values,
           );
         }
 
@@ -473,7 +512,7 @@ export class TemplatesService {
         this.logger.log(`Updated template: ${key}`);
 
         // Return updated template with details
-        return this.findByKeyWithDetails(key);
+        return this.findByKeyWithDetails(key, client);
       });
     } catch (error) {
       if (
@@ -567,7 +606,7 @@ export class TemplatesService {
       ...template,
       metadata:
         typeof template.metadata === 'string'
-          ? JSON.parse(template.metadata)
+          ? JSON.parse(template.metadata as string)
           : template.metadata,
     };
   }

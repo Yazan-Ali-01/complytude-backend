@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createTestApp, closeTestApp } from '../utils/test-context';
+import { createTestApp } from '../utils/test-context';
 import { TestDataFactory } from '../utils/test-data-factory';
 import { TestDatabase } from '../utils/test-database';
 import {
@@ -197,18 +198,16 @@ describe('Multi-Tenancy Flow (e2e)', () => {
 
     it('should reject request without tenant context', async () => {
       // Create token without tenant context (edge case)
-      const response = await request(app.getHttpServer())
-        .get('/api/tenants/me')
-        .expect(401);
+      await request(app.getHttpServer()).get('/api/tenants/me').expect(401);
     });
   });
 
   describe('3. Verify Tenant Isolation', () => {
-    let tenant1FileKey: string;
-    let tenant2FileKey: string;
+    let _tenant1FileKey: string;
+    let _tenant2FileKey: string;
 
-    it('should upload file to tenant 1 storage', async () => {
-      const testFile = TestDataFactory.createTestFile(
+    it('should upload file to tenant 1 storage', () => {
+      const _testFile = TestDataFactory.createTestFile(
         'Tenant 1 content',
         'tenant1.txt',
       );
@@ -219,11 +218,11 @@ describe('Multi-Tenancy Flow (e2e)', () => {
       console.log(
         'File upload test requires multipart handling - marking as passed',
       );
-      tenant1FileKey = `test-file-tenant1-${Date.now()}.txt`;
+      _tenant1FileKey = `test-file-tenant1-${Date.now()}.txt`;
     });
 
-    it('should upload file to tenant 2 storage', async () => {
-      tenant2FileKey = `test-file-tenant2-${Date.now()}.txt`;
+    it('should upload file to tenant 2 storage', () => {
+      _tenant2FileKey = `test-file-tenant2-${Date.now()}.txt`;
     });
 
     it('should list only tenant 1 files with tenant 1 token', async () => {
@@ -251,9 +250,9 @@ describe('Multi-Tenancy Flow (e2e)', () => {
 
     it('should not access tenant 2 files with tenant 1 token', async () => {
       // Try to download a tenant 2 file using tenant 1 token
-      if (tenant2FileKey) {
+      if (_tenant2FileKey) {
         const response = await request(app.getHttpServer())
-          .delete(`/api/storage/${tenant2FileKey}`)
+          .delete(`/api/storage/${_tenant2FileKey}`)
           .set('Authorization', `Bearer ${tenant1AccessToken}`);
 
         // Should fail (404 or 403) because file doesn't exist in tenant 1 context
@@ -318,7 +317,7 @@ describe('Multi-Tenancy Flow (e2e)', () => {
       // JWT token contains tenant context
       // Any attempt to access tenant 2 resources should fail
 
-      const tenant2Info = await TestDatabase.getTenantById(tenant2Id);
+      const _tenant2Info = await TestDatabase.getTenantById(tenant2Id);
 
       // Try to query tenant 2 schema directly (if exposed)
       // In proper implementation, this should be prevented by middleware
@@ -429,7 +428,7 @@ describe('Multi-Tenancy Flow (e2e)', () => {
     it('should access resources based on current tenant context', async () => {
       // The JWT contains the current tenant context
       const jwt = validateJWT(multiTenantAccessToken);
-      const currentTenant = jwt.payload.tenantId;
+      const _currentTenant = jwt.payload.tenantId;
 
       // Accessing users should return users from current tenant only
       const response = await request(app.getHttpServer())

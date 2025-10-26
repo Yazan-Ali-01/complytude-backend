@@ -4,7 +4,7 @@ import type { DatabaseService } from '../../src/database/database.service';
 /**
  * Test Database Utilities
  * Provides helpers for database operations in tests
- * 
+ *
  * Uses shared DatabaseService from app when available to avoid
  * transaction isolation issues. Falls back to separate pool for
  * cleanup operations.
@@ -243,7 +243,9 @@ export class TestDatabase {
 
       // Delete test templates (if table exists)
       try {
-        await this.query("DELETE FROM public.templates WHERE key LIKE 'test_%'");
+        await this.query(
+          "DELETE FROM public.templates WHERE key LIKE 'test_%'",
+        );
       } catch (error: any) {
         if (error.code !== '42P01') throw error;
       }
@@ -314,6 +316,48 @@ export class TestDatabase {
     }
 
     return result.rows[0] || null;
+  }
+
+  /**
+   * Get detailed tenant information for debugging
+   */
+  static async getTenantDebugInfo(tenantId: string): Promise<any> {
+    const query = `
+      SELECT 
+        tenant_id,
+        plan,
+        features,
+        features::text as features_raw,
+        is_active,
+        created_at,
+        updated_at
+      FROM public.tenants 
+      WHERE tenant_id = $1
+    `;
+    const params = [tenantId];
+
+    let result;
+    if (this.appDatabaseService) {
+      result = await this.appDatabaseService.query(query, params);
+    } else {
+      result = await this.query(query, params);
+    }
+
+    const tenant = result.rows[0] || null;
+    if (tenant) {
+      console.log(`🔍 [DEBUG] Tenant ${tenantId} database state:`, {
+        tenant_id: tenant.tenant_id,
+        plan: tenant.plan,
+        features: tenant.features,
+        features_raw: tenant.features_raw,
+        features_type: typeof tenant.features,
+        is_active: tenant.is_active,
+        created_at: tenant.created_at,
+        updated_at: tenant.updated_at,
+      });
+    }
+
+    return tenant;
   }
 
   /**

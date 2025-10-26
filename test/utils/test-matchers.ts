@@ -4,6 +4,7 @@
  */
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace jest {
     interface Matchers<R> {
       toBeValidUUID(): R;
@@ -58,7 +59,7 @@ expect.extend({
         pass: true,
         message: () => `expected ${received} not to be a valid JWT token`,
       };
-    } catch (error) {
+    } catch {
       return {
         pass: false,
         message: () =>

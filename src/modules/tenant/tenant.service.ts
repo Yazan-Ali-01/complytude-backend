@@ -306,6 +306,13 @@ export class TenantService {
     updateTenantDto: UpdateTenantDto,
   ): Promise<Tenant> {
     try {
+      // 🔍 DEBUG: Log the update request
+      this.logger.log(`🔍 [DEBUG] Updating tenant ${tenantId} with:`, {
+        updateTenantDto: updateTenantDto,
+        plan: updateTenantDto.plan,
+        features: updateTenantDto.features,
+      });
+
       await this.findById(tenantId);
 
       const updateFields: string[] = [];
@@ -323,10 +330,21 @@ export class TenantService {
       if (updateTenantDto.plan) {
         updateFields.push(`plan = $${paramIndex++}`);
         values.push(updateTenantDto.plan);
+        this.logger.log(
+          `🔍 [DEBUG] Will update plan to: ${updateTenantDto.plan}`,
+        );
       }
       if (updateTenantDto.features) {
         updateFields.push(`features = $${paramIndex++}`);
         values.push(JSON.stringify(updateTenantDto.features));
+        this.logger.log(
+          `🔍 [DEBUG] Will update features to:`,
+          updateTenantDto.features,
+        );
+      } else {
+        this.logger.log(
+          `🔍 [DEBUG] No features provided - will keep existing features`,
+        );
       }
       if (updateTenantDto.is_active !== undefined) {
         updateFields.push(`is_active = $${paramIndex++}`);
@@ -343,6 +361,12 @@ export class TenantService {
         RETURNING *
       `;
 
+      // 🔍 DEBUG: Log the SQL query
+      this.logger.log(`🔍 [DEBUG] Executing SQL:`, {
+        query: query,
+        values: values,
+      });
+
       const result = await this.databaseService.query<Tenant>(query, values);
 
       const updatedTenant = result.rows[0];
@@ -350,6 +374,13 @@ export class TenantService {
         typeof updatedTenant.features === 'string'
           ? JSON.parse(updatedTenant.features)
           : updatedTenant.features;
+
+      // 🔍 DEBUG: Log the result
+      this.logger.log(`🔍 [DEBUG] Tenant update result:`, {
+        plan: updatedTenant.plan,
+        features: updatedTenant.features,
+        featuresType: typeof updatedTenant.features,
+      });
 
       this.logger.log(`Tenant ${tenantId} updated successfully`);
       return updatedTenant;

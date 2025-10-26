@@ -98,4 +98,3 @@ export class ConnectionPoolHealthCheck {
     console.log('✅ All connection pool health checks passed\n');
   }
 }
-

@@ -59,4 +59,3 @@ export class ClauseDto {
   @IsOptional()
   metadata?: Record<string, any>;
 }
-

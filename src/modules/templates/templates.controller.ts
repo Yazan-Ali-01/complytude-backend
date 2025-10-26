@@ -12,9 +12,6 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import {
@@ -24,8 +21,6 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
-  ApiConsumes,
-  ApiBody,
 } from '@nestjs/swagger';
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';

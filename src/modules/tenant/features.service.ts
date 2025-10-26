@@ -32,6 +32,9 @@ export class FeaturesService {
    */
   async getTenantFeatures(tenantId: string): Promise<TenantFeatures> {
     try {
+      // 🔍 DEBUG: Log the query being executed
+      this.logger.log(`🔍 [DEBUG] Getting features for tenant: ${tenantId}`);
+
       const result = await this.databaseService.query(
         'SELECT plan, features FROM public.tenants WHERE tenant_id = $1 AND is_active = true',
         [tenantId],
@@ -43,6 +46,14 @@ export class FeaturesService {
 
       const { plan, features: customFeatures } = result.rows[0];
 
+      // 🔍 DEBUG: Log raw database values
+      this.logger.log(`🔍 [DEBUG] Raw DB values for tenant ${tenantId}:`, {
+        plan: plan,
+        customFeatures: customFeatures,
+        customFeaturesType: typeof customFeatures,
+        customFeaturesStringified: JSON.stringify(customFeatures),
+      });
+
       // Validate plan type
       const planValue = String(plan);
       if (!isValidPlan(planValue)) {
@@ -53,11 +64,25 @@ export class FeaturesService {
       // Get default features for the plan
       const defaultFeatures = this.getDefaultFeatures(planValue);
 
+      // 🔍 DEBUG: Log plan defaults
+      this.logger.log(`🔍 [DEBUG] Plan defaults for ${planValue}:`, {
+        defaultFeatures: defaultFeatures,
+        document_limit: defaultFeatures.document_limit,
+      });
+
       // Merge: custom features override defaults
       const effectiveFeatures: TenantFeatures = {
         ...defaultFeatures,
         ...customFeatures,
       };
+
+      // 🔍 DEBUG: Log the merge process
+      this.logger.log(`🔍 [DEBUG] Feature merge for tenant ${tenantId}:`, {
+        defaultFeatures: defaultFeatures,
+        customFeatures: customFeatures,
+        effectiveFeatures: effectiveFeatures,
+        finalDocumentLimit: effectiveFeatures.document_limit,
+      });
 
       this.logger.debug(
         `Tenant ${tenantId} effective features:`,

@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createTestApp, closeTestApp } from '../utils/test-context';
+import { createTestApp } from '../utils/test-context';
 import { TestDataFactory } from '../utils/test-data-factory';
 import { TestDatabase } from '../utils/test-database';
 import { validatePlanFeatures } from '../utils/assertions';
@@ -128,7 +129,7 @@ describe('Plan Features Flow (e2e)', () => {
     });
 
     // Note: Actual file upload testing would require multipart form data
-    it('should enforce document limits', async () => {
+    it('should enforce document limits', () => {
       // This test would upload files until limit is reached
       // Then verify 403 is returned
       console.log(
@@ -164,7 +165,31 @@ describe('Plan Features Flow (e2e)', () => {
     });
   });
 
-  describe('4. Custom Feature Overrides', () => {
+  describe('4. Enterprise Plan (Unlimited)', () => {
+    it('should set unlimited document limit for enterprise', async () => {
+      const response = await request(app.getHttpServer())
+        .put(`/api/admin/tenants/${earlyAccessTenantId}`)
+        .set('Authorization', `Bearer ${systemAdminToken}`)
+        .send({
+          plan: 'enterprise',
+        })
+        .expect(200);
+
+      expect(response.body.plan).toBe('enterprise');
+
+      // Verify unlimited (-1)
+      const tenantRes = await request(app.getHttpServer())
+        .get('/api/tenants/me')
+        .set('Authorization', `Bearer ${earlyAccessToken}`)
+        .expect(200);
+
+      if (tenantRes.body.features) {
+        expect(tenantRes.body.features.document_limit).toBe(-1);
+      }
+    });
+  });
+
+  describe('5. Custom Feature Overrides', () => {
     it('should apply custom feature overrides', async () => {
       const response = await request(app.getHttpServer())
         .put(`/api/admin/tenants/${earlyAccessTenantId}`)
@@ -199,7 +224,7 @@ describe('Plan Features Flow (e2e)', () => {
     });
   });
 
-  describe('5. Feature Access Control', () => {
+  describe('6. Feature Access Control', () => {
     it('should allow feature access based on plan', async () => {
       // With pro plan, checklist access should be available
       // This would test actual feature-gated endpoints
@@ -210,30 +235,6 @@ describe('Plan Features Flow (e2e)', () => {
 
       if (response.body.features) {
         expect(response.body.features.checklist_access).toBe(true);
-      }
-    });
-  });
-
-  describe('6. Enterprise Plan (Unlimited)', () => {
-    it('should set unlimited document limit for enterprise', async () => {
-      const response = await request(app.getHttpServer())
-        .put(`/api/admin/tenants/${earlyAccessTenantId}`)
-        .set('Authorization', `Bearer ${systemAdminToken}`)
-        .send({
-          plan: 'enterprise',
-        })
-        .expect(200);
-
-      expect(response.body.plan).toBe('enterprise');
-
-      // Verify unlimited (-1)
-      const tenantRes = await request(app.getHttpServer())
-        .get('/api/tenants/me')
-        .set('Authorization', `Bearer ${earlyAccessToken}`)
-        .expect(200);
-
-      if (tenantRes.body.features) {
-        expect(tenantRes.body.features.document_limit).toBe(-1);
       }
     });
   });

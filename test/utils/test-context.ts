@@ -91,7 +91,10 @@ export class TestContext {
     TestDatabase.setAppDatabaseService(databaseService);
 
     // Run connection pool health checks in test environment
-    if (process.env.NODE_ENV === 'test' && process.env.ENABLE_HEALTH_CHECKS === 'true') {
+    if (
+      process.env.NODE_ENV === 'test' &&
+      process.env.ENABLE_HEALTH_CHECKS === 'true'
+    ) {
       try {
         await ConnectionPoolHealthCheck.runAll(databaseService);
       } catch (error) {

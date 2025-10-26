@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createTestApp, closeTestApp } from '../utils/test-context';
+import { createTestApp } from '../utils/test-context';
 import { TestDataFactory } from '../utils/test-data-factory';
 import { TestDatabase } from '../utils/test-database';
 import {

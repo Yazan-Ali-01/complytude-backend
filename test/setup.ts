@@ -39,7 +39,7 @@ async function waitForServices(): Promise<void> {
       const { Pool } = await import('pg');
       const pool = new Pool({
         host: process.env.DATABASE_HOST || 'localhost',
-        port: parseInt(process.env.DATABASE_PORT || '5432'),
+        port: parseInt(process.env.DATABASE_PORT || '5432', 10),
         database: 'postgres', // Connect to default DB first
         user: process.env.DATABASE_USER || 'postgres',
         password: process.env.DATABASE_PASSWORD || 'postgres',
@@ -75,7 +75,7 @@ async function createTestDatabase(): Promise<void> {
   const { Pool } = await import('pg');
   const pool = new Pool({
     host: process.env.DATABASE_HOST || 'localhost',
-    port: parseInt(process.env.DATABASE_PORT || '5432'),
+    port: parseInt(process.env.DATABASE_PORT || '5432', 10),
     database: 'postgres',
     user: process.env.DATABASE_USER || 'postgres',
     password: process.env.DATABASE_PASSWORD || 'postgres',
@@ -109,28 +109,30 @@ async function createTestDatabase(): Promise<void> {
 async function runMigrations(): Promise<void> {
   const { Pool } = await import('pg');
   const { readdir, readFile } = await import('fs/promises');
-  const { join } = await import('path');
+  const path = await import('path');
 
   const pool = new Pool({
     host: process.env.DATABASE_HOST || 'localhost',
-    port: parseInt(process.env.DATABASE_PORT || '5432'),
+    port: parseInt(process.env.DATABASE_PORT || '5432', 10),
     database: process.env.DATABASE_NAME || 'complytude_test',
     user: process.env.DATABASE_USER || 'postgres',
     password: process.env.DATABASE_PASSWORD || 'postgres',
   });
 
   try {
-    const migrationsDir = join(__dirname, '../scripts/migrations');
+    const migrationsDir = path.join(__dirname, '../scripts/migrations');
 
     // Read all migration files
     const files = await readdir(migrationsDir);
-    const sqlFiles = files.filter((f) => f.endsWith('.sql')).sort();
+    const sqlFiles = files
+      .filter((f: string) => f.endsWith('.sql'))
+      .sort((a: string, b: string) => a.localeCompare(b));
 
     console.log(`⏳ Running ${sqlFiles.length} migrations...`);
 
     for (const file of sqlFiles) {
       try {
-        const filePath = join(migrationsDir, file);
+        const filePath = path.join(migrationsDir, file);
         const sql = await readFile(filePath, 'utf-8');
         await pool.query(sql);
         console.log(`   ✅ ${file}`);
@@ -159,9 +161,9 @@ async function runMigrations(): Promise<void> {
  */
 async function setupMinioBucket(): Promise<void> {
   try {
-    const { Client } = await import('@aws-sdk/client-s3');
-    const { S3Client, CreateBucketCommand, HeadBucketCommand } =
-      await import('@aws-sdk/client-s3');
+    const { S3Client, CreateBucketCommand, HeadBucketCommand } = await import(
+      '@aws-sdk/client-s3'
+    );
 
     const bucketName = process.env.MINIO_BUCKET_NAME || 'complytude-test';
     const endpoint = `http://${process.env.MINIO_ENDPOINT || 'localhost'}:${process.env.MINIO_PORT || '9000'}`;
@@ -181,7 +183,10 @@ async function setupMinioBucket(): Promise<void> {
       await s3Client.send(new HeadBucketCommand({ Bucket: bucketName }));
       console.log(`✅ MinIO bucket exists: ${bucketName}`);
     } catch (error: any) {
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      if (
+        error.name === 'NotFound' ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
         // Create bucket
         await s3Client.send(new CreateBucketCommand({ Bucket: bucketName }));
         console.log(`✅ Created MinIO bucket: ${bucketName}`);
@@ -190,6 +195,9 @@ async function setupMinioBucket(): Promise<void> {
       }
     }
   } catch (error: any) {
-    console.warn('⚠️  MinIO not available, storage tests may fail:', error.message);
+    console.warn(
+      '⚠️  MinIO not available, storage tests may fail:',
+      error.message,
+    );
   }
 }

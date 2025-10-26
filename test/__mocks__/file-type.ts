@@ -3,9 +3,9 @@
  * This allows Jest to handle the ESM-only file-type package
  */
 
-export const fileTypeFromBuffer = async (
+export const fileTypeFromBuffer = (
   buffer: Buffer,
-): Promise<{ ext: string; mime: string } | undefined> => {
+): { ext: string; mime: string } | undefined => {
   // Simple mock implementation based on buffer content
   const bufferString = buffer.toString('utf-8', 0, 20);
 
