@@ -6,7 +6,7 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "testTimeout": 60000,
+  "testTimeout": 30000,
   "maxWorkers": 1,
   "globalSetup": "<rootDir>/setup.ts",
   "globalTeardown": "<rootDir>/teardown.ts",
@@ -30,5 +30,7 @@
       "lines": 70,
       "statements": 70
     }
-  }
+  },
+  "forceExit": true,
+  "detectOpenHandles": true
 }

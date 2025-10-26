@@ -140,10 +140,24 @@ export class TestContext {
    */
   async close(): Promise<void> {
     if (this.app) {
-      await this.app.close();
-      this.app = null;
-      this.module = null;
-      console.log('✅ Test application closed');
+      try {
+        // Close the NestJS application
+        await this.app.close();
+
+        // Close the underlying Fastify instance
+        const fastifyInstance = this.app.getHttpAdapter().getInstance();
+        if (fastifyInstance && typeof fastifyInstance.close === 'function') {
+          await fastifyInstance.close();
+        }
+
+        this.app = null;
+        this.module = null;
+        console.log('✅ Test application closed');
+      } catch (error) {
+        console.warn('⚠️  Error closing test application:', error);
+        this.app = null;
+        this.module = null;
+      }
     }
   }
 
