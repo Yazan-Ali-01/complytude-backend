@@ -108,6 +108,7 @@ Before you begin, ensure you have the following installed:
 
 - **Node.js** >= 18.x (LTS recommended)
 - **npm** >= 9.x or **yarn** >= 1.22.x
+- **pnpm** >= 8.x
 - **Docker** >= 24.x (with Docker Compose)
 - **PostgreSQL** 16.x (if not using Docker)
 - **Git**
@@ -132,7 +133,7 @@ cd complytude
 ### 2. Install Dependencies
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 3. Environment Configuration
@@ -150,10 +151,10 @@ Edit `.env` with your configuration (see [Environment Variables](#-environment-v
 Start PostgreSQL and MinIO (S3-compatible storage):
 
 ```bash
-npm run docker:start
+pnpm docker:start
 
 # Or start all services including pgAdmin:
-npm run docker:up:all
+pnpm docker:up:all
 ```
 
 ### 5. Run Database Migrations
@@ -161,7 +162,7 @@ npm run docker:up:all
 Apply all database migrations to set up the schema:
 
 ```bash
-npm run db:migrate
+pnpm db:migrate
 ```
 
 ### 6. Start the Application
@@ -169,7 +170,7 @@ npm run db:migrate
 Start the development server:
 
 ```bash
-npm run start:dev
+pnpm start:dev
 ```
 
 The application will be available at:
@@ -182,10 +183,10 @@ The application will be available at:
 
 ```bash
 # Check database connection
-npm run db:verify
+pnpm db:verify
 
 # Run E2E tests
-npm run test:e2e
+pnpm test:e2e
 ```
 
 ---
@@ -306,61 +307,61 @@ For production, ensure you:
 ### Development
 
 ```bash
-npm run start           # Start application (production build)
-npm run start:dev       # Start with hot-reload (development)
-npm run start:debug     # Start with debugging enabled
-npm run build           # Build for production
+pnpm start           # Start application (production build)
+pnpm start:dev       # Start with hot-reload (development)
+pnpm start:debug     # Start with debugging enabled
+pnpm build           # Build for production
 ```
 
 ### Testing
 
 ```bash
 # Unit Tests
-npm run test            # Run unit tests
-npm run test:watch      # Run tests in watch mode
-npm run test:cov        # Run tests with coverage
+pnpm test            # Run unit tests
+pnpm test:watch      # Run tests in watch mode
+pnpm test:cov        # Run tests with coverage
 
 # E2E Tests
-npm run test:e2e              # Run all E2E tests
-npm run test:e2e:auth         # Test authentication flow
-npm run test:e2e:tenant       # Test multi-tenancy
-npm run test:e2e:storage      # Test file storage
-npm run test:e2e:templates    # Test template management
-npm run test:e2e:features     # Test plan features
-npm run test:e2e:watch        # Run E2E tests in watch mode
-npm run test:e2e:coverage     # E2E tests with coverage
+pnpm test:e2e              # Run all E2E tests
+pnpm test:e2e:auth         # Test authentication flow
+pnpm test:e2e:tenant       # Test multi-tenancy
+pnpm test:e2e:storage      # Test file storage
+pnpm test:e2e:templates    # Test template management
+pnpm test:e2e:features     # Test plan features
+pnpm test:e2e:watch        # Run E2E tests in watch mode
+pnpm test:e2e:coverage     # E2E tests with coverage
 
 # Swagger Testing
-npm run test:swagger    # Download and validate Swagger spec
+pnpm test:swagger    # Download and validate Swagger spec
 ```
 
 ### Database
 
 ```bash
-npm run docker:start    # Start PostgreSQL in Docker
-npm run docker:stop     # Stop Docker containers
-npm run docker:logs     # View PostgreSQL logs
-npm run docker:reset    # ⚠️ Reset database (deletes all data)
+pnpm docker:start    # Start PostgreSQL in Docker
+pnpm docker:stop     # Stop Docker containers
+pnpm docker:logs     # View PostgreSQL logs
+pnpm docker:reset    # ⚠️ Reset database (deletes all data)
 
-npm run db:migrate      # Run all migrations
-npm run db:setup        # Start Docker + run migrations
-npm run db:verify       # Verify multi-tenancy setup
-npm run db:test         # Test multi-tenancy isolation
+pnpm db:migrate      # Run all migrations
+pnpm db:setup        # Start Docker + run migrations
+pnpm db:verify       # Verify multi-tenancy setup
+pnpm db:test         # Test multi-tenancy isolation
 ```
 
 ### Docker Compose
 
 ```bash
-npm run docker:up:all   # Start all services (Postgres, MinIO, pgAdmin)
-npm run docker:down     # Stop and remove containers
-npm run docker:stop     # Stop containers (keep data)
+pnpm docker:up:all   # Start all services (Postgres, MinIO, pgAdmin)
+pnpm docker:down     # Stop and remove containers
+pnpm docker:stop     # Stop containers (keep data)
 ```
 
 ### Code Quality
 
 ```bash
-npm run lint            # Run ESLint (auto-fix)
-npm run format          # Format code with Prettier
+pnpm lint            # Run ESLint (auto-fix)
+pnpm format          # Format code with Prettier
 ```
 
 ---
@@ -483,19 +484,19 @@ test/
 
 ```bash
 # Run all E2E tests
-npm run test:e2e
+pnpm test:e2e
 
 # Run specific test flow
-npm run test:e2e:auth
-npm run test:e2e:tenant
-npm run test:e2e:storage
-npm run test:e2e:templates
+pnpm test:e2e:auth
+pnpm test:e2e:tenant
+pnpm test:e2e:storage
+pnpm test:e2e:templates
 
 # Watch mode
-npm run test:e2e:watch
+pnpm test:e2e:watch
 
 # With coverage
-npm run test:e2e:coverage
+pnpm test:e2e:coverage
 ```
 
 ### What Gets Tested
@@ -575,7 +576,7 @@ modules/your-module/
 1. Create new migration file: `scripts/migrations/00X_description.sql`
 2. Use sequential numbering (001, 002, 003...)
 3. Make it idempotent (use `IF NOT EXISTS`)
-4. Run migrations: `npm run db:migrate`
+4. Run migrations: `pnpm db:migrate`
 
 See [`scripts/README.md`](scripts/README.md) for detailed migration guide.
 
@@ -583,16 +584,16 @@ See [`scripts/README.md`](scripts/README.md) for detailed migration guide.
 
 ```bash
 # Lint code
-npm run lint
+pnpm lint
 
 # Format code
-npm run format
+pnpm format
 
 # Type check
-npm run build
+pnpm build
 
 # Run tests
-npm run test
+pnpm test
 ```
 
 ---
@@ -668,8 +669,8 @@ docker-compose -f docker-compose.prod.yml up -d
 ```bash
 # Production environment
 NODE_ENV=production
-npm run build
-npm run start:prod
+pnpm build
+pnpm start:prod
 ```
 
 ### Health Checks
@@ -706,7 +707,7 @@ curl http://localhost:3000/api/health/storage
 2. Create a feature branch: `git checkout -b feature/your-feature`
 3. Make your changes
 4. Write tests for your changes
-5. Run tests: `npm run test:e2e`
+5. Run tests: `pnpm test:e2e`
 6. Commit your changes: `git commit -m 'Add some feature'`
 7. Push to the branch: `git push origin feature/your-feature`
 8. Open a Pull Request
@@ -743,8 +744,8 @@ This project is licensed under the UNLICENSED license.
 docker ps
 
 # Restart database
-npm run docker:stop
-npm run docker:start
+pnpm docker:stop
+pnpm docker:start
 ```
 
 **Port Already in Use**
@@ -756,8 +757,8 @@ PORT=3001
 **Migration Errors**
 ```bash
 # Reset database and re-run migrations
-npm run docker:reset
-npm run db:migrate
+pnpm docker:reset
+pnpm db:migrate
 ```
 
 ### Documentation
