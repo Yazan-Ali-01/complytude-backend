@@ -24,7 +24,7 @@ echo ""
 echo "⏳ Checking PostgreSQL connection..."
 if ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" > /dev/null 2>&1; then
     echo "❌ PostgreSQL is not running on $DB_HOST:$DB_PORT"
-    echo "   Run: npm run docker:up"
+    echo "   Run: pnpm docker:up"
     exit 1
 fi
 echo "✅ PostgreSQL is running"
@@ -71,5 +71,5 @@ echo ""
 echo "🎉 Test database setup complete!"
 echo ""
 echo "You can now run tests with:"
-echo "  npm run test:e2e"
+echo "  pnpm test:e2e"
 

@@ -28,7 +28,7 @@
     "test:e2e:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --config ./test/jest-e2e.json --runInBand",
     "test:swagger": "ts-node test/utils/swagger-downloader.ts",
     "test:db:setup": "bash scripts/setup-test-db.sh",
-    "test:db:reset": "dropdb -h localhost -U postgres complytude_test --if-exists && npm run test:db:setup",
+    "test:db:reset": "dropdb -h localhost -U postgres complytude_test --if-exists && pnpm test:db:setup",
     "docker:start": "bash scripts/docker-start.sh",
     "docker:up": "docker-compose up -d postgres",
     "docker:up:all": "docker-compose --profile tools up -d",
@@ -37,7 +37,7 @@
     "docker:logs": "docker-compose logs -f postgres",
     "docker:reset": "docker-compose down -v && docker-compose up -d postgres",
     "db:migrate": "bash scripts/run-migrations.sh",
-    "db:setup": "npm run docker:start && sleep 3 && npm run db:migrate",
+    "db:setup": "pnpm docker:start && sleep 3 && pnpm db:migrate",
     "db:verify": "psql -U postgres -h localhost -p 5432 -d complytude -f scripts/utilities/verify-multi-tenancy.sql",
     "db:test": "psql -U postgres -h localhost -p 5432 -d complytude -f scripts/utilities/test-multi-tenancy.sql"
   },

@@ -51,18 +51,18 @@ if docker exec complytude-postgres pg_isready -U postgres > /dev/null 2>&1; then
     echo "  Database: complytude"
     echo "  User: postgres"
     echo ""
-    echo "🚀 You can now run: npm run start:dev"
+    echo "🚀 You can now run: pnpm start:dev"
     echo "📚 API Docs: http://localhost:3000/docs"
     echo "🏥 Health Check: http://localhost:3000/api/health/db"
     echo ""
     echo "📋 Useful commands:"
-    echo "  npm run docker:logs  - View database logs"
-    echo "  npm run docker:down  - Stop database"
-    echo "  npm run docker:reset - Reset database (⚠️  deletes all data)"
+    echo "  pnpm docker:logs  - View database logs"
+    echo "  pnpm docker:down  - Stop database"
+    echo "  pnpm docker:reset - Reset database (⚠️  deletes all data)"
 else
     echo ""
     echo "⚠️  PostgreSQL container started but not ready yet"
-    echo "Run: npm run docker:logs"
+    echo "Run: pnpm docker:logs"
     echo "Or wait a few more seconds and try connecting"
 fi
 

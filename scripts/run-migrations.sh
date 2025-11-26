@@ -40,7 +40,7 @@ if ! PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgre
     echo -e "${RED}❌ Cannot connect to PostgreSQL${NC}"
     echo ""
     echo "Please check:"
-    echo "  1. Docker is running: npm run docker:start"
+    echo "  1. Docker is running: pnpm docker:start"
     echo "  2. Database credentials in .env"
     echo "  3. PostgreSQL is accessible on ${DB_HOST}:${DB_PORT}"
     exit 1
@@ -135,7 +135,7 @@ echo ""
 echo "🎉 Database is ready!"
 echo ""
 echo "Next steps:"
-echo "  1. Start the app: npm run start:dev"
+echo "  1. Start the app: pnpm start:dev"
 echo "  2. View API docs: http://localhost:3000/docs"
 echo "  3. Check health: http://localhost:3000/api/health"
 
