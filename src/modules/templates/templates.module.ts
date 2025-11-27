@@ -14,6 +14,7 @@ import { TemplateVersionsService } from './template-versions.service';
 import { AuthoritiesService } from './authorities.service';
 import { CategoriesService } from './categories.service';
 import { RulesetsService } from './rulesets.service';
+import { DocumentGenerationService } from './document-generation.service';
 
 @Module({
   imports: [DatabaseModule, StorageModule],
@@ -29,6 +30,7 @@ import { RulesetsService } from './rulesets.service';
     AuthoritiesService,
     CategoriesService,
     RulesetsService,
+    DocumentGenerationService,
   ],
   exports: [
     TemplatesService,
@@ -36,6 +38,7 @@ import { RulesetsService } from './rulesets.service';
     AuthoritiesService,
     CategoriesService,
     RulesetsService,
+    DocumentGenerationService,
   ],
 })
 export class TemplatesModule {}
