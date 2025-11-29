@@ -1,22 +1,42 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { CategoriesService } from "./categories.service";
-import { GenerateDocumentResponseDto } from "./dto/generate-document.dto";
+import { GenerateDocumentDto, GenerateDocumentResponseDto } from "./dto/generate-document.dto";
+import { TemplateValidationService } from "./template-validation.service";
+import { TemplateVersionsService } from "./template-versions.service";
 
 
 @Injectable()
 export class DocumentGenerationService {
     private readonly logger = new Logger(CategoriesService.name);
     
-    constructor() {}
+    constructor(
+        private readonly templateValidationService: TemplateValidationService,
+        private readonly templateVersionsService: TemplateVersionsService,
+    ) {}
 
-    async generateDocument(tenantId: string, schemaName: string, key: string, variables: Record<string, any>, version: string | null, title: string | null, userId: string ): Promise<GenerateDocumentResponseDto | null> {
+    async generateDocument(tenantId: string, userId: string, key: string, generateDocumentDto: GenerateDocumentDto): 
+                                Promise<any | GenerateDocumentResponseDto | null> { // TODO: remove any
         this.logger.log(`Generating document for tenant ${tenantId}`);
-        return {
-            documentId: '123e4567-e89b-12d3-a456-426614174000',
-            downloadUrl: 'https://s3.example.com/signed-url?expires=...',
-            templateKey: key,
-            templateVersion: version || '1.0.0',
-            generatedAt: new Date(),
-        };
+
+        const { variables, version, title } = generateDocumentDto;
+
+        const template = await this.templateVersionsService.getCurrentVersion(key);
+        if (!template) {
+            this.logger.error(`${tenantId} - ${userId} - ${key} - Template not found`);
+            throw new NotFoundException('Template not found');
+        }
+
+        const validationResult = this.templateValidationService.validateVariables(template.fields, variables);
+        if (!validationResult.valid) {
+            this.logger.error(`${tenantId} - ${userId} - ${key} - Validation errors: ${JSON.stringify(validationResult.errors)}`);
+            throw new BadRequestException({
+                statusCode: 400,
+                error: "Bad Request",
+                message: "Variable validation failed",
+                details: validationResult.errors,
+            });
+        }
+
+        return null; // NOTE:not implemented yet
     }
 }

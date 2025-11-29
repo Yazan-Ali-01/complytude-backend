@@ -342,19 +342,12 @@ export class TemplatesController {
     @Body() generateDocumentDto: GenerateDocumentDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<GenerateDocumentResponseDto | null> {
-    this.logger.log(
-      `User ${user.userId} generating document from template ${key}`,
-    );
-    const schemaName = `tenant_${user.tenantId.replace(/-/g, '_')}`;
 
     return this.documentGenerationService.generateDocument(
       user.tenantId,
-      schemaName,
-      key,
-      generateDocumentDto.variables,
-      generateDocumentDto.version || null,
-      generateDocumentDto.title || null,
       user.userId,
+      key,
+      generateDocumentDto
     );
   }
 }
