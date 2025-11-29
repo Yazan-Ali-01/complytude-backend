@@ -15,7 +15,7 @@ export class DocumentGenerationService {
     ) {}
 
     async generateDocument(tenantId: string, userId: string, key: string, generateDocumentDto: GenerateDocumentDto): 
-                                Promise<any | GenerateDocumentResponseDto | null> { // TODO: remove any
+                                Promise<GenerateDocumentResponseDto | null> {
         this.logger.log(`Generating document for tenant ${tenantId}`);
 
         const { variables, version, title } = generateDocumentDto;

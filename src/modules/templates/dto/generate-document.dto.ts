@@ -18,7 +18,7 @@ export class GenerateDocumentDto {
     description: 'Variables to replace placeholders in the template',
   })
   @IsObject()
-  variables: Record<string, any>;
+  variables: Record<string, unknown>;
 
   @ApiPropertyOptional({
     example: '1.0.0',
