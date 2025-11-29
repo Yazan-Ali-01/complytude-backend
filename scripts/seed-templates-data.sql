@@ -3,6 +3,7 @@
 -- ============================================================================
 -- Description: Insert initial authorities and categories for template system
 -- Usage: Run this script after 003_init_templates.sql migration
+-- Note: For sample templates data, see seed-templates-samples.sql
 -- ============================================================================
 
 -- Insert authorities (idempotent - won't insert duplicates)
