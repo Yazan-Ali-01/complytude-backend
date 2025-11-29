@@ -64,10 +64,8 @@ export class TemplateValidationService {
         return { valid: true };
       }
 
-      // Collect all errors from Ajv (allErrors: true ensures we get all errors)
       const ajvErrors = validate.errors || [];
 
-      // Transform Ajv errors into user-friendly format
       const errors = this.transformErrors(ajvErrors, fields);
 
       return {
@@ -322,7 +320,7 @@ export class TemplateValidationService {
     }
 
     fields.forEach((field) => {
-      const fieldSchema = this.createFieldSchema(field);
+      const fieldSchema = this.createFieldSchema(field, true);
       properties[field.key] = fieldSchema;
 
       if (field.required) {
@@ -341,13 +339,16 @@ export class TemplateValidationService {
   /**
    * Create JSON schema for a single field
    */
-  private createFieldSchema(field: TemplateField): Record<string, any> {
+  private createFieldSchema(field: TemplateField, required: boolean = false): Record<string, any> {
     const schema: Record<string, any> = {};
 
     switch (field.type) {
       case 'text':
       case 'textarea':
         schema.type = 'string';
+        if (required) {
+          schema.minLength = 1;
+        }
         this.applyStringValidationRules(field, schema);
         break;
 
