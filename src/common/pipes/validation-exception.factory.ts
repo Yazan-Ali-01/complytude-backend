@@ -1,4 +1,5 @@
 import { BadRequestException, ValidationError } from '@nestjs/common';
+import { ValidationException } from '../exceptions/validation.exception';
 
 /**
  * Validation rule names used by class-validator
@@ -313,10 +314,5 @@ export function validationExceptionFactory(
     processValidationError(error),
   );
 
-  return new BadRequestException({
-    statusCode: 400,
-    error: 'Bad Request',
-    message: 'Variable validation failed',
-    details,
-  });
+  return new ValidationException(details);
 }

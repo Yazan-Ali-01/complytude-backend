@@ -3,6 +3,7 @@ import { CategoriesService } from "./categories.service";
 import { GenerateDocumentDto, GenerateDocumentResponseDto } from "./dto/generate-document.dto";
 import { TemplateValidationService } from "./template-validation.service";
 import { TemplateVersionsService } from "./template-versions.service";
+import { ValidationException } from "src/common/exceptions/validation.exception";
 
 
 @Injectable()
@@ -29,12 +30,8 @@ export class DocumentGenerationService {
         const validationResult = this.templateValidationService.validateVariables(template.fields, variables);
         if (!validationResult.valid) {
             this.logger.error(`${tenantId} - ${userId} - ${key} - Validation errors: ${JSON.stringify(validationResult.errors)}`);
-            throw new BadRequestException({
-                statusCode: 400,
-                error: "Bad Request",
-                message: "Variable validation failed",
-                details: validationResult.errors,
-            });
+
+            throw new ValidationException(validationResult.errors || []);
         }
 
         return null; // NOTE:not implemented yet
