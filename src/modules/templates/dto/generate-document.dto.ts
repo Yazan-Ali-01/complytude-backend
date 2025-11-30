@@ -2,6 +2,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
@@ -24,9 +25,11 @@ export class GenerateDocumentDto {
     example: '1.0.0',
     description: 'Template version to use (defaults to current active version)',
   })
-  @IsString()
   @IsOptional()
+  @IsString()
   @MaxLength(50)
+  @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
+  @Matches(/^\d+\.\d+\.\d+$/, { message: 'version must be in format x.y.z (e.g., 1.0.0)' })
   version?: string;
 
   @ApiPropertyOptional({
