@@ -1,39 +1,54 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { CategoriesService } from "./categories.service";
-import { GenerateDocumentDto, GenerateDocumentResponseDto } from "./dto/generate-document.dto";
-import { TemplateValidationService } from "./template-validation.service";
-import { TemplateVersionsService } from "./template-versions.service";
-import { ValidationException } from "src/common/exceptions/validation.exception";
-
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { CategoriesService } from './categories.service';
+import {
+  GenerateDocumentDto,
+  GenerateDocumentResponseDto,
+} from './dto/generate-document.dto';
+import { TemplateValidationService } from './template-validation.service';
+import { TemplateVersionsService } from './template-versions.service';
+import { ValidationException } from 'src/common/exceptions/validation.exception';
 
 @Injectable()
 export class DocumentGenerationService {
-    private readonly logger = new Logger(CategoriesService.name);
-    
-    constructor(
-        private readonly templateValidationService: TemplateValidationService,
-        private readonly templateVersionsService: TemplateVersionsService,
-    ) {}
+  private readonly logger = new Logger(CategoriesService.name);
 
-    async generateDocument(tenantId: string, userId: string, key: string, generateDocumentDto: GenerateDocumentDto): 
-                                Promise<GenerateDocumentResponseDto | null> {
-        this.logger.log(`Generating document for tenant ${tenantId}`);
+  constructor(
+    private readonly templateValidationService: TemplateValidationService,
+    private readonly templateVersionsService: TemplateVersionsService,
+  ) {}
 
-        const { variables, version, title } = generateDocumentDto;
+  async generateDocument(
+    tenantId: string,
+    userId: string,
+    id: string,
+    generateDocumentDto: GenerateDocumentDto,
+  ): Promise<GenerateDocumentResponseDto | null> {
+    this.logger.log(`Generating document for tenant ${tenantId}`);
 
-        const template = await this.templateVersionsService.getCurrentVersion(key);
-        if (!template) {
-            this.logger.error(`${tenantId} - ${userId} - ${key} - Template not found`);
-            throw new NotFoundException('Template not found');
-        }
+    const { variables } = generateDocumentDto;
 
-        const validationResult = this.templateValidationService.validateVariables(template.fields, variables);
-        if (!validationResult.valid) {
-            this.logger.error(`${tenantId} - ${userId} - ${key} - Validation errors: ${JSON.stringify(validationResult.errors)}`);
-
-            throw new ValidationException(validationResult.errors || []);
-        }
-
-        return null; // NOTE:not implemented yet
+    const template = await this.templateVersionsService.getCurrentVersion(id);
+    if (!template) {
+      this.logger.error(
+        `${tenantId} - ${userId} - ${id} - No active version for template`,
+      );
+      throw new NotFoundException(
+        'There is no active version for this template',
+      );
     }
+
+    const validationResult = this.templateValidationService.validateVariables(
+      template.fields,
+      variables,
+    );
+    if (!validationResult.valid) {
+      this.logger.error(
+        `${tenantId} - ${userId} - ${id} - Validation errors: ${JSON.stringify(validationResult.errors)}`,
+      );
+
+      throw new ValidationException(validationResult.errors || []);
+    }
+
+    return null; // NOTE:not implemented yet
+  }
 }

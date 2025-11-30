@@ -12,7 +12,7 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
-  Logger,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -41,8 +41,6 @@ import {
 import { Template, TemplateWithDetails } from './entities/template.entity';
 import { TemplateVersion } from './entities/template-version.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { DocumentGenerationService } from './document-generation.service';
@@ -51,8 +49,6 @@ import { DocumentGenerationService } from './document-generation.service';
 @Controller('templates')
 @ApiBearerAuth()
 export class TemplatesController {
-  private readonly logger = new Logger(TemplatesController.name);
-
   constructor(
     private readonly templatesService: TemplatesService,
     private readonly templateVersionsService: TemplateVersionsService,
@@ -299,9 +295,7 @@ export class TemplatesController {
     return this.templatesService.deactivate(key);
   }
 
-  @Post(':key/generate')
-  // @UseGuards(RolesGuard)
-  // @Roles('admin', 'member', 'system')
+  @Post(':id/generate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate document from template',
@@ -338,16 +332,15 @@ export class TemplatesController {
     description: 'Internal server error - Document generation failed',
   })
   async generate(
-    @Param('key') key: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() generateDocumentDto: GenerateDocumentDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<GenerateDocumentResponseDto | null> {
-
     return this.documentGenerationService.generateDocument(
       user.tenantId,
       user.userId,
-      key,
-      generateDocumentDto
+      id,
+      generateDocumentDto,
     );
   }
 }

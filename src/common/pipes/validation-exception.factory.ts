@@ -1,8 +1,10 @@
 import { BadRequestException, ValidationError } from '@nestjs/common';
 import { ValidationException } from '../exceptions/validation.exception';
+import { ValidationDetail, ValidationRuleContext } from '../../types/validation.types';
 
 /**
  * Validation rule names used by class-validator
+ * Extracted to a constant to avoid magic strings and to make it easier to maintain
  */
 const VALIDATION_RULES = {
   MAX_LENGTH: 'maxLength',
@@ -33,26 +35,63 @@ const VALIDATION_RULES = {
   IS_DEFINED: 'isDefined',
 } as const;
 
-type ValidationRule = typeof VALIDATION_RULES[keyof typeof VALIDATION_RULES] | string;
-
 /**
- * Context object provided by class-validator for constraint information
+ * Maps validation rule names (from class-validator, etc.) to human-readable
+ * descriptions or expected value hints. Used to produce more user-friendly
+ * error details in DTO validation responses.
+ *
+ * Keys correspond to VALIDATION_RULES, values are functions that return
+ * string descriptions (optionally accepting a constraint value).
  */
-interface ValidationRuleContext {
-  constraint?: unknown;
-  [key: string]: unknown;
+const ruleDescriptions = {
+  [VALIDATION_RULES.IS_INT]: () => "integer",
+  [VALIDATION_RULES.IS_NUMBER]: () => "number",
+  [VALIDATION_RULES.IS_DECIMAL]: () => "decimal number",
+  [VALIDATION_RULES.IS_POSITIVE]: () => "positive number",
+  [VALIDATION_RULES.IS_NEGATIVE]: () => "negative number",
+  [VALIDATION_RULES.IS_EMAIL]: () => "valid email",
+  [VALIDATION_RULES.IS_DATE]: () => "valid date",
+  [VALIDATION_RULES.IS_BOOLEAN]: () => "boolean",
+  [VALIDATION_RULES.IS_STRING]: () => "string",
+  [VALIDATION_RULES.IS_NOT_EMPTY]: () => "non-empty value",
+  [VALIDATION_RULES.IS_ARRAY]: () => "array",
+  [VALIDATION_RULES.IS_OBJECT]: () => "object",
+  [VALIDATION_RULES.IS_UUID]: () => "valid UUID",
+  [VALIDATION_RULES.IS_DEFINED]: () => "present",
+  [VALIDATION_RULES.WHITELIST_VALIDATION]: () => "not present",
+  [VALIDATION_RULES.MAX_LENGTH]: v => v ? `at most ${v} characters` : "",
+  [VALIDATION_RULES.MIN_LENGTH]: v => v ? `at least ${v} characters` : "",
+  [VALIDATION_RULES.MIN]: v => v ? `at least ${v}` : "",
+  [VALIDATION_RULES.MIN_DATE]: v => v ? `at least ${v}` : "",
+  [VALIDATION_RULES.MAX]: v => v ? `at most ${v}` : "",
+  [VALIDATION_RULES.MAX_DATE]: v => v ? `at most ${v}` : "",
+  [VALIDATION_RULES.ARRAY_MIN_SIZE]: v => v ? `at least ${v} items` : "",
+  [VALIDATION_RULES.ARRAY_MAX_SIZE]: v => v ? `at most ${v} items` : "",
+  [VALIDATION_RULES.IS_ENUM]: v =>
+    !v ? "" : Array.isArray(v) ? `one of: ${v.join(", ")}` : `one of: ${String(v)}`,
+  [VALIDATION_RULES.IS_IN]: v =>
+    !v ? "" : Array.isArray(v) ? `one of: ${v.join(", ")}` : `one of: ${String(v)}`,
+  [VALIDATION_RULES.MATCHES]: v =>
+    v ? `matching pattern: ${String(v)}` : "matching pattern"
 }
 
 /**
- * Validation error detail returned in API response
+ * Regex patterns for extracting constraint values from error messages
+ * Used as fallback when ValidationError.contexts is not available
+ * Maps validation rule names to regex patterns that extract numeric constraint values
  */
-interface ValidationDetail {
-  field: string;
-  rule: string;
-  message: string;
-  received: string;
-  expected: string;
-}
+const CONSTRAINT_PATTERNS: Record<string, RegExp> = {
+  [VALIDATION_RULES.MAX_LENGTH]: /(?:shorter than or equal to|at most) (\d+)/i,
+  [VALIDATION_RULES.MIN_LENGTH]: /(?:longer than or equal to|at least) (\d+)/i,
+  [VALIDATION_RULES.ARRAY_MIN_SIZE]: /at least (\d+)/i,
+  [VALIDATION_RULES.ARRAY_MAX_SIZE]: /not more than (\d+)/i,
+};
+
+/**
+ * Generic regex pattern for extracting numeric constraints from error messages
+ * Used as fallback when no specific pattern matches
+ */
+const GENERIC_CONSTRAINT_PATTERN = /(?:must be|at least|at most|greater than|less than|equal to) (\d+(?:\.\d+)?)/i;
 
 /**
  * Extracts constraint value from error message using regex patterns
@@ -64,33 +103,16 @@ interface ValidationDetail {
 function extractConstraintFromMessage(rule: string, message: string): unknown {
   if (!message) return undefined;
 
-  // Pattern for maxLength: "must be shorter than or equal to 50 characters"
-  if (rule === VALIDATION_RULES.MAX_LENGTH) {
-    const match = message.match(/(?:shorter than or equal to|at most) (\d+)/i);
+  // Try rule-specific pattern first
+  const pattern = CONSTRAINT_PATTERNS[rule];
+  if (pattern) {
+    const match = message.match(pattern);
     if (match) return Number(match[1]);
   }
 
-  // Pattern for minLength: "must be longer than or equal to 8 characters"
-  if (rule === VALIDATION_RULES.MIN_LENGTH) {
-    const match = message.match(/(?:longer than or equal to|at least) (\d+)/i);
-    if (match) return Number(match[1]);
-  }
-
-  // Pattern for arrayMinSize: "must contain at least 1 elements"
-  if (rule === VALIDATION_RULES.ARRAY_MIN_SIZE) {
-    const match = message.match(/at least (\d+)/i);
-    if (match) return Number(match[1]);
-  }
-
-  // Pattern for arrayMaxSize: "must contain not more than X elements"
-  if (rule === VALIDATION_RULES.ARRAY_MAX_SIZE) {
-    const match = message.match(/not more than (\d+)/i);
-    if (match) return Number(match[1]);
-  }
-
-  // Generic number extraction for min/max
-  const numberMatch = message.match(/(?:must be|at least|at most|greater than|less than|equal to) (\d+(?:\.\d+)?)/i);
-  if (numberMatch) return Number(numberMatch[1]);
+  // Fallback to generic pattern for numeric constraints
+  const genericMatch = message.match(GENERIC_CONSTRAINT_PATTERN);
+  if (genericMatch) return Number(genericMatch[1]);
 
   return undefined;
 }
@@ -112,80 +134,20 @@ function computeExpected(
     constraintValue = extractConstraintFromMessage(rule, message);
   }
 
-  switch (rule) {
-    case VALIDATION_RULES.MAX_LENGTH:
-      return constraintValue ? `at most ${constraintValue} characters` : '';
-    case VALIDATION_RULES.MIN_LENGTH:
-      return constraintValue ? `at least ${constraintValue} characters` : '';
-    case VALIDATION_RULES.IS_INT:
-      return 'integer';
-    case VALIDATION_RULES.IS_NUMBER:
-      return 'number';
-    case VALIDATION_RULES.IS_DECIMAL:
-      return 'decimal number';
-    case VALIDATION_RULES.IS_POSITIVE:
-      return 'positive number';
-    case VALIDATION_RULES.IS_NEGATIVE:
-      return 'negative number';
-    case VALIDATION_RULES.MIN:
-    case VALIDATION_RULES.MIN_DATE:
-      return constraintValue ? `at least ${constraintValue}` : '';
-    case VALIDATION_RULES.MAX:
-    case VALIDATION_RULES.MAX_DATE:
-      return constraintValue ? `at most ${constraintValue}` : '';
-    case VALIDATION_RULES.IS_EMAIL:
-      return 'valid email';
-    case VALIDATION_RULES.IS_DATE:
-      return 'valid date';
-    case VALIDATION_RULES.IS_BOOLEAN:
-      return 'boolean';
-    case VALIDATION_RULES.IS_STRING:
-      return 'string';
-    case VALIDATION_RULES.IS_NOT_EMPTY:
-      return 'non-empty value';
-    case VALIDATION_RULES.IS_ARRAY:
-      return 'array';
-    case VALIDATION_RULES.IS_OBJECT:
-      return 'object';
-    case VALIDATION_RULES.IS_UUID:
-      return 'valid UUID';
-    case VALIDATION_RULES.IS_ENUM:
-      if (!constraintValue) return '';
-      if (Array.isArray(constraintValue)) {
-        return `one of: ${constraintValue.join(', ')}`;
-      }
-      return `one of: ${String(constraintValue)}`;
-    case VALIDATION_RULES.IS_IN:
-      if (!constraintValue) return '';
-      if (Array.isArray(constraintValue)) {
-        return `one of: ${constraintValue.join(', ')}`;
-      }
-      return `one of: ${String(constraintValue)}`;
-    case VALIDATION_RULES.MATCHES:
-      if (constraintValue) {
-        return `matching pattern: ${String(constraintValue)}`;
-      }
-      return 'matching pattern';
-    case VALIDATION_RULES.ARRAY_MIN_SIZE:
-      return constraintValue ? `at least ${constraintValue} items` : '';
-    case VALIDATION_RULES.ARRAY_MAX_SIZE:
-      return constraintValue ? `at most ${constraintValue} items` : '';
-    case VALIDATION_RULES.WHITELIST_VALIDATION:
-      return 'not present';
-    case VALIDATION_RULES.IS_DEFINED:
-      return 'present';
-    default:
-      // Fallback: try to extract constraint from message if context wasn't available
-      if (message) {
-        const match = message.match(
-          /(less than or equal to|at most|at least|greater than or equal to) (\d+)/i,
-        );
-        if (match) {
-          return `${match[1]} ${match[2]}`;
-        }
-      }
-      return '';
+  const handler = ruleDescriptions[rule]
+  if (handler) return handler(constraintValue)
+
+  // Fallback
+  if (message) {
+    const match = message.match(
+      /(less than or equal to|at most|at least|greater than or equal to) (\d+)/i,
+    );
+    if (match) {
+      return `${match[1]} ${match[2]}`;
+    }
   }
+
+  return ""
 }
 
 /**
@@ -256,7 +218,7 @@ function processValidationError(
       details.push({
         field: fieldPath,
         rule,
-        message: String(message),
+        message: message,
         received,
         expected,
       });

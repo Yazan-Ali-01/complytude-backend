@@ -3,7 +3,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { ValidationPipe, Logger, BadRequestException } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
@@ -65,10 +65,7 @@ async function bootstrap() {
       },
       exceptionFactory: validationExceptionFactory,
     }),
-
   );
-
-  
 
   // Setup Swagger documentation
   const config = new DocumentBuilder()

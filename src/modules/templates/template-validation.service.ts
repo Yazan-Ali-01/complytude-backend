@@ -22,16 +22,14 @@ export class TemplateValidationService {
   private readonly ajv: Ajv;
 
   constructor() {
-
     this.ajv = new Ajv({
       allErrors: true,
       coerceTypes: false,
       verbose: true,
+      removeAdditional: 'all',
     });
 
     addFormats(this.ajv);
-
-    this.logger.log('TemplateValidationService initialized with Ajv');
   }
 
   /**
@@ -53,7 +51,6 @@ export class TemplateValidationService {
     variables: Record<string, any>,
   ): ValidationResult {
     try {
-
       const schema = this.generateSchemaFromFields(fields);
 
       const validate = this.ajv.compile(schema);
@@ -64,7 +61,7 @@ export class TemplateValidationService {
         return { valid: true };
       }
 
-      const ajvErrors = validate.errors || [];
+      const ajvErrors = validate.errors!;
 
       const errors = this.transformErrors(ajvErrors, fields);
 
@@ -109,9 +106,15 @@ export class TemplateValidationService {
       let fieldKey = '';
       if (error.keyword === 'required' && error.params?.missingProperty) {
         fieldKey = error.params.missingProperty as string;
-      } else if (error.keyword === 'additionalProperties' && error.params?.additionalProperty) {
+      } else if (
+        error.keyword === 'additionalProperties' &&
+        error.params?.additionalProperty
+      ) {
         fieldKey = error.params.additionalProperty as string;
-      } else if (error.keyword === 'unevaluatedProperties' && error.params?.unevaluatedProperty) {
+      } else if (
+        error.keyword === 'unevaluatedProperties' &&
+        error.params?.unevaluatedProperty
+      ) {
         fieldKey = error.params.unevaluatedProperty as string;
       } else {
         fieldKey = this.extractFieldKey(error.instancePath);
@@ -119,9 +122,15 @@ export class TemplateValidationService {
 
       const field = fieldMap.get(fieldKey);
 
-      const received = this.extractReceivedValue(error, field);
+      const received = this.extractReceivedValue(error);
       const expected = this.extractExpectedValue(error, field);
-      const message = this.formatErrorMessage(error, field, fieldKey, received, expected);
+      const message = this.formatErrorMessage(
+        error,
+        field,
+        fieldKey,
+        received,
+        expected,
+      );
 
       return {
         field: fieldKey || 'unknown',
@@ -150,10 +159,7 @@ export class TemplateValidationService {
   /**
    * Extract the received value/type from error
    */
-  private extractReceivedValue(
-    error: ErrorObject,
-    field: TemplateField | undefined,
-  ): string {
+  private extractReceivedValue(error: ErrorObject): string {
     switch (error.keyword) {
       case 'required':
         return 'undefined';
@@ -165,21 +171,25 @@ export class TemplateValidationService {
       case 'pattern':
       case 'enum':
         if (error.data !== undefined) {
-          return typeof error.data === 'string' ? error.data : JSON.stringify(error.data);
+          return typeof error.data === 'string'
+            ? error.data
+            : JSON.stringify(error.data);
         }
         return 'undefined';
 
       case 'minLength':
       case 'maxLength':
         if (error.data !== undefined) {
-          return typeof error.data === 'string' ? String(error.data.length) : String(error.data);
+          return typeof error.data === 'string'
+            ? String(error.data.length)
+            : JSON.stringify(error.data);
         }
         return 'undefined';
 
       case 'minimum':
       case 'maximum':
         if (error.data !== undefined) {
-          return String(error.data);
+          return JSON.stringify(error.data);
         }
         return 'undefined';
 
@@ -189,7 +199,9 @@ export class TemplateValidationService {
 
       default:
         if (error.data !== undefined) {
-          return typeof error.data === 'string' ? error.data : JSON.stringify(error.data);
+          return typeof error.data === 'string'
+            ? error.data
+            : JSON.stringify(error.data);
         }
         return 'undefined';
     }
@@ -233,12 +245,17 @@ export class TemplateValidationService {
       case 'pattern':
         return 'match required pattern';
 
-      case 'enum':
-        const allowedValues = error.params?.allowedValues as any[];
-        if (allowedValues && allowedValues.length > 0) {
-          return allowedValues.join(', ');
+      case 'enum': {
+        const allowedValues = error.params?.allowedValues;
+        if (
+          allowedValues &&
+          Array.isArray(allowedValues) &&
+          allowedValues.length > 0
+        ) {
+          return allowedValues.map(String).join(', ');
         }
         return 'allowed values';
+      }
 
       case 'additionalProperties':
       case 'unevaluatedProperties':
@@ -293,9 +310,10 @@ export class TemplateValidationService {
       case 'unevaluatedProperties':
         return `Unknown field '${error.params?.additionalProperty || error.params?.unevaluatedProperty}' is not allowed`;
 
-      default:
+      default: {
         const errorMessage = error.message || 'validation failed';
         return `Field '${fieldLabel}': ${errorMessage}`;
+      }
     }
   }
 
@@ -304,9 +322,7 @@ export class TemplateValidationService {
    * @param fields Array of template field definitions
    * @returns JSON schema compatible with Ajv
    */
-  generateSchemaFromFields(
-    fields: TemplateField[],
-  ): Record<string, any> {
+  generateSchemaFromFields(fields: TemplateField[]): Record<string, any> {
     const properties: Record<string, any> = {};
     const required: string[] = [];
 
@@ -339,7 +355,10 @@ export class TemplateValidationService {
   /**
    * Create JSON schema for a single field
    */
-  private createFieldSchema(field: TemplateField, required: boolean = false): Record<string, any> {
+  private createFieldSchema(
+    field: TemplateField,
+    required: boolean = false,
+  ): Record<string, any> {
     const schema: Record<string, any> = {};
 
     switch (field.type) {
@@ -386,9 +405,6 @@ export class TemplateValidationService {
         break;
 
       default:
-        this.logger.warn(
-          `Unknown field type "${(field as any).type}" for field "${field.key}", defaulting to string`,
-        );
         schema.type = 'string';
         this.applyStringValidationRules(field, schema);
     }
@@ -479,9 +495,6 @@ export class TemplateValidationService {
     schema: Record<string, any>,
   ): void {
     if (!field.options || field.options.length === 0) {
-      this.logger.warn(
-        `Select field "${field.key}" has no options defined, treating as regular string field`,
-      );
       return;
     }
 
@@ -495,4 +508,3 @@ export class TemplateValidationService {
     }
   }
 }
-

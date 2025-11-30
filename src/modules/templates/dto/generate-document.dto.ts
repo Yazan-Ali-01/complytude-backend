@@ -29,17 +29,10 @@ export class GenerateDocumentDto {
   @IsString()
   @MaxLength(50)
   @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
-  @Matches(/^\d+\.\d+\.\d+$/, { message: 'version must be in format x.y.z (e.g., 1.0.0)' })
-  version?: string;
-
-  @ApiPropertyOptional({
-    example: 'Employment Contract - John Doe',
-    description: 'Optional title for the generated document',
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'version must be in format x.y.z (e.g., 1.0.0)',
   })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
-  title?: string;
+  version?: string;
 }
 
 export class GenerateDocumentResponseDto {
@@ -73,4 +66,3 @@ export class GenerateDocumentResponseDto {
   })
   generatedAt: Date;
 }
-
