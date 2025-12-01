@@ -148,48 +148,46 @@ export class TemplatesController {
     return this.templatesService.findActiveTemplates();
   }
 
-  @Get(':key')
+  @Get(':id')
   @ApiOperation({
-    summary: 'Get template by key',
+    summary: 'Get template by id',
     description:
       'Get detailed template information including current version, category, authority, and rulesets',
   })
-  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiParam({ name: 'id', description: "Template's unique id" })
   @ApiResponse({
     status: 200,
     description: 'Template details',
     type: TemplateResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
-  async findByKey(@Param('key') key: string): Promise<TemplateWithDetails> {
-    return this.templatesService.findByKeyWithDetails(key);
+  async findById(@Param('id') id: string): Promise<TemplateWithDetails> {
+    return this.templatesService.findByKeyWithDetails(id);
   }
 
-  @Get(':key/versions')
+  @Get(':id/versions')
   @ApiOperation({
     summary: 'Get template version history',
     description: 'Get all versions of a template',
   })
-  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiParam({ name: 'id', description: 'Template unique id' })
   @ApiResponse({
     status: 200,
     description: 'Template version history',
     type: [TemplateVersionResponseDto],
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
-  async getVersionHistory(
-    @Param('key') key: string,
-  ): Promise<TemplateVersion[]> {
-    const template = await this.templatesService.findByKey(key);
+  async getVersionHistory(@Param('id') id: string): Promise<TemplateVersion[]> {
+    const template = await this.templatesService.findByKey(id);
     return this.templateVersionsService.getVersionHistory(template.id);
   }
 
-  @Get(':key/versions/:version')
+  @Get(':id/versions/:version')
   @ApiOperation({
     summary: 'Get specific template version',
     description: 'Get details of a specific version of a template',
   })
-  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiParam({ name: 'id', description: 'Template unique id' })
   @ApiParam({ name: 'version', description: 'Version number (e.g., 1.0.0)' })
   @ApiResponse({
     status: 200,
@@ -198,14 +196,14 @@ export class TemplatesController {
   })
   @ApiResponse({ status: 404, description: 'Template or version not found' })
   async getVersion(
-    @Param('key') key: string,
+    @Param('id') id: string,
     @Param('version') version: string,
   ): Promise<TemplateVersion> {
-    const template = await this.templatesService.findByKey(key);
+    const template = await this.templatesService.findByKey(id);
     return this.templateVersionsService.getVersion(template.id, version);
   }
 
-  @Post(':key/versions/:version/rollback')
+  @Post(':id/versions/:version/rollback')
   @UseGuards(SystemAdminGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -213,7 +211,7 @@ export class TemplatesController {
     description:
       'Set a previous version as the current active version (system admin only)',
   })
-  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiParam({ name: 'id', description: 'Template unique id' })
   @ApiParam({ name: 'version', description: 'Version number to rollback to' })
   @ApiResponse({
     status: 200,
@@ -223,21 +221,21 @@ export class TemplatesController {
   @ApiResponse({ status: 404, description: 'Template or version not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
   async rollback(
-    @Param('key') key: string,
+    @Param('id') id: string,
     @Param('version') version: string,
   ): Promise<TemplateVersion> {
-    const template = await this.templatesService.findByKey(key);
+    const template = await this.templatesService.findByKey(id);
     return this.templateVersionsService.rollback(template.id, version);
   }
 
-  @Put(':key')
+  @Put(':id')
   @UseGuards(SystemAdminGuard)
   @ApiOperation({
     summary: 'Update template',
     description:
       'Update template metadata and/or create new version (system admin only)',
   })
-  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiParam({ name: 'id', description: 'Template unique id' })
   @ApiResponse({
     status: 200,
     description: 'Template updated successfully',
@@ -246,14 +244,14 @@ export class TemplatesController {
   @ApiResponse({ status: 404, description: 'Template not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
   async update(
-    @Param('key') key: string,
+    @Param('id') id: string,
     @Body() updateTemplateDto: UpdateTemplateDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<TemplateWithDetails> {
-    return this.templatesService.update(key, updateTemplateDto, user.userId);
+    return this.templatesService.update(id, updateTemplateDto, user.userId);
   }
 
-  @Delete(':key')
+  @Delete(':id')
   @UseGuards(SystemAdminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -261,7 +259,7 @@ export class TemplatesController {
     description:
       'Permanently delete a template and all its versions (system admin only)',
   })
-  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiParam({ name: 'id', description: 'Template unique id' })
   @ApiResponse({ status: 204, description: 'Template deleted successfully' })
   @ApiResponse({ status: 404, description: 'Template not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
@@ -269,7 +267,7 @@ export class TemplatesController {
     return this.templatesService.delete(key);
   }
 
-  @Post(':key/deactivate')
+  @Post(':id/deactivate')
   @UseGuards(SystemAdminGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -277,7 +275,7 @@ export class TemplatesController {
     description:
       'Soft delete - set template status to inactive (system admin only)',
   })
-  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiParam({ name: 'id', description: 'Template unique id' })
   @ApiResponse({
     status: 200,
     description: 'Template deactivated successfully',
@@ -285,7 +283,7 @@ export class TemplatesController {
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async deactivate(@Param('key') key: string): Promise<Template> {
-    return this.templatesService.deactivate(key);
+  async deactivate(@Param('id') id: string): Promise<Template> {
+    return this.templatesService.deactivate(id);
   }
 }
