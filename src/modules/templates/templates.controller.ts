@@ -13,6 +13,7 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
   Logger,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,9 +22,11 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiBody,
 } from '@nestjs/swagger';
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
+import { DocumentGenerationService } from './document-generation.service';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
@@ -38,6 +41,10 @@ import { TemplateVersion } from './entities/template-version.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import {
+  GenerateDocumentDto,
+  GenerateDocumentResponseDto,
+} from './dto/generate-document.dto';
 
 @ApiTags('Templates')
 @Controller('templates')
@@ -48,6 +55,7 @@ export class TemplatesController {
   constructor(
     private readonly templatesService: TemplatesService,
     private readonly templateVersionsService: TemplateVersionsService,
+    private readonly documentGenerationService: DocumentGenerationService,
   ) {}
 
   @Post()
@@ -287,5 +295,54 @@ export class TemplatesController {
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
   async deactivate(@Param('key') key: string): Promise<Template> {
     return this.templatesService.deactivate(key);
+  }
+
+  @Post(':id/generate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Generate document from template',
+    description:
+      'Generate a Word document (DOCX) from a template by replacing placeholders with provided variables. The generated document is saved to tenant-isolated storage and a download URL is returned.',
+  })
+  @ApiParam({
+    name: 'key',
+    description: 'Template unique key',
+    example: 'dmcc_employment_v1',
+  })
+  @ApiBody({
+    type: GenerateDocumentDto,
+    description: 'Variables to replace in template and optional metadata',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Document generated successfully',
+    type: GenerateDocumentResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad request - Invalid variables, missing required fields, or template not active',
+  })
+  @ApiResponse({ status: 404, description: 'Template or version not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error - Document generation failed',
+  })
+  async generate(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() generateDocumentDto: GenerateDocumentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<GenerateDocumentResponseDto | null> {
+    return this.documentGenerationService.generateDocument(
+      user.tenantId,
+      user.userId,
+      id,
+      generateDocumentDto,
+    );
   }
 }
