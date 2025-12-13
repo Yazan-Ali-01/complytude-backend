@@ -258,6 +258,16 @@ export class TemplatesService {
     }
   }
 
+  /**
+   * @deprecated Use `findById()` instead. This method will be removed in a future version.
+   *
+   * Finds a template by its key. For new code, use `findById()` with the template's UUID.
+   *
+   * @param key - Template key (e.g., 'dmcc_employment_v1')
+   * @param client - Optional database client for transactions
+   * @returns Template entity
+   * @throws NotFoundException if template not found
+   */
   async findByKey(key: string, client?: PoolClient): Promise<Template> {
     try {
       const result = client
