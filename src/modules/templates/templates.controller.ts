@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  ParseUUIDPipe,
   DefaultValuePipe,
   Logger,
 } from '@nestjs/common';
@@ -161,8 +162,10 @@ export class TemplatesController {
     type: TemplateResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
-  async findById(@Param('id') id: string): Promise<TemplateWithDetails> {
-    return this.templatesService.findByKeyWithDetails(id);
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<TemplateWithDetails> {
+    return this.templatesService.findByIdWithDetails(id);
   }
 
   @Get(':id/versions')
@@ -177,8 +180,10 @@ export class TemplatesController {
     type: [TemplateVersionResponseDto],
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
-  async getVersionHistory(@Param('id') id: string): Promise<TemplateVersion[]> {
-    const template = await this.templatesService.findByKey(id);
+  async getVersionHistory(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<TemplateVersion[]> {
+    const template = await this.templatesService.findById(id);
     return this.templateVersionsService.getVersionHistory(template.id);
   }
 
@@ -196,10 +201,10 @@ export class TemplatesController {
   })
   @ApiResponse({ status: 404, description: 'Template or version not found' })
   async getVersion(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('version') version: string,
   ): Promise<TemplateVersion> {
-    const template = await this.templatesService.findByKey(id);
+    const template = await this.templatesService.findById(id);
     return this.templateVersionsService.getVersion(template.id, version);
   }
 
@@ -221,10 +226,10 @@ export class TemplatesController {
   @ApiResponse({ status: 404, description: 'Template or version not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
   async rollback(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('version') version: string,
   ): Promise<TemplateVersion> {
-    const template = await this.templatesService.findByKey(id);
+    const template = await this.templatesService.findById(id);
     return this.templateVersionsService.rollback(template.id, version);
   }
 
@@ -244,7 +249,7 @@ export class TemplatesController {
   @ApiResponse({ status: 404, description: 'Template not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateTemplateDto: UpdateTemplateDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<TemplateWithDetails> {
@@ -263,8 +268,8 @@ export class TemplatesController {
   @ApiResponse({ status: 204, description: 'Template deleted successfully' })
   @ApiResponse({ status: 404, description: 'Template not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async delete(@Param('key') key: string): Promise<void> {
-    return this.templatesService.delete(key);
+  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.templatesService.delete(id);
   }
 
   @Post(':id/deactivate')
@@ -283,7 +288,7 @@ export class TemplatesController {
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async deactivate(@Param('id') id: string): Promise<Template> {
+  async deactivate(@Param('id', ParseUUIDPipe) id: string): Promise<Template> {
     return this.templatesService.deactivate(id);
   }
 }

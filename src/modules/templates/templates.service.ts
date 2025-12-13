@@ -85,7 +85,7 @@ export class TemplatesService {
       const version = createTemplateDto.version || '1.0.0';
 
       // Create template and first version in a transaction
-      await this.databaseService.transaction(async (client) => {
+      const result = await this.databaseService.transaction(async (client) => {
         // Create template record
         const templateResult = await client.query<Template>(
           `
@@ -134,12 +134,13 @@ export class TemplatesService {
             createTemplateDto.ruleset_keys,
           );
         }
-
         this.logger.log(`Created template: ${createTemplateDto.key}`);
+
+        return template;
       });
 
       // Fetch and return template with details (after transaction commits)
-      return this.findByKeyWithDetails(createTemplateDto.key);
+      return this.findByIdWithDetails(result.id);
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -231,12 +232,17 @@ export class TemplatesService {
     }
   }
 
-  async findById(id: string): Promise<Template> {
+  async findById(id: string, client?: PoolClient): Promise<Template> {
     try {
-      const result = await this.databaseService.query<Template>(
-        'SELECT * FROM public.templates WHERE id = $1',
-        [id],
-      );
+      const result = client
+        ? await client.query<Template>(
+            'SELECT * FROM public.templates WHERE id = $1',
+            [id],
+          )
+        : await this.databaseService.query<Template>(
+            'SELECT * FROM public.templates WHERE id = $1',
+            [id],
+          );
 
       if (result.rows.length === 0) {
         throw new NotFoundException(`Template with ID "${id}" not found`);
@@ -278,12 +284,12 @@ export class TemplatesService {
     }
   }
 
-  async findByKeyWithDetails(
-    key: string,
+  async findByIdWithDetails(
+    id: string,
     client?: PoolClient,
   ): Promise<TemplateWithDetails> {
     try {
-      const template = await this.findByKey(key, client);
+      const template = await this.findById(id, client);
 
       // Fetch category details
       let category;
@@ -364,12 +370,12 @@ export class TemplatesService {
   }
 
   async update(
-    key: string,
+    id: string,
     updateTemplateDto: UpdateTemplateDto,
     updatedBy: string,
   ): Promise<TemplateWithDetails> {
     try {
-      const existing = await this.findByKey(key);
+      const existing = await this.findById(id);
 
       // Validate category_id if provided
       if (updateTemplateDto.category_id) {
@@ -483,10 +489,10 @@ export class TemplatesService {
         // Update template if there are fields to update
         if (updateFields.length > 0) {
           updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-          values.push(key);
+          values.push(id);
 
           await client.query(
-            `UPDATE public.templates SET ${updateFields.join(', ')} WHERE key = $${paramIndex}`,
+            `UPDATE public.templates SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
             values,
           );
         }
@@ -509,10 +515,10 @@ export class TemplatesService {
           }
         }
 
-        this.logger.log(`Updated template: ${key}`);
+        this.logger.log(`Updated template: ${id}`);
 
         // Return updated template with details
-        return this.findByKeyWithDetails(key, client);
+        return this.findByIdWithDetails(id, client);
       });
     } catch (error) {
       if (
@@ -526,16 +532,16 @@ export class TemplatesService {
     }
   }
 
-  async deactivate(key: string): Promise<Template> {
+  async deactivate(id: string): Promise<Template> {
     try {
-      const _template = await this.findByKey(key);
+      const _template = await this.findById(id);
 
       const result = await this.databaseService.query<Template>(
-        'UPDATE public.templates SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2 RETURNING *',
-        ['inactive', key],
+        'UPDATE public.templates SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+        ['inactive', id],
       );
 
-      this.logger.log(`Deactivated template: ${key}`);
+      this.logger.log(`Deactivated template: ${id}`);
       return this.parseTemplate(result.rows[0]);
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -546,16 +552,16 @@ export class TemplatesService {
     }
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(id: string): Promise<void> {
     try {
-      await this.findByKey(key);
+      await this.findById(id);
 
       await this.databaseService.query(
-        'DELETE FROM public.templates WHERE key = $1',
-        [key],
+        'DELETE FROM public.templates WHERE id = $1',
+        [id],
       );
 
-      this.logger.log(`Deleted template: ${key}`);
+      this.logger.log(`Deleted template: ${id}`);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
