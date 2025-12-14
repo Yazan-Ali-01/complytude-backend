@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import multipart from '@fastify/multipart';
+import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -62,6 +63,7 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
+      exceptionFactory: validationExceptionFactory,
     }),
   );
 
