@@ -194,7 +194,8 @@ export class DocumentGenerationService {
     } catch (error) {
       if (
         error instanceof NotFoundException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof ValidationException
       ) {
         throw error;
       }
