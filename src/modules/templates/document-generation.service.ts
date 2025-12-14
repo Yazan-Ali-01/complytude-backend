@@ -15,6 +15,8 @@ import {
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
 import { StorageService } from '../storage/storage.service';
+import { DatabaseService } from '../../database/database.service';
+import { TenantService } from '../tenant/tenant.service';
 
 @Injectable()
 export class DocumentGenerationService {
@@ -24,18 +26,22 @@ export class DocumentGenerationService {
     private readonly templatesService: TemplatesService,
     private readonly templateVersionsService: TemplateVersionsService,
     private readonly storageService: StorageService,
+    private readonly databaseService: DatabaseService,
+    private readonly tenantService: TenantService,
   ) {}
 
   /**
    * Convert Readable stream to Buffer
+   * Uses async iteration for efficient memory handling
    */
   private async streamToBuffer(stream: Readable): Promise<Buffer> {
     const chunks: Buffer[] = [];
-    return new Promise((resolve, reject) => {
-      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      stream.on('end', () => resolve(Buffer.concat(chunks)));
-      stream.on('error', reject);
-    });
+
+    for await (const chunk of stream) {
+      chunks.push(chunk as Buffer);
+    }
+
+    return Buffer.concat(chunks);
   }
 
   async generateDocument(
@@ -62,9 +68,9 @@ export class DocumentGenerationService {
 
       // static file name for now
       // TODO: should be replaced with proper variable when template uploading issue resolved
-      const templateFileStream = await this.storageService.getTemplateFile(
-        '1765652114963-dumb_contract.docx',
-      );
+      const templateFileKey = `1765652114963-dumb_contract.docx`;
+      const templateFileStream =
+        await this.storageService.getTemplateFile(templateFileKey);
 
       const templateBuffer = await this.streamToBuffer(templateFileStream);
 
@@ -91,13 +97,13 @@ export class DocumentGenerationService {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(`Docxtemplater error: ${errorMessage}`);
-        throw new BadRequestException(
+        throw new InternalServerErrorException(
           `Failed to process template: ${errorMessage}`,
         );
       }
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `${template.key}_generated_${timestamp}.docx`;
+      const generatedAt = new Date().toISOString();
+      const filename = `${template.key}_generated_${generatedAt.replace(/[:.]/g, '-')}.docx`;
 
       const uploadResult = await this.storageService.uploadFile(
         tenantId,
@@ -112,6 +118,54 @@ export class DocumentGenerationService {
         tenantId,
         uploadResult.key,
       );
+
+      // Store document metadata in tenant's documents table
+      try {
+        const tenant = await this.tenantService.findById(tenantId);
+        const schemaName = tenant.schema_name;
+
+        const documentMetadata = {
+          size: uploadResult.size,
+          contentType: uploadResult.contentType,
+          filename: filename,
+        };
+
+        const generationMetadata = {
+          variables: generateDocumentDto.variables,
+          generatedAt: generatedAt,
+          templateId: template.id,
+        };
+
+        await this.databaseService.queryWithTenantContext(
+          tenantId,
+          schemaName,
+          `INSERT INTO documents (
+            id, tenant_id, title, content, metadata, 
+            template_key, template_version, generation_metadata, created_by, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [
+            uploadResult.key,
+            tenantId,
+            `${template.name || template.key} - Generated Document`,
+            null,
+            JSON.stringify(documentMetadata),
+            template.key,
+            templateVersion.version,
+            JSON.stringify(generationMetadata),
+            userId,
+          ],
+        );
+      } catch (metadataError) {
+        // log the error without stopping the flow
+        const errorMessage =
+          metadataError instanceof Error
+            ? metadataError.message
+            : 'Unknown error';
+        this.logger.error(
+          `Failed to store document metadata for tenant ${tenantId}: ${errorMessage}`,
+          metadataError instanceof Error ? metadataError.stack : undefined,
+        );
+      }
 
       return {
         documentId: uploadResult.key,

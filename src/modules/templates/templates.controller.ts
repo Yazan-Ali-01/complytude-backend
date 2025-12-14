@@ -305,9 +305,9 @@ export class TemplatesController {
       'Generate a Word document (DOCX) from a template by replacing placeholders with provided variables. The generated document is saved to tenant-isolated storage and a download URL is returned.',
   })
   @ApiParam({
-    name: 'key',
-    description: 'Template unique key',
-    example: 'dmcc_employment_v1',
+    name: 'id',
+    description: 'Template unique uuid',
+    example: '1deef77b-99b1-4ff1-9fa9-084577d44ac1',
   })
   @ApiBody({
     type: GenerateDocumentDto,
@@ -337,7 +337,7 @@ export class TemplatesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() generateDocumentDto: GenerateDocumentDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<GenerateDocumentResponseDto | null> {
+  ): Promise<GenerateDocumentResponseDto> {
     return this.documentGenerationService.generateDocument(
       user.tenantId,
       user.userId,
