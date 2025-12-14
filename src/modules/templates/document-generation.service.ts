@@ -8,16 +8,20 @@ import {
 import { Readable } from 'stream';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
+
 import {
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
 } from './dto/generate-document.dto';
+
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
 import { StorageService } from '../storage/storage.service';
 import { DatabaseService } from '../../database/database.service';
 import { TenantService } from '../tenant/tenant.service';
 
+import { TemplateValidationService } from './template-validation.service';
+import { ValidationException } from 'src/common/exceptions/validation.exception';
 @Injectable()
 export class DocumentGenerationService {
   private readonly logger = new Logger(DocumentGenerationService.name);
@@ -28,6 +32,7 @@ export class DocumentGenerationService {
     private readonly storageService: StorageService,
     private readonly databaseService: DatabaseService,
     private readonly tenantService: TenantService,
+    private readonly templateValidationService: TemplateValidationService,
   ) {}
 
   /**
@@ -64,6 +69,18 @@ export class DocumentGenerationService {
         throw new NotFoundException(
           `No active version found for template ${template.key}`,
         );
+      }
+
+      const validationResult = this.templateValidationService.validateVariables(
+        templateVersion.fields,
+        generateDocumentDto.variables,
+      );
+      if (!validationResult.valid) {
+        this.logger.error(
+          `${tenantId} - ${userId} - ${id} - Validation errors: ${JSON.stringify(validationResult.errors)}`,
+        );
+
+        throw new ValidationException(validationResult.errors || []);
       }
 
       // static file name for now

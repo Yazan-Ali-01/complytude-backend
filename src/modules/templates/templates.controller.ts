@@ -12,7 +12,6 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
-  Logger,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -36,22 +35,20 @@ import {
   TemplateListResponseDto,
   TemplateVersionResponseDto,
 } from './dto/template-response.dto';
+import {
+  GenerateDocumentDto,
+  GenerateDocumentResponseDto,
+} from './dto/generate-document.dto';
 import { Template, TemplateWithDetails } from './entities/template.entity';
 import { TemplateVersion } from './entities/template-version.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
-import {
-  GenerateDocumentDto,
-  GenerateDocumentResponseDto,
-} from './dto/generate-document.dto';
 
 @ApiTags('Templates')
 @Controller('templates')
 @ApiBearerAuth()
 export class TemplatesController {
-  private readonly logger = new Logger(TemplatesController.name);
-
   constructor(
     private readonly templatesService: TemplatesService,
     private readonly templateVersionsService: TemplateVersionsService,
