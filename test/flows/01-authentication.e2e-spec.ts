@@ -1,13 +1,13 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createTestApp, closeTestApp } from '../utils/test-context';
-import { TestDataFactory } from '../utils/test-data-factory';
-import { TestDatabase } from '../utils/test-database';
 import {
-  validateJWT,
   validateErrorResponse,
+  validateJWT,
   validateRequiredFields,
 } from '../utils/assertions';
+import { closeTestApp, createTestApp } from '../utils/test-context';
+import { TestDataFactory } from '../utils/test-data-factory';
+import { TestDatabase } from '../utils/test-database';
 
 describe('Authentication Flow (e2e)', () => {
   let app: INestApplication;
@@ -112,9 +112,9 @@ describe('Authentication Flow (e2e)', () => {
     it('should verify email with valid token', async () => {
       // Get verification token from database if not in response
       if (!verificationToken) {
-        verificationToken = await TestDatabase.getVerificationToken(
+        verificationToken = (await TestDatabase.getVerificationToken(
           testUser.email,
-        );
+        )) as string;
       }
 
       expect(verificationToken).toBeDefined();
