@@ -22,6 +22,9 @@ import { TenantService } from '../tenant/tenant.service';
 
 import { TemplateValidationService } from './template-validation.service';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
+import { DOCX_MIME_TYPE } from './constants/template.constants';
+import { Template } from './entities/template.entity';
+import { TemplateVersion } from './entities/template-version.entity';
 @Injectable()
 export class DocumentGenerationService {
   private readonly logger = new Logger(DocumentGenerationService.name);
@@ -49,86 +52,127 @@ export class DocumentGenerationService {
     return Buffer.concat(chunks);
   }
 
-  async generateDocument(
-    tenantId: string,
-    userId: string,
-    id: string,
-    generateDocumentDto: GenerateDocumentDto,
-  ): Promise<GenerateDocumentResponseDto> {
-    try {
-      const template = await this.templatesService.findById(id);
+  /**
+   * Validate template and its version
+   * Ensures template is active and has a current version
+   * Validates user variables against template field definitions
+   */
+  private async validateTemplateAndVersion(
+    templateId: string,
+    variables: Record<string, unknown>,
+  ): Promise<{ template: Template; templateVersion: TemplateVersion }> {
+    const template = await this.templatesService.findById(templateId);
 
-      if (template.status !== 'active') {
-        throw new BadRequestException(`Template ${template.key} is not active`);
-      }
+    if (template.status !== 'active') {
+      throw new BadRequestException(`Template ${template.key} is not active`);
+    }
 
-      const templateVersion =
-        await this.templateVersionsService.getCurrentVersion(template.id);
+    const templateVersion =
+      await this.templateVersionsService.getCurrentVersion(template.id);
 
-      if (!templateVersion) {
-        throw new NotFoundException(
-          `No active version found for template ${template.key}`,
-        );
-      }
-
-      const validationResult = this.templateValidationService.validateVariables(
-        templateVersion.fields,
-        generateDocumentDto.variables,
+    if (!templateVersion) {
+      throw new NotFoundException(
+        `No active version found for template ${template.key}`,
       );
-      if (!validationResult.valid) {
-        this.logger.error(
-          `${tenantId} - ${userId} - ${id} - Validation errors: ${JSON.stringify(validationResult.errors)}`,
-        );
+    }
 
-        throw new ValidationException(validationResult.errors || []);
-      }
+    const validationResult = this.templateValidationService.validateVariables(
+      templateVersion.fields,
+      variables,
+    );
 
-      // static file name for now
-      // TODO: should be replaced with proper variable when template uploading issue resolved
-      const templateFileKey = `1765652114963-dumb_contract.docx`;
+    if (!validationResult.valid) {
+      throw new ValidationException(validationResult.errors || []);
+    }
+
+    return { template, templateVersion };
+  }
+
+  /**
+   * Fetch template file from storage and convert to buffer
+   */
+  private async fetchTemplateFile(templateId: string): Promise<Buffer> {
+    try {
+      // to test the functionality,
+      // 1. create a template sample file with placeholders, and name it with the template id
+      // 2. upload the file to "complytude-templates" bucket
+
+      // TODO: should be replaced with proper file key when template uploading issue resolved
+      const templateFileKey = `${templateId}.docx`;
       const templateFileStream =
         await this.storageService.getTemplateFile(templateFileKey);
 
-      const templateBuffer = await this.streamToBuffer(templateFileStream);
+      return await this.streamToBuffer(templateFileStream);
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch template file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new NotFoundException('Template file not found');
+    }
+  }
 
-      let outputBuffer: Buffer;
-      try {
-        // loading our file to PizZip to load it into the memory
-        const zip = new PizZip(templateBuffer);
-        // creating a new docxtemplater instance
-        const doc = new Docxtemplater(zip, {
-          paragraphLoop: true,
-          linebreaks: true,
-        });
+  /**
+   * Process document template with provided variables
+   * Sanitizes errors to avoid exposing internal template structure
+   */
+  private processDocumentTemplate(
+    templateBuffer: Buffer,
+    variables: Record<string, unknown>,
+  ): Buffer {
+    try {
+      // loading our file to PizZip to load it into the memory
+      const zip = new PizZip(templateBuffer);
+      // creating a new docxtemplater instance
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+      });
 
-        doc.setData(generateDocumentDto.variables);
+      doc.setData(variables);
+      doc.render();
 
-        doc.render();
+      return doc.toBuffer();
+    } catch (error) {
+      this.logger.error(
+        `Failed to process document template: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new BadRequestException(
+        'Failed to render document with provided variables',
+      );
+    }
+  }
 
-        const outputZip = doc.getZip().generate({
-          type: 'nodebuffer',
-          compression: 'DEFLATE',
-        });
-        outputBuffer = Buffer.from(outputZip);
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'Unknown error';
-        this.logger.error(`Docxtemplater error: ${errorMessage}`);
-        throw new InternalServerErrorException(
-          `Failed to process template: ${errorMessage}`,
-        );
-      }
+  /**
+   * Save generated document with transaction safety
+   * Uploads file to S3 and stores metadata in database
+   * Rolls back file upload if metadata save fails
+   */
+  private async saveGeneratedDocument(
+    tenantId: string,
+    userId: string,
+    template: Template,
+    templateVersion: TemplateVersion,
+    outputBuffer: Buffer,
+    variables: Record<string, unknown>,
+  ): Promise<{ documentId: string; downloadUrl: string }> {
+    let uploadedFileKey: string | null = null;
 
-      const generatedAt = new Date().toISOString();
-      const filename = `${template.key}_generated_${generatedAt.replace(/[:.]/g, '-')}.docx`;
+    try {
+      // Generate filename with timestamp
+      const timestamp = Date.now();
+      const filename = `${userId}_${template.key}_${timestamp}.docx`;
 
+      // Upload file to S3
       const uploadResult = await this.storageService.uploadFile(
         tenantId,
         outputBuffer,
         filename,
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        DOCX_MIME_TYPE,
         userId,
       );
+      uploadedFileKey = uploadResult.key;
 
       // Generate signed URL
       const downloadUrl = await this.storageService.generateSignedUrl(
@@ -136,62 +180,114 @@ export class DocumentGenerationService {
         uploadResult.key,
       );
 
+      // Fetch tenant schema
+      const tenant = await this.tenantService.findById(tenantId);
+      const schemaName = tenant.schema_name;
+
+      // Prepare metadata
+      const documentMetadata = {
+        size: uploadResult.size,
+        contentType: uploadResult.contentType,
+        filename: filename,
+      };
+
+      const generationMetadata = {
+        variables: variables,
+        generatedAt: new Date().toISOString(),
+        templateId: template.id,
+      };
+
       // Store document metadata in tenant's documents table
-      try {
-        const tenant = await this.tenantService.findById(tenantId);
-        const schemaName = tenant.schema_name;
-
-        const documentMetadata = {
-          size: uploadResult.size,
-          contentType: uploadResult.contentType,
-          filename: filename,
-        };
-
-        const generationMetadata = {
-          variables: generateDocumentDto.variables,
-          generatedAt: generatedAt,
-          templateId: template.id,
-        };
-
-        await this.databaseService.queryWithTenantContext(
+      await this.databaseService.queryWithTenantContext(
+        tenantId,
+        schemaName,
+        `INSERT INTO documents (
+          id, tenant_id, title, content, metadata, 
+          template_key, template_version, generation_metadata, created_by, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+          uploadResult.key,
           tenantId,
-          schemaName,
-          `INSERT INTO documents (
-            id, tenant_id, title, content, metadata, 
-            template_key, template_version, generation_metadata, created_by, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-          [
-            uploadResult.key,
-            tenantId,
-            `${template.name || template.key} - Generated Document`,
-            null,
-            JSON.stringify(documentMetadata),
-            template.key,
-            templateVersion.version,
-            JSON.stringify(generationMetadata),
-            userId,
-          ],
-        );
-      } catch (metadataError) {
-        // log the error without stopping the flow
-        const errorMessage =
-          metadataError instanceof Error
-            ? metadataError.message
-            : 'Unknown error';
-        this.logger.error(
-          `Failed to store document metadata for tenant ${tenantId}: ${errorMessage}`,
-          metadataError instanceof Error ? metadataError.stack : undefined,
-        );
+          `${template.name || template.key} - Generated Document`,
+          null,
+          JSON.stringify(documentMetadata),
+          template.key,
+          templateVersion.version,
+          JSON.stringify(generationMetadata),
+          userId,
+        ],
+      );
+
+      return { documentId: uploadResult.key, downloadUrl };
+    } catch (error) {
+      // Rollback: delete uploaded file if metadata insert failed
+      if (uploadedFileKey) {
+        try {
+          await this.storageService.deleteFile(tenantId, uploadedFileKey);
+        } catch (deleteError) {
+          this.logger.warn(
+            `Failed to cleanup orphaned file: ${uploadedFileKey}`,
+            deleteError instanceof Error ? deleteError.stack : undefined,
+          );
+        }
       }
 
+      this.logger.error(
+        `Failed to save generated document: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        'Failed to save generated document',
+      );
+    }
+  }
+
+  async generateDocument(
+    tenantId: string,
+    userId: string,
+    id: string,
+    generateDocumentDto: GenerateDocumentDto,
+  ): Promise<GenerateDocumentResponseDto> {
+    try {
+      // 1. Validate template and version
+      const {
+        template,
+        templateVersion,
+      }: { template: Template; templateVersion: TemplateVersion } =
+        await this.validateTemplateAndVersion(
+          id,
+          generateDocumentDto.variables,
+        );
+
+      // 2. Fetch template file
+      const templateBuffer = await this.fetchTemplateFile(template.id);
+
+      // 3. Process document
+      const outputBuffer = this.processDocumentTemplate(
+        templateBuffer,
+        generateDocumentDto.variables,
+      );
+
+      // 4. Save with transaction safety
+      const { documentId, downloadUrl } = await this.saveGeneratedDocument(
+        tenantId,
+        userId,
+        template,
+        templateVersion,
+        outputBuffer,
+        generateDocumentDto.variables,
+      );
+
+      // 5. Return response
       return {
-        documentId: uploadResult.key,
+        documentId,
         downloadUrl,
         templateKey: template.key,
         templateVersion: templateVersion.version,
         generatedAt: new Date(),
       };
     } catch (error) {
+      // specific business errors pass through
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException ||
@@ -199,12 +295,10 @@ export class DocumentGenerationService {
       ) {
         throw error;
       }
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      const errorStack = error instanceof Error ? error.stack : undefined;
+      // Generic error for everything else
       this.logger.error(
-        `Failed to generate document: ${errorMessage}`,
-        errorStack,
+        'Document generation failed',
+        error instanceof Error ? error.stack : undefined,
       );
       throw new InternalServerErrorException('Failed to generate document');
     }
