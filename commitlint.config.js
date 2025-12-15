@@ -9,7 +9,7 @@ module.exports = {
     ],
 
     // Scope is required
-    'scope-empty': [1, 'never'],
+    'scope-empty': [2, 'never'],
 
     // Subject must not end with period
     'subject-full-stop': [1, 'never', '.'],
@@ -28,5 +28,8 @@ module.exports = {
 
     // Max line length for header (type(scope): description (COM-4))
     'header-max-length': [2, 'always', 100],
+
+    // Max line length for body (bullet points)
+    'body-max-line-length': [2, 'always', 160],
   },
 };
