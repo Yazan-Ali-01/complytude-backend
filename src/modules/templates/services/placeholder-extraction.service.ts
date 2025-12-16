@@ -1,5 +1,20 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import PizZip from 'pizzip';
+import { TemplateFieldDto } from '../dto/template-field.dto';
+
+/**
+ * Result of validating placeholders against field definitions.
+ */
+export interface PlaceholderValidationResult {
+  /** Placeholders that have matching field definitions */
+  matched: string[];
+  /** User-friendly warning messages */
+  warnings: string[];
+  /** Placeholders without field definitions */
+  unmatchedPlaceholders: string[];
+  /** Field definitions without placeholders */
+  unusedFields: string[];
+}
 
 /**
  * Service responsible for extracting placeholder variables from DOCX template files.
@@ -153,5 +168,91 @@ export class PlaceholderExtractionService {
     // Check if placeholder matches the valid pattern (alphanumeric + underscore)
     const validPattern = /^[a-zA-Z0-9_]+$/;
     return validPattern.test(placeholder);
+  }
+
+  /**
+   * Validates placeholders against field definitions and generates warnings.
+   *
+   * This method compares extracted DOCX placeholders with provided field definitions
+   * to identify mismatches. It returns warnings (not errors) because:
+   * - System variables like {generated_date}, {document_id} are auto-injected
+   * - Context variables like {user_email}, {company_name} come from user session
+   * - Calculated fields like {annual_salary} are derived from other inputs
+   * - Admins may intentionally add placeholders for future fields
+   * - Conditional placeholders may only be used in specific document variations
+   *
+   * @param placeholders - Array of placeholder keys extracted from DOCX (without braces)
+   * @param fields - Array of field definitions provided by admin
+   * @returns Validation result with matched placeholders, warnings, and mismatches
+   *
+   * @example
+   * const result = service.validateFieldsMatchPlaceholders(
+   *   ['employee_name', 'salary', 'start_date'],
+   *   [{key: 'employee_name', ...}, {key: 'salary', ...}]
+   * );
+   * // Returns:
+   * // {
+   * //   matched: ['employee_name', 'salary'],
+   * //   unmatchedPlaceholders: ['start_date'],
+   * //   unusedFields: [],
+   * //   warnings: ['Placeholder {start_date} found in DOCX but no field definition provided...']
+   * // }
+   */
+  validateFieldsMatchPlaceholders(
+    placeholders: string[],
+    fields: TemplateFieldDto[],
+  ): PlaceholderValidationResult {
+    // Extract field keys from field definitions
+    const fieldKeys = fields.map((field) => field.key);
+
+    // Convert to sets for efficient lookup
+    const placeholderSet = new Set(placeholders);
+    const fieldKeySet = new Set(fieldKeys);
+
+    // Find matched placeholders (in both DOCX and field definitions)
+    const matched = placeholders.filter((placeholder) =>
+      fieldKeySet.has(placeholder),
+    );
+
+    // Find unmatched placeholders (in DOCX but not in field definitions)
+    const unmatchedPlaceholders = placeholders.filter(
+      (placeholder) => !fieldKeySet.has(placeholder),
+    );
+
+    // Find unused fields (in field definitions but not in DOCX)
+    const unusedFields = fieldKeys.filter(
+      (fieldKey) => !placeholderSet.has(fieldKey),
+    );
+
+    // Generate user-friendly warning messages
+    const warnings: string[] = [];
+
+    // Warnings for unmatched placeholders
+    unmatchedPlaceholders.forEach((placeholder) => {
+      warnings.push(
+        `Placeholder {${placeholder}} found in DOCX but no field definition provided. ` +
+          `This is OK if it's a system variable (e.g., generated_date, document_id, tenant_name) ` +
+          `or context variable. Otherwise, add a field definition.`,
+      );
+    });
+
+    // Warnings for unused fields
+    unusedFields.forEach((fieldKey) => {
+      warnings.push(
+        `Field '${fieldKey}' defined but not used in DOCX template. ` +
+          `This field will be ignored during document generation.`,
+      );
+    });
+
+    this.logger.log(
+      `Validation complete: ${matched.length} matched, ${unmatchedPlaceholders.length} unmatched placeholders, ${unusedFields.length} unused fields`,
+    );
+
+    return {
+      matched,
+      warnings,
+      unmatchedPlaceholders,
+      unusedFields,
+    };
   }
 }
