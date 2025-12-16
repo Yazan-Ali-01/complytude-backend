@@ -116,6 +116,11 @@ export class CreateTemplateDto {
   @IsOptional()
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
 
+  /**
+   * S3 URL to template DOCX file.
+   * Either provide this OR upload a file via multipart/form-data.
+   * If both are provided, the uploaded file takes precedence.
+   */
   @ApiPropertyOptional({
     example: 's3://complytude-templates/dmcc_employment_v1.docx',
     description: 'S3 URL to template DOCX file',
