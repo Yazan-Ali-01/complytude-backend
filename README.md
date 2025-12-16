@@ -114,6 +114,25 @@ Before you begin, ensure you have the following installed:
 - **PostgreSQL** 16.x (if not using Docker)
 - **Git**
 
+### Windows Users
+## Setup
+If you're using Windows, you'll need to configure your environment to ensure pnpm scripts work correctly (the same way they work on Linux/Mac).
+
+**Option 1: Git Bash (Recommended)**
+
+1. **Install Git Bash** (if not already installed):
+   - Download and install [Git for Windows](https://git-scm.com/download/win)
+   - This includes Git Bash by default
+
+2. **Configure pnpm to use Git Bash**:
+   - Add the following line to your `.npmrc` file in the project root:
+   ```ini
+   script-shell="C:\\Program Files\\Git\\bin\\bash.exe"
+   ```
+   - If Git Bash is installed in a different location, adjust the path accordingly
+
+After this configuration, all pnpm scripts will run using Git Bash, ensuring compatibility with bash scripts and commands used throughout the project.
+
 ### Recommended Tools
 
 - [Postman](https://www.postman.com/) - API testing (collection included)
@@ -165,6 +184,9 @@ Apply all database migrations to set up the schema:
 ```bash
 pnpm db:migrate
 ```
+
+Note: If you're on Windows, follow [this setup](#setup) to ensure the script works.
+
 
 ### 6. Start the Application
 
