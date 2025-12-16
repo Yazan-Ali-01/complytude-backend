@@ -1,0 +1,157 @@
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import PizZip from 'pizzip';
+
+/**
+ * Service responsible for extracting placeholder variables from DOCX template files.
+ *
+ * DOCX files are ZIP archives containing XML. This service parses word/document.xml
+ * to find all placeholder patterns in the format {variable_name}.
+ *
+ * @example
+ * const placeholders = await service.extractPlaceholders(docxBuffer);
+ * // Returns: ["employee_name", "salary", "start_date"]
+ */
+@Injectable()
+export class PlaceholderExtractionService {
+  private readonly logger = new Logger(PlaceholderExtractionService.name);
+
+  /**
+   * Placeholder regex pattern: matches {variable_name} format
+   * - Must start and end with curly braces
+   * - Can contain: letters (a-z, A-Z), numbers (0-9), underscores (_)
+   * - Cannot contain: spaces, hyphens, special characters
+   *
+   * Examples:
+   * - {employee_name} ✓
+   * - {salary123} ✓
+   * - {start_date} ✓
+   * - {employee-name} ✗ (hyphens not allowed)
+   * - { spaced } ✗ (spaces not allowed)
+   */
+  private readonly PLACEHOLDER_REGEX = /\{([a-zA-Z0-9_]+)\}/g;
+
+  /**
+   * Extracts unique placeholder variables from a DOCX file buffer.
+   *
+   * Note: This method is async (even if the current flow is mostly sync) to ensure future compatibility,
+   * since future versions of PizZip or docx parsers might support asynchronous APIs or options.
+   *
+   * Process:
+   * 1. Unzip DOCX file using PizZip
+   * 2. Extract word/document.xml from ZIP archive
+   * 3. Parse XML content using regex to find placeholders
+   * 4. Deduplicate and return unique placeholder keys
+   *
+   * @param buffer - DOCX file as Buffer
+   * @returns Promise<string[]> - Array of unique placeholder keys (without braces)
+   * @throws BadRequestException if file is invalid, corrupted, or not a valid DOCX
+   *
+   * @example
+   * const buffer = fs.readFileSync('template.docx');
+   * const placeholders = await extractPlaceholders(buffer);
+   * // Returns: ["employee_name", "salary"]
+   */
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async extractPlaceholders(buffer: Buffer): Promise<string[]> {
+    try {
+      this.logger.log('Starting placeholder extraction from DOCX file');
+
+      if (!buffer || buffer.length === 0) {
+        throw new BadRequestException('Empty or invalid file buffer provided');
+      }
+
+      // Unzip DOCX file using PizZip
+      let zip: PizZip;
+      try {
+        zip = new PizZip(buffer);
+      } catch (error) {
+        this.logger.error('Failed to unzip DOCX file', error);
+        throw new BadRequestException(
+          'Invalid DOCX file format. The file may be corrupted or not a valid DOCX document.',
+        );
+      }
+
+      // Extract word/document.xml from ZIP archive
+      const documentXmlFile = zip.file('word/document.xml');
+      if (!documentXmlFile) {
+        this.logger.error('Missing word/document.xml in DOCX structure');
+        throw new BadRequestException(
+          'Invalid DOCX structure: missing document.xml. The file may be corrupted.',
+        );
+      }
+
+      // Read XML content as text
+      let xml: string;
+      try {
+        xml = documentXmlFile.asText();
+      } catch (error) {
+        this.logger.error('Failed to read document.xml content', error);
+        throw new BadRequestException(
+          'Corrupted DOCX file: unable to parse document content.',
+        );
+      }
+
+      // Validate XML content
+      if (!xml || xml.trim().length === 0) {
+        this.logger.warn('Empty document.xml content');
+        return [];
+      }
+
+      // Extract placeholders using regex
+      const matches = [...xml.matchAll(this.PLACEHOLDER_REGEX)];
+
+      // Extract captured groups (placeholder names without braces)
+      const placeholders = matches.map((match) => match[1]);
+
+      // Deduplicate using Set and convert back to array
+      const uniquePlaceholders = [...new Set(placeholders)];
+
+      this.logger.log(
+        `Successfully extracted ${uniquePlaceholders.length} unique placeholders: ${uniquePlaceholders.join(', ')}`,
+      );
+
+      return uniquePlaceholders;
+    } catch (error) {
+      // Re-throw BadRequestException as-is
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // Log and wrap unexpected errors
+      this.logger.error(
+        'Unexpected error during placeholder extraction',
+        error,
+      );
+      throw new BadRequestException(
+        'Failed to extract placeholders from DOCX file. Please ensure the file is valid.',
+      );
+    }
+  }
+
+  /**
+   * Validates if a placeholder name follows the correct naming convention.
+   *
+   * Rules:
+   * - Must contain only alphanumeric characters and underscores
+   * - Cannot be empty
+   * - Cannot contain spaces or special characters
+   *
+   * @param placeholder - Placeholder name to validate (without braces)
+   * @returns boolean - True if valid, false otherwise
+   *
+   * @example
+   * validatePlaceholderFormat('employee_name') // true
+   * validatePlaceholderFormat('employee-name') // false
+   * validatePlaceholderFormat('123_valid') // true
+   * validatePlaceholderFormat('') // false
+   */
+  validatePlaceholderFormat(placeholder: string): boolean {
+    if (!placeholder || placeholder.trim().length === 0) {
+      return false;
+    }
+
+    // Check if placeholder matches the valid pattern (alphanumeric + underscore)
+    const validPattern = /^[a-zA-Z0-9_]+$/;
+    return validPattern.test(placeholder);
+  }
+}
