@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import PizZip from 'pizzip';
 import { TemplateFieldDto } from '../dto/template-field.dto';
+import Docxtemplater from 'docxtemplater';
 
 /**
  * Result of validating placeholders against field definitions.
@@ -75,7 +76,6 @@ export class PlaceholderExtractionService {
         throw new BadRequestException('Empty or invalid file buffer provided');
       }
 
-      // Unzip DOCX file using PizZip
       let zip: PizZip;
       try {
         zip = new PizZip(buffer);
@@ -86,46 +86,20 @@ export class PlaceholderExtractionService {
         );
       }
 
-      // Extract word/document.xml from ZIP archive
-      const documentXmlFile = zip.file('word/document.xml');
-      if (!documentXmlFile) {
-        this.logger.error('Missing word/document.xml in DOCX structure');
-        throw new BadRequestException(
-          'Invalid DOCX structure: missing document.xml. The file may be corrupted.',
-        );
-      }
+      const placeholders = new Set<string>();
 
-      // Read XML content as text
-      let xml: string;
-      try {
-        xml = documentXmlFile.asText();
-      } catch (error) {
-        this.logger.error('Failed to read document.xml content', error);
-        throw new BadRequestException(
-          'Corrupted DOCX file: unable to parse document content.',
-        );
-      }
+      const doc = new Docxtemplater(zip, {
+        parser: (tag) => {
+          placeholders.add(tag);
+          return {
+            get: () => '',
+          };
+        },
+      });
 
-      // Validate XML content
-      if (!xml || xml.trim().length === 0) {
-        this.logger.warn('Empty document.xml content');
-        return [];
-      }
+      doc.render();
 
-      // Extract placeholders using regex
-      const matches = [...xml.matchAll(this.PLACEHOLDER_REGEX)];
-
-      // Extract captured groups (placeholder names without braces)
-      const placeholders = matches.map((match) => match[1]);
-
-      // Deduplicate using Set and convert back to array
-      const uniquePlaceholders = [...new Set(placeholders)];
-
-      this.logger.log(
-        `Successfully extracted ${uniquePlaceholders.length} unique placeholders: ${uniquePlaceholders.join(', ')}`,
-      );
-
-      return uniquePlaceholders;
+      return Array.from(placeholders);
     } catch (error) {
       // Re-throw BadRequestException as-is
       if (error instanceof BadRequestException) {
