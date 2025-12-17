@@ -1,6 +1,9 @@
 import { BadRequestException, ValidationError } from '@nestjs/common';
 import { ValidationException } from '../exceptions/validation.exception';
-import { ValidationDetail, ValidationRuleContext } from '../../types/validation.types';
+import {
+  ValidationDetail,
+  ValidationRuleContext,
+} from '../../types/validation.types';
 
 /**
  * Validation rule names used by class-validator
@@ -33,7 +36,48 @@ const VALIDATION_RULES = {
   ARRAY_MAX_SIZE: 'arrayMaxSize',
   WHITELIST_VALIDATION: 'whitelistValidation',
   IS_DEFINED: 'isDefined',
+  // Custom file validation rules (from src/common/decorators/file-validators.decorator.ts)
+  IS_FILE_UPLOADED: 'isFileUploaded',
+  IS_FILE_MIME_TYPE: 'isFileMimeType',
+  IS_FILE_MAX_SIZE: 'isFileMaxSize',
 } as const;
+
+interface FileLike {
+  size?: unknown;
+  mimetype?: unknown;
+}
+
+function safeToString(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return String(value);
+  if (typeof value === 'bigint') return String(value);
+  if (value instanceof Date) return value.toISOString();
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '';
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const k = 1024;
+  const decimals = 2;
+
+  if (bytes < k) {
+    return `${bytes} B`;
+  }
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const size = bytes / Math.pow(k, i);
+
+  return `${size.toFixed(decimals)} ${units[i]}`;
+}
 
 /**
  * Maps validation rule names (from class-validator, etc.) to human-readable
@@ -43,37 +87,77 @@ const VALIDATION_RULES = {
  * Keys correspond to VALIDATION_RULES, values are functions that return
  * string descriptions (optionally accepting a constraint value).
  */
-const ruleDescriptions = {
-  [VALIDATION_RULES.IS_INT]: () => "integer",
-  [VALIDATION_RULES.IS_NUMBER]: () => "number",
-  [VALIDATION_RULES.IS_DECIMAL]: () => "decimal number",
-  [VALIDATION_RULES.IS_POSITIVE]: () => "positive number",
-  [VALIDATION_RULES.IS_NEGATIVE]: () => "negative number",
-  [VALIDATION_RULES.IS_EMAIL]: () => "valid email",
-  [VALIDATION_RULES.IS_DATE]: () => "valid date",
-  [VALIDATION_RULES.IS_BOOLEAN]: () => "boolean",
-  [VALIDATION_RULES.IS_STRING]: () => "string",
-  [VALIDATION_RULES.IS_NOT_EMPTY]: () => "non-empty value",
-  [VALIDATION_RULES.IS_ARRAY]: () => "array",
-  [VALIDATION_RULES.IS_OBJECT]: () => "object",
-  [VALIDATION_RULES.IS_UUID]: () => "valid UUID",
-  [VALIDATION_RULES.IS_DEFINED]: () => "present",
-  [VALIDATION_RULES.WHITELIST_VALIDATION]: () => "not present",
-  [VALIDATION_RULES.MAX_LENGTH]: v => v ? `at most ${v} characters` : "",
-  [VALIDATION_RULES.MIN_LENGTH]: v => v ? `at least ${v} characters` : "",
-  [VALIDATION_RULES.MIN]: v => v ? `at least ${v}` : "",
-  [VALIDATION_RULES.MIN_DATE]: v => v ? `at least ${v}` : "",
-  [VALIDATION_RULES.MAX]: v => v ? `at most ${v}` : "",
-  [VALIDATION_RULES.MAX_DATE]: v => v ? `at most ${v}` : "",
-  [VALIDATION_RULES.ARRAY_MIN_SIZE]: v => v ? `at least ${v} items` : "",
-  [VALIDATION_RULES.ARRAY_MAX_SIZE]: v => v ? `at most ${v} items` : "",
-  [VALIDATION_RULES.IS_ENUM]: v =>
-    !v ? "" : Array.isArray(v) ? `one of: ${v.join(", ")}` : `one of: ${String(v)}`,
-  [VALIDATION_RULES.IS_IN]: v =>
-    !v ? "" : Array.isArray(v) ? `one of: ${v.join(", ")}` : `one of: ${String(v)}`,
-  [VALIDATION_RULES.MATCHES]: v =>
-    v ? `matching pattern: ${String(v)}` : "matching pattern"
-}
+const ruleDescriptions: Record<string, (constraintValue?: unknown) => string> =
+  {
+    [VALIDATION_RULES.IS_INT]: () => 'integer',
+    [VALIDATION_RULES.IS_NUMBER]: () => 'number',
+    [VALIDATION_RULES.IS_DECIMAL]: () => 'decimal number',
+    [VALIDATION_RULES.IS_POSITIVE]: () => 'positive number',
+    [VALIDATION_RULES.IS_NEGATIVE]: () => 'negative number',
+    [VALIDATION_RULES.IS_EMAIL]: () => 'valid email',
+    [VALIDATION_RULES.IS_DATE]: () => 'valid date',
+    [VALIDATION_RULES.IS_BOOLEAN]: () => 'boolean',
+    [VALIDATION_RULES.IS_STRING]: () => 'string',
+    [VALIDATION_RULES.IS_NOT_EMPTY]: () => 'non-empty value',
+    [VALIDATION_RULES.IS_ARRAY]: () => 'array',
+    [VALIDATION_RULES.IS_OBJECT]: () => 'object',
+    [VALIDATION_RULES.IS_UUID]: () => 'valid UUID',
+    [VALIDATION_RULES.IS_DEFINED]: () => 'present',
+    [VALIDATION_RULES.WHITELIST_VALIDATION]: () => 'not present',
+
+    [VALIDATION_RULES.MAX_LENGTH]: (v) => {
+      const n = typeof v === 'number' ? v : undefined;
+      return n === undefined ? '' : `at most ${n} characters`;
+    },
+    [VALIDATION_RULES.MIN_LENGTH]: (v) => {
+      const n = typeof v === 'number' ? v : undefined;
+      return n === undefined ? '' : `at least ${n} characters`;
+    },
+    [VALIDATION_RULES.MIN]: (v) => {
+      const n = typeof v === 'number' ? v : undefined;
+      return n === undefined ? '' : `at least ${n}`;
+    },
+    [VALIDATION_RULES.MIN_DATE]: (v) =>
+      v ? `at least ${safeToString(v)}` : '',
+    [VALIDATION_RULES.MAX]: (v) => {
+      const n = typeof v === 'number' ? v : undefined;
+      return n === undefined ? '' : `at most ${n}`;
+    },
+    [VALIDATION_RULES.MAX_DATE]: (v) => (v ? `at most ${safeToString(v)}` : ''),
+    [VALIDATION_RULES.ARRAY_MIN_SIZE]: (v) => {
+      const n = typeof v === 'number' ? v : undefined;
+      return n === undefined ? '' : `at least ${n} items`;
+    },
+    [VALIDATION_RULES.ARRAY_MAX_SIZE]: (v) => {
+      const n = typeof v === 'number' ? v : undefined;
+      return n === undefined ? '' : `at most ${n} items`;
+    },
+    [VALIDATION_RULES.IS_ENUM]: (v) => {
+      if (!v) return '';
+      if (Array.isArray(v)) return `one of: ${v.map(String).join(', ')}`;
+      return `one of: ${safeToString(v)}`;
+    },
+    [VALIDATION_RULES.IS_IN]: (v) => {
+      if (!v) return '';
+      if (Array.isArray(v)) return `one of: ${v.map(String).join(', ')}`;
+      return `one of: ${safeToString(v)}`;
+    },
+    [VALIDATION_RULES.MATCHES]: (v) =>
+      v ? `matching pattern: ${safeToString(v)}` : 'matching pattern',
+
+    // Custom file validation descriptions
+    [VALIDATION_RULES.IS_FILE_UPLOADED]: () => 'file uploaded',
+    [VALIDATION_RULES.IS_FILE_MIME_TYPE]: (v) => {
+      if (Array.isArray(v)) return `one of: ${v.map(String).join(', ')}`;
+      return 'valid file type';
+    },
+    [VALIDATION_RULES.IS_FILE_MAX_SIZE]: (v) => {
+      const n = typeof v === 'number' ? v : undefined;
+      return n === undefined
+        ? 'valid file size'
+        : `at most ${formatFileSize(n)}`;
+    },
+  };
 
 /**
  * Regex patterns for extracting constraint values from error messages
@@ -91,7 +175,8 @@ const CONSTRAINT_PATTERNS: Record<string, RegExp> = {
  * Generic regex pattern for extracting numeric constraints from error messages
  * Used as fallback when no specific pattern matches
  */
-const GENERIC_CONSTRAINT_PATTERN = /(?:must be|at least|at most|greater than|less than|equal to) (\d+(?:\.\d+)?)/i;
+const GENERIC_CONSTRAINT_PATTERN =
+  /(?:must be|at least|at most|greater than|less than|equal to) (\d+(?:\.\d+)?)/i;
 
 /**
  * Extracts constraint value from error message using regex patterns
@@ -134,8 +219,8 @@ function computeExpected(
     constraintValue = extractConstraintFromMessage(rule, message);
   }
 
-  const handler = ruleDescriptions[rule]
-  if (handler) return handler(constraintValue)
+  const handler = ruleDescriptions[rule];
+  if (handler) return handler(constraintValue);
 
   // Fallback
   if (message) {
@@ -147,7 +232,7 @@ function computeExpected(
     }
   }
 
-  return ""
+  return '';
 }
 
 /**
@@ -187,7 +272,18 @@ function getReceivedValue(value: unknown, rule: string): string {
     return '';
   }
 
-  return String(value);
+  // Custom file validation received formatting
+  if (rule === VALIDATION_RULES.IS_FILE_MIME_TYPE) {
+    const file = value as FileLike;
+    return typeof file?.mimetype === 'string' ? file.mimetype : '';
+  }
+  if (rule === VALIDATION_RULES.IS_FILE_MAX_SIZE) {
+    const file = value as FileLike;
+    const size = typeof file?.size === 'number' ? file.size : undefined;
+    return typeof size === 'number' ? formatFileSize(size) : '';
+  }
+
+  return safeToString(value);
 }
 
 /**

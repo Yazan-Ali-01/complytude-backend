@@ -13,6 +13,7 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
   ParseUUIDPipe,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,7 +23,9 @@ import {
   ApiParam,
   ApiQuery,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
 import {
@@ -52,25 +55,116 @@ export class TemplatesController {
   constructor(
     private readonly templatesService: TemplatesService,
     private readonly templateVersionsService: TemplateVersionsService,
-    // DocumentGenerationService will be injected here once created
     private readonly documentGenerationService: DocumentGenerationService,
   ) {}
 
   @Post()
   @UseGuards(SystemAdminGuard)
+  @UseInterceptors(
+    FastifyMultipartInterceptor({
+      jsonFields: ['languages', 'fields', 'ruleset_keys', 'metadata'],
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Create new template',
     description:
-      'Create a new document template with metadata and field definitions (system admin only)',
+      'Create a new document template with metadata and field definitions. Requires DOCX file upload via multipart/form-data (system admin only)',
+  })
+  @ApiBody({
+    description:
+      'Template data as multipart/form-data. Fields array should be JSON stringified. File upload is required.',
+    schema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', example: 'nda_v1' },
+        name: { type: 'string', example: 'Non-Disclosure Agreement' },
+        description: { type: 'string', example: 'Standard NDA template' },
+        category_id: { type: 'string', format: 'uuid' },
+        authority_id: { type: 'string', format: 'uuid' },
+        languages: {
+          type: 'string',
+          example: '["en","ar"]',
+          description: 'JSON stringified array',
+        },
+        fields: {
+          type: 'string',
+          example:
+            '[{"key":"employee_name","label":"Employee Name","type":"text","required":true}]',
+          description: 'JSON stringified array of field definitions',
+        },
+        ruleset_keys: {
+          type: 'string',
+          example: '["dmcc_employment_rules_v1"]',
+          description: 'JSON stringified array (optional)',
+        },
+        version: { type: 'string', example: '1.0.0' },
+        status: {
+          type: 'string',
+          enum: ['active', 'inactive', 'draft', 'deprecated'],
+        },
+        metadata: { type: 'string', example: '{"tags":["employment"]}' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'DOCX template file (required, max 5MB)',
+        },
+      },
+      required: ['key', 'name', 'languages', 'fields', 'file'],
+    },
   })
   @ApiResponse({
     status: 201,
-    description: 'Template created successfully',
-    type: TemplateResponseDto,
+    description:
+      'Template created successfully with placeholder extraction results',
+    schema: {
+      allOf: [
+        { $ref: '#/components/schemas/TemplateResponseDto' },
+        {
+          type: 'object',
+          properties: {
+            placeholders_detected: {
+              type: 'array',
+              items: { type: 'string' },
+              example: ['employee_name', 'salary', 'start_date'],
+            },
+            validation: {
+              type: 'object',
+              properties: {
+                matched: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  example: ['employee_name', 'salary'],
+                },
+                warnings: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  example: [
+                    'Placeholder {start_date} found in DOCX but no field definition provided.',
+                  ],
+                },
+                unmatchedPlaceholders: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+                unusedFields: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
   })
   @ApiResponse({
     status: 409,
     description: 'Template with this key already exists',
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Invalid file format or file too large',
   })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
   async create(

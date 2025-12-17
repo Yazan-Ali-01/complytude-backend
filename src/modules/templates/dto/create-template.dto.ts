@@ -14,6 +14,16 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TemplateFieldDto } from './template-field.dto';
+import {
+  IsFileMaxSize,
+  IsFileMimeType,
+  IsFileUploaded,
+} from 'src/common/decorators/file-validators.decorator';
+import {
+  TEMPLATE_ALLOWED_MIME_TYPES,
+  TEMPLATE_MAX_FILE_SIZE,
+} from '../constants/template.constants';
+import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
 
 export class CreateTemplateDto {
   @ApiProperty({
@@ -116,19 +126,6 @@ export class CreateTemplateDto {
   @IsOptional()
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
 
-  /**
-   * S3 URL to template DOCX file.
-   * Either provide this OR upload a file via multipart/form-data.
-   * If both are provided, the uploaded file takes precedence.
-   */
-  @ApiPropertyOptional({
-    example: 's3://complytude-templates/dmcc_employment_v1.docx',
-    description: 'S3 URL to template DOCX file',
-  })
-  @IsString()
-  @IsOptional()
-  file_url?: string;
-
   @ApiPropertyOptional({
     example: { tags: ['employment', 'standard'] },
     description: 'Additional metadata',
@@ -136,6 +133,18 @@ export class CreateTemplateDto {
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
+
+  /**
+   * File upload validated via custom validators
+   * Populated by interceptor with the uploaded file object
+   */
+  @ApiProperty({
+    description: 'DOCX template file (required, max 5MB)',
+  })
+  @IsFileUploaded()
+  @IsFileMimeType(TEMPLATE_ALLOWED_MIME_TYPES)
+  @IsFileMaxSize(TEMPLATE_MAX_FILE_SIZE)
+  file: MulterLikeFile;
 }
 
 export class UpdateTemplateDto {
@@ -182,7 +191,36 @@ export class UpdateTemplateDto {
   languages?: string[];
 
   @ApiPropertyOptional({
-    example: [],
+    example: [
+      {
+        key: 'employee_name',
+        label: 'Employee Full Name',
+        type: 'text',
+        required: true,
+        placeholder: 'Enter employee full name',
+        help_text: 'Full legal name as per Emirates ID',
+        order: 1,
+      },
+      {
+        key: 'job_title',
+        label: 'Job Title',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g., Software Engineer',
+        order: 2,
+      },
+      {
+        key: 'salary',
+        label: 'Monthly Salary (AED)',
+        type: 'number',
+        required: true,
+        placeholder: 'e.g., 15000',
+        validation_rules: {
+          min: 3000,
+          max: 100000,
+        },
+      },
+    ],
     description: 'Template field definitions',
     type: [TemplateFieldDto],
   })
@@ -226,14 +264,6 @@ export class UpdateTemplateDto {
   @IsEnum(['active', 'inactive', 'draft', 'deprecated'])
   @IsOptional()
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
-
-  @ApiPropertyOptional({
-    example: 's3://complytude-templates/dmcc_employment_v1_1.docx',
-    description: 'S3 URL to new template DOCX file',
-  })
-  @IsString()
-  @IsOptional()
-  file_url?: string;
 
   @ApiPropertyOptional({
     example: {},
