@@ -23,6 +23,7 @@
 - [API Documentation](#-api-documentation)
 - [Testing](#-testing)
 - [Development Workflow](#-development-workflow)
+- [Git Hooks & Commit Standards](#-git-hooks--commit-standards)
 - [Multi-Tenancy](#-multi-tenancy)
 - [Deployment](#-deployment)
 - [Contributing](#-contributing)
@@ -258,14 +259,14 @@ complytude/
 
 ### Module Overview
 
-| Module | Description | Status |
-|--------|-------------|--------|
-| **auth** | JWT authentication, signup, login, password reset | ✅ Complete |
-| **users** | User management, roles, multi-tenant membership | ✅ Complete |
-| **tenant** | Organization management, subscription plans | ✅ Complete |
-| **storage** | S3/MinIO file upload/download with tenant isolation | ✅ Complete |
-| **templates** | Legal document template CRUD & versioning | 🟡 Partial |
-| **health** | Health checks for database and storage | ✅ Complete |
+| Module        | Description                                         | Status      |
+| ------------- | --------------------------------------------------- | ----------- |
+| **auth**      | JWT authentication, signup, login, password reset   | ✅ Complete |
+| **users**     | User management, roles, multi-tenant membership     | ✅ Complete |
+| **tenant**    | Organization management, subscription plans         | ✅ Complete |
+| **storage**   | S3/MinIO file upload/download with tenant isolation | ✅ Complete |
+| **templates** | Legal document template CRUD & versioning           | 🟡 Partial  |
+| **health**    | Health checks for database and storage              | ✅ Complete |
 
 ---
 
@@ -397,6 +398,7 @@ The API documentation is auto-generated and available at:
 **URL**: http://localhost:3000/docs
 
 The Swagger UI provides:
+
 - Interactive API explorer
 - Request/response schemas
 - Authentication (Bearer token)
@@ -524,6 +526,7 @@ pnpm test:e2e:coverage
 ### What Gets Tested
 
 ✅ **Business Logic**
+
 - Authentication & authorization flows
 - Multi-tenant data isolation
 - Document upload limits (plan-based)
@@ -532,18 +535,21 @@ pnpm test:e2e:coverage
 - Feature flag access control
 
 ✅ **Data Integrity**
+
 - Foreign key relationships
 - Cascade delete operations
 - Tenant schema isolation
 - Audit trail consistency
 
 ✅ **API Contract**
+
 - Swagger/OpenAPI schema validation
 - Response structure verification
 - Request validation
 - HTTP status codes
 
 ✅ **Error Scenarios**
+
 - Invalid authentication tokens
 - Expired sessions
 - Quota exceeded (403)
@@ -617,6 +623,231 @@ pnpm build
 # Run tests
 pnpm test
 ```
+
+---
+
+## 🔧 Git Hooks & Commit Standards
+
+This project uses [Husky](https://typicode.github.io/husky/) to enforce code quality and commit message standards through automated Git hooks.
+
+### Pre-Commit Hook
+
+**Runs automatically before every commit**
+
+The pre-commit hook ensures code quality by running:
+
+1. **Type Checking** (`pnpm type-check`)
+   - Validates TypeScript types across the entire project
+   - Catches type errors before they reach the repository
+
+2. **Lint-Staged** (`pnpm lint-staged`)
+   - Runs ESLint on staged files only
+   - Automatically fixes issues when possible
+   - Ensures consistent code style
+
+**What happens when you commit:**
+
+```bash
+git add .
+git commit -m "your message"
+
+# Husky runs automatically:
+# ✓ Type checking...
+# ✓ Linting staged files...
+# ✓ Auto-fixing issues...
+# → Commit succeeds if all checks pass
+```
+
+**If checks fail:**
+
+```bash
+# Fix the reported issues
+pnpm lint           # Fix linting issues
+pnpm type-check     # Check type errors
+
+# Then try committing again
+git add .
+git commit -m "your message"
+```
+
+### Commit Message Hook
+
+**Enforces conventional commit format**
+
+The commit-msg hook validates your commit messages using [Commitlint](https://commitlint.js.org/) to ensure consistency and clarity.
+
+#### Required Format
+
+```
+type(scope): short description (issue-key)
+
+- Bullet point changes
+- Another change
+
+Closes issue-key
+```
+
+#### Example
+
+```
+feat(templates): implement DOCX generation service (COM-4)
+
+- Add Document Generation Service
+- Integrate docxtemplater
+- Add variable validation
+- Write unit tests
+
+Closes COM-4
+```
+
+#### Commit Message Rules
+
+**Type** (required)
+
+- `feat` - New feature
+- `fix` - Bug fix
+- `refactor` - Code refactoring (no functional changes)
+- `test` - Adding or updating tests
+- `docs` - Documentation changes
+- `chore` - Build process, dependencies, tooling, and project maintenance
+
+**Scope** (required)
+
+- Short descriptor of the affected module/area
+- Examples: `auth`, `templates`, `storage`, `tenant`, `database`
+
+**Description** (required)
+
+- Brief summary of the change
+- Use imperative mood ("add" not "added")
+- Don't end with a period
+- Max length: 100 characters for the entire header line
+
+**Body** (optional)
+
+- Bullet points explaining what changed
+- Leave a blank line after the header
+- Use present tense
+
+**Footer** (optional)
+
+- References to issue tracker
+- `Closes COM-123` or `Fixes COM-456`
+- Leave a blank line before footer
+- Used when this commit/PR completes the Linear issue
+
+#### More Examples
+
+**Feature addition:**
+
+```
+feat(auth): add email verification flow (COM-15)
+
+- Create email verification endpoint
+- Add email service integration
+- Update user schema with verification status
+- Add E2E tests for verification
+
+Closes COM-15
+```
+
+**Bug fix:**
+
+```
+fix(storage): resolve file upload timeout issue (COM-28)
+
+- Increase upload timeout to 60 seconds
+- Add retry logic for S3 operations
+- Improve error messages
+
+Fixes COM-28
+```
+
+**Refactoring:**
+
+```
+refactor(database): optimize tenant isolation queries (COM-42)
+
+- Use prepared statements for tenant queries
+- Cache tenant schema names
+- Reduce database round trips
+
+Closes COM-42
+```
+
+**Documentation:**
+
+```
+docs(readme): update deployment instructions (COM-55)
+
+- Add Docker deployment section
+- Update environment variables table
+- Fix broken links
+
+Closes COM-55
+```
+
+**Testing:**
+
+```
+test(templates): add integration tests for DOCX generation (COM-33)
+
+- Test variable substitution
+- Test nested loops
+- Test error handling
+- Add test fixtures
+
+Closes COM-33
+```
+
+#### Validation Errors
+
+If your commit message doesn't follow the format, you'll see:
+
+```bash
+❌ Commit message validation failed!
+📖 Please read 🔧 Git Hooks & Commit Standards section in README.md for examples
+   Example: feat(auth): add login validation (COM-123)
+```
+
+**Common issues:**
+
+| Error                                                                    | Cause                   | Solution                                         |
+| ------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------ |
+| `type must be one of [...]`                                              | Invalid type used       | Use only: feat, fix, refactor, test, docs, chore |
+| `scope may not be empty`                                                 | Missing scope           | Add scope: `feat(auth): ...`                     |
+| `header must not be longer than 100 characters`                          | Header too long         | Shorten description or move details to body      |
+| `subject must not be sentence-case, start-case, pascal-case, upper-case` | Subject uses wrong case | Use lowercase: `add feature` not `Add Feature`   |
+
+#### Tips
+
+✅ **DO:**
+
+- Keep the header concise and descriptive
+- Use bullet points in the body for multiple changes
+- Reference issue numbers
+- Write in imperative mood ("add" not "added")
+
+❌ **DON'T:**
+
+- Use vague descriptions like "fix stuff" or "update code"
+- Skip the scope
+- Exceed 100 characters in the header
+- Use past tense ("added feature")
+
+### Bypassing Hooks (Not Recommended)
+
+In emergency situations only:
+
+```bash
+# Skip pre-commit hook
+git commit --no-verify -m "your message"
+
+# Skip both hooks
+HUSKY=0 git commit -m "your message"
+```
+
+⚠️ **Warning**: Bypassing hooks should only be done in exceptional circumstances and will likely cause CI/CD pipeline failures.
 
 ---
 
@@ -730,23 +961,38 @@ curl http://localhost:3000/api/health/storage
 3. Make your changes
 4. Write tests for your changes
 5. Run tests: `pnpm test:e2e`
-6. Commit your changes: `git commit -m 'Add some feature'`
+6. Commit your changes following the [commit standards](#-git-hooks--commit-standards)
 7. Push to the branch: `git push origin feature/your-feature`
 8. Open a Pull Request
 
-### Commit Convention
+### Commit Guidelines
 
-Follow conventional commits:
+This project enforces strict commit message standards. Before committing, please read the [Git Hooks & Commit Standards](#-git-hooks--commit-standards) section.
+
+**Quick reference:**
 
 ```
-feat: Add new feature
-fix: Fix bug
-docs: Update documentation
-test: Add tests
-refactor: Refactor code
-style: Format code
-chore: Update dependencies
+type(scope): description (issue-key)
+
+- Change 1
+- Change 2
+
+Closes issue-key
 ```
+
+**Example:**
+
+```
+feat(auth): add OAuth2 integration (COM-100)
+
+- Implement Google OAuth strategy
+- Add user account linking
+- Update authentication docs
+
+Closes COM-100
+```
+
+For detailed examples and rules, see the [Commit Message Hook](#commit-message-hook) section.
 
 ---
 
@@ -761,6 +1007,7 @@ This project is licensed under the UNLICENSED license.
 ### Common Issues
 
 **Database Connection Failed**
+
 ```bash
 # Check Docker is running
 docker ps
@@ -771,12 +1018,14 @@ pnpm docker:start
 ```
 
 **Port Already in Use**
+
 ```bash
 # Change port in .env file
 PORT=3001
 ```
 
 **Migration Errors**
+
 ```bash
 # Reset database and re-run migrations
 pnpm docker:reset
@@ -806,4 +1055,3 @@ pnpm db:migrate
 ---
 
 <p align="center">Made with ❤️ for UAE businesses</p>
-
