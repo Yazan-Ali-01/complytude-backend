@@ -96,16 +96,12 @@ export class TemplatesService {
 
       const version = createTemplateDto.version || '1.0.0';
 
-      let fileUrl: string | null = null;
       let placeholders: string[] = [];
       let validationResult: PlaceholderValidationResult | undefined;
 
-      // Process uploaded file
+      // Extract placeholders and validate before creating template
       try {
         const fileBuffer = createTemplateDto.file.buffer;
-        const fileName = createTemplateDto.file.originalname || 'template.docx';
-        const mimeType =
-          createTemplateDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0];
 
         // Extract placeholders from DOCX
         placeholders =
@@ -119,19 +115,6 @@ export class TemplatesService {
             placeholders,
             createTemplateDto.fields,
           );
-
-        // Upload file to S3 with versioned path
-        const uploadResult = await this.storageService.uploadTemplateFile(
-          createTemplateDto.key, // templateKey: "nda_v1"
-          version, // version: "1.0.0"
-          fileBuffer, // file buffer
-          fileName, // original filename
-          mimeType, // content type
-          createdBy, // userId
-        );
-
-        // Use S3 URL returned from upload
-        fileUrl = uploadResult.url;
       } catch (error) {
         this.logger.error(
           `Failed to process template file: ${error.message}`,
@@ -143,9 +126,10 @@ export class TemplatesService {
       }
 
       // Create template and first version in a transaction
+      let templateId: string | null = null;
       try {
         await this.databaseService.transaction(async (client) => {
-          // Create template record
+          // 1. Create template record FIRST (without file_url)
           const templateResult = await client.query<Template>(
             `
           INSERT INTO public.templates 
@@ -162,20 +146,37 @@ export class TemplatesService {
               createTemplateDto.languages,
               version,
               createTemplateDto.status || 'active',
-              fileUrl || null,
+              null, // file_url is null - only needed in version record
               JSON.stringify(createTemplateDto.metadata || {}),
               createdBy,
             ],
           );
 
           const template = this.parseTemplate(templateResult.rows[0]);
+          templateId = template.id;
 
-          // Create first version
+          // 2. Upload file to S3 using template ID
+          const fileBuffer = createTemplateDto.file.buffer;
+          const fileName =
+            createTemplateDto.file.originalname || 'template.docx';
+          const mimeType =
+            createTemplateDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0];
+
+          const uploadResult = await this.storageService.uploadTemplateFile(
+            template.id, // Use template ID instead of key
+            version,
+            fileBuffer,
+            fileName,
+            mimeType,
+            createdBy,
+          );
+
+          // 3. Create first version with file URL
           await this.templateVersionsService.createVersion(
             template.id,
             version,
             createTemplateDto.fields,
-            fileUrl || '',
+            uploadResult.url, // Use URL from upload
             'Initial version',
             createTemplateDto.metadata || {},
             createdBy,
@@ -195,15 +196,15 @@ export class TemplatesService {
           }
         });
       } catch (transactionError) {
-        // If transaction fails and we uploaded a file, clean it up
-        if (fileUrl && createTemplateDto.file) {
+        // If transaction fails and we have a template ID, clean up uploaded file
+        if (templateId) {
+          const id = templateId as string;
+          const fileKey = `templates/${id}/${version}/template.docx`;
           try {
-            await this.storageService.deleteTemplateFile(
-              `templates/${createTemplateDto.key}/${version}/template.docx`,
-            );
+            await this.storageService.deleteTemplateFile(fileKey);
           } catch (cleanupError) {
             this.logger.error(
-              `[CRITICAL] Failed to cleanup uploaded file "templates/${createTemplateDto.key}/${version}/template.docx": ${cleanupError.message}`,
+              `[CRITICAL] Failed to cleanup uploaded file "${fileKey}": ${cleanupError.message}`,
             );
           }
         }

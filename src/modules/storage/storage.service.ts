@@ -469,7 +469,7 @@ export class StorageService {
    * Upload a template file to the templates bucket
    */
   async uploadTemplateFile(
-    templateKey: string,
+    templateId: string,
     version: string,
     file: Buffer,
     originalName: string,
@@ -478,7 +478,7 @@ export class StorageService {
   ): Promise<UploadResult> {
     await this.initializeTemplatesBucket();
 
-    const key = `templates/${templateKey}/${version}/template.docx`;
+    const key = `templates/${templateId}/${version}/template.docx`;
 
     const metadata: FileMetadata = {
       userId,
@@ -499,7 +499,7 @@ export class StorageService {
             userId: metadata.userId,
             originalName: metadata.originalName,
             uploadedAt: metadata.uploadedAt,
-            templateKey: templateKey,
+            templateId: templateId,
             version: version,
           },
         }),
