@@ -58,10 +58,10 @@ export class DocumentGenerationService {
    * Validates user variables against template field definitions
    */
   private async validateTemplateAndVersion(
-    templateId: string,
+    templateKey: string,
     variables: Record<string, unknown>,
   ): Promise<{ template: Template; templateVersion: TemplateVersion }> {
-    const template = await this.templatesService.findById(templateId);
+    const template = await this.templatesService.findByKey(templateKey);
 
     if (template.status !== 'active') {
       throw new BadRequestException(`Template ${template.key} is not active`);
@@ -91,16 +91,15 @@ export class DocumentGenerationService {
   /**
    * Fetch template file from storage and convert to buffer
    */
-  private async fetchTemplateFile(templateId: string): Promise<Buffer> {
+  private async fetchTemplateFile(
+    templateId: string,
+    version: string,
+  ): Promise<Buffer> {
     try {
-      // to test the functionality,
-      // 1. create a template sample file with placeholders, and name it with the template id
-      // 2. upload the file to "complytude-templates" bucket
-
-      // TODO: should be replaced with proper file key when template uploading issue resolved
-      const templateFileKey = `${templateId}.docx`;
-      const templateFileStream =
-        await this.storageService.getTemplateFile(templateFileKey);
+      const templateFileStream = await this.storageService.getTemplateFile(
+        templateId,
+        version,
+      );
 
       return await this.streamToBuffer(templateFileStream);
     } catch (error) {
@@ -245,7 +244,7 @@ export class DocumentGenerationService {
   async generateDocument(
     tenantId: string,
     userId: string,
-    id: string,
+    key: string,
     generateDocumentDto: GenerateDocumentDto,
   ): Promise<GenerateDocumentResponseDto> {
     try {
@@ -255,12 +254,15 @@ export class DocumentGenerationService {
         templateVersion,
       }: { template: Template; templateVersion: TemplateVersion } =
         await this.validateTemplateAndVersion(
-          id,
+          key,
           generateDocumentDto.variables,
         );
 
       // 2. Fetch template file
-      const templateBuffer = await this.fetchTemplateFile(template.id);
+      const templateBuffer = await this.fetchTemplateFile(
+        template.id,
+        templateVersion.version,
+      );
 
       // 3. Process document
       const outputBuffer = this.processDocumentTemplate(

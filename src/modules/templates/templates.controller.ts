@@ -12,7 +12,6 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
-  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -294,7 +293,7 @@ export class TemplatesController {
     return this.templatesService.deactivate(key);
   }
 
-  @Post(':id/generate')
+  @Post(':key/generate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate document from template',
@@ -302,9 +301,9 @@ export class TemplatesController {
       'Generate a Word document (DOCX) from a template by replacing placeholders with provided variables. The generated document is saved to tenant-isolated storage and a download URL is returned.',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Template unique uuid',
-    example: '1deef77b-99b1-4ff1-9fa9-084577d44ac1',
+    name: 'key',
+    description: "Template's unique key",
+    example: 'sample-template',
   })
   @ApiBody({
     type: GenerateDocumentDto,
@@ -331,14 +330,14 @@ export class TemplatesController {
     description: 'Internal server error - Document generation failed',
   })
   async generate(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('key') key: string,
     @Body() generateDocumentDto: GenerateDocumentDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<GenerateDocumentResponseDto> {
     return this.documentGenerationService.generateDocument(
       user.tenantId,
       user.userId,
-      id,
+      key,
       generateDocumentDto,
     );
   }

@@ -526,7 +526,11 @@ export class StorageService {
   /**
    * Get template file from templates bucket
    */
-  async getTemplateFile(fileKey: string): Promise<Readable> {
+  async getTemplateFile(
+    templateId: string,
+    version: string,
+  ): Promise<Readable> {
+    const fileKey = `templates/${templateId}/${version}/template.docx`;
     try {
       const response = await this.s3Client.send(
         new GetObjectCommand({
