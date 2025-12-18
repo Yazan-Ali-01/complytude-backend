@@ -31,6 +31,8 @@ import { TemplateVersionsService } from './template-versions.service';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
+  CreateTemplateVersionDto,
+  CreateTemplateVersionResponseDto,
 } from './dto/create-template.dto';
 import {
   TemplateResponseDto,
@@ -282,6 +284,90 @@ export class TemplatesController {
   ): Promise<TemplateVersion[]> {
     const template = await this.templatesService.findByKey(key);
     return this.templateVersionsService.getVersionHistory(template.id);
+  }
+
+  @Post(':key/versions')
+  @UseGuards(SystemAdminGuard)
+  @UseInterceptors(
+    FastifyMultipartInterceptor({
+      jsonFields: ['fields', 'metadata'],
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Create new template version',
+    description:
+      'Upload a new version of a template with DOCX file (system admin only)',
+  })
+  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiBody({
+    description:
+      'Version data as multipart/form-data. Fields array should be JSON stringified.',
+    schema: {
+      type: 'object',
+      properties: {
+        version: { type: 'string', example: '1.1.0' },
+        changelog: { type: 'string', example: 'Added remote work clause' },
+        fields: {
+          type: 'string',
+          example:
+            '[{"key":"employee_name","label":"Employee Name","type":"text","required":true}]',
+          description: 'JSON stringified array of field definitions',
+        },
+        metadata: {
+          type: 'string',
+          example: '{"tags":["employment"]}',
+          description: 'JSON stringified object (optional)',
+        },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'DOCX template file (required, max 5MB)',
+        },
+      },
+      required: ['version', 'fields', 'file'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Template version created successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        template_id: { type: 'string', format: 'uuid' },
+        version: { type: 'string', example: '1.1.0' },
+        file_url: { type: 'string' },
+        is_active: { type: 'boolean' },
+        changelog: { type: 'string' },
+        placeholders_detected: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        validation: {
+          type: 'object',
+          properties: {
+            matched: { type: 'array', items: { type: 'string' } },
+            warnings: { type: 'array', items: { type: 'string' } },
+          },
+        },
+        created_at: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Template not found' })
+  @ApiResponse({ status: 409, description: 'Version already exists' })
+  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
+  async createVersion(
+    @Param('key') key: string,
+    @Body() createVersionDto: CreateTemplateVersionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CreateTemplateVersionResponseDto> {
+    return this.templatesService.createVersion(
+      key,
+      createVersionDto,
+      user.userId,
+    );
   }
 
   @Get(':key/versions/:version')

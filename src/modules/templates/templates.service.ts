@@ -11,6 +11,8 @@ import { Template, TemplateWithDetails } from './entities/template.entity';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
+  CreateTemplateVersionDto,
+  CreateTemplateVersionResponseDto,
 } from './dto/create-template.dto';
 import { TemplateVersionsService } from './template-versions.service';
 import { RulesetsService } from './rulesets.service';
@@ -644,6 +646,114 @@ export class TemplatesService {
       this.logger.error(`Failed to delete template: ${error.message}`);
       throw new InternalServerErrorException('Failed to delete template');
     }
+  }
+
+  /**
+   * Create a new version for an existing template with file upload
+   */
+  async createVersion(
+    key: string,
+    createVersionDto: CreateTemplateVersionDto,
+    createdBy: string,
+  ): Promise<CreateTemplateVersionResponseDto> {
+    // Find template by key
+    const template = await this.findByKey(key);
+
+    // Check if version already exists
+    const existingVersion = await this.databaseService.query(
+      'SELECT id FROM public.template_versions WHERE template_id = $1 AND version = $2',
+      [template.id, createVersionDto.version],
+    );
+    if (existingVersion.rows.length > 0) {
+      throw new ConflictException(
+        `Version "${createVersionDto.version}" already exists for template "${key}"`,
+      );
+    }
+
+    // Extract placeholders from DOCX
+    let placeholders: string[] = [];
+    let validationResult: PlaceholderValidationResult;
+
+    try {
+      placeholders =
+        await this.placeholderExtractionService.extractPlaceholders(
+          createVersionDto.file.buffer,
+        );
+
+      validationResult =
+        this.placeholderExtractionService.validateFieldsMatchPlaceholders(
+          placeholders,
+          createVersionDto.fields,
+        );
+    } catch (error) {
+      this.logger.error(
+        `Failed to process template file: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to process template file: ${error.message}`,
+      );
+    }
+
+    let versionRecord: any;
+    let fileUrl: string;
+
+    try {
+      await this.databaseService.transaction(async (client) => {
+        // Upload file to S3
+        const fileName = createVersionDto.file.originalname || 'template.docx';
+        const mimeType =
+          createVersionDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0];
+
+        const uploadResult = await this.storageService.uploadTemplateFile(
+          template.id,
+          createVersionDto.version,
+          createVersionDto.file.buffer,
+          fileName,
+          mimeType,
+          createdBy,
+        );
+
+        fileUrl = uploadResult.url;
+
+        // Create version record
+        versionRecord = await this.templateVersionsService.createVersion(
+          template.id,
+          createVersionDto.version,
+          createVersionDto.fields,
+          fileUrl,
+          createVersionDto.changelog,
+          createVersionDto.metadata || {},
+          createdBy,
+          client,
+        );
+
+        // Update template's current_version
+        await client.query(
+          'UPDATE public.templates SET current_version = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [createVersionDto.version, template.id],
+        );
+      });
+    } catch (error) {
+      // Clean up uploaded file if transaction fails
+      if (fileUrl!) {
+        const fileKey = `templates/${template.id}/${createVersionDto.version}/template.docx`;
+        try {
+          await this.storageService.deleteTemplateFile(fileKey);
+        } catch (cleanupError) {
+          this.logger.error(
+            `[CRITICAL] Failed to cleanup uploaded file "${fileKey}": ${cleanupError.message}`,
+          );
+        }
+      }
+      throw error;
+    }
+
+    return {
+      ...versionRecord,
+      placeholders_detected: placeholders,
+      validation: validationResult,
+    };
   }
 
   /**

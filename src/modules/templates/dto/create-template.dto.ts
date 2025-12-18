@@ -25,6 +25,11 @@ import {
 } from '../constants/template.constants';
 import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
 
+export {
+  CreateTemplateVersionDto,
+  CreateTemplateVersionResponseDto,
+} from './create-template-version.dto';
+
 export class CreateTemplateDto {
   @ApiProperty({
     example: 'dmcc_employment_v1',
