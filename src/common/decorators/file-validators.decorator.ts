@@ -6,74 +6,48 @@ import {
   ValidationArguments,
 } from 'class-validator';
 import { MulterLikeFile } from '../interfaces/multer-file.interface';
-
-/**
- * Format bytes into human-readable file size
- * @param bytes - Size in bytes
- * @returns Formatted string with appropriate unit (B, KB, MB, GB)
- */
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const k = 1024;
-  const decimals = 2;
-
-  if (bytes < k) {
-    return `${bytes} B`;
-  }
-
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const size = bytes / Math.pow(k, i);
-
-  return `${size.toFixed(decimals)} ${units[i]}`;
-}
+import { formatFileSize, isMulterLikeFile } from '../helper';
 
 /**
  * Validator constraint for checking if value is a MulterLikeFile object
  */
-@ValidatorConstraint({ name: 'isMulterLikeFile', async: false })
+@ValidatorConstraint({ name: 'isValidFile', async: false })
 export class IsMulterLikeFileConstraint
   implements ValidatorConstraintInterface
 {
   validate(file: unknown) {
-    if (!file || typeof file !== 'object') {
-      return false;
+    if (!file) {
+      // If no file, let IsFileUploaded handle it
+      return true;
     }
 
-    const f = file as Record<string, unknown>;
-    return (
-      typeof f.fieldname === 'string' &&
-      typeof f.originalname === 'string' &&
-      typeof f.encoding === 'string' &&
-      typeof f.mimetype === 'string' &&
-      Buffer.isBuffer(f.buffer) &&
-      typeof f.size === 'number'
-    );
+    return isMulterLikeFile(file);
   }
 
   defaultMessage(_args: ValidationArguments) {
-    return 'file must be a valid uploaded file object';
+    return 'A valid file must be provided';
   }
 }
 
 /**
- * Decorator to validate that a value is a MulterLikeFile object
+ * Decorator to validate that a value is a MulterLikeFile object.
+ *
+ * **Note:** This validator assumes `@IsFileUploaded()` is also applied.
+ * If no file is provided, this validator passes (letting IsFileUploaded handle it).
  *
  * @param validationOptions - Optional validation options
  *
  * @example
  * ```typescript
  * class CreateTemplateDto {
+ *   @IsFileUploaded()
  *   @IsMulterLikeFile()
  *   file: MulterLikeFile;
- * }
- * ```
- */
+ * isValidFile */
 export function IsMulterLikeFile(validationOptions?: ValidationOptions) {
   return function (object: object, propertyName: string) {
     registerDecorator({
-      name: 'isMulterLikeFile',
+      name: 'isValidFile',
       target: object.constructor,
       propertyName: propertyName,
       options: validationOptions,
@@ -88,12 +62,11 @@ export function IsMulterLikeFile(validationOptions?: ValidationOptions) {
 @ValidatorConstraint({ name: 'isFileUploaded', async: false })
 export class IsFileUploadedConstraint implements ValidatorConstraintInterface {
   validate(file: MulterLikeFile) {
-    const size = typeof file?.size === 'number' ? file.size : 0;
-    return !!(file && file.buffer && size > 0);
+    return !!file;
   }
 
   defaultMessage(_args: ValidationArguments) {
-    return 'file must be uploaded';
+    return 'File is required';
   }
 }
 
@@ -130,8 +103,8 @@ export class IsFileMimeTypeConstraint implements ValidatorConstraintInterface {
   validate(file: MulterLikeFile, args: ValidationArguments) {
     const allowedTypes = args.constraints[0] as string[];
 
-    if (!file) {
-      // If no file, let IsFileUploaded handle it
+    if (!isMulterLikeFile(file)) {
+      // let others handle it
       return true;
     }
 
@@ -145,12 +118,15 @@ export class IsFileMimeTypeConstraint implements ValidatorConstraintInterface {
     const actualType =
       typeof file?.mimetype === 'string' ? file.mimetype : 'unknown';
 
-    return `file must be of type: ${allowedTypes.join(', ')} (received: ${actualType})`;
+    return `Invalid file type. Allowed: ${allowedTypes.join(', ')}. Received: ${actualType}`;
   }
 }
 
 /**
- * Decorator to validate file MIME type
+ * Decorator to validate file MIME type.
+ *
+ * **Note:** This validator assumes `@IsFileUploaded()` is also applied.
+ * If no file is provided, this validator passes (letting IsFileUploaded handle it).
  *
  * @param allowedTypes - Array of allowed MIME types
  * @param validationOptions - Optional validation options
@@ -158,8 +134,9 @@ export class IsFileMimeTypeConstraint implements ValidatorConstraintInterface {
  * @example
  * ```typescript
  * class CreateTemplateDto {
+ *   @IsFileUploaded()
  *   @IsFileMimeType(['application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
- *   file: any;
+ *   file: MulterLikeFile;
  * }
  * ```
  */
@@ -193,29 +170,33 @@ export class IsFileMaxSizeConstraint implements ValidatorConstraintInterface {
   validate(file: MulterLikeFile, args: ValidationArguments) {
     const maxSize = args.constraints[0] as number;
 
-    if (!file) {
-      // If no file, let IsFileUploaded handle it
+    if (!isMulterLikeFile(file)) {
+      // let others handle it
       return true;
     }
 
-    const size = typeof file?.size === 'number' ? file.size : 0;
-    return size <= maxSize;
+    return file.size <= maxSize;
   }
 
   defaultMessage(args: ValidationArguments) {
     const maxSize = args.constraints[0] as number;
     const file = args.value as MulterLikeFile;
-    const actualSize = typeof file?.size === 'number' ? file.size : 0;
 
     const expected = formatFileSize(maxSize);
-    const actual = formatFileSize(actualSize);
+    const actual =
+      typeof file?.size === 'number'
+        ? formatFileSize(file.size)
+        : 'unknown size';
 
-    return `file size must not exceed ${expected} (received: ${actual})`;
+    return `File too large. Maximum size: ${expected}. Provided: ${actual}`;
   }
 }
 
 /**
- * Decorator to validate maximum file size
+ * Decorator to validate maximum file size.
+ *
+ * **Note:** This validator assumes `@IsFileUploaded()` is also applied.
+ * If no file is provided, this validator passes (letting IsFileUploaded handle it).
  *
  * @param maxBytes - Maximum allowed file size in bytes
  * @param validationOptions - Optional validation options
@@ -223,8 +204,9 @@ export class IsFileMaxSizeConstraint implements ValidatorConstraintInterface {
  * @example
  * ```typescript
  * class CreateTemplateDto {
+ *   @IsFileUploaded()
  *   @IsFileMaxSize(5 * 1024 * 1024) // 5MB
- *   file: any;
+ *   file: MulterLikeFile;
  * }
  * ```
  */

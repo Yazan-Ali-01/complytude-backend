@@ -76,7 +76,17 @@ export function FastifyMultipartInterceptor(
               size: buffer.length,
             };
 
-            body[multipartFile.fieldname] = fileObject;
+            // Handle multiple files with same field name
+            const existingValue = body[multipartFile.fieldname];
+            if (existingValue) {
+              if (Array.isArray(existingValue)) {
+                existingValue.push(fileObject);
+              } else {
+                body[multipartFile.fieldname] = [existingValue, fileObject];
+              }
+            } else {
+              body[multipartFile.fieldname] = fileObject;
+            }
           } else {
             // Handle field part
             const fieldname = part.fieldname;

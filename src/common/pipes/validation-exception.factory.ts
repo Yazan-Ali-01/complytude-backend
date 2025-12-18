@@ -4,6 +4,7 @@ import {
   ValidationDetail,
   ValidationRuleContext,
 } from '../../types/validation.types';
+import { formatFileSize } from '../helper';
 
 /**
  * Validation rule names used by class-validator
@@ -37,6 +38,7 @@ const VALIDATION_RULES = {
   WHITELIST_VALIDATION: 'whitelistValidation',
   IS_DEFINED: 'isDefined',
   // Custom file validation rules (from src/common/decorators/file-validators.decorator.ts)
+  IS_VALID_FILE: 'isValidFile',
   IS_FILE_UPLOADED: 'isFileUploaded',
   IS_FILE_MIME_TYPE: 'isFileMimeType',
   IS_FILE_MAX_SIZE: 'isFileMaxSize',
@@ -60,23 +62,6 @@ function safeToString(value: unknown): string {
   } catch {
     return '';
   }
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const k = 1024;
-  const decimals = 2;
-
-  if (bytes < k) {
-    return `${bytes} B`;
-  }
-
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const size = bytes / Math.pow(k, i);
-
-  return `${size.toFixed(decimals)} ${units[i]}`;
 }
 
 /**
@@ -146,9 +131,10 @@ const ruleDescriptions: Record<string, (constraintValue?: unknown) => string> =
       v ? `matching pattern: ${safeToString(v)}` : 'matching pattern',
 
     // Custom file validation descriptions
-    [VALIDATION_RULES.IS_FILE_UPLOADED]: () => 'file uploaded',
+    [VALIDATION_RULES.IS_VALID_FILE]: () => 'a valid file',
+    [VALIDATION_RULES.IS_FILE_UPLOADED]: () => 'a file',
     [VALIDATION_RULES.IS_FILE_MIME_TYPE]: (v) => {
-      if (Array.isArray(v)) return `one of: ${v.map(String).join(', ')}`;
+      if (Array.isArray(v)) return `file type: ${v.map(String).join(', ')}`;
       return 'valid file type';
     },
     [VALIDATION_RULES.IS_FILE_MAX_SIZE]: (v) => {
@@ -273,14 +259,20 @@ function getReceivedValue(value: unknown, rule: string): string {
   }
 
   // Custom file validation received formatting
+  if (rule === VALIDATION_RULES.IS_VALID_FILE) {
+    return value ? 'invalid file object' : 'no file';
+  }
+  if (rule === VALIDATION_RULES.IS_FILE_UPLOADED) {
+    return 'no file';
+  }
   if (rule === VALIDATION_RULES.IS_FILE_MIME_TYPE) {
     const file = value as FileLike;
-    return typeof file?.mimetype === 'string' ? file.mimetype : '';
+    return typeof file?.mimetype === 'string' ? file.mimetype : 'unknown type';
   }
   if (rule === VALIDATION_RULES.IS_FILE_MAX_SIZE) {
     const file = value as FileLike;
     const size = typeof file?.size === 'number' ? file.size : undefined;
-    return typeof size === 'number' ? formatFileSize(size) : '';
+    return typeof size === 'number' ? formatFileSize(size) : 'unknown size';
   }
 
   return safeToString(value);
