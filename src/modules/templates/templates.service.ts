@@ -14,6 +14,7 @@ import {
   CreateTemplateVersionDto,
   CreateTemplateVersionResponseDto,
 } from './dto/create-template.dto';
+import { TemplateDownloadResponseDto } from './dto/template-response.dto';
 import { TemplateVersionsService } from './template-versions.service';
 import { RulesetsService } from './rulesets.service';
 import { PoolClient } from 'pg';
@@ -787,6 +788,62 @@ export class TemplatesService {
       return parts.join('.');
     }
     return version;
+  }
+
+  /**
+   * Get a signed download URL for a template file
+   */
+  async getDownloadUrl(
+    key: string,
+    version?: string,
+  ): Promise<TemplateDownloadResponseDto> {
+    // Validate version format (semver: x.y.z) before any DB calls
+    if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
+      throw new BadRequestException(
+        `Invalid version format "${version}". Expected semver format (e.g., 1.0.0)`,
+      );
+    }
+
+    try {
+      const template = await this.findByKey(key);
+      const targetVersion = version || template.current_version;
+
+      const versionRecord = await this.templateVersionsService.getVersion(
+        template.id,
+        targetVersion,
+      );
+
+      const fileKey = `templates/${template.id}/${versionRecord.version}/template.docx`;
+      const expiresIn = 900; // 15 minutes
+      const downloadUrl = await this.storageService.generateTemplateSignedUrl(
+        fileKey,
+        expiresIn,
+      );
+
+      const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+      const fileName = `${template.key}_${targetVersion}.docx`;
+
+      return {
+        downloadUrl,
+        expiresIn,
+        expiresAt,
+        fileName,
+        version: targetVersion,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to generate download URL for template "${key}": ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to generate template download URL',
+      );
+    }
   }
 
   /**

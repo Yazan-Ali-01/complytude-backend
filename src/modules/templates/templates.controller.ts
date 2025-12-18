@@ -38,6 +38,7 @@ import {
   TemplateResponseDto,
   TemplateListResponseDto,
   TemplateVersionResponseDto,
+  TemplateDownloadResponseDto,
 } from './dto/template-response.dto';
 import {
   GenerateDocumentDto,
@@ -265,6 +266,33 @@ export class TemplatesController {
   @ApiResponse({ status: 404, description: 'Template not found' })
   async findByKey(@Param('key') key: string): Promise<TemplateWithDetails> {
     return this.templatesService.findByKeyWithDetails(key);
+  }
+
+  @Get(':key/download')
+  @UseGuards(SystemAdminGuard)
+  @ApiOperation({
+    summary: 'Download template file',
+    description:
+      'Get a signed URL to download the template DOCX file. Returns URL for specified version or current version if not specified.',
+  })
+  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiQuery({
+    name: 'version',
+    required: false,
+    description: 'Version number (defaults to current version)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Signed download URL',
+    type: TemplateDownloadResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Template or version not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
+  async downloadTemplate(
+    @Param('key') key: string,
+    @Query('version') version?: string,
+  ): Promise<TemplateDownloadResponseDto> {
+    return this.templatesService.getDownloadUrl(key, version);
   }
 
   @Get(':key/versions')
