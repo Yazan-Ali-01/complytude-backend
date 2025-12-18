@@ -30,6 +30,59 @@ function formatFileSize(bytes: number): string {
 }
 
 /**
+ * Validator constraint for checking if value is a MulterLikeFile object
+ */
+@ValidatorConstraint({ name: 'isMulterLikeFile', async: false })
+export class IsMulterLikeFileConstraint
+  implements ValidatorConstraintInterface
+{
+  validate(file: unknown) {
+    if (!file || typeof file !== 'object') {
+      return false;
+    }
+
+    const f = file as Record<string, unknown>;
+    return (
+      typeof f.fieldname === 'string' &&
+      typeof f.originalname === 'string' &&
+      typeof f.encoding === 'string' &&
+      typeof f.mimetype === 'string' &&
+      Buffer.isBuffer(f.buffer) &&
+      typeof f.size === 'number'
+    );
+  }
+
+  defaultMessage(_args: ValidationArguments) {
+    return 'file must be a valid uploaded file object';
+  }
+}
+
+/**
+ * Decorator to validate that a value is a MulterLikeFile object
+ *
+ * @param validationOptions - Optional validation options
+ *
+ * @example
+ * ```typescript
+ * class CreateTemplateDto {
+ *   @IsMulterLikeFile()
+ *   file: MulterLikeFile;
+ * }
+ * ```
+ */
+export function IsMulterLikeFile(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: 'isMulterLikeFile',
+      target: object.constructor,
+      propertyName: propertyName,
+      options: validationOptions,
+      validator: IsMulterLikeFileConstraint,
+    });
+  };
+}
+
+/**
  * Validator constraint for checking if file is uploaded
  */
 @ValidatorConstraint({ name: 'isFileUploaded', async: false })

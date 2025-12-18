@@ -14,6 +14,7 @@ import {
   IsFileMaxSize,
   IsFileMimeType,
   IsFileUploaded,
+  IsMulterLikeFile,
 } from 'src/common/decorators/file-validators.decorator';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
@@ -71,6 +72,7 @@ export class CreateTemplateVersionDto {
     description: 'DOCX template file (required, max 5MB)',
   })
   @IsFileUploaded()
+  @IsMulterLikeFile()
   @IsFileMimeType(TEMPLATE_ALLOWED_MIME_TYPES)
   @IsFileMaxSize(TEMPLATE_MAX_FILE_SIZE)
   file: MulterLikeFile;
