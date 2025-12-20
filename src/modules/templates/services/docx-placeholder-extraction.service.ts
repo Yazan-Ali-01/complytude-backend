@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import PizZip from 'pizzip';
 import { TemplateFieldDto } from '../dto/template-field.dto';
 import Docxtemplater from 'docxtemplater';
+import { TEMPLATE_PLACEHOLDER_DELIMITERS } from '../constants/template.constants';
 
 /**
  * Result of validating placeholders against field definitions.
@@ -28,23 +29,8 @@ export interface PlaceholderValidationResult {
  * // Returns: ["employee_name", "salary", "start_date"]
  */
 @Injectable()
-export class PlaceholderExtractionService {
-  private readonly logger = new Logger(PlaceholderExtractionService.name);
-
-  /**
-   * Placeholder regex pattern: matches {variable_name} format
-   * - Must start and end with curly braces
-   * - Can contain: letters (a-z, A-Z), numbers (0-9), underscores (_)
-   * - Cannot contain: spaces, hyphens, special characters
-   *
-   * Examples:
-   * - {employee_name} ✓
-   * - {salary123} ✓
-   * - {start_date} ✓
-   * - {employee-name} ✗ (hyphens not allowed)
-   * - { spaced } ✗ (spaces not allowed)
-   */
-  private readonly PLACEHOLDER_REGEX = /\{([a-zA-Z0-9_]+)\}/g;
+export class DocxPlaceholderExtractionService {
+  private readonly logger = new Logger(DocxPlaceholderExtractionService.name);
 
   /**
    * Extracts unique placeholder variables from a DOCX file buffer.
@@ -89,6 +75,7 @@ export class PlaceholderExtractionService {
       const placeholders = new Set<string>();
 
       const doc = new Docxtemplater(zip, {
+        delimiters: TEMPLATE_PLACEHOLDER_DELIMITERS,
         parser: (tag) => {
           placeholders.add(tag);
           return {
@@ -135,13 +122,7 @@ export class PlaceholderExtractionService {
    * validatePlaceholderFormat('') // false
    */
   validatePlaceholderFormat(placeholder: string): boolean {
-    if (!placeholder || placeholder.trim().length === 0) {
-      return false;
-    }
-
-    // Check if placeholder matches the valid pattern (alphanumeric + underscore)
-    const validPattern = /^[a-zA-Z0-9_]+$/;
-    return validPattern.test(placeholder);
+    return /^[a-zA-Z0-9_]+$/.test(placeholder ?? '');
   }
 
   /**

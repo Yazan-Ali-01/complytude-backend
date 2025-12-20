@@ -19,9 +19,9 @@ import { TemplateVersionsService } from './template-versions.service';
 import { RulesetsService } from './rulesets.service';
 import { PoolClient } from 'pg';
 import {
-  PlaceholderExtractionService,
+  DocxPlaceholderExtractionService,
   PlaceholderValidationResult,
-} from './services/placeholder-extraction.service';
+} from './services/docx-placeholder-extraction.service';
 import { StorageService } from '../storage/storage.service';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
@@ -36,7 +36,7 @@ export class TemplatesService {
     private readonly databaseService: DatabaseService,
     private readonly templateVersionsService: TemplateVersionsService,
     private readonly rulesetsService: RulesetsService,
-    private readonly placeholderExtractionService: PlaceholderExtractionService,
+    private readonly placeholderExtractionService: DocxPlaceholderExtractionService,
     private readonly storageService: StorageService,
   ) {}
   async create(
@@ -223,15 +223,11 @@ export class TemplatesService {
       );
 
       // Add placeholder extraction results if file was uploaded
-      if (createTemplateDto.file && placeholders.length > 0) {
-        return {
-          ...templateWithDetails,
-          placeholders_detected: placeholders,
-          validation: validationResult,
-        };
-      }
-
-      return templateWithDetails;
+      return {
+        ...templateWithDetails,
+        placeholders_detected: placeholders,
+        validation: validationResult,
+      };
     } catch (error) {
       if (
         error instanceof ConflictException ||

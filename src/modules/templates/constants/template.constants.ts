@@ -1,3 +1,8 @@
+export const TEMPLATE_PLACEHOLDER_DELIMITERS: { start: string; end: string } = {
+  start: '{{',
+  end: '}}',
+};
+
 export const TEMPLATE_ALLOWED_MIME_TYPES: string[] = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];

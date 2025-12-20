@@ -24,7 +24,7 @@ import {
 } from '../constants/template.constants';
 import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
 import { TemplateFieldDto } from './template-field.dto';
-import type { PlaceholderValidationResult } from '../services/placeholder-extraction.service';
+import type { PlaceholderValidationResult } from '../services/docx-placeholder-extraction.service';
 import { JsonField } from 'src/common/decorators/json-field.decorator';
 
 export class CreateTemplateVersionDto {
