@@ -50,6 +50,7 @@ import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { DocumentGenerationService } from './document-generation.service';
+import { BodyType } from 'src/common/decorators/body-type.decorator';
 
 @ApiTags('Templates')
 @Controller('templates')
@@ -63,11 +64,8 @@ export class TemplatesController {
 
   @Post()
   @UseGuards(SystemAdminGuard)
-  @UseInterceptors(
-    FastifyMultipartInterceptor({
-      jsonFields: ['languages', 'fields', 'ruleset_keys', 'metadata'],
-    }),
-  )
+  @UseInterceptors(FastifyMultipartInterceptor())
+  @BodyType(CreateTemplateDto)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Create new template',
@@ -316,11 +314,8 @@ export class TemplatesController {
 
   @Post(':key/versions')
   @UseGuards(SystemAdminGuard)
-  @UseInterceptors(
-    FastifyMultipartInterceptor({
-      jsonFields: ['fields', 'metadata'],
-    }),
-  )
+  @UseInterceptors(FastifyMultipartInterceptor())
+  @BodyType(CreateTemplateVersionDto)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Create new template version',

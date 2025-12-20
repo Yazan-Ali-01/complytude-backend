@@ -10,42 +10,65 @@ import {
 import { Observable } from 'rxjs';
 import { FastifyRequest } from 'fastify';
 import { MulterLikeFile } from '../interfaces/multer-file.interface';
-
-export interface FastifyMultipartOptions {
-  jsonFields?: string[]; // Fields to JSON.parse (e.g., ['languages', 'fields', 'metadata'])
-}
+import { JSON_FIELDS_KEY } from '../decorators/json-field.decorator';
+import { Reflector } from '@nestjs/core';
 
 /**
  * Interceptor that parses multipart/form-data requests into request.body and request.file(s)
  * Enables DTO validation with class-validator for multipart requests
  *
- * @param options Configuration options for multipart parsing
+ * **Important:** This interceptor requires the `@BodyType()` decorator on the handler method
+ * to automatically detect JSON fields from the DTO metadata.
+ *
+ * **JSON Field Parsing:** You must use `@JsonField()` decorator on any DTO field that should be
+ * parsed as JSON (e.g., objects, arrays, records). Fields without `@JsonField()` will be treated
+ * as plain strings. For example, if you have a `fields` property that should be an array of objects,
+ * or a `metadata` property that should be a record, you must decorate them with `@JsonField()`.
+ *
+ * **JSON Parsing Behavior:** If JSON parsing fails for a field marked with `@JsonField()`,
+ * the raw string value is passed to the DTO, allowing class-validator to catch and report
+ * the validation error appropriately.
+ *
+ * **Multiple Files:** If multiple files are uploaded with the same field name, they will be
+ * collected into an array in the request body.
+ *
  * @returns NestInterceptor class
  *
  * @example
  * ```typescript
- * @UseInterceptors(
- *   FastifyMultipartInterceptor({
- *     jsonFields: ['languages', 'fields', 'metadata'],
- *   })
- * )
- * async create(@Body() dto: CreateTemplateDto, @UploadedFile() file?: Multer.File) {
- *   // DTO validation works, file is attached to request
+ * // In your DTO:
+ * class CreateTemplateDto {
+ *   @JsonField()
+ *   fields: TemplateField[]; // Will be parsed as JSON array
+ *
+ *   @JsonField()
+ *   metadata: Record<string, any>; // Will be parsed as JSON object
+ *
+ *   name: string; // Plain string, no parsing needed
+ * }
+ *
+ * // In your controller:
+ * @Post()
+ * @UseInterceptors(FastifyMultipartInterceptor())
+ * @BodyType(CreateTemplateDto)
+ * async create(@Body() dto: CreateTemplateDto) {
+ *   // DTO validation works, file is attached to request.body.file
+ *   // JSON fields (marked with @JsonField()) are automatically parsed
  * }
  * ```
  */
-export function FastifyMultipartInterceptor(
-  options: FastifyMultipartOptions = {},
-): Type<NestInterceptor> {
-  const { jsonFields = [] } = options;
-
+export function FastifyMultipartInterceptor(): Type<NestInterceptor> {
   @Injectable()
   class MixinInterceptor implements NestInterceptor {
+    constructor(private reflector: Reflector) {}
+
     async intercept(
       context: ExecutionContext,
       next: CallHandler,
     ): Promise<Observable<any>> {
       const request = context.switchToHttp().getRequest<FastifyRequest>();
+      const handler = context.getHandler();
+      const targetClass = context.getClass();
 
       try {
         // Check if request has multipart content
@@ -55,6 +78,17 @@ export function FastifyMultipartInterceptor(
         }
 
         const body: Record<string, any> = {};
+
+        // Get JSON fields from DTO via metadata
+        const dtoClass = this.reflector.getAllAndOverride<new () => any>(
+          'bodyType',
+          [handler, targetClass],
+        );
+        const jsonFields: string[] =
+          (dtoClass &&
+            typeof dtoClass === 'function' &&
+            Reflect.getMetadata(JSON_FIELDS_KEY, dtoClass)) ||
+          [];
 
         // Parse all multipart parts
         const parts = request.parts();

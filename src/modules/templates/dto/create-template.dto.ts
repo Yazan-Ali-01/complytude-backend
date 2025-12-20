@@ -10,6 +10,7 @@ import {
   Matches,
   ValidateNested,
   ArrayMinSize,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -25,6 +26,7 @@ import {
   TEMPLATE_MAX_FILE_SIZE,
 } from '../constants/template.constants';
 import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
+import { JsonField } from 'src/common/decorators/json-field.decorator';
 
 export {
   CreateTemplateVersionDto,
@@ -82,6 +84,7 @@ export class CreateTemplateDto {
     example: ['en', 'ar'],
     description: 'Supported languages',
   })
+  @JsonField()
   @IsArray()
   @IsString({ each: true })
   @ArrayMinSize(1)
@@ -99,6 +102,7 @@ export class CreateTemplateDto {
     description: 'Template field definitions',
     type: [TemplateFieldDto],
   })
+  @JsonField()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TemplateFieldDto)
@@ -109,6 +113,7 @@ export class CreateTemplateDto {
     example: ['dmcc_employment_rules_v1'],
     description: 'Array of ruleset keys to apply',
   })
+  @JsonField()
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
@@ -121,6 +126,10 @@ export class CreateTemplateDto {
   @IsString()
   @IsOptional()
   @MaxLength(50)
+  @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'version must be in format x.y.z (e.g., 1.0.0)',
+  })
   version?: string;
 
   @ApiPropertyOptional({
@@ -136,6 +145,7 @@ export class CreateTemplateDto {
     example: { tags: ['employment', 'standard'] },
     description: 'Additional metadata',
   })
+  @JsonField()
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
@@ -253,6 +263,10 @@ export class UpdateTemplateDto {
   @IsString()
   @IsOptional()
   @MaxLength(50)
+  @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'version must be in format x.y.z (e.g., 1.0.0)',
+  })
   version?: string;
 
   @ApiPropertyOptional({

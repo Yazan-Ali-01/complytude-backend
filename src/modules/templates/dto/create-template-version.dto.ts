@@ -7,6 +7,8 @@ import {
   ValidateNested,
   ArrayMinSize,
   MaxLength,
+  Matches,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -23,15 +25,22 @@ import {
 import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
 import { TemplateFieldDto } from './template-field.dto';
 import type { PlaceholderValidationResult } from '../services/placeholder-extraction.service';
+import { JsonField } from 'src/common/decorators/json-field.decorator';
 
 export class CreateTemplateVersionDto {
   @ApiProperty({
     example: '1.1.0',
-    description: 'Version number for the new template version',
+    description:
+      'Version number for the new template version (must follow x.y.z format, e.g., 1.0.0)',
+    pattern: '^\\d+\\.\\d+\\.\\d+$',
   })
   @IsString()
   @IsNotEmpty()
   @MaxLength(50)
+  @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'Version must be in the format x.y.z (e.g., 1.0.0)',
+  })
   version: string;
 
   @ApiPropertyOptional({
@@ -54,6 +63,7 @@ export class CreateTemplateVersionDto {
     description: 'Template field definitions for this version',
     type: [TemplateFieldDto],
   })
+  @JsonField()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TemplateFieldDto)
@@ -64,6 +74,7 @@ export class CreateTemplateVersionDto {
     example: { tags: ['employment', 'updated'] },
     description: 'Additional metadata for this version',
   })
+  @JsonField()
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
