@@ -23,7 +23,10 @@ import {
   PlaceholderValidationResult,
 } from './services/placeholder-extraction.service';
 import { StorageService } from '../storage/storage.service';
-import { TEMPLATE_ALLOWED_MIME_TYPES } from './constants/template.constants';
+import {
+  TEMPLATE_ALLOWED_MIME_TYPES,
+  TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,
+} from './constants/template.constants';
 
 @Injectable()
 export class TemplatesService {
@@ -814,7 +817,7 @@ export class TemplatesService {
       );
 
       const fileKey = `templates/${template.id}/${versionRecord.version}/template.docx`;
-      const expiresIn = 900; // 15 minutes
+      const expiresIn = TEMPLATE_DOWNLOAD_URL_EXPIRES_IN; // 15 minutes
       const downloadUrl = await this.storageService.generateTemplateSignedUrl(
         fileKey,
         expiresIn,
