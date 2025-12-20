@@ -45,18 +45,18 @@ export interface FileListItem {
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly s3Client: S3Client;
-  private readonly bucketPrefix: string;
   private readonly signedUrlExpiresIn: number;
-
   private readonly templatesBucket: string;
+  private readonly tenantFilesBucket: string;
 
   constructor(private readonly configService: ConfigService) {
     const s3Config = this.configService.get('storage.s3');
-    this.bucketPrefix =
-      this.configService.get('storage.bucket.prefix') || 'complytude';
     this.templatesBucket =
       this.configService.get('storage.templates.bucketName') ||
       'complytude-templates';
+    this.tenantFilesBucket =
+      this.configService.get('storage.bucket.filesBucketName') ||
+      'complytude-files';
     this.signedUrlExpiresIn =
       this.configService.get('storage.signedUrl.expiresIn') || 900;
 
@@ -75,15 +75,12 @@ export class StorageService {
     );
   }
 
-  /**
-   * Get bucket name for a tenant
-   */
-  private getTenantBucket(tenantId: string): string {
-    // Strip 'tenant_' prefix if present to avoid duplication in bucket name
+  // Get tenant Prefix
+  private getTenantPrefix(tenantId: string): string {
     const cleanId = tenantId.startsWith('tenant_')
       ? tenantId.substring(7)
       : tenantId;
-    return `${this.bucketPrefix}-tenant-${cleanId}`;
+    return `tenants/${cleanId}`;
   }
 
   /**
@@ -106,40 +103,6 @@ export class StorageService {
   }
 
   /**
-   * Initialize bucket for a tenant if it doesn't exist
-   */
-  async initializeTenantBucket(tenantId: string): Promise<void> {
-    const bucket = this.getTenantBucket(tenantId);
-
-    try {
-      // Check if bucket exists
-      await this.s3Client.send(new HeadBucketCommand({ Bucket: bucket }));
-      this.logger.log(`Bucket ${bucket} already exists`);
-    } catch (error) {
-      // Bucket doesn't exist, create it
-      if (
-        error.name === 'NotFound' ||
-        error.$metadata?.httpStatusCode === 404
-      ) {
-        try {
-          await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
-          this.logger.log(`Created bucket ${bucket} for tenant ${tenantId}`);
-        } catch (createError) {
-          this.logger.error(
-            `Failed to create bucket ${bucket}: ${createError.message}`,
-          );
-          throw new InternalServerErrorException(
-            'Failed to initialize storage for tenant',
-          );
-        }
-      } else {
-        this.logger.error(`Error checking bucket ${bucket}: ${error.message}`);
-        throw new InternalServerErrorException('Failed to access storage');
-      }
-    }
-  }
-
-  /**
    * Upload a file to tenant's bucket
    */
   async uploadFile(
@@ -149,13 +112,13 @@ export class StorageService {
     contentType: string,
     userId: string,
   ): Promise<UploadResult> {
-    await this.initializeTenantBucket(tenantId);
+    await this.initializeTenantFilesBucket();
 
-    const bucket = this.getTenantBucket(tenantId);
+    const bucket = this.tenantFilesBucket;
+    const tenantPrefix = this.getTenantPrefix(tenantId);
     const normalizedName = this.normalizeFileName(originalName);
     const timestamp = Date.now();
-    const key = `${timestamp}-${normalizedName}`;
-
+    const key = `${tenantPrefix}/${timestamp}-${normalizedName}`;
     const metadata: FileMetadata = {
       userId,
       originalName,
@@ -185,7 +148,7 @@ export class StorageService {
       );
 
       // Generate a signed URL for immediate access
-      const url = await this.generateSignedUrl(tenantId, key);
+      const url = await this.generateSignedUrl(key);
 
       return {
         key,
@@ -203,9 +166,8 @@ export class StorageService {
   /**
    * Get file stream from tenant's bucket
    */
-  async getFile(tenantId: string, fileKey: string): Promise<Readable> {
-    const bucket = this.getTenantBucket(tenantId);
-
+  async getFile(fileKey: string): Promise<Readable> {
+    const bucket = this.tenantFilesBucket;
     try {
       const response = await this.s3Client.send(
         new GetObjectCommand({
@@ -248,10 +210,9 @@ export class StorageService {
    * Get file metadata
    */
   async getFileMetadata(
-    tenantId: string,
     fileKey: string,
   ): Promise<FileMetadata | null> {
-    const bucket = this.getTenantBucket(tenantId);
+    const bucket = this.tenantFilesBucket;
 
     try {
       const response = await this.s3Client.send(
@@ -294,8 +255,8 @@ export class StorageService {
   /**
    * Delete a file from tenant's bucket
    */
-  async deleteFile(tenantId: string, fileKey: string): Promise<void> {
-    const bucket = this.getTenantBucket(tenantId);
+  async deleteFile(fileKey: string): Promise<void> {
+    const bucket = this.tenantFilesBucket;
 
     try {
       // First check if the file exists to provide better error messages
@@ -344,11 +305,10 @@ export class StorageService {
    * Generate a signed URL for downloading a file
    */
   async generateSignedUrl(
-    tenantId: string,
     fileKey: string,
     expiresIn?: number,
   ): Promise<string> {
-    const bucket = this.getTenantBucket(tenantId);
+    const bucket = this.tenantFilesBucket;
     const expires = expiresIn || this.signedUrlExpiresIn;
 
     try {
@@ -372,13 +332,15 @@ export class StorageService {
    * List files in tenant's bucket
    */
   async listFiles(tenantId: string, prefix?: string): Promise<FileListItem[]> {
-    const bucket = this.getTenantBucket(tenantId);
+    const bucket = this.tenantFilesBucket;
+    const tenantPrefix = this.getTenantPrefix(tenantId);
+    const fullPrefix = prefix ? `${tenantPrefix}/${prefix}` : tenantPrefix;
 
     try {
       const response = await this.s3Client.send(
         new ListObjectsV2Command({
           Bucket: bucket,
-          Prefix: prefix,
+          Prefix: fullPrefix,
         }),
       );
 
@@ -388,7 +350,7 @@ export class StorageService {
 
       const files: FileListItem[] = await Promise.all(
         response.Contents.filter((item) => item.Key).map(async (item) => {
-          const url = await this.generateSignedUrl(tenantId, item.Key!);
+          const url = await this.generateSignedUrl(item.Key!);
           return {
             key: item.Key!,
             size: item.Size || 0,
@@ -416,6 +378,43 @@ export class StorageService {
 
       this.logger.error(`Failed to list files: ${error.message}`);
       throw new InternalServerErrorException('Failed to list files');
+    }
+  }
+
+  async initializeTenantFilesBucket(): Promise<void> {
+    try {
+      await this.s3Client.send(
+        new HeadBucketCommand({ Bucket: this.tenantFilesBucket }),
+      );
+      this.logger.log(
+        `Tenant files bucket ${this.tenantFilesBucket} already exists`,
+      );
+    } catch (error) {
+      if (
+        error.name === 'NotFound' ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
+        try {
+          await this.s3Client.send(
+            new CreateBucketCommand({ Bucket: this.tenantFilesBucket }),
+          );
+          this.logger.log(`Created tenant files bucket ${this.tenantFilesBucket}`);
+        } catch (createError) {
+          this.logger.error(
+            `Failed to create tenant files bucket ${this.tenantFilesBucket}: ${createError.message}`,
+          );
+          throw new InternalServerErrorException(
+            'Failed to initialize tenant files storage',
+          );
+        }
+      } else {
+        this.logger.error(
+          `Error checking tenant files bucket ${this.tenantFilesBucket}: ${error.message}`,
+        );
+        throw new InternalServerErrorException(
+          'Failed to access tenant files storage',
+        );
+      }
     }
   }
 

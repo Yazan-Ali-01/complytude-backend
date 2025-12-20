@@ -20,10 +20,12 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { FastifyFileInterceptor } from './interceptors/fastify-file.interceptor';
 import { StorageService } from './storage.service';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
+import type { ValidatedFile } from './pipes/file-validation.pipe';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -36,15 +38,6 @@ import {
   SignedUrlResponseDto,
   DeleteFileResponseDto,
 } from './dto/file-response.dto';
-
-interface UploadedFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  buffer: Buffer;
-  size: number;
-}
 
 @ApiTags('Storage')
 @Controller('storage')
@@ -92,7 +85,7 @@ export class StorageController {
   })
   @UseInterceptors(FastifyFileInterceptor('file'))
   async uploadFile(
-    @UploadedFile(FileValidationPipe) file: UploadedFile,
+    @UploadedFile(FileValidationPipe) file: ValidatedFile,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<FileResponseDto> {
     if (!file) {
@@ -100,14 +93,14 @@ export class StorageController {
     }
 
     this.logger.log(
-      `User ${user.userId} uploading file: ${file.originalname} (${file.size} bytes)`,
+      `User ${user.userId} uploading file: ${file.originalName} (${file.size} bytes)`,
     );
 
     const result = await this.storageService.uploadFile(
       user.tenantId,
       file.buffer,
-      file.originalname,
-      file.mimetype,
+      file.originalName,
+      file.mimeType,
       user.userId,
     );
 
@@ -122,6 +115,12 @@ export class StorageController {
     summary: 'List all files for current tenant',
     description:
       'List all files in tenant storage. Available to all authenticated users.',
+  })
+  @ApiQuery({
+    name: 'prefix',
+    required: false,
+    type: String,
+    description: 'Optional prefix to filter files by path',
   })
   @ApiResponse({
     status: 200,
@@ -152,6 +151,18 @@ export class StorageController {
     description:
       'Generate a time-limited signed URL for downloading a file. Public endpoint - no authentication required, but tenantId must be provided.',
   })
+  @ApiQuery({
+    name: 'tenantId',
+    required: true,
+    type: String,
+    description: 'Tenant ID to identify the tenant',
+  })
+  @ApiQuery({
+    name: 'expiresIn',
+    required: false,
+    type: Number,
+    description: 'URL expiration time in seconds (default: 900)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Signed URL generated successfully',
@@ -171,11 +182,7 @@ export class StorageController {
       throw new BadRequestException('tenantId query parameter is required');
     }
 
-    const url = await this.storageService.generateSignedUrl(
-      tenantId,
-      fileKey,
-      expiresIn,
-    );
+    const url = await this.storageService.generateSignedUrl(fileKey, expiresIn);
 
     return {
       key: fileKey,
@@ -191,6 +198,12 @@ export class StorageController {
     description:
       'Download a file as an attachment. Public endpoint - no authentication required, but tenantId must be provided. All roles can download files from their tenant.',
   })
+  @ApiQuery({
+    name: 'tenantId',
+    required: true,
+    type: String,
+    description: 'Tenant ID to identify the tenant',
+  })
   @ApiResponse({
     status: 200,
     description: 'File downloaded successfully',
@@ -200,7 +213,6 @@ export class StorageController {
     description: 'tenantId query parameter required',
   })
   @ApiResponse({ status: 404, description: 'File not found' })
-  @Header('Content-Type', 'application/octet-stream')
   async downloadFile(
     @Param('fileKey') fileKey: string,
     @Query('tenantId') tenantId: string,
@@ -209,17 +221,45 @@ export class StorageController {
       throw new BadRequestException('tenantId query parameter is required');
     }
 
-    const stream = await this.storageService.getFile(tenantId, fileKey);
+    const stream = await this.storageService.getFile(fileKey);
 
-    // Get file metadata for proper content type
-    const metadata = await this.storageService.getFileMetadata(
-      tenantId,
-      fileKey,
-    );
+    // Get file metadata for proper content type and filename
+    const metadata = await this.storageService.getFileMetadata(fileKey);
+
+    // Extract filename from fileKey if metadata is not available
+    // FileKey format: tenants/{tenantId}/{timestamp}-{filename}
+    let filename = metadata?.originalName;
+
+    // Handle base64 encoded filenames (if metadata was stored as base64)
+    if (filename) {
+      try {
+        if (/^[A-Za-z0-9+/=]+$/.test(filename) && filename.length % 4 === 0) {
+          const decoded = Buffer.from(filename, 'base64').toString('utf-8');
+          // Only use decoded if it results in a valid filename
+          if (decoded && !decoded.includes('\0')) {
+            filename = decoded;
+          }
+        }
+      } catch (error) {
+          this.logger.error(
+            `Unexpected error decoding filename: ${error.message}`,
+          );
+      }
+    }
+
+    if (!filename) {
+      const parts = fileKey.split('/');
+      const lastPart = parts[parts.length - 1];
+      const timestampMatch = lastPart.match(/^\d+-(.+)$/);
+      filename = timestampMatch ? timestampMatch[1] : lastPart;
+    }
+
+    const encodedFilename = encodeURIComponent(filename);
+    const disposition = `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`;
 
     return new StreamableFile(stream, {
       type: metadata?.contentType || 'application/octet-stream',
-      disposition: `attachment; filename="${metadata?.originalName || fileKey}"`,
+      disposition,
     });
   }
 
@@ -251,7 +291,7 @@ export class StorageController {
       `User ${user.userId} deleting file: ${fileKey} from tenant ${user.tenantId}`,
     );
 
-    await this.storageService.deleteFile(user.tenantId, fileKey);
+    await this.storageService.deleteFile(fileKey);
 
     return {
       message: 'File deleted successfully',
