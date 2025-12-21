@@ -17,8 +17,6 @@ import { Reflector } from '@nestjs/core';
  * Interceptor that parses multipart/form-data requests into request.body and request.file(s)
  * Enables DTO validation with class-validator for multipart requests
  *
- * **Important:** This interceptor requires the `@BodyType()` decorator on the handler method
- * to automatically detect JSON fields from the DTO metadata.
  *
  * **JSON Field Parsing:** You must use `@JsonField()` decorator on any DTO field that should be
  * parsed as JSON (e.g., objects, arrays, records). Fields without `@JsonField()` will be treated
@@ -49,15 +47,16 @@ import { Reflector } from '@nestjs/core';
  *
  * // In your controller:
  * @Post()
- * @UseInterceptors(FastifyMultipartInterceptor())
- * @BodyType(CreateTemplateDto)
+ * @UseInterceptors(FastifyMultipartInterceptor(CreateTemplateDto))
  * async create(@Body() dto: CreateTemplateDto) {
  *   // DTO validation works, file is attached to request.body.file
  *   // JSON fields (marked with @JsonField()) are automatically parsed
  * }
  * ```
  */
-export function FastifyMultipartInterceptor(): Type<NestInterceptor> {
+export function FastifyMultipartInterceptor(
+  dtoClass: new () => any,
+): Type<NestInterceptor> {
   @Injectable()
   class MixinInterceptor implements NestInterceptor {
     constructor(private reflector: Reflector) {}
@@ -67,8 +66,6 @@ export function FastifyMultipartInterceptor(): Type<NestInterceptor> {
       next: CallHandler,
     ): Promise<Observable<any>> {
       const request = context.switchToHttp().getRequest<FastifyRequest>();
-      const handler = context.getHandler();
-      const targetClass = context.getClass();
 
       try {
         // Check if request has multipart content
@@ -79,11 +76,6 @@ export function FastifyMultipartInterceptor(): Type<NestInterceptor> {
 
         const body: Record<string, any> = {};
 
-        // Get JSON fields from DTO via metadata
-        const dtoClass = this.reflector.getAllAndOverride<new () => any>(
-          'bodyType',
-          [handler, targetClass],
-        );
         const jsonFields: string[] =
           (dtoClass &&
             typeof dtoClass === 'function' &&
