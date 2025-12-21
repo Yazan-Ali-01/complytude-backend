@@ -13,7 +13,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TemplateFieldDto } from './template-field.dto';
+import { TemplateFieldDto } from '../../shared/dto/template-field.dto';
 
 export class CreateTemplateDto {
   @ApiProperty({

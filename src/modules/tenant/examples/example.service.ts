@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../database/database.service';
+import { DatabaseService } from '../../../core/database/database.service';
 
 /**
  * Example service demonstrating multi-tenancy patterns

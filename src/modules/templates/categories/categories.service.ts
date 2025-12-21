@@ -5,7 +5,7 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
+import { DatabaseService } from 'src/core/database/database.service';
 import { Category } from './entities/category.entity';
 import {
   CreateCategoryDto,

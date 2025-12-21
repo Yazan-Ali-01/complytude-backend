@@ -1,11 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { CategoriesService } from './categories.service';
+import { CategoriesService } from '../../categories/categories.service';
 import {
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
-} from './dto/generate-document.dto';
+} from '../dto/generate-document.dto';
 import { TemplateValidationService } from './template-validation.service';
-import { TemplateVersionsService } from './template-versions.service';
+import { TemplateVersionsService } from '../template-versions.service';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
 
 @Injectable()

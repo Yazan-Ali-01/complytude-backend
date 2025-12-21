@@ -38,12 +38,15 @@ import {
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
 } from './dto/generate-document.dto';
-import { Template, TemplateWithDetails } from './entities/template.entity';
+import {
+  Template,
+  TemplateWithDetails,
+} from '../shared/entities/template.entity';
 import { TemplateVersion } from './entities/template-version.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
-import { DocumentGenerationService } from './document-generation.service';
+import { SystemAdminGuard } from '../../../common/guards/system-admin.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../auth/decorators/current-user.decorator';
+import { DocumentGenerationService } from './services/document-generation.service';
 
 @ApiTags('Templates')
 @Controller('templates')

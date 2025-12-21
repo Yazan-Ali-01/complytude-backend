@@ -6,14 +6,17 @@ import {
   InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
-import { Template, TemplateWithDetails } from './entities/template.entity';
+import { DatabaseService } from 'src/core/database/database.service';
+import {
+  Template,
+  TemplateWithDetails,
+} from '../shared/entities/template.entity';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
 } from './dto/create-template.dto';
 import { TemplateVersionsService } from './template-versions.service';
-import { RulesetsService } from './rulesets.service';
+import { RulesetsService } from '../rulesets/rulesets.service';
 import { PoolClient } from 'pg';
 
 @Injectable()

@@ -1,21 +1,21 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../../database/database.module';
+import { DatabaseModule } from '../../core/database/database.module';
 import { StorageModule } from '../storage/storage.module';
 
 // Controllers
-import { TemplatesController } from './templates.controller';
-import { AuthoritiesController } from './authorities.controller';
-import { CategoriesController } from './categories.controller';
-import { RulesetsController } from './rulesets.controller';
+import { TemplatesController } from './templates/templates.controller';
+import { AuthoritiesController } from './authorities/authorities.controller';
+import { CategoriesController } from './categories/categories.controller';
+import { RulesetsController } from './rulesets/rulesets.controller';
 
 // Services
-import { TemplatesService } from './templates.service';
-import { TemplateVersionsService } from './template-versions.service';
-import { AuthoritiesService } from './authorities.service';
-import { CategoriesService } from './categories.service';
-import { RulesetsService } from './rulesets.service';
-import { DocumentGenerationService } from './document-generation.service';
-import { TemplateValidationService } from './template-validation.service';
+import { TemplatesService } from './templates/templates.service';
+import { TemplateVersionsService } from './templates/template-versions.service';
+import { AuthoritiesService } from './authorities/authorities.service';
+import { CategoriesService } from './categories/categories.service';
+import { RulesetsService } from './rulesets/rulesets.service';
+import { DocumentGenerationService } from './templates/services/document-generation.service';
+import { TemplateValidationService } from './templates/services/template-validation.service';
 
 @Module({
   imports: [DatabaseModule, StorageModule],

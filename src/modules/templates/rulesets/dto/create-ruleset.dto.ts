@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ClauseDto } from './clause.dto';
+import { ClauseDto } from '../../shared/dto/clause.dto';
 
 export class CreateRulesetDto {
   @ApiProperty({

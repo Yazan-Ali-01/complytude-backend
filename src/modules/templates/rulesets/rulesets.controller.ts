@@ -22,9 +22,9 @@ import {
 import { RulesetsService } from './rulesets.service';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
 import { Ruleset } from './entities/ruleset.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { SystemAdminGuard } from '../../../common/guards/system-admin.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../auth/decorators/current-user.decorator';
 
 @ApiTags('Rulesets')
 @Controller('rulesets')

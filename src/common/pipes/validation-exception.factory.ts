@@ -1,6 +1,9 @@
 import { BadRequestException, ValidationError } from '@nestjs/common';
 import { ValidationException } from '../exceptions/validation.exception';
-import { ValidationDetail, ValidationRuleContext } from '../../types/validation.types';
+import {
+  ValidationDetail,
+  ValidationRuleContext,
+} from '../types/validation.types';
 
 /**
  * Validation rule names used by class-validator
