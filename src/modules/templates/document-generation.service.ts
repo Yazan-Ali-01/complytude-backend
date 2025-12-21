@@ -22,7 +22,6 @@ import { TenantService } from '../tenant/tenant.service';
 
 import { TemplateValidationService } from './template-validation.service';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
-import { DOCX_MIME_TYPE } from './constants/template.constants';
 import { Template } from './entities/template.entity';
 import { TemplateVersion } from './entities/template-version.entity';
 @Injectable()
@@ -61,13 +60,14 @@ export class DocumentGenerationService {
     templateKey: string,
     variables: Record<string, unknown>,
   ): Promise<{ template: Template; templateVersion: TemplateVersion }> {
-    const template = await this.templatesService.findByKey(templateKey);
+    const template: Template =
+      await this.templatesService.findByKey(templateKey);
 
     if (template.status !== 'active') {
       throw new BadRequestException(`Template ${template.key} is not active`);
     }
 
-    const templateVersion =
+    const templateVersion: TemplateVersion | null =
       await this.templateVersionsService.getCurrentVersion(template.id);
 
     if (!templateVersion) {
@@ -168,7 +168,7 @@ export class DocumentGenerationService {
         tenantId,
         outputBuffer,
         filename,
-        DOCX_MIME_TYPE,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         userId,
       );
       uploadedFileKey = uploadResult.key;
