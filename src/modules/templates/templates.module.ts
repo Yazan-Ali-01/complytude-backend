@@ -17,6 +17,7 @@ import { CategoriesService } from './categories.service';
 import { RulesetsService } from './rulesets.service';
 import { DocumentGenerationService } from './document-generation.service';
 import { TemplateValidationService } from './template-validation.service';
+import { DocxPlaceholderExtractionService } from './services/docx-placeholder-extraction.service';
 
 @Module({
   imports: [DatabaseModule, StorageModule, TenantModule],
@@ -34,6 +35,7 @@ import { TemplateValidationService } from './template-validation.service';
     RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
+    DocxPlaceholderExtractionService,
   ],
   exports: [
     TemplatesService,
@@ -43,6 +45,7 @@ import { TemplateValidationService } from './template-validation.service';
     RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
+    DocxPlaceholderExtractionService,
   ],
 })
 export class TemplatesModule {}

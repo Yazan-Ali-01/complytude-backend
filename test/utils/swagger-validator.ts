@@ -51,7 +51,7 @@ export class SwaggerValidator {
   validateResponse(
     schemaName: string,
     data: any,
-    options: { strict?: boolean } = {},
+    _options: { strict?: boolean } = {},
   ): { valid: boolean; errors: any[] } {
     const schema = this.schemas.get(schemaName);
 
