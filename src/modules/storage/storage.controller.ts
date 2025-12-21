@@ -11,7 +11,6 @@ import {
   BadRequestException,
   Logger,
   StreamableFile,
-  Header,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -149,13 +148,7 @@ export class StorageController {
   @ApiOperation({
     summary: 'Get signed download URL for a file',
     description:
-      'Generate a time-limited signed URL for downloading a file. Public endpoint - no authentication required, but tenantId must be provided.',
-  })
-  @ApiQuery({
-    name: 'tenantId',
-    required: true,
-    type: String,
-    description: 'Tenant ID to identify the tenant',
+      'Generate a time-limited signed URL for downloading a file. Public endpoint - no authentication required. Tenant ID must be provided in the path.',
   })
   @ApiQuery({
     name: 'expiresIn',
@@ -168,20 +161,11 @@ export class StorageController {
     description: 'Signed URL generated successfully',
     type: SignedUrlResponseDto,
   })
-  @ApiResponse({
-    status: 400,
-    description: 'tenantId query parameter required',
-  })
   @ApiResponse({ status: 404, description: 'File not found' })
   async getSignedUrl(
     @Param('fileKey') fileKey: string,
-    @Query('tenantId') tenantId: string,
     @Query('expiresIn') expiresIn?: number,
   ): Promise<SignedUrlResponseDto> {
-    if (!tenantId) {
-      throw new BadRequestException('tenantId query parameter is required');
-    }
-
     const url = await this.storageService.generateSignedUrl(fileKey, expiresIn);
 
     return {
@@ -196,31 +180,16 @@ export class StorageController {
   @ApiOperation({
     summary: 'Download a file directly',
     description:
-      'Download a file as an attachment. Public endpoint - no authentication required, but tenantId must be provided. All roles can download files from their tenant.',
-  })
-  @ApiQuery({
-    name: 'tenantId',
-    required: true,
-    type: String,
-    description: 'Tenant ID to identify the tenant',
+      'Download a file as an attachment. Public endpoint - no authentication required. Tenant ID must be provided in the path. All roles can download files from their tenant.',
   })
   @ApiResponse({
     status: 200,
     description: 'File downloaded successfully',
   })
-  @ApiResponse({
-    status: 400,
-    description: 'tenantId query parameter required',
-  })
   @ApiResponse({ status: 404, description: 'File not found' })
   async downloadFile(
     @Param('fileKey') fileKey: string,
-    @Query('tenantId') tenantId: string,
   ): Promise<StreamableFile> {
-    if (!tenantId) {
-      throw new BadRequestException('tenantId query parameter is required');
-    }
-
     const stream = await this.storageService.getFile(fileKey);
 
     // Get file metadata for proper content type and filename
