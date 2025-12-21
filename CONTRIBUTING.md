@@ -118,13 +118,13 @@ Closes COM-4
 
 ### Commit Types
 
-| Type       | Description                                              |
-| ---------- | -------------------------------------------------------- |
-| `feat`     | New feature                                              |
-| `fix`      | Bug fix                                                  |
-| `refactor` | Code refactoring (no functional changes)                 |
-| `test`     | Adding or updating tests                                 |
-| `docs`     | Documentation changes                                    |
+| Type       | Description                                               |
+| ---------- | --------------------------------------------------------- |
+| `feat`     | New feature                                               |
+| `fix`      | Bug fix                                                   |
+| `refactor` | Code refactoring (no functional changes)                  |
+| `test`     | Adding or updating tests                                  |
+| `docs`     | Documentation changes                                     |
 | `chore`    | Build process, dependencies, tooling, project maintenance |
 
 ### Commit Scope
@@ -272,6 +272,7 @@ HUSKY=0 git commit -m "your message"
 1. **Fork the repository** (if external contributor)
 
 2. **Create a feature branch** from `development`:
+
    ```bash
    git checkout -b feature/your-feature
    ```
@@ -281,6 +282,7 @@ HUSKY=0 git commit -m "your message"
 4. **Write tests** for your changes
 
 5. **Run tests locally**:
+
    ```bash
    pnpm test:e2e
    ```
@@ -288,6 +290,7 @@ HUSKY=0 git commit -m "your message"
 6. **Commit your changes** following the [commit standards](#commit-message-standards)
 
 7. **Push to your branch**:
+
    ```bash
    git push origin feature/your-feature
    ```
@@ -352,4 +355,3 @@ If you have questions about contributing, please:
 3. Open an issue for discussion
 
 Thank you for contributing! 🙏
-

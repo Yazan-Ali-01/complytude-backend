@@ -4,19 +4,19 @@ Welcome to the Complytude documentation hub. This index provides links to all pr
 
 ## Documentation Index
 
-| Document | Description |
-| -------- | ----------- |
-| [README.md](../README.md) | Project overview, features, quick start guide |
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | Contribution guidelines, git hooks, commit standards |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Development workflow, module creation, best practices |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Deployment instructions, production setup |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture documentation |
+| Document                              | Description                                           |
+| ------------------------------------- | ----------------------------------------------------- |
+| [README.md](../README.md)             | Project overview, features, quick start guide         |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Contribution guidelines, git hooks, commit standards  |
+| [DEVELOPMENT.md](DEVELOPMENT.md)      | Development workflow, module creation, best practices |
+| [DEPLOYMENT.md](DEPLOYMENT.md)        | Deployment instructions, production setup             |
+| [ARCHITECTURE.md](ARCHITECTURE.md)    | System architecture documentation                     |
 
 ## Additional Documentation
 
-| Document | Description |
-| -------- | ----------- |
-| [test/README.md](../test/README.md) | E2E testing guide, test utilities |
+| Document                                  | Description                          |
+| ----------------------------------------- | ------------------------------------ |
+| [test/README.md](../test/README.md)       | E2E testing guide, test utilities    |
 | [scripts/README.md](../scripts/README.md) | Database migrations, utility scripts |
 
 ## Quick Links
@@ -55,4 +55,3 @@ When updating documentation:
 ---
 
 [Back to main README](../README.md)
-
