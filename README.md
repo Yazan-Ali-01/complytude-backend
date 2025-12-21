@@ -361,8 +361,37 @@ pnpm docker:start
 **Port Already in Use**
 
 ```bash
-# Change port in .env file
+# Option 1: Change port in .env file
 PORT=3001
+```
+
+Or kill the process using port 3000 (or any other port):
+
+**On Windows:**
+
+```bash
+# Find the process ID (PID) on port 3000
+netstat -ano | findstr :3000
+
+# Kill the process (replace PID with the actual process ID)
+taskkill /PID <PID> /F
+
+# Or kill all Node processes on port 3000
+FOR /F "tokens=5" %P IN ('netstat -ano ^| findstr :3000') DO taskkill /PID %P /F
+```
+
+**On macOS/Linux:**
+
+```bash
+# Find and kill process on port 3000
+lsof -ti:3000 | xargs kill -9
+
+# Or find the PID first, then kill it
+lsof -i:3000
+kill -9 <PID>
+
+# For other ports, replace 3000 with your desired port number
+lsof -ti:8080 | xargs kill -9
 ```
 
 **Migration Errors**
