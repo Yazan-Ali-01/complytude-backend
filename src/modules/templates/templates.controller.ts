@@ -28,6 +28,7 @@ import {
 import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
+import { DocumentGenerationService } from './document-generation.service';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
@@ -49,7 +50,6 @@ import { TemplateVersion } from './entities/template-version.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
-import { DocumentGenerationService } from './document-generation.service';
 
 @ApiTags('Templates')
 @Controller('templates')
@@ -495,7 +495,7 @@ export class TemplatesController {
     return this.templatesService.deactivate(key);
   }
 
-  @Post(':id/generate')
+  @Post(':key/generate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate document from template',
@@ -504,8 +504,8 @@ export class TemplatesController {
   })
   @ApiParam({
     name: 'key',
-    description: 'Template unique key',
-    example: 'dmcc_employment_v1',
+    description: "Template's unique key",
+    example: 'sample-template',
   })
   @ApiBody({
     type: GenerateDocumentDto,
@@ -532,14 +532,14 @@ export class TemplatesController {
     description: 'Internal server error - Document generation failed',
   })
   async generate(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('key') key: string,
     @Body() generateDocumentDto: GenerateDocumentDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<GenerateDocumentResponseDto | null> {
+  ): Promise<GenerateDocumentResponseDto> {
     return this.documentGenerationService.generateDocument(
       user.tenantId,
       user.userId,
-      id,
+      key,
       generateDocumentDto,
     );
   }
