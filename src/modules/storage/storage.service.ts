@@ -46,6 +46,12 @@ export interface FileWithMetadata {
   metadata: FileMetadata | null;
 }
 
+export interface DownloadableFile {
+  stream: Readable;
+  filename: string;
+  contentType: string;
+}
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
@@ -185,6 +191,9 @@ export class StorageService {
       if (!response.Body) {
         throw new NotFoundException('File not found');
       }
+      this.logger.debug(
+        `Raw S3 metadata for ${fileKey}: ${JSON.stringify(response.Metadata)}`,
+      );
 
       // Extract metadata from GetObjectCommand response
       const metadata: FileMetadata | null = response.Metadata
@@ -224,6 +233,43 @@ export class StorageService {
       this.logger.error(`Failed to get file: ${error.message}`);
       throw new InternalServerErrorException('Failed to retrieve file');
     }
+  }
+
+  /**
+   * Get file ready for download with extracted filename and content type
+   * Handles filename extraction from metadata or fileKey
+   */
+  async getFileForDownload(fileKey: string): Promise<DownloadableFile> {
+    const { stream, metadata } = await this.getFile(fileKey);
+
+    this.logger.debug(`getFileForDownload - fileKey: ${fileKey}`);
+    this.logger.debug(
+      `getFileForDownload - metadata: ${JSON.stringify(metadata)}`,
+    );
+
+    // Extract filename from metadata or fallback to fileKey
+    // FileKey format: tenants/{tenantId}/{timestamp}-{filename}
+    let filename = metadata?.originalName;
+
+    // If no metadata or empty originalName, extract filename from the fileKey
+    if (!filename) {
+      this.logger.debug(
+        `No originalName in metadata, extracting from fileKey: ${fileKey}`,
+      );
+      const parts = fileKey.split('/');
+      const lastPart = parts[parts.length - 1];
+      const timestampMatch = lastPart.match(/^\d+-(.+)$/);
+      filename = timestampMatch ? timestampMatch[1] : lastPart;
+      this.logger.debug(`Extracted filename: ${filename}`);
+    }
+
+    const contentType = metadata?.contentType || 'application/octet-stream';
+
+    return {
+      stream,
+      filename,
+      contentType,
+    };
   }
 
   /**

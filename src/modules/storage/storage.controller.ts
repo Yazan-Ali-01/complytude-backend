@@ -190,26 +190,14 @@ export class StorageController {
   async downloadFile(
     @Param('fileKey') fileKey: string,
   ): Promise<StreamableFile> {
-    // Get file and metadata in a single S3 request (no race condition)
-    const { stream, metadata } = await this.storageService.getFile(fileKey);
-
-    // Extract filename from metadata or fallback to fileKey
-    // FileKey format: tenants/{tenantId}/{timestamp}-{filename}
-    let filename = metadata?.originalName;
-
-    // If no metadata, extract filename from the fileKey
-    if (!filename) {
-      const parts = fileKey.split('/');
-      const lastPart = parts[parts.length - 1];
-      const timestampMatch = lastPart.match(/^\d+-(.+)$/);
-      filename = timestampMatch ? timestampMatch[1] : lastPart;
-    }
+    const { stream, filename, contentType } =
+      await this.storageService.getFileForDownload(fileKey);
 
     const encodedFilename = encodeURIComponent(filename);
-    const disposition = `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`;
+    const disposition = `inline; filename="${filename}"; filename*=UTF-8''${encodedFilename}`;
 
     return new StreamableFile(stream, {
-      type: metadata?.contentType || 'application/octet-stream',
+      type: contentType,
       disposition,
     });
   }
