@@ -24,6 +24,7 @@ import { TemplateValidationService } from './template-validation.service';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
 import { Template } from 'src/modules/templates/entities/template.entity';
 import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
+import { TEMPLATE_PLACEHOLDER_DELIMITERS } from 'src/modules/templates/constants/template.constants';
 @Injectable()
 export class DocumentGenerationService {
   private readonly logger = new Logger(DocumentGenerationService.name);
@@ -124,6 +125,7 @@ export class DocumentGenerationService {
       const zip = new PizZip(templateBuffer);
       // creating a new docxtemplater instance
       const doc = new Docxtemplater(zip, {
+        delimiters: TEMPLATE_PLACEHOLDER_DELIMITERS,
         paragraphLoop: true,
         linebreaks: true,
       });
