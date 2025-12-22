@@ -2,31 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class FileResponseDto {
   @ApiProperty({
-    description: 'File key/identifier in storage',
-    example: 'tenants/abc123/1698765432000-document.pdf',
-  })
-  key: string;
-
-  @ApiProperty({
-    description: 'Bucket name where file is stored',
-    example: 'complytude-files',
-  })
-  bucket: string;
-
-  @ApiProperty({
-    description: 'File size in bytes',
-    example: 1048576,
-  })
-  size: number;
-
-  @ApiProperty({
-    description: 'File MIME type',
-    example: 'application/pdf',
-  })
-  contentType: string;
-
-  @ApiProperty({
-    description: 'Signed URL for accessing the file',
+    description: 'Signed URL for accessing the uploaded file',
     example:
       'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })

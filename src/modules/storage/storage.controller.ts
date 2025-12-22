@@ -103,7 +103,7 @@ export class StorageController {
       user.userId,
     );
 
-    return result;
+    return { url: result.url };
   }
 
   @Get('list')
