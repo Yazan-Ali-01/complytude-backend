@@ -197,23 +197,7 @@ export class StorageController {
     // FileKey format: tenants/{tenantId}/{timestamp}-{filename}
     let filename = metadata?.originalName;
 
-    // Handle base64 encoded filenames (if metadata was stored as base64)
-    if (filename) {
-      try {
-        if (/^[A-Za-z0-9+/=]+$/.test(filename) && filename.length % 4 === 0) {
-          const decoded = Buffer.from(filename, 'base64').toString('utf-8');
-          // Only use decoded if it results in a valid filename
-          if (decoded && !decoded.includes('\0')) {
-            filename = decoded;
-          }
-        }
-      } catch (error) {
-        this.logger.error(
-          `Unexpected error decoding filename: ${error.message}`,
-        );
-      }
-    }
-
+    // If no metadata, extract filename from the fileKey
     if (!filename) {
       const parts = fileKey.split('/');
       const lastPart = parts[parts.length - 1];
