@@ -12,7 +12,6 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
-  ParseUUIDPipe,
   UseInterceptors,
 } from '@nestjs/common';
 import {
@@ -28,7 +27,7 @@ import {
 import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
-import { DocumentGenerationService } from './document-generation.service';
+import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,

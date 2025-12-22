@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from 'src/database/database.module';
 import { StorageModule } from '../storage/storage.module';
-import { TenantModule } from '../tenant/tenant.module';
+import { TenantModule } from 'src/modules/tenants/tenant.module';
 
 // Controllers
 import { TemplatesController } from 'src/modules/templates/templates.controller';
