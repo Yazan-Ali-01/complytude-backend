@@ -190,12 +190,10 @@ export class StorageController {
   async downloadFile(
     @Param('fileKey') fileKey: string,
   ): Promise<StreamableFile> {
-    const stream = await this.storageService.getFile(fileKey);
+    // Get file and metadata in a single S3 request (no race condition)
+    const { stream, metadata } = await this.storageService.getFile(fileKey);
 
-    // Get file metadata for proper content type and filename
-    const metadata = await this.storageService.getFileMetadata(fileKey);
-
-    // Extract filename from fileKey if metadata is not available
+    // Extract filename from metadata or fallback to fileKey
     // FileKey format: tenants/{tenantId}/{timestamp}-{filename}
     let filename = metadata?.originalName;
 
@@ -210,9 +208,9 @@ export class StorageController {
           }
         }
       } catch (error) {
-          this.logger.error(
-            `Unexpected error decoding filename: ${error.message}`,
-          );
+        this.logger.error(
+          `Unexpected error decoding filename: ${error.message}`,
+        );
       }
     }
 

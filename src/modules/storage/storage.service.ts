@@ -41,6 +41,11 @@ export interface FileListItem {
   url: string;
 }
 
+export interface FileWithMetadata {
+  stream: Readable;
+  metadata: FileMetadata | null;
+}
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
@@ -164,9 +169,10 @@ export class StorageService {
   }
 
   /**
-   * Get file stream from tenant's bucket
+   * Get file stream and metadata from tenant's bucket
+   * Returns both in a single S3 request (no race condition)
    */
-  async getFile(fileKey: string): Promise<Readable> {
+  async getFile(fileKey: string): Promise<FileWithMetadata> {
     const bucket = this.tenantFilesBucket;
     try {
       const response = await this.s3Client.send(
@@ -180,7 +186,21 @@ export class StorageService {
         throw new NotFoundException('File not found');
       }
 
-      return response.Body as Readable;
+      // Extract metadata from GetObjectCommand response
+      const metadata: FileMetadata | null = response.Metadata
+        ? {
+            userId: response.Metadata.userid || '',
+            originalName: response.Metadata.originalname || '',
+            tenantId: response.Metadata.tenantid || '',
+            uploadedAt: response.Metadata.uploadedat || '',
+            contentType: response.ContentType || '',
+          }
+        : null;
+
+      return {
+        stream: response.Body as Readable,
+        metadata,
+      };
     } catch (error) {
       // Handle file not found
       if (
@@ -203,52 +223,6 @@ export class StorageService {
 
       this.logger.error(`Failed to get file: ${error.message}`);
       throw new InternalServerErrorException('Failed to retrieve file');
-    }
-  }
-
-  /**
-   * Get file metadata
-   */
-  async getFileMetadata(
-    fileKey: string,
-  ): Promise<FileMetadata | null> {
-    const bucket = this.tenantFilesBucket;
-
-    try {
-      const response = await this.s3Client.send(
-        new HeadObjectCommand({
-          Bucket: bucket,
-          Key: fileKey,
-        }),
-      );
-
-      if (!response.Metadata) {
-        return null;
-      }
-
-      return {
-        userId: response.Metadata.userid || '',
-        originalName: response.Metadata.originalname || '',
-        tenantId: response.Metadata.tenantid || '',
-        uploadedAt: response.Metadata.uploadedat || '',
-        contentType: response.ContentType || '',
-      };
-    } catch (error) {
-      // Handle file not found or bucket not found
-      if (
-        error.name === 'NotFound' ||
-        error.name === 'NoSuchKey' ||
-        error.$metadata?.httpStatusCode === 404 ||
-        error.name === 'NoSuchBucket' ||
-        error.Code === 'NoSuchBucket' ||
-        error.message?.includes('bucket') ||
-        error.message?.includes('does not exist')
-      ) {
-        return null;
-      }
-
-      this.logger.error(`Failed to get file metadata: ${error.message}`);
-      return null;
     }
   }
 
