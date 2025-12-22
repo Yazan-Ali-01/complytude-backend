@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { DatabaseService } from '../../core/database/database.service';
+import { DatabaseService } from 'src/database/database.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { SignupDto } from './dto/signup.dto';

@@ -25,7 +25,7 @@ import {
   UpdateAuthorityDto,
 } from './dto/create-authority.dto';
 import { Authority } from './entities/authority.entity';
-import { SystemAdminGuard } from '../../../common/guards/system-admin.guard';
+import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 
 @ApiTags('Authorities')
 @Controller('authorities')

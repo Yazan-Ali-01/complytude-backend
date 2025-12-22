@@ -41,11 +41,11 @@ import {
 import {
   Template,
   TemplateWithDetails,
-} from '../shared/entities/template.entity';
+} from 'src/modules/templates/entities/template.entity';
 import { TemplateVersion } from './entities/template-version.entity';
-import { SystemAdminGuard } from '../../../common/guards/system-admin.guard';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../../auth/decorators/current-user.decorator';
+import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
+import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
 import { DocumentGenerationService } from './services/document-generation.service';
 
 @ApiTags('Templates')

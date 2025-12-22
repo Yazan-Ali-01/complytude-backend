@@ -4,12 +4,12 @@ import {
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../core/database/database.service';
+import { DatabaseService } from 'src/database/database.service';
 import { TenantFeatures } from './entities/tenant.entity';
 import {
   getDefaultPlanFeatures,
   isValidPlan,
-} from '../../core/features/plan-features.config';
+} from 'src/config/plan-features.config';
 
 @Injectable()
 export class FeaturesService {

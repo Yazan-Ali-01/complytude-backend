@@ -6,7 +6,7 @@ import {
   InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/core/database/database.service';
+import { DatabaseService } from 'src/database/database.service';
 import { Ruleset } from './entities/ruleset.entity';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
 

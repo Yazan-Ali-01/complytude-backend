@@ -1,45 +1,29 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../../core/database/database.module';
+import { DatabaseModule } from 'src/database/database.module';
 import { StorageModule } from '../storage/storage.module';
 
 // Controllers
-import { TemplatesController } from './templates/templates.controller';
-import { AuthoritiesController } from './authorities/authorities.controller';
-import { CategoriesController } from './categories/categories.controller';
-import { RulesetsController } from './rulesets/rulesets.controller';
+import { TemplatesController } from 'src/modules/templates/templates.controller';
 
 // Services
-import { TemplatesService } from './templates/templates.service';
-import { TemplateVersionsService } from './templates/template-versions.service';
-import { AuthoritiesService } from './authorities/authorities.service';
-import { CategoriesService } from './categories/categories.service';
-import { RulesetsService } from './rulesets/rulesets.service';
-import { DocumentGenerationService } from './templates/services/document-generation.service';
-import { TemplateValidationService } from './templates/services/template-validation.service';
+import { TemplatesService } from 'src/modules/templates/templates.service';
+import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
+import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
+import { TemplateValidationService } from 'src/modules/templates/services/template-validation.service';
+import { RulesetsModule } from '../rulesets/rulesets.module';
 
 @Module({
-  imports: [DatabaseModule, StorageModule],
-  controllers: [
-    TemplatesController,
-    AuthoritiesController,
-    CategoriesController,
-    RulesetsController,
-  ],
+  imports: [DatabaseModule, StorageModule, RulesetsModule],
+  controllers: [TemplatesController],
   providers: [
     TemplatesService,
     TemplateVersionsService,
-    AuthoritiesService,
-    CategoriesService,
-    RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
   ],
   exports: [
     TemplatesService,
     TemplateVersionsService,
-    AuthoritiesService,
-    CategoriesService,
-    RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
   ],

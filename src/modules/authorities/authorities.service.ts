@@ -5,7 +5,7 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/core/database/database.service';
+import { DatabaseService } from 'src/database/database.service';
 import { Authority } from './entities/authority.entity';
 import {
   CreateAuthorityDto,

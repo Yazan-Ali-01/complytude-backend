@@ -1,4 +1,4 @@
-import { TenantFeatures } from 'src/modules/tenant/entities/tenant.entity';
+import { TenantFeatures } from 'src/modules/tenants/entities/tenant.entity';
 
 /**
  * Default feature configurations for each subscription plan

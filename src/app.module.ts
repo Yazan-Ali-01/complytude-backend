@@ -3,20 +3,23 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { DatabaseModule } from './core/database/database.module';
-import { HealthModule } from './modules/health/health.module';
-import { TenantModule } from './modules/tenant/tenant.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { UsersModule } from './modules/users/users.module';
+import { DatabaseModule } from 'src/database/database.module';
+import { HealthModule } from 'src/modules/health/health.module';
+import { TenantModule } from './modules/tenants/tenant.module';
+import { AuthModule } from 'src/modules/auth/auth.module';
+import { UsersModule } from 'src/modules/users/users.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TemplatesModule } from './modules/templates/templates.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { AuthoritiesModule } from './modules/authorities/authorities.module';
+import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
-import databaseConfig from './core/config/database.config';
-import appConfig from './core/config/app.config';
-import jwtConfig from './core/config/jwt.config';
-import storageConfig from './core/config/storage.config';
-import { validationSchema } from './core/validation/env.schema';
+import databaseConfig from 'src/config/database.config';
+import appConfig from 'src/config/app.config';
+import jwtConfig from 'src/config/jwt.config';
+import storageConfig from 'src/config/storage.config';
+import { validationSchema } from 'src/config/env.schema';
 
 @Module({
   imports: [
@@ -36,6 +39,9 @@ import { validationSchema } from './core/validation/env.schema';
     UsersModule,
     StorageModule,
     TemplatesModule,
+    CategoriesModule,
+    AuthoritiesModule,
+    RulesetsModule,
   ],
   controllers: [AppController],
   providers: [

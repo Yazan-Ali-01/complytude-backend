@@ -5,7 +5,7 @@ import {
   InternalServerErrorException,
   ConflictException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/core/database/database.service';
+import { DatabaseService } from 'src/database/database.service';
 import { PoolClient } from 'pg';
 import {
   TemplateVersion,

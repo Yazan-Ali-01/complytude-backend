@@ -6,7 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
-import { DatabaseModule } from '../../core/database/database.module';
+import { DatabaseModule } from 'src/database/database.module';
 
 @Module({
   imports: [

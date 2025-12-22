@@ -7,7 +7,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { DatabaseService } from '../../core/database/database.service';
+import { DatabaseService } from 'src/database/database.service';
 import { User } from './entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
