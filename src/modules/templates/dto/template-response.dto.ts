@@ -84,3 +84,30 @@ export class TemplateVersionResponseDto {
   @ApiProperty({ example: '2025-01-01T00:00:00Z' })
   created_at: Date;
 }
+
+export class TemplateDownloadResponseDto {
+  @ApiProperty({
+    example:
+      'https://s3.amazonaws.com/complytude-templates/nda_v1/1.0.0/nda.docx?X-Amz-Signature=...',
+    description: 'Signed URL for downloading the template file',
+  })
+  downloadUrl: string;
+
+  @ApiProperty({ example: 900, description: 'URL expiry time in seconds' })
+  expiresIn: number;
+
+  @ApiProperty({
+    example: '2024-01-15T10:15:00Z',
+    description: 'ISO timestamp when the URL expires',
+  })
+  expiresAt: string;
+
+  @ApiProperty({
+    example: 'nda_v1_1.0.0.docx',
+    description: 'Suggested filename for download',
+  })
+  fileName: string;
+
+  @ApiProperty({ example: '1.0.0', description: 'Version of the template' })
+  version: string;
+}

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { StorageModule } from '../storage/storage.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 // Controllers
 import { TemplatesController } from './templates.controller';
@@ -16,9 +17,10 @@ import { CategoriesService } from './categories.service';
 import { RulesetsService } from './rulesets.service';
 import { DocumentGenerationService } from './document-generation.service';
 import { TemplateValidationService } from './template-validation.service';
+import { DocxPlaceholderExtractionService } from './services/docx-placeholder-extraction.service';
 
 @Module({
-  imports: [DatabaseModule, StorageModule],
+  imports: [DatabaseModule, StorageModule, TenantModule],
   controllers: [
     TemplatesController,
     AuthoritiesController,
@@ -33,6 +35,7 @@ import { TemplateValidationService } from './template-validation.service';
     RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
+    DocxPlaceholderExtractionService,
   ],
   exports: [
     TemplatesService,
@@ -42,6 +45,7 @@ import { TemplateValidationService } from './template-validation.service';
     RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
+    DocxPlaceholderExtractionService,
   ],
 })
 export class TemplatesModule {}
