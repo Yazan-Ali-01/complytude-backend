@@ -14,10 +14,22 @@ import {
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
+  CreateTemplateVersionDto,
+  CreateTemplateVersionResponseDto,
 } from './dto/create-template.dto';
+import { TemplateDownloadResponseDto } from './dto/template-response.dto';
 import { TemplateVersionsService } from './template-versions.service';
 import { RulesetsService } from '../rulesets/rulesets.service';
 import { PoolClient } from 'pg';
+import {
+  DocxPlaceholderExtractionService,
+  PlaceholderValidationResult,
+} from './services/docx-placeholder-extraction.service';
+import { StorageService } from '../storage/storage.service';
+import {
+  TEMPLATE_ALLOWED_MIME_TYPES,
+  TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,
+} from './constants/template.constants';
 
 @Injectable()
 export class TemplatesService {
@@ -27,12 +39,18 @@ export class TemplatesService {
     private readonly databaseService: DatabaseService,
     private readonly templateVersionsService: TemplateVersionsService,
     private readonly rulesetsService: RulesetsService,
+    private readonly placeholderExtractionService: DocxPlaceholderExtractionService,
+    private readonly storageService: StorageService,
   ) {}
-
   async create(
     createTemplateDto: CreateTemplateDto,
     createdBy: string,
-  ): Promise<TemplateWithDetails> {
+  ): Promise<
+    TemplateWithDetails & {
+      placeholders_detected?: string[];
+      validation?: PlaceholderValidationResult;
+    }
+  > {
     try {
       // Check if key already exists
       const existing = await this.databaseService.query(
@@ -87,62 +105,132 @@ export class TemplatesService {
 
       const version = createTemplateDto.version || '1.0.0';
 
+      let placeholders: string[] = [];
+      let validationResult: PlaceholderValidationResult | undefined;
+
+      // Extract placeholders and validate before creating template
+      try {
+        const fileBuffer = createTemplateDto.file.buffer;
+
+        // Extract placeholders from DOCX
+        placeholders =
+          await this.placeholderExtractionService.extractPlaceholders(
+            fileBuffer,
+          );
+
+        // Validate placeholders against field definitions
+        validationResult =
+          this.placeholderExtractionService.validateFieldsMatchPlaceholders(
+            placeholders,
+            createTemplateDto.fields,
+          );
+      } catch (error) {
+        this.logger.error(
+          `Failed to process template file: ${error.message}`,
+          error.stack,
+        );
+        throw new InternalServerErrorException(
+          `Failed to process template file: ${error.message}`,
+        );
+      }
+
       // Create template and first version in a transaction
-      await this.databaseService.transaction(async (client) => {
-        // Create template record
-        const templateResult = await client.query<Template>(
-          `
+      let templateId: string | null = null;
+      try {
+        await this.databaseService.transaction(async (client) => {
+          // 1. Create template record FIRST (without file_url)
+          const templateResult = await client.query<Template>(
+            `
           INSERT INTO public.templates 
           (key, name, description, category_id, authority_id, languages, current_version, status, file_url, metadata, created_by)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           RETURNING *
         `,
-          [
-            createTemplateDto.key,
-            createTemplateDto.name,
-            createTemplateDto.description || null,
-            createTemplateDto.category_id || null,
-            createTemplateDto.authority_id || null,
-            createTemplateDto.languages,
-            version,
-            createTemplateDto.status || 'active',
-            createTemplateDto.file_url || null,
-            JSON.stringify(createTemplateDto.metadata || {}),
-            createdBy,
-          ],
-        );
-
-        const template = this.parseTemplate(templateResult.rows[0]);
-
-        // Create first version
-        await this.templateVersionsService.createVersion(
-          template.id,
-          version,
-          createTemplateDto.fields,
-          createTemplateDto.file_url || '',
-          'Initial version',
-          createTemplateDto.metadata || {},
-          createdBy,
-          client,
-        );
-
-        // Associate rulesets if provided
-        if (
-          createTemplateDto.ruleset_keys &&
-          createTemplateDto.ruleset_keys.length > 0
-        ) {
-          await this.associateRulesets(
-            client,
-            template.id,
-            createTemplateDto.ruleset_keys,
+            [
+              createTemplateDto.key,
+              createTemplateDto.name,
+              createTemplateDto.description || null,
+              createTemplateDto.category_id || null,
+              createTemplateDto.authority_id || null,
+              createTemplateDto.languages,
+              version,
+              createTemplateDto.status || 'active',
+              null, // file_url is null - only needed in version record
+              JSON.stringify(createTemplateDto.metadata || {}),
+              createdBy,
+            ],
           );
-        }
 
-        this.logger.log(`Created template: ${createTemplateDto.key}`);
-      });
+          const template = this.parseTemplate(templateResult.rows[0]);
+          templateId = template.id;
+
+          // 2. Upload file to S3 using template ID
+          const fileBuffer = createTemplateDto.file.buffer;
+          const fileName =
+            createTemplateDto.file.originalname || 'template.docx';
+          const mimeType =
+            createTemplateDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0];
+
+          const uploadResult = await this.storageService.uploadTemplateFile(
+            template.id, // Use template ID instead of key
+            version,
+            fileBuffer,
+            fileName,
+            mimeType,
+            createdBy,
+          );
+
+          // 3. Create first version with file URL
+          await this.templateVersionsService.createVersion(
+            template.id,
+            version,
+            createTemplateDto.fields,
+            uploadResult.url, // Use URL from upload
+            'Initial version',
+            createTemplateDto.metadata || {},
+            createdBy,
+            client,
+          );
+
+          // Associate rulesets if provided
+          if (
+            createTemplateDto.ruleset_keys &&
+            createTemplateDto.ruleset_keys.length > 0
+          ) {
+            await this.associateRulesets(
+              client,
+              template.id,
+              createTemplateDto.ruleset_keys,
+            );
+          }
+        });
+      } catch (transactionError) {
+        // If transaction fails and we have a template ID, clean up uploaded file
+        if (templateId) {
+          const id = templateId as string;
+          const fileKey = `templates/${id}/${version}/template.docx`;
+          try {
+            await this.storageService.deleteTemplateFile(fileKey);
+          } catch (cleanupError) {
+            this.logger.error(
+              `[CRITICAL] Failed to cleanup uploaded file "${fileKey}": ${cleanupError.message}`,
+            );
+          }
+        }
+        throw transactionError;
+      }
 
       // Fetch and return template with details (after transaction commits)
-      return this.findByKeyWithDetails(createTemplateDto.key);
+      const templateWithDetails = await this.findByKeyWithDetails(
+        createTemplateDto.key,
+      );
+
+      // Add placeholder extraction results if file was uploaded
+      return {
+        ...templateWithDetails,
+        placeholders_detected: placeholders,
+        validation: validationResult,
+      };
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -448,12 +536,8 @@ export class TemplatesService {
           values.push(JSON.stringify(updateTemplateDto.metadata));
         }
 
-        // If fields or file_url updated, create new version
-        if (
-          updateTemplateDto.fields ||
-          updateTemplateDto.file_url ||
-          updateTemplateDto.version
-        ) {
+        // If fields updated, create new version
+        if (updateTemplateDto.fields || updateTemplateDto.version) {
           const currentVersion =
             await this.templateVersionsService.getCurrentVersion(
               existing.id,
@@ -464,8 +548,7 @@ export class TemplatesService {
             this.incrementVersion(existing.current_version);
           const newFields =
             updateTemplateDto.fields || currentVersion?.fields || [];
-          const newFileUrl =
-            updateTemplateDto.file_url || currentVersion?.file_url || '';
+          const newFileUrl = currentVersion?.file_url || '';
 
           await this.templateVersionsService.createVersion(
             existing.id,
@@ -569,6 +652,114 @@ export class TemplatesService {
   }
 
   /**
+   * Create a new version for an existing template with file upload
+   */
+  async createVersion(
+    key: string,
+    createVersionDto: CreateTemplateVersionDto,
+    createdBy: string,
+  ): Promise<CreateTemplateVersionResponseDto> {
+    // Find template by key
+    const template = await this.findByKey(key);
+
+    // Check if version already exists
+    const existingVersion = await this.databaseService.query(
+      'SELECT id FROM public.template_versions WHERE template_id = $1 AND version = $2',
+      [template.id, createVersionDto.version],
+    );
+    if (existingVersion.rows.length > 0) {
+      throw new ConflictException(
+        `Version "${createVersionDto.version}" already exists for template "${key}"`,
+      );
+    }
+
+    // Extract placeholders from DOCX
+    let placeholders: string[] = [];
+    let validationResult: PlaceholderValidationResult;
+
+    try {
+      placeholders =
+        await this.placeholderExtractionService.extractPlaceholders(
+          createVersionDto.file.buffer,
+        );
+
+      validationResult =
+        this.placeholderExtractionService.validateFieldsMatchPlaceholders(
+          placeholders,
+          createVersionDto.fields,
+        );
+    } catch (error) {
+      this.logger.error(
+        `Failed to process template file: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to process template file: ${error.message}`,
+      );
+    }
+
+    let versionRecord: any;
+    let fileUrl: string;
+
+    try {
+      await this.databaseService.transaction(async (client) => {
+        // Upload file to S3
+        const fileName = createVersionDto.file.originalname || 'template.docx';
+        const mimeType =
+          createVersionDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0];
+
+        const uploadResult = await this.storageService.uploadTemplateFile(
+          template.id,
+          createVersionDto.version,
+          createVersionDto.file.buffer,
+          fileName,
+          mimeType,
+          createdBy,
+        );
+
+        fileUrl = uploadResult.url;
+
+        // Create version record
+        versionRecord = await this.templateVersionsService.createVersion(
+          template.id,
+          createVersionDto.version,
+          createVersionDto.fields,
+          fileUrl,
+          createVersionDto.changelog,
+          createVersionDto.metadata || {},
+          createdBy,
+          client,
+        );
+
+        // Update template's current_version
+        await client.query(
+          'UPDATE public.templates SET current_version = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [createVersionDto.version, template.id],
+        );
+      });
+    } catch (error) {
+      // Clean up uploaded file if transaction fails
+      if (fileUrl!) {
+        const fileKey = `templates/${template.id}/${createVersionDto.version}/template.docx`;
+        try {
+          await this.storageService.deleteTemplateFile(fileKey);
+        } catch (cleanupError) {
+          this.logger.error(
+            `[CRITICAL] Failed to cleanup uploaded file "${fileKey}": ${cleanupError.message}`,
+          );
+        }
+      }
+      throw error;
+    }
+
+    return {
+      ...versionRecord,
+      placeholders_detected: placeholders,
+      validation: validationResult,
+    };
+  }
+
+  /**
    * Associate rulesets with a template
    */
   private async associateRulesets(
@@ -599,6 +790,62 @@ export class TemplatesService {
       return parts.join('.');
     }
     return version;
+  }
+
+  /**
+   * Get a signed download URL for a template file
+   */
+  async getDownloadUrl(
+    key: string,
+    version?: string,
+  ): Promise<TemplateDownloadResponseDto> {
+    // Validate version format (semver: x.y.z) before any DB calls
+    if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
+      throw new BadRequestException(
+        `Invalid version format "${version}". Expected semver format (e.g., 1.0.0)`,
+      );
+    }
+
+    try {
+      const template = await this.findByKey(key);
+      const targetVersion = version || template.current_version;
+
+      const versionRecord = await this.templateVersionsService.getVersion(
+        template.id,
+        targetVersion,
+      );
+
+      const fileKey = `templates/${template.id}/${versionRecord.version}/template.docx`;
+      const expiresIn = TEMPLATE_DOWNLOAD_URL_EXPIRES_IN; // 15 minutes
+      const downloadUrl = await this.storageService.generateTemplateSignedUrl(
+        fileKey,
+        expiresIn,
+      );
+
+      const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+      const fileName = `${template.key}_${targetVersion}.docx`;
+
+      return {
+        downloadUrl,
+        expiresIn,
+        expiresAt,
+        fileName,
+        version: targetVersion,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to generate download URL for template "${key}": ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to generate template download URL',
+      );
+    }
   }
 
   /**

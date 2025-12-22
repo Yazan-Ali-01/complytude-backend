@@ -13,6 +13,7 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
   ParseUUIDPipe,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,17 +23,23 @@ import {
   ApiParam,
   ApiQuery,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
+import { DocumentGenerationService } from './document-generation.service';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
+  CreateTemplateVersionDto,
+  CreateTemplateVersionResponseDto,
 } from './dto/create-template.dto';
 import {
   TemplateResponseDto,
   TemplateListResponseDto,
   TemplateVersionResponseDto,
+  TemplateDownloadResponseDto,
 } from './dto/template-response.dto';
 import {
   GenerateDocumentDto,
@@ -43,10 +50,9 @@ import {
   TemplateWithDetails,
 } from 'src/modules/templates/entities/template.entity';
 import { TemplateVersion } from './entities/template-version.entity';
-import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
-import { DocumentGenerationService } from './services/document-generation.service';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Templates')
 @Controller('templates')
@@ -55,25 +61,112 @@ export class TemplatesController {
   constructor(
     private readonly templatesService: TemplatesService,
     private readonly templateVersionsService: TemplateVersionsService,
-    // DocumentGenerationService will be injected here once created
     private readonly documentGenerationService: DocumentGenerationService,
   ) {}
 
   @Post()
   @UseGuards(SystemAdminGuard)
+  @UseInterceptors(FastifyMultipartInterceptor(CreateTemplateDto))
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Create new template',
     description:
-      'Create a new document template with metadata and field definitions (system admin only)',
+      'Create a new document template with metadata and field definitions. Requires DOCX file upload via multipart/form-data (system admin only)',
+  })
+  @ApiBody({
+    description:
+      'Template data as multipart/form-data. Fields array should be JSON stringified. File upload is required.',
+    schema: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', example: 'nda_v1' },
+        name: { type: 'string', example: 'Non-Disclosure Agreement' },
+        description: { type: 'string', example: 'Standard NDA template' },
+        category_id: { type: 'string', format: 'uuid' },
+        authority_id: { type: 'string', format: 'uuid' },
+        languages: {
+          type: 'string',
+          example: '["en","ar"]',
+          description: 'JSON stringified array',
+        },
+        fields: {
+          type: 'string',
+          example:
+            '[{"key":"employee_name","label":"Employee Name","type":"text","required":true}]',
+          description: 'JSON stringified array of field definitions',
+        },
+        ruleset_keys: {
+          type: 'string',
+          example: '["dmcc_employment_rules_v1"]',
+          description: 'JSON stringified array (optional)',
+        },
+        version: { type: 'string', example: '1.0.0' },
+        status: {
+          type: 'string',
+          enum: ['active', 'inactive', 'draft', 'deprecated'],
+        },
+        metadata: { type: 'string', example: '{"tags":["employment"]}' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'DOCX template file (required, max 5MB)',
+        },
+      },
+      required: ['key', 'name', 'languages', 'fields', 'file'],
+    },
   })
   @ApiResponse({
     status: 201,
-    description: 'Template created successfully',
-    type: TemplateResponseDto,
+    description:
+      'Template created successfully with placeholder extraction results',
+    schema: {
+      allOf: [
+        { $ref: '#/components/schemas/TemplateResponseDto' },
+        {
+          type: 'object',
+          properties: {
+            placeholders_detected: {
+              type: 'array',
+              items: { type: 'string' },
+              example: ['employee_name', 'salary', 'start_date'],
+            },
+            validation: {
+              type: 'object',
+              properties: {
+                matched: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  example: ['employee_name', 'salary'],
+                },
+                warnings: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  example: [
+                    'Placeholder {start_date} found in DOCX but no field definition provided.',
+                  ],
+                },
+                unmatchedPlaceholders: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+                unusedFields: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
   })
   @ApiResponse({
     status: 409,
     description: 'Template with this key already exists',
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Invalid file format or file too large',
   })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
   async create(
@@ -174,6 +267,33 @@ export class TemplatesController {
     return this.templatesService.findByKeyWithDetails(key);
   }
 
+  @Get(':key/download')
+  @UseGuards(SystemAdminGuard)
+  @ApiOperation({
+    summary: 'Download template file',
+    description:
+      'Get a signed URL to download the template DOCX file. Returns URL for specified version or current version if not specified.',
+  })
+  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiQuery({
+    name: 'version',
+    required: false,
+    description: 'Version number (defaults to current version)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Signed download URL',
+    type: TemplateDownloadResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Template or version not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
+  async downloadTemplate(
+    @Param('key') key: string,
+    @Query('version') version?: string,
+  ): Promise<TemplateDownloadResponseDto> {
+    return this.templatesService.getDownloadUrl(key, version);
+  }
+
   @Get(':key/versions')
   @ApiOperation({
     summary: 'Get template version history',
@@ -191,6 +311,86 @@ export class TemplatesController {
   ): Promise<TemplateVersion[]> {
     const template = await this.templatesService.findByKey(key);
     return this.templateVersionsService.getVersionHistory(template.id);
+  }
+
+  @Post(':key/versions')
+  @UseGuards(SystemAdminGuard)
+  @UseInterceptors(FastifyMultipartInterceptor(CreateTemplateDto))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Create new template version',
+    description:
+      'Upload a new version of a template with DOCX file (system admin only)',
+  })
+  @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiBody({
+    description:
+      'Version data as multipart/form-data. Fields array should be JSON stringified.',
+    schema: {
+      type: 'object',
+      properties: {
+        version: { type: 'string', example: '1.1.0' },
+        changelog: { type: 'string', example: 'Added remote work clause' },
+        fields: {
+          type: 'string',
+          example:
+            '[{"key":"employee_name","label":"Employee Name","type":"text","required":true}]',
+          description: 'JSON stringified array of field definitions',
+        },
+        metadata: {
+          type: 'string',
+          example: '{"tags":["employment"]}',
+          description: 'JSON stringified object (optional)',
+        },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'DOCX template file (required, max 5MB)',
+        },
+      },
+      required: ['version', 'fields', 'file'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Template version created successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        template_id: { type: 'string', format: 'uuid' },
+        version: { type: 'string', example: '1.1.0' },
+        file_url: { type: 'string' },
+        is_active: { type: 'boolean' },
+        changelog: { type: 'string' },
+        placeholders_detected: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        validation: {
+          type: 'object',
+          properties: {
+            matched: { type: 'array', items: { type: 'string' } },
+            warnings: { type: 'array', items: { type: 'string' } },
+          },
+        },
+        created_at: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Template not found' })
+  @ApiResponse({ status: 409, description: 'Version already exists' })
+  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
+  async createVersion(
+    @Param('key') key: string,
+    @Body() createVersionDto: CreateTemplateVersionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CreateTemplateVersionResponseDto> {
+    return this.templatesService.createVersion(
+      key,
+      createVersionDto,
+      user.userId,
+    );
   }
 
   @Get(':key/versions/:version')
@@ -298,7 +498,7 @@ export class TemplatesController {
     return this.templatesService.deactivate(key);
   }
 
-  @Post(':id/generate')
+  @Post(':key/generate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate document from template',
@@ -307,8 +507,8 @@ export class TemplatesController {
   })
   @ApiParam({
     name: 'key',
-    description: 'Template unique key',
-    example: 'dmcc_employment_v1',
+    description: "Template's unique key",
+    example: 'sample-template',
   })
   @ApiBody({
     type: GenerateDocumentDto,
@@ -335,14 +535,14 @@ export class TemplatesController {
     description: 'Internal server error - Document generation failed',
   })
   async generate(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('key') key: string,
     @Body() generateDocumentDto: GenerateDocumentDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<GenerateDocumentResponseDto | null> {
+  ): Promise<GenerateDocumentResponseDto> {
     return this.documentGenerationService.generateDocument(
       user.tenantId,
       user.userId,
-      id,
+      key,
       generateDocumentDto,
     );
   }

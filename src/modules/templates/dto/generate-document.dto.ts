@@ -1,12 +1,5 @@
-import {
-  IsObject,
-  IsOptional,
-  IsString,
-  Matches,
-  MaxLength,
-  ValidateIf,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsObject } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class GenerateDocumentDto {
   @ApiProperty({
@@ -20,19 +13,6 @@ export class GenerateDocumentDto {
   })
   @IsObject()
   variables: Record<string, unknown>;
-
-  @ApiPropertyOptional({
-    example: '1.0.0',
-    description: 'Template version to use (defaults to current active version)',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
-  @Matches(/^\d+\.\d+\.\d+$/, {
-    message: 'version must be in format x.y.z (e.g., 1.0.0)',
-  })
-  version?: string;
 }
 
 export class GenerateDocumentResponseDto {

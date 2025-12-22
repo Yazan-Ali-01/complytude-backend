@@ -10,10 +10,28 @@ import {
   Matches,
   ValidateNested,
   ArrayMinSize,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TemplateFieldDto } from 'src/modules/templates/dto/template-field.dto';
+import {
+  IsFileMaxSize,
+  IsFileMimeType,
+  IsFileUploaded,
+  IsMulterLikeFile,
+} from 'src/common/decorators/file-validators.decorator';
+import {
+  TEMPLATE_ALLOWED_MIME_TYPES,
+  TEMPLATE_MAX_FILE_SIZE,
+} from '../constants/template.constants';
+import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
+import { JsonField } from 'src/common/decorators/json-field.decorator';
+
+export {
+  CreateTemplateVersionDto,
+  CreateTemplateVersionResponseDto,
+} from './create-template-version.dto';
 
 export class CreateTemplateDto {
   @ApiProperty({
@@ -66,6 +84,7 @@ export class CreateTemplateDto {
     example: ['en', 'ar'],
     description: 'Supported languages',
   })
+  @JsonField()
   @IsArray()
   @IsString({ each: true })
   @ArrayMinSize(1)
@@ -83,6 +102,7 @@ export class CreateTemplateDto {
     description: 'Template field definitions',
     type: [TemplateFieldDto],
   })
+  @JsonField()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TemplateFieldDto)
@@ -93,6 +113,7 @@ export class CreateTemplateDto {
     example: ['dmcc_employment_rules_v1'],
     description: 'Array of ruleset keys to apply',
   })
+  @JsonField()
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
@@ -105,6 +126,10 @@ export class CreateTemplateDto {
   @IsString()
   @IsOptional()
   @MaxLength(50)
+  @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'version must be in format x.y.z (e.g., 1.0.0)',
+  })
   version?: string;
 
   @ApiPropertyOptional({
@@ -117,20 +142,26 @@ export class CreateTemplateDto {
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
 
   @ApiPropertyOptional({
-    example: 's3://complytude-templates/dmcc_employment_v1.docx',
-    description: 'S3 URL to template DOCX file',
-  })
-  @IsString()
-  @IsOptional()
-  file_url?: string;
-
-  @ApiPropertyOptional({
     example: { tags: ['employment', 'standard'] },
     description: 'Additional metadata',
   })
+  @JsonField()
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
+
+  /**
+   * File upload validated via custom validators
+   * Populated by interceptor with the uploaded file object
+   */
+  @ApiProperty({
+    description: 'DOCX template file (required, max 5MB)',
+  })
+  @IsFileUploaded()
+  @IsMulterLikeFile()
+  @IsFileMimeType(TEMPLATE_ALLOWED_MIME_TYPES)
+  @IsFileMaxSize(TEMPLATE_MAX_FILE_SIZE)
+  file: MulterLikeFile;
 }
 
 export class UpdateTemplateDto {
@@ -177,7 +208,36 @@ export class UpdateTemplateDto {
   languages?: string[];
 
   @ApiPropertyOptional({
-    example: [],
+    example: [
+      {
+        key: 'employee_name',
+        label: 'Employee Full Name',
+        type: 'text',
+        required: true,
+        placeholder: 'Enter employee full name',
+        help_text: 'Full legal name as per Emirates ID',
+        order: 1,
+      },
+      {
+        key: 'job_title',
+        label: 'Job Title',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g., Software Engineer',
+        order: 2,
+      },
+      {
+        key: 'salary',
+        label: 'Monthly Salary (AED)',
+        type: 'number',
+        required: true,
+        placeholder: 'e.g., 15000',
+        validation_rules: {
+          min: 3000,
+          max: 100000,
+        },
+      },
+    ],
     description: 'Template field definitions',
     type: [TemplateFieldDto],
   })
@@ -203,6 +263,10 @@ export class UpdateTemplateDto {
   @IsString()
   @IsOptional()
   @MaxLength(50)
+  @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'version must be in format x.y.z (e.g., 1.0.0)',
+  })
   version?: string;
 
   @ApiPropertyOptional({
@@ -221,14 +285,6 @@ export class UpdateTemplateDto {
   @IsEnum(['active', 'inactive', 'draft', 'deprecated'])
   @IsOptional()
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
-
-  @ApiPropertyOptional({
-    example: 's3://complytude-templates/dmcc_employment_v1_1.docx',
-    description: 'S3 URL to new template DOCX file',
-  })
-  @IsString()
-  @IsOptional()
-  file_url?: string;
 
   @ApiPropertyOptional({
     example: {},

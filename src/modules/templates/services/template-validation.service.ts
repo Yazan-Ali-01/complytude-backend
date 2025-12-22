@@ -24,9 +24,9 @@ export class TemplateValidationService {
   constructor() {
     this.ajv = new Ajv({
       allErrors: true,
-      coerceTypes: false,
+      coerceTypes: true, // to convert string to number if the type is number
       verbose: true,
-      removeAdditional: 'all',
+      removeAdditional: false, // refuse additional fields instead of removing them
     });
 
     addFormats(this.ajv);
@@ -48,7 +48,7 @@ export class TemplateValidationService {
    */
   validateVariables(
     fields: TemplateField[],
-    variables: Record<string, any>,
+    variables: Record<string, unknown>,
   ): ValidationResult {
     try {
       const schema = this.generateSchemaFromFields(fields);
@@ -72,6 +72,7 @@ export class TemplateValidationService {
     } catch (error) {
       this.logger.error(
         `Error during validation: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
       );
       return {
         valid: false,
@@ -322,8 +323,8 @@ export class TemplateValidationService {
    * @param fields Array of template field definitions
    * @returns JSON schema compatible with Ajv
    */
-  generateSchemaFromFields(fields: TemplateField[]): Record<string, any> {
-    const properties: Record<string, any> = {};
+  generateSchemaFromFields(fields: TemplateField[]): Record<string, unknown> {
+    const properties: Record<string, unknown> = {};
     const required: string[] = [];
 
     if (!fields || fields.length === 0) {
@@ -358,8 +359,8 @@ export class TemplateValidationService {
   private createFieldSchema(
     field: TemplateField,
     required: boolean = false,
-  ): Record<string, any> {
-    const schema: Record<string, any> = {};
+  ): Record<string, unknown> {
+    const schema: Record<string, unknown> = {};
 
     switch (field.type) {
       case 'text':
@@ -417,7 +418,7 @@ export class TemplateValidationService {
    */
   private applyStringValidationRules(
     field: TemplateField,
-    schema: Record<string, any>,
+    schema: Record<string, unknown>,
   ): void {
     if (!field.validation_rules) {
       return;
@@ -441,7 +442,7 @@ export class TemplateValidationService {
    */
   private applyNumberValidationRules(
     field: TemplateField,
-    schema: Record<string, any>,
+    schema: Record<string, unknown>,
   ): void {
     if (!field.validation_rules) {
       return;
@@ -461,7 +462,7 @@ export class TemplateValidationService {
    */
   private applyDateValidationRules(
     field: TemplateField,
-    schema: Record<string, any>,
+    schema: Record<string, unknown>,
   ): void {
     if (!field.validation_rules) {
       return;
@@ -492,7 +493,7 @@ export class TemplateValidationService {
    */
   private applySelectOptions(
     field: TemplateField,
-    schema: Record<string, any>,
+    schema: Record<string, unknown>,
   ): void {
     if (!field.options || field.options.length === 0) {
       return;
