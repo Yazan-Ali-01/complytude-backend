@@ -356,39 +356,41 @@ export class StorageService {
   }
 
   async initializeTenantFilesBucket(): Promise<void> {
+    const bucketExists = await this.bucketExists(this.tenantFilesBucket);
+
+    if (bucketExists) {
+      this.logger.debug(`Bucket ${this.tenantFilesBucket} already exists`);
+      return;
+    }
+
+    await this.createBucket(this.tenantFilesBucket);
+    this.logger.log(`Created bucket ${this.tenantFilesBucket}`);
+  }
+
+  private async bucketExists(bucket: string): Promise<boolean> {
     try {
-      await this.s3Client.send(
-        new HeadBucketCommand({ Bucket: this.tenantFilesBucket }),
-      );
-      this.logger.log(
-        `Tenant files bucket ${this.tenantFilesBucket} already exists`,
-      );
+      await this.s3Client.send(new HeadBucketCommand({ Bucket: bucket }));
+      return true;
     } catch (error) {
       if (
         error.name === 'NotFound' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        try {
-          await this.s3Client.send(
-            new CreateBucketCommand({ Bucket: this.tenantFilesBucket }),
-          );
-          this.logger.log(`Created tenant files bucket ${this.tenantFilesBucket}`);
-        } catch (createError) {
-          this.logger.error(
-            `Failed to create tenant files bucket ${this.tenantFilesBucket}: ${createError.message}`,
-          );
-          throw new InternalServerErrorException(
-            'Failed to initialize tenant files storage',
-          );
-        }
-      } else {
-        this.logger.error(
-          `Error checking tenant files bucket ${this.tenantFilesBucket}: ${error.message}`,
-        );
-        throw new InternalServerErrorException(
-          'Failed to access tenant files storage',
-        );
+        return false;
       }
+      throw new InternalServerErrorException(
+        `Failed to check bucket: ${error.message}`,
+      );
+    }
+  }
+
+  private async createBucket(bucket: string): Promise<void> {
+    try {
+      await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Failed to create bucket: ${error.message}`,
+      );
     }
   }
 
