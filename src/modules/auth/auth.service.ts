@@ -17,6 +17,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { TenantService } from '../tenant/tenant.service';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
 
 interface TenantRow {
   tenant_id: string;
@@ -45,10 +48,20 @@ export class AuthService {
     private readonly databaseService: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly tenantService: TenantService,
   ) {}
 
   /**
-   * Register a new user and create their first tenant
+   * Registers a new user and creates their first tenant.
+   *
+   * @remarks
+   * - The creation of the tenant and corresponding tenant schema is fully handled within {@link TenantService}.
+   *   This encapsulates all tenant and multi-tenant schema provisioning logic.
+   * - Linking the user to the tenant (the `user_tenants` relation) is performed in this method.
+   *
+   * @param signupDto - User and initial tenant information
+   * @returns An object containing a success message, userId, tenant_id, and an email verification token (remove in production)
+   * @throws {ConflictException} if the email is already registered
    */
   async signup(signupDto: SignupDto) {
     // Check if user already exists
@@ -68,11 +81,9 @@ export class AuthService {
     );
 
     const userId = `user_${randomUUID()}`;
-    const tenantId = `tenant_${randomUUID()}`;
-    const schemaName = `tenant_${tenantId.replace(/-/g, '_')}`;
 
     return await this.databaseService.transaction(async (client) => {
-      // Create user
+      // Create user account
       await client.query(
         `INSERT INTO public.users (id, email, password_hash, first_name, last_name, is_verified)
          VALUES ($1, $2, $3, $4, $5, false)`,
@@ -85,39 +96,25 @@ export class AuthService {
         ],
       );
 
-      // Create tenant
-      await client.query(
-        `INSERT INTO public.tenants (id, tenant_id, email, role, plan, features, schema_name, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
-        [
-          userId,
-          tenantId,
-          signupDto.email,
-          'admin',
-          'early_access',
-          '{}',
-          schemaName,
-        ],
+      // Create tenant and schema via TenantService (all multi-tenant setup is encapsulated there)
+      const tenant: Tenant = await this.tenantService.createTenant(
+        {
+          email: signupDto.email,
+          role: 'admin',
+          plan: 'early_access',
+          features: new TenantFeaturesDto(),
+        },
+        userId,
       );
 
-      // Link user to tenant
+      // Link user to the new tenant
       await client.query(
         `INSERT INTO public.user_tenants (user_id, tenant_id, role, is_active)
          VALUES ($1, $2, $3, true)`,
-        [userId, tenantId, 'admin'],
+        [userId, tenant.tenant_id, tenant.role],
       );
 
-      // Create tenant schema
-      await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
-      await client.query(`GRANT USAGE ON SCHEMA ${schemaName} TO CURRENT_USER`);
-      await client.query(
-        `GRANT CREATE ON SCHEMA ${schemaName} TO CURRENT_USER`,
-      );
-
-      // Initialize tenant schema with base tables
-      await this.initializeTenantSchema(client, schemaName, tenantId);
-
-      // Create email verification token
+      // Create email verification record
       const verificationToken = randomUUID();
       const verificationId = `verify_${randomUUID()}`;
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
@@ -128,9 +125,7 @@ export class AuthService {
         [verificationId, userId, verificationToken, expiresAt],
       );
 
-      this.logger.log(`User ${userId} registered with tenant ${tenantId}`);
-
-      // TODO: Send verification email with token
+      // TODO: Hook in actual email sending here
       this.logger.log(
         `Verification token for ${signupDto.email}: ${verificationToken}`,
       );
@@ -139,46 +134,10 @@ export class AuthService {
         message:
           'Signup successful. Please check your email to verify your account.',
         userId,
-        tenantId,
-        verificationToken, // Remove in production, only for development
+        tenant_id: tenant.tenant_id,
+        verificationToken, // Expose only for development/testing; remove in prod
       };
     });
-  }
-
-  /**
-   * Initialize tenant schema with base tables
-   */
-  private async initializeTenantSchema(
-    client: any,
-    schemaName: string,
-    _tenantId: string,
-  ) {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaName}.documents (
-        id VARCHAR(255) PRIMARY KEY,
-        tenant_id VARCHAR(255) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        content TEXT,
-        metadata JSONB DEFAULT '{}',
-        created_by VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id)
-      );
-    `);
-
-    await client.query(
-      `ALTER TABLE ${schemaName}.documents ENABLE ROW LEVEL SECURITY;`,
-    );
-
-    await client.query(`
-      CREATE POLICY documents_tenant_isolation ON ${schemaName}.documents
-        USING (tenant_id = current_setting('app.current_tenant_id', true));
-    `);
-
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_documents_tenant_id ON ${schemaName}.documents(tenant_id);
-    `);
   }
 
   /**
