@@ -20,21 +20,21 @@ export class ListDocumentsDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page?: number = 1;
+  page: number = 1;
 
   @ApiPropertyOptional({
     example: 50,
     description: 'Items per page',
     minimum: 1,
     maximum: 100,
-    default: 50,
+    default: 10,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
-  limit?: number = 50;
+  limit: number = 10;
 
   @ApiPropertyOptional({
     example: 'employment_contract',
@@ -60,4 +60,3 @@ export class ListDocumentsDto {
   @IsDateString()
   endDate?: string;
 }
-

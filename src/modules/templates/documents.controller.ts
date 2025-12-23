@@ -29,6 +29,8 @@ import { TenantId, SchemaName } from '../../common/decorators/tenant.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { DocumentsService } from './documents.service';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Documents')
 @Controller('documents')
@@ -87,19 +89,27 @@ export class DocumentsController {
     status: 401,
     description: 'Unauthorized - Invalid or missing authentication token',
   })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Forbidden - Tenant admins can view all documents; other roles can only view their own.',
+  })
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'member', 'viewer')
   async findAll(
     @TenantId() tenantId: string,
     @SchemaName() schemaName: string,
     @Query(new ValidationPipe({ transform: true })) filters: ListDocumentsDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<DocumentListResponseDto> {
-    return this.documentsService.findAll(tenantId, schemaName, filters);
+    return this.documentsService.findAll(tenantId, schemaName, filters, user);
   }
 
   @Get(':id')
   @ApiOperation({
     summary: 'Get document by ID',
     description:
-      'Retrieve a single document with full details including content. Only accessible by users within the same tenant.',
+      'Retrieve a single document with full details including content. Tenant admins can access any document in their tenant; document creators can access their own.',
   })
   @ApiParam({
     name: 'id',
@@ -119,18 +129,25 @@ export class DocumentsController {
     status: 404,
     description: 'Document not found or does not belong to your tenant',
   })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Forbidden - Only tenant admins or the document creator can access this document.',
+  })
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'member', 'viewer')
   async findOne(
     @TenantId() tenantId: string,
     @SchemaName() schemaName: string,
     @Param('id') id: string,
-    @CurrentUser() _user: AuthenticatedUser,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<DocumentResponseDto> {
-    return this.documentsService.findOne(tenantId, schemaName, id);
+    return this.documentsService.findOne(tenantId, schemaName, id, user);
   }
 
   @Delete(':id')
   @UseGuards(SystemAdminGuard)
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete document',
     description:
@@ -168,8 +185,7 @@ export class DocumentsController {
     @SchemaName() schemaName: string,
     @Param('id') id: string,
     @CurrentUser() _user: AuthenticatedUser,
-  ): Promise<{ message: string }> {
+  ): Promise<void> {
     await this.documentsService.delete(tenantId, schemaName, id);
-    return { message: 'Document deleted successfully' };
   }
 }

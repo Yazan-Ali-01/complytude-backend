@@ -12,7 +12,9 @@ export class DocumentMetadataDto {
     description: 'Filename',
   })
   filename?: string;
+}
 
+export class DocumentGenerationMetadataDto {
   @ApiPropertyOptional({
     example: { companyName: 'Acme Corp', contractDate: '2024-01-15' },
     description: 'Variables used for document generation',
@@ -30,19 +32,11 @@ export class DocumentMetadataDto {
     description: 'Template ID',
   })
   templateId?: string;
-
-  @ApiPropertyOptional({
-    example: 'contract_template_v1',
-    description: 'Template key',
-  })
-  templateKey?: string;
-
-  [key: string]: any;
 }
 
 export class DocumentResponseDto {
   @ApiProperty({
-    example: 'doc_123e4567-e89b-12d3-a456-426614174000',
+    example: '123e4567-e89b-12d3-a456-426614174000',
     description: 'Document ID',
   })
   id: string;
@@ -65,8 +59,17 @@ export class DocumentResponseDto {
   })
   content?: string;
 
+  @ApiPropertyOptional({
+    example: 'contract_template_v1',
+    description: 'Template key',
+  })
+  templateKey?: string;
+
   @ApiProperty({ type: DocumentMetadataDto })
   metadata: DocumentMetadataDto;
+
+  @ApiProperty({ type: DocumentGenerationMetadataDto })
+  generationMetadata: DocumentGenerationMetadataDto;
 
   @ApiPropertyOptional({
     example: 'user_123e4567-e89b-12d3-a456-426614174000',

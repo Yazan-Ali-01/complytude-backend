@@ -25,6 +25,7 @@ import { ValidationException } from 'src/common/exceptions/validation.exception'
 import { Template } from './entities/template.entity';
 import { TemplateVersion } from './entities/template-version.entity';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from './constants/template.constants';
+import { randomUUID } from 'crypto';
 @Injectable()
 export class DocumentGenerationService {
   private readonly logger = new Logger(DocumentGenerationService.name);
@@ -207,7 +208,7 @@ export class DocumentGenerationService {
           template_key, template_version, generation_metadata, created_by, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
-          uploadResult.key,
+          randomUUID(),
           tenantId,
           `${template.name || template.key} - Generated Document`,
           null,
