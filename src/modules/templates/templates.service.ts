@@ -457,7 +457,7 @@ export class TemplatesService {
     updatedBy: string,
   ): Promise<TemplateWithDetails> {
     try {
-      const existing = await this.findByKey(key);
+      const template = await this.findByKey(key);
 
       // Validate category_id if provided
       if (updateTemplateDto.category_id) {
@@ -537,18 +537,18 @@ export class TemplatesService {
         if (updateTemplateDto.fields || updateTemplateDto.version) {
           const currentVersion =
             await this.templateVersionsService.getCurrentVersion(
-              existing.id,
+              template.id,
               client,
             );
           const newVersion =
             updateTemplateDto.version ||
-            this.incrementVersion(existing.current_version);
+            this.incrementVersion(template.current_version);
           const newFields =
             updateTemplateDto.fields || currentVersion?.fields || [];
           const newFileUrl = currentVersion?.file_url || '';
 
           await this.templateVersionsService.createVersion(
-            existing.id,
+            template.id,
             newVersion,
             newFields,
             newFileUrl,
@@ -579,14 +579,14 @@ export class TemplatesService {
           // Remove existing associations
           await client.query(
             'DELETE FROM public.template_rulesets WHERE template_id = $1',
-            [existing.id],
+            [template.id],
           );
 
           // Add new associations
           if (updateTemplateDto.ruleset_keys.length > 0) {
             await this.associateRulesets(
               client,
-              existing.id,
+              template.id,
               updateTemplateDto.ruleset_keys,
             );
           }
@@ -611,7 +611,13 @@ export class TemplatesService {
 
   async deactivate(key: string): Promise<Template> {
     try {
-      const _template = await this.findByKey(key);
+      const check = await this.databaseService.query<Template>(
+        'SELECT id FROM public.templates WHERE key = $1',
+        [key],
+      );
+      if (check.rows.length === 0) {
+        throw new NotFoundException(`Template with key "${key}" not found`);
+      }
 
       const result = await this.databaseService.query<Template>(
         'UPDATE public.templates SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2 RETURNING *',
