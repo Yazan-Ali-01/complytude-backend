@@ -94,6 +94,17 @@ export class StorageService {
     return `tenants/${cleanId}`;
   }
 
+  private validateTenantOwnership(fileKey: string, tenantId: string): void {
+    const expectedPrefix = this.getTenantPrefix(tenantId);
+
+    if (!fileKey.startsWith(expectedPrefix + '/')) {
+      this.logger.warn(
+        `Tenant ${tenantId} attempted to access file outside their scope: ${fileKey}`,
+      );
+      throw new NotFoundException('File not found');
+    }
+  }
+
   /**
    * Normalize filename by replacing spaces and special characters
    */
@@ -159,7 +170,7 @@ export class StorageService {
       );
 
       // Generate a signed URL for immediate access
-      const url = await this.generateSignedUrl(key);
+      const url = await this.generateSignedUrl(key, tenantId);
 
       return {
         key,
@@ -238,8 +249,16 @@ export class StorageService {
   /**
    * Get file ready for download with extracted filename and content type
    * Handles filename extraction from metadata or fileKey
+   * Validates tenant ownership before allowing download
    */
-  async getFileForDownload(fileKey: string): Promise<DownloadableFile> {
+  async getFileForDownload(
+    fileKey: string,
+    tenantId: string,
+  ): Promise<DownloadableFile> {
+    if (tenantId) {
+      this.validateTenantOwnership(fileKey, tenantId);
+    }
+
     const { stream, metadata } = await this.getFile(fileKey);
 
     this.logger.debug(`getFileForDownload - fileKey: ${fileKey}`);
@@ -274,8 +293,13 @@ export class StorageService {
 
   /**
    * Delete a file from tenant's bucket
+   * Validates tenant ownership before deletion
    */
-  async deleteFile(fileKey: string): Promise<void> {
+  async deleteFile(fileKey: string, tenantId: string): Promise<void> {
+    if (tenantId) {
+      this.validateTenantOwnership(fileKey, tenantId);
+    }
+
     const bucket = this.tenantFilesBucket;
 
     try {
@@ -323,11 +347,17 @@ export class StorageService {
 
   /**
    * Generate a signed URL for downloading a file
+   * Validates tenant ownership before generating URL
    */
   async generateSignedUrl(
     fileKey: string,
+    tenantId: string,
     expiresIn?: number,
   ): Promise<string> {
+    if (tenantId) {
+      this.validateTenantOwnership(fileKey, tenantId);
+    }
+
     const bucket = this.tenantFilesBucket;
     const expires = expiresIn || this.signedUrlExpiresIn;
 
@@ -370,7 +400,7 @@ export class StorageService {
 
       const files: FileListItem[] = await Promise.all(
         response.Contents.filter((item) => item.Key).map(async (item) => {
-          const url = await this.generateSignedUrl(item.Key!);
+          const url = await this.generateSignedUrl(item.Key!, tenantId);
           return {
             key: item.Key!,
             size: item.Size || 0,

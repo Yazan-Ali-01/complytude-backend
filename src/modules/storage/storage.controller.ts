@@ -25,7 +25,6 @@ import { FastifyFileInterceptor } from './interceptors/fastify-file.interceptor'
 import { StorageService } from './storage.service';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
 import type { ValidatedFile } from './pipes/file-validation.pipe';
-import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { DocumentLimitGuard } from '../../common/guards/document-limit.guard';
@@ -144,11 +143,13 @@ export class StorageController {
   }
 
   @Get('signed-url/:fileKey')
-  @Public()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'member', 'system')
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get signed download URL for a file',
     description:
-      'Generate a time-limited signed URL for downloading a file. Public endpoint - no authentication required. Tenant ID must be provided in the path.',
+      'Generate a time-limited signed URL for downloading a file. Requires authentication. All authenticated users can access files from their tenant.',
   })
   @ApiQuery({
     name: 'expiresIn',
@@ -161,12 +162,22 @@ export class StorageController {
     description: 'Signed URL generated successfully',
     type: SignedUrlResponseDto,
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
+  })
   @ApiResponse({ status: 404, description: 'File not found' })
   async getSignedUrl(
     @Param('fileKey') fileKey: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('expiresIn') expiresIn?: number,
   ): Promise<SignedUrlResponseDto> {
-    const url = await this.storageService.generateSignedUrl(fileKey, expiresIn);
+    const url = await this.storageService.generateSignedUrl(
+      fileKey,
+      user.tenantId,
+      expiresIn,
+    );
 
     return {
       key: fileKey,
@@ -176,22 +187,30 @@ export class StorageController {
   }
 
   @Get('download/:fileKey')
-  @Public()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'member', 'system')
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Download a file directly',
     description:
-      'Download a file as an attachment. Public endpoint - no authentication required. Tenant ID must be provided in the path. All roles can download files from their tenant.',
+      'Download a file directly as a stream. Requires authentication. All authenticated users can download files from their tenant.',
   })
   @ApiResponse({
     status: 200,
     description: 'File downloaded successfully',
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
+  })
   @ApiResponse({ status: 404, description: 'File not found' })
   async downloadFile(
     @Param('fileKey') fileKey: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<StreamableFile> {
     const { stream, filename, contentType } =
-      await this.storageService.getFileForDownload(fileKey);
+      await this.storageService.getFileForDownload(fileKey, user.tenantId);
 
     const encodedFilename = encodeURIComponent(filename);
     const disposition = `inline; filename="${filename}"; filename*=UTF-8''${encodedFilename}`;
@@ -230,7 +249,7 @@ export class StorageController {
       `User ${user.userId} deleting file: ${fileKey} from tenant ${user.tenantId}`,
     );
 
-    await this.storageService.deleteFile(fileKey);
+    await this.storageService.deleteFile(fileKey, user.tenantId);
 
     return {
       message: 'File deleted successfully',
