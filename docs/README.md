@@ -8,6 +8,7 @@ Welcome to the Complytude documentation hub. This index provides links to all pr
 | ------------------------------------- | ----------------------------------------------------- |
 | [README.md](../README.md)             | Project overview, features, quick start guide         |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Contribution guidelines, git hooks, commit standards  |
+| [SCRIPTS.md](SCRIPTS.md)              | Complete script reference and usage guide             |
 | [DEVELOPMENT.md](DEVELOPMENT.md)      | Development workflow, module creation, best practices |
 | [DEPLOYMENT.md](DEPLOYMENT.md)        | Deployment instructions, production setup             |
 | [ARCHITECTURE.md](ARCHITECTURE.md)    | System architecture documentation                     |

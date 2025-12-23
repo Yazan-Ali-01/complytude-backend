@@ -141,7 +141,7 @@ validateSwaggerSchema('SignupResponse', response.body);
 ### Database Not Running
 
 ```bash
-npm run docker:up
+npm run docker:start
 ```
 
 ### Port Conflict

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script to start Docker PostgreSQL database
-# This checks if Docker is running before attempting to start the database
+# Script to start Docker services (PostgreSQL + MinIO)
+# This checks if Docker is running before attempting to start services
 
 echo "🐳 Checking Docker status..."
 
@@ -19,50 +19,58 @@ if ! docker info > /dev/null 2>&1; then
 fi
 
 echo "✅ Docker is running"
+echo ""
 
-# Check if our postgres container exists
-if docker ps -a --format '{{.Names}}' | grep -q '^complytude-postgres$'; then
-    echo "📦 Found existing complytude-postgres container"
-    
-    # Check if it's running
-    if docker ps --format '{{.Names}}' | grep -q '^complytude-postgres$'; then
-        echo "✅ PostgreSQL container is already running"
-    else
-        echo "🔄 Starting PostgreSQL container..."
-        docker start complytude-postgres
-    fi
-else
-    echo "🚀 Creating and starting PostgreSQL container..."
-    docker-compose up -d postgres
-fi
+# Start services
+echo "🚀 Starting PostgreSQL and MinIO..."
+docker-compose up -d postgres minio
 
-# Wait a moment for the container to be ready
-echo "⏳ Waiting for PostgreSQL to be ready..."
+# Wait for services to be ready
+echo "⏳ Waiting for services to be ready..."
 sleep 3
 
-# Check health
+# Check PostgreSQL health
 if docker exec complytude-postgres pg_isready -U postgres > /dev/null 2>&1; then
-    echo ""
     echo "✅ PostgreSQL is ready!"
-    echo ""
-    echo "📊 Connection details:"
-    echo "  Host: localhost"
-    echo "  Port: 5432"
-    echo "  Database: complytude"
-    echo "  User: postgres"
-    echo ""
-    echo "🚀 You can now run: pnpm start:dev"
-    echo "📚 API Docs: http://localhost:3000/docs"
-    echo "🏥 Health Check: http://localhost:3000/api/health/db"
-    echo ""
-    echo "📋 Useful commands:"
-    echo "  pnpm docker:logs  - View database logs"
-    echo "  pnpm docker:down  - Stop database"
-    echo "  pnpm docker:reset - Reset database (⚠️  deletes all data)"
 else
-    echo ""
-    echo "⚠️  PostgreSQL container started but not ready yet"
-    echo "Run: pnpm docker:logs"
-    echo "Or wait a few more seconds and try connecting"
+    echo "⚠️  PostgreSQL started but not ready yet"
 fi
+
+# Check MinIO health
+if docker exec complytude-minio curl -f http://localhost:9000/minio/health/live > /dev/null 2>&1; then
+    echo "✅ MinIO is ready!"
+else
+    echo "⚠️  MinIO started but not ready yet"
+fi
+
+echo ""
+echo "📊 Service Connection Details:"
+echo ""
+echo "PostgreSQL:"
+echo "  Host: localhost"
+echo "  Port: 5432"
+echo "  Database: complytude"
+echo "  User: postgres"
+echo ""
+echo "MinIO (S3-Compatible Storage):"
+echo "  API Endpoint: http://localhost:9000"
+echo "  Console: http://localhost:9001"
+echo "  Access Key: minioadmin"
+echo "  Secret Key: minioadmin"
+echo ""
+echo "🚀 Next Steps:"
+echo "  pnpm db:migrate  - Run database migrations"
+echo "  pnpm start:dev   - Start development server"
+echo ""
+echo "📚 Useful URLs:"
+echo "  API Docs: http://localhost:3000/docs"
+echo "  Health Check: http://localhost:3000/api/health"
+echo "  MinIO Console: http://localhost:9001"
+echo ""
+echo "📋 Useful Commands:"
+echo "  pnpm docker:logs     - View service logs"
+echo "  pnpm docker:stop     - Stop services"
+echo "  pnpm docker:up:all   - Start with pgAdmin too"
+echo "  pnpm docker:reset    - Reset all data (⚠️  destructive)"
+echo ""
 

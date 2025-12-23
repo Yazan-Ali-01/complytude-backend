@@ -14,26 +14,62 @@ Thank you for your interest in contributing to Complytude! This guide will help 
 
 ## Development Setup
 
-Before contributing, ensure you have the development environment set up. See the main [README.md](README.md) for:
+### Prerequisites
 
-- Prerequisites (Node.js, pnpm, Docker, etc.)
-- Quick Start guide
-- Environment configuration
+Before contributing, ensure you have:
 
-### Quick Setup
+- Node.js >= 22.16.0
+- pnpm >= 9.x
+- Docker >= 24.x with Docker Compose
+- Git
+
+For Windows users: Configure pnpm to use Git Bash (see [main README](README.md#windows-users))
+
+### Complete Setup Instructions
+
+See the [Quick Start](README.md#quick-start) section in the main README for detailed setup instructions.
+
+### Quick Reference
 
 ```bash
-# Clone and install
+# First-time setup (run once)
 git clone <repository-url>
 cd complytude
 pnpm install
+cp .env.example .env
+pnpm project:setup              # Starts PostgreSQL + MinIO, runs migrations
 
-# Start services and run migrations
-pnpm docker:start
-pnpm db:migrate
+# Daily development
+pnpm dev                # Auto-starts services + development server
 
-# Start development server
-pnpm start:dev
+# Before committing
+pnpm lint
+pnpm type-check
+pnpm test:e2e
+```
+
+**📚 Complete Script Reference:** See [docs/SCRIPTS.md](docs/SCRIPTS.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
+
+### Verify Your Setup
+
+After setup, verify everything works:
+
+```bash
+# Check services are running
+docker ps
+
+# Should see:
+# - complytude-postgres (port 5432)
+# - complytude-minio (ports 9000, 9001)
+
+# Test API
+curl http://localhost:3000/api/health
+
+# Test MinIO
+open http://localhost:9001  # Login: minioadmin/minioadmin
+
+# Run E2E tests
+pnpm test:e2e
 ```
 
 ---

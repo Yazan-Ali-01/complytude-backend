@@ -73,7 +73,7 @@
 | Authentication   | Passport JWT                        |
 | Validation       | class-validator + class-transformer |
 | Documentation    | Swagger/OpenAPI                     |
-| Storage          | AWS S3 / MinIO                      |
+| Storage          | MinIO (dev) / AWS S3 (production)   |
 | Containerization | Docker + Docker Compose             |
 | Testing          | Jest + Supertest                    |
 
@@ -83,8 +83,8 @@
 
 Before you begin, ensure you have the following installed:
 
-- **Node.js** >= 18.x (LTS recommended)
-- **pnpm** >= 8.x
+- **Node.js** >= 22.16.0 (LTS recommended)
+- **pnpm** >= 9.x
 - **Docker** >= 24.x (with Docker Compose)
 - **Git**
 
@@ -102,59 +102,138 @@ If you're using Windows, configure pnpm to use Git Bash:
 
 ## Quick Start
 
-### 1. Clone the Repository
+### First-Time Setup (Run Once)
+
+1. **Clone & Install**
+
+   ```bash
+   git clone <repository-url>
+   cd complytude
+   pnpm install
+   ```
+
+2. **Environment Configuration**
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration (see Environment Variables section)
+   ```
+
+3. **Start Services & Setup Database**
+
+   ```bash
+   pnpm project:setup
+   ```
+
+   This single command will:
+   - ✅ Start PostgreSQL database
+   - ✅ Start MinIO storage
+   - ✅ Wait for services to be healthy
+   - ✅ Run all database migrations
+   - ✅ Verify the setup
+
+4. **Verify Installation**
+   ```bash
+   pnpm test:e2e
+   ```
+
+**Services Available:**
+
+- 🗄️ PostgreSQL: `localhost:5432`
+- 📦 MinIO API: `http://localhost:9000`
+- 🖥️ MinIO Console: `http://localhost:9001` (minioadmin/minioadmin)
+
+---
+
+### Daily Development Workflow
+
+Start developing with a single command:
 
 ```bash
-git clone <repository-url>
-cd complytude
+pnpm dev
 ```
 
-### 2. Install Dependencies
+This will:
+
+- Check if Docker services are running (starts them if needed)
+- Start the development server with hot-reload
+
+**Or start services individually:**
 
 ```bash
-pnpm install
-```
-
-### 3. Environment Configuration
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your configuration (see [Environment Variables](#environment-variables)).
-
-### 4. Start Docker Services
-
-```bash
+# Start backend services (PostgreSQL + MinIO)
 pnpm docker:start
 
-# Or start all services including pgAdmin:
-pnpm docker:up:all
-```
-
-### 5. Run Database Migrations
-
-```bash
-pnpm db:migrate
-```
-
-### 6. Start the Application
-
-```bash
+# Start development server
 pnpm start:dev
 ```
 
-The application will be available at:
+**Available at:**
 
-- **API**: http://localhost:3000/api
-- **Swagger Docs**: http://localhost:3000/docs
-- **Health Check**: http://localhost:3000/api/health
+- 🚀 API: http://localhost:3000/api
+- 📚 Swagger Docs: http://localhost:3000/docs
+- 🏥 Health Check: http://localhost:3000/api/health
+- 📦 MinIO Console: http://localhost:9001
 
-### 7. Verify Setup
+---
+
+### Docker Deployment Options
+
+Complytude supports two Docker deployment approaches:
+
+#### Option 1: Hybrid Mode (Default - Recommended for Development)
+
+**What you're using:** NestJS runs locally, services run in Docker
 
 ```bash
-pnpm db:verify
+pnpm dev  # Auto-starts services + local NestJS with hot-reload
+```
+
+✅ **Best for:** Active development, fast iteration, easy debugging
+
+#### Option 2: Fully Dockerized
+
+**Everything in containers:** NestJS + PostgreSQL + MinIO all in Docker
+
+```bash
+# Build the Docker image
+pnpm docker:build
+
+# Start everything
+pnpm docker:up:full
+
+# View logs
+pnpm docker:logs:full
+```
+
+✅ **Best for:** Testing deployments, CI/CD, production-like environment
+
+**Comparison:**
+
+| Aspect              | Hybrid     | Fully Dockerized    |
+| ------------------- | ---------- | ------------------- |
+| **Hot Reload**      | ✅ Fast    | ⚠️ Requires rebuild |
+| **Debugging**       | ✅ Native  | ⚠️ Remote           |
+| **Startup**         | ⚡ ~5s     | 🐌 ~30s             |
+| **Production-like** | ⚠️ Partial | ✅ Identical        |
+
+📚 **Full Docker Guide:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#docker-deployment) for detailed instructions
+
+---
+
+### Testing Your Changes
+
+```bash
+# Run all E2E tests
 pnpm test:e2e
+
+# Run unit tests
+pnpm test
+
+# Run specific feature tests
+pnpm test:e2e:auth      # Authentication
+pnpm test:e2e:storage   # File storage (uses MinIO)
+pnpm test:e2e:tenant    # Multi-tenancy
 ```
 
 ---
@@ -183,14 +262,14 @@ complytude/
 
 ### Module Overview
 
-| Module        | Description                                         | Status      |
-| ------------- | --------------------------------------------------- | ----------- |
-| **auth**      | JWT authentication, signup, login, password reset   | ✅ Complete |
-| **users**     | User management, roles, multi-tenant membership     | ✅ Complete |
-| **tenant**    | Organization management, subscription plans         | ✅ Complete |
-| **storage**   | S3/MinIO file upload/download with tenant isolation | ✅ Complete |
-| **templates** | Legal document template CRUD & versioning           | 🟡 Partial  |
-| **health**    | Health checks for database and storage              | ✅ Complete |
+| Module        | Description                                       | Status      |
+| ------------- | ------------------------------------------------- | ----------- |
+| **auth**      | JWT authentication, signup, login, password reset | ✅ Complete |
+| **users**     | User management, roles, multi-tenant membership   | ✅ Complete |
+| **tenant**    | Organization management, subscription plans       | ✅ Complete |
+| **storage**   | File upload/download via S3/MinIO with isolation  | ✅ Complete |
+| **templates** | Legal document template CRUD & versioning         | 🟡 Partial  |
+| **health**    | Health checks for database, storage (MinIO/S3)    | ✅ Complete |
 
 ---
 
@@ -205,33 +284,49 @@ PORT=3000
 API_PREFIX=api
 
 # CORS
-CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+CORS_ORIGINS=http://localhost:3000
 
 # Database
 DB_HOST=localhost
 DB_PORT=5432
+DB_NAME=complytude
 DB_USER=postgres
 DB_PASSWORD=postgres
-DB_NAME=complytude
+DB_MAX_CONNECTIONS=20
+DB_IDLE_TIMEOUT=30000
+DB_CONNECTION_TIMEOUT=2000
 
-# JWT
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
+# JWT Authentication
+JWT_ACCESS_SECRET=your-super-secret-jwt-access-key-change-this-in-production
+JWT_REFRESH_SECRET=your-super-secret-jwt-refresh-key-change-this-in-production
+JWT_ACCESS_EXPIRES_IN=30m
+JWT_REFRESH_EXPIRES_IN=14d
 
 # S3/MinIO Storage
-STORAGE_TYPE=minio
-S3_REGION=us-east-1
 S3_ENDPOINT=http://localhost:9000
-S3_ACCESS_KEY_ID=minioadmin
-S3_SECRET_ACCESS_KEY=minioadmin
-S3_BUCKET_NAME=complytude
+S3_REGION=us-east-1
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+S3_BUCKET_PREFIX=complytude
 S3_FORCE_PATH_STYLE=true
 
 # File Upload Limits
 MAX_FILE_SIZE=10485760
-ALLOWED_FILE_TYPES=.pdf,.docx,.doc,.png,.jpg,.jpeg
+SIGNED_URL_EXPIRES_IN=900
+
+# MinIO (Docker)
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+MINIO_PORT=9000
+MINIO_CONSOLE_PORT=9001
+
+# pgAdmin (Optional)
+PGADMIN_EMAIL=admin@complytude.com
+PGADMIN_PASSWORD=admin
+PGADMIN_PORT=5050
 ```
+
+**💡 Note:** When using fully dockerized mode (`pnpm docker:up:full`), the `docker-compose.yml` automatically overrides `DB_HOST` → `postgres` and `S3_ENDPOINT` → `http://minio:9000`. Keep your `.env` with `localhost` values for hybrid mode!
 
 For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
@@ -239,41 +334,39 @@ For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Available Scripts
 
-### Development
+### Essential Commands
 
 ```bash
-pnpm start:dev       # Start with hot-reload
-pnpm build           # Build for production
-pnpm start:prod      # Start production build
+# First-time setup
+pnpm project:setup          # Start services, run migrations, verify setup
+
+# Daily development
+pnpm dev            # Start development (auto-starts services + hot-reload)
+
+# Testing
+pnpm test:e2e       # Run all E2E tests
+pnpm test           # Run unit tests
+
+# Production
+pnpm build          # Build for production
+pnpm start:prod     # Run production build
+
+# Services (Hybrid Mode)
+pnpm docker:start   # Start PostgreSQL + MinIO
+pnpm docker:stop    # Stop services (keeps data)
+
+# Docker - Full Stack
+pnpm docker:build   # Build NestJS Docker image
+pnpm docker:up:full # Start everything in Docker
+pnpm docker:logs:full # View all logs
+
+# Code quality
+pnpm lint           # ESLint with auto-fix
+pnpm format         # Prettier formatting
+pnpm type-check     # TypeScript validation
 ```
 
-### Testing
-
-```bash
-pnpm test            # Run unit tests
-pnpm test:e2e        # Run all E2E tests
-pnpm test:e2e:auth   # Test authentication flow
-pnpm test:cov        # Run tests with coverage
-```
-
-For detailed testing documentation, see [test/README.md](test/README.md).
-
-### Database
-
-```bash
-pnpm docker:start    # Start PostgreSQL
-pnpm docker:up:all   # Start all services
-pnpm db:migrate      # Run migrations
-pnpm db:verify       # Verify setup
-```
-
-### Code Quality
-
-```bash
-pnpm lint            # Run ESLint
-pnpm format          # Format with Prettier
-pnpm type-check      # TypeScript type check
-```
+**📚 Complete Script Reference:** See [docs/SCRIPTS.md](docs/SCRIPTS.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
 
 ---
 
@@ -305,14 +398,16 @@ Pre-configured Postman collection included:
 
 ## Multi-Tenancy
 
-Complytude uses a **hybrid multi-tenancy approach**:
+Complytude uses **schema-based isolation** with **Row-Level Security (RLS)** for complete data separation between tenants.
 
-1. **Schema-based isolation** - Each tenant gets their own PostgreSQL schema
-2. **Row-Level Security (RLS)** - Additional security layer at database level
+**Key Features:**
 
-### Tenant Context
+- Each tenant gets their own PostgreSQL schema
+- RLS policies for additional security
+- Automatic tenant context via `@TenantId()` decorator
+- Plan-based feature access control
 
-The `@TenantId()` decorator automatically extracts the tenant ID from the authenticated user:
+Example usage:
 
 ```typescript
 @Get()
@@ -321,14 +416,6 @@ async findAll(@TenantId() tenantId: string) {
   return this.service.findAll(tenantId);
 }
 ```
-
-### Key Features
-
-- Complete data isolation per tenant
-- Schema-level separation
-- RLS policies for additional security
-- Automatic tenant context injection
-- Plan-based feature access control
 
 ---
 
@@ -346,66 +433,29 @@ async findAll(@TenantId() tenantId: string) {
 
 ---
 
-## Support
+## Troubleshooting
 
-### Common Issues
-
-**Database Connection Failed**
+**Services not starting?**
 
 ```bash
-docker ps              # Check Docker is running
-pnpm docker:stop
-pnpm docker:start
+pnpm docker:stop && pnpm docker:start
 ```
 
-**Port Already in Use**
+**Port already in use?**
 
 ```bash
-# Option 1: Change port in .env file
+# Change port in .env
 PORT=3001
 ```
 
-Or kill the process using port 3000 (or any other port):
-
-**On Windows:**
-
-```bash
-# Find the process ID (PID) on port 3000
-netstat -ano | findstr :3000
-
-# Kill the process (replace PID with the actual process ID)
-taskkill /PID <PID> /F
-
-# Or kill all Node processes on port 3000
-FOR /F "tokens=5" %P IN ('netstat -ano ^| findstr :3000') DO taskkill /PID %P /F
-```
-
-**On macOS/Linux:**
-
-```bash
-# Find and kill process on port 3000
-lsof -ti:3000 | xargs kill -9
-
-# Or find the PID first, then kill it
-lsof -i:3000
-kill -9 <PID>
-
-# For other ports, replace 3000 with your desired port number
-lsof -ti:8080 | xargs kill -9
-```
-
-**Migration Errors**
+**Database issues?**
 
 ```bash
 pnpm docker:reset      # ⚠️ Deletes all data
 pnpm db:migrate
 ```
 
-### External Resources
-
-- [NestJS Documentation](https://docs.nestjs.com/)
-- [Fastify Documentation](https://www.fastify.io/docs/latest/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+For detailed troubleshooting, see [docs/SCRIPTS.md](docs/SCRIPTS.md#troubleshooting)
 
 ---
 
