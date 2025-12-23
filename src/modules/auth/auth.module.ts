@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { DatabaseModule } from '../../database/database.module';
+import { RefreshTokenRepository } from '../../repositories/refresh-token.repository';
 
 @Module({
   imports: [
@@ -16,7 +17,12 @@ import { DatabaseModule } from '../../database/database.module';
     JwtModule.register({}), // Configuration done in strategies
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    RefreshTokenRepository,
+  ],
   exports: [AuthService, JwtStrategy, PassportModule],
 })
 export class AuthModule {}

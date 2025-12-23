@@ -9,6 +9,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../../database/database.service';
+import {
+  RefreshToken,
+  RefreshTokenRepository,
+} from '../../repositories/refresh-token.repository';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { SignupDto } from './dto/signup.dto';
@@ -45,6 +49,7 @@ export class AuthService {
     private readonly databaseService: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly refreshTokenRepository: RefreshTokenRepository,
   ) {}
 
   /**
@@ -335,11 +340,12 @@ export class AuthService {
       this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
     const expiresAt = new Date(Date.now() + this.parseExpiresIn(expiresIn));
 
-    await this.databaseService.query(
-      `INSERT INTO public.refresh_tokens (id, user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [tokenId, userId, tokenHash, expiresAt],
-    );
+    await this.refreshTokenRepository.createRefreshToken({
+      id: tokenId,
+      userId,
+      tokenHash,
+      expiresAt,
+    });
   }
 
   /**
@@ -368,20 +374,17 @@ export class AuthService {
    */
   async refreshTokens(userId: string, email: string, oldRefreshToken: string) {
     // Verify refresh token exists and is not revoked
-    const result = await this.databaseService.query(
-      `SELECT * FROM public.refresh_tokens 
-       WHERE user_id = $1 AND expires_at > NOW() AND revoked_at IS NULL`,
-      [userId],
-    );
+    const activeTokens =
+      await this.refreshTokenRepository.findActiveByUserId(userId);
 
-    if (result.rows.length === 0) {
+    if (activeTokens.length === 0) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
     // Find matching token
-    let validToken: any = null;
-    for (const token of result.rows) {
-      const isValid = await bcrypt.compare(oldRefreshToken, token.token_hash);
+    let validToken: RefreshToken | null = null;
+    for (const token of activeTokens) {
+      const isValid = await bcrypt.compare(oldRefreshToken, token.tokenHash);
       if (isValid) {
         validToken = token;
         break;
@@ -393,10 +396,7 @@ export class AuthService {
     }
 
     // Revoke old refresh token
-    await this.databaseService.query(
-      'UPDATE public.refresh_tokens SET revoked_at = NOW() WHERE id = $1',
-      [validToken.id],
-    );
+    await this.refreshTokenRepository.revokeById(validToken.id);
 
     // Get user's current tenant info and system admin status
     const userResult = await this.databaseService.query(
@@ -436,18 +436,13 @@ export class AuthService {
    */
   async logout(userId: string, refreshToken: string) {
     // Find and revoke the refresh token
-    const result = await this.databaseService.query(
-      'SELECT * FROM public.refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL',
-      [userId],
-    );
+    const activeTokens =
+      await this.refreshTokenRepository.findActiveByUserId(userId);
 
-    for (const token of result.rows) {
-      const isValid = await bcrypt.compare(refreshToken, token.token_hash);
+    for (const token of activeTokens) {
+      const isValid = await bcrypt.compare(refreshToken, token.tokenHash);
       if (isValid) {
-        await this.databaseService.query(
-          'UPDATE public.refresh_tokens SET revoked_at = NOW() WHERE id = $1',
-          [token.id],
-        );
+        await this.refreshTokenRepository.revokeById(token.id);
         this.logger.log(`User ${userId} logged out`);
         return { message: 'Logged out successfully' };
       }
@@ -565,10 +560,9 @@ export class AuthService {
       );
 
       // Revoke all refresh tokens for this user (force re-login)
-      await client.query(
-        'UPDATE public.refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL',
-        [reset.user_id],
-      );
+      await this.refreshTokenRepository.revokeAllByUserId(reset.user_id, {
+        client,
+      });
     });
 
     this.logger.log(`Password reset for user ${reset.user_id}`);
