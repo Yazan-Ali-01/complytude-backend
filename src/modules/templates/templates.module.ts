@@ -17,6 +17,8 @@ import { CategoriesService } from './categories.service';
 import { RulesetsService } from './rulesets.service';
 import { DocumentGenerationService } from './document-generation.service';
 import { TemplateValidationService } from './template-validation.service';
+import { DocumentsController } from './documents.controller';
+import { DocumentsService } from './documents.service';
 import { DocxPlaceholderExtractionService } from './services/docx-placeholder-extraction.service';
 
 @Module({
@@ -26,6 +28,7 @@ import { DocxPlaceholderExtractionService } from './services/docx-placeholder-ex
     AuthoritiesController,
     CategoriesController,
     RulesetsController,
+    DocumentsController,
   ],
   providers: [
     TemplatesService,
@@ -35,6 +38,7 @@ import { DocxPlaceholderExtractionService } from './services/docx-placeholder-ex
     RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
+    DocumentsService,
     DocxPlaceholderExtractionService,
   ],
   exports: [
@@ -45,6 +49,7 @@ import { DocxPlaceholderExtractionService } from './services/docx-placeholder-ex
     RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
+    DocumentsService,
     DocxPlaceholderExtractionService,
   ],
 })
