@@ -8,16 +8,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import {
-  RefreshToken,
-  RefreshTokenRepository,
-} from '../../repositories/users/refresh-token.repository';
-import { User, UserRepository } from '../../repositories/users/user.repository';
+import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
+import { UserRepository } from '../../repositories/users/user.repository';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
-import {
-  UserTenant,
-  UserTenantRepository,
-} from '../../repositories/users/user-tenant.repository';
+import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { DatabaseService } from '../../database/database.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
@@ -27,6 +21,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.intefaces';
+import { UserTenant } from 'src/repositories/users/interfaces/user-tenant.intefaces';
+import { User } from 'src/repositories/users/interfaces/user.intefaces';
 
 @Injectable()
 export class AuthService {

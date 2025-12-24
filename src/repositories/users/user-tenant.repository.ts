@@ -2,31 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
-
-export interface UserTenant {
-  userId: string;
-  tenantId: string;
-  role: string;
-  isActive: boolean;
-  joinedAt: Date;
-  updatedAt: Date | null;
-  schemaName: string;
-}
-
-export interface UserTenantInfo extends UserTenant {
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-  isVerified: boolean;
-  isSystemAdmin: boolean;
-}
-
-export interface LinkUserTenantInput {
-  userId: string;
-  tenantId: string;
-  role: string;
-  isActive?: boolean;
-}
+import {
+  UserTenant,
+  LinkUserTenantInput,
+  UserTenantInfo,
+} from './interfaces/user-tenant.intefaces';
 
 type UserTenantRow = {
   user_id: string;

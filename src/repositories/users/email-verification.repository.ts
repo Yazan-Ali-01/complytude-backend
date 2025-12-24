@@ -2,21 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
-
-export interface EmailVerification {
-  id: string;
-  userId: string;
-  token: string;
-  expiresAt: Date;
-  verifiedAt: Date | null;
-}
-
-export interface CreateEmailVerificationInput {
-  id: string;
-  userId: string;
-  token: string;
-  expiresAt: Date;
-}
+import {
+  EmailVerification,
+  CreateEmailVerificationInput,
+} from './interfaces/email-verification.interface';
 
 type EmailVerificationRow = {
   id: string;

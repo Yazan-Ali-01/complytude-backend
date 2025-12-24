@@ -2,28 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
-
-export interface RefreshToken {
-  id: string;
-  userId: string;
-  tokenHash: string;
-  expiresAt: Date;
-  createdAt: Date;
-  revokedAt: Date | null;
-}
-
-export interface CreateRefreshTokenInput {
-  id: string;
-  userId: string;
-  tokenHash: string;
-  expiresAt: Date;
-}
-
-export interface UpdateRefreshTokenInput {
-  tokenHash?: string;
-  expiresAt?: Date;
-  revokedAt?: Date | null;
-}
+import {
+  RefreshToken,
+  CreateRefreshTokenInput,
+} from './interfaces/refresh-token.intefaces';
 
 type RefreshTokenRow = {
   id: string;
