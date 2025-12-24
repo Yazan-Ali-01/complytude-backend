@@ -72,19 +72,21 @@ export class AuthService {
 
     return await this.databaseService.transaction(async (client) => {
       // Create user account
-      await client.query(
-        `INSERT INTO public.users (id, email, password_hash, first_name, last_name, is_verified)
-         VALUES ($1, $2, $3, $4, $5, false)`,
-        [
-          userId,
-          signupDto.email,
+      await this.userRepository.createUser(
+        {
+          id: userId,
+          email: signupDto.email,
           passwordHash,
-          signupDto.firstName,
-          signupDto.lastName,
-        ],
+          firstName: signupDto.firstName,
+          lastName: signupDto.lastName,
+          isVerified: false,
+          isSystemAdmin: false,
+        },
+        { client },
       );
 
       // Create tenant and schema via TenantService (all multi-tenant setup is encapsulated there)
+      // TODO: should use client
       const tenant: Tenant = await this.tenantService.createTenant(
         {
           email: signupDto.email,
@@ -93,13 +95,18 @@ export class AuthService {
           features: new TenantFeaturesDto(),
         },
         userId,
+        // { client },
       );
 
       // Link user to the new tenant
-      await client.query(
-        `INSERT INTO public.user_tenants (user_id, tenant_id, role, is_active)
-         VALUES ($1, $2, $3, true)`,
-        [userId, tenant.tenant_id, tenant.role],
+      await this.userTenantRepository.linkUserToTenant(
+        {
+          userId,
+          tenantId: tenant.tenant_id,
+          role: tenant.role,
+          isActive: true,
+        },
+        { client },
       );
 
       // Create email verification record

@@ -6,7 +6,6 @@ import {
   User,
   CreateUserInput,
   UpdateUserInput,
-  CreateTenantInput,
   CreatePasswordResetInput,
   PasswordReset,
 } from './interfaces/user.intefaces';
@@ -119,21 +118,6 @@ export class UserRepository extends BaseRepository<
     };
 
     return this.update(userId, payload, options);
-  }
-
-  async createTenant(
-    _input: CreateTenantInput,
-    _options?: QueryOptions,
-  ): Promise<void> {
-    // TODO: Implement create tenant
-  }
-
-  async initializeTenantSchema(
-    _schemaName: string,
-    _tenantId: string,
-    _options?: QueryOptions,
-  ): Promise<void> {
-    // TODO: Implement initialize tenant schema
   }
 
   async createPasswordReset(
