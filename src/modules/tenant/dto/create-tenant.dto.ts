@@ -3,6 +3,8 @@ import {
   IsEnum,
   IsNotEmpty,
   IsObject,
+  IsOptional,
+  IsString,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -54,4 +56,13 @@ export class CreateTenantDto {
   @ValidateNested()
   @Type(() => TenantFeaturesDto)
   features: TenantFeaturesDto;
+
+  @ApiProperty({
+    example: 'user_123e4567-e89b-12d3-a456-426614174000',
+    description: 'User ID (optional)',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  userId?: string;
 }

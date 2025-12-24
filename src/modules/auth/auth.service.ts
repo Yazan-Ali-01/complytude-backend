@@ -72,6 +72,7 @@ export class AuthService {
 
     return await this.databaseService.transaction(async (client) => {
       // Create user account
+      this.logger.log(`Creating user account for ${signupDto.email}`);
       await this.userRepository.createUser(
         {
           id: userId,
@@ -86,19 +87,20 @@ export class AuthService {
       );
 
       // Create tenant and schema via TenantService (all multi-tenant setup is encapsulated there)
-      // TODO: should use client
+      this.logger.log(`Creating tenant for ${signupDto.email}`);
       const tenant: Tenant = await this.tenantService.createTenant(
         {
           email: signupDto.email,
           role: 'admin',
           plan: 'early_access',
           features: new TenantFeaturesDto(),
+          userId,
         },
-        userId,
-        // { client },
+        { client },
       );
 
       // Link user to the new tenant
+      this.logger.log(`Linking user to tenant for ${signupDto.email}`);
       await this.userTenantRepository.linkUserToTenant(
         {
           userId,
@@ -113,7 +115,9 @@ export class AuthService {
       const verificationToken = randomUUID();
       const verificationId = `verify_${randomUUID()}`;
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
+      this.logger.log(
+        `Creating email verification record for ${signupDto.email}`,
+      );
       await this.emailVerificationRepository.createEmailVerification(
         {
           id: verificationId,
