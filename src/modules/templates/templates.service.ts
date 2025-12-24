@@ -16,7 +16,6 @@ import {
 } from './dto/create-template.dto';
 import { TemplateDownloadResponseDto } from './dto/template-response.dto';
 import { TemplateVersionsService } from './template-versions.service';
-import { RulesetsService } from './rulesets.service';
 import { PoolClient } from 'pg';
 import {
   DocxPlaceholderExtractionService,
@@ -27,6 +26,9 @@ import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,
 } from './constants/template.constants';
+import { CategoryRepository } from '../../repositories/categories/category.repository';
+import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
+import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
 
 @Injectable()
 export class TemplatesService {
@@ -35,9 +37,11 @@ export class TemplatesService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly templateVersionsService: TemplateVersionsService,
-    private readonly rulesetsService: RulesetsService,
     private readonly placeholderExtractionService: DocxPlaceholderExtractionService,
     private readonly storageService: StorageService,
+    private readonly categoryRepository: CategoryRepository,
+    private readonly authorityRepository: AuthorityRepository,
+    private readonly rulesetRepository: RulesetRepository,
   ) {}
   async create(
     createTemplateDto: CreateTemplateDto,
@@ -63,11 +67,10 @@ export class TemplatesService {
 
       // Validate category_id if provided
       if (createTemplateDto.category_id) {
-        const categoryExists = await this.databaseService.query(
-          'SELECT id FROM public.categories WHERE id = $1',
-          [createTemplateDto.category_id],
+        const categoryExists = await this.categoryRepository.findById(
+          createTemplateDto.category_id,
         );
-        if (categoryExists.rows.length === 0) {
+        if (!categoryExists) {
           throw new BadRequestException(
             `Category with ID "${createTemplateDto.category_id}" not found`,
           );
@@ -76,11 +79,10 @@ export class TemplatesService {
 
       // Validate authority_id if provided
       if (createTemplateDto.authority_id) {
-        const authorityExists = await this.databaseService.query(
-          'SELECT id FROM public.authorities WHERE id = $1',
-          [createTemplateDto.authority_id],
+        const authorityExists = await this.authorityRepository.findById(
+          createTemplateDto.authority_id,
         );
-        if (authorityExists.rows.length === 0) {
+        if (!authorityExists) {
           throw new BadRequestException(
             `Authority with ID "${createTemplateDto.authority_id}" not found`,
           );
@@ -92,7 +94,7 @@ export class TemplatesService {
         createTemplateDto.ruleset_keys &&
         createTemplateDto.ruleset_keys.length > 0
       ) {
-        const rulesets = await this.rulesetsService.findByKeys(
+        const rulesets = await this.rulesetRepository.findByKeys(
           createTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== createTemplateDto.ruleset_keys.length) {
@@ -195,9 +197,9 @@ export class TemplatesService {
             createTemplateDto.ruleset_keys.length > 0
           ) {
             await this.associateRulesets(
-              client,
               template.id,
               createTemplateDto.ruleset_keys,
+              client,
             );
           }
         });
@@ -376,53 +378,26 @@ export class TemplatesService {
       // Fetch category details
       let category;
       if (template.category_id) {
-        const categoryResult = client
-          ? await client.query(
-              'SELECT id, code, name FROM public.categories WHERE id = $1',
-              [template.category_id],
-            )
-          : await this.databaseService.query(
-              'SELECT id, code, name FROM public.categories WHERE id = $1',
-              [template.category_id],
-            );
-        category = categoryResult.rows[0];
+        category = await this.categoryRepository.findById(
+          template.category_id,
+          { client },
+        );
       }
 
       // Fetch authority details
       let authority;
       if (template.authority_id) {
-        const authorityResult = client
-          ? await client.query(
-              'SELECT id, code, name FROM public.authorities WHERE id = $1',
-              [template.authority_id],
-            )
-          : await this.databaseService.query(
-              'SELECT id, code, name FROM public.authorities WHERE id = $1',
-              [template.authority_id],
-            );
-        authority = authorityResult.rows[0];
+        authority = await this.authorityRepository.findById(
+          template.authority_id,
+          { client },
+        );
       }
 
       // Fetch rulesets
-      const rulesetsResult = client
-        ? await client.query(
-            `
-        SELECT r.id, r.key, r.name
-        FROM public.rulesets r
-        INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
-        WHERE tr.template_id = $1
-      `,
-            [template.id],
-          )
-        : await this.databaseService.query(
-            `
-        SELECT r.id, r.key, r.name
-        FROM public.rulesets r
-        INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
-        WHERE tr.template_id = $1
-      `,
-            [template.id],
-          );
+      const rulesets = await this.rulesetRepository.findByTemplateId(
+        template.id,
+        { client },
+      );
 
       // Fetch current version details
       const currentVersion =
@@ -435,7 +410,7 @@ export class TemplatesService {
         ...template,
         category,
         authority,
-        rulesets: rulesetsResult.rows,
+        rulesets,
         current_version_details: currentVersion || undefined,
       };
     } catch (error) {
@@ -461,11 +436,10 @@ export class TemplatesService {
 
       // Validate category_id if provided
       if (updateTemplateDto.category_id) {
-        const categoryExists = await this.databaseService.query(
-          'SELECT id FROM public.categories WHERE id = $1',
-          [updateTemplateDto.category_id],
+        const categoryExists = await this.categoryRepository.findById(
+          updateTemplateDto.category_id,
         );
-        if (categoryExists.rows.length === 0) {
+        if (!categoryExists) {
           throw new BadRequestException(
             `Category with ID "${updateTemplateDto.category_id}" not found`,
           );
@@ -474,11 +448,10 @@ export class TemplatesService {
 
       // Validate authority_id if provided
       if (updateTemplateDto.authority_id) {
-        const authorityExists = await this.databaseService.query(
-          'SELECT id FROM public.authorities WHERE id = $1',
-          [updateTemplateDto.authority_id],
+        const authorityExists = await this.authorityRepository.findById(
+          updateTemplateDto.authority_id,
         );
-        if (authorityExists.rows.length === 0) {
+        if (!authorityExists) {
           throw new BadRequestException(
             `Authority with ID "${updateTemplateDto.authority_id}" not found`,
           );
@@ -490,7 +463,7 @@ export class TemplatesService {
         updateTemplateDto.ruleset_keys &&
         updateTemplateDto.ruleset_keys.length > 0
       ) {
-        const rulesets = await this.rulesetsService.findByKeys(
+        const rulesets = await this.rulesetRepository.findByKeys(
           updateTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== updateTemplateDto.ruleset_keys.length) {
@@ -577,17 +550,16 @@ export class TemplatesService {
         // Update rulesets if provided
         if (updateTemplateDto.ruleset_keys !== undefined) {
           // Remove existing associations
-          await client.query(
-            'DELETE FROM public.template_rulesets WHERE template_id = $1',
-            [existing.id],
-          );
+          await this.rulesetRepository.removeTemplateAssociations(existing.id, {
+            client,
+          });
 
           // Add new associations
           if (updateTemplateDto.ruleset_keys.length > 0) {
             await this.associateRulesets(
-              client,
               existing.id,
               updateTemplateDto.ruleset_keys,
+              client,
             );
           }
         }
@@ -760,21 +732,20 @@ export class TemplatesService {
    * Associate rulesets with a template
    */
   private async associateRulesets(
-    client: any,
     templateId: string,
     rulesetKeys: string[],
+    client?: PoolClient,
   ): Promise<void> {
     // Get ruleset IDs from keys
-    const rulesets = await this.rulesetsService.findByKeys(rulesetKeys);
+    const rulesets = await this.rulesetRepository.findByKeys(rulesetKeys, {
+      client,
+    });
     const rulesetIds = rulesets.map((r) => r.id);
 
     // Insert associations
-    for (const rulesetId of rulesetIds) {
-      await client.query(
-        'INSERT INTO public.template_rulesets (template_id, ruleset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [templateId, rulesetId],
-      );
-    }
+    await this.rulesetRepository.associateWithTemplate(templateId, rulesetIds, {
+      client,
+    });
   }
 
   /**
