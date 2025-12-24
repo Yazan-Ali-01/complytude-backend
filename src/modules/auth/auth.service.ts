@@ -21,6 +21,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { TenantService } from '../tenant/tenant.service';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
 import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.intefaces';
 import { UserTenant } from 'src/repositories/users/interfaces/user-tenant.intefaces';
 import { User } from 'src/repositories/users/interfaces/user.intefaces';
@@ -33,6 +36,7 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly tenantService: TenantService,
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly emailVerificationRepository: EmailVerificationRepository,
     private readonly userRepository: UserRepository,
@@ -41,7 +45,16 @@ export class AuthService {
   ) {}
 
   /**
-   * Register a new user and create their first tenant
+   * Registers a new user and creates their first tenant.
+   *
+   * @remarks
+   * - The creation of the tenant and corresponding tenant schema is fully handled within {@link TenantService}.
+   *   This encapsulates all tenant and multi-tenant schema provisioning logic.
+   * - Linking the user to the tenant (the `user_tenants` relation) is performed in this method.
+   *
+   * @param signupDto - User and initial tenant information
+   * @returns An object containing a success message, userId, tenant_id, and an email verification token (remove in production)
+   * @throws {ConflictException} if the email is already registered
    */
   async signup(signupDto: SignupDto) {
     const existingUser = await this.userRepository.findByEmail(signupDto.email);
@@ -56,51 +69,40 @@ export class AuthService {
     );
 
     const userId = `user_${randomUUID()}`;
-    const tenantId = `tenant_${randomUUID()}`;
-    const schemaName = `tenant_${tenantId.replace(/-/g, '_')}`;
 
     return await this.databaseService.transaction(async (client) => {
-      await this.userRepository.createUser(
-        {
-          id: userId,
-          email: signupDto.email,
+      // Create user account
+      await client.query(
+        `INSERT INTO public.users (id, email, password_hash, first_name, last_name, is_verified)
+         VALUES ($1, $2, $3, $4, $5, false)`,
+        [
+          userId,
+          signupDto.email,
           passwordHash,
-          firstName: signupDto.firstName,
-          lastName: signupDto.lastName,
-          isVerified: false,
-          isSystemAdmin: false,
-        },
-        { client },
+          signupDto.firstName,
+          signupDto.lastName,
+        ],
       );
 
-      await this.userRepository.createTenant(
+      // Create tenant and schema via TenantService (all multi-tenant setup is encapsulated there)
+      const tenant: Tenant = await this.tenantService.createTenant(
         {
-          id: userId,
-          tenantId,
           email: signupDto.email,
           role: 'admin',
           plan: 'early_access',
-          features: {},
-          schemaName,
-          isActive: true,
+          features: new TenantFeaturesDto(),
         },
-        { client },
+        userId,
       );
 
-      await this.userTenantRepository.linkUserToTenant(
-        {
-          userId,
-          tenantId,
-          role: 'admin',
-          isActive: true,
-        },
-        { client },
+      // Link user to the new tenant
+      await client.query(
+        `INSERT INTO public.user_tenants (user_id, tenant_id, role, is_active)
+         VALUES ($1, $2, $3, true)`,
+        [userId, tenant.tenant_id, tenant.role],
       );
 
-      await this.userRepository.initializeTenantSchema(schemaName, tenantId, {
-        client,
-      });
-
+      // Create email verification record
       const verificationToken = randomUUID();
       const verificationId = `verify_${randomUUID()}`;
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
@@ -115,9 +117,7 @@ export class AuthService {
         { client },
       );
 
-      this.logger.log(`User ${userId} registered with tenant ${tenantId}`);
-
-      // TODO: Send verification email with token
+      // TODO: Hook in actual email sending here
       this.logger.log(
         `Verification token for ${signupDto.email}: ${verificationToken}`,
       );
@@ -126,8 +126,8 @@ export class AuthService {
         message:
           'Signup successful. Please check your email to verify your account.',
         userId,
-        tenantId,
-        verificationToken, // Remove in production, only for development
+        tenant_id: tenant.tenant_id,
+        verificationToken, // Expose only for development/testing; remove in prod
       };
     });
   }

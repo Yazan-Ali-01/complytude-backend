@@ -27,8 +27,6 @@ export class TenantService {
    * Creates the main tenants table and RLS policies
    */
   async initializeMultiTenancy(): Promise<void> {
-    this.logger.log('Initializing multi-tenancy infrastructure...');
-
     try {
       await this.databaseService.transaction(async (client) => {
         // Create tenants table
@@ -75,8 +73,6 @@ export class TenantService {
           CREATE POLICY tenant_isolation_policy ON public.tenants
             USING (tenant_id = current_setting('app.current_tenant_id', true));
         `);
-
-        this.logger.log('✅ Multi-tenancy infrastructure initialized');
       });
     } catch (error) {
       this.logger.error('Failed to initialize multi-tenancy', error);
@@ -89,12 +85,12 @@ export class TenantService {
   /**
    * Create a new tenant with isolated schema
    */
-  async createTenant(createTenantDto: CreateTenantDto): Promise<Tenant> {
+  async createTenant(
+    createTenantDto: CreateTenantDto,
+    userId: string = `user_${randomUUID()}`,
+  ): Promise<Tenant> {
     const tenantId = `tenant_${randomUUID()}`;
-    const userId = `user_${randomUUID()}`;
     const schemaName = `tenant_${tenantId.replace(/-/g, '_')}`;
-
-    this.logger.log(`Creating tenant ${tenantId} with schema ${schemaName}`);
 
     try {
       // Check if email already exists
@@ -143,8 +139,6 @@ export class TenantService {
         // Initialize schema with base tables
         await this.initializeTenantSchema(client, schemaName, tenantId);
 
-        this.logger.log(`✅ Tenant ${tenantId} created successfully`);
-
         // Parse features back to object
         tenant.features =
           typeof tenant.features === 'string'
@@ -172,7 +166,6 @@ export class TenantService {
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
     await client.query(`GRANT USAGE ON SCHEMA ${schemaName} TO CURRENT_USER`);
     await client.query(`GRANT CREATE ON SCHEMA ${schemaName} TO CURRENT_USER`);
-    this.logger.log(`Schema ${schemaName} created`);
   }
 
   /**
@@ -217,10 +210,6 @@ export class TenantService {
       CREATE INDEX IF NOT EXISTS idx_documents_tenant_id ON ${schemaName}.documents(tenant_id);
       CREATE INDEX IF NOT EXISTS idx_documents_template_key ON ${schemaName}.documents(template_key);
     `);
-
-    this.logger.log(
-      `Schema ${schemaName} initialized with base tables and RLS`,
-    );
   }
 
   /**
@@ -306,13 +295,6 @@ export class TenantService {
     updateTenantDto: UpdateTenantDto,
   ): Promise<Tenant> {
     try {
-      // 🔍 DEBUG: Log the update request
-      this.logger.log(`🔍 [DEBUG] Updating tenant ${tenantId} with:`, {
-        updateTenantDto: updateTenantDto,
-        plan: updateTenantDto.plan,
-        features: updateTenantDto.features,
-      });
-
       await this.findById(tenantId);
 
       const updateFields: string[] = [];
@@ -330,21 +312,10 @@ export class TenantService {
       if (updateTenantDto.plan) {
         updateFields.push(`plan = $${paramIndex++}`);
         values.push(updateTenantDto.plan);
-        this.logger.log(
-          `🔍 [DEBUG] Will update plan to: ${updateTenantDto.plan}`,
-        );
       }
       if (updateTenantDto.features) {
         updateFields.push(`features = $${paramIndex++}`);
         values.push(JSON.stringify(updateTenantDto.features));
-        this.logger.log(
-          `🔍 [DEBUG] Will update features to:`,
-          updateTenantDto.features,
-        );
-      } else {
-        this.logger.log(
-          `🔍 [DEBUG] No features provided - will keep existing features`,
-        );
       }
       if (updateTenantDto.is_active !== undefined) {
         updateFields.push(`is_active = $${paramIndex++}`);
@@ -361,12 +332,6 @@ export class TenantService {
         RETURNING *
       `;
 
-      // 🔍 DEBUG: Log the SQL query
-      this.logger.log(`🔍 [DEBUG] Executing SQL:`, {
-        query: query,
-        values: values,
-      });
-
       const result = await this.databaseService.query<Tenant>(query, values);
 
       const updatedTenant = result.rows[0];
@@ -375,14 +340,6 @@ export class TenantService {
           ? JSON.parse(updatedTenant.features)
           : updatedTenant.features;
 
-      // 🔍 DEBUG: Log the result
-      this.logger.log(`🔍 [DEBUG] Tenant update result:`, {
-        plan: updatedTenant.plan,
-        features: updatedTenant.features,
-        featuresType: typeof updatedTenant.features,
-      });
-
-      this.logger.log(`Tenant ${tenantId} updated successfully`);
       return updatedTenant;
     } catch (error) {
       this.logger.error(`Failed to update tenant: ${error.message}`);
@@ -407,10 +364,6 @@ export class TenantService {
         await client.query('DELETE FROM public.tenants WHERE tenant_id = $1', [
           tenantId,
         ]);
-
-        this.logger.log(
-          `Tenant ${tenantId} and schema ${tenant.schema_name} deleted`,
-        );
       });
     } catch (error) {
       this.logger.error(`Failed to delete tenant: ${error.message}`);
@@ -467,9 +420,6 @@ export class TenantService {
       );
 
       if (!tableExists.rows[0].exists) {
-        this.logger.debug(
-          `Documents table does not exist in schema ${schemaName}, returning count 0`,
-        );
         return 0;
       }
 
@@ -479,8 +429,6 @@ export class TenantService {
       );
 
       const count = parseInt(String(result.rows[0].count), 10);
-      this.logger.debug(`Tenant ${tenantId} has ${count} documents`);
-
       return count;
     } catch (error) {
       this.logger.error(
