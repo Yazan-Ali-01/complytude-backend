@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository } from './base/base.repository';
-import { DatabaseService } from '../database/database.service';
-import { QueryOptions } from './base/repository.interface';
+import { BaseRepository } from '../base/base.repository';
+import { DatabaseService } from '../../database/database.service';
+import { QueryOptions } from '../base/repository.interface';
 
 export interface RefreshToken {
   id: string;
