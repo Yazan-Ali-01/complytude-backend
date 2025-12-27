@@ -22,6 +22,7 @@ import { CategoryRepository } from '../../repositories/categories/category.repos
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
 import { TemplateRepository } from '../../repositories/templates/template.repository';
+import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
 
 @Module({
   imports: [DatabaseModule, StorageModule, TenantModule],
@@ -41,6 +42,7 @@ import { TemplateRepository } from '../../repositories/templates/template.reposi
     TemplateValidationService,
     DocxPlaceholderExtractionService,
     TemplateRepository,
+    TemplateVersionRepository,
     CategoryRepository,
     AuthorityRepository,
     RulesetRepository,
@@ -55,6 +57,7 @@ import { TemplateRepository } from '../../repositories/templates/template.reposi
     TemplateValidationService,
     DocxPlaceholderExtractionService,
     TemplateRepository,
+    TemplateVersionRepository,
     CategoryRepository,
     AuthorityRepository,
     RulesetRepository,

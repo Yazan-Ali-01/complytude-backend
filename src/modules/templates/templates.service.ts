@@ -515,17 +515,6 @@ export class TemplatesService {
     // Find template by key
     const template = await this.findByKey(key);
 
-    // Check if version already exists
-    const existingVersion = await this.databaseService.query(
-      'SELECT id FROM public.template_versions WHERE template_id = $1 AND version = $2',
-      [template.id, createVersionDto.version],
-    );
-    if (existingVersion.rows.length > 0) {
-      throw new ConflictException(
-        `Version "${createVersionDto.version}" already exists for template "${key}"`,
-      );
-    }
-
     // Extract placeholders from DOCX
     let placeholders: string[] = [];
     let validationResult: PlaceholderValidationResult;

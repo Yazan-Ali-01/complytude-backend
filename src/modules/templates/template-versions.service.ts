@@ -5,20 +5,20 @@ import {
   InternalServerErrorException,
   ConflictException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
 import { PoolClient } from 'pg';
 import {
   TemplateVersion,
   TemplateField,
 } from './entities/template-version.entity';
 import { TemplateRepository } from '../../repositories/templates/template.repository';
+import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
 
 @Injectable()
 export class TemplateVersionsService {
   private readonly logger = new Logger(TemplateVersionsService.name);
 
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly templateVersionRepository: TemplateVersionRepository,
     private readonly templateRepository: TemplateRepository,
   ) {}
 
@@ -33,75 +33,39 @@ export class TemplateVersionsService {
     client?: PoolClient,
   ): Promise<TemplateVersion> {
     try {
-      // Check if version already exists for this template
-      const existing = client
-        ? await client.query(
-            'SELECT id FROM public.template_versions WHERE template_id = $1 AND version = $2',
-            [templateId, version],
-          )
-        : await this.databaseService.query(
-            'SELECT id FROM public.template_versions WHERE template_id = $1 AND version = $2',
-            [templateId, version],
-          );
+      const existing =
+        await this.templateVersionRepository.findByTemplateIdAndVersion(
+          templateId,
+          version,
+          { client },
+        );
 
-      if (existing.rows.length > 0) {
+      if (existing) {
         throw new ConflictException(
           `Version ${version} already exists for template ${templateId}`,
         );
       }
 
-      // Deactivate all previous versions
-      if (client) {
-        await client.query(
-          'UPDATE public.template_versions SET is_active = false WHERE template_id = $1',
-          [templateId],
-        );
-      } else {
-        await this.databaseService.query(
-          'UPDATE public.template_versions SET is_active = false WHERE template_id = $1',
-          [templateId],
-        );
-      }
+      await this.templateVersionRepository.deactivateAllVersions(templateId, {
+        client,
+      });
 
-      // Create new version
-      const result = client
-        ? await client.query<TemplateVersion>(
-            `
-        INSERT INTO public.template_versions 
-        (template_id, version, fields, file_url, changelog, metadata, is_active, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, true, $7)
-        RETURNING *
-      `,
-            [
-              templateId,
-              version,
-              JSON.stringify(fields),
-              fileUrl,
-              changelog || null,
-              JSON.stringify(metadata),
-              createdBy,
-            ],
-          )
-        : await this.databaseService.query<TemplateVersion>(
-            `
-        INSERT INTO public.template_versions 
-        (template_id, version, fields, file_url, changelog, metadata, is_active, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, true, $7)
-        RETURNING *
-      `,
-            [
-              templateId,
-              version,
-              JSON.stringify(fields),
-              fileUrl,
-              changelog || null,
-              JSON.stringify(metadata),
-              createdBy,
-            ],
-          );
+      const created = await this.templateVersionRepository.createVersion(
+        {
+          template_id: templateId,
+          version,
+          fields,
+          file_url: fileUrl,
+          changelog,
+          metadata,
+          is_active: true,
+          created_by: createdBy,
+        },
+        { client },
+      );
 
       this.logger.log(`Created version ${version} for template ${templateId}`);
-      return this.parseVersion(result.rows[0]);
+      return created;
     } catch (error) {
       if (error instanceof ConflictException) {
         throw error;
@@ -115,12 +79,10 @@ export class TemplateVersionsService {
 
   async getVersionHistory(templateId: string): Promise<TemplateVersion[]> {
     try {
-      const result = await this.databaseService.query<TemplateVersion>(
-        'SELECT * FROM public.template_versions WHERE template_id = $1 ORDER BY created_at DESC',
-        [templateId],
-      );
+      const versions =
+        await this.templateVersionRepository.findByTemplateId(templateId);
 
-      return result.rows.map((v) => this.parseVersion(v));
+      return versions;
     } catch (error) {
       this.logger.error(`Failed to fetch version history: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch version history');
@@ -132,18 +94,19 @@ export class TemplateVersionsService {
     version: string,
   ): Promise<TemplateVersion> {
     try {
-      const result = await this.databaseService.query<TemplateVersion>(
-        'SELECT * FROM public.template_versions WHERE template_id = $1 AND version = $2',
-        [templateId, version],
-      );
+      const versionRecord =
+        await this.templateVersionRepository.findByTemplateIdAndVersion(
+          templateId,
+          version,
+        );
 
-      if (result.rows.length === 0) {
+      if (!versionRecord) {
         throw new NotFoundException(
           `Version ${version} not found for template ${templateId}`,
         );
       }
 
-      return this.parseVersion(result.rows[0]);
+      return versionRecord;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -160,21 +123,14 @@ export class TemplateVersionsService {
     client?: PoolClient,
   ): Promise<TemplateVersion | null> {
     try {
-      const result = client
-        ? await client.query<TemplateVersion>(
-            'SELECT * FROM public.template_versions WHERE template_id = $1 AND is_active = true',
-            [templateId],
-          )
-        : await this.databaseService.query<TemplateVersion>(
-            'SELECT * FROM public.template_versions WHERE template_id = $1 AND is_active = true',
-            [templateId],
-          );
+      const version = await this.templateVersionRepository.getCurrentVersion(
+        templateId,
+        {
+          client,
+        },
+      );
 
-      if (result.rows.length === 0) {
-        return null;
-      }
-
-      return this.parseVersion(result.rows[0]);
+      return version;
     } catch (error) {
       this.logger.error(`Failed to fetch current version: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch current version');
@@ -186,20 +142,25 @@ export class TemplateVersionsService {
     version: string,
   ): Promise<TemplateVersion> {
     try {
-      // Check if version exists
-      const versionToActivate = await this.getVersion(templateId, version);
+      const versionToActivate =
+        await this.templateVersionRepository.findByTemplateIdAndVersion(
+          templateId,
+          version,
+        );
 
-      // Deactivate all versions
-      await this.databaseService.query(
-        'UPDATE public.template_versions SET is_active = false WHERE template_id = $1',
-        [templateId],
-      );
+      if (!versionToActivate) {
+        throw new NotFoundException(
+          `Version ${version} not found for template ${templateId}`,
+        );
+      }
 
-      // Activate the specified version
-      const result = await this.databaseService.query<TemplateVersion>(
-        'UPDATE public.template_versions SET is_active = true WHERE template_id = $1 AND version = $2 RETURNING *',
-        [templateId, version],
-      );
+      await this.templateVersionRepository.deactivateAllVersions(templateId);
+
+      const activatedVersion =
+        await this.templateVersionRepository.activateVersion(
+          templateId,
+          version,
+        );
 
       await this.templateRepository.updateCurrentVersion(
         templateId,
@@ -210,7 +171,7 @@ export class TemplateVersionsService {
       this.logger.log(
         `Rolled back template ${templateId} to version ${version}`,
       );
-      return this.parseVersion(result.rows[0]);
+      return activatedVersion;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -222,22 +183,5 @@ export class TemplateVersionsService {
         'Failed to rollback template version',
       );
     }
-  }
-
-  /**
-   * Parse JSONB fields from database
-   */
-  private parseVersion(version: any): TemplateVersion {
-    return {
-      ...version,
-      fields:
-        typeof version.fields === 'string'
-          ? JSON.parse(version.fields as string)
-          : version.fields,
-      metadata:
-        typeof version.metadata === 'string'
-          ? JSON.parse(version.metadata as string)
-          : version.metadata,
-    };
   }
 }
