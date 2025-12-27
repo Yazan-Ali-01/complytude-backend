@@ -6,6 +6,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class CreateAuthorityDto {
   @ApiProperty({
@@ -13,6 +14,7 @@ export class CreateAuthorityDto {
     description: 'Unique authority code (uppercase)',
   })
   @IsString()
+  @Transform(({ value }) => value?.toUpperCase())
   @IsNotEmpty()
   @MaxLength(50)
   code: string;
@@ -32,7 +34,7 @@ export class CreateAuthorityDto {
   })
   @IsString()
   @IsOptional()
-  description?: string;
+  description: string | null = null;
 
   @ApiPropertyOptional({
     example: 'UAE',
@@ -41,7 +43,7 @@ export class CreateAuthorityDto {
   @IsString()
   @IsOptional()
   @MaxLength(100)
-  country?: string;
+  country: string = 'UAE';
 
   @ApiPropertyOptional({
     example: true,
@@ -49,7 +51,7 @@ export class CreateAuthorityDto {
   })
   @IsBoolean()
   @IsOptional()
-  is_active?: boolean;
+  is_active: boolean = true;
 }
 
 export class UpdateAuthorityDto {

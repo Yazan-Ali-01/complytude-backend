@@ -116,7 +116,7 @@ export class TemplateRepository extends BaseRepository<
       offset: offset,
     });
 
-    return { data: result.data, total: result.total };
+    return result;
   }
 
   async createTemplate(

@@ -21,9 +21,9 @@ export class AuthoritiesService {
   async create(createAuthorityDto: CreateAuthorityDto): Promise<Authority> {
     try {
       // Check if code already exists
-      const existing = await this.authorityRepository.findByCode(
-        createAuthorityDto.code,
-      );
+      const existing = await this.authorityRepository.findOne({
+        filters: { code: createAuthorityDto.code.toUpperCase() },
+      });
 
       if (existing) {
         throw new ConflictException(
@@ -32,7 +32,7 @@ export class AuthoritiesService {
       }
 
       const authority =
-        await this.authorityRepository.createAuthority(createAuthorityDto);
+        await this.authorityRepository.create(createAuthorityDto);
 
       this.logger.log(`Created authority: ${authority.code}`);
       return authority;
@@ -45,9 +45,15 @@ export class AuthoritiesService {
     }
   }
 
-  async findAll(activeOnly?: string): Promise<Authority[]> {
+  async findAll(active?: string): Promise<Authority[]> {
     try {
-      return this.authorityRepository.findAllAuthorities(activeOnly);
+      const filters =
+        active == undefined ? undefined : { is_active: active === 'true' };
+      const result = await this.authorityRepository.findAll({
+        filters,
+        orderBy: 'name',
+      });
+      return result.data;
     } catch (error) {
       this.logger.error(`Failed to fetch authorities: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch authorities');
@@ -74,7 +80,9 @@ export class AuthoritiesService {
 
   async findByCode(code: string): Promise<Authority> {
     try {
-      const authority = await this.authorityRepository.findByCode(code);
+      const authority = await this.authorityRepository.findOne({
+        filters: { code: code.toUpperCase() },
+      });
 
       if (!authority) {
         throw new NotFoundException(`Authority with code "${code}" not found`);
@@ -95,12 +103,11 @@ export class AuthoritiesService {
     updateAuthorityDto: UpdateAuthorityDto,
   ): Promise<Authority> {
     try {
-      await this.findById(id);
-
-      const authority = await this.authorityRepository.updateAuthority(
-        id,
-        updateAuthorityDto,
-      );
+      const payload = {
+        ...updateAuthorityDto,
+        updated_at: new Date(),
+      };
+      const authority = await this.authorityRepository.update(id, payload);
 
       this.logger.log(`Updated authority: ${id}`);
       return authority;
