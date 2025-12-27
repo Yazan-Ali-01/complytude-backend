@@ -33,12 +33,13 @@ export class TemplateVersionsService {
     client?: PoolClient,
   ): Promise<TemplateVersion> {
     try {
-      const existing =
-        await this.templateVersionRepository.findByTemplateIdAndVersion(
-          templateId,
+      const existing = await this.templateVersionRepository.findOne({
+        filters: {
+          template_id: templateId,
           version,
-          { client },
-        );
+        },
+        client,
+      });
 
       if (existing) {
         throw new ConflictException(
@@ -50,14 +51,14 @@ export class TemplateVersionsService {
         client,
       });
 
-      const created = await this.templateVersionRepository.createVersion(
+      const created = await this.templateVersionRepository.create(
         {
           template_id: templateId,
           version,
-          fields,
+          fields: JSON.stringify(fields ?? []),
           file_url: fileUrl,
-          changelog,
-          metadata,
+          changelog: changelog ?? null,
+          metadata: JSON.stringify(metadata ?? {}),
           is_active: true,
           created_by: createdBy,
         },
@@ -79,10 +80,14 @@ export class TemplateVersionsService {
 
   async getVersionHistory(templateId: string): Promise<TemplateVersion[]> {
     try {
-      const versions =
-        await this.templateVersionRepository.findByTemplateId(templateId);
+      const versions = await this.templateVersionRepository.findAll({
+        filters: {
+          template_id: templateId,
+        },
+        orderBy: 'created_at',
+      });
 
-      return versions;
+      return versions.data;
     } catch (error) {
       this.logger.error(`Failed to fetch version history: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch version history');
@@ -94,11 +99,12 @@ export class TemplateVersionsService {
     version: string,
   ): Promise<TemplateVersion> {
     try {
-      const versionRecord =
-        await this.templateVersionRepository.findByTemplateIdAndVersion(
-          templateId,
+      const versionRecord = await this.templateVersionRepository.findOne({
+        filters: {
+          template_id: templateId,
           version,
-        );
+        },
+      });
 
       if (!versionRecord) {
         throw new NotFoundException(
@@ -123,12 +129,13 @@ export class TemplateVersionsService {
     client?: PoolClient,
   ): Promise<TemplateVersion | null> {
     try {
-      const version = await this.templateVersionRepository.getCurrentVersion(
-        templateId,
-        {
-          client,
+      const version = await this.templateVersionRepository.findOne({
+        filters: {
+          template_id: templateId,
+          is_active: true,
         },
-      );
+        client,
+      });
 
       return version;
     } catch (error) {
@@ -142,11 +149,12 @@ export class TemplateVersionsService {
     version: string,
   ): Promise<TemplateVersion> {
     try {
-      const versionToActivate =
-        await this.templateVersionRepository.findByTemplateIdAndVersion(
-          templateId,
+      const versionToActivate = await this.templateVersionRepository.findOne({
+        filters: {
+          template_id: templateId,
           version,
-        );
+        },
+      });
 
       if (!versionToActivate) {
         throw new NotFoundException(
@@ -156,11 +164,12 @@ export class TemplateVersionsService {
 
       await this.templateVersionRepository.deactivateAllVersions(templateId);
 
-      const activatedVersion =
-        await this.templateVersionRepository.activateVersion(
-          templateId,
-          version,
-        );
+      const activatedVersion = await this.templateVersionRepository.update(
+        versionToActivate.id,
+        {
+          is_active: true,
+        },
+      );
 
       await this.templateRepository.update(templateId, {
         current_version: version,

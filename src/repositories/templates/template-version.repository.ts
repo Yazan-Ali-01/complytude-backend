@@ -1,9 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
 import {
-  CreateTemplateVersionInput,
   TemplateField,
   TemplateVersion,
 } from './interfaces/template-version.interfaces';
@@ -71,64 +70,6 @@ export class TemplateVersionRepository extends BaseRepository<
     };
   }
 
-  async findByTemplateId(
-    templateId: string,
-    options?: QueryOptions,
-  ): Promise<TemplateVersion[]> {
-    const result = await this.executeQuery<TemplateVersionRow>(
-      `SELECT * FROM ${this.tableName} WHERE template_id = $1 ORDER BY created_at DESC`,
-      [templateId],
-      options,
-    );
-
-    return result.rows.map((row) => this.mapRow(row));
-  }
-
-  async findByTemplateIdAndVersion(
-    templateId: string,
-    version: string,
-    options?: QueryOptions,
-  ): Promise<TemplateVersion | null> {
-    const result = await this.executeQuery<TemplateVersionRow>(
-      `SELECT * FROM ${this.tableName} WHERE template_id = $1 AND version = $2 LIMIT 1`,
-      [templateId, version],
-      options,
-    );
-
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
-  }
-
-  async getCurrentVersion(
-    templateId: string,
-    options?: QueryOptions,
-  ): Promise<TemplateVersion | null> {
-    const result = await this.executeQuery<TemplateVersionRow>(
-      `SELECT * FROM ${this.tableName} WHERE template_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1`,
-      [templateId],
-      options,
-    );
-
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
-  }
-
-  async createVersion(
-    input: CreateTemplateVersionInput,
-    options?: QueryOptions,
-  ): Promise<TemplateVersion> {
-    const payload: CreateTemplateVersionRow = {
-      template_id: input.template_id,
-      version: input.version,
-      fields: JSON.stringify(input.fields ?? []),
-      file_url: input.file_url,
-      changelog: input.changelog ?? null,
-      metadata: JSON.stringify(input.metadata ?? {}),
-      is_active: input.is_active ?? true,
-      created_by: input.created_by ?? null,
-    };
-
-    return this.create(payload, options);
-  }
-
   async deactivateAllVersions(
     templateId: string,
     options?: QueryOptions,
@@ -138,25 +79,5 @@ export class TemplateVersionRepository extends BaseRepository<
       [templateId],
       options,
     );
-  }
-
-  async activateVersion(
-    templateId: string,
-    version: string,
-    options?: QueryOptions,
-  ): Promise<TemplateVersion> {
-    const result = await this.executeQuery<TemplateVersionRow>(
-      `UPDATE ${this.tableName} SET is_active = true WHERE template_id = $1 AND version = $2 RETURNING *`,
-      [templateId, version],
-      options,
-    );
-
-    if (!result.rows.length) {
-      throw new NotFoundException(
-        `Template version ${version} not found for template ${templateId}`,
-      );
-    }
-
-    return this.mapRow(result.rows[0]);
   }
 }
