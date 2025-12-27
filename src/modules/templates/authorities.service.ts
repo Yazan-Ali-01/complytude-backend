@@ -45,7 +45,7 @@ export class AuthoritiesService {
     }
   }
 
-  async findAll(activeOnly = false): Promise<Authority[]> {
+  async findAll(activeOnly?: string): Promise<Authority[]> {
     try {
       return this.authorityRepository.findAllAuthorities(activeOnly);
     } catch (error) {

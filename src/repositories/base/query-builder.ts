@@ -168,13 +168,23 @@ export class QueryBuilder {
   static buildOrderBy(
     orderBy?: string,
     direction: 'ASC' | 'DESC' = 'ASC',
-  ): string {
-    if (!orderBy) return '';
+    startIndex = 1,
+  ): { clause: string; params: unknown[]; nextIndex: number } {
+    if (!orderBy) {
+      return { clause: '', params: [], nextIndex: startIndex };
+    }
+
     const normalizedDirection = direction === 'DESC' ? 'DESC' : 'ASC';
+    const clause = `ORDER BY $${startIndex} ${normalizedDirection}`;
+    const params: string[] = [orderBy];
+
     QueryBuilder.logger.debug(
-      `buildOrderBy: orderBy=${orderBy}, direction=${normalizedDirection}`,
+      `buildOrderBy: orderBy=${orderBy}, direction=${normalizedDirection}, startIndex=${startIndex}, params=${JSON.stringify(
+        params,
+      )}`,
     );
-    return `ORDER BY ${orderBy} ${normalizedDirection}`;
+
+    return { clause, params, nextIndex: startIndex + params.length };
   }
 
   /**

@@ -63,14 +63,15 @@ export class AuthorityRepository extends BaseRepository<
     code: string,
     options?: QueryOptions,
   ): Promise<Authority | null> {
-    return this.findOneBy({ code: code.toUpperCase() }, options);
+    return this.findOne({ ...options, filters: { code: code.toUpperCase() } });
   }
 
   async findAllAuthorities(
-    activeOnly = false,
+    activeOnly,
     options?: FindManyOptions,
   ): Promise<Authority[]> {
-    const filters = activeOnly ? { is_active: true } : undefined;
+    const filters =
+      activeOnly == undefined ? undefined : { is_active: activeOnly };
     return this.findAll({ ...options, filters, orderBy: 'name' });
   }
 

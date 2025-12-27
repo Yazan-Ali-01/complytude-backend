@@ -63,14 +63,15 @@ export class CategoryRepository extends BaseRepository<
     code: string,
     options?: QueryOptions,
   ): Promise<Category | null> {
-    return this.findOneBy({ code: code.toLowerCase() }, options);
+    return this.findOne({ ...options, filters: { code: code.toLowerCase() } });
   }
 
   async findAllCategories(
-    activeOnly = false,
+    activeOnly,
     options?: FindManyOptions,
   ): Promise<Category[]> {
-    const filters = activeOnly ? { is_active: true } : undefined;
+    const filters =
+      activeOnly == undefined ? undefined : { is_active: activeOnly };
     return this.findAll({ ...options, filters, orderBy: 'name' });
   }
 

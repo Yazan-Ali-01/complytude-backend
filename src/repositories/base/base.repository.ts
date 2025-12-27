@@ -3,6 +3,7 @@ import { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import {
   FindManyOptions,
+  FindOneOptions,
   QueryOptions,
   RepositoryInterface,
   TenantContext,
@@ -154,21 +155,18 @@ export abstract class BaseRepository<
    * const user = await this.findOneBy({ email });
    * ```
    */
-  async findOneBy(
-    filters: Record<string, unknown>,
-    options?: QueryOptions,
-  ): Promise<TEntity | null> {
+  async findOne(options?: FindOneOptions): Promise<TEntity | null> {
     this.logger.debug(
       `findOneBy: table=${this.tableName}, filters=${JSON.stringify(
-        filters,
+        options?.filters ?? {},
       )}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
     );
     const qb = new QueryBuilder();
-    qb.addFilters(filters);
-    const { clause, params } = qb.buildWhere();
+    qb.addFilters(options?.filters ?? {});
+    const { clause: whereClause, params } = qb.buildWhere();
 
     const result = await this.executeQuery(
-      `SELECT * FROM ${this.tableName} ${clause} LIMIT 1`,
+      `SELECT * FROM ${this.tableName} ${whereClause} LIMIT 1`,
       params,
       options,
     );
@@ -202,31 +200,34 @@ export abstract class BaseRepository<
         options?.offset ?? 'none'
       }, tenant=${options?.tenant?.tenantId ?? 'none'}`,
     );
-    const qb = new QueryBuilder();
+    let nextIndex = 1;
+    const qb = new QueryBuilder(nextIndex);
     qb.addFilters(options?.filters ?? {});
     const where = qb.buildWhere();
+    nextIndex = where.nextIndex;
 
     const orderBy = QueryBuilder.buildOrderBy(
       options?.orderBy,
       options?.orderDirection,
+      nextIndex,
     );
-
+    nextIndex = orderBy.nextIndex;
     const pagination = QueryBuilder.buildPagination(
       options?.limit,
       options?.offset,
-      where.nextIndex,
+      nextIndex,
     );
 
     const query = [
       `SELECT * FROM ${this.tableName}`,
       where.clause,
-      orderBy,
+      orderBy.clause,
       pagination.clause,
     ]
       .filter(Boolean)
       .join(' ');
 
-    const params = [...where.params, ...pagination.params];
+    const params = [...where.params, ...orderBy.params, ...pagination.params];
 
     const result = await this.executeQuery(query, params, options);
     return result.rows.map((row) =>

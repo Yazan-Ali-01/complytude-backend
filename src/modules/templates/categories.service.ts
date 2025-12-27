@@ -45,7 +45,7 @@ export class CategoriesService {
     }
   }
 
-  async findAll(activeOnly = false): Promise<Category[]> {
+  async findAll(activeOnly?: string): Promise<Category[]> {
     try {
       return this.categoryRepository.findAllCategories(activeOnly);
     } catch (error) {

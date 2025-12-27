@@ -86,7 +86,7 @@ export class RulesetRepository extends BaseRepository<
     key: string,
     options?: QueryOptions,
   ): Promise<Ruleset | null> {
-    return this.findOneBy({ key }, options);
+    return this.findOne({ ...options, filters: { key } });
   }
 
   async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {

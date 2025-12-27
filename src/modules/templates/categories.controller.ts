@@ -73,8 +73,7 @@ export class CategoriesController {
     type: [Object],
   })
   async findAll(@Query('active') active?: string): Promise<Category[]> {
-    const activeOnly = active === 'true';
-    return this.categoriesService.findAll(activeOnly);
+    return this.categoriesService.findAll(active);
   }
 
   @Get(':id')

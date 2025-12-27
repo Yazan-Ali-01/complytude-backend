@@ -82,7 +82,7 @@ export class UserRepository extends BaseRepository<
     email: string,
     options?: QueryOptions,
   ): Promise<User | null> {
-    return this.findOneBy({ email }, options);
+    return this.findOne({ ...options, filters: { email } });
   }
 
   async createUser(

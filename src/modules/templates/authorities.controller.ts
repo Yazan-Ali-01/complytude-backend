@@ -73,8 +73,7 @@ export class AuthoritiesController {
     type: [Object],
   })
   async findAll(@Query('active') active?: string): Promise<Authority[]> {
-    const activeOnly = active === 'true';
-    return this.authoritiesService.findAll(activeOnly);
+    return this.authoritiesService.findAll(active);
   }
 
   @Get(':id')

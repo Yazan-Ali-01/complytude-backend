@@ -20,6 +20,11 @@ export interface QueryOptions {
   bypassRLS?: boolean;
 }
 
+export interface FindOneOptions<TFilters = Record<string, unknown>>
+  extends QueryOptions {
+  filters?: TFilters;
+}
+
 /**
  * Options for list queries, supporting filters, sorting, and pagination.
  */
@@ -52,7 +57,7 @@ export interface RepositoryInterface<
    *
    * Example: `await repo.findOneBy({ email })`
    */
-  findOneBy(
+  findOne(
     filters: Record<string, unknown>,
     options?: QueryOptions,
   ): Promise<TEntity | null>;
