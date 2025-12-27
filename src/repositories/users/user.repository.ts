@@ -4,8 +4,6 @@ import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
 import {
   User,
-  CreateUserInput,
-  UpdateUserInput,
   CreatePasswordResetInput,
   PasswordReset,
 } from './interfaces/user.intefaces';
@@ -76,48 +74,6 @@ export class UserRepository extends BaseRepository<
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
-  }
-
-  async findByEmail(
-    email: string,
-    options?: QueryOptions,
-  ): Promise<User | null> {
-    return this.findOne({ ...options, filters: { email } });
-  }
-
-  async createUser(
-    user: CreateUserInput,
-    options?: QueryOptions,
-  ): Promise<User> {
-    const payload: CreateUserRow = {
-      id: user.id,
-      email: user.email,
-      password_hash: user.passwordHash,
-      first_name: user.firstName ?? null,
-      last_name: user.lastName ?? null,
-      is_verified: user.isVerified ?? false,
-      is_system_admin: user.isSystemAdmin ?? false,
-    };
-
-    return this.create(payload, options);
-  }
-
-  async updateUser(
-    userId: string,
-    data: UpdateUserInput,
-    options?: QueryOptions,
-  ): Promise<User> {
-    const payload: UpdateUserRow = {
-      email: data.email,
-      password_hash: data.passwordHash,
-      first_name: data.firstName === undefined ? undefined : data.firstName,
-      last_name: data.lastName === undefined ? undefined : data.lastName,
-      is_verified: data.isVerified,
-      is_system_admin: data.isSystemAdmin,
-      updated_at: data.updatedAt,
-    };
-
-    return this.update(userId, payload, options);
   }
 
   async createPasswordReset(

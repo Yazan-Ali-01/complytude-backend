@@ -57,7 +57,11 @@ export class AuthService {
    * @throws {ConflictException} if the email is already registered
    */
   async signup(signupDto: SignupDto) {
-    const existingUser = await this.userRepository.findByEmail(signupDto.email);
+    const existingUser = await this.userRepository.findOne({
+      filters: {
+        email: signupDto.email,
+      },
+    });
     if (existingUser) {
       throw new ConflictException('Email already registered');
     }
@@ -73,15 +77,15 @@ export class AuthService {
     return await this.databaseService.transaction(async (client) => {
       // Create user account
       this.logger.log(`Creating user account for ${signupDto.email}`);
-      await this.userRepository.createUser(
+      await this.userRepository.create(
         {
           id: userId,
           email: signupDto.email,
-          passwordHash,
-          firstName: signupDto.firstName,
-          lastName: signupDto.lastName,
-          isVerified: false,
-          isSystemAdmin: false,
+          password_hash: passwordHash,
+          first_name: signupDto.firstName ?? null,
+          last_name: signupDto.lastName ?? null,
+          is_verified: false,
+          is_system_admin: false,
         },
         { client },
       );
@@ -210,7 +214,11 @@ export class AuthService {
    * Validate user credentials
    */
   async validateUser(email: string, password: string): Promise<User> {
-    const user = await this.userRepository.findByEmail(email);
+    const user = await this.userRepository.findOne({
+      filters: {
+        email,
+      },
+    });
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -284,11 +292,11 @@ export class AuthService {
       this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
     const expiresAt = new Date(Date.now() + this.parseExpiresIn(expiresIn));
 
-    await this.refreshTokenRepository.createRefreshToken({
+    await this.refreshTokenRepository.create({
       id: tokenId,
-      userId,
-      tokenHash,
-      expiresAt,
+      user_id: userId,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
     });
   }
 
@@ -401,9 +409,9 @@ export class AuthService {
     }
 
     await this.databaseService.transaction(async (client) => {
-      await this.userRepository.updateUser(
+      await this.userRepository.update(
         verification.userId,
-        { isVerified: true, updatedAt: new Date() },
+        { is_verified: true, updated_at: new Date() },
         { client },
       );
 
@@ -421,7 +429,11 @@ export class AuthService {
    * Request password reset
    */
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
-    const user = await this.userRepository.findByEmail(forgotPasswordDto.email);
+    const user = await this.userRepository.findOne({
+      filters: {
+        email: forgotPasswordDto.email,
+      },
+    });
     if (!user) {
       // Don't reveal if email exists
       return {
@@ -474,9 +486,9 @@ export class AuthService {
     );
 
     await this.databaseService.transaction(async (client) => {
-      await this.userRepository.updateUser(
+      await this.userRepository.update(
         reset.userId,
-        { passwordHash, updatedAt: new Date() },
+        { password_hash: passwordHash, updated_at: new Date() },
         { client },
       );
 

@@ -2,10 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
-import {
-  RefreshToken,
-  CreateRefreshTokenInput,
-} from './interfaces/refresh-token.intefaces';
+import { RefreshToken } from './interfaces/refresh-token.intefaces';
 
 type RefreshTokenRow = {
   id: string;
@@ -45,20 +42,6 @@ export class RefreshTokenRepository extends BaseRepository<
       createdAt: data.created_at,
       revokedAt: data.revoked_at ?? null,
     };
-  }
-
-  async createRefreshToken(
-    token: CreateRefreshTokenInput,
-    options?: QueryOptions,
-  ): Promise<RefreshToken> {
-    const payload: CreateRefreshTokenRow = {
-      id: token.id,
-      user_id: token.userId,
-      token_hash: token.tokenHash,
-      expires_at: token.expiresAt,
-    };
-
-    return this.create(payload, options);
   }
 
   async findActiveByUserId(
