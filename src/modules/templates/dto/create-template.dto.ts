@@ -208,46 +208,6 @@ export class UpdateTemplateDto {
   languages?: string[];
 
   @ApiPropertyOptional({
-    example: [
-      {
-        key: 'employee_name',
-        label: 'Employee Full Name',
-        type: 'text',
-        required: true,
-        placeholder: 'Enter employee full name',
-        help_text: 'Full legal name as per Emirates ID',
-        order: 1,
-      },
-      {
-        key: 'job_title',
-        label: 'Job Title',
-        type: 'text',
-        required: true,
-        placeholder: 'e.g., Software Engineer',
-        order: 2,
-      },
-      {
-        key: 'salary',
-        label: 'Monthly Salary (AED)',
-        type: 'number',
-        required: true,
-        placeholder: 'e.g., 15000',
-        validation_rules: {
-          min: 3000,
-          max: 100000,
-        },
-      },
-    ],
-    description: 'Template field definitions',
-    type: [TemplateFieldDto],
-  })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => TemplateFieldDto)
-  @IsOptional()
-  fields?: TemplateFieldDto[];
-
-  @ApiPropertyOptional({
     example: ['dmcc_employment_rules_v2'],
     description: 'Array of ruleset keys',
   })
@@ -255,19 +215,6 @@ export class UpdateTemplateDto {
   @IsString({ each: true })
   @IsOptional()
   ruleset_keys?: string[];
-
-  @ApiPropertyOptional({
-    example: '1.1.0',
-    description: 'New version number',
-  })
-  @IsString()
-  @IsOptional()
-  @MaxLength(50)
-  @ValidateIf((obj) => obj.version !== undefined && obj.version !== null)
-  @Matches(/^\d+\.\d+\.\d+$/, {
-    message: 'version must be in format x.y.z (e.g., 1.0.0)',
-  })
-  version?: string;
 
   @ApiPropertyOptional({
     example: 'Updated probation period field',

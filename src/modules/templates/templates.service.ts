@@ -384,7 +384,7 @@ export class TemplatesService {
   async update(
     key: string,
     updateTemplateDto: UpdateTemplateDto,
-    updatedBy: string,
+    _updatedBy: string,
   ): Promise<TemplateWithDetails> {
     try {
       const existing = await this.findByKey(key);
@@ -430,33 +430,6 @@ export class TemplatesService {
         const updatePayload: UpdateTemplateInput = {
           ...updateTemplateDto,
         };
-
-        if (updateTemplateDto.fields || updateTemplateDto.version) {
-          const currentVersion =
-            await this.templateVersionsService.getCurrentVersion(
-              existing.id,
-              client,
-            );
-          const newVersion =
-            updateTemplateDto.version ||
-            this.incrementVersion(existing.current_version);
-          const newFields =
-            updateTemplateDto.fields || currentVersion?.fields || [];
-          const newFileUrl = currentVersion?.file_url || '';
-
-          await this.templateVersionsService.createVersion(
-            existing.id,
-            newVersion,
-            newFields,
-            newFileUrl,
-            updateTemplateDto.changelog,
-            updateTemplateDto.metadata || {},
-            updatedBy,
-            client,
-          );
-
-          updatePayload.current_version = newVersion;
-        }
 
         if (Object.keys(updatePayload).length > 0) {
           updatePayload.updated_at = new Date();
