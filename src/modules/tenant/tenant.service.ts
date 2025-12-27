@@ -56,22 +56,24 @@ export class TenantService {
     const features: TenantFeatures = { ...createTenantDto.features };
 
     try {
-      const existingTenant = await this.tenantRepository.findByEmail(
-        createTenantDto.email,
-      );
+      const existingTenant = await this.tenantRepository.findOne({
+        filters: {
+          email: createTenantDto.email,
+        },
+      });
 
       if (existingTenant) {
         throw new ConflictException('Email already registered');
       }
       const tenantCreation = async (client) => {
-        const tenant = await this.tenantRepository.createTenant(
+        const tenant = await this.tenantRepository.create(
           {
             id: createTenantDto.userId ?? `tenant_${randomUUID()}`,
             tenant_id: tenantId,
             email: createTenantDto.email,
             role: createTenantDto.role,
             plan: createTenantDto.plan,
-            features,
+            features: JSON.stringify(features ?? {}),
             schema_name: schemaName,
             is_active: true,
           },
@@ -112,7 +114,11 @@ export class TenantService {
    */
   async findById(tenantId: string): Promise<Tenant> {
     try {
-      const tenant = await this.tenantRepository.findByTenantId(tenantId);
+      const tenant = await this.tenantRepository.findOne({
+        filters: {
+          tenant_id: tenantId,
+        },
+      });
 
       if (!tenant) {
         throw new NotFoundException(`Tenant ${tenantId} not found`);
@@ -130,7 +136,11 @@ export class TenantService {
    */
   async findByEmail(email: string): Promise<Tenant> {
     try {
-      const tenant = await this.tenantRepository.findByEmail(email);
+      const tenant = await this.tenantRepository.findOne({
+        filters: {
+          email,
+        },
+      });
 
       if (!tenant) {
         throw new NotFoundException(`Tenant with email ${email} not found`);
@@ -148,7 +158,14 @@ export class TenantService {
    */
   async findAll(): Promise<Tenant[]> {
     try {
-      return await this.tenantRepository.findAllTenants();
+      const tenants = await this.tenantRepository.findAll();
+      return tenants.data.map((tenant) => ({
+        ...tenant,
+        features:
+          typeof tenant.features === 'string'
+            ? JSON.parse(tenant.features)
+            : tenant.features,
+      }));
     } catch {
       throw new InternalServerErrorException('Failed to fetch tenants');
     }
@@ -164,17 +181,10 @@ export class TenantService {
     try {
       await this.findById(tenantId);
 
-      const features: TenantFeatures | undefined = updateTenantDto.features
-        ? { ...updateTenantDto.features }
-        : undefined;
-
-      return await this.tenantRepository.updateByTenantId(tenantId, {
-        email: updateTenantDto.email,
-        role: updateTenantDto.role,
-        plan: updateTenantDto.plan,
-        features,
-        is_active: updateTenantDto.is_active,
-      });
+      return await this.tenantRepository.updateByTenantId(
+        tenantId,
+        updateTenantDto,
+      );
     } catch (error) {
       this.logger.error(`Failed to update tenant: ${error.message}`);
       throw new InternalServerErrorException('Failed to update tenant');

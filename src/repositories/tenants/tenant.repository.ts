@@ -129,93 +129,6 @@ export class TenantRepository extends BaseRepository<
     this.tenantLogger.debug('Tenant infrastructure initialized successfully');
   }
 
-  async findByTenantId(
-    tenantId: string,
-    options?: QueryOptions,
-  ): Promise<Tenant | null> {
-    this.tenantLogger.debug(`Finding tenant by tenant_id: ${tenantId}`);
-    const result = await this.executeQuery<TenantRow>(
-      `SELECT * FROM ${this.tableName} WHERE tenant_id = $1`,
-      [tenantId],
-      options,
-    );
-
-    const row = result.rows[0];
-    const tenant = row ? this.mapRow(row as Record<string, unknown>) : null;
-    this.tenantLogger.debug(
-      `Tenant lookup by tenant_id ${tenantId}: ${tenant ? 'found' : 'not found'}`,
-    );
-    return tenant;
-  }
-
-  async findByEmail(
-    email: string,
-    options?: QueryOptions,
-  ): Promise<Tenant | null> {
-    this.tenantLogger.debug(`Finding tenant by email: ${email}`);
-    const result = await this.executeQuery<TenantRow>(
-      `SELECT * FROM ${this.tableName} WHERE email = $1`,
-      [email],
-      options,
-    );
-
-    const row = result.rows[0];
-    const tenant = row ? this.mapRow(row as Record<string, unknown>) : null;
-    this.tenantLogger.debug(
-      `Tenant lookup by email ${email}: ${tenant ? 'found' : 'not found'}`,
-    );
-    return tenant;
-  }
-
-  async findAllTenants(options?: QueryOptions): Promise<Tenant[]> {
-    this.tenantLogger.debug('Finding all tenants');
-    const queryOptions = { ...options, bypassRLS: options?.bypassRLS ?? true };
-    const result = await this.executeQuery<TenantRow>(
-      `SELECT * FROM ${this.tableName} ORDER BY created_at DESC`,
-      [],
-      queryOptions,
-    );
-
-    const tenants = result.rows.map((row) =>
-      this.mapRow(row as Record<string, unknown>),
-    );
-    this.tenantLogger.debug(`Found ${tenants.length} tenant(s)`);
-    return tenants;
-  }
-
-  async createTenant(
-    tenantData: CreateTenantInput,
-    options?: QueryOptions,
-  ): Promise<Tenant> {
-    this.tenantLogger.debug(
-      `Creating tenant: tenant_id=${tenantData.tenant_id}, email=${tenantData.email}, schema=${tenantData.schema_name}`,
-    );
-    const result = await this.executeQuery<TenantRow>(
-      `
-        INSERT INTO ${this.tableName} (id, tenant_id, email, role, plan, features, schema_name, is_active)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING *
-      `,
-      [
-        tenantData.id,
-        tenantData.tenant_id,
-        tenantData.email,
-        tenantData.role,
-        tenantData.plan,
-        JSON.stringify(tenantData.features),
-        tenantData.schema_name,
-        tenantData.is_active ?? true,
-      ],
-      options,
-    );
-
-    const tenant = this.mapRow(result.rows[0] as Record<string, unknown>);
-    this.tenantLogger.debug(
-      `Tenant created successfully: tenant_id=${tenant.tenant_id}`,
-    );
-    return tenant;
-  }
-
   async updateByTenantId(
     tenantId: string,
     data: UpdateTenantInput,
@@ -224,43 +137,15 @@ export class TenantRepository extends BaseRepository<
     this.tenantLogger.debug(
       `Updating tenant: tenant_id=${tenantId}, fields=${Object.keys(data).join(', ')}`,
     );
-    const entries = Object.entries(data).filter(
-      ([, value]) => value !== undefined,
-    );
-
-    // Always update timestamp
-    entries.push(['updated_at', new Date()]);
-
-    const setClause = entries
-      .map(([key], idx) => `${key} = $${idx + 2}`)
-      .join(', ');
-    const values = entries.map(([key, value]) =>
-      key === 'features' ? JSON.stringify(value) : value,
-    );
-
-    const result = await this.executeQuery<TenantRow>(
-      `
-        UPDATE ${this.tableName}
-        SET ${setClause}
-        WHERE tenant_id = $1
-        RETURNING *
-      `,
-      [tenantId, ...values],
-      options,
-    );
-
-    if (result.rows.length === 0) {
-      this.tenantLogger.debug(
-        `Tenant not found for update: tenant_id=${tenantId}`,
-      );
+    const tenant = await this.findOne({
+      filters: {
+        tenant_id: tenantId,
+      },
+    });
+    if (!tenant) {
       throw new NotFoundException(`Tenant ${tenantId} not found`);
     }
-
-    const tenant = this.mapRow(result.rows[0] as Record<string, unknown>);
-    this.tenantLogger.debug(
-      `Tenant updated successfully: tenant_id=${tenantId}`,
-    );
-    return tenant;
+    return this.update(tenant.id, data, options);
   }
 
   async deleteByTenantId(
@@ -268,21 +153,15 @@ export class TenantRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<void> {
     this.tenantLogger.debug(`Deleting tenant: tenant_id=${tenantId}`);
-    const result = await this.executeQuery(
-      `DELETE FROM ${this.tableName} WHERE tenant_id = $1`,
-      [tenantId],
-      options,
-    );
-
-    if (result.rowCount === 0) {
-      this.tenantLogger.debug(
-        `Tenant not found for deletion: tenant_id=${tenantId}`,
-      );
+    const tenant = await this.findOne({
+      filters: {
+        tenant_id: tenantId,
+      },
+    });
+    if (!tenant) {
       throw new NotFoundException(`Tenant ${tenantId} not found`);
     }
-    this.tenantLogger.debug(
-      `Tenant deleted successfully: tenant_id=${tenantId}`,
-    );
+    return this.delete(tenant.id, options);
   }
 
   async createTenantSchemaRecord(
