@@ -103,11 +103,10 @@ export class AuthoritiesService {
     updateAuthorityDto: UpdateAuthorityDto,
   ): Promise<Authority> {
     try {
-      const payload = {
+      const authority = await this.authorityRepository.update(id, {
         ...updateAuthorityDto,
         updated_at: new Date(),
-      };
-      const authority = await this.authorityRepository.update(id, payload);
+      });
 
       this.logger.log(`Updated authority: ${id}`);
       return authority;

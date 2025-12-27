@@ -21,9 +21,9 @@ export class CategoriesService {
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     try {
       // Check if code already exists
-      const existing = await this.categoryRepository.findByCode(
-        createCategoryDto.code,
-      );
+      const existing = await this.categoryRepository.findOne({
+        filters: { code: createCategoryDto.code.toLowerCase() },
+      });
 
       if (existing) {
         throw new ConflictException(
@@ -31,8 +31,7 @@ export class CategoriesService {
         );
       }
 
-      const category =
-        await this.categoryRepository.createCategory(createCategoryDto);
+      const category = await this.categoryRepository.create(createCategoryDto);
 
       this.logger.log(`Created category: ${category.code}`);
       return category;
@@ -45,9 +44,15 @@ export class CategoriesService {
     }
   }
 
-  async findAll(activeOnly?: string): Promise<Category[]> {
+  async findAll(active?: string): Promise<Category[]> {
     try {
-      return this.categoryRepository.findAllCategories(activeOnly);
+      const filters =
+        active == undefined ? undefined : { is_active: active === 'true' };
+      const result = await this.categoryRepository.findAll({
+        filters,
+        orderBy: 'name',
+      });
+      return result.data;
     } catch (error) {
       this.logger.error(`Failed to fetch categories: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch categories');
@@ -74,7 +79,9 @@ export class CategoriesService {
 
   async findByCode(code: string): Promise<Category> {
     try {
-      const category = await this.categoryRepository.findByCode(code);
+      const category = await this.categoryRepository.findOne({
+        filters: { code: code.toLowerCase() },
+      });
 
       if (!category) {
         throw new NotFoundException(`Category with code "${code}" not found`);
@@ -97,10 +104,10 @@ export class CategoriesService {
     try {
       await this.findById(id);
 
-      const category = await this.categoryRepository.updateCategory(
-        id,
-        updateCategoryDto,
-      );
+      const category = await this.categoryRepository.update(id, {
+        ...updateCategoryDto,
+        updated_at: new Date(),
+      });
 
       this.logger.log(`Updated category: ${id}`);
       return category;
