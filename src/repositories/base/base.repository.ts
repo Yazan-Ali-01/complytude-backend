@@ -190,7 +190,9 @@ export abstract class BaseRepository<
    * });
    * ```
    */
-  async findAll(options?: FindManyOptions): Promise<TEntity[]> {
+  async findAll(
+    options?: FindManyOptions,
+  ): Promise<{ data: TEntity[]; total: number }> {
     this.logger.debug(
       `findAll: table=${this.tableName}, filters=${JSON.stringify(
         options?.filters ?? {},
@@ -202,7 +204,7 @@ export abstract class BaseRepository<
     );
     let nextIndex = 1;
     const qb = new QueryBuilder(nextIndex);
-    qb.addFilters(options?.filters ?? {});
+    qb.addFilters(options?.filters ?? {}, options?.operators);
     const where = qb.buildWhere();
     nextIndex = where.nextIndex;
 
@@ -229,10 +231,21 @@ export abstract class BaseRepository<
 
     const params = [...where.params, ...orderBy.params, ...pagination.params];
 
-    const result = await this.executeQuery(query, params, options);
-    return result.rows.map((row) =>
-      this.mapRow(row as Record<string, unknown>),
+    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${where.clause}`;
+    const totalResult = await this.executeQuery(
+      totalQuery,
+      where.params,
+      options,
     );
+    const total = parseInt(totalResult.rows[0].count as string, 10);
+
+    const result = await this.executeQuery(query, params, options);
+    return {
+      data: result.rows.map((row) =>
+        this.mapRow(row as Record<string, unknown>),
+      ),
+      total,
+    };
   }
 
   /**

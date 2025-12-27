@@ -12,7 +12,8 @@ export type FilterOperator =
   | '<='
   | 'LIKE'
   | 'ILIKE'
-  | 'IN';
+  | 'IN'
+  | 'ANY';
 
 /**
  * Single filter condition used to build a WHERE clause.
@@ -85,6 +86,16 @@ export class QueryBuilder {
       this.conditions.push(`${condition.field} IN (${placeholders})`);
       QueryBuilder.logger.debug(
         `addCondition: IN placeholders=${placeholders}, params=${JSON.stringify(
+          this.params,
+        )}`,
+      );
+      return this;
+    } else if (operator === 'ANY') {
+      this.params.push(condition.value);
+      const placeholder = `$${this.nextIndex()}`;
+      this.conditions.push(`${placeholder} = ANY(${condition.field})`);
+      QueryBuilder.logger.debug(
+        `addCondition: ANY placeholder=${placeholder}, params=${JSON.stringify(
           this.params,
         )}`,
       );

@@ -1,4 +1,5 @@
 import { PoolClient } from 'pg';
+import { FilterOperator } from './query-builder';
 
 /**
  * RLS-aware tenant context used for tenant-specific schema queries.
@@ -28,9 +29,9 @@ export interface FindOneOptions<TFilters = Record<string, unknown>>
 /**
  * Options for list queries, supporting filters, sorting, and pagination.
  */
-export interface FindManyOptions<TFilters = Record<string, unknown>>
-  extends QueryOptions {
-  filters?: TFilters;
+export interface FindManyOptions extends QueryOptions {
+  filters?: Record<string, unknown>;
+  operators?: Record<string, FilterOperator>;
   orderBy?: string;
   orderDirection?: 'ASC' | 'DESC';
   limit?: number;
@@ -75,7 +76,10 @@ export interface RepositoryInterface<
    * });
    * ```
    */
-  findAll(options?: FindManyOptions): Promise<TEntity[]>;
+  findAll(options?: FindManyOptions): Promise<{
+    data: TEntity[];
+    total: number;
+  }>;
 
   /**
    * Persist a new entity and return the created row.

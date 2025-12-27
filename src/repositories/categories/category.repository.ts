@@ -72,7 +72,8 @@ export class CategoryRepository extends BaseRepository<
   ): Promise<Category[]> {
     const filters =
       activeOnly == undefined ? undefined : { is_active: activeOnly };
-    return this.findAll({ ...options, filters, orderBy: 'name' });
+    const result = await this.findAll({ ...options, filters, orderBy: 'name' });
+    return result.data;
   }
 
   async createCategory(

@@ -11,12 +11,16 @@ import {
   TemplateVersion,
   TemplateField,
 } from './entities/template-version.entity';
+import { TemplateRepository } from '../../repositories/templates/template.repository';
 
 @Injectable()
 export class TemplateVersionsService {
   private readonly logger = new Logger(TemplateVersionsService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly templateRepository: TemplateRepository,
+  ) {}
 
   async createVersion(
     templateId: string,
@@ -197,10 +201,10 @@ export class TemplateVersionsService {
         [templateId, version],
       );
 
-      // Update template's current_version
-      await this.databaseService.query(
-        'UPDATE public.templates SET current_version = $1, file_url = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
-        [version, versionToActivate.file_url, templateId],
+      await this.templateRepository.updateCurrentVersion(
+        templateId,
+        version,
+        versionToActivate.file_url,
       );
 
       this.logger.log(

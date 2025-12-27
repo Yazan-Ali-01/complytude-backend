@@ -12,7 +12,6 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
-  ParseUUIDPipe,
   UseInterceptors,
 } from '@nestjs/common';
 import {
