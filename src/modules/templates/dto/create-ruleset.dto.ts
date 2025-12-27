@@ -9,6 +9,7 @@ import {
   MaxLength,
   ValidateNested,
   ArrayMinSize,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -39,7 +40,7 @@ export class CreateRulesetDto {
   })
   @IsString()
   @IsOptional()
-  description?: string;
+  description: string | null = null;
 
   @ApiPropertyOptional({
     example: '123e4567-e89b-12d3-a456-426614174000',
@@ -47,7 +48,7 @@ export class CreateRulesetDto {
   })
   @IsUUID()
   @IsOptional()
-  authority_id?: string;
+  authority_id: string | null = null;
 
   @ApiProperty({
     example: [
@@ -84,7 +85,10 @@ export class CreateRulesetDto {
   @IsString()
   @IsOptional()
   @MaxLength(50)
-  version?: string;
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'version must be in format x.y.z (e.g., 1.0.0)',
+  })
+  version: string = '1.0.0';
 
   @ApiPropertyOptional({
     example: 'active',
@@ -93,7 +97,7 @@ export class CreateRulesetDto {
   })
   @IsEnum(['active', 'inactive', 'deprecated'])
   @IsOptional()
-  status?: 'active' | 'inactive' | 'deprecated';
+  status: 'active' | 'inactive' | 'deprecated' = 'active';
 }
 
 export class UpdateRulesetDto {

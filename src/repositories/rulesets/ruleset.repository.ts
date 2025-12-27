@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
@@ -82,13 +83,6 @@ export class RulesetRepository extends BaseRepository<
     };
   }
 
-  async findByKey(
-    key: string,
-    options?: QueryOptions,
-  ): Promise<Ruleset | null> {
-    return this.findOne({ ...options, filters: { key } });
-  }
-
   async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {
     if (!keys.length) return [];
 
@@ -106,81 +100,6 @@ export class RulesetRepository extends BaseRepository<
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  async findAllRulesets(
-    filters?: { authority_id?: string; status?: RulesetStatus },
-    options?: FindManyOptions,
-  ): Promise<Ruleset[]> {
-    const qb = new QueryBuilder();
-    qb.addFilters(filters ?? {});
-    const where = qb.buildWhere();
-
-    const result = await this.executeQuery<RulesetRow>(
-      `SELECT * FROM ${this.tableName} ${where.clause} ORDER BY name`,
-      where.params,
-      options,
-    );
-
-    return result.rows.map((row) => this.mapRow(row));
-  }
-
-  async createRuleset(
-    input: CreateRulesetInput,
-    options?: QueryOptions,
-  ): Promise<Ruleset> {
-    const payload: CreateRulesetRow = {
-      key: input.key,
-      name: input.name,
-      description: input.description ?? null,
-      authority_id: input.authority_id ?? null,
-      clauses: JSON.stringify(input.clauses ?? []),
-      metadata: JSON.stringify(input.metadata ?? {}),
-      version: input.version ?? '1.0.0',
-      status: input.status ?? 'active',
-      created_by: input.created_by ?? null,
-    };
-
-    return this.create(payload, options);
-  }
-
-  async updateByKey(
-    key: string,
-    data: UpdateRulesetInput,
-    options?: QueryOptions,
-  ): Promise<Ruleset> {
-    const entries: Array<[string, unknown]> = Object.entries({
-      name: data.name,
-      description: data.description,
-      authority_id: data.authority_id,
-      clauses:
-        data.clauses === undefined ? undefined : JSON.stringify(data.clauses),
-      metadata:
-        data.metadata === undefined ? undefined : JSON.stringify(data.metadata),
-      version: data.version,
-      status: data.status,
-    }).filter(([, value]) => value !== undefined);
-
-    entries.push(['updated_at', data.updated_at ?? new Date()]);
-
-    const setClause = entries
-      .map(([column], idx) => `${column} = $${idx + 1}`)
-      .join(', ');
-    const values = entries.map(([, value]) => value);
-
-    const result = await this.executeQuery<RulesetRow>(
-      `UPDATE ${this.tableName} SET ${setClause} WHERE key = $${
-        entries.length + 1
-      } RETURNING *`,
-      [...values, key],
-      options,
-    );
-
-    if (!result.rows.length) {
-      throw new NotFoundException(`Ruleset with key ${key} not found`);
-    }
-
-    return this.mapRow(result.rows[0]);
-  }
-
   async deleteByKey(key: string, options?: QueryOptions): Promise<void> {
     const result = await this.executeQuery(
       `DELETE FROM ${this.tableName} WHERE key = $1`,
@@ -191,28 +110,6 @@ export class RulesetRepository extends BaseRepository<
     if (!result.rowCount) {
       throw new NotFoundException(`Ruleset with key ${key} not found`);
     }
-  }
-
-  async findByTemplateId(
-    templateId: string,
-    options?: QueryOptions,
-  ): Promise<Array<Pick<Ruleset, 'id' | 'key' | 'name'>>> {
-    const result = await this.executeQuery<RulesetRow>(
-      `
-        SELECT r.id, r.key, r.name
-        FROM public.rulesets r
-        INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
-        WHERE tr.template_id = $1
-      `,
-      [templateId],
-      options,
-    );
-
-    return result.rows.map((row) => ({
-      id: row.id,
-      key: row.key,
-      name: row.name,
-    }));
   }
 
   async associateWithTemplate(

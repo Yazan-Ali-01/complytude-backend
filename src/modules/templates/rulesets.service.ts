@@ -26,9 +26,9 @@ export class RulesetsService {
   ): Promise<Ruleset> {
     try {
       // Check if key already exists
-      const existing = await this.rulesetRepository.findByKey(
-        createRulesetDto.key,
-      );
+      const existing = await this.rulesetRepository.findOne({
+        filters: { key: createRulesetDto.key },
+      });
 
       if (existing) {
         throw new ConflictException(
@@ -49,10 +49,10 @@ export class RulesetsService {
         }
       }
 
-      const ruleset = await this.rulesetRepository.createRuleset({
+      const ruleset = await this.rulesetRepository.create({
         ...createRulesetDto,
-        clauses: createRulesetDto.clauses,
-        metadata: createRulesetDto.metadata,
+        clauses: JSON.stringify(createRulesetDto.clauses),
+        metadata: JSON.stringify(createRulesetDto.metadata || {}),
         created_by: createdBy,
       });
 
@@ -72,10 +72,15 @@ export class RulesetsService {
 
   async findAll(authorityId?: string, status?: string): Promise<Ruleset[]> {
     try {
-      return this.rulesetRepository.findAllRulesets({
+      const filters = {
         authority_id: authorityId,
         status: status as Ruleset['status'] | undefined,
+      };
+      const result = await this.rulesetRepository.findAll({
+        filters,
+        orderBy: 'name',
       });
+      return result.data;
     } catch (error) {
       this.logger.error(`Failed to fetch rulesets: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch rulesets');
@@ -102,7 +107,9 @@ export class RulesetsService {
 
   async findByKey(key: string): Promise<Ruleset> {
     try {
-      const ruleset = await this.rulesetRepository.findByKey(key);
+      const ruleset = await this.rulesetRepository.findOne({
+        filters: { key },
+      });
 
       if (!ruleset) {
         throw new NotFoundException(`Ruleset with key "${key}" not found`);
@@ -154,8 +161,16 @@ export class RulesetsService {
         return existing;
       }
 
-      const updated = await this.rulesetRepository.updateByKey(key, {
+      const updated = await this.rulesetRepository.update(existing.id, {
         ...updateRulesetDto,
+        clauses:
+          updateRulesetDto.clauses === undefined
+            ? undefined
+            : JSON.stringify(updateRulesetDto.clauses),
+        metadata:
+          updateRulesetDto.metadata === undefined
+            ? undefined
+            : JSON.stringify(updateRulesetDto.metadata),
         updated_at: new Date(),
       });
 
@@ -175,8 +190,6 @@ export class RulesetsService {
 
   async delete(key: string): Promise<void> {
     try {
-      await this.findByKey(key);
-
       await this.rulesetRepository.deleteByKey(key);
 
       this.logger.log(`Deleted ruleset: ${key}`);

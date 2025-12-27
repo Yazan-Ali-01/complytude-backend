@@ -349,10 +349,12 @@ export class TemplatesService {
       }
 
       // Fetch rulesets
-      const rulesets = await this.rulesetRepository.findByTemplateId(
-        template.id,
-        { client },
-      );
+      const rulesets = await this.rulesetRepository.findAll({
+        filters: {
+          template_id: template.id,
+        },
+        orderBy: 'name',
+      });
 
       // Fetch current version details
       const currentVersion =
@@ -365,7 +367,7 @@ export class TemplatesService {
         ...template,
         category,
         authority,
-        rulesets,
+        rulesets: rulesets.data,
         current_version_details: currentVersion || undefined,
       };
     } catch (error) {
