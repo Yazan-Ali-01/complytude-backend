@@ -30,7 +30,6 @@ import { CategoryRepository } from '../../repositories/categories/category.repos
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
 import { TemplateRepository } from '../../repositories/templates/template.repository';
-import { UpdateTemplateInput } from '../../repositories/templates/interfaces/template.interfaces';
 
 @Injectable()
 export class TemplatesService {
@@ -56,9 +55,9 @@ export class TemplatesService {
     }
   > {
     try {
-      const existing = await this.templateRepository.findByKey(
-        createTemplateDto.key,
-      );
+      const existing = await this.templateRepository.findOne({
+        filters: { key: createTemplateDto.key },
+      });
 
       if (existing) {
         throw new ConflictException(
@@ -138,21 +137,23 @@ export class TemplatesService {
       let templateId: string | null = null;
       try {
         await this.databaseService.transaction(async (client) => {
-          const template = await this.templateRepository.createTemplate(
+          const template = await this.templateRepository.create(
             {
               key: createTemplateDto.key,
               name: createTemplateDto.name,
-              description: createTemplateDto.description,
-              category_id: createTemplateDto.category_id,
-              authority_id: createTemplateDto.authority_id,
+              description: createTemplateDto.description ?? null,
+              category_id: createTemplateDto.category_id ?? null,
+              authority_id: createTemplateDto.authority_id ?? null,
               languages: createTemplateDto.languages,
               current_version: version,
               status: createTemplateDto.status || 'active',
-              metadata: createTemplateDto.metadata || {},
+              file_url: null,
+              metadata: JSON.stringify(createTemplateDto.metadata ?? {}),
               created_by: createdBy,
             },
             { client },
           );
+
           templateId = template.id;
 
           // 2. Upload file to S3 using template ID
@@ -249,15 +250,20 @@ export class TemplatesService {
   }> {
     try {
       const offset = (page - 1) * limit;
-      const { data, total } = await this.templateRepository.findAllTemplates(
-        {
+
+      const { data, total } = await this.templateRepository.findAll({
+        filters: {
           status: status as Template['status'] | undefined,
           category_id: categoryId,
           authority_id: authorityId,
           languages: language,
         },
-        { offset, limit },
-      );
+        operators: {
+          languages: 'ANY', // languages = ANY(language)
+        },
+        limit: limit,
+        offset: offset,
+      });
 
       return {
         templates: data,
@@ -273,9 +279,13 @@ export class TemplatesService {
 
   async findActiveTemplates(): Promise<Template[]> {
     try {
-      const result = await this.templateRepository.findAllTemplates({
-        status: 'active',
+      const result = await this.templateRepository.findAll({
+        filters: {
+          status: 'active',
+        },
+        orderBy: 'name',
       });
+
       return result.data;
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
@@ -305,7 +315,8 @@ export class TemplatesService {
 
   async findByKey(key: string, client?: PoolClient): Promise<Template> {
     try {
-      const template = await this.templateRepository.findByKey(key, {
+      const template = await this.templateRepository.findOne({
+        filters: { key },
         client,
       });
 
@@ -349,12 +360,10 @@ export class TemplatesService {
       }
 
       // Fetch rulesets
-      const rulesets = await this.rulesetRepository.findAll({
-        filters: {
-          template_id: template.id,
-        },
-        orderBy: 'name',
-      });
+      const rulesets = await this.rulesetRepository.findByTemplateId(
+        template.id,
+        { client },
+      );
 
       // Fetch current version details
       const currentVersion =
@@ -367,7 +376,7 @@ export class TemplatesService {
         ...template,
         category,
         authority,
-        rulesets: rulesets.data,
+        rulesets,
         current_version_details: currentVersion || undefined,
       };
     } catch (error) {
@@ -429,15 +438,18 @@ export class TemplatesService {
       }
 
       return await this.databaseService.transaction(async (client) => {
-        const updatePayload: UpdateTemplateInput = {
-          ...updateTemplateDto,
-        };
-
-        if (Object.keys(updatePayload).length > 0) {
-          updatePayload.updated_at = new Date();
-          await this.templateRepository.updateByKey(key, updatePayload, {
-            client,
-          });
+        if (Object.keys(updateTemplateDto).length > 0) {
+          await this.templateRepository.update(
+            existing.id,
+            {
+              ...updateTemplateDto,
+              metadata: updateTemplateDto.metadata
+                ? JSON.stringify(updateTemplateDto.metadata)
+                : undefined,
+              updated_at: new Date(),
+            },
+            { client },
+          );
         }
 
         // Update rulesets if provided
@@ -476,7 +488,7 @@ export class TemplatesService {
 
   async deactivate(key: string): Promise<Template> {
     try {
-      const template = await this.templateRepository.updateStatus(
+      const template = await this.templateRepository.updateStatusByKey(
         key,
         'inactive',
       );
@@ -574,12 +586,13 @@ export class TemplatesService {
           createdBy,
           client,
         );
-
         // Update template's current_version
-        await this.templateRepository.updateCurrentVersion(
+        await this.templateRepository.update(
           template.id,
-          createVersionDto.version,
-          fileUrl,
+          {
+            current_version: createVersionDto.version,
+            file_url: fileUrl,
+          },
           { client },
         );
       });

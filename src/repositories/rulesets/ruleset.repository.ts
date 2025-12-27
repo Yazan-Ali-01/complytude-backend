@@ -1,15 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryBuilder } from '../base/query-builder';
-import { FindManyOptions, QueryOptions } from '../base/repository.interface';
-import {
-  CreateRulesetInput,
-  Ruleset,
-  RulesetStatus,
-  UpdateRulesetInput,
-} from './interfaces/ruleset.interfaces';
+import { QueryOptions } from '../base/repository.interface';
+import { Ruleset, RulesetStatus } from './interfaces/ruleset.interfaces';
 
 type RulesetRow = {
   id: string;
@@ -81,6 +75,24 @@ export class RulesetRepository extends BaseRepository<
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
+  }
+
+  async findByTemplateId(
+    templateId: string,
+    options?: QueryOptions,
+  ): Promise<Ruleset[]> {
+    const result = await this.executeQuery<RulesetRow>(
+      `
+      SELECT r.*
+      FROM public.rulesets r
+      INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
+      WHERE tr.template_id = $1
+    `,
+      [templateId],
+      options,
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
   }
 
   async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {

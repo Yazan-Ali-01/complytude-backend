@@ -162,11 +162,10 @@ export class TemplateVersionsService {
           version,
         );
 
-      await this.templateRepository.updateCurrentVersion(
-        templateId,
-        version,
-        versionToActivate.file_url,
-      );
+      await this.templateRepository.update(templateId, {
+        current_version: version,
+        file_url: versionToActivate.file_url,
+      });
 
       this.logger.log(
         `Rolled back template ${templateId} to version ${version}`,
