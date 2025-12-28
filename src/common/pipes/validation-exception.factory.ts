@@ -64,6 +64,32 @@ function safeToString(value: unknown): string {
   }
 }
 
+const VALIDATION_RULE_TO_TRANSLATION_KEY: Record<string, string> = {
+  [VALIDATION_RULES.IS_NOT_EMPTY]: 'common.errors.validation.required',
+  [VALIDATION_RULES.IS_EMAIL]: 'templates.validation.invalidEmail',
+  [VALIDATION_RULES.IS_DATE]: 'templates.validation.invalidDateFormat',
+  [VALIDATION_RULES.IS_INT]: 'templates.validation.invalidFieldType',
+  [VALIDATION_RULES.IS_NUMBER]: 'templates.validation.invalidFieldType',
+  [VALIDATION_RULES.IS_STRING]: 'templates.validation.invalidFieldType',
+  [VALIDATION_RULES.IS_BOOLEAN]: 'templates.validation.invalidFieldType',
+  [VALIDATION_RULES.IS_ARRAY]: 'templates.validation.invalidFieldType',
+  [VALIDATION_RULES.IS_OBJECT]: 'templates.validation.invalidFieldType',
+  [VALIDATION_RULES.IS_UUID]: 'templates.validation.invalidFormat',
+  [VALIDATION_RULES.MAX_LENGTH]: 'templates.validation.invalidLength',
+  [VALIDATION_RULES.MIN_LENGTH]: 'templates.validation.invalidLength',
+  [VALIDATION_RULES.MAX]: 'templates.validation.invalidLength',
+  [VALIDATION_RULES.MIN]: 'templates.validation.invalidLength',
+  [VALIDATION_RULES.MATCHES]: 'templates.validation.invalidPattern',
+  [VALIDATION_RULES.IS_ENUM]: 'templates.validation.invalidEnum',
+  [VALIDATION_RULES.IS_IN]: 'templates.validation.invalidEnum',
+  [VALIDATION_RULES.WHITELIST_VALIDATION]: 'templates.validation.unknownField',
+  [VALIDATION_RULES.IS_DEFINED]: 'common.errors.validation.required',
+  [VALIDATION_RULES.IS_FILE_MIME_TYPE]: 'storage.errors.invalidFileType',
+  [VALIDATION_RULES.IS_FILE_MAX_SIZE]: 'storage.errors.fileTooLarge',
+  [VALIDATION_RULES.IS_VALID_FILE]: 'storage.errors.invalidFileType',
+  [VALIDATION_RULES.IS_FILE_UPLOADED]: 'storage.errors.invalidFileType',
+} as const;
+
 /**
  * Maps validation rule names (from class-validator, etc.) to human-readable
  * descriptions or expected value hints. Used to produce more user-friendly
@@ -244,6 +270,65 @@ function extractConstraintValue(
 }
 
 /**
+ * Builds translation arguments for validation error interpolation
+ * @param rule - The validation rule name
+ * @param fieldPath - The field path (e.g., 'email' or 'user.email')
+ * @param expected - Expected value description
+ * @param received - Received value description
+ * @param constraintValue - Constraint value from validation context
+ * @param message - Original error message
+ * @returns Translation arguments object
+ */
+function buildTranslationArgs(
+  rule: string,
+  fieldPath: string,
+  expected: string,
+  received: string,
+  constraintValue?: unknown,
+  message?: string,
+): Record<string, string | number> {
+  const args: Record<string, string | number> = {
+    fieldLabel: fieldPath,
+    expected: expected,
+    received: received,
+  };
+
+  if (constraintValue === undefined) {
+    return args;
+  }
+
+  // Handle numeric constraints (maxLength, minLength, max, min)
+  if (
+    rule === VALIDATION_RULES.MAX_LENGTH ||
+    rule === VALIDATION_RULES.MIN_LENGTH ||
+    rule === VALIDATION_RULES.MAX ||
+    rule === VALIDATION_RULES.MIN
+  ) {
+    if (typeof constraintValue === 'number') {
+      args.constraint = constraintValue;
+    }
+  }
+  // Handle enum/in constraints
+  else if (
+    rule === VALIDATION_RULES.IS_ENUM ||
+    rule === VALIDATION_RULES.IS_IN
+  ) {
+    args.allowedValues = Array.isArray(constraintValue)
+      ? constraintValue.join(', ')
+      : String(constraintValue);
+  }
+  // Handle whitelist validation (unknown field)
+  else if (rule === VALIDATION_RULES.WHITELIST_VALIDATION && message) {
+    const fieldNameMatch = message.match(/property ([\w.]+) should not exist/);
+    if (fieldNameMatch) {
+      args.fieldName = fieldNameMatch[1];
+    }
+  }
+
+  return args;
+}
+
+/**
  * Gets the received value string representation
  * @param value - The actual value that failed validation
  * @param rule - The validation rule name
@@ -303,12 +388,24 @@ function processValidationError(
           ? 'not present'
           : computeExpected(rule, constraintValue, message);
 
+      const translationKey = VALIDATION_RULE_TO_TRANSLATION_KEY[rule];
+      const translationArgs = buildTranslationArgs(
+        rule,
+        fieldPath,
+        expected,
+        received,
+        constraintValue,
+        message,
+      );
+
       details.push({
         field: fieldPath,
         rule,
         message: message,
         received,
         expected,
+        translationKey,
+        translationArgs,
       });
     }
   }
