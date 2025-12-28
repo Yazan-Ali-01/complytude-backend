@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TemplatesModule } from './modules/templates/templates.module';
+import { I18nModule } from './i18n/i18n.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import databaseConfig from './config/database.config';
@@ -29,6 +30,7 @@ import { validationSchema } from './config/validation.schema';
         abortEarly: false,
       },
     }),
+    I18nModule,
     DatabaseModule,
     HealthModule,
     TenantModule,

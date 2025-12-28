@@ -1,0 +1,25 @@
+{
+  "errors": {
+    "validation": {
+      "failed": "Validation failed",
+      "required": "This field is required",
+      "invalid": "Invalid value provided"
+    },
+    "generic": {
+      "internalServerError": "An internal server error occurred",
+      "badRequest": "Bad request",
+      "notFound": "Resource not found",
+      "unauthorized": "Unauthorized access",
+      "forbidden": "Access forbidden",
+      "conflict": "Resource conflict occurred"
+    }
+  },
+  "messages": {
+    "success": "Operation completed successfully",
+    "created": "Resource created successfully",
+    "updated": "Resource updated successfully",
+    "deleted": "Resource deleted successfully",
+    "fetched": "Resource fetched successfully"
+  }
+}
+

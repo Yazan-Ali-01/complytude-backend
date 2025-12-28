@@ -1,0 +1,17 @@
+{
+  "errors": {
+    "notFound": "Tenant not found",
+    "alreadyExists": "Tenant already exists",
+    "failedToCreate": "Failed to create tenant",
+    "failedToFetch": "Failed to fetch tenant",
+    "failedToUpdate": "Failed to update tenant",
+    "failedToDelete": "Failed to delete tenant",
+    "failedToFetchSchema": "Failed to fetch tenant schema"
+  },
+  "messages": {
+    "created": "Tenant created successfully",
+    "updated": "Tenant updated successfully",
+    "deleted": "Tenant deleted successfully",
+    "fetched": "Tenant fetched successfully"
+  }
+}

@@ -75,6 +75,7 @@
     "docxtemplater": "^3.67.1",
     "file-type": "^21.0.0",
     "joi": "^18.0.1",
+    "nestjs-i18n": "^10.6.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.16.3",

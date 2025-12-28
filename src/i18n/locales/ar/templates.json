@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "notFound": "القالب غير موجود",
+    "failedToCreate": "فشل إنشاء القالب",
+    "failedToFetch": "فشل جلب القوالب",
+    "failedToUpdate": "فشل تحديث القالب",
+    "failedToDelete": "فشل حذف القالب",
+    "failedToDeactivate": "فشل تعطيل القالب",
+    "invalidRulesetKeys": "واحدة أو أكثر من مفاتيح مجموعة القواعد غير صالحة",
+    "validationFailed": "فشل التحقق من القالب"
+  },
+  "messages": {
+    "created": "تم إنشاء القالب بنجاح",
+    "updated": "تم تحديث القالب بنجاح",
+    "deleted": "تم حذف القالب بنجاح",
+    "deactivated": "تم تعطيل القالب بنجاح",
+    "fetched": "تم جلب القالب بنجاح"
+  },
+  "validation": {
+    "requiredFieldMissing": "الحقل المطلوب '{fieldLabel}' مفقود",
+    "invalidFieldType": "يجب أن يكون الحقل '{fieldLabel}' {expected}، تم استلام {received}",
+    "invalidDateFormat": "يجب أن يكون الحقل '{fieldLabel}' تاريخاً صالحاً بتنسيق YYYY-MM-DD",
+    "invalidEmail": "يجب أن يكون الحقل '{fieldLabel}' عنوان بريد إلكتروني صالحاً",
+    "invalidFormat": "يجب أن يكون الحقل '{fieldLabel}' {expected} صالحاً",
+    "invalidLength": "يجب أن يكون الحقل '{fieldLabel}' {expected}",
+    "invalidPattern": "تنسيق الحقل '{fieldLabel}' غير صالح",
+    "invalidEnum": "يجب أن يكون الحقل '{fieldLabel}' واحداً من: {expected}",
+    "unknownField": "الحقل غير المعروف '{fieldName}' غير مسموح به"
+  }
+}
+

@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "fileNotFound": "الملف غير موجود",
+    "failedToUpload": "فشل تحميل الملف",
+    "failedToDownload": "فشل تنزيل الملف",
+    "failedToDelete": "فشل حذف الملف",
+    "fileTooLarge": "حجم الملف يتجاوز الحد الأقصى المسموح به",
+    "invalidFileType": "نوع ملف غير صالح"
+  },
+  "messages": {
+    "uploaded": "تم تحميل الملف بنجاح",
+    "downloaded": "تم تنزيل الملف بنجاح",
+    "deleted": "تم حذف الملف بنجاح"
+  }
+}

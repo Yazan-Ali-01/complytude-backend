@@ -1,0 +1,24 @@
+{
+  "errors": {
+    "validation": {
+      "failed": "فشل التحقق",
+      "required": "هذا الحقل مطلوب",
+      "invalid": "قيمة غير صالحة"
+    },
+    "generic": {
+      "internalServerError": "حدث خطأ داخلي في الخادم",
+      "badRequest": "طلب غير صالح",
+      "notFound": "المورد غير موجود",
+      "unauthorized": "وصول غير مصرح به",
+      "forbidden": "الوصول محظور",
+      "conflict": "حدث تعارض في المورد"
+    }
+  },
+  "messages": {
+    "success": "تمت العملية بنجاح",
+    "created": "تم إنشاء المورد بنجاح",
+    "updated": "تم تحديث المورد بنجاح",
+    "deleted": "تم حذف المورد بنجاح",
+    "fetched": "تم جلب المورد بنجاح"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "errors": {
+    "notFound": "العميل غير موجود",
+    "alreadyExists": "العميل موجود بالفعل",
+    "failedToCreate": "فشل إنشاء العميل",
+    "failedToFetch": "فشل جلب العميل",
+    "failedToUpdate": "فشل تحديث العميل",
+    "failedToDelete": "فشل حذف العميل",
+    "failedToFetchSchema": "فشل جلب مخطط العميل"
+  },
+  "messages": {
+    "created": "تم إنشاء العميل بنجاح",
+    "updated": "تم تحديث العميل بنجاح",
+    "deleted": "تم حذف العميل بنجاح",
+    "fetched": "تم جلب العميل بنجاح"
+  }
+}
+

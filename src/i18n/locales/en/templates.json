@@ -1,0 +1,31 @@
+{
+  "errors": {
+    "notFound": "Template not found",
+    "failedToCreate": "Failed to create template",
+    "failedToFetch": "Failed to fetch templates",
+    "failedToUpdate": "Failed to update template",
+    "failedToDelete": "Failed to delete template",
+    "failedToDeactivate": "Failed to deactivate template",
+    "invalidRulesetKeys": "One or more ruleset keys are invalid",
+    "validationFailed": "Template validation failed"
+  },
+  "messages": {
+    "created": "Template created successfully",
+    "updated": "Template updated successfully",
+    "deleted": "Template deleted successfully",
+    "deactivated": "Template deactivated successfully",
+    "fetched": "Template fetched successfully"
+  },
+  "validation": {
+    "requiredFieldMissing": "Required field '{fieldLabel}' is missing",
+    "invalidFieldType": "Field '{fieldLabel}' must be {expected}, received {received}",
+    "invalidDateFormat": "Field '{fieldLabel}' must be a valid date in YYYY-MM-DD format",
+    "invalidEmail": "Field '{fieldLabel}' must be a valid email address",
+    "invalidFormat": "Field '{fieldLabel}' must be a valid {expected}",
+    "invalidLength": "Field '{fieldLabel}' must be {expected}",
+    "invalidPattern": "Field '{fieldLabel}' format is invalid",
+    "invalidEnum": "Field '{fieldLabel}' must be one of: {expected}",
+    "unknownField": "Unknown field '{fieldName}' is not allowed"
+  }
+}
+

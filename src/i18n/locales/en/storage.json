@@ -1,0 +1,16 @@
+{
+  "errors": {
+    "fileNotFound": "File not found",
+    "failedToUpload": "Failed to upload file",
+    "failedToDownload": "Failed to download file",
+    "failedToDelete": "Failed to delete file",
+    "fileTooLarge": "File size exceeds maximum allowed size",
+    "invalidFileType": "Invalid file type"
+  },
+  "messages": {
+    "uploaded": "File uploaded successfully",
+    "downloaded": "File downloaded successfully",
+    "deleted": "File deleted successfully"
+  }
+}
+
