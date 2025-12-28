@@ -1,10 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
+import { BusinessException } from '../../common/exceptions/business.exception';
 import { DatabaseService } from '../../database/database.service';
 import { Authority } from './entities/authority.entity';
 import {
@@ -27,8 +22,9 @@ export class AuthoritiesService {
       );
 
       if (existing.rows.length > 0) {
-        throw new ConflictException(
-          `Authority with code "${createAuthorityDto.code}" already exists`,
+        throw new BusinessException(
+          'templates.errors.authorityFailed',
+          HttpStatus.CONFLICT,
         );
       }
 
@@ -52,11 +48,14 @@ export class AuthoritiesService {
       this.logger.log(`Created authority: ${createAuthorityDto.code}`);
       return result.rows[0];
     } catch (error) {
-      if (error instanceof ConflictException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to create authority: ${error.message}`);
-      throw new InternalServerErrorException('Failed to create authority');
+      throw new BusinessException(
+        'templates.errors.authorityFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -70,7 +69,10 @@ export class AuthoritiesService {
       return result.rows;
     } catch (error) {
       this.logger.error(`Failed to fetch authorities: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch authorities');
+      throw new BusinessException(
+        'templates.errors.authorityFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -82,16 +84,23 @@ export class AuthoritiesService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Authority with ID "${id}" not found`);
+        throw new BusinessException(
+          'templates.errors.authorityNotFound',
+          HttpStatus.NOT_FOUND,
+          { id },
+        );
       }
 
       return result.rows[0];
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to fetch authority: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch authority');
+      throw new BusinessException(
+        'templates.errors.authorityFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -103,16 +112,23 @@ export class AuthoritiesService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Authority with code "${code}" not found`);
+        throw new BusinessException(
+          'templates.errors.authorityNotFound',
+          HttpStatus.NOT_FOUND,
+          { id: code },
+        );
       }
 
       return result.rows[0];
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to fetch authority: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch authority');
+      throw new BusinessException(
+        'templates.errors.authorityFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -163,11 +179,14 @@ export class AuthoritiesService {
       this.logger.log(`Updated authority: ${id}`);
       return result.rows[0];
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to update authority: ${error.message}`);
-      throw new InternalServerErrorException('Failed to update authority');
+      throw new BusinessException(
+        'templates.errors.authorityFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -182,11 +201,14 @@ export class AuthoritiesService {
 
       this.logger.log(`Deleted authority: ${id}`);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to delete authority: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete authority');
+      throw new BusinessException(
+        'templates.errors.authorityFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

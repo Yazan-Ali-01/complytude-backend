@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
   Injectable,
-  UnauthorizedException,
-  ConflictException,
-  BadRequestException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { BusinessException } from '../../common/exceptions/business.exception';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../../database/database.service';
@@ -71,7 +70,10 @@ export class AuthService {
     );
 
     if (existingUser.rows.length > 0) {
-      throw new ConflictException('Email already registered');
+      throw new BusinessException(
+        'auth.errors.emailAlreadyExists',
+        HttpStatus.CONFLICT,
+      );
     }
 
     // Hash password
@@ -157,7 +159,10 @@ export class AuthService {
     );
 
     if (tenantsResult.rows.length === 0) {
-      throw new UnauthorizedException('No active tenants found for this user');
+      throw new BusinessException(
+        'auth.errors.noActiveTenants',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     // If tenantId specified, use that; otherwise use first tenant
@@ -167,8 +172,9 @@ export class AuthService {
         (t) => t.tenant_id === loginDto.tenantId,
       );
       if (!found) {
-        throw new UnauthorizedException(
-          'User does not have access to specified tenant',
+        throw new BusinessException(
+          'auth.errors.tenantAccessDenied',
+          HttpStatus.UNAUTHORIZED,
         );
       }
       selectedTenant = found;
@@ -220,7 +226,10 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new BusinessException(
+        'auth.errors.invalidCredentials',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     const user = result.rows[0];
@@ -228,7 +237,10 @@ export class AuthService {
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new BusinessException(
+        'auth.errors.invalidCredentials',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     return user;
@@ -334,7 +346,10 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw new BusinessException(
+        'auth.errors.tokenExpired',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     // Find matching token
@@ -348,7 +363,10 @@ export class AuthService {
     }
 
     if (!validToken) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new BusinessException(
+        'auth.errors.tokenInvalid',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     // Revoke old refresh token
@@ -367,7 +385,10 @@ export class AuthService {
     );
 
     if (userResult.rows.length === 0) {
-      throw new UnauthorizedException('No active tenants found');
+      throw new BusinessException(
+        'auth.errors.noActiveTenants',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
     const {
@@ -412,7 +433,10 @@ export class AuthService {
       }
     }
 
-    throw new BadRequestException('Invalid refresh token');
+    throw new BusinessException(
+      'auth.errors.tokenInvalid',
+      HttpStatus.BAD_REQUEST,
+    );
   }
 
   /**
@@ -426,7 +450,10 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new BadRequestException('Invalid or expired verification token');
+      throw new BusinessException(
+        'auth.errors.verificationTokenInvalid',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const verification = result.rows[0];
@@ -499,7 +526,10 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BusinessException(
+        'auth.errors.resetTokenInvalid',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const reset = result.rows[0];

@@ -1,9 +1,9 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
+import { BusinessException } from '../../../common/exceptions/business.exception';
 import PizZip from 'pizzip';
 import { TemplateFieldDto } from '../dto/template-field.dto';
 import Docxtemplater from 'docxtemplater';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from '../constants/template.constants';
-
 /**
  * Result of validating placeholders against field definitions.
  */
@@ -59,7 +59,10 @@ export class DocxPlaceholderExtractionService {
       this.logger.log('Starting placeholder extraction from DOCX file');
 
       if (!buffer || buffer.length === 0) {
-        throw new BadRequestException('Empty or invalid file buffer provided');
+        throw new BusinessException(
+          'templates.errors.invalidFileBuffer',
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       let zip: PizZip;
@@ -67,8 +70,9 @@ export class DocxPlaceholderExtractionService {
         zip = new PizZip(buffer);
       } catch (error) {
         this.logger.error('Failed to unzip DOCX file', error);
-        throw new BadRequestException(
-          'Invalid DOCX file format. The file may be corrupted or not a valid DOCX document.',
+        throw new BusinessException(
+          'templates.errors.invalidDocxFormat',
+          HttpStatus.BAD_REQUEST,
         );
       }
 
@@ -88,8 +92,8 @@ export class DocxPlaceholderExtractionService {
 
       return Array.from(placeholders);
     } catch (error) {
-      // Re-throw BadRequestException as-is
-      if (error instanceof BadRequestException) {
+      // Re-throw BusinessException as-is
+      if (error instanceof BusinessException) {
         throw error;
       }
 
@@ -98,8 +102,9 @@ export class DocxPlaceholderExtractionService {
         'Unexpected error during placeholder extraction',
         error,
       );
-      throw new BadRequestException(
-        'Failed to extract placeholders from DOCX file. Please ensure the file is valid.',
+      throw new BusinessException(
+        'templates.errors.placeholderExtractionFailed',
+        HttpStatus.BAD_REQUEST,
       );
     }
   }

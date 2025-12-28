@@ -1,9 +1,7 @@
 import {
   Injectable,
   Logger,
-  NotFoundException,
-  BadRequestException,
-  InternalServerErrorException,
+  HttpStatus,
 } from '@nestjs/common';
 import { Readable } from 'stream';
 import Docxtemplater from 'docxtemplater';
@@ -19,6 +17,7 @@ import { TemplateVersionsService } from './template-versions.service';
 import { StorageService } from '../storage/storage.service';
 import { DatabaseService } from '../../database/database.service';
 import { TenantService } from '../tenant/tenant.service';
+import { BusinessException } from '../../common/exceptions/business.exception';
 
 import { TemplateValidationService } from './template-validation.service';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
@@ -65,15 +64,21 @@ export class DocumentGenerationService {
       await this.templatesService.findByKey(templateKey);
 
     if (template.status !== 'active') {
-      throw new BadRequestException(`Template ${template.key} is not active`);
+      throw new BusinessException(
+        'templates.errors.templateNotActive',
+        HttpStatus.BAD_REQUEST,
+        { templateKey: template.key },
+      );
     }
 
     const templateVersion: TemplateVersion | null =
       await this.templateVersionsService.getCurrentVersion(template.id);
 
     if (!templateVersion) {
-      throw new NotFoundException(
-        `No active version found for template ${template.key}`,
+      throw new BusinessException(
+        'templates.errors.noActiveVersion',
+        HttpStatus.NOT_FOUND,
+        { templateKey: template.key },
       );
     }
 
@@ -108,7 +113,10 @@ export class DocumentGenerationService {
         `Failed to fetch template file: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined,
       );
-      throw new NotFoundException('Template file not found');
+      throw new BusinessException(
+        'templates.errors.templateFileNotFound',
+        HttpStatus.NOT_FOUND,
+      );
     }
   }
 
@@ -139,8 +147,9 @@ export class DocumentGenerationService {
         `Failed to process document template: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined,
       );
-      throw new BadRequestException(
-        'Failed to render document with provided variables',
+      throw new BusinessException(
+        'templates.errors.documentGenerationFailed',
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -237,8 +246,9 @@ export class DocumentGenerationService {
         `Failed to save generated document: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined,
       );
-      throw new InternalServerErrorException(
-        'Failed to save generated document',
+      throw new BusinessException(
+        'templates.errors.documentGenerationFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -293,8 +303,7 @@ export class DocumentGenerationService {
     } catch (error) {
       // specific business errors pass through
       if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException ||
+        error instanceof BusinessException ||
         error instanceof ValidationException
       ) {
         throw error;
@@ -304,7 +313,10 @@ export class DocumentGenerationService {
         'Document generation failed',
         error instanceof Error ? error.stack : undefined,
       );
-      throw new InternalServerErrorException('Failed to generate document');
+      throw new BusinessException(
+        'templates.errors.documentGenerationFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

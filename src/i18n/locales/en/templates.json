@@ -7,7 +7,22 @@
     "failedToDelete": "Failed to delete template",
     "failedToDeactivate": "Failed to deactivate template",
     "invalidRulesetKeys": "One or more ruleset keys are invalid",
-    "validationFailed": "Template validation failed"
+    "validationFailed": "Template validation failed",
+    "templateNotActive": "Template '{templateKey}' is not active",
+    "noActiveVersion": "No active version found for template '{templateKey}'",
+    "templateFileNotFound": "Template file not found",
+    "documentGenerationFailed": "Failed to generate document",
+    "invalidFileBuffer": "Empty or invalid file buffer provided",
+    "invalidDocxFormat": "Invalid DOCX file format. The file may be corrupted or not a valid DOCX document.",
+    "placeholderExtractionFailed": "Failed to extract placeholders from DOCX file. Please ensure the file is valid.",
+    "versionHistoryFailed": "Failed to fetch version history",
+    "currentVersionFailed": "Failed to fetch current version",
+    "rulesetFailed": "Failed to perform ruleset operation",
+    "rulesetKeyExists": "Ruleset with key '{key}' already exists",
+    "rulesetNotFound": "Ruleset not found",
+    "authorityNotFound": "Authority with ID '{id}' not found",
+    "categoryFailed": "Failed to perform category operation",
+    "authorityFailed": "Failed to perform authority operation"
   },
   "messages": {
     "created": "Template created successfully",

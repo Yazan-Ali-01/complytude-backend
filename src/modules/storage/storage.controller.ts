@@ -8,11 +8,12 @@ import {
   UseInterceptors,
   UseGuards,
   UploadedFile,
-  BadRequestException,
+  HttpStatus,
   Logger,
   StreamableFile,
   Header,
 } from '@nestjs/common';
+import { BusinessException } from '../../common/exceptions/business.exception';
 import {
   ApiTags,
   ApiOperation,
@@ -96,7 +97,10 @@ export class StorageController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<FileResponseDto> {
     if (!file) {
-      throw new BadRequestException('No file provided');
+      throw new BusinessException(
+        'storage.errors.noFileProvided',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     this.logger.log(
@@ -168,7 +172,10 @@ export class StorageController {
     @Query('expiresIn') expiresIn?: number,
   ): Promise<SignedUrlResponseDto> {
     if (!tenantId) {
-      throw new BadRequestException('tenantId query parameter is required');
+      throw new BusinessException(
+        'storage.errors.tenantIdRequired',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const url = await this.storageService.generateSignedUrl(
@@ -206,7 +213,10 @@ export class StorageController {
     @Query('tenantId') tenantId: string,
   ): Promise<StreamableFile> {
     if (!tenantId) {
-      throw new BadRequestException('tenantId query parameter is required');
+      throw new BusinessException(
+        'storage.errors.tenantIdRequired',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const stream = await this.storageService.getFile(tenantId, fileKey);

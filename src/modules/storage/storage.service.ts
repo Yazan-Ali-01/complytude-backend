@@ -1,9 +1,9 @@
 import {
   Injectable,
   Logger,
-  InternalServerErrorException,
-  NotFoundException,
+  HttpStatus,
 } from '@nestjs/common';
+import { BusinessException } from '../../common/exceptions/business.exception';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
@@ -128,13 +128,17 @@ export class StorageService {
           this.logger.error(
             `Failed to create bucket ${bucket}: ${createError.message}`,
           );
-          throw new InternalServerErrorException(
-            'Failed to initialize storage for tenant',
+          throw new BusinessException(
+            'storage.errors.storageAccessFailed',
+            HttpStatus.INTERNAL_SERVER_ERROR,
           );
         }
       } else {
         this.logger.error(`Error checking bucket ${bucket}: ${error.message}`);
-        throw new InternalServerErrorException('Failed to access storage');
+        throw new BusinessException(
+          'storage.errors.storageAccessFailed',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
       }
     }
   }
@@ -196,7 +200,10 @@ export class StorageService {
       };
     } catch (error) {
       this.logger.error(`Failed to upload file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to upload file');
+      throw new BusinessException(
+        'storage.errors.failedToUpload',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -215,7 +222,10 @@ export class StorageService {
       );
 
       if (!response.Body) {
-        throw new NotFoundException('File not found');
+        throw new BusinessException(
+          'storage.errors.fileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       return response.Body as Readable;
@@ -226,7 +236,10 @@ export class StorageService {
         error.name === 'NotFound' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException('File not found');
+        throw new BusinessException(
+          'storage.errors.fileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       // Handle bucket not found - occurs when accessing another tenant's files
@@ -236,11 +249,17 @@ export class StorageService {
         error.message?.includes('bucket') ||
         error.message?.includes('does not exist')
       ) {
-        throw new NotFoundException('File not found');
+        throw new BusinessException(
+          'storage.errors.fileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       this.logger.error(`Failed to get file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to retrieve file');
+      throw new BusinessException(
+        'storage.errors.fileRetrievalFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -322,7 +341,10 @@ export class StorageService {
         error.name === 'NotFound' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException('File not found');
+        throw new BusinessException(
+          'storage.errors.fileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       // Handle bucket not found (404) - occurs when accessing another tenant's files
@@ -332,11 +354,17 @@ export class StorageService {
         error.message?.includes('bucket') ||
         error.message?.includes('does not exist')
       ) {
-        throw new NotFoundException('File not found');
+        throw new BusinessException(
+          'storage.errors.fileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       this.logger.error(`Failed to delete file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete file');
+      throw new BusinessException(
+        'storage.errors.failedToDelete',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -364,7 +392,10 @@ export class StorageService {
       return url;
     } catch (error) {
       this.logger.error(`Failed to generate signed URL: ${error.message}`);
-      throw new InternalServerErrorException('Failed to generate download URL');
+      throw new BusinessException(
+        'storage.errors.downloadUrlFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -415,7 +446,10 @@ export class StorageService {
       }
 
       this.logger.error(`Failed to list files: ${error.message}`);
-      throw new InternalServerErrorException('Failed to list files');
+      throw new BusinessException(
+        'storage.errors.listFilesFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -450,16 +484,18 @@ export class StorageService {
           this.logger.error(
             `Failed to create templates bucket ${this.templatesBucket}: ${createError.message}`,
           );
-          throw new InternalServerErrorException(
-            'Failed to initialize templates storage',
+          throw new BusinessException(
+            'storage.errors.storageAccessFailed',
+            HttpStatus.INTERNAL_SERVER_ERROR,
           );
         }
       } else {
         this.logger.error(
           `Error checking templates bucket ${this.templatesBucket}: ${error.message}`,
         );
-        throw new InternalServerErrorException(
-          'Failed to access templates storage',
+        throw new BusinessException(
+          'storage.errors.storageAccessFailed',
+          HttpStatus.INTERNAL_SERVER_ERROR,
         );
       }
     }
@@ -521,7 +557,10 @@ export class StorageService {
       };
     } catch (error) {
       this.logger.error(`Failed to upload template file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to upload template file');
+      throw new BusinessException(
+        'storage.errors.templateUploadFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -542,7 +581,10 @@ export class StorageService {
       );
 
       if (!response.Body) {
-        throw new NotFoundException('Template file not found');
+        throw new BusinessException(
+          'storage.errors.templateFileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       return response.Body as Readable;
@@ -551,12 +593,16 @@ export class StorageService {
         error.name === 'NoSuchKey' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException('Template file not found');
+        throw new BusinessException(
+          'storage.errors.templateFileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       this.logger.error(`Failed to get template file: ${error.message}`);
-      throw new InternalServerErrorException(
-        'Failed to retrieve template file',
+      throw new BusinessException(
+        'storage.errors.fileRetrievalFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -585,8 +631,9 @@ export class StorageService {
       this.logger.error(
         `Failed to generate template signed URL: ${error.message}`,
       );
-      throw new InternalServerErrorException(
-        'Failed to generate template download URL',
+      throw new BusinessException(
+        'storage.errors.downloadUrlFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -622,7 +669,10 @@ export class StorageService {
         error.name === 'NotFound' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException('Template file not found');
+        throw new BusinessException(
+          'storage.errors.templateFileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       // Handle bucket not found (404)
@@ -632,11 +682,17 @@ export class StorageService {
         error.message?.includes('bucket') ||
         error.message?.includes('does not exist')
       ) {
-        throw new NotFoundException('Template file not found');
+        throw new BusinessException(
+          'storage.errors.templateFileNotFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       this.logger.error(`Failed to delete template file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete template file');
+      throw new BusinessException(
+        'storage.errors.templateDeleteFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -683,7 +739,10 @@ export class StorageService {
       }
 
       this.logger.error(`Failed to list template files: ${error.message}`);
-      throw new InternalServerErrorException('Failed to list template files');
+      throw new BusinessException(
+        'storage.errors.templateListFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

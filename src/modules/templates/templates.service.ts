@@ -1,11 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
+import { BusinessException } from '../../common/exceptions/business.exception';
 import { DatabaseService } from '../../database/database.service';
 import { Template, TemplateWithDetails } from './entities/template.entity';
 import {
@@ -56,8 +50,9 @@ export class TemplatesService {
       );
 
       if (existing.rows.length > 0) {
-        throw new ConflictException(
-          `Template with key "${createTemplateDto.key}" already exists`,
+        throw new BusinessException(
+          'templates.errors.notFound',
+          HttpStatus.CONFLICT,
         );
       }
 
@@ -68,8 +63,10 @@ export class TemplatesService {
           [createTemplateDto.category_id],
         );
         if (categoryExists.rows.length === 0) {
-          throw new BadRequestException(
-            `Category with ID "${createTemplateDto.category_id}" not found`,
+          throw new BusinessException(
+            'templates.errors.authorityNotFound',
+            HttpStatus.BAD_REQUEST,
+            { id: createTemplateDto.category_id },
           );
         }
       }
@@ -81,8 +78,10 @@ export class TemplatesService {
           [createTemplateDto.authority_id],
         );
         if (authorityExists.rows.length === 0) {
-          throw new BadRequestException(
-            `Authority with ID "${createTemplateDto.authority_id}" not found`,
+          throw new BusinessException(
+            'templates.errors.authorityNotFound',
+            HttpStatus.BAD_REQUEST,
+            { id: createTemplateDto.authority_id },
           );
         }
       }
@@ -96,7 +95,10 @@ export class TemplatesService {
           createTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== createTemplateDto.ruleset_keys.length) {
-          throw new BadRequestException('One or more ruleset keys are invalid');
+          throw new BusinessException(
+            'templates.errors.invalidRulesetKeys',
+            HttpStatus.BAD_REQUEST,
+          );
         }
       }
 
@@ -126,8 +128,9 @@ export class TemplatesService {
           `Failed to process template file: ${error.message}`,
           error.stack,
         );
-        throw new InternalServerErrorException(
-          `Failed to process template file: ${error.message}`,
+        throw new BusinessException(
+          'templates.errors.placeholderExtractionFailed',
+          HttpStatus.BAD_REQUEST,
         );
       }
 
@@ -229,14 +232,14 @@ export class TemplatesService {
         validation: validationResult,
       };
     } catch (error) {
-      if (
-        error instanceof ConflictException ||
-        error instanceof BadRequestException
-      ) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to create template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to create template');
+      throw new BusinessException(
+        'templates.errors.failedToCreate',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -299,7 +302,10 @@ export class TemplatesService {
       };
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch templates');
+      throw new BusinessException(
+        'templates.errors.failedToFetch',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -313,8 +319,9 @@ export class TemplatesService {
       return result.rows.map((t) => this.parseTemplate(t));
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
-      throw new InternalServerErrorException(
-        'Failed to fetch active templates',
+      throw new BusinessException(
+        'templates.errors.failedToFetch',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -327,16 +334,22 @@ export class TemplatesService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Template with ID "${id}" not found`);
+        throw new BusinessException(
+          'templates.errors.notFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       return this.parseTemplate(result.rows[0]);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch template');
+      throw new BusinessException(
+        'templates.errors.failedToFetch',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -353,16 +366,22 @@ export class TemplatesService {
           );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Template with key "${key}" not found`);
+        throw new BusinessException(
+          'templates.errors.notFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       return this.parseTemplate(result.rows[0]);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch template');
+      throw new BusinessException(
+        'templates.errors.failedToFetch',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -439,14 +458,15 @@ export class TemplatesService {
         current_version_details: currentVersion || undefined,
       };
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(
         `Failed to fetch template with details: ${error.message}`,
       );
-      throw new InternalServerErrorException(
-        'Failed to fetch template with details',
+      throw new BusinessException(
+        'templates.errors.failedToFetch',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -466,8 +486,10 @@ export class TemplatesService {
           [updateTemplateDto.category_id],
         );
         if (categoryExists.rows.length === 0) {
-          throw new BadRequestException(
-            `Category with ID "${updateTemplateDto.category_id}" not found`,
+          throw new BusinessException(
+            'templates.errors.authorityNotFound',
+            HttpStatus.BAD_REQUEST,
+            { id: updateTemplateDto.category_id },
           );
         }
       }
@@ -479,8 +501,10 @@ export class TemplatesService {
           [updateTemplateDto.authority_id],
         );
         if (authorityExists.rows.length === 0) {
-          throw new BadRequestException(
-            `Authority with ID "${updateTemplateDto.authority_id}" not found`,
+          throw new BusinessException(
+            'templates.errors.authorityNotFound',
+            HttpStatus.BAD_REQUEST,
+            { id: updateTemplateDto.authority_id },
           );
         }
       }
@@ -494,7 +518,10 @@ export class TemplatesService {
           updateTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== updateTemplateDto.ruleset_keys.length) {
-          throw new BadRequestException('One or more ruleset keys are invalid');
+          throw new BusinessException(
+            'templates.errors.invalidRulesetKeys',
+            HttpStatus.BAD_REQUEST,
+          );
         }
       }
 
@@ -598,14 +625,14 @@ export class TemplatesService {
         return this.findByKeyWithDetails(key, client);
       });
     } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException
-      ) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to update template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to update template');
+      throw new BusinessException(
+        'templates.errors.failedToUpdate',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -621,11 +648,14 @@ export class TemplatesService {
       this.logger.log(`Deactivated template: ${key}`);
       return this.parseTemplate(result.rows[0]);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to deactivate template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to deactivate template');
+      throw new BusinessException(
+        'templates.errors.failedToDeactivate',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -640,11 +670,14 @@ export class TemplatesService {
 
       this.logger.log(`Deleted template: ${key}`);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to delete template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete template');
+      throw new BusinessException(
+        'templates.errors.failedToDelete',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -665,8 +698,9 @@ export class TemplatesService {
       [template.id, createVersionDto.version],
     );
     if (existingVersion.rows.length > 0) {
-      throw new ConflictException(
-        `Version "${createVersionDto.version}" already exists for template "${key}"`,
+      throw new BusinessException(
+        'templates.errors.failedToCreate',
+        HttpStatus.CONFLICT,
       );
     }
 
@@ -690,8 +724,9 @@ export class TemplatesService {
         `Failed to process template file: ${error.message}`,
         error.stack,
       );
-      throw new InternalServerErrorException(
-        `Failed to process template file: ${error.message}`,
+      throw new BusinessException(
+        'templates.errors.placeholderExtractionFailed',
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -798,8 +833,9 @@ export class TemplatesService {
   ): Promise<TemplateDownloadResponseDto> {
     // Validate version format (semver: x.y.z) before any DB calls
     if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
-      throw new BadRequestException(
-        `Invalid version format "${version}". Expected semver format (e.g., 1.0.0)`,
+      throw new BusinessException(
+        'templates.errors.validationFailed',
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -830,17 +866,15 @@ export class TemplatesService {
         version: targetVersion,
       };
     } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException
-      ) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(
         `Failed to generate download URL for template "${key}": ${error.message}`,
       );
-      throw new InternalServerErrorException(
-        'Failed to generate template download URL',
+      throw new BusinessException(
+        'templates.errors.documentGenerationFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

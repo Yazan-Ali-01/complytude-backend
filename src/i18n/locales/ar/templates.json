@@ -7,7 +7,22 @@
     "failedToDelete": "فشل حذف القالب",
     "failedToDeactivate": "فشل تعطيل القالب",
     "invalidRulesetKeys": "واحدة أو أكثر من مفاتيح مجموعة القواعد غير صالحة",
-    "validationFailed": "فشل التحقق من القالب"
+    "validationFailed": "فشل التحقق من القالب",
+    "templateNotActive": "القالب '{templateKey}' غير نشط",
+    "noActiveVersion": "لم يتم العثور على إصدار نشط للقالب '{templateKey}'",
+    "templateFileNotFound": "ملف القالب غير موجود",
+    "documentGenerationFailed": "فشل إنشاء المستند",
+    "invalidFileBuffer": "تم توفير مخزن مؤقت للملف فارغ أو غير صالح",
+    "invalidDocxFormat": "تنسيق ملف DOCX غير صالح. قد يكون الملف تالفاً أو ليس مستند DOCX صالحاً.",
+    "placeholderExtractionFailed": "فشل استخراج العناصر النائبة من ملف DOCX. يرجى التأكد من أن الملف صالح.",
+    "versionHistoryFailed": "فشل جلب سجل الإصدارات",
+    "currentVersionFailed": "فشل جلب الإصدار الحالي",
+    "rulesetFailed": "فشل تنفيذ عملية مجموعة القواعد",
+    "rulesetKeyExists": "مجموعة القواعد بالمفتاح '{key}' موجودة بالفعل",
+    "rulesetNotFound": "مجموعة القواعد غير موجودة",
+    "authorityNotFound": "السلطة بالمعرف '{id}' غير موجودة",
+    "categoryFailed": "فشل تنفيذ عملية الفئة",
+    "authorityFailed": "فشل تنفيذ عملية السلطة"
   },
   "messages": {
     "created": "تم إنشاء القالب بنجاح",

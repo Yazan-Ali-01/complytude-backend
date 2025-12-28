@@ -3,10 +3,11 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  BadRequestException,
+  HttpStatus,
   mixin,
   Type,
 } from '@nestjs/common';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { Observable } from 'rxjs';
 import { FastifyRequest } from 'fastify';
 
@@ -25,7 +26,10 @@ export function FastifyFileInterceptor(
         const data = await request.file();
 
         if (!data) {
-          throw new BadRequestException('No file uploaded');
+          throw new BusinessException(
+            'storage.errors.noFileUploaded',
+            HttpStatus.BAD_REQUEST,
+          );
         }
 
         // Convert file stream to buffer
@@ -41,10 +45,13 @@ export function FastifyFileInterceptor(
           size: buffer.length,
         };
       } catch (error) {
-        if (error instanceof BadRequestException) {
+        if (error instanceof BusinessException) {
           throw error;
         }
-        throw new BadRequestException('Failed to process file upload');
+        throw new BusinessException(
+          'storage.errors.uploadProcessingFailed',
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       return next.handle();

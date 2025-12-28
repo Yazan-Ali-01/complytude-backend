@@ -2,9 +2,10 @@
 import {
   PipeTransform,
   Injectable,
-  BadRequestException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { ConfigService } from '@nestjs/config';
 import { fileTypeFromBuffer } from 'file-type';
 
@@ -36,12 +37,18 @@ export class FileValidationPipe implements PipeTransform {
 
   async transform(file: any): Promise<ValidatedFile> {
     if (!file) {
-      throw new BadRequestException('No file provided');
+      throw new BusinessException(
+        'storage.errors.noFileProvided',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // Check if file has required properties
     if (!file.buffer || !file.originalname) {
-      throw new BadRequestException('Invalid file format');
+      throw new BusinessException(
+        'storage.errors.invalidFileFormat',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const buffer = file.buffer;
@@ -50,13 +57,18 @@ export class FileValidationPipe implements PipeTransform {
 
     // Validate file size
     if (size > this.maxFileSize) {
-      throw new BadRequestException(
-        `File size exceeds maximum allowed size of ${this.maxFileSize / 1024 / 1024}MB`,
+      throw new BusinessException(
+        'storage.errors.fileTooLarge',
+        HttpStatus.BAD_REQUEST,
+        { maxSizeMB: this.maxFileSize / 1024 / 1024 },
       );
     }
 
     if (size === 0) {
-      throw new BadRequestException('File is empty');
+      throw new BusinessException(
+        'storage.errors.fileEmpty',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // Detect actual MIME type from file buffer
@@ -79,8 +91,13 @@ export class FileValidationPipe implements PipeTransform {
 
     // Validate MIME type
     if (!this.allowedMimeTypes.includes(detectedMimeType)) {
-      throw new BadRequestException(
-        `File type '${detectedMimeType}' is not allowed. Allowed types: ${this.allowedMimeTypes.join(', ')}`,
+      throw new BusinessException(
+        'storage.errors.invalidFileType',
+        HttpStatus.BAD_REQUEST,
+        {
+          fileType: detectedMimeType,
+          allowedTypes: this.allowedMimeTypes.join(', '),
+        },
       );
     }
 
@@ -89,8 +106,13 @@ export class FileValidationPipe implements PipeTransform {
     const expectedExtensions = this.getExpectedExtensions(detectedMimeType);
 
     if (!expectedExtensions.includes(extension)) {
-      throw new BadRequestException(
-        `File extension '.${extension}' does not match file type '${detectedMimeType}'`,
+      throw new BusinessException(
+        'storage.errors.extensionMismatch',
+        HttpStatus.BAD_REQUEST,
+        {
+          extension: extension || '',
+          fileType: detectedMimeType,
+        },
       );
     }
 

@@ -1,10 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
+import { BusinessException } from '../../common/exceptions/business.exception';
 import { DatabaseService } from '../../database/database.service';
 import { Category } from './entities/category.entity';
 import {
@@ -27,8 +22,9 @@ export class CategoriesService {
       );
 
       if (existing.rows.length > 0) {
-        throw new ConflictException(
-          `Category with code "${createCategoryDto.code}" already exists`,
+        throw new BusinessException(
+          'templates.errors.categoryFailed',
+          HttpStatus.CONFLICT,
         );
       }
 
@@ -52,11 +48,14 @@ export class CategoriesService {
       this.logger.log(`Created category: ${createCategoryDto.code}`);
       return result.rows[0];
     } catch (error) {
-      if (error instanceof ConflictException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to create category: ${error.message}`);
-      throw new InternalServerErrorException('Failed to create category');
+      throw new BusinessException(
+        'templates.errors.categoryFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -70,7 +69,10 @@ export class CategoriesService {
       return result.rows;
     } catch (error) {
       this.logger.error(`Failed to fetch categories: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch categories');
+      throw new BusinessException(
+        'templates.errors.categoryFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -82,16 +84,22 @@ export class CategoriesService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Category with ID "${id}" not found`);
+        throw new BusinessException(
+          'templates.errors.notFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       return result.rows[0];
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to fetch category: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch category');
+      throw new BusinessException(
+        'templates.errors.categoryFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -103,16 +111,22 @@ export class CategoriesService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Category with code "${code}" not found`);
+        throw new BusinessException(
+          'templates.errors.notFound',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       return result.rows[0];
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to fetch category: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch category');
+      throw new BusinessException(
+        'templates.errors.categoryFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -163,11 +177,14 @@ export class CategoriesService {
       this.logger.log(`Updated category: ${id}`);
       return result.rows[0];
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to update category: ${error.message}`);
-      throw new InternalServerErrorException('Failed to update category');
+      throw new BusinessException(
+        'templates.errors.categoryFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -182,11 +199,14 @@ export class CategoriesService {
 
       this.logger.log(`Deleted category: ${id}`);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to delete category: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete category');
+      throw new BusinessException(
+        'templates.errors.categoryFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

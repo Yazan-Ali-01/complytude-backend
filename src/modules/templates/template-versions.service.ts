@@ -1,10 +1,5 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  InternalServerErrorException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { DatabaseService } from '../../database/database.service';
 import { PoolClient } from 'pg';
 import {
@@ -41,8 +36,9 @@ export class TemplateVersionsService {
           );
 
       if (existing.rows.length > 0) {
-        throw new ConflictException(
-          `Version ${version} already exists for template ${templateId}`,
+        throw new BusinessException(
+          'templates.errors.failedToCreate',
+          HttpStatus.CONFLICT,
         );
       }
 
@@ -99,12 +95,13 @@ export class TemplateVersionsService {
       this.logger.log(`Created version ${version} for template ${templateId}`);
       return this.parseVersion(result.rows[0]);
     } catch (error) {
-      if (error instanceof ConflictException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to create template version: ${error.message}`);
-      throw new InternalServerErrorException(
-        'Failed to create template version',
+      throw new BusinessException(
+        'templates.errors.failedToCreate',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -119,7 +116,10 @@ export class TemplateVersionsService {
       return result.rows.map((v) => this.parseVersion(v));
     } catch (error) {
       this.logger.error(`Failed to fetch version history: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch version history');
+      throw new BusinessException(
+        'templates.errors.versionHistoryFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -134,19 +134,21 @@ export class TemplateVersionsService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(
-          `Version ${version} not found for template ${templateId}`,
+        throw new BusinessException(
+          'templates.errors.notFound',
+          HttpStatus.NOT_FOUND,
         );
       }
 
       return this.parseVersion(result.rows[0]);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(`Failed to fetch template version: ${error.message}`);
-      throw new InternalServerErrorException(
-        'Failed to fetch template version',
+      throw new BusinessException(
+        'templates.errors.currentVersionFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -173,7 +175,10 @@ export class TemplateVersionsService {
       return this.parseVersion(result.rows[0]);
     } catch (error) {
       this.logger.error(`Failed to fetch current version: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch current version');
+      throw new BusinessException(
+        'templates.errors.currentVersionFailed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -208,14 +213,15 @@ export class TemplateVersionsService {
       );
       return this.parseVersion(result.rows[0]);
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
       this.logger.error(
         `Failed to rollback template version: ${error.message}`,
       );
-      throw new InternalServerErrorException(
-        'Failed to rollback template version',
+      throw new BusinessException(
+        'templates.errors.failedToUpdate',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

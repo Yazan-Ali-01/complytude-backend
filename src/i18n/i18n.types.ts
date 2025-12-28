@@ -32,6 +32,11 @@ export interface AuthTranslations {
     tokenInvalid: string;
     emailAlreadyExists: string;
     userNotFound: string;
+    noActiveTenants: string;
+    tenantAccessDenied: string;
+    verificationTokenInvalid: string;
+    resetTokenInvalid: string;
+    tokenInvalidType: string;
   };
   messages: {
     loginSuccess: string;
@@ -99,6 +104,21 @@ export interface StorageTranslations {
     failedToDelete: string;
     fileTooLarge: string;
     invalidFileType: string;
+    storageAccessFailed: string;
+    fileRetrievalFailed: string;
+    downloadUrlFailed: string;
+    listFilesFailed: string;
+    templateUploadFailed: string;
+    templateFileNotFound: string;
+    templateDeleteFailed: string;
+    templateListFailed: string;
+    noFileProvided: string;
+    tenantIdRequired: string;
+    invalidFileFormat: string;
+    fileEmpty: string;
+    extensionMismatch: string;
+    noFileUploaded: string;
+    uploadProcessingFailed: string;
   };
   messages: {
     uploaded: string;
