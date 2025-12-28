@@ -1,7 +1,7 @@
 pnpm exec commitlint --edit $1 || {
   echo ""
   echo "❌ Commit message validation failed!"
-  echo "📖 Please read 🔧 Git Hooks & Commit Standards section in README.md for examples"
+  echo "📖 Please read 🔧 Git Hooks & Commit Standards section in CONTRIBUTING.md for examples"
   echo "   Example: feat(auth): add login validation (COM-123)"
   echo ""
   exit 1
