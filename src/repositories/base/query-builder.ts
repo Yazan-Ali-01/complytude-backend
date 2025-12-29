@@ -179,23 +179,19 @@ export class QueryBuilder {
   static buildOrderBy(
     orderBy?: string,
     direction: 'ASC' | 'DESC' = 'ASC',
-    startIndex = 1,
-  ): { clause: string; params: unknown[]; nextIndex: number } {
+  ): string {
     if (!orderBy) {
-      return { clause: '', params: [], nextIndex: startIndex };
+      return '';
     }
 
     const normalizedDirection = direction === 'DESC' ? 'DESC' : 'ASC';
-    const clause = `ORDER BY $${startIndex} ${normalizedDirection}`;
-    const params: string[] = [orderBy];
+    const clause = `ORDER BY ${orderBy} ${normalizedDirection}`;
 
     QueryBuilder.logger.debug(
-      `buildOrderBy: orderBy=${orderBy}, direction=${normalizedDirection}, startIndex=${startIndex}, params=${JSON.stringify(
-        params,
-      )}`,
+      `buildOrderBy: orderBy=${orderBy}, direction=${normalizedDirection}`,
     );
 
-    return { clause, params, nextIndex: startIndex + params.length };
+    return clause;
   }
 
   /**
@@ -244,7 +240,6 @@ export class QueryBuilder {
 
   private nextIndex(): number {
     const idx = this.currentIndex++;
-    QueryBuilder.logger.debug(`nextIndex: returning=${idx}`);
     return idx;
   }
 }

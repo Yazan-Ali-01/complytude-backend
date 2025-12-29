@@ -1,12 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { QueryResult, QueryResultRow } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import {
   FindManyOptions,
   FindOneOptions,
   QueryOptions,
+  ClientQueryOptions,
   RepositoryInterface,
-  TenantContext,
 } from './repository.interface';
 import { QueryBuilder } from './query-builder';
 
@@ -57,9 +57,12 @@ export abstract class BaseRepository<
       }, sql=${query}, params=${JSON.stringify(params)}`,
     );
     const { client, tenant, bypassRLS = true } = options ?? {};
-
     if (client) {
-      return this.runWithClient<T>(client, query, params, tenant, bypassRLS);
+      return this.runWithClient<T>(query, params, {
+        client,
+        tenant,
+        bypassRLS,
+      });
     }
 
     if (tenant) {
@@ -87,18 +90,16 @@ export abstract class BaseRepository<
    * ```
    */
   private async runWithClient<T extends QueryResultRow = QueryResultRow>(
-    client: PoolClient,
     query: string,
     params: unknown[],
-    tenant?: TenantContext,
-    bypassRLS?: boolean,
+    options: ClientQueryOptions,
   ): Promise<QueryResult<T>> {
-    const shouldBypass = bypassRLS ?? true;
+    const { client, tenant, bypassRLS = true } = options;
     const hasTenant = !!tenant;
     this.logger.debug(
       `runWithClient: table=${this.tableName}, tenant=${
         tenant?.tenantId ?? 'none'
-      }, bypassRLS=${shouldBypass}, params=${JSON.stringify(params)}`,
+      }, bypassRLS=${bypassRLS}, params=${JSON.stringify(params)}`,
     );
 
     try {
@@ -107,7 +108,7 @@ export abstract class BaseRepository<
           `SET LOCAL app.current_tenant_id = '${tenant.tenantId}'`,
         );
         await client.query(`SET search_path TO ${tenant.schema}, public`);
-      } else if (shouldBypass) {
+      } else if (bypassRLS) {
         await client.query("SET LOCAL app.bypass_rls = 'true'");
       }
 
@@ -116,7 +117,7 @@ export abstract class BaseRepository<
       if (hasTenant) {
         await client.query('RESET search_path');
         await client.query('RESET app.current_tenant_id');
-      } else if (shouldBypass) {
+      } else if (bypassRLS) {
         await client.query('RESET app.bypass_rls');
       }
     }
@@ -211,9 +212,7 @@ export abstract class BaseRepository<
     const orderBy = QueryBuilder.buildOrderBy(
       options?.orderBy,
       options?.orderDirection,
-      nextIndex,
     );
-    nextIndex = orderBy.nextIndex;
     const pagination = QueryBuilder.buildPagination(
       options?.limit,
       options?.offset,
@@ -223,13 +222,13 @@ export abstract class BaseRepository<
     const query = [
       `SELECT * FROM ${this.tableName}`,
       where.clause,
-      orderBy.clause,
+      orderBy,
       pagination.clause,
     ]
       .filter(Boolean)
       .join(' ');
 
-    const params = [...where.params, ...orderBy.params, ...pagination.params];
+    const params = [...where.params, ...pagination.params];
 
     const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${where.clause}`;
     const totalResult = await this.executeQuery(

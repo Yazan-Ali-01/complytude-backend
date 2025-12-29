@@ -76,15 +76,7 @@ export class UserTenantRepository extends BaseRepository<
       options,
     );
 
-    return result.rows.map((row) => ({
-      userId: row.user_id,
-      tenantId: row.tenant_id,
-      role: row.role,
-      isActive: row.is_active,
-      joinedAt: row.joined_at,
-      updatedAt: row.updated_at,
-      schemaName: row.schema_name,
-    }));
+    return result.rows.map((row) => this.mapRow(row));
   }
 
   async getActiveUserTenants(
@@ -101,15 +93,7 @@ export class UserTenantRepository extends BaseRepository<
       options,
     );
 
-    return result.rows.map((row) => ({
-      userId: row.user_id,
-      tenantId: row.tenant_id,
-      role: row.role,
-      isActive: row.is_active,
-      joinedAt: row.joined_at,
-      updatedAt: row.updated_at,
-      schemaName: row.schema_name,
-    }));
+    return result.rows.map((row) => this.mapRow(row));
   }
 
   async getUserInTenant(

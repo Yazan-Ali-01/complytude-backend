@@ -21,6 +21,9 @@ export interface QueryOptions {
   bypassRLS?: boolean;
 }
 
+export interface ClientQueryOptions extends QueryOptions {
+  client: PoolClient;
+}
 export interface FindOneOptions<TFilters = Record<string, unknown>>
   extends QueryOptions {
   filters?: TFilters;

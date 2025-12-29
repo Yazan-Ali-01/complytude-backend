@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
-import { Authority } from './intefaces/authority.interfaces';
+import { Authority } from './interfaces/authority.interfaces';
 
 type AuthorityRow = {
   id: string;
