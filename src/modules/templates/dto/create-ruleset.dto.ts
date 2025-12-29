@@ -150,6 +150,9 @@ export class UpdateRulesetDto {
     description: 'Ruleset version',
   })
   @IsString()
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'version must be in format x.y.z (e.g., 1.0.0)',
+  })
   @IsOptional()
   @MaxLength(50)
   version?: string;

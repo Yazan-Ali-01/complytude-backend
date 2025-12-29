@@ -79,6 +79,7 @@ export class UpdateAuthorityDto {
   @IsString()
   @IsOptional()
   @MaxLength(100)
+  @Transform(({ value }) => value?.toUpperCase())
   country?: string;
 
   @ApiPropertyOptional({
