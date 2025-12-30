@@ -3,10 +3,10 @@ import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
 import {
-  User,
   CreatePasswordResetInput,
   PasswordReset,
 } from './interfaces/user.intefaces';
+import { User } from 'src/modules/users/entities/user.entity';
 
 type UserRow = {
   id: string;
@@ -20,29 +20,6 @@ type UserRow = {
   updated_at: Date;
 };
 
-type CreateUserRow = {
-  id: string;
-  email: string;
-  password_hash: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  is_verified?: boolean;
-  is_system_admin?: boolean;
-};
-
-type UpdateUserRow = Partial<
-  Pick<
-    UserRow,
-    | 'email'
-    | 'password_hash'
-    | 'first_name'
-    | 'last_name'
-    | 'is_verified'
-    | 'is_system_admin'
-    | 'updated_at'
-  >
->;
-
 type PasswordResetRow = {
   id: string;
   user_id: string;
@@ -52,11 +29,7 @@ type PasswordResetRow = {
 };
 
 @Injectable()
-export class UserRepository extends BaseRepository<
-  User,
-  CreateUserRow,
-  UpdateUserRow
-> {
+export class UserRepository extends BaseRepository<User> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.users');
   }
@@ -66,13 +39,13 @@ export class UserRepository extends BaseRepository<
     return {
       id: data.id,
       email: data.email,
-      passwordHash: data.password_hash,
-      firstName: data.first_name,
-      lastName: data.last_name,
-      isVerified: data.is_verified,
-      isSystemAdmin: data.is_system_admin,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      password_hash: data.password_hash,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      is_verified: data.is_verified,
+      is_system_admin: data.is_system_admin,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
     };
   }
 

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
-import { Template, TemplateStatus } from './interfaces/template.interfaces';
+import { Template } from 'src/modules/templates/entities/template.entity';
 
 type TemplateRow = {
   id: string;
@@ -13,7 +13,7 @@ type TemplateRow = {
   authority_id: string | null;
   languages: string[];
   current_version: string;
-  status: TemplateStatus;
+  status: Template['status'];
   file_url: string | null;
   thumbnail_url: string | null;
   metadata: string | Record<string, unknown>;
@@ -22,41 +22,8 @@ type TemplateRow = {
   updated_at: Date;
 };
 
-type CreateTemplateRow = {
-  key: string;
-  name: string;
-  description?: string | null;
-  category_id?: string | null;
-  authority_id?: string | null;
-  languages: string[];
-  current_version?: string;
-  status?: TemplateStatus;
-  file_url?: string | null;
-  thumbnail_url?: string | null;
-  metadata?: string;
-  created_by?: string | null;
-};
-
-type UpdateTemplateRow = Partial<{
-  name: string;
-  description: string | null;
-  category_id: string | null;
-  authority_id: string | null;
-  languages: string[];
-  current_version: string;
-  status: TemplateStatus;
-  file_url: string | null;
-  thumbnail_url: string | null;
-  metadata: string;
-  updated_at: Date;
-}>;
-
 @Injectable()
-export class TemplateRepository extends BaseRepository<
-  Template,
-  CreateTemplateRow,
-  UpdateTemplateRow
-> {
+export class TemplateRepository extends BaseRepository<Template> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.templates');
   }
@@ -67,19 +34,19 @@ export class TemplateRepository extends BaseRepository<
       id: data.id,
       key: data.key,
       name: data.name,
-      description: data.description ?? undefined,
-      category_id: data.category_id ?? undefined,
-      authority_id: data.authority_id ?? undefined,
+      description: data.description,
+      category_id: data.category_id,
+      authority_id: data.authority_id,
       languages: data.languages,
       current_version: data.current_version,
       status: data.status,
-      file_url: data.file_url ?? undefined,
-      thumbnail_url: data.thumbnail_url ?? undefined,
+      file_url: data.file_url,
+      thumbnail_url: data.thumbnail_url,
       metadata:
         typeof data.metadata === 'string'
           ? JSON.parse(data.metadata)
           : data.metadata,
-      created_by: data.created_by ?? undefined,
+      created_by: data.created_by,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -87,7 +54,7 @@ export class TemplateRepository extends BaseRepository<
 
   async updateStatusByKey(
     key: string,
-    status: TemplateStatus,
+    status: Template['status'],
     options?: QueryOptions,
   ): Promise<Template> {
     const result = await this.executeQuery<TemplateRow>(

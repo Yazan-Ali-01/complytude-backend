@@ -12,13 +12,16 @@ export class User {
   password_hash: string;
 
   @ApiProperty({ description: 'User first name', required: false })
-  first_name?: string;
+  first_name: string | null;
 
   @ApiProperty({ description: 'User last name', required: false })
-  last_name?: string;
+  last_name: string | null;
 
   @ApiProperty({ description: 'Email verification status' })
   is_verified: boolean;
+
+  @ApiProperty({ description: 'System admin status' })
+  is_system_admin: boolean;
 
   @ApiProperty({ description: 'Account creation timestamp' })
   created_at: Date;

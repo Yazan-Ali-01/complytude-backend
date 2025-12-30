@@ -3,10 +3,11 @@ import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
 import {
-  UserTenant,
   LinkUserTenantInput,
   UserTenantInfo,
+  UserTenantWithUser,
 } from './interfaces/user-tenant.intefaces';
+import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 
 type UserTenantRow = {
   user_id: string;
@@ -14,16 +15,7 @@ type UserTenantRow = {
   role: string;
   is_active: boolean;
   joined_at: Date;
-  updated_at: Date | null;
-  schema_name: string;
-};
-
-type UserTenantWithUserRow = UserTenantRow & {
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  is_verified: boolean;
-  is_system_admin: boolean;
+  updated_at: Date;
 };
 
 @Injectable()
@@ -40,13 +32,12 @@ export class UserTenantRepository extends BaseRepository<
   protected mapRow(row: Record<string, unknown>): UserTenant {
     const data = row as UserTenantRow;
     return {
-      userId: data.user_id,
-      tenantId: data.tenant_id,
+      user_id: data.user_id,
+      tenant_id: data.tenant_id,
       role: data.role,
-      isActive: data.is_active,
-      joinedAt: data.joined_at,
-      updatedAt: data.updated_at,
-      schemaName: data.schema_name,
+      is_active: data.is_active,
+      joined_at: data.joined_at,
+      updated_at: data.updated_at,
     };
   }
 
@@ -82,8 +73,8 @@ export class UserTenantRepository extends BaseRepository<
   async getActiveUserTenants(
     userId: string,
     options?: QueryOptions,
-  ): Promise<UserTenant[]> {
-    const result = await this.executeQuery<UserTenantRow>(
+  ): Promise<UserTenantInfo[]> {
+    const result = await this.executeQuery<UserTenantInfo>(
       `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at, t.schema_name
        FROM public.user_tenants ut
        JOIN public.tenants t ON ut.tenant_id = t.tenant_id
@@ -93,15 +84,15 @@ export class UserTenantRepository extends BaseRepository<
       options,
     );
 
-    return result.rows.map((row) => this.mapRow(row));
+    return result.rows;
   }
 
   async getUserInTenant(
     userId: string,
     tenantId: string,
     options?: QueryOptions,
-  ): Promise<UserTenantInfo | null> {
-    const result = await this.executeQuery<UserTenantWithUserRow>(
+  ): Promise<UserTenantWithUser | null> {
+    const result = await this.executeQuery<UserTenantWithUser>(
       `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at, t.schema_name,
               u.email, u.first_name, u.last_name, u.is_verified, u.is_system_admin
        FROM public.user_tenants ut
@@ -114,23 +105,7 @@ export class UserTenantRepository extends BaseRepository<
     );
 
     const row = result.rows[0];
-    if (!row) {
-      return null;
-    }
 
-    return {
-      userId: row.user_id,
-      tenantId: row.tenant_id,
-      role: row.role,
-      isActive: row.is_active,
-      joinedAt: row.joined_at,
-      updatedAt: row.updated_at,
-      schemaName: row.schema_name,
-      email: row.email,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      isVerified: row.is_verified,
-      isSystemAdmin: row.is_system_admin,
-    };
+    return row;
   }
 }

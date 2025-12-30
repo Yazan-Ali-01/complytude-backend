@@ -51,8 +51,8 @@ export class RulesetsService {
 
       const ruleset = await this.rulesetRepository.create({
         ...createRulesetDto,
-        clauses: JSON.stringify(createRulesetDto.clauses),
-        metadata: JSON.stringify(createRulesetDto.metadata || {}),
+        clauses: createRulesetDto.clauses,
+        metadata: createRulesetDto.metadata || {},
         created_by: createdBy,
       });
 
@@ -163,14 +163,8 @@ export class RulesetsService {
 
       const updated = await this.rulesetRepository.update(existing.id, {
         ...updateRulesetDto,
-        clauses:
-          updateRulesetDto.clauses === undefined
-            ? undefined
-            : JSON.stringify(updateRulesetDto.clauses),
-        metadata:
-          updateRulesetDto.metadata === undefined
-            ? undefined
-            : JSON.stringify(updateRulesetDto.metadata),
+        clauses: updateRulesetDto.clauses,
+        metadata: updateRulesetDto.metadata,
         updated_at: new Date(),
       });
 

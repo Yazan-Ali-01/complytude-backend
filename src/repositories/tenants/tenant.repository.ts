@@ -5,10 +5,7 @@ import { QueryOptions } from '../base/repository.interface';
 import {
   Tenant,
   TenantSchema,
-  CreateTenantInput,
-  UpdateTenantInput,
-} from './interfaces/tenant.interfaces';
-
+} from 'src/modules/tenant/entities/tenant.entity';
 type TenantRow = {
   id: string;
   tenant_id: string;
@@ -30,11 +27,7 @@ type TenantSchemaRow = {
 };
 
 @Injectable()
-export class TenantRepository extends BaseRepository<
-  Tenant,
-  CreateTenantInput,
-  UpdateTenantInput
-> {
+export class TenantRepository extends BaseRepository<Tenant> {
   private readonly tenantLogger = new Logger(TenantRepository.name);
 
   constructor(databaseService: DatabaseService) {
@@ -131,7 +124,7 @@ export class TenantRepository extends BaseRepository<
 
   async updateByTenantId(
     tenantId: string,
-    data: UpdateTenantInput,
+    data: Partial<Tenant>,
     options?: QueryOptions,
   ): Promise<Tenant> {
     this.tenantLogger.debug(

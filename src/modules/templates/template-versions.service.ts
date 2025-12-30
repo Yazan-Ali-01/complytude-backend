@@ -55,10 +55,10 @@ export class TemplateVersionsService {
         {
           template_id: templateId,
           version,
-          fields: JSON.stringify(fields ?? []),
+          fields: fields ?? [],
           file_url: fileUrl,
           changelog: changelog ?? null,
-          metadata: JSON.stringify(metadata ?? {}),
+          metadata: metadata ?? {},
           is_active: true,
           created_by: createdBy,
         },

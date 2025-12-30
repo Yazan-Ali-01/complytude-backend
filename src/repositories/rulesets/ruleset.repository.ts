@@ -3,7 +3,7 @@ import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryBuilder } from '../base/query-builder';
 import { QueryOptions } from '../base/repository.interface';
-import { Ruleset, RulesetStatus } from './interfaces/ruleset.interfaces';
+import { Ruleset } from 'src/modules/templates/entities/ruleset.entity';
 
 type RulesetRow = {
   id: string;
@@ -14,41 +14,14 @@ type RulesetRow = {
   clauses: string | unknown[];
   metadata: string | Record<string, unknown>;
   version: string;
-  status: RulesetStatus;
+  status: Ruleset['status'];
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
 };
 
-type CreateRulesetRow = {
-  key: string;
-  name: string;
-  description?: string | null;
-  authority_id?: string | null;
-  clauses: string;
-  metadata: string;
-  version: string;
-  status: RulesetStatus;
-  created_by?: string | null;
-};
-
-type UpdateRulesetRow = Partial<{
-  name: string;
-  description: string | null;
-  authority_id: string | null;
-  clauses: string;
-  metadata: string;
-  version: string;
-  status: RulesetStatus;
-  updated_at: Date;
-}>;
-
 @Injectable()
-export class RulesetRepository extends BaseRepository<
-  Ruleset,
-  CreateRulesetRow,
-  UpdateRulesetRow
-> {
+export class RulesetRepository extends BaseRepository<Ruleset> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.rulesets');
   }
@@ -59,8 +32,8 @@ export class RulesetRepository extends BaseRepository<
       id: data.id,
       key: data.key,
       name: data.name,
-      description: data.description ?? undefined,
-      authority_id: data.authority_id ?? undefined,
+      description: data.description,
+      authority_id: data.authority_id,
       clauses:
         typeof data.clauses === 'string'
           ? JSON.parse(data.clauses)
@@ -71,7 +44,7 @@ export class RulesetRepository extends BaseRepository<
           : data.metadata,
       version: data.version,
       status: data.status,
-      created_by: data.created_by ?? undefined,
+      created_by: data.created_by,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

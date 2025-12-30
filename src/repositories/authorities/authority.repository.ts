@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
-import { Authority } from './interfaces/authority.interfaces';
+import { Authority } from 'src/modules/templates/entities/authority.entity';
 
 type AuthorityRow = {
   id: string;
@@ -14,28 +14,8 @@ type AuthorityRow = {
   updated_at: Date;
 };
 
-type CreateAuthorityRow = {
-  code: string;
-  name: string;
-  description?: string | null;
-  country?: string;
-  is_active?: boolean;
-};
-
-type UpdateAuthorityRow = Partial<{
-  name: string;
-  description: string | null;
-  country: string;
-  is_active: boolean;
-  updated_at: Date;
-}>;
-
 @Injectable()
-export class AuthorityRepository extends BaseRepository<
-  Authority,
-  CreateAuthorityRow,
-  UpdateAuthorityRow
-> {
+export class AuthorityRepository extends BaseRepository<Authority> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.authorities');
   }
@@ -46,7 +26,7 @@ export class AuthorityRepository extends BaseRepository<
       id: data.id,
       code: data.code,
       name: data.name,
-      description: data.description ?? undefined,
+      description: data.description,
       country: data.country,
       is_active: data.is_active,
       created_at: data.created_at,

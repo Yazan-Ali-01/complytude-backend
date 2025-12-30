@@ -5,7 +5,7 @@ import { QueryOptions } from '../base/repository.interface';
 import {
   TemplateField,
   TemplateVersion,
-} from './interfaces/template-version.interfaces';
+} from 'src/modules/templates/entities/template-version.entity';
 
 type TemplateVersionRow = {
   id: string;
@@ -20,32 +20,8 @@ type TemplateVersionRow = {
   created_at: Date;
 };
 
-type CreateTemplateVersionRow = {
-  template_id: string;
-  version: string;
-  fields: string;
-  file_url: string;
-  changelog?: string | null;
-  metadata: string;
-  is_active?: boolean;
-  created_by?: string | null;
-};
-
-type UpdateTemplateVersionRow = Partial<{
-  fields: string;
-  file_url: string;
-  changelog: string | null;
-  metadata: string;
-  is_active: boolean;
-  updated_at: Date;
-}>;
-
 @Injectable()
-export class TemplateVersionRepository extends BaseRepository<
-  TemplateVersion,
-  CreateTemplateVersionRow,
-  UpdateTemplateVersionRow
-> {
+export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.template_versions');
   }
@@ -59,13 +35,13 @@ export class TemplateVersionRepository extends BaseRepository<
       fields:
         typeof data.fields === 'string' ? JSON.parse(data.fields) : data.fields,
       file_url: data.file_url,
-      changelog: data.changelog ?? undefined,
+      changelog: data.changelog,
       metadata:
         typeof data.metadata === 'string'
           ? JSON.parse(data.metadata)
           : data.metadata,
       is_active: data.is_active,
-      created_by: data.created_by ?? undefined,
+      created_by: data.created_by,
       created_at: data.created_at,
     };
   }

@@ -148,7 +148,7 @@ export class TemplatesService {
               current_version: version,
               status: createTemplateDto.status || 'active',
               file_url: null,
-              metadata: JSON.stringify(createTemplateDto.metadata ?? {}),
+              metadata: createTemplateDto.metadata ?? {},
               created_by: createdBy,
             },
             { client },
@@ -377,7 +377,7 @@ export class TemplatesService {
         category,
         authority,
         rulesets,
-        current_version_details: currentVersion || undefined,
+        current_version_details: currentVersion || null,
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -443,9 +443,7 @@ export class TemplatesService {
             existing.id,
             {
               ...updateTemplateDto,
-              metadata: updateTemplateDto.metadata
-                ? JSON.stringify(updateTemplateDto.metadata)
-                : undefined,
+              metadata: updateTemplateDto.metadata ?? {},
               updated_at: new Date(),
             },
             { client },

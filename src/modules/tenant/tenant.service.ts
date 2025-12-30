@@ -73,7 +73,7 @@ export class TenantService {
             email: createTenantDto.email,
             role: createTenantDto.role,
             plan: createTenantDto.plan,
-            features: JSON.stringify(features ?? {}),
+            features: features,
             schema_name: schemaName,
             is_active: true,
           },

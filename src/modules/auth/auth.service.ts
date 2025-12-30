@@ -25,8 +25,7 @@ import { TenantService } from '../tenant/tenant.service';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
 import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.intefaces';
-import { UserTenant } from 'src/repositories/users/interfaces/user-tenant.intefaces';
-import { User } from 'src/repositories/users/interfaces/user.intefaces';
+import { User } from 'src/modules/users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -163,9 +162,9 @@ export class AuthService {
     }
 
     // If tenantId specified, use that; otherwise use first tenant
-    let selectedTenant: UserTenant;
+    let selectedTenant;
     if (loginDto.tenantId) {
-      const found = tenants.find((t) => t.tenantId === loginDto.tenantId);
+      const found = tenants.find((t) => t.tenant_id === loginDto.tenantId);
       if (!found) {
         throw new UnauthorizedException(
           'User does not have access to specified tenant',
@@ -180,13 +179,13 @@ export class AuthService {
     const tokens = await this.generateTokens(
       user.id,
       user.email,
-      selectedTenant.tenantId,
+      selectedTenant.tenant_id,
       selectedTenant.role,
-      user.isSystemAdmin || false,
+      user.is_system_admin || false,
     );
 
     this.logger.log(
-      `User ${user.email} logged in to tenant ${selectedTenant.tenantId}`,
+      `User ${user.email} logged in to tenant ${selectedTenant.tenant_id}`,
     );
 
     return {
@@ -194,17 +193,17 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        isVerified: user.isVerified,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        isVerified: user.is_verified,
       },
       currentTenant: {
-        tenantId: selectedTenant.tenantId,
+        tenantId: selectedTenant.tenant_id,
         role: selectedTenant.role,
-        schemaName: selectedTenant.schemaName,
+        schemaName: selectedTenant.schema_name,
       },
       availableTenants: tenants.map((t) => ({
-        tenantId: t.tenantId,
+        tenantId: t.tenant_id,
         role: t.role,
       })),
     };
@@ -224,7 +223,7 @@ export class AuthService {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -360,15 +359,15 @@ export class AuthService {
       throw new UnauthorizedException('No active tenants found');
     }
 
-    const { tenantId, role } = activeTenants[0];
+    const { tenant_id, role } = activeTenants[0];
 
     // Generate new tokens
     const tokens = await this.generateTokens(
       userId,
       email,
-      tenantId,
+      tenant_id,
       role,
-      user.isSystemAdmin || false,
+      user.is_system_admin || false,
     );
 
     this.logger.log(`Tokens refreshed for user ${userId}`);

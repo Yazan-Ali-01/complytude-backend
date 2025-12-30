@@ -1,19 +1,7 @@
-export interface UserTenant {
-  userId: string;
-  tenantId: string;
-  role: string;
-  isActive: boolean;
-  joinedAt: Date;
-  updatedAt: Date | null;
-  schemaName: string;
-}
+import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 
 export interface UserTenantInfo extends UserTenant {
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-  isVerified: boolean;
-  isSystemAdmin: boolean;
+  schema_name: string;
 }
 
 export interface LinkUserTenantInput {
@@ -21,4 +9,13 @@ export interface LinkUserTenantInput {
   tenantId: string;
   role: string;
   isActive?: boolean;
+}
+
+export interface UserTenantWithUser extends UserTenant {
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  is_verified: boolean;
+  is_system_admin: boolean;
+  schema_name: string;
 }
