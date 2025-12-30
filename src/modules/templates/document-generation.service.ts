@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  HttpStatus,
-} from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { Readable } from 'stream';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
