@@ -27,8 +27,8 @@ export class DocumentsService {
   ): Promise<DocumentListResponseDto> {
     const isAdmin = user?.isSystemAdmin || user?.role === 'admin';
 
-    // Build query with filters
-    let query = `SELECT * FROM ${schemaName}.documents WHERE 1=1`;
+    // Build query with filters - exclude soft-deleted documents
+    let query = `SELECT * FROM ${schemaName}.documents WHERE deleted_at IS NULL`;
     const params: any[] = [];
 
     if (filters.templateKey) {
@@ -95,7 +95,7 @@ export class DocumentsService {
     user: AuthenticatedUser & { isSystemAdmin?: boolean },
   ): Promise<DocumentResponseDto> {
     const isAdmin = user?.isSystemAdmin || user?.role === 'admin';
-    const query = `SELECT * FROM ${schemaName}.documents WHERE id = $1`;
+    const query = `SELECT * FROM ${schemaName}.documents WHERE id = $1 AND deleted_at IS NULL`;
     const result = await this.databaseService.queryWithTenantContext<Document>(
       tenantId,
       schemaName,
@@ -123,9 +123,10 @@ export class DocumentsService {
     tenantId: string,
     schemaName: string,
     documentId: string,
+    userId: string,
   ): Promise<void> {
-    // First check if document exists
-    const checkQuery = `SELECT id FROM ${schemaName}.documents WHERE id = $1`;
+    // First check if document exists and is not already deleted
+    const checkQuery = `SELECT id FROM ${schemaName}.documents WHERE id = $1 AND deleted_at IS NULL`;
     const checkResult =
       await this.databaseService.queryWithTenantContext<Document>(
         tenantId,
@@ -138,13 +139,17 @@ export class DocumentsService {
       throw new NotFoundException(`Document with ID ${documentId} not found`);
     }
 
-    // Delete the document
-    const deleteQuery = `DELETE FROM ${schemaName}.documents WHERE id = $1`;
+    // Soft delete the document
+    const deleteQuery = `
+      UPDATE ${schemaName}.documents 
+      SET deleted_at = NOW(), deleted_by = $2 
+      WHERE id = $1
+    `;
     await this.databaseService.queryWithTenantContext(
       tenantId,
       schemaName,
       deleteQuery,
-      [documentId],
+      [documentId, userId],
     );
   }
 

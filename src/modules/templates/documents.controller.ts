@@ -24,7 +24,6 @@ import {
 } from './dto/document-response.dto';
 import { ListDocumentsDto } from './dto/list-documents.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { TenantId, SchemaName } from '../../common/decorators/tenant.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
@@ -146,12 +145,12 @@ export class DocumentsController {
   }
 
   @Delete(':id')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete document',
-    description:
-      'Delete a document by ID. Only accessible by system administrators.',
+    description: 'Delete a document by ID. Only accessible by tenant admins.',
   })
   @ApiParam({
     name: 'id',
@@ -184,8 +183,8 @@ export class DocumentsController {
     @TenantId() tenantId: string,
     @SchemaName() schemaName: string,
     @Param('id') id: string,
-    @CurrentUser() _user: AuthenticatedUser,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.documentsService.delete(tenantId, schemaName, id);
+    await this.documentsService.delete(tenantId, schemaName, id, user.userId);
   }
 }

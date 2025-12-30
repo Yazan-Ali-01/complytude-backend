@@ -197,6 +197,8 @@ export class TenantService {
         created_by VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP NULL,
+        deleted_by VARCHAR(255) NULL,
         CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id)
       );
     `);
