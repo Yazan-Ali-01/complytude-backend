@@ -1,8 +1,8 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { BusinessException } from 'src/common/exceptions/business.exception';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 
 export interface JwtPayload {
   sub: string;
@@ -15,7 +15,10 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly i18n: I18nService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -27,9 +30,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   validate(payload: JwtPayload) {
     // Ensure it's an access token
     if (payload.type !== 'access') {
-      throw new BusinessException(
-        'auth.errors.tokenInvalidType',
-        HttpStatus.UNAUTHORIZED,
+      throw new UnauthorizedException(
+        this.i18n.t('auth.errors.tokenInvalidType', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 

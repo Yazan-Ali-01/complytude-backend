@@ -6,8 +6,9 @@ import {
   HttpStatus,
   mixin,
   Type,
+  BadRequestException,
 } from '@nestjs/common';
-import { BusinessException } from 'src/common/exceptions/business.exception';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { Observable } from 'rxjs';
 import { FastifyRequest } from 'fastify';
 
@@ -16,6 +17,8 @@ export function FastifyFileInterceptor(
 ): Type<NestInterceptor> {
   @Injectable()
   class MixinInterceptor implements NestInterceptor {
+    constructor(private readonly i18n: I18nService) {}
+
     async intercept(
       context: ExecutionContext,
       next: CallHandler,
@@ -26,9 +29,10 @@ export function FastifyFileInterceptor(
         const data = await request.file();
 
         if (!data) {
-          throw new BusinessException(
-            'storage.errors.noFileUploaded',
-            HttpStatus.BAD_REQUEST,
+          throw new BadRequestException(
+            this.i18n.t('storage.errors.noFileUploaded', {
+              lang: I18nContext.current()?.lang,
+            }),
           );
         }
 
@@ -45,12 +49,13 @@ export function FastifyFileInterceptor(
           size: buffer.length,
         };
       } catch (error) {
-        if (error instanceof BusinessException) {
+        if (error instanceof BadRequestException) {
           throw error;
         }
-        throw new BusinessException(
-          'storage.errors.uploadProcessingFailed',
-          HttpStatus.BAD_REQUEST,
+        throw new BadRequestException(
+          this.i18n.t('storage.errors.uploadProcessingFailed', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 

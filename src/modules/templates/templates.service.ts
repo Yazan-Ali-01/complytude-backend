@@ -1,5 +1,13 @@
-import { Injectable, Logger, HttpStatus } from '@nestjs/common';
-import { BusinessException } from '../../common/exceptions/business.exception';
+import {
+  Injectable,
+  Logger,
+  HttpStatus,
+  ConflictException,
+  NotFoundException,
+  InternalServerErrorException,
+  BadRequestException,
+} from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { Template, TemplateWithDetails } from './entities/template.entity';
 import {
@@ -32,6 +40,7 @@ export class TemplatesService {
     private readonly rulesetsService: RulesetsService,
     private readonly placeholderExtractionService: DocxPlaceholderExtractionService,
     private readonly storageService: StorageService,
+    private readonly i18n: I18nService,
   ) {}
   async create(
     createTemplateDto: CreateTemplateDto,
@@ -50,9 +59,10 @@ export class TemplatesService {
       );
 
       if (existing.rows.length > 0) {
-        throw new BusinessException(
-          'templates.errors.notFound',
-          HttpStatus.CONFLICT,
+        throw new ConflictException(
+          this.i18n.t('templates.errors.notFound', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
@@ -63,10 +73,11 @@ export class TemplatesService {
           [createTemplateDto.category_id],
         );
         if (categoryExists.rows.length === 0) {
-          throw new BusinessException(
-            'templates.errors.authorityNotFound',
-            HttpStatus.BAD_REQUEST,
-            { id: createTemplateDto.category_id },
+          throw new BadRequestException(
+            this.i18n.t('templates.errors.authorityNotFound', {
+              lang: I18nContext.current()?.lang,
+              args: { id: createTemplateDto.category_id },
+            }),
           );
         }
       }
@@ -78,10 +89,11 @@ export class TemplatesService {
           [createTemplateDto.authority_id],
         );
         if (authorityExists.rows.length === 0) {
-          throw new BusinessException(
-            'templates.errors.authorityNotFound',
-            HttpStatus.BAD_REQUEST,
-            { id: createTemplateDto.authority_id },
+          throw new BadRequestException(
+            this.i18n.t('templates.errors.authorityNotFound', {
+              lang: I18nContext.current()?.lang,
+              args: { id: createTemplateDto.authority_id },
+            }),
           );
         }
       }
@@ -95,9 +107,10 @@ export class TemplatesService {
           createTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== createTemplateDto.ruleset_keys.length) {
-          throw new BusinessException(
-            'templates.errors.invalidRulesetKeys',
-            HttpStatus.BAD_REQUEST,
+          throw new BadRequestException(
+            this.i18n.t('templates.errors.invalidRulesetKeys', {
+              lang: I18nContext.current()?.lang,
+            }),
           );
         }
       }
@@ -128,9 +141,10 @@ export class TemplatesService {
           `Failed to process template file: ${error.message}`,
           error.stack,
         );
-        throw new BusinessException(
-          'templates.errors.placeholderExtractionFailed',
-          HttpStatus.BAD_REQUEST,
+        throw new BadRequestException(
+          this.i18n.t('templates.errors.placeholderExtractionFailed', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
@@ -232,13 +246,18 @@ export class TemplatesService {
         validation: validationResult,
       };
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to create template: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToCreate',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToCreate', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -302,9 +321,10 @@ export class TemplatesService {
       };
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToFetch',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToFetch', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -319,9 +339,10 @@ export class TemplatesService {
       return result.rows.map((t) => this.parseTemplate(t));
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToFetch',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToFetch', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -334,21 +355,27 @@ export class TemplatesService {
       );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.notFound',
-          HttpStatus.NOT_FOUND,
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.notFound', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
       return this.parseTemplate(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToFetch',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToFetch', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -366,21 +393,27 @@ export class TemplatesService {
           );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.notFound',
-          HttpStatus.NOT_FOUND,
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.notFound', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
       return this.parseTemplate(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToFetch',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToFetch', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -458,15 +491,20 @@ export class TemplatesService {
         current_version_details: currentVersion || undefined,
       };
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(
         `Failed to fetch template with details: ${error.message}`,
       );
-      throw new BusinessException(
-        'templates.errors.failedToFetch',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToFetch', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -486,10 +524,11 @@ export class TemplatesService {
           [updateTemplateDto.category_id],
         );
         if (categoryExists.rows.length === 0) {
-          throw new BusinessException(
-            'templates.errors.authorityNotFound',
-            HttpStatus.BAD_REQUEST,
-            { id: updateTemplateDto.category_id },
+          throw new BadRequestException(
+            this.i18n.t('templates.errors.authorityNotFound', {
+              lang: I18nContext.current()?.lang,
+              args: { id: updateTemplateDto.category_id },
+            }),
           );
         }
       }
@@ -501,10 +540,11 @@ export class TemplatesService {
           [updateTemplateDto.authority_id],
         );
         if (authorityExists.rows.length === 0) {
-          throw new BusinessException(
-            'templates.errors.authorityNotFound',
-            HttpStatus.BAD_REQUEST,
-            { id: updateTemplateDto.authority_id },
+          throw new BadRequestException(
+            this.i18n.t('templates.errors.authorityNotFound', {
+              lang: I18nContext.current()?.lang,
+              args: { id: updateTemplateDto.authority_id },
+            }),
           );
         }
       }
@@ -518,9 +558,10 @@ export class TemplatesService {
           updateTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== updateTemplateDto.ruleset_keys.length) {
-          throw new BusinessException(
-            'templates.errors.invalidRulesetKeys',
-            HttpStatus.BAD_REQUEST,
+          throw new BadRequestException(
+            this.i18n.t('templates.errors.invalidRulesetKeys', {
+              lang: I18nContext.current()?.lang,
+            }),
           );
         }
       }
@@ -625,13 +666,18 @@ export class TemplatesService {
         return this.findByKeyWithDetails(key, client);
       });
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to update template: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToUpdate',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToUpdate', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -648,13 +694,18 @@ export class TemplatesService {
       this.logger.log(`Deactivated template: ${key}`);
       return this.parseTemplate(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to deactivate template: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToDeactivate',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToDeactivate', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -670,13 +721,18 @@ export class TemplatesService {
 
       this.logger.log(`Deleted template: ${key}`);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to delete template: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToDelete',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToDelete', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -698,9 +754,10 @@ export class TemplatesService {
       [template.id, createVersionDto.version],
     );
     if (existingVersion.rows.length > 0) {
-      throw new BusinessException(
-        'templates.errors.failedToCreate',
-        HttpStatus.CONFLICT,
+      throw new ConflictException(
+        this.i18n.t('templates.errors.failedToCreate', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -724,9 +781,10 @@ export class TemplatesService {
         `Failed to process template file: ${error.message}`,
         error.stack,
       );
-      throw new BusinessException(
-        'templates.errors.placeholderExtractionFailed',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        this.i18n.t('templates.errors.placeholderExtractionFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -833,9 +891,10 @@ export class TemplatesService {
   ): Promise<TemplateDownloadResponseDto> {
     // Validate version format (semver: x.y.z) before any DB calls
     if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
-      throw new BusinessException(
-        'templates.errors.validationFailed',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        this.i18n.t('templates.errors.validationFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -866,15 +925,20 @@ export class TemplatesService {
         version: targetVersion,
       };
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(
         `Failed to generate download URL for template "${key}": ${error.message}`,
       );
-      throw new BusinessException(
-        'templates.errors.documentGenerationFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.documentGenerationFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }

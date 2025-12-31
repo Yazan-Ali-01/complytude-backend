@@ -3,7 +3,8 @@
     "validation": {
       "failed": "Validation failed",
       "required": "This field is required",
-      "invalid": "Invalid value provided"
+      "invalid": "Invalid value provided",
+      "internalError": "Validation failed due to internal error"
     },
     "generic": {
       "internalServerError": "An internal server error occurred",
@@ -12,6 +13,11 @@
       "unauthorized": "Unauthorized access",
       "forbidden": "Access forbidden",
       "conflict": "Resource conflict occurred"
+    },
+    "access": {
+      "denied": "Access denied. Required roles: {roles}",
+      "forbidden": "Access forbidden",
+      "systemAdminRequired": "Access denied. System administrator privileges required."
     }
   },
   "messages": {
@@ -22,6 +28,3 @@
     "fetched": "Resource fetched successfully"
   }
 }
-
-
-

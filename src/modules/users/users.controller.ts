@@ -12,6 +12,7 @@ import {
   ClassSerializerInterceptor,
   UseInterceptors,
 } from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import {
   ApiTags,
   ApiOperation,
@@ -35,7 +36,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @ApiBearerAuth()
 @UseInterceptors(ClassSerializerInterceptor)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly i18n: I18nService,
+  ) {}
 
   @Get('me')
   @ApiOperation({ summary: 'Get current user profile' })
@@ -64,7 +68,11 @@ export class UsersController {
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
     await this.usersService.changePassword(user.userId, changePasswordDto);
-    return { message: 'Password changed successfully' };
+    return {
+      message: this.i18n.t('users.messages.passwordChanged', {
+        lang: I18nContext.current()?.lang,
+      }),
+    };
   }
 
   @Get('me/tenants')
@@ -148,6 +156,10 @@ export class UsersController {
       targetUserId,
       user.userId,
     );
-    return { message: 'User removed from tenant successfully' };
+    return {
+      message: this.i18n.t('users.messages.userRemoved', {
+        lang: I18nContext.current()?.lang,
+      }),
+    };
   }
 }

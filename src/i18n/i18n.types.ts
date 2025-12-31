@@ -4,6 +4,7 @@ export interface CommonTranslations {
       failed: string;
       required: string;
       invalid: string;
+      internalError: string;
     };
     generic: {
       internalServerError: string;
@@ -12,6 +13,11 @@ export interface CommonTranslations {
       unauthorized: string;
       forbidden: string;
       conflict: string;
+    };
+    access: {
+      denied: string;
+      forbidden: string;
+      systemAdminRequired: string;
     };
   };
   messages: {
@@ -22,7 +28,6 @@ export interface CommonTranslations {
     fetched: string;
   };
 }
-
 
 export interface AuthTranslations {
   errors: {
@@ -37,11 +42,14 @@ export interface AuthTranslations {
     verificationTokenInvalid: string;
     resetTokenInvalid: string;
     tokenInvalidType: string;
+    noTenantAccess: string;
+    tenantOwnershipDenied: string;
   };
   messages: {
     loginSuccess: string;
     logoutSuccess: string;
     signupSuccess: string;
+    emailVerified: string;
     passwordResetSent: string;
     passwordResetSuccess: string;
   };
@@ -50,12 +58,20 @@ export interface AuthTranslations {
 export interface TenantTranslations {
   errors: {
     notFound: string;
+    notFoundByEmail: string;
+    notFoundById: string;
+    schemaNotFound: string;
     alreadyExists: string;
+    emailAlreadyRegistered: string;
     failedToCreate: string;
     failedToFetch: string;
     failedToUpdate: string;
     failedToDelete: string;
     failedToFetchSchema: string;
+    failedToInitialize: string;
+    failedToRetrieveDocumentCount: string;
+    failedToCheckUploadPermission: string;
+    tenantIdRequired: string;
   };
   messages: {
     created: string;
@@ -127,10 +143,34 @@ export interface StorageTranslations {
   };
 }
 
+export interface UsersTranslations {
+  errors: {
+    notFound: string;
+    notFoundInTenant: string;
+    alreadyExistsInTenant: string;
+    currentPasswordIncorrect: string;
+    noFieldsToUpdate: string;
+    cannotModifyOwnRole: string;
+    cannotRemoveSelf: string;
+    failedToCreate: string;
+    failedToUpdate: string;
+    failedToDelete: string;
+    failedToFetch: string;
+  };
+  messages: {
+    passwordChanged: string;
+    profileUpdated: string;
+    userCreated: string;
+    userUpdated: string;
+    userRemoved: string;
+  };
+}
+
 export interface I18nTranslations {
   common: CommonTranslations;
   auth: AuthTranslations;
   tenant: TenantTranslations;
   templates: TemplatesTranslations;
   storage: StorageTranslations;
+  users: UsersTranslations;
 }

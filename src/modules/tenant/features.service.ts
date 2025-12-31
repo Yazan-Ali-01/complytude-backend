@@ -1,9 +1,11 @@
 import {
   Injectable,
   Logger,
+  HttpStatus,
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { TenantFeatures } from './entities/tenant.entity';
 import {
@@ -15,7 +17,10 @@ import {
 export class FeaturesService {
   private readonly logger = new Logger(FeaturesService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly i18n: I18nService,
+  ) {}
 
   /**
    * Get default features for a specific plan
@@ -41,7 +46,12 @@ export class FeaturesService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
+        throw new NotFoundException(
+          this.i18n.t('tenant.errors.notFoundById', {
+            lang: I18nContext.current()?.lang,
+            args: { tenantId },
+          }),
+        );
       }
 
       const { plan, features: customFeatures } = result.rows[0];
@@ -58,7 +68,11 @@ export class FeaturesService {
       const planValue = String(plan);
       if (!isValidPlan(planValue)) {
         this.logger.error(`Invalid plan "${planValue}" for tenant ${tenantId}`);
-        throw new InternalServerErrorException('Invalid tenant plan');
+        throw new InternalServerErrorException(
+          this.i18n.t('tenant.errors.failedToFetch', {
+            lang: I18nContext.current()?.lang,
+          }),
+        );
       }
 
       // Get default features for the plan
@@ -98,7 +112,11 @@ export class FeaturesService {
         throw error;
       }
       this.logger.error(`Failed to get features for tenant ${tenantId}`, error);
-      throw new InternalServerErrorException('Failed to retrieve features');
+      throw new InternalServerErrorException(
+        this.i18n.t('tenant.errors.failedToFetch', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
   }
 

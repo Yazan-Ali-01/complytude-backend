@@ -10,6 +10,7 @@ import {
   Logger,
   UseGuards,
 } from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import {
   ApiTags,
   ApiOperation,
@@ -33,7 +34,10 @@ import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 export class TenantAdminController {
   private readonly logger = new Logger(TenantAdminController.name);
 
-  constructor(private readonly tenantService: TenantService) {}
+  constructor(
+    private readonly tenantService: TenantService,
+    private readonly i18n: I18nService,
+  ) {}
 
   // ============================================================================
   // SYSTEM ADMIN ENDPOINTS (Platform-wide management)
@@ -151,7 +155,9 @@ export class TenantAdminController {
     this.logger.warn(`[ADMIN] Deleting tenant: ${tenantId}`);
     await this.tenantService.deleteTenant(tenantId);
     return {
-      message: 'Tenant deleted successfully',
+      message: this.i18n.t('tenant.messages.deleted', {
+        lang: I18nContext.current()?.lang,
+      }),
       tenantId,
     };
   }

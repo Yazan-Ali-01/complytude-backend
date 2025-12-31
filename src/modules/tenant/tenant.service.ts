@@ -5,6 +5,7 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { FeaturesService } from './features.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -20,6 +21,7 @@ export class TenantService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly featuresService: FeaturesService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -77,7 +79,9 @@ export class TenantService {
     } catch (error) {
       this.logger.error('Failed to initialize multi-tenancy', error);
       throw new InternalServerErrorException(
-        'Failed to initialize multi-tenancy',
+        this.i18n.t('tenant.errors.failedToInitialize', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -100,7 +104,11 @@ export class TenantService {
       );
 
       if (existingTenant.rows.length > 0) {
-        throw new ConflictException('Email already registered');
+        throw new ConflictException(
+          this.i18n.t('tenant.errors.emailAlreadyRegistered', {
+            lang: I18nContext.current()?.lang,
+          }),
+        );
       }
 
       return await this.databaseService.transaction(async (client) => {
@@ -152,7 +160,11 @@ export class TenantService {
       if (error instanceof ConflictException) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to create tenant');
+      throw new InternalServerErrorException(
+        this.i18n.t('tenant.errors.failedToCreate', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
   }
 
@@ -223,7 +235,12 @@ export class TenantService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
+        throw new NotFoundException(
+          this.i18n.t('tenant.errors.notFoundById', {
+            lang: I18nContext.current()?.lang,
+            args: { tenantId },
+          }),
+        );
       }
 
       const tenant = result.rows[0];
@@ -250,7 +267,12 @@ export class TenantService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Tenant with email ${email} not found`);
+        throw new NotFoundException(
+          this.i18n.t('tenant.errors.notFoundByEmail', {
+            lang: I18nContext.current()?.lang,
+            args: { email },
+          }),
+        );
       }
 
       const tenant = result.rows[0];
@@ -282,8 +304,15 @@ export class TenantService {
             ? JSON.parse(tenant.features)
             : tenant.features,
       }));
-    } catch {
-      throw new InternalServerErrorException('Failed to fetch tenants');
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch tenants: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t('tenant.errors.failedToFetch', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
   }
 
@@ -343,7 +372,14 @@ export class TenantService {
       return updatedTenant;
     } catch (error) {
       this.logger.error(`Failed to update tenant: ${error.message}`);
-      throw new InternalServerErrorException('Failed to update tenant');
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        this.i18n.t('tenant.errors.failedToUpdate', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
   }
 
@@ -367,7 +403,14 @@ export class TenantService {
       });
     } catch (error) {
       this.logger.error(`Failed to delete tenant: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete tenant');
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        this.i18n.t('tenant.errors.failedToDelete', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
   }
 
@@ -382,13 +425,22 @@ export class TenantService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Schema for tenant ${tenantId} not found`);
+        throw new NotFoundException(
+          this.i18n.t('tenant.errors.schemaNotFound', {
+            lang: I18nContext.current()?.lang,
+            args: { tenantId },
+          }),
+        );
       }
 
       return result.rows[0];
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Failed to fetch tenant schema');
+      throw new InternalServerErrorException(
+        this.i18n.t('tenant.errors.failedToFetchSchema', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
   }
 
@@ -436,7 +488,9 @@ export class TenantService {
         error,
       );
       throw new InternalServerErrorException(
-        'Failed to retrieve document count',
+        this.i18n.t('tenant.errors.failedToRetrieveDocumentCount', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -477,7 +531,9 @@ export class TenantService {
         error,
       );
       throw new InternalServerErrorException(
-        'Failed to check document upload permission',
+        this.i18n.t('tenant.errors.failedToCheckUploadPermission', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }

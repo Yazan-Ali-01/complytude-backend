@@ -1,0 +1,24 @@
+{
+  "errors": {
+    "notFound": "المستخدم غير موجود",
+    "notFoundInTenant": "المستخدم غير موجود في هذا المستأجر",
+    "alreadyExistsInTenant": "المستخدم موجود بالفعل في هذا المستأجر",
+    "currentPasswordIncorrect": "كلمة المرور الحالية غير صحيحة",
+    "noFieldsToUpdate": "لا توجد حقول للتحديث",
+    "cannotModifyOwnRole": "لا يمكنك تعديل دورك الخاص",
+    "cannotRemoveSelf": "لا يمكنك إزالة نفسك من المستأجر",
+    "failedToCreate": "فشل إنشاء المستخدم",
+    "failedToUpdate": "فشل تحديث المستخدم",
+    "failedToDelete": "فشل حذف المستخدم",
+    "failedToFetch": "فشل جلب المستخدم"
+  },
+  "messages": {
+    "passwordChanged": "تم تغيير كلمة المرور بنجاح",
+    "profileUpdated": "تم تحديث الملف الشخصي بنجاح",
+    "userCreated": "تم إنشاء المستخدم بنجاح",
+    "userUpdated": "تم تحديث المستخدم بنجاح",
+    "userRemoved": "تم إزالة المستخدم من المستأجر بنجاح"
+  }
+}
+
+

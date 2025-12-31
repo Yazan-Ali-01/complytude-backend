@@ -12,8 +12,10 @@ import {
   Logger,
   StreamableFile,
   Header,
+  BadRequestException,
 } from '@nestjs/common';
-import { BusinessException } from '../../common/exceptions/business.exception';
+import { I18nService, I18nContext } from 'nestjs-i18n';
+import { I18nTranslations } from '../../i18n/i18n.types';
 import {
   ApiTags,
   ApiOperation,
@@ -52,7 +54,10 @@ interface UploadedFile {
 export class StorageController {
   private readonly logger = new Logger(StorageController.name);
 
-  constructor(private readonly storageService: StorageService) {}
+  constructor(
+    private readonly storageService: StorageService,
+    private readonly i18n: I18nService,
+  ) {}
 
   @Post('upload')
   @UseGuards(RolesGuard, DocumentLimitGuard)
@@ -97,9 +102,10 @@ export class StorageController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<FileResponseDto> {
     if (!file) {
-      throw new BusinessException(
-        'storage.errors.noFileProvided',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        this.i18n.t('storage.errors.noFileProvided', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -172,9 +178,10 @@ export class StorageController {
     @Query('expiresIn') expiresIn?: number,
   ): Promise<SignedUrlResponseDto> {
     if (!tenantId) {
-      throw new BusinessException(
-        'storage.errors.tenantIdRequired',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        this.i18n.t('storage.errors.tenantIdRequired', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -213,9 +220,10 @@ export class StorageController {
     @Query('tenantId') tenantId: string,
   ): Promise<StreamableFile> {
     if (!tenantId) {
-      throw new BusinessException(
-        'storage.errors.tenantIdRequired',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        this.i18n.t('storage.errors.tenantIdRequired', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -263,8 +271,13 @@ export class StorageController {
 
     await this.storageService.deleteFile(user.tenantId, fileKey);
 
+    const i18n = I18nContext.current<I18nTranslations>();
+    const message = i18n
+      ? await i18n.t('storage.messages.deleted')
+      : 'File deleted successfully';
+
     return {
-      message: 'File deleted successfully',
+      message,
       key: fileKey,
     };
   }

@@ -5,11 +5,15 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private reflector: Reflector,
+    private readonly i18n: I18nService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     // Get required roles from decorator
@@ -30,7 +34,10 @@ export class RolesGuard implements CanActivate {
 
     if (!hasRole) {
       throw new ForbiddenException(
-        `Access denied. Required roles: ${requiredRoles.join(', ')}`,
+        this.i18n.t('common.errors.access.denied', {
+          lang: I18nContext.current()?.lang,
+          args: { roles: requiredRoles.join(', ') },
+        }),
       );
     }
 

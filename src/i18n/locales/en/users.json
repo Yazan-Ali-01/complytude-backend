@@ -1,0 +1,24 @@
+{
+  "errors": {
+    "notFound": "User not found",
+    "notFoundInTenant": "User not found in this tenant",
+    "alreadyExistsInTenant": "User already exists in this tenant",
+    "currentPasswordIncorrect": "Current password is incorrect",
+    "noFieldsToUpdate": "No fields to update",
+    "cannotModifyOwnRole": "Cannot modify your own role",
+    "cannotRemoveSelf": "Cannot remove yourself from the tenant",
+    "failedToCreate": "Failed to create user",
+    "failedToUpdate": "Failed to update user",
+    "failedToDelete": "Failed to delete user",
+    "failedToFetch": "Failed to fetch user"
+  },
+  "messages": {
+    "passwordChanged": "Password changed successfully",
+    "profileUpdated": "Profile updated successfully",
+    "userCreated": "User created successfully",
+    "userUpdated": "User updated successfully",
+    "userRemoved": "User removed from tenant successfully"
+  }
+}
+
+

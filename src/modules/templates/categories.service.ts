@@ -1,5 +1,13 @@
-import { Injectable, Logger, HttpStatus } from '@nestjs/common';
-import { BusinessException } from '../../common/exceptions/business.exception';
+import {
+  Injectable,
+  Logger,
+  HttpStatus,
+  ConflictException,
+  NotFoundException,
+  InternalServerErrorException,
+  HttpException,
+} from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { Category } from './entities/category.entity';
 import {
@@ -11,7 +19,10 @@ import {
 export class CategoriesService {
   private readonly logger = new Logger(CategoriesService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly i18n: I18nService,
+  ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     try {
@@ -22,9 +33,11 @@ export class CategoriesService {
       );
 
       if (existing.rows.length > 0) {
-        throw new BusinessException(
-          'templates.errors.categoryFailed',
-          HttpStatus.CONFLICT,
+        throw new ConflictException(
+          this.i18n.t('templates.errors.categoryCodeExists', {
+            lang: I18nContext.current()?.lang,
+            args: { code: createCategoryDto.code },
+          }),
         );
       }
 
@@ -48,13 +61,14 @@ export class CategoriesService {
       this.logger.log(`Created category: ${createCategoryDto.code}`);
       return result.rows[0];
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to create category: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.categoryFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.categoryFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -69,9 +83,10 @@ export class CategoriesService {
       return result.rows;
     } catch (error) {
       this.logger.error(`Failed to fetch categories: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.categoryFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.categoryFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -84,21 +99,23 @@ export class CategoriesService {
       );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.notFound',
-          HttpStatus.NOT_FOUND,
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.categoryNotFound', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
       return result.rows[0];
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to fetch category: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.categoryFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.categoryFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -111,21 +128,23 @@ export class CategoriesService {
       );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.notFound',
-          HttpStatus.NOT_FOUND,
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.categoryNotFound', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
       return result.rows[0];
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to fetch category: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.categoryFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.categoryFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -177,13 +196,14 @@ export class CategoriesService {
       this.logger.log(`Updated category: ${id}`);
       return result.rows[0];
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to update category: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.categoryFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.categoryFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -199,13 +219,14 @@ export class CategoriesService {
 
       this.logger.log(`Deleted category: ${id}`);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to delete category: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.categoryFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.categoryFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }

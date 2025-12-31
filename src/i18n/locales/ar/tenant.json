@@ -1,12 +1,20 @@
 {
   "errors": {
     "notFound": "العميل غير موجود",
+    "notFoundByEmail": "العميل بالبريد الإلكتروني '{email}' غير موجود",
+    "notFoundById": "العميل '{tenantId}' غير موجود",
+    "schemaNotFound": "مخطط العميل '{tenantId}' غير موجود",
     "alreadyExists": "العميل موجود بالفعل",
+    "emailAlreadyRegistered": "البريد الإلكتروني مسجل بالفعل",
     "failedToCreate": "فشل إنشاء العميل",
     "failedToFetch": "فشل جلب العميل",
     "failedToUpdate": "فشل تحديث العميل",
     "failedToDelete": "فشل حذف العميل",
-    "failedToFetchSchema": "فشل جلب مخطط العميل"
+    "failedToFetchSchema": "فشل جلب مخطط العميل",
+    "failedToInitialize": "فشل تهيئة تعدد المستأجرين",
+    "failedToRetrieveDocumentCount": "فشل استرجاع عدد المستندات",
+    "failedToCheckUploadPermission": "فشل التحقق من إذن تحميل المستندات",
+    "tenantIdRequired": "معرف المستأجر مطلوب لهذه العملية"
   },
   "messages": {
     "created": "تم إنشاء العميل بنجاح",
@@ -15,6 +23,3 @@
     "fetched": "تم جلب العميل بنجاح"
   }
 }
-
-
-

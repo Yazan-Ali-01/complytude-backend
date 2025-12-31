@@ -1,5 +1,13 @@
-import { Injectable, Logger, HttpStatus } from '@nestjs/common';
-import { BusinessException } from '../../common/exceptions/business.exception';
+import {
+  Injectable,
+  Logger,
+  HttpStatus,
+  ConflictException,
+  NotFoundException,
+  InternalServerErrorException,
+  HttpException,
+} from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { Authority } from './entities/authority.entity';
 import {
@@ -11,7 +19,10 @@ import {
 export class AuthoritiesService {
   private readonly logger = new Logger(AuthoritiesService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly i18n: I18nService,
+  ) {}
 
   async create(createAuthorityDto: CreateAuthorityDto): Promise<Authority> {
     try {
@@ -22,9 +33,11 @@ export class AuthoritiesService {
       );
 
       if (existing.rows.length > 0) {
-        throw new BusinessException(
-          'templates.errors.authorityFailed',
-          HttpStatus.CONFLICT,
+        throw new ConflictException(
+          this.i18n.t('templates.errors.authorityCodeExists', {
+            lang: I18nContext.current()?.lang,
+            args: { code: createAuthorityDto.code },
+          }),
         );
       }
 
@@ -48,13 +61,14 @@ export class AuthoritiesService {
       this.logger.log(`Created authority: ${createAuthorityDto.code}`);
       return result.rows[0];
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to create authority: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.authorityFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.authorityFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -69,9 +83,10 @@ export class AuthoritiesService {
       return result.rows;
     } catch (error) {
       this.logger.error(`Failed to fetch authorities: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.authorityFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.authorityFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -84,22 +99,24 @@ export class AuthoritiesService {
       );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.authorityNotFound',
-          HttpStatus.NOT_FOUND,
-          { id },
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.authorityNotFound', {
+            lang: I18nContext.current()?.lang,
+            args: { id },
+          }),
         );
       }
 
       return result.rows[0];
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to fetch authority: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.authorityFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.authorityFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -112,22 +129,24 @@ export class AuthoritiesService {
       );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.authorityNotFound',
-          HttpStatus.NOT_FOUND,
-          { id: code },
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.authorityNotFound', {
+            lang: I18nContext.current()?.lang,
+            args: { id: code },
+          }),
         );
       }
 
       return result.rows[0];
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to fetch authority: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.authorityFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.authorityFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -179,13 +198,14 @@ export class AuthoritiesService {
       this.logger.log(`Updated authority: ${id}`);
       return result.rows[0];
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to update authority: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.authorityFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.authorityFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -201,13 +221,14 @@ export class AuthoritiesService {
 
       this.logger.log(`Deleted authority: ${id}`);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to delete authority: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.authorityFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.authorityFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }

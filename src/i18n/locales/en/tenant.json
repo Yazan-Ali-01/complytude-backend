@@ -1,12 +1,20 @@
 {
   "errors": {
     "notFound": "Tenant not found",
+    "notFoundByEmail": "Tenant with email '{email}' not found",
+    "notFoundById": "Tenant '{tenantId}' not found",
+    "schemaNotFound": "Schema for tenant '{tenantId}' not found",
     "alreadyExists": "Tenant already exists",
+    "emailAlreadyRegistered": "Email already registered",
     "failedToCreate": "Failed to create tenant",
     "failedToFetch": "Failed to fetch tenant",
     "failedToUpdate": "Failed to update tenant",
     "failedToDelete": "Failed to delete tenant",
-    "failedToFetchSchema": "Failed to fetch tenant schema"
+    "failedToFetchSchema": "Failed to fetch tenant schema",
+    "failedToInitialize": "Failed to initialize multi-tenancy",
+    "failedToRetrieveDocumentCount": "Failed to retrieve document count",
+    "failedToCheckUploadPermission": "Failed to check document upload permission",
+    "tenantIdRequired": "Tenant ID is required for this operation"
   },
   "messages": {
     "created": "Tenant created successfully",
@@ -15,5 +23,3 @@
     "fetched": "Tenant fetched successfully"
   }
 }
-
-

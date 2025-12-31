@@ -1,5 +1,14 @@
-import { Injectable, Logger, HttpStatus } from '@nestjs/common';
-import { BusinessException } from '../../common/exceptions/business.exception';
+import {
+  Injectable,
+  Logger,
+  HttpStatus,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+  HttpException,
+} from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { Ruleset } from './entities/ruleset.entity';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
@@ -8,7 +17,10 @@ import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
 export class RulesetsService {
   private readonly logger = new Logger(RulesetsService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly i18n: I18nService,
+  ) {}
 
   async create(
     createRulesetDto: CreateRulesetDto,
@@ -22,10 +34,11 @@ export class RulesetsService {
       );
 
       if (existing.rows.length > 0) {
-        throw new BusinessException(
-          'templates.errors.rulesetKeyExists',
-          HttpStatus.CONFLICT,
-          { key: createRulesetDto.key },
+        throw new ConflictException(
+          this.i18n.t('templates.errors.rulesetKeyExists', {
+            lang: I18nContext.current()?.lang,
+            args: { key: createRulesetDto.key },
+          }),
         );
       }
 
@@ -37,10 +50,11 @@ export class RulesetsService {
         );
 
         if (authorityExists.rows.length === 0) {
-          throw new BusinessException(
-            'templates.errors.authorityNotFound',
-            HttpStatus.BAD_REQUEST,
-            { id: createRulesetDto.authority_id },
+          throw new BadRequestException(
+            this.i18n.t('templates.errors.authorityNotFound', {
+              lang: I18nContext.current()?.lang,
+              args: { id: createRulesetDto.authority_id },
+            }),
           );
         }
       }
@@ -68,13 +82,17 @@ export class RulesetsService {
       this.logger.log(`Created ruleset: ${createRulesetDto.key}`);
       return this.parseRuleset(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to create ruleset: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.rulesetFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.rulesetFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -100,9 +118,10 @@ export class RulesetsService {
       return result.rows.map((r) => this.parseRuleset(r));
     } catch (error) {
       this.logger.error(`Failed to fetch rulesets: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.rulesetFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.rulesetFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -115,22 +134,24 @@ export class RulesetsService {
       );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.rulesetNotFound',
-          HttpStatus.NOT_FOUND,
-          { id },
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.rulesetNotFound', {
+            lang: I18nContext.current()?.lang,
+            args: { id },
+          }),
         );
       }
 
       return this.parseRuleset(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to fetch ruleset: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.rulesetFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.rulesetFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -143,22 +164,24 @@ export class RulesetsService {
       );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.rulesetNotFound',
-          HttpStatus.NOT_FOUND,
-          { id: key },
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.rulesetNotFound', {
+            lang: I18nContext.current()?.lang,
+            args: { id: key },
+          }),
         );
       }
 
       return this.parseRuleset(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to fetch ruleset: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.rulesetFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.rulesetFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -178,9 +201,10 @@ export class RulesetsService {
       return result.rows.map((r) => this.parseRuleset(r));
     } catch (error) {
       this.logger.error(`Failed to fetch rulesets by keys: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.rulesetFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.rulesetFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -211,10 +235,11 @@ export class RulesetsService {
           [updateRulesetDto.authority_id],
         );
         if (authorityExists.rows.length === 0) {
-          throw new BusinessException(
-            'templates.errors.authorityNotFound',
-            HttpStatus.BAD_REQUEST,
-            { id: updateRulesetDto.authority_id },
+          throw new BadRequestException(
+            this.i18n.t('templates.errors.authorityNotFound', {
+              lang: I18nContext.current()?.lang,
+              args: { id: updateRulesetDto.authority_id },
+            }),
           );
         }
         updateFields.push(`authority_id = $${paramIndex++}`);
@@ -256,13 +281,14 @@ export class RulesetsService {
       this.logger.log(`Updated ruleset: ${key}`);
       return this.parseRuleset(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to update ruleset: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.rulesetFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.rulesetFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -278,13 +304,14 @@ export class RulesetsService {
 
       this.logger.log(`Deleted ruleset: ${key}`);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to delete ruleset: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.rulesetFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.rulesetFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }

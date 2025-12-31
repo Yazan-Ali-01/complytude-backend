@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 
 /**
  * Guard to check if user is a system administrator
@@ -21,19 +22,27 @@ import {
  */
 @Injectable()
 export class SystemAdminGuard implements CanActivate {
+  constructor(private readonly i18n: I18nService) {}
+
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
     // Ensure user is authenticated
     if (!user) {
-      throw new UnauthorizedException('Authentication required. Please login.');
+      throw new UnauthorizedException(
+        this.i18n.t('auth.errors.unauthorized', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
 
     // Check if user is system admin
     if (!user.isSystemAdmin) {
       throw new ForbiddenException(
-        'Access denied. System administrator privileges required.',
+        this.i18n.t('common.errors.access.systemAdminRequired', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 

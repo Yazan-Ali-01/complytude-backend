@@ -1,5 +1,13 @@
-import { Injectable, Logger, HttpStatus } from '@nestjs/common';
-import { BusinessException } from 'src/common/exceptions/business.exception';
+import {
+  Injectable,
+  Logger,
+  HttpStatus,
+  ConflictException,
+  NotFoundException,
+  InternalServerErrorException,
+  HttpException,
+} from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { PoolClient } from 'pg';
 import {
@@ -11,7 +19,10 @@ import {
 export class TemplateVersionsService {
   private readonly logger = new Logger(TemplateVersionsService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly i18n: I18nService,
+  ) {}
 
   async createVersion(
     templateId: string,
@@ -36,9 +47,11 @@ export class TemplateVersionsService {
           );
 
       if (existing.rows.length > 0) {
-        throw new BusinessException(
-          'templates.errors.failedToCreate',
-          HttpStatus.CONFLICT,
+        throw new ConflictException(
+          this.i18n.t('templates.errors.versionAlreadyExists', {
+            lang: I18nContext.current()?.lang,
+            args: { version, templateId },
+          }),
         );
       }
 
@@ -95,13 +108,14 @@ export class TemplateVersionsService {
       this.logger.log(`Created version ${version} for template ${templateId}`);
       return this.parseVersion(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to create template version: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.failedToCreate',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToCreate', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -116,9 +130,10 @@ export class TemplateVersionsService {
       return result.rows.map((v) => this.parseVersion(v));
     } catch (error) {
       this.logger.error(`Failed to fetch version history: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.versionHistoryFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.versionHistoryFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -134,21 +149,23 @@ export class TemplateVersionsService {
       );
 
       if (result.rows.length === 0) {
-        throw new BusinessException(
-          'templates.errors.notFound',
-          HttpStatus.NOT_FOUND,
+        throw new NotFoundException(
+          this.i18n.t('templates.errors.notFound', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
       return this.parseVersion(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(`Failed to fetch template version: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.currentVersionFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.currentVersionFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -175,9 +192,10 @@ export class TemplateVersionsService {
       return this.parseVersion(result.rows[0]);
     } catch (error) {
       this.logger.error(`Failed to fetch current version: ${error.message}`);
-      throw new BusinessException(
-        'templates.errors.currentVersionFailed',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.currentVersionFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }
@@ -213,15 +231,16 @@ export class TemplateVersionsService {
       );
       return this.parseVersion(result.rows[0]);
     } catch (error) {
-      if (error instanceof BusinessException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error(
         `Failed to rollback template version: ${error.message}`,
       );
-      throw new BusinessException(
-        'templates.errors.failedToUpdate',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.errors.failedToUpdate', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }

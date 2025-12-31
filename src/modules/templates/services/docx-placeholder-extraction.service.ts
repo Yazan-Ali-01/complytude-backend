@@ -1,5 +1,9 @@
-import { Injectable, Logger, HttpStatus } from '@nestjs/common';
-import { BusinessException } from '../../../common/exceptions/business.exception';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import PizZip from 'pizzip';
 import { TemplateFieldDto } from '../dto/template-field.dto';
 import Docxtemplater from 'docxtemplater';
@@ -32,6 +36,8 @@ export interface PlaceholderValidationResult {
 export class DocxPlaceholderExtractionService {
   private readonly logger = new Logger(DocxPlaceholderExtractionService.name);
 
+  constructor(private readonly i18n: I18nService) {}
+
   /**
    * Extracts unique placeholder variables from a DOCX file buffer.
    *
@@ -59,9 +65,10 @@ export class DocxPlaceholderExtractionService {
       this.logger.log('Starting placeholder extraction from DOCX file');
 
       if (!buffer || buffer.length === 0) {
-        throw new BusinessException(
-          'templates.errors.invalidFileBuffer',
-          HttpStatus.BAD_REQUEST,
+        throw new BadRequestException(
+          this.i18n.t('templates.errors.invalidFileBuffer', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
@@ -70,9 +77,10 @@ export class DocxPlaceholderExtractionService {
         zip = new PizZip(buffer);
       } catch (error) {
         this.logger.error('Failed to unzip DOCX file', error);
-        throw new BusinessException(
-          'templates.errors.invalidDocxFormat',
-          HttpStatus.BAD_REQUEST,
+        throw new BadRequestException(
+          this.i18n.t('templates.errors.invalidDocxFormat', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
 
@@ -92,8 +100,8 @@ export class DocxPlaceholderExtractionService {
 
       return Array.from(placeholders);
     } catch (error) {
-      // Re-throw BusinessException as-is
-      if (error instanceof BusinessException) {
+      // Re-throw BadRequestException as-is
+      if (error instanceof BadRequestException) {
         throw error;
       }
 
@@ -102,9 +110,10 @@ export class DocxPlaceholderExtractionService {
         'Unexpected error during placeholder extraction',
         error,
       );
-      throw new BusinessException(
-        'templates.errors.placeholderExtractionFailed',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        this.i18n.t('templates.errors.placeholderExtractionFailed', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
   }

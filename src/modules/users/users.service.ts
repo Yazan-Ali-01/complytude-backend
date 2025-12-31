@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   BadRequestException,
   ForbiddenException,
-  Logger,
 } from '@nestjs/common';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { User } from './entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -21,7 +22,10 @@ export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private readonly BCRYPT_ROUNDS = 12;
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly i18n: I18nService,
+  ) {}
 
   /**
    * Find user by ID
@@ -33,7 +37,7 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(this.i18n.t('users.errors.notFound'));
     }
 
     return new User(result.rows[0]);
@@ -49,7 +53,7 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(this.i18n.t('users.errors.notFound'));
     }
 
     return new User(result.rows[0]);
@@ -93,7 +97,9 @@ export class UsersService {
     }
 
     if (updateFields.length === 0) {
-      throw new BadRequestException('No fields to update');
+      throw new BadRequestException(
+        this.i18n.t('users.errors.noFieldsToUpdate'),
+      );
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -127,7 +133,7 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(this.i18n.t('users.errors.notFound'));
     }
 
     const user = result.rows[0];
@@ -139,7 +145,9 @@ export class UsersService {
     );
 
     if (!isPasswordValid) {
-      throw new BadRequestException('Current password is incorrect');
+      throw new BadRequestException(
+        this.i18n.t('users.errors.currentPasswordIncorrect'),
+      );
     }
 
     // Hash new password
@@ -218,7 +226,9 @@ export class UsersService {
       );
 
       if (existingAssociation.rows.length > 0) {
-        throw new ConflictException('User already exists in this tenant');
+        throw new ConflictException(
+          this.i18n.t('users.errors.alreadyExistsInTenant'),
+        );
       }
     } else {
       // Create new user
@@ -308,12 +318,20 @@ export class UsersService {
     );
 
     if (existingAssociation.rows.length === 0) {
-      throw new NotFoundException('User not found in this tenant');
+      throw new NotFoundException(
+        this.i18n.t('users.errors.notFoundInTenant', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
 
     // Prevent users from modifying their own admin status
     if (targetUserId === updaterId && updateUserDto.role) {
-      throw new ForbiddenException('Cannot modify your own role');
+      throw new ForbiddenException(
+        this.i18n.t('users.errors.cannotModifyOwnRole', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
 
     const updateFields: string[] = [];
@@ -331,7 +349,9 @@ export class UsersService {
     }
 
     if (updateFields.length === 0) {
-      throw new BadRequestException('No fields to update');
+      throw new BadRequestException(
+        this.i18n.t('users.errors.noFieldsToUpdate'),
+      );
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -364,7 +384,11 @@ export class UsersService {
   ): Promise<void> {
     // Prevent users from removing themselves
     if (targetUserId === removerId) {
-      throw new ForbiddenException('Cannot remove yourself from the tenant');
+      throw new ForbiddenException(
+        this.i18n.t('users.errors.cannotRemoveSelf', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
 
     // Check if target user exists in tenant
@@ -374,7 +398,11 @@ export class UsersService {
     );
 
     if (existingAssociation.rows.length === 0) {
-      throw new NotFoundException('User not found in this tenant');
+      throw new NotFoundException(
+        this.i18n.t('users.errors.notFoundInTenant', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
 
     // Delete the association
@@ -411,7 +439,11 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found in tenant');
+      throw new NotFoundException(
+        this.i18n.t('users.errors.notFoundInTenant', {
+          lang: I18nContext.current()?.lang,
+        }),
+      );
     }
 
     const user = result.rows[0];

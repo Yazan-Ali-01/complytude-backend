@@ -3,8 +3,11 @@ import {
   Injectable,
   HttpStatus,
   Logger,
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
-import { BusinessException } from '../../common/exceptions/business.exception';
+import { I18nService, I18nContext } from 'nestjs-i18n';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../../database/database.service';
@@ -48,6 +51,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tenantService: TenantService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -70,9 +74,10 @@ export class AuthService {
     );
 
     if (existingUser.rows.length > 0) {
-      throw new BusinessException(
-        'auth.errors.emailAlreadyExists',
-        HttpStatus.CONFLICT,
+      throw new ConflictException(
+        this.i18n.t('auth.errors.emailAlreadyExists', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -132,13 +137,25 @@ export class AuthService {
         `Verification token for ${signupDto.email}: ${verificationToken}`,
       );
 
-      return {
-        message:
-          'Signup successful. Please check your email to verify your account.',
+      const response: {
+        message: string;
+        userId: string;
+        tenant_id: string;
+        verificationToken?: string;
+      } = {
+        message: this.i18n.t('auth.messages.signupSuccess', {
+          lang: I18nContext.current()?.lang,
+        }),
         userId,
         tenant_id: tenant.tenant_id,
-        verificationToken, // Expose only for development/testing; remove in prod
       };
+
+      // Only expose verificationToken in development
+      if (this.configService.get('app.environment') === 'development') {
+        response.verificationToken = verificationToken;
+      }
+
+      return response;
     });
   }
 
@@ -159,9 +176,10 @@ export class AuthService {
     );
 
     if (tenantsResult.rows.length === 0) {
-      throw new BusinessException(
-        'auth.errors.noActiveTenants',
-        HttpStatus.UNAUTHORIZED,
+      throw new UnauthorizedException(
+        this.i18n.t('auth.errors.noActiveTenants', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -172,9 +190,10 @@ export class AuthService {
         (t) => t.tenant_id === loginDto.tenantId,
       );
       if (!found) {
-        throw new BusinessException(
-          'auth.errors.tenantAccessDenied',
-          HttpStatus.UNAUTHORIZED,
+        throw new UnauthorizedException(
+          this.i18n.t('auth.errors.tenantAccessDenied', {
+            lang: I18nContext.current()?.lang,
+          }),
         );
       }
       selectedTenant = found;
@@ -226,9 +245,10 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new BusinessException(
-        'auth.errors.invalidCredentials',
-        HttpStatus.UNAUTHORIZED,
+      throw new UnauthorizedException(
+        this.i18n.t('auth.errors.invalidCredentials', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -237,9 +257,10 @@ export class AuthService {
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      throw new BusinessException(
-        'auth.errors.invalidCredentials',
-        HttpStatus.UNAUTHORIZED,
+      throw new UnauthorizedException(
+        this.i18n.t('auth.errors.invalidCredentials', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -346,9 +367,10 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new BusinessException(
-        'auth.errors.tokenExpired',
-        HttpStatus.UNAUTHORIZED,
+      throw new UnauthorizedException(
+        this.i18n.t('auth.errors.tokenExpired', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -363,9 +385,10 @@ export class AuthService {
     }
 
     if (!validToken) {
-      throw new BusinessException(
-        'auth.errors.tokenInvalid',
-        HttpStatus.UNAUTHORIZED,
+      throw new UnauthorizedException(
+        this.i18n.t('auth.errors.tokenInvalid', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -385,9 +408,10 @@ export class AuthService {
     );
 
     if (userResult.rows.length === 0) {
-      throw new BusinessException(
-        'auth.errors.noActiveTenants',
-        HttpStatus.UNAUTHORIZED,
+      throw new UnauthorizedException(
+        this.i18n.t('auth.errors.noActiveTenants', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -429,13 +453,19 @@ export class AuthService {
           [token.id],
         );
         this.logger.log(`User ${userId} logged out`);
-        return { message: 'Logged out successfully' };
+
+        return {
+          message: this.i18n.t('auth.messages.logoutSuccess', {
+            lang: I18nContext.current()?.lang,
+          }),
+        };
       }
     }
 
-    throw new BusinessException(
-      'auth.errors.tokenInvalid',
-      HttpStatus.BAD_REQUEST,
+    throw new BadRequestException(
+      this.i18n.t('auth.errors.tokenInvalid', {
+        lang: I18nContext.current()?.lang,
+      }),
     );
   }
 
@@ -450,9 +480,10 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new BusinessException(
-        'auth.errors.verificationTokenInvalid',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        this.i18n.t('auth.errors.verificationTokenInvalid', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -474,7 +505,11 @@ export class AuthService {
 
     this.logger.log(`Email verified for user ${verification.user_id}`);
 
-    return { message: 'Email verified successfully' };
+    return {
+      message: this.i18n.t('auth.messages.emailVerified', {
+        lang: I18nContext.current()?.lang,
+      }),
+    };
   }
 
   /**
@@ -486,10 +521,17 @@ export class AuthService {
       [forgotPasswordDto.email],
     );
 
+    const passwordResetMessage = this.i18n.t(
+      'auth.messages.passwordResetSent',
+      {
+        lang: I18nContext.current()?.lang,
+      },
+    );
+
     if (result.rows.length === 0) {
       // Don't reveal if email exists
       return {
-        message: 'If the email exists, a password reset link has been sent',
+        message: passwordResetMessage,
       };
     }
 
@@ -509,10 +551,19 @@ export class AuthService {
       `Password reset token for ${forgotPasswordDto.email}: ${resetToken}`,
     );
 
-    return {
-      message: 'If the email exists, a password reset link has been sent',
-      resetToken, // Remove in production
+    const response: {
+      message: string;
+      resetToken?: string;
+    } = {
+      message: passwordResetMessage,
     };
+
+    // Only expose resetToken in development
+    if (this.configService.get('app.environment') === 'development') {
+      response.resetToken = resetToken;
+    }
+
+    return response;
   }
 
   /**
@@ -526,9 +577,10 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new BusinessException(
-        'auth.errors.resetTokenInvalid',
-        HttpStatus.BAD_REQUEST,
+      throw new BadRequestException(
+        this.i18n.t('auth.errors.resetTokenInvalid', {
+          lang: I18nContext.current()?.lang,
+        }),
       );
     }
 
@@ -562,6 +614,10 @@ export class AuthService {
 
     this.logger.log(`Password reset for user ${reset.user_id}`);
 
-    return { message: 'Password reset successfully' };
+    return {
+      message: this.i18n.t('auth.messages.passwordResetSuccess', {
+        lang: I18nContext.current()?.lang,
+      }),
+    };
   }
 }

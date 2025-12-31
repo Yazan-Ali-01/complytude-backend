@@ -13,7 +13,7 @@ import { DEFAULT_LOCALE } from './i18n.constants';
       fallbackLanguage: DEFAULT_LOCALE,
       loader: I18nJsonLoader,
       loaderOptions: {
-        path: join(__dirname, '../i18n/locales'),
+        path: join(__dirname, 'locales'),
       },
       resolvers: [AcceptLanguageResolver],
     }),

@@ -80,7 +80,7 @@ export class TemplateValidationService {
           {
             field: 'system',
             rule: 'system',
-            message: 'Validation failed due to internal error',
+            message: 'common.errors.validation.internalError',
             received: 'error',
             expected: 'valid',
           },

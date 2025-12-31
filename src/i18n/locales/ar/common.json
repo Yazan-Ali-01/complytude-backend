@@ -3,7 +3,8 @@
     "validation": {
       "failed": "فشل التحقق",
       "required": "هذا الحقل مطلوب",
-      "invalid": "قيمة غير صالحة"
+      "invalid": "قيمة غير صالحة",
+      "internalError": "فشل التحقق بسبب خطأ داخلي"
     },
     "generic": {
       "internalServerError": "حدث خطأ داخلي في الخادم",
@@ -12,6 +13,11 @@
       "unauthorized": "وصول غير مصرح به",
       "forbidden": "الوصول محظور",
       "conflict": "حدث تعارض في المورد"
+    },
+    "access": {
+      "denied": "تم رفض الوصول. الأدوار المطلوبة: {roles}",
+      "forbidden": "الوصول محظور",
+      "systemAdminRequired": "تم رفض الوصول. مطلوب صلاحيات مسؤول النظام."
     }
   },
   "messages": {
@@ -22,5 +28,3 @@
     "fetched": "تم جلب المورد بنجاح"
   }
 }
-
-
