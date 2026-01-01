@@ -174,8 +174,8 @@ export class StorageController {
     @Query('expiresIn') expiresIn?: number,
   ): Promise<SignedUrlResponseDto> {
     const url = await this.storageService.generateSignedUrl(
-      fileKey,
       user.tenantId,
+      fileKey,
       expiresIn,
     );
 
@@ -210,7 +210,7 @@ export class StorageController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<StreamableFile> {
     const { stream, filename, contentType } =
-      await this.storageService.getFileForDownload(fileKey, user.tenantId);
+      await this.storageService.getFileForDownload(user.tenantId, fileKey);
 
     const encodedFilename = encodeURIComponent(filename);
     const disposition = `inline; filename="${filename}"; filename*=UTF-8''${encodedFilename}`;
@@ -249,7 +249,7 @@ export class StorageController {
       `User ${user.userId} deleting file: ${fileKey} from tenant ${user.tenantId}`,
     );
 
-    await this.storageService.deleteFile(fileKey, user.tenantId);
+    await this.storageService.deleteFile(user.tenantId, fileKey);
 
     return {
       message: 'File deleted successfully',
