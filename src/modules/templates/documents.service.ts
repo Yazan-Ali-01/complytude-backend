@@ -23,7 +23,7 @@ export class DocumentsService {
     tenantId: string,
     schemaName: string,
     filters: ListDocumentsDto,
-    user: AuthenticatedUser & { isSystemAdmin?: boolean },
+    user: AuthenticatedUser,
   ): Promise<ListDocumentsResponseDto> {
     const isAdmin = user?.isSystemAdmin || user?.role === 'admin';
 
@@ -92,7 +92,7 @@ export class DocumentsService {
     tenantId: string,
     schemaName: string,
     documentId: string,
-    user: AuthenticatedUser & { isSystemAdmin?: boolean },
+    user: AuthenticatedUser,
   ): Promise<DocumentResponseDto> {
     const isAdmin = user?.isSystemAdmin || user?.role === 'admin';
     const query = `SELECT * FROM ${schemaName}.documents WHERE id = $1 AND deleted_at IS NULL`;
@@ -167,7 +167,7 @@ export class DocumentsService {
       content: includeContent ? doc.content : undefined,
       templateKey: doc.template_key,
       metadata: doc.metadata || {},
-      generationMetadata: doc.generation_metadata || {},
+      generationMetadata: doc.generation_metadata,
       createdBy: doc.created_by,
       createdAt: doc.created_at,
       updatedAt: doc.updated_at,

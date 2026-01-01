@@ -5,6 +5,7 @@ export interface AuthenticatedUser {
   email: string;
   tenantId: string;
   role: string;
+  isSystemAdmin?: boolean;
 }
 
 /**

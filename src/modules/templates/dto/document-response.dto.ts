@@ -19,13 +19,13 @@ class DocumentGenerationMetadataDto {
     example: { companyName: 'Acme Corp', contractDate: '2024-01-15' },
     description: 'Variables used for document generation',
   })
-  variables?: Record<string, any>;
+  variables: Record<string, any>;
 
   @ApiPropertyOptional({
     example: '2024-01-15T10:30:00.000Z',
     description: 'Generation timestamp',
   })
-  generatedAt?: string;
+  generatedAt: string;
 }
 
 export class DocumentResponseDto {
@@ -63,7 +63,7 @@ export class DocumentResponseDto {
   metadata: DocumentMetadataDto;
 
   @ApiProperty({ type: DocumentGenerationMetadataDto })
-  generationMetadata: DocumentGenerationMetadataDto;
+  generationMetadata?: DocumentGenerationMetadataDto;
 
   @ApiPropertyOptional({
     example: 'user_123e4567-e89b-12d3-a456-426614174000',

@@ -26,14 +26,14 @@ export class ListDocumentsDto {
   @ApiPropertyOptional({
     example: 50,
     description: 'Items per page',
-    minimum: 1,
+    minimum: 5,
     maximum: 100,
     default: 10,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
+  @Min(5)
   @Max(100)
   limit: number = 10;
 

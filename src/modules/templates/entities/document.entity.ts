@@ -5,8 +5,8 @@ export interface DocumentMetadata {
 }
 
 export interface DocumentGenerationMetadata {
-  variables?: Record<string, any>;
-  generatedAt?: string;
+  variables: Record<string, any>;
+  generatedAt: string;
 }
 
 export interface Document {
@@ -16,7 +16,7 @@ export interface Document {
   content?: string;
   template_key?: string;
   metadata: DocumentMetadata;
-  generation_metadata: DocumentGenerationMetadata;
+  generation_metadata?: DocumentGenerationMetadata;
   created_by?: string;
   created_at: Date;
   updated_at: Date;
