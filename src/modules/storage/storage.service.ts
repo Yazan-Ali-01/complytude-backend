@@ -3,12 +3,14 @@ import {
   Logger,
   InternalServerErrorException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  GetObjectCommandOutput,
   DeleteObjectCommand,
   ListObjectsV2Command,
   HeadBucketCommand,
@@ -41,22 +43,45 @@ export interface FileListItem {
   url: string;
 }
 
+export interface FileWithMetadata {
+  stream: Readable;
+  metadata: FileMetadata | null;
+}
+
+export interface DownloadableFile {
+  stream: Readable;
+  filename: string;
+  contentType: string;
+}
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly s3Client: S3Client;
-  private readonly bucketPrefix: string;
   private readonly signedUrlExpiresIn: number;
-
   private readonly templatesBucket: string;
+  private readonly tenantFilesBucket: string;
+
+  /**
+   * AWS S3 metadata key constants
+   * NOTE: S3 automatically converts all custom metadata keys to lowercase.
+   * These lowercase keys must be used when retrieving metadata from S3.
+   */
+  private static readonly S3_METADATA_KEYS = {
+    USER_ID: 'userid',
+    ORIGINAL_NAME: 'originalname',
+    TENANT_ID: 'tenantid',
+    UPLOADED_AT: 'uploadedat',
+  } as const;
 
   constructor(private readonly configService: ConfigService) {
     const s3Config = this.configService.get('storage.s3');
-    this.bucketPrefix =
-      this.configService.get('storage.bucket.prefix') || 'complytude';
     this.templatesBucket =
       this.configService.get('storage.templates.bucketName') ||
       'complytude-templates';
+    this.tenantFilesBucket =
+      this.configService.get('storage.bucket.filesBucketName') ||
+      'complytude-files';
     this.signedUrlExpiresIn =
       this.configService.get('storage.signedUrl.expiresIn') || 900;
 
@@ -75,15 +100,78 @@ export class StorageService {
     );
   }
 
-  /**
-   * Get bucket name for a tenant
-   */
-  private getTenantBucket(tenantId: string): string {
-    // Strip 'tenant_' prefix if present to avoid duplication in bucket name
+  // Get tenant Prefix
+  private getTenantPrefix(tenantId: string): string {
     const cleanId = tenantId.startsWith('tenant_')
       ? tenantId.substring(7)
       : tenantId;
-    return `${this.bucketPrefix}-tenant-${cleanId}`;
+    return `tenants/${cleanId}`;
+  }
+
+  /**
+   * Validate tenant ownership of a file
+   * This is a critical security control and must NEVER be bypassed
+   *
+   * @throws BadRequestException if tenantId is missing or empty
+   * @throws NotFoundException if file is outside tenant's scope
+   */
+  private validateTenantOwnership(tenantId: string, fileKey: string): void {
+    // Tenant ID is mandatory for all tenant-scoped operations
+    if (!tenantId || tenantId.trim() === '') {
+      this.logger.error(
+        `Tenant validation failed: tenantId is required but was ${tenantId === null ? 'null' : tenantId === undefined ? 'undefined' : 'empty'}`,
+      );
+      throw new BadRequestException(
+        'Tenant ID is required for file operations',
+      );
+    }
+
+    const expectedPrefix = this.getTenantPrefix(tenantId);
+
+    if (!fileKey.startsWith(expectedPrefix + '/')) {
+      this.logger.warn(
+        `Tenant ${tenantId} attempted to access file outside their scope: ${fileKey}`,
+      );
+      throw new NotFoundException('File not found');
+    }
+  }
+
+  /**
+   * Check if an error represents a "not found" condition
+   * Handles both file not found and bucket not found errors
+   */
+  private isNotFoundError(error: any): boolean {
+    return (
+      error.name === 'NoSuchKey' ||
+      error.name === 'NotFound' ||
+      error.name === 'NoSuchBucket' ||
+      error.Code === 'NoSuchBucket' ||
+      error.$metadata?.httpStatusCode === 404 ||
+      error.message?.includes('bucket') ||
+      error.message?.includes('does not exist')
+    );
+  }
+
+  /**
+   * Map S3 GetObjectCommand response metadata to FileMetadata
+   * AWS S3 automatically lowercases all custom metadata keys
+   */
+  private mapS3MetadataToFileMetadata(
+    response: GetObjectCommandOutput,
+  ): FileMetadata | null {
+    if (!response.Metadata) {
+      return null;
+    }
+
+    const { S3_METADATA_KEYS } = StorageService;
+
+    return {
+      userId: response.Metadata[S3_METADATA_KEYS.USER_ID] || '',
+      originalName: response.Metadata[S3_METADATA_KEYS.ORIGINAL_NAME] || '',
+      tenantId: response.Metadata[S3_METADATA_KEYS.TENANT_ID] || '',
+      uploadedAt: response.Metadata[S3_METADATA_KEYS.UPLOADED_AT] || '',
+      contentType: response.ContentType || '',
+    };
   }
 
   /**
@@ -106,40 +194,6 @@ export class StorageService {
   }
 
   /**
-   * Initialize bucket for a tenant if it doesn't exist
-   */
-  async initializeTenantBucket(tenantId: string): Promise<void> {
-    const bucket = this.getTenantBucket(tenantId);
-
-    try {
-      // Check if bucket exists
-      await this.s3Client.send(new HeadBucketCommand({ Bucket: bucket }));
-      this.logger.log(`Bucket ${bucket} already exists`);
-    } catch (error) {
-      // Bucket doesn't exist, create it
-      if (
-        error.name === 'NotFound' ||
-        error.$metadata?.httpStatusCode === 404
-      ) {
-        try {
-          await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
-          this.logger.log(`Created bucket ${bucket} for tenant ${tenantId}`);
-        } catch (createError) {
-          this.logger.error(
-            `Failed to create bucket ${bucket}: ${createError.message}`,
-          );
-          throw new InternalServerErrorException(
-            'Failed to initialize storage for tenant',
-          );
-        }
-      } else {
-        this.logger.error(`Error checking bucket ${bucket}: ${error.message}`);
-        throw new InternalServerErrorException('Failed to access storage');
-      }
-    }
-  }
-
-  /**
    * Upload a file to tenant's bucket
    */
   async uploadFile(
@@ -149,13 +203,13 @@ export class StorageService {
     contentType: string,
     userId: string,
   ): Promise<UploadResult> {
-    await this.initializeTenantBucket(tenantId);
+    await this.initializeTenantFilesBucket();
 
-    const bucket = this.getTenantBucket(tenantId);
+    const bucket = this.tenantFilesBucket;
+    const tenantPrefix = this.getTenantPrefix(tenantId);
     const normalizedName = this.normalizeFileName(originalName);
     const timestamp = Date.now();
-    const key = `${timestamp}-${normalizedName}`;
-
+    const key = `${tenantPrefix}/${timestamp}-${normalizedName}`;
     const metadata: FileMetadata = {
       userId,
       originalName,
@@ -171,6 +225,8 @@ export class StorageService {
           Key: key,
           Body: file,
           ContentType: contentType,
+          // NOTE: AWS S3 automatically converts these keys to lowercase
+          // See S3_METADATA_KEYS constant for lowercase versions used in retrieval
           Metadata: {
             userId: metadata.userId,
             originalName: metadata.originalName,
@@ -201,10 +257,11 @@ export class StorageService {
   }
 
   /**
-   * Get file stream from tenant's bucket
+   * Get file stream and metadata from tenant's bucket
+   * Returns both in a single S3 request (no race condition)
    */
-  async getFile(tenantId: string, fileKey: string): Promise<Readable> {
-    const bucket = this.getTenantBucket(tenantId);
+  async getFile(fileKey: string): Promise<FileWithMetadata> {
+    const bucket = this.tenantFilesBucket;
 
     try {
       const response = await this.s3Client.send(
@@ -218,24 +275,18 @@ export class StorageService {
         throw new NotFoundException('File not found');
       }
 
-      return response.Body as Readable;
-    } catch (error) {
-      // Handle file not found
-      if (
-        error.name === 'NoSuchKey' ||
-        error.name === 'NotFound' ||
-        error.$metadata?.httpStatusCode === 404
-      ) {
-        throw new NotFoundException('File not found');
-      }
+      this.logger.debug(
+        `Raw S3 metadata for ${fileKey}: ${JSON.stringify(response.Metadata)}`,
+      );
 
-      // Handle bucket not found - occurs when accessing another tenant's files
-      if (
-        error.name === 'NoSuchBucket' ||
-        error.Code === 'NoSuchBucket' ||
-        error.message?.includes('bucket') ||
-        error.message?.includes('does not exist')
-      ) {
+      const metadata = this.mapS3MetadataToFileMetadata(response);
+
+      return {
+        stream: response.Body as Readable,
+        metadata,
+      };
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
         throw new NotFoundException('File not found');
       }
 
@@ -245,57 +296,58 @@ export class StorageService {
   }
 
   /**
-   * Get file metadata
+   * Get file ready for download with extracted filename and content type
+   * Handles filename extraction from metadata or fileKey
+   * Validates tenant ownership before allowing download
    */
-  async getFileMetadata(
+  async getFileForDownload(
     tenantId: string,
     fileKey: string,
-  ): Promise<FileMetadata | null> {
-    const bucket = this.getTenantBucket(tenantId);
+  ): Promise<DownloadableFile> {
+    // SECURITY: Always validate tenant ownership - no exceptions
+    this.validateTenantOwnership(tenantId, fileKey);
 
-    try {
-      const response = await this.s3Client.send(
-        new HeadObjectCommand({
-          Bucket: bucket,
-          Key: fileKey,
-        }),
+    const { stream, metadata } = await this.getFile(fileKey);
+
+    this.logger.debug(`getFileForDownload - fileKey: ${fileKey}`);
+    this.logger.debug(
+      `getFileForDownload - metadata: ${JSON.stringify(metadata)}`,
+    );
+
+    // Extract filename from metadata or fallback to fileKey
+    // FileKey format: tenants/{tenantId}/{timestamp}-{filename}
+    let filename = metadata?.originalName;
+
+    // If no metadata or empty originalName, extract filename from the fileKey
+    if (!filename) {
+      this.logger.debug(
+        `No originalName in metadata, extracting from fileKey: ${fileKey}`,
       );
-
-      if (!response.Metadata) {
-        return null;
-      }
-
-      return {
-        userId: response.Metadata.userid || '',
-        originalName: response.Metadata.originalname || '',
-        tenantId: response.Metadata.tenantid || '',
-        uploadedAt: response.Metadata.uploadedat || '',
-        contentType: response.ContentType || '',
-      };
-    } catch (error) {
-      // Handle file not found or bucket not found
-      if (
-        error.name === 'NotFound' ||
-        error.name === 'NoSuchKey' ||
-        error.$metadata?.httpStatusCode === 404 ||
-        error.name === 'NoSuchBucket' ||
-        error.Code === 'NoSuchBucket' ||
-        error.message?.includes('bucket') ||
-        error.message?.includes('does not exist')
-      ) {
-        return null;
-      }
-
-      this.logger.error(`Failed to get file metadata: ${error.message}`);
-      return null;
+      const parts = fileKey.split('/');
+      const lastPart = parts[parts.length - 1];
+      const timestampMatch = lastPart.match(/^\d+-(.+)$/);
+      filename = timestampMatch ? timestampMatch[1] : lastPart;
+      this.logger.debug(`Extracted filename: ${filename}`);
     }
+
+    const contentType = metadata?.contentType || 'application/octet-stream';
+
+    return {
+      stream,
+      filename,
+      contentType,
+    };
   }
 
   /**
    * Delete a file from tenant's bucket
+   * Validates tenant ownership before deletion
    */
   async deleteFile(tenantId: string, fileKey: string): Promise<void> {
-    const bucket = this.getTenantBucket(tenantId);
+    // SECURITY: Always validate tenant ownership - no exceptions
+    this.validateTenantOwnership(tenantId, fileKey);
+
+    const bucket = this.tenantFilesBucket;
 
     try {
       // First check if the file exists to provide better error messages
@@ -342,13 +394,17 @@ export class StorageService {
 
   /**
    * Generate a signed URL for downloading a file
+   * Validates tenant ownership before generating URL
    */
   async generateSignedUrl(
     tenantId: string,
     fileKey: string,
     expiresIn?: number,
   ): Promise<string> {
-    const bucket = this.getTenantBucket(tenantId);
+    // SECURITY: Always validate tenant ownership - no exceptions
+    this.validateTenantOwnership(tenantId, fileKey);
+
+    const bucket = this.tenantFilesBucket;
     const expires = expiresIn || this.signedUrlExpiresIn;
 
     try {
@@ -372,13 +428,19 @@ export class StorageService {
    * List files in tenant's bucket
    */
   async listFiles(tenantId: string, prefix?: string): Promise<FileListItem[]> {
-    const bucket = this.getTenantBucket(tenantId);
+    const bucket = this.tenantFilesBucket;
+    const tenantPrefix = this.getTenantPrefix(tenantId);
+    // Sanitize prefix to remove leading slashes to avoid double slashes in path
+    const sanitizedPrefix = prefix ? prefix.replace(/^\/+/, '') : '';
+    const fullPrefix = sanitizedPrefix
+      ? `${tenantPrefix}/${sanitizedPrefix}`
+      : tenantPrefix;
 
     try {
       const response = await this.s3Client.send(
         new ListObjectsV2Command({
           Bucket: bucket,
-          Prefix: prefix,
+          Prefix: fullPrefix,
         }),
       );
 
@@ -416,6 +478,45 @@ export class StorageService {
 
       this.logger.error(`Failed to list files: ${error.message}`);
       throw new InternalServerErrorException('Failed to list files');
+    }
+  }
+
+  async initializeTenantFilesBucket(): Promise<void> {
+    const bucketExists = await this.bucketExists(this.tenantFilesBucket);
+
+    if (bucketExists) {
+      this.logger.debug(`Bucket ${this.tenantFilesBucket} already exists`);
+      return;
+    }
+
+    await this.createBucket(this.tenantFilesBucket);
+    this.logger.log(`Created bucket ${this.tenantFilesBucket}`);
+  }
+
+  private async bucketExists(bucket: string): Promise<boolean> {
+    try {
+      await this.s3Client.send(new HeadBucketCommand({ Bucket: bucket }));
+      return true;
+    } catch (error) {
+      if (
+        error.name === 'NotFound' ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
+        return false;
+      }
+      throw new InternalServerErrorException(
+        `Failed to check bucket: ${error.message}`,
+      );
+    }
+  }
+
+  private async createBucket(bucket: string): Promise<void> {
+    try {
+      await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Failed to create bucket: ${error.message}`,
+      );
     }
   }
 
@@ -495,6 +596,8 @@ export class StorageService {
           Key: key,
           Body: file,
           ContentType: contentType,
+          // NOTE: AWS S3 automatically converts these keys to lowercase
+          // See S3_METADATA_KEYS constant for lowercase versions used in retrieval
           Metadata: {
             userId: metadata.userId,
             originalName: metadata.originalName,
