@@ -8,7 +8,7 @@ import type { AuthenticatedUser } from '../auth/decorators/current-user.decorato
 import { Document } from './entities/document.entity';
 import {
   DocumentResponseDto,
-  DocumentListResponseDto,
+  ListDocumentsResponseDto,
 } from './dto/document-response.dto';
 import { ListDocumentsDto } from './dto/list-documents.dto';
 
@@ -24,7 +24,7 @@ export class DocumentsService {
     schemaName: string,
     filters: ListDocumentsDto,
     user: AuthenticatedUser & { isSystemAdmin?: boolean },
-  ): Promise<DocumentListResponseDto> {
+  ): Promise<ListDocumentsResponseDto> {
     const isAdmin = user?.isSystemAdmin || user?.role === 'admin';
 
     // Build query with filters - exclude soft-deleted documents

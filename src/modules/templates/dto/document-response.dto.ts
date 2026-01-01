@@ -90,7 +90,7 @@ export class DocumentResponseDto {
   updatedAt: Date;
 }
 
-export class DocumentListResponseDto {
+export class ListDocumentsResponseDto {
   @ApiProperty({ type: [DocumentResponseDto] })
   documents: DocumentResponseDto[];
 

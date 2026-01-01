@@ -20,7 +20,7 @@ import {
 
 import {
   DocumentResponseDto,
-  DocumentListResponseDto,
+  ListDocumentsResponseDto,
 } from './dto/document-response.dto';
 import { ListDocumentsDto } from './dto/list-documents.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -82,7 +82,7 @@ export class DocumentsController {
   @ApiResponse({
     status: 200,
     description: 'List of documents with pagination metadata',
-    type: DocumentListResponseDto,
+    type: ListDocumentsResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -100,7 +100,7 @@ export class DocumentsController {
     @SchemaName() schemaName: string,
     @Query(new ValidationPipe({ transform: true })) filters: ListDocumentsDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<DocumentListResponseDto> {
+  ): Promise<ListDocumentsResponseDto> {
     return this.documentsService.findAll(tenantId, schemaName, filters, user);
   }
 
