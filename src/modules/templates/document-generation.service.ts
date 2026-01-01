@@ -196,7 +196,6 @@ export class DocumentGenerationService {
       const generationMetadata = {
         variables: variables,
         generatedAt: new Date().toISOString(),
-        templateId: template.id,
       };
 
       // Store document metadata in tenant's documents table

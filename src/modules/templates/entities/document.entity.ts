@@ -7,8 +7,6 @@ export interface DocumentMetadata {
 export interface DocumentGenerationMetadata {
   variables?: Record<string, any>;
   generatedAt?: string;
-  templateId?: string;
-  templateKey?: string;
 }
 
 export interface Document {

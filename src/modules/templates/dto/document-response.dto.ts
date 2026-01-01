@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class DocumentMetadataDto {
+class DocumentMetadataDto {
   @ApiPropertyOptional({ example: 1024000, description: 'File size in bytes' })
   size?: number;
 
@@ -14,7 +14,7 @@ export class DocumentMetadataDto {
   filename?: string;
 }
 
-export class DocumentGenerationMetadataDto {
+class DocumentGenerationMetadataDto {
   @ApiPropertyOptional({
     example: { companyName: 'Acme Corp', contractDate: '2024-01-15' },
     description: 'Variables used for document generation',
@@ -26,12 +26,6 @@ export class DocumentGenerationMetadataDto {
     description: 'Generation timestamp',
   })
   generatedAt?: string;
-
-  @ApiPropertyOptional({
-    example: '123e4567-e89b-12d3-a456-426614174000',
-    description: 'Template ID',
-  })
-  templateId?: string;
 }
 
 export class DocumentResponseDto {
@@ -88,18 +82,4 @@ export class DocumentResponseDto {
     description: 'Last update timestamp',
   })
   updatedAt: Date;
-}
-
-export class ListDocumentsResponseDto {
-  @ApiProperty({ type: [DocumentResponseDto] })
-  documents: DocumentResponseDto[];
-
-  @ApiProperty({ example: 25, description: 'Total number of documents' })
-  total: number;
-
-  @ApiProperty({ example: 1, description: 'Current page number' })
-  page: number;
-
-  @ApiProperty({ example: 50, description: 'Items per page' })
-  limit: number;
 }

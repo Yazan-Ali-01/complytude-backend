@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsOptional,
   IsInt,
@@ -8,6 +8,7 @@ import {
   IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { DocumentResponseDto } from './document-response.dto';
 
 export class ListDocumentsDto {
   @ApiPropertyOptional({
@@ -59,4 +60,18 @@ export class ListDocumentsDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+}
+
+export class ListDocumentsResponseDto {
+  @ApiProperty({ type: [DocumentResponseDto] })
+  documents: DocumentResponseDto[];
+
+  @ApiProperty({ example: 25, description: 'Total number of documents' })
+  total: number;
+
+  @ApiProperty({ example: 1, description: 'Current page number' })
+  page: number;
+
+  @ApiProperty({ example: 50, description: 'Items per page' })
+  limit: number;
 }

@@ -18,11 +18,11 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 
+import { DocumentResponseDto } from './dto/document-response.dto';
 import {
-  DocumentResponseDto,
+  ListDocumentsDto,
   ListDocumentsResponseDto,
-} from './dto/document-response.dto';
-import { ListDocumentsDto } from './dto/list-documents.dto';
+} from './dto/list-documents.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantId, SchemaName } from '../../common/decorators/tenant.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';

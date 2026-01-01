@@ -6,11 +6,11 @@ import {
 import { DatabaseService } from '../../database/database.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { Document } from './entities/document.entity';
+import { DocumentResponseDto } from './dto/document-response.dto';
 import {
-  DocumentResponseDto,
+  ListDocumentsDto,
   ListDocumentsResponseDto,
-} from './dto/document-response.dto';
-import { ListDocumentsDto } from './dto/list-documents.dto';
+} from './dto/list-documents.dto';
 
 @Injectable()
 export class DocumentsService {
