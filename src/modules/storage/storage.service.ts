@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -132,7 +133,7 @@ export class StorageService {
       this.logger.warn(
         `Tenant ${tenantId} attempted to access file outside their scope: ${fileKey}`,
       );
-      throw new NotFoundException('File not found');
+      throw new ForbiddenException('You do not have access to this file');
     }
   }
 
@@ -274,10 +275,6 @@ export class StorageService {
       if (!response.Body) {
         throw new NotFoundException('File not found');
       }
-
-      this.logger.debug(
-        `Raw S3 metadata for ${fileKey}: ${JSON.stringify(response.Metadata)}`,
-      );
 
       const metadata = this.mapS3MetadataToFileMetadata(response);
 
@@ -430,10 +427,11 @@ export class StorageService {
   async listFiles(tenantId: string, prefix?: string): Promise<FileListItem[]> {
     const bucket = this.tenantFilesBucket;
     const tenantPrefix = this.getTenantPrefix(tenantId);
-    // Sanitize prefix to remove leading slashes to avoid double slashes in path
-    const sanitizedPrefix = prefix ? prefix.replace(/^\/+/, '') : '';
+    const sanitizedPrefix = prefix
+      ? prefix.replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/')
+      : '';
     const fullPrefix = sanitizedPrefix
-      ? `${tenantPrefix}/${sanitizedPrefix}`
+      ? `${tenantPrefix.replace(/\/+$/, '')}/${sanitizedPrefix}`
       : tenantPrefix;
 
     try {

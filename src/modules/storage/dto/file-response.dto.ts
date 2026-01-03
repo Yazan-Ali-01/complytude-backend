@@ -7,6 +7,30 @@ export class FileResponseDto {
       'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })
   url: string;
+
+  @ApiProperty({
+    description: 'File key/identifier in storage',
+    example: 'tenants/abc123/1698765432000-document.pdf',
+  })
+  key: string;
+
+  @ApiProperty({
+    description: 'S3 bucket name',
+    example: 'complytude-files',
+  })
+  bucket: string;
+
+  @ApiProperty({
+    description: 'File size in bytes',
+    example: 1048576,
+  })
+  size: number;
+
+  @ApiProperty({
+    description: 'File content type',
+    example: 'application/pdf',
+  })
+  contentType: string;
 }
 
 export class FileListItemDto {

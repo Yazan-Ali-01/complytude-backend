@@ -99,10 +99,16 @@ export class StorageController {
       file.buffer,
       file.originalName,
       file.mimeType,
-      user.userId,
+      user.userId
     );
 
-    return { url: result.url };
+     return {
+       url: result.url,
+       key: result.key,
+       bucket: result.bucket,
+       size: result.size,
+       contentType: result.contentType,
+     };
   }
 
   @Get('list')
