@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { Template, TemplateWithDetails } from './entities/template.entity';
 import {
@@ -38,6 +39,7 @@ export class TemplatesService {
     private readonly rulesetsService: RulesetsService,
     private readonly placeholderExtractionService: DocxPlaceholderExtractionService,
     private readonly storageService: StorageService,
+    private readonly i18n: I18nService,
   ) {}
   async create(
     createTemplateDto: CreateTemplateDto,
@@ -57,7 +59,7 @@ export class TemplatesService {
 
       if (existing.rows.length > 0) {
         throw new ConflictException(
-          `Template with key "${createTemplateDto.key}" already exists`,
+          this.i18n.t('templates.TEMPLATE_ALREADY_EXISTS'),
         );
       }
 
@@ -69,7 +71,7 @@ export class TemplatesService {
         );
         if (categoryExists.rows.length === 0) {
           throw new BadRequestException(
-            `Category with ID "${createTemplateDto.category_id}" not found`,
+            this.i18n.t('templates.TEMPLATE_CATEGORY_REQUIRED'),
           );
         }
       }
@@ -82,7 +84,7 @@ export class TemplatesService {
         );
         if (authorityExists.rows.length === 0) {
           throw new BadRequestException(
-            `Authority with ID "${createTemplateDto.authority_id}" not found`,
+            this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
           );
         }
       }
@@ -96,7 +98,9 @@ export class TemplatesService {
           createTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== createTemplateDto.ruleset_keys.length) {
-          throw new BadRequestException('One or more ruleset keys are invalid');
+          throw new BadRequestException(
+            this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
+          );
         }
       }
 
@@ -127,7 +131,7 @@ export class TemplatesService {
           error.stack,
         );
         throw new InternalServerErrorException(
-          `Failed to process template file: ${error.message}`,
+          this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
         );
       }
 
@@ -236,7 +240,9 @@ export class TemplatesService {
         throw error;
       }
       this.logger.error(`Failed to create template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to create template');
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+      );
     }
   }
 
@@ -299,7 +305,9 @@ export class TemplatesService {
       };
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch templates');
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+      );
     }
   }
 
@@ -314,7 +322,7 @@ export class TemplatesService {
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
       throw new InternalServerErrorException(
-        'Failed to fetch active templates',
+        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
       );
     }
   }
@@ -327,7 +335,9 @@ export class TemplatesService {
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Template with ID "${id}" not found`);
+        throw new NotFoundException(
+          this.i18n.t('templates.TEMPLATE_NOT_FOUND', { args: { id } }),
+        );
       }
 
       return this.parseTemplate(result.rows[0]);
@@ -336,7 +346,9 @@ export class TemplatesService {
         throw error;
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch template');
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+      );
     }
   }
 
@@ -353,7 +365,9 @@ export class TemplatesService {
           );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Template with key "${key}" not found`);
+        throw new NotFoundException(
+          this.i18n.t('templates.TEMPLATE_NOT_FOUND', { args: { id: key } }),
+        );
       }
 
       return this.parseTemplate(result.rows[0]);
@@ -362,7 +376,9 @@ export class TemplatesService {
         throw error;
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch template');
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+      );
     }
   }
 
@@ -446,7 +462,7 @@ export class TemplatesService {
         `Failed to fetch template with details: ${error.message}`,
       );
       throw new InternalServerErrorException(
-        'Failed to fetch template with details',
+        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
       );
     }
   }
@@ -467,7 +483,7 @@ export class TemplatesService {
         );
         if (categoryExists.rows.length === 0) {
           throw new BadRequestException(
-            `Category with ID "${updateTemplateDto.category_id}" not found`,
+            this.i18n.t('templates.TEMPLATE_CATEGORY_REQUIRED'),
           );
         }
       }
@@ -480,7 +496,7 @@ export class TemplatesService {
         );
         if (authorityExists.rows.length === 0) {
           throw new BadRequestException(
-            `Authority with ID "${updateTemplateDto.authority_id}" not found`,
+            this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
           );
         }
       }
@@ -494,7 +510,9 @@ export class TemplatesService {
           updateTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== updateTemplateDto.ruleset_keys.length) {
-          throw new BadRequestException('One or more ruleset keys are invalid');
+          throw new BadRequestException(
+            this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
+          );
         }
       }
 
@@ -605,7 +623,9 @@ export class TemplatesService {
         throw error;
       }
       this.logger.error(`Failed to update template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to update template');
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.TEMPLATE_UPDATE_FAILED'),
+      );
     }
   }
 
@@ -625,7 +645,9 @@ export class TemplatesService {
         throw error;
       }
       this.logger.error(`Failed to deactivate template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to deactivate template');
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.TEMPLATE_UPDATE_FAILED'),
+      );
     }
   }
 
@@ -644,7 +666,9 @@ export class TemplatesService {
         throw error;
       }
       this.logger.error(`Failed to delete template: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete template');
+      throw new InternalServerErrorException(
+        this.i18n.t('templates.TEMPLATE_DELETE_FAILED'),
+      );
     }
   }
 
@@ -666,7 +690,7 @@ export class TemplatesService {
     );
     if (existingVersion.rows.length > 0) {
       throw new ConflictException(
-        `Version "${createVersionDto.version}" already exists for template "${key}"`,
+        this.i18n.t('templates.TEMPLATE_VERSION_CONFLICT'),
       );
     }
 
@@ -691,7 +715,7 @@ export class TemplatesService {
         error.stack,
       );
       throw new InternalServerErrorException(
-        `Failed to process template file: ${error.message}`,
+        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
       );
     }
 
@@ -799,7 +823,7 @@ export class TemplatesService {
     // Validate version format (semver: x.y.z) before any DB calls
     if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
       throw new BadRequestException(
-        `Invalid version format "${version}". Expected semver format (e.g., 1.0.0)`,
+        this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
       );
     }
 
@@ -840,7 +864,7 @@ export class TemplatesService {
         `Failed to generate download URL for template "${key}": ${error.message}`,
       );
       throw new InternalServerErrorException(
-        'Failed to generate template download URL',
+        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
       );
     }
   }

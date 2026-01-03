@@ -12,6 +12,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
+import { I18nModule } from './i18n/i18n.module';
 import databaseConfig from './config/database.config';
 import appConfig from './config/app.config';
 import jwtConfig from './config/jwt.config';
@@ -29,6 +30,7 @@ import { validationSchema } from './config/validation.schema';
         abortEarly: false,
       },
     }),
+    I18nModule,
     DatabaseModule,
     HealthModule,
     TenantModule,

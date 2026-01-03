@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { I18nService } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
@@ -49,6 +50,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tenantService: TenantService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -71,7 +73,7 @@ export class AuthService {
     );
 
     if (existingUser.rows.length > 0) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictException(this.i18n.t('auth.EMAIL_ALREADY_REGISTERED'));
     }
 
     // Hash password
@@ -157,7 +159,7 @@ export class AuthService {
     );
 
     if (tenantsResult.rows.length === 0) {
-      throw new UnauthorizedException('No active tenants found for this user');
+      throw new UnauthorizedException(this.i18n.t('auth.NO_ACTIVE_TENANTS'));
     }
 
     // If tenantId specified, use that; otherwise use first tenant
@@ -168,7 +170,7 @@ export class AuthService {
       );
       if (!found) {
         throw new UnauthorizedException(
-          'User does not have access to specified tenant',
+          this.i18n.t('auth.TENANT_ACCESS_DENIED'),
         );
       }
       selectedTenant = found;
@@ -220,7 +222,7 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(this.i18n.t('auth.INVALID_CREDENTIALS'));
     }
 
     const user = result.rows[0];
@@ -228,7 +230,7 @@ export class AuthService {
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(this.i18n.t('auth.INVALID_CREDENTIALS'));
     }
 
     return user;
@@ -334,7 +336,9 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t('auth.INVALID_REFRESH_TOKEN'),
+      );
     }
 
     // Find matching token
@@ -348,7 +352,9 @@ export class AuthService {
     }
 
     if (!validToken) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t('auth.INVALID_REFRESH_TOKEN'),
+      );
     }
 
     // Revoke old refresh token
@@ -367,7 +373,7 @@ export class AuthService {
     );
 
     if (userResult.rows.length === 0) {
-      throw new UnauthorizedException('No active tenants found');
+      throw new UnauthorizedException(this.i18n.t('auth.NO_ACTIVE_TENANTS'));
     }
 
     const {
@@ -408,11 +414,11 @@ export class AuthService {
           [token.id],
         );
         this.logger.log(`User ${userId} logged out`);
-        return { message: 'Logged out successfully' };
+        return { message: this.i18n.t('auth.LOGOUT_SUCCESS') };
       }
     }
 
-    throw new BadRequestException('Invalid refresh token');
+    throw new BadRequestException(this.i18n.t('auth.INVALID_REFRESH_TOKEN'));
   }
 
   /**
@@ -426,7 +432,9 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new BadRequestException('Invalid or expired verification token');
+      throw new BadRequestException(
+        this.i18n.t('auth.INVALID_VERIFICATION_TOKEN'),
+      );
     }
 
     const verification = result.rows[0];
@@ -447,7 +455,7 @@ export class AuthService {
 
     this.logger.log(`Email verified for user ${verification.user_id}`);
 
-    return { message: 'Email verified successfully' };
+    return { message: this.i18n.t('auth.EMAIL_VERIFIED') };
   }
 
   /**
@@ -499,7 +507,9 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException(
+        this.i18n.t('auth.INVALID_VERIFICATION_TOKEN'),
+      );
     }
 
     const reset = result.rows[0];
@@ -532,6 +542,6 @@ export class AuthService {
 
     this.logger.log(`Password reset for user ${reset.user_id}`);
 
-    return { message: 'Password reset successfully' };
+    return { message: this.i18n.t('auth.PASSWORD_RESET_SUCCESS') };
   }
 }

@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { TenantService } from '../../modules/tenant/tenant.service';
 
 /**
@@ -22,7 +23,10 @@ import { TenantService } from '../../modules/tenant/tenant.service';
  */
 @Injectable()
 export class DocumentLimitGuard implements CanActivate {
-  constructor(private tenantService: TenantService) {}
+  constructor(
+    private tenantService: TenantService,
+    private readonly i18n: I18nService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -30,9 +34,7 @@ export class DocumentLimitGuard implements CanActivate {
 
     // Ensure tenant context is available
     if (!tenantId) {
-      throw new UnauthorizedException(
-        'Tenant context not found. Please authenticate.',
-      );
+      throw new UnauthorizedException(this.i18n.t('common.UNAUTHORIZED'));
     }
 
     // Check if tenant can upload more documents

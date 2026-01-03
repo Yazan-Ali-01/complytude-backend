@@ -1,0 +1,14 @@
+{
+  "FILE_NOT_FOUND": "File not found",
+  "FILE_UPLOAD_FAILED": "Failed to upload file",
+  "FILE_DELETE_FAILED": "Failed to delete file",
+  "FILE_ACCESS_DENIED": "You do not have permission to access this file",
+  "FILE_TOO_LARGE": "File size exceeds maximum allowed size",
+  "INVALID_FILE_TYPE": "Invalid file type",
+  "STORAGE_ACCESS_FAILED": "Failed to access storage",
+  "STORAGE_QUOTA_EXCEEDED": "Storage quota exceeded",
+  "FILE_ALREADY_EXISTS": "File with this name already exists",
+  "INVALID_FILE_NAME": "Invalid file name",
+  "FILE_DOWNLOAD_FAILED": "Failed to download file",
+  "TEMPORARY_URL_GENERATION_FAILED": "Failed to generate temporary URL"
+}
