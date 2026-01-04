@@ -1,8 +1,3 @@
-/**
- * Translation key types for type-safe i18n
- * These types are automatically inferred from the translation JSON files
- */
-
 export type TranslationNamespace =
   | 'common'
   | 'auth'
