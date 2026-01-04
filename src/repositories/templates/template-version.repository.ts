@@ -32,14 +32,10 @@ export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
       id: data.id,
       template_id: data.template_id,
       version: data.version,
-      fields:
-        typeof data.fields === 'string' ? JSON.parse(data.fields) : data.fields,
+      fields: data.fields as TemplateField[],
       file_url: data.file_url,
       changelog: data.changelog,
-      metadata:
-        typeof data.metadata === 'string'
-          ? JSON.parse(data.metadata)
-          : data.metadata,
+      metadata: data.metadata as Record<string, unknown>,
       is_active: data.is_active,
       created_by: data.created_by,
       created_at: data.created_at,

@@ -4,6 +4,7 @@ import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
 import {
   Tenant,
+  TenantFeatures,
   TenantSchema,
 } from 'src/modules/tenant/entities/tenant.entity';
 type TenantRow = {
@@ -42,10 +43,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       email: data.email,
       role: data.role,
       plan: data.plan,
-      features:
-        typeof data.features === 'string'
-          ? JSON.parse(data.features)
-          : (data.features as Tenant['features']),
+      features: data.features as TenantFeatures,
       schema_name: data.schema_name,
       is_active: data.is_active,
       created_at: data.created_at,

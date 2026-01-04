@@ -3,7 +3,10 @@ import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryBuilder } from '../base/query-builder';
 import { QueryOptions } from '../base/repository.interface';
-import { Ruleset } from 'src/modules/templates/entities/ruleset.entity';
+import {
+  Ruleset,
+  RulesetClause,
+} from 'src/modules/templates/entities/ruleset.entity';
 
 type RulesetRow = {
   id: string;
@@ -34,14 +37,8 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
       name: data.name,
       description: data.description,
       authority_id: data.authority_id,
-      clauses:
-        typeof data.clauses === 'string'
-          ? JSON.parse(data.clauses)
-          : data.clauses,
-      metadata:
-        typeof data.metadata === 'string'
-          ? JSON.parse(data.metadata)
-          : data.metadata,
+      clauses: data.clauses as RulesetClause[],
+      metadata: data.metadata as Record<string, unknown>,
       version: data.version,
       status: data.status,
       created_by: data.created_by,

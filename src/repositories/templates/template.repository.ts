@@ -42,10 +42,7 @@ export class TemplateRepository extends BaseRepository<Template> {
       status: data.status,
       file_url: data.file_url,
       thumbnail_url: data.thumbnail_url,
-      metadata:
-        typeof data.metadata === 'string'
-          ? JSON.parse(data.metadata)
-          : data.metadata,
+      metadata: data.metadata as Record<string, unknown>,
       created_by: data.created_by,
       created_at: data.created_at,
       updated_at: data.updated_at,
