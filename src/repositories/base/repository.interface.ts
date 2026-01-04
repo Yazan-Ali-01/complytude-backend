@@ -70,6 +70,10 @@ export interface RepositoryInterface<
   /**
    * Fetch all entities respecting filters, ordering, and pagination.
    *
+   * @deprecated Use repository-specific findMany() methods instead.
+   * Each repository should implement its own findMany() with custom filters
+   * and whitelisted sortable fields for better security and type safety.
+   *
    * Example:
    * ```ts
    * await repo.findAll({

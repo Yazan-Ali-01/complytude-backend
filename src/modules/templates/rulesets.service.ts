@@ -76,10 +76,11 @@ export class RulesetsService {
         authority_id: authorityId,
         status: status as Ruleset['status'] | undefined,
       };
-      const result = await this.rulesetRepository.findAll({
+      const result = await this.rulesetRepository.findMany(
         filters,
-        orderBy: 'name',
-      });
+        { page: 1, limit: 1000 },
+        'name',
+      );
       return result.data;
     } catch (error) {
       this.logger.error(`Failed to fetch rulesets: ${error.message}`);

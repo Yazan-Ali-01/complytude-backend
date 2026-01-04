@@ -47,11 +47,12 @@ export class CategoriesService {
 
   async findAll(active?: boolean): Promise<Category[]> {
     try {
-      const filters = active ? { is_active: active } : undefined;
-      const result = await this.categoryRepository.findAll({
+      const filters = active !== undefined ? { is_active: active } : {};
+      const result = await this.categoryRepository.findMany(
         filters,
-        orderBy: 'name',
-      });
+        { page: 1, limit: 1000 },
+        'name',
+      );
       return result.data;
     } catch (error) {
       this.logger.error(`Failed to fetch categories: ${error.message}`);

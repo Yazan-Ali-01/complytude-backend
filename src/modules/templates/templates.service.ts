@@ -250,21 +250,16 @@ export class TemplatesService {
     limit: number;
   }> {
     try {
-      const offset = (page - 1) * limit;
-
-      const { data, total } = await this.templateRepository.findAll({
-        filters: {
-          status: status as Template['status'] | undefined,
-          category_id: categoryId,
-          authority_id: authorityId,
-          languages: language,
+      const { data, total } = await this.templateRepository.findMany(
+        {
+          status,
+          categoryId,
+          authorityId,
+          language,
         },
-        operators: {
-          languages: 'ANY', // languages = ANY(language)
-        },
-        limit: limit,
-        offset: offset,
-      });
+        { page, limit },
+        'created_at',
+      );
 
       return {
         templates: data,
@@ -280,14 +275,7 @@ export class TemplatesService {
 
   async findActiveTemplates(): Promise<Template[]> {
     try {
-      const result = await this.templateRepository.findAll({
-        filters: {
-          status: 'active',
-        },
-        orderBy: 'name',
-      });
-
-      return result.data;
+      return await this.templateRepository.findActive();
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
       throw new InternalServerErrorException(

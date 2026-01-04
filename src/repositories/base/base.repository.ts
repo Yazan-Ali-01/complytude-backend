@@ -188,6 +188,21 @@ export abstract class BaseRepository<
   /**
    * Fetch all records with optional filters, ordering, and pagination.
    *
+   * @deprecated Use repository-specific findMany() methods instead.
+   * Each repository should implement its own findMany() with:
+   * - Custom filter types based on entity
+   * - Whitelisted sortable fields (security improvement)
+   * - Type-safe pagination parameters
+   *
+   * Migration example:
+   * ```ts
+   * // Old (deprecated):
+   * await repo.findAll({ filters: { status: 'active' }, orderBy: 'name' });
+   *
+   * // New (recommended):
+   * await repo.findMany({ status: 'active' }, { page: 1, limit: 50 }, 'name');
+   * ```
+   *
    * Example:
    * ```ts
    * const rows = await this.findAll({

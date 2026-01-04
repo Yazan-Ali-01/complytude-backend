@@ -1,7 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
-import { QueryBuilder } from '../base/query-builder';
 import { QueryOptions } from '../base/repository.interface';
 import {
   Ruleset,
@@ -25,8 +24,69 @@ type RulesetRow = {
 
 @Injectable()
 export class RulesetRepository extends BaseRepository<Ruleset> {
+  private readonly SORTABLE_FIELDS = [
+    'name',
+    'created_at',
+    'updated_at',
+  ] as const;
+
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.rulesets');
+  }
+
+  async findMany(
+    filters: { authority_id?: string; status?: string },
+    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
+    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'name',
+    options?: QueryOptions,
+  ): Promise<{ data: Ruleset[]; total: number }> {
+    // Validate sortBy against whitelist
+    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+
+    // Build query with filters
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.authority_id) {
+      params.push(filters.authority_id);
+      conditions.push(`authority_id = $${params.length}`);
+    }
+    if (filters.status) {
+      params.push(filters.status);
+      conditions.push(`status = $${params.length}`);
+    }
+
+    const orderBy = `ORDER BY ${sortBy} ASC`; // TODO: add order direction
+
+    // pagination --------------------------
+
+    // Execute query
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query =
+      `SELECT * FROM ${this.tableName} ${whereClause} ${orderBy}`.trim();
+    const result = await this.executeQuery<RulesetRow>(query, params, options);
+
+    // Count total
+    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
+    const totalResult = await this.executeQuery(totalQuery, params, options);
+
+    return {
+      data: result.rows.map((row) => this.mapRow(row)),
+      total: parseInt(totalResult.rows[0].count as string, 10),
+    };
+  }
+
+  async findActive(options?: QueryOptions): Promise<Ruleset[]> {
+    const result = await this.findMany(
+      { status: 'active' },
+      { page: 1, limit: 1000 },
+      'name',
+      options,
+    );
+    return result.data;
   }
 
   protected mapRow(row: Record<string, unknown>): Ruleset {
@@ -68,14 +128,9 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
   async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {
     if (!keys.length) return [];
 
-    const qb = new QueryBuilder();
-    qb.addCondition({ field: 'key', value: keys, operator: 'IN' });
-    qb.addCondition({ field: 'status', value: 'active' });
-    const where = qb.buildWhere();
-
     const result = await this.executeQuery<RulesetRow>(
-      `SELECT * FROM ${this.tableName} ${where.clause} ORDER BY name`,
-      where.params,
+      `SELECT * FROM ${this.tableName} WHERE key IN ($1) AND status = $2 ORDER BY name`,
+      [keys, 'active'],
       options,
     );
 
@@ -90,7 +145,7 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     );
 
     if (!result.rowCount) {
-      throw new NotFoundException(`Ruleset with key ${key} not found`);
+      throw new Error(`Ruleset with key ${key} not found`);
     }
   }
 

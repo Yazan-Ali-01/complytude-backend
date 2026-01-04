@@ -81,12 +81,11 @@ export class TemplateVersionsService {
 
   async getVersionHistory(templateId: string): Promise<TemplateVersion[]> {
     try {
-      const versions = await this.templateVersionRepository.findAll({
-        filters: {
-          template_id: templateId,
-        },
-        orderBy: 'created_at',
-      });
+      const versions = await this.templateVersionRepository.findMany(
+        { template_id: templateId },
+        { page: 1, limit: 1000 },
+        'created_at',
+      );
 
       return versions.data;
     } catch (error) {

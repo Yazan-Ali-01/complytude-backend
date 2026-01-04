@@ -30,8 +30,79 @@ type PasswordResetRow = {
 
 @Injectable()
 export class UserRepository extends BaseRepository<User> {
+  private readonly SORTABLE_FIELDS = [
+    'email',
+    'first_name',
+    'last_name',
+    'created_at',
+    'updated_at',
+  ] as const;
+
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.users');
+  }
+
+  async findMany(
+    filters: {
+      email?: string;
+      is_verified?: boolean;
+      is_system_admin?: boolean;
+    },
+    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
+    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'created_at',
+    options?: QueryOptions,
+  ): Promise<{ data: User[]; total: number }> {
+    // Validate sortBy against whitelist
+    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+
+    // Build query with filters
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.email) {
+      params.push(filters.email);
+      conditions.push(`email ILIKE $${params.length}`);
+    }
+    if (filters.is_verified !== undefined) {
+      params.push(filters.is_verified);
+      conditions.push(`is_verified = $${params.length}`);
+    }
+    if (filters.is_system_admin !== undefined) {
+      params.push(filters.is_system_admin);
+      conditions.push(`is_system_admin = $${params.length}`);
+    }
+
+    const orderBy = `ORDER BY ${sortBy} ASC`;
+
+    //pagination
+
+    // Execute query
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query =
+      `SELECT * FROM ${this.tableName} ${whereClause} ${orderBy}`.trim();
+    const result = await this.executeQuery<UserRow>(query, params, options);
+
+    // Count total
+    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
+    const totalResult = await this.executeQuery(totalQuery, params, options);
+
+    return {
+      data: result.rows.map((row) => this.mapRow(row)),
+      total: parseInt(totalResult.rows[0].count as string, 10),
+    };
+  }
+
+  async findActive(options?: QueryOptions): Promise<User[]> {
+    const result = await this.findMany(
+      { is_verified: true },
+      { page: 1, limit: 1000 },
+      'email',
+      options,
+    );
+    return result.data;
   }
 
   protected mapRow(row: Record<string, unknown>): User {

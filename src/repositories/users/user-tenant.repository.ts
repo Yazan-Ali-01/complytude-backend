@@ -24,8 +24,76 @@ export class UserTenantRepository extends BaseRepository<
   never,
   never
 > {
+  private readonly SORTABLE_FIELDS = ['joined_at', 'updated_at'] as const;
+
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.user_tenants');
+  }
+
+  async findMany(
+    filters: { user_id?: string; tenant_id?: string; is_active?: boolean },
+    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
+    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'joined_at',
+    options?: QueryOptions,
+  ): Promise<{ data: UserTenant[]; total: number }> {
+    // Validate sortBy against whitelist
+    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+
+    // Build query with filters
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.user_id) {
+      params.push(filters.user_id);
+      conditions.push(`user_id = $${params.length}`);
+    }
+    if (filters.tenant_id) {
+      params.push(filters.tenant_id);
+      conditions.push(`tenant_id = $${params.length}`);
+    }
+    if (filters.is_active !== undefined) {
+      params.push(filters.is_active);
+      conditions.push(`is_active = $${params.length}`);
+    }
+
+    const orderBy = `ORDER BY ${sortBy} DESC`;
+
+    // pagination --------------------------
+
+    // Execute query
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query =
+      `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at, t.schema_name 
+                   FROM ${this.tableName} ut 
+                   JOIN public.tenants t ON ut.tenant_id = t.tenant_id 
+                   ${whereClause} ${orderBy}`.trim();
+    const result = await this.executeQuery<UserTenantRow>(
+      query,
+      params,
+      options,
+    );
+
+    // Count total
+    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ut ${whereClause}`;
+    const totalResult = await this.executeQuery(totalQuery, params, options);
+
+    return {
+      data: result.rows.map((row) => this.mapRow(row)),
+      total: parseInt(totalResult.rows[0].count as string, 10),
+    };
+  }
+
+  async findActive(options?: QueryOptions): Promise<UserTenant[]> {
+    const result = await this.findMany(
+      { is_active: true },
+      { page: 1, limit: 1000 },
+      'joined_at',
+      options,
+    );
+    return result.data;
   }
 
   // BaseRepository requires a mapper even though we only expose custom queries.

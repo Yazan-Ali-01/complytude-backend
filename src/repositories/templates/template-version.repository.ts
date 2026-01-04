@@ -22,8 +22,59 @@ type TemplateVersionRow = {
 
 @Injectable()
 export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
+  private readonly SORTABLE_FIELDS = ['version', 'created_at'] as const;
+
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.template_versions');
+  }
+
+  async findMany(
+    filters: { template_id?: string; version?: string },
+    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
+    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'created_at',
+    options?: QueryOptions,
+  ): Promise<{ data: TemplateVersion[]; total: number }> {
+    // Validate sortBy against whitelist
+    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+
+    // Build query with filters
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.template_id) {
+      params.push(filters.template_id);
+      conditions.push(`template_id = $${params.length}`);
+    }
+    if (filters.version) {
+      params.push(filters.version);
+      conditions.push(`version = $${params.length}`);
+    }
+
+    const orderBy = `ORDER BY ${sortBy} DESC`;
+
+    // pagination --------------------------
+
+    // Execute query
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query =
+      `SELECT * FROM ${this.tableName} ${whereClause} ${orderBy}`.trim();
+    const result = await this.executeQuery<TemplateVersionRow>(
+      query,
+      params,
+      options,
+    );
+
+    // Count total
+    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
+    const totalResult = await this.executeQuery(totalQuery, params, options);
+
+    return {
+      data: result.rows.map((row) => this.mapRow(row)),
+      total: parseInt(totalResult.rows[0].count as string, 10),
+    };
   }
 
   protected mapRow(row: Record<string, unknown>): TemplateVersion {

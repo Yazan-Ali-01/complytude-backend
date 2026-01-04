@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
@@ -24,8 +24,82 @@ type TemplateRow = {
 
 @Injectable()
 export class TemplateRepository extends BaseRepository<Template> {
+  private readonly SORTABLE_FIELDS = [
+    'name',
+    'created_at',
+    'updated_at',
+  ] as const;
+
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.templates');
+  }
+
+  async findMany(
+    filters: {
+      status?: string;
+      categoryId?: string;
+      authorityId?: string;
+      language?: string;
+    },
+    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
+    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'created_at',
+    options?: QueryOptions,
+  ): Promise<{ data: Template[]; total: number }> {
+    // Validate sortBy against whitelist
+    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+
+    // Build query with filters
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.status) {
+      params.push(filters.status);
+      conditions.push(`status = $${params.length}`);
+    }
+    if (filters.categoryId) {
+      params.push(filters.categoryId);
+      conditions.push(`category_id = $${params.length}`);
+    }
+    if (filters.authorityId) {
+      params.push(filters.authorityId);
+      conditions.push(`authority_id = $${params.length}`);
+    }
+    if (filters.language) {
+      params.push(filters.language);
+      conditions.push(`$4 = ANY(languages)`);
+    }
+
+    const orderBy = `ORDER BY ${sortBy} ASC`;
+
+    //pagination
+
+    // Execute query
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query =
+      `SELECT * FROM ${this.tableName} ${whereClause} ${orderBy}`.trim();
+    const result = await this.executeQuery<TemplateRow>(query, params, options);
+
+    // Count total
+    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
+    const totalResult = await this.executeQuery(totalQuery, params, options);
+
+    return {
+      data: result.rows.map((row) => this.mapRow(row)),
+      total: parseInt(totalResult.rows[0].count as string, 10),
+    };
+  }
+
+  async findActive(options?: QueryOptions): Promise<Template[]> {
+    const result = await this.findMany(
+      { status: 'active' },
+      { page: 1, limit: 1000 },
+      'name',
+      options,
+    );
+    return result.data;
   }
 
   protected mapRow(row: Record<string, unknown>): Template {
@@ -61,7 +135,7 @@ export class TemplateRepository extends BaseRepository<Template> {
     );
 
     if (!result.rows.length) {
-      throw new NotFoundException(`Template with key ${key} not found`);
+      throw new Error(`Template with key ${key} not found`);
     }
 
     return this.mapRow(result.rows[0]);
@@ -75,7 +149,7 @@ export class TemplateRepository extends BaseRepository<Template> {
     );
 
     if (!result.rowCount) {
-      throw new NotFoundException(`Template with key ${key} not found`);
+      throw new Error(`Template with key ${key} not found`);
     }
   }
 }

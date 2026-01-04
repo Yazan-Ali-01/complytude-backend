@@ -183,7 +183,11 @@ export class TenantService {
    */
   async findAll(): Promise<Tenant[]> {
     try {
-      const tenants = await this.tenantRepository.findAll();
+      const tenants = await this.tenantRepository.findMany(
+        {},
+        { page: 1, limit: 1000 },
+        'created_at',
+      );
       return tenants.data.map((tenant) => ({
         ...tenant,
         features:

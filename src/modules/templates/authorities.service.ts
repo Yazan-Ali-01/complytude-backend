@@ -48,11 +48,12 @@ export class AuthoritiesService {
 
   async findAll(active?: boolean): Promise<Authority[]> {
     try {
-      const filters = active ? { is_active: active } : undefined;
-      const result = await this.authorityRepository.findAll({
+      const filters = active !== undefined ? { is_active: active } : {};
+      const result = await this.authorityRepository.findMany(
         filters,
-        orderBy: 'name',
-      });
+        { page: 1, limit: 1000 },
+        'name',
+      );
       return result.data;
     } catch (error) {
       this.logger.error(`Failed to fetch authorities: ${error.message}`);

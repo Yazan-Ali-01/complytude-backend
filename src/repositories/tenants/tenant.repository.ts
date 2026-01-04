@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
@@ -30,9 +30,70 @@ type TenantSchemaRow = {
 @Injectable()
 export class TenantRepository extends BaseRepository<Tenant> {
   private readonly tenantLogger = new Logger(TenantRepository.name);
+  private readonly SORTABLE_FIELDS = [
+    'email',
+    'schema_name',
+    'created_at',
+    'updated_at',
+  ] as const;
 
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.tenants');
+  }
+
+  async findMany(
+    filters: { is_active?: boolean; tenant_id?: string },
+    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
+    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'created_at',
+    options?: QueryOptions,
+  ): Promise<{ data: Tenant[]; total: number }> {
+    // Validate sortBy against whitelist
+    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+
+    // Build query with filters
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.is_active !== undefined) {
+      params.push(filters.is_active);
+      conditions.push(`is_active = $${params.length}`);
+    }
+    if (filters.tenant_id) {
+      params.push(filters.tenant_id);
+      conditions.push(`tenant_id = $${params.length}`);
+    }
+
+    const orderBy = `ORDER BY ${sortBy} ASC`;
+
+    // pagination --------------------------
+
+    // Execute query
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query =
+      `SELECT * FROM ${this.tableName} ${whereClause} ${orderBy}`.trim();
+    const result = await this.executeQuery<TenantRow>(query, params, options);
+
+    // Count total
+    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
+    const totalResult = await this.executeQuery(totalQuery, params, options);
+
+    return {
+      data: result.rows.map((row) => this.mapRow(row)),
+      total: parseInt(totalResult.rows[0].count as string, 10),
+    };
+  }
+
+  async findActive(options?: QueryOptions): Promise<Tenant[]> {
+    const result = await this.findMany(
+      { is_active: true },
+      { page: 1, limit: 1000 },
+      'email',
+      options,
+    );
+    return result.data;
   }
 
   protected mapRow(row: Record<string, unknown>): Tenant {
@@ -135,7 +196,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       select: ['id', 'tenant_id'],
     });
     if (!tenant) {
-      throw new NotFoundException(`Tenant ${tenantId} not found`);
+      throw new Error(`Tenant ${tenantId} not found`);
     }
     return this.update(tenant.id, data, options);
   }
@@ -152,7 +213,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       select: ['id', 'tenant_id'],
     });
     if (!tenant) {
-      throw new NotFoundException(`Tenant ${tenantId} not found`);
+      throw new Error(`Tenant ${tenantId} not found`);
     }
     return this.delete(tenant.id, options);
   }
