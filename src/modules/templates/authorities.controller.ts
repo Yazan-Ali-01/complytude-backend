@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseBoolPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,6 +28,7 @@ import {
 } from './dto/create-authority.dto';
 import { Authority } from './entities/authority.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Authorities')
 @Controller('authorities')
@@ -75,8 +77,16 @@ export class AuthoritiesController {
   })
   async findAll(
     @Query('active', new ParseBoolPipe({ optional: true })) active?: boolean,
-  ): Promise<Authority[]> {
-    return this.authoritiesService.findAll(active);
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<CursorPaginationResult<Authority>> {
+    return this.authoritiesService.findAll(active, {
+      cursor,
+      limit,
+      direction,
+    });
   }
 
   @Get(':id')

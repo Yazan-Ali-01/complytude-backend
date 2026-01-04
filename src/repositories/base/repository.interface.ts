@@ -10,6 +10,32 @@ export interface TenantContext {
 }
 
 /**
+ * Pagination direction for cursor-based pagination.
+ */
+export type PaginationDirection = 'forward' | 'backward';
+
+/**
+ * Options for cursor-based pagination queries.
+ */
+export interface CursorPaginationOptions {
+  cursor?: string | null;
+  limit?: number;
+  direction?: PaginationDirection;
+}
+
+/**
+ * Response structure for cursor-based pagination.
+ * Includes navigation cursors and flags for bidirectional pagination.
+ */
+export interface CursorPaginationResult<T> {
+  data: T[];
+  nextCursor: string | null;
+  prevCursor: string | null;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+/**
  * Options that control how queries are executed.
  * - client: existing PoolClient for transactional flow.
  * - tenant: tenant context to set search_path and RLS variables.

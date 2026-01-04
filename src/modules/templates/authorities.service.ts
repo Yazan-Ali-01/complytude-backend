@@ -11,6 +11,10 @@ import {
   UpdateAuthorityDto,
 } from './dto/create-authority.dto';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class AuthoritiesService {
@@ -46,15 +50,17 @@ export class AuthoritiesService {
     }
   }
 
-  async findAll(active?: boolean): Promise<Authority[]> {
+  async findAll(
+    active?: boolean,
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<Authority>> {
     try {
       const filters = active !== undefined ? { is_active: active } : {};
       const result = await this.authorityRepository.findMany(
-        filters,
-        { page: 1, limit: 1000 },
-        'name',
+        { ...filters },
+        cursorOptions,
       );
-      return result.data;
+      return result;
     } catch (error) {
       this.logger.error(`Failed to fetch authorities: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch authorities');

@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
-import { QueryOptions } from '../base/repository.interface';
+import {
+  QueryOptions,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from '../base/repository.interface';
 import { Authority } from 'src/modules/templates/entities/authority.entity';
+import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 type AuthorityRow = {
   id: string;
@@ -17,27 +22,28 @@ type AuthorityRow = {
 
 @Injectable()
 export class AuthorityRepository extends BaseRepository<Authority> {
-  private readonly SORTABLE_FIELDS = [
-    'name',
-    'code',
-    'country',
-    'created_at',
-    'updated_at',
-  ] as const;
-
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.authorities');
   }
 
+  /**
+   * Find authorities with cursor-based pagination.
+   * Supports filtering by is_active, country, and code.
+   *
+   * @param filters - Optional filters for is_active, country, and code
+   * @param cursorOptions - Cursor, limit, and direction for pagination
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Cursor-paginated results with navigation metadata
+   */
   async findMany(
-    filters: { is_active?: boolean; country?: string; code?: string },
-    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
-    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'name',
+    filters: { is_active?: boolean; country?: string; code?: string } = {},
+    cursorOptions?: CursorPaginationOptions,
     options?: QueryOptions,
-  ): Promise<{ data: Authority[]; total: number }> {
-    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
-      throw new Error(`Invalid sort field: ${sortBy}`);
-    }
+  ): Promise<CursorPaginationResult<Authority>> {
+    // Validate and normalize cursor options
+    const paginationOpts =
+      CursorPaginationHelper.validateOptions(cursorOptions);
+    const { cursor, limit, direction } = paginationOpts;
 
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -55,34 +61,56 @@ export class AuthorityRepository extends BaseRepository<Authority> {
       conditions.push(`code = $${params.length}`);
     }
 
-    // pagination
+    // Add cursor condition using helper
+    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
+      direction,
+      cursor,
+      params.length + 1,
+    );
 
-    // Execute query
+    if (cursorQuery.clause) {
+      conditions.push(cursorQuery.clause);
+      params.push(...cursorQuery.params);
+    }
+
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const limitClause = CursorPaginationHelper.buildLimitClause(
+      limit,
+      params.length + 1,
+    );
+    params.push(...limitClause.params);
+
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ORDER BY ${sortBy} ASC`.trim();
+      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<AuthorityRow>(
       query,
       params,
       options,
     );
 
-    // Count total
-    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
-    const totalResult = await this.executeQuery(totalQuery, params, options);
+    const mappedRows = result.rows.map((row) => this.mapRow(row));
 
-    return {
-      data: result.rows.map((row) => this.mapRow(row)),
-      total: parseInt(totalResult.rows[0].count as string, 10),
-    };
+    return CursorPaginationHelper.createPaginationResponse(
+      mappedRows,
+      limit,
+      direction,
+      !!cursor,
+    );
   }
 
+  /**
+   * Find all active authorities.
+   * Uses cursor pagination internally but returns all data.
+   *
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Array of active authorities
+   */
   async findActive(options?: QueryOptions): Promise<Authority[]> {
     const result = await this.findMany(
       { is_active: true },
-      { page: 1, limit: 1000 },
-      'name',
+      { limit: 1000 },
       options,
     );
     return result.data;
