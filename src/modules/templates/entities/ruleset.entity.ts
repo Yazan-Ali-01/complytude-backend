@@ -4,7 +4,7 @@ export interface Ruleset {
   name: string;
   description: string | null;
   authority_id: string | null;
-  clauses: any[];
+  clauses: RulesetClause[];
   metadata: Record<string, any>;
   version: string;
   status: 'active' | 'inactive' | 'deprecated';

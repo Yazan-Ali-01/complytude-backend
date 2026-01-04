@@ -76,7 +76,7 @@ export class EmailVerificationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<void> {
     await this.executeQuery(
-      'UPDATE public.email_verifications SET verified_at = NOW() WHERE id = $1',
+      `UPDATE ${this.tableName} SET verified_at = NOW() WHERE id = $1`,
       [verificationId],
       options,
     );

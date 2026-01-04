@@ -24,7 +24,7 @@ import { JwtPayload } from './strategies/jwt.strategy';
 import { TenantService } from '../tenant/tenant.service';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
-import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.intefaces';
+import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.interfaces';
 import { User } from 'src/modules/users/entities/user.entity';
 
 @Injectable()
@@ -445,15 +445,12 @@ export class AuthService {
     const resetId = `reset_${randomUUID()}`;
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    await this.userRepository.createPasswordReset(
-      {
-        id: resetId,
-        userId,
-        token: resetToken,
-        expiresAt,
-      },
-      { client: undefined },
-    );
+    await this.userRepository.createPasswordReset({
+      id: resetId,
+      userId,
+      token: resetToken,
+      expiresAt,
+    });
 
     // TODO: Send password reset email
     this.logger.log(

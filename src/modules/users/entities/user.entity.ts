@@ -11,10 +11,10 @@ export class User {
   @Exclude()
   password_hash: string;
 
-  @ApiProperty({ description: 'User first name', required: false })
+  @ApiProperty({ description: 'User first name' })
   first_name: string | null;
 
-  @ApiProperty({ description: 'User last name', required: false })
+  @ApiProperty({ description: 'User last name' })
   last_name: string | null;
 
   @ApiProperty({ description: 'Email verification status' })

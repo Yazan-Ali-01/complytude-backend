@@ -55,7 +55,8 @@ export class ClauseDto {
   @ApiPropertyOptional({
     example: { category: 'employment', tags: ['probation'] },
     description: 'Additional clause metadata',
+    default: {},
   })
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata: Record<string, unknown> = {};
 }

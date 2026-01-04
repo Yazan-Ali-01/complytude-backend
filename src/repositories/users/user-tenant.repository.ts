@@ -4,8 +4,7 @@ import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
 import {
   LinkUserTenantInput,
-  UserTenantInfo,
-  UserTenantWithUser,
+  UserTenantWithUserRow,
 } from './interfaces/user-tenant.intefaces';
 import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 
@@ -16,6 +15,7 @@ type UserTenantRow = {
   is_active: boolean;
   joined_at: Date;
   updated_at: Date;
+  schema_name: string;
 };
 
 @Injectable()
@@ -38,6 +38,7 @@ export class UserTenantRepository extends BaseRepository<
       is_active: data.is_active,
       joined_at: data.joined_at,
       updated_at: data.updated_at,
+      schema_name: data.schema_name,
     };
   }
 
@@ -73,8 +74,8 @@ export class UserTenantRepository extends BaseRepository<
   async getActiveUserTenants(
     userId: string,
     options?: QueryOptions,
-  ): Promise<UserTenantInfo[]> {
-    const result = await this.executeQuery<UserTenantInfo>(
+  ): Promise<UserTenant[]> {
+    const result = await this.executeQuery<UserTenantRow>(
       `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at, t.schema_name
        FROM public.user_tenants ut
        JOIN public.tenants t ON ut.tenant_id = t.tenant_id
@@ -84,15 +85,15 @@ export class UserTenantRepository extends BaseRepository<
       options,
     );
 
-    return result.rows;
+    return result.rows.map((row) => this.mapRow(row));
   }
 
   async getUserInTenant(
     userId: string,
     tenantId: string,
     options?: QueryOptions,
-  ): Promise<UserTenantWithUser | null> {
-    const result = await this.executeQuery<UserTenantWithUser>(
+  ): Promise<UserTenantWithUserRow | null> {
+    const result = await this.executeQuery<UserTenantWithUserRow>(
       `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at, t.schema_name,
               u.email, u.first_name, u.last_name, u.is_verified, u.is_system_admin
        FROM public.user_tenants ut

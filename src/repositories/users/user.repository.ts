@@ -5,7 +5,7 @@ import { QueryOptions } from '../base/repository.interface';
 import {
   CreatePasswordResetInput,
   PasswordReset,
-} from './interfaces/user.intefaces';
+} from './interfaces/user.interfaces';
 import { User } from 'src/modules/users/entities/user.entity';
 
 type UserRow = {

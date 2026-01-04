@@ -34,20 +34,21 @@ export class CreateAuthorityDto {
   })
   @IsString()
   @IsOptional()
-  description: string | null = null;
+  description?: string;
 
   @ApiPropertyOptional({
-    example: 'UAE',
+    example: 'United Arab Emirates',
     description: 'Country where authority operates',
   })
   @IsString()
   @IsOptional()
   @MaxLength(100)
-  country: string = 'UAE';
+  country: string = 'United Arab Emirates';
 
   @ApiPropertyOptional({
     example: true,
     description: 'Whether authority is active',
+    default: true,
   })
   @IsBoolean()
   @IsOptional()
@@ -79,7 +80,6 @@ export class UpdateAuthorityDto {
   @IsString()
   @IsOptional()
   @MaxLength(100)
-  @Transform(({ value }) => value?.toUpperCase())
   country?: string;
 
   @ApiPropertyOptional({

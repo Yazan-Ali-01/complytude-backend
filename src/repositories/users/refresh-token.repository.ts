@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
-import { RefreshToken } from './interfaces/refresh-token.intefaces';
+import { RefreshToken } from './interfaces/refresh-token.interfaces';
 
 type RefreshTokenRow = {
   id: string;
@@ -40,7 +40,7 @@ export class RefreshTokenRepository extends BaseRepository<
       tokenHash: data.token_hash,
       expiresAt: data.expires_at,
       createdAt: data.created_at,
-      revokedAt: data.revoked_at ?? null,
+      revokedAt: data.revoked_at,
     };
   }
 
@@ -59,20 +59,33 @@ export class RefreshTokenRepository extends BaseRepository<
   }
 
   async revokeById(id: string, options?: QueryOptions): Promise<RefreshToken> {
-    const updatePayload: UpdateRefreshTokenRow = { revoked_at: new Date() };
-    return this.update(id, updatePayload, options);
+    const result = await this.executeQuery(
+      `UPDATE ${this.tableName} 
+       SET revoked_at = NOW() 
+       WHERE id = $1 AND revoked_at IS NULL`,
+      [id],
+      options,
+    );
+    if (result.rowCount === 0) {
+      throw new Error(`No refresh tokens found for id ${id}`);
+    }
+    return this.mapRow(result.rows[0]);
   }
 
   async revokeAllByUserId(
     userId: string,
     options?: QueryOptions,
-  ): Promise<void> {
-    await this.executeQuery(
+  ): Promise<RefreshToken> {
+    const result = await this.executeQuery(
       `UPDATE ${this.tableName} 
        SET revoked_at = NOW() 
        WHERE user_id = $1 AND revoked_at IS NULL`,
       [userId],
       options,
     );
+    if (result.rowCount === 0) {
+      throw new Error(`No refresh tokens found for user ${userId}`);
+    }
+    return this.mapRow(result.rows[0]);
   }
 }
