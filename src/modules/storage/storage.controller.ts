@@ -35,7 +35,7 @@ import {
   FileListResponseDto,
   SignedUrlResponseDto,
   DeleteFileResponseDto,
-} from './dto/file-response.dto';
+} from './dto/file-list-response.dto';
 
 @ApiTags('Storage')
 @Controller('storage')
