@@ -1,5 +1,10 @@
 import { Global, Module } from '@nestjs/common';
-import { I18nModule as NestI18nModule } from 'nestjs-i18n';
+import {
+  I18nModule as NestI18nModule,
+  HeaderResolver,
+  QueryResolver,
+  AcceptLanguageResolver,
+} from 'nestjs-i18n';
 import * as path from 'path';
 
 @Module({
@@ -10,6 +15,11 @@ import * as path from 'path';
         path: path.join(__dirname, '../i18n/locales/'),
         watch: true,
       },
+      resolvers: [
+        { use: QueryResolver, options: ['lang'] },
+        new HeaderResolver(['x-custom-lang']),
+        AcceptLanguageResolver,
+      ],
     }),
   ],
 })

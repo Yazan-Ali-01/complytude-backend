@@ -133,8 +133,7 @@ export class AuthService {
       );
 
       return {
-        message:
-          'Signup successful. Please check your email to verify your account.',
+        message: this.i18n.t('auth.SIGNUP_SUCCESS'),
         userId,
         tenant_id: tenant.tenant_id,
         verificationToken, // Expose only for development/testing; remove in prod
@@ -470,7 +469,7 @@ export class AuthService {
     if (result.rows.length === 0) {
       // Don't reveal if email exists
       return {
-        message: 'If the email exists, a password reset link has been sent',
+        message: this.i18n.t('auth.PASSWORD_RESET_EMAIL_SENT'),
       };
     }
 
@@ -491,7 +490,7 @@ export class AuthService {
     );
 
     return {
-      message: 'If the email exists, a password reset link has been sent',
+      message: this.i18n.t('auth.PASSWORD_RESET_EMAIL_SENT'),
       resetToken, // Remove in production
     };
   }
