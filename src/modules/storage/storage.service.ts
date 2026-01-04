@@ -42,7 +42,7 @@ export interface FileListItem {
   key: string;
   size: number;
   lastModified?: Date;
-  url: string;
+  url?: string;
 }
 
 export interface FileWithMetadata {
@@ -451,15 +451,11 @@ export class StorageService {
         commandParams,
       )) {
         if (page.Contents && page.Contents.length > 0) {
-          const files = await Promise.all(
-            page.Contents.filter((item) => item.Key).map(async (item) => {
-              const url = await this.generateSignedUrl(tenantId, item.Key!);
-              return {
-                key: item.Key!,
-                size: item.Size || 0,
-                lastModified: item.LastModified,
-                url,
-              };
+          const files = page.Contents.filter((item) => item.Key).map(
+            (item) => ({
+              key: item.Key!,
+              size: item.Size || 0,
+              lastModified: item.LastModified,
             }),
           );
           allFiles.push(...files);
@@ -769,15 +765,11 @@ export class StorageService {
         commandParams,
       )) {
         if (page.Contents && page.Contents.length > 0) {
-          const files = await Promise.all(
-            page.Contents.filter((item) => item.Key).map(async (item) => {
-              const url = await this.generateTemplateSignedUrl(item.Key!);
-              return {
-                key: item.Key!,
-                size: item.Size || 0,
-                lastModified: item.LastModified,
-                url,
-              };
+          const files = page.Contents.filter((item) => item.Key).map(
+            (item) => ({
+              key: item.Key!,
+              size: item.Size || 0,
+              lastModified: item.LastModified,
             }),
           );
           allFiles.push(...files);
