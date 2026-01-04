@@ -17,6 +17,7 @@ import {
   HeadBucketCommand,
   CreateBucketCommand,
   HeadObjectCommand,
+  paginateListObjectsV2,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
@@ -435,30 +436,37 @@ export class StorageService {
       : tenantPrefix;
 
     try {
-      const response = await this.s3Client.send(
-        new ListObjectsV2Command({
-          Bucket: bucket,
-          Prefix: fullPrefix,
-        }),
-      );
+      const allFiles: FileListItem[] = [];
+      const paginatorConfig = {
+        client: this.s3Client,
+        pageSize: 1000,
+      };
+      const commandParams = {
+        Bucket: bucket,
+        Prefix: fullPrefix,
+      };
 
-      if (!response.Contents || response.Contents.length === 0) {
-        return [];
+      for await (const page of paginateListObjectsV2(
+        paginatorConfig,
+        commandParams,
+      )) {
+        if (page.Contents && page.Contents.length > 0) {
+          const files = await Promise.all(
+            page.Contents.filter((item) => item.Key).map(async (item) => {
+              const url = await this.generateSignedUrl(tenantId, item.Key!);
+              return {
+                key: item.Key!,
+                size: item.Size || 0,
+                lastModified: item.LastModified,
+                url,
+              };
+            }),
+          );
+          allFiles.push(...files);
+        }
       }
 
-      const files: FileListItem[] = await Promise.all(
-        response.Contents.filter((item) => item.Key).map(async (item) => {
-          const url = await this.generateSignedUrl(tenantId, item.Key!);
-          return {
-            key: item.Key!,
-            size: item.Size || 0,
-            lastModified: item.LastModified,
-            url,
-          };
-        }),
-      );
-
-      return files;
+      return allFiles;
     } catch (error) {
       // Handle bucket doesn't exist cases
       if (
@@ -746,30 +754,37 @@ export class StorageService {
    */
   async listTemplateFiles(prefix?: string): Promise<FileListItem[]> {
     try {
-      const response = await this.s3Client.send(
-        new ListObjectsV2Command({
-          Bucket: this.templatesBucket,
-          Prefix: prefix,
-        }),
-      );
+      const allFiles: FileListItem[] = [];
+      const paginatorConfig = {
+        client: this.s3Client,
+        pageSize: 1000,
+      };
+      const commandParams = {
+        Bucket: this.templatesBucket,
+        Prefix: prefix,
+      };
 
-      if (!response.Contents || response.Contents.length === 0) {
-        return [];
+      for await (const page of paginateListObjectsV2(
+        paginatorConfig,
+        commandParams,
+      )) {
+        if (page.Contents && page.Contents.length > 0) {
+          const files = await Promise.all(
+            page.Contents.filter((item) => item.Key).map(async (item) => {
+              const url = await this.generateTemplateSignedUrl(item.Key!);
+              return {
+                key: item.Key!,
+                size: item.Size || 0,
+                lastModified: item.LastModified,
+                url,
+              };
+            }),
+          );
+          allFiles.push(...files);
+        }
       }
 
-      const files: FileListItem[] = await Promise.all(
-        response.Contents.filter((item) => item.Key).map(async (item) => {
-          const url = await this.generateTemplateSignedUrl(item.Key!);
-          return {
-            key: item.Key!,
-            size: item.Size || 0,
-            lastModified: item.LastModified,
-            url,
-          };
-        }),
-      );
-
-      return files;
+      return allFiles;
     } catch (error) {
       // Handle bucket doesn't exist cases
       if (
