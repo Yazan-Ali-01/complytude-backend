@@ -1,6 +1,6 @@
 {
   "TEMPLATE_NOT_FOUND": "القالب بالمعرف {{id}} غير موجود",
-  "TEMPLATE_CREATION_FAILED": "فشل إنشاء القالب",
+  "TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء القالب",
   "TEMPLATE_UPDATE_FAILED": "فشل تحديث القالب",
   "TEMPLATE_DELETE_FAILED": "فشل حذف القالب",
   "TEMPLATE_ALREADY_EXISTS": "يوجد قالب بهذا الاسم مسبقاً",
