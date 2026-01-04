@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
+import { I18nKeys } from '../../common/constants/i18n-keys';
 
 export class ValidationException extends HttpException {
   constructor(details: any[]) {
@@ -7,10 +8,9 @@ export class ValidationException extends HttpException {
     super(
       {
         statusCode: HttpStatus.BAD_REQUEST,
-        error: i18n?.t('common.BAD_REQUEST') ?? 'Bad Request',
+        error: i18n?.t(I18nKeys.BAD_REQUEST) ?? 'Bad Request',
         message:
-          i18n?.t('common.VALIDATION_ERROR') ?? 'Variable validation failed',
-        details,
+          i18n?.t(I18nKeys.VALIDATION_ERROR) ?? 'Variable validation failed',
       },
       HttpStatus.BAD_REQUEST,
     );

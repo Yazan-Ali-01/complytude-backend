@@ -21,6 +21,7 @@ import { JwtPayload } from './strategies/jwt.strategy';
 import { TenantService } from '../tenant/tenant.service';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
+import { I18nKeys } from '../../common/constants/i18n-keys';
 
 interface TenantRow {
   tenant_id: string;
@@ -73,7 +74,9 @@ export class AuthService {
     );
 
     if (existingUser.rows.length > 0) {
-      throw new ConflictException(this.i18n.t('auth.EMAIL_ALREADY_REGISTERED'));
+      throw new ConflictException(
+        this.i18n.t(I18nKeys.EMAIL_ALREADY_REGISTERED),
+      );
     }
 
     // Hash password
@@ -133,7 +136,7 @@ export class AuthService {
       );
 
       return {
-        message: this.i18n.t('auth.SIGNUP_SUCCESS'),
+        message: this.i18n.t(I18nKeys.SIGNUP_SUCCESS),
         userId,
         tenant_id: tenant.tenant_id,
         verificationToken, // Expose only for development/testing; remove in prod
@@ -158,7 +161,7 @@ export class AuthService {
     );
 
     if (tenantsResult.rows.length === 0) {
-      throw new UnauthorizedException(this.i18n.t('auth.NO_ACTIVE_TENANTS'));
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
     }
 
     // If tenantId specified, use that; otherwise use first tenant
@@ -169,7 +172,7 @@ export class AuthService {
       );
       if (!found) {
         throw new UnauthorizedException(
-          this.i18n.t('auth.TENANT_ACCESS_DENIED'),
+          this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
         );
       }
       selectedTenant = found;
@@ -221,7 +224,9 @@ export class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new UnauthorizedException(this.i18n.t('auth.INVALID_CREDENTIALS'));
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
     }
 
     const user = result.rows[0];
@@ -229,7 +234,9 @@ export class AuthService {
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException(this.i18n.t('auth.INVALID_CREDENTIALS'));
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
     }
 
     return user;
@@ -336,7 +343,7 @@ export class AuthService {
 
     if (result.rows.length === 0) {
       throw new UnauthorizedException(
-        this.i18n.t('auth.INVALID_REFRESH_TOKEN'),
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
       );
     }
 
@@ -352,7 +359,7 @@ export class AuthService {
 
     if (!validToken) {
       throw new UnauthorizedException(
-        this.i18n.t('auth.INVALID_REFRESH_TOKEN'),
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
       );
     }
 
@@ -372,7 +379,7 @@ export class AuthService {
     );
 
     if (userResult.rows.length === 0) {
-      throw new UnauthorizedException(this.i18n.t('auth.NO_ACTIVE_TENANTS'));
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
     }
 
     const {
@@ -413,11 +420,11 @@ export class AuthService {
           [token.id],
         );
         this.logger.log(`User ${userId} logged out`);
-        return { message: this.i18n.t('auth.LOGOUT_SUCCESS') };
+        return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
       }
     }
 
-    throw new BadRequestException(this.i18n.t('auth.INVALID_REFRESH_TOKEN'));
+    throw new BadRequestException(this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN));
   }
 
   /**
@@ -432,7 +439,7 @@ export class AuthService {
 
     if (result.rows.length === 0) {
       throw new BadRequestException(
-        this.i18n.t('auth.INVALID_VERIFICATION_TOKEN'),
+        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
       );
     }
 
@@ -454,7 +461,7 @@ export class AuthService {
 
     this.logger.log(`Email verified for user ${verification.user_id}`);
 
-    return { message: this.i18n.t('auth.EMAIL_VERIFIED') };
+    return { message: this.i18n.t(I18nKeys.EMAIL_VERIFIED) };
   }
 
   /**
@@ -469,7 +476,7 @@ export class AuthService {
     if (result.rows.length === 0) {
       // Don't reveal if email exists
       return {
-        message: this.i18n.t('auth.PASSWORD_RESET_EMAIL_SENT'),
+        message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
       };
     }
 
@@ -490,7 +497,7 @@ export class AuthService {
     );
 
     return {
-      message: this.i18n.t('auth.PASSWORD_RESET_EMAIL_SENT'),
+      message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
       resetToken, // Remove in production
     };
   }
@@ -507,7 +514,7 @@ export class AuthService {
 
     if (result.rows.length === 0) {
       throw new BadRequestException(
-        this.i18n.t('auth.INVALID_VERIFICATION_TOKEN'),
+        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
       );
     }
 
@@ -541,6 +548,6 @@ export class AuthService {
 
     this.logger.log(`Password reset for user ${reset.user_id}`);
 
-    return { message: this.i18n.t('auth.PASSWORD_RESET_SUCCESS') };
+    return { message: this.i18n.t(I18nKeys.PASSWORD_RESET_SUCCESS) };
   }
 }

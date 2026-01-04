@@ -28,6 +28,7 @@ import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,
 } from './constants/template.constants';
+import { I18nKeys } from '../../common/constants/i18n-keys';
 
 @Injectable()
 export class TemplatesService {
@@ -59,7 +60,7 @@ export class TemplatesService {
 
       if (existing.rows.length > 0) {
         throw new ConflictException(
-          this.i18n.t('templates.TEMPLATE_ALREADY_EXISTS'),
+          this.i18n.t(I18nKeys.TEMPLATE_ALREADY_EXISTS),
         );
       }
 
@@ -71,7 +72,7 @@ export class TemplatesService {
         );
         if (categoryExists.rows.length === 0) {
           throw new BadRequestException(
-            this.i18n.t('templates.TEMPLATE_CATEGORY_REQUIRED'),
+            this.i18n.t(I18nKeys.TEMPLATE_CATEGORY_REQUIRED),
           );
         }
       }
@@ -84,7 +85,7 @@ export class TemplatesService {
         );
         if (authorityExists.rows.length === 0) {
           throw new BadRequestException(
-            this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
+            this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
           );
         }
       }
@@ -99,7 +100,7 @@ export class TemplatesService {
         );
         if (rulesets.length !== createTemplateDto.ruleset_keys.length) {
           throw new BadRequestException(
-            this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
+            this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
           );
         }
       }
@@ -131,7 +132,7 @@ export class TemplatesService {
           error.stack,
         );
         throw new InternalServerErrorException(
-          this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+          this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
         );
       }
 
@@ -241,7 +242,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to create template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
       );
     }
   }
@@ -306,7 +307,7 @@ export class TemplatesService {
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
       );
     }
   }
@@ -322,7 +323,7 @@ export class TemplatesService {
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
       );
     }
   }
@@ -336,7 +337,7 @@ export class TemplatesService {
 
       if (result.rows.length === 0) {
         throw new NotFoundException(
-          this.i18n.t('templates.TEMPLATE_NOT_FOUND', { args: { id } }),
+          this.i18n.t(I18nKeys.TEMPLATE_NOT_FOUND, { args: { id } }),
         );
       }
 
@@ -347,7 +348,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
       );
     }
   }
@@ -366,7 +367,7 @@ export class TemplatesService {
 
       if (result.rows.length === 0) {
         throw new NotFoundException(
-          this.i18n.t('templates.TEMPLATE_NOT_FOUND', { args: { id: key } }),
+          this.i18n.t(I18nKeys.TEMPLATE_NOT_FOUND, { args: { id: key } }),
         );
       }
 
@@ -377,7 +378,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
       );
     }
   }
@@ -462,7 +463,7 @@ export class TemplatesService {
         `Failed to fetch template with details: ${error.message}`,
       );
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
       );
     }
   }
@@ -483,7 +484,7 @@ export class TemplatesService {
         );
         if (categoryExists.rows.length === 0) {
           throw new BadRequestException(
-            this.i18n.t('templates.TEMPLATE_CATEGORY_REQUIRED'),
+            this.i18n.t(I18nKeys.TEMPLATE_CATEGORY_REQUIRED),
           );
         }
       }
@@ -496,7 +497,7 @@ export class TemplatesService {
         );
         if (authorityExists.rows.length === 0) {
           throw new BadRequestException(
-            this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
+            this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
           );
         }
       }
@@ -511,7 +512,7 @@ export class TemplatesService {
         );
         if (rulesets.length !== updateTemplateDto.ruleset_keys.length) {
           throw new BadRequestException(
-            this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
+            this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
           );
         }
       }
@@ -624,7 +625,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to update template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_UPDATE_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_UPDATE_FAILED),
       );
     }
   }
@@ -646,7 +647,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to deactivate template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_UPDATE_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_UPDATE_FAILED),
       );
     }
   }
@@ -667,7 +668,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to delete template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_DELETE_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_DELETE_FAILED),
       );
     }
   }
@@ -690,7 +691,7 @@ export class TemplatesService {
     );
     if (existingVersion.rows.length > 0) {
       throw new ConflictException(
-        this.i18n.t('templates.TEMPLATE_VERSION_CONFLICT'),
+        this.i18n.t(I18nKeys.TEMPLATE_VERSION_CONFLICT),
       );
     }
 
@@ -715,7 +716,7 @@ export class TemplatesService {
         error.stack,
       );
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
       );
     }
 
@@ -823,7 +824,7 @@ export class TemplatesService {
     // Validate version format (semver: x.y.z) before any DB calls
     if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
       throw new BadRequestException(
-        this.i18n.t('templates.INVALID_TEMPLATE_DATA'),
+        this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
       );
     }
 
@@ -864,7 +865,7 @@ export class TemplatesService {
         `Failed to generate download URL for template "${key}": ${error.message}`,
       );
       throw new InternalServerErrorException(
-        this.i18n.t('templates.TEMPLATE_CREATION_FAILED'),
+        this.i18n.t(I18nKeys.TEMPLATE_CREATION_FAILED),
       );
     }
   }

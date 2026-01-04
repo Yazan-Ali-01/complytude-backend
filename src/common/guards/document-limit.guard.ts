@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { TenantService } from '../../modules/tenant/tenant.service';
+import { I18nKeys } from '../constants/i18n-keys';
 
 /**
  * Guard to enforce document upload limits based on tenant's plan
@@ -34,7 +35,7 @@ export class DocumentLimitGuard implements CanActivate {
 
     // Ensure tenant context is available
     if (!tenantId) {
-      throw new UnauthorizedException(this.i18n.t('common.UNAUTHORIZED'));
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.UNAUTHORIZED));
     }
 
     // Check if tenant can upload more documents

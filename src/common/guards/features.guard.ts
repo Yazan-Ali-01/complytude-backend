@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import { I18nService } from 'nestjs-i18n';
 import { FEATURES_KEY } from '../decorators/features.decorator';
 import { FeaturesService } from '../../modules/tenant/features.service';
+import { I18nKeys } from '../constants/i18n-keys';
 
 @Injectable()
 export class FeaturesGuard implements CanActivate {
@@ -35,7 +36,7 @@ export class FeaturesGuard implements CanActivate {
 
     // Ensure tenant context is available
     if (!tenantId) {
-      throw new UnauthorizedException(this.i18n.t('common.UNAUTHORIZED'));
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.UNAUTHORIZED));
     }
 
     // Check each required feature
@@ -46,7 +47,7 @@ export class FeaturesGuard implements CanActivate {
       );
 
       if (!hasAccess) {
-        throw new ForbiddenException(this.i18n.t('common.FORBIDDEN'));
+        throw new ForbiddenException(this.i18n.t(I18nKeys.FORBIDDEN));
       }
     }
 
