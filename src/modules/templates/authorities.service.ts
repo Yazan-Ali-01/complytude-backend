@@ -23,6 +23,7 @@ export class AuthoritiesService {
       // Check if code already exists
       const existing = await this.authorityRepository.findOne({
         filters: { code: createAuthorityDto.code.toUpperCase() },
+        select: ['id'],
       });
 
       if (existing) {
@@ -81,6 +82,7 @@ export class AuthoritiesService {
     try {
       const authority = await this.authorityRepository.findOne({
         filters: { code: code.toUpperCase() },
+        select: ['id', 'code', 'name', 'description', 'country', 'is_active'],
       });
 
       if (!authority) {

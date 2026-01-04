@@ -38,6 +38,7 @@ export class TemplateVersionsService {
           template_id: templateId,
           version,
         },
+        select: ['id'],
         client,
       });
 
@@ -104,6 +105,18 @@ export class TemplateVersionsService {
           template_id: templateId,
           version,
         },
+        select: [
+          'id',
+          'template_id',
+          'version',
+          'fields',
+          'file_url',
+          'changelog',
+          'metadata',
+          'is_active',
+          'created_by',
+          'created_at',
+        ],
       });
 
       if (!versionRecord) {
@@ -134,6 +147,18 @@ export class TemplateVersionsService {
           template_id: templateId,
           is_active: true,
         },
+        select: [
+          'id',
+          'template_id',
+          'version',
+          'fields',
+          'file_url',
+          'changelog',
+          'metadata',
+          'is_active',
+          'created_by',
+          'created_at',
+        ],
         client,
       });
 
@@ -154,6 +179,7 @@ export class TemplateVersionsService {
           template_id: templateId,
           version,
         },
+        select: ['id', 'file_url'],
       });
 
       if (!versionToActivate) {

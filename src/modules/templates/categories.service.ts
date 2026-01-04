@@ -23,6 +23,7 @@ export class CategoriesService {
       // Check if code already exists
       const existing = await this.categoryRepository.findOne({
         filters: { code: createCategoryDto.code.toLowerCase() },
+        select: ['id'],
       });
 
       if (existing) {
@@ -80,6 +81,16 @@ export class CategoriesService {
     try {
       const category = await this.categoryRepository.findOne({
         filters: { code: code.toLowerCase() },
+        select: [
+          'id',
+          'code',
+          'name',
+          'description',
+          'parent_id',
+          'is_active',
+          'created_at',
+          'updated_at',
+        ],
       });
 
       if (!category) {

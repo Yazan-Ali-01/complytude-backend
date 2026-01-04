@@ -24,9 +24,10 @@ export interface QueryOptions {
 export interface ClientQueryOptions extends QueryOptions {
   client: PoolClient;
 }
-export interface FindOneOptions<TFilters = Record<string, unknown>>
+export interface FindOneOptions<TEntity = Record<string, unknown>>
   extends QueryOptions {
-  filters?: TFilters;
+  filters?: Partial<TEntity>;
+  select?: (keyof TEntity)[];
 }
 
 /**

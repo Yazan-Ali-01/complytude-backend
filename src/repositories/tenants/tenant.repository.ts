@@ -132,6 +132,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       filters: {
         tenant_id: tenantId,
       },
+      select: ['id', 'tenant_id'],
     });
     if (!tenant) {
       throw new NotFoundException(`Tenant ${tenantId} not found`);
@@ -148,6 +149,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       filters: {
         tenant_id: tenantId,
       },
+      select: ['id', 'tenant_id'],
     });
     if (!tenant) {
       throw new NotFoundException(`Tenant ${tenantId} not found`);

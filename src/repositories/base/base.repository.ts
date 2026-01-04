@@ -156,18 +156,26 @@ export abstract class BaseRepository<
    * const user = await this.findOneBy({ email });
    * ```
    */
-  async findOne(options?: FindOneOptions): Promise<TEntity | null> {
+  async findOne(options?: FindOneOptions<TEntity>): Promise<TEntity | null> {
     this.logger.debug(
-      `findOneBy: table=${this.tableName}, filters=${JSON.stringify(
+      `findOne: table=${this.tableName}, filters=${JSON.stringify(
         options?.filters ?? {},
       )}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
     );
-    const qb = new QueryBuilder();
-    qb.addFilters(options?.filters ?? {});
-    const { clause: whereClause, params } = qb.buildWhere();
+    const params: unknown[] = [];
+    let whereClause = '';
+    if (options?.filters) {
+      whereClause = 'WHERE ';
+      for (const [key, value] of Object.entries(options.filters)) {
+        params.push(value);
+        whereClause += `${key} = $${params.length} AND `;
+      }
+      whereClause = whereClause.slice(0, -5);
+    }
 
+    const select = options?.select ? options.select.join(', ') : '*';
     const result = await this.executeQuery(
-      `SELECT * FROM ${this.tableName} ${whereClause} LIMIT 1`,
+      `SELECT ${select} FROM ${this.tableName} ${whereClause} LIMIT 1`,
       params,
       options,
     );

@@ -60,6 +60,7 @@ export class TenantService {
         filters: {
           email: createTenantDto.email,
         },
+        select: ['id'],
       });
 
       if (existingTenant) {
@@ -118,6 +119,18 @@ export class TenantService {
         filters: {
           tenant_id: tenantId,
         },
+        select: [
+          'id',
+          'tenant_id',
+          'email',
+          'role',
+          'plan',
+          'features',
+          'schema_name',
+          'is_active',
+          'created_at',
+          'updated_at',
+        ],
       });
 
       if (!tenant) {
@@ -140,6 +153,18 @@ export class TenantService {
         filters: {
           email,
         },
+        select: [
+          'id',
+          'tenant_id',
+          'email',
+          'role',
+          'plan',
+          'features',
+          'schema_name',
+          'is_active',
+          'created_at',
+          'updated_at',
+        ],
       });
 
       if (!tenant) {

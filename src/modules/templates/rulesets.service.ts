@@ -28,6 +28,7 @@ export class RulesetsService {
       // Check if key already exists
       const existing = await this.rulesetRepository.findOne({
         filters: { key: createRulesetDto.key },
+        select: ['id'],
       });
 
       if (existing) {
@@ -108,6 +109,20 @@ export class RulesetsService {
     try {
       const ruleset = await this.rulesetRepository.findOne({
         filters: { key },
+        select: [
+          'id',
+          'key',
+          'name',
+          'description',
+          'authority_id',
+          'clauses',
+          'metadata',
+          'version',
+          'status',
+          'created_by',
+          'created_at',
+          'updated_at',
+        ],
       });
 
       if (!ruleset) {

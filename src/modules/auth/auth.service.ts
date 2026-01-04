@@ -60,6 +60,7 @@ export class AuthService {
       filters: {
         email: signupDto.email,
       },
+      select: ['id'],
     });
     if (existingUser) {
       throw new ConflictException('Email already registered');
@@ -217,6 +218,15 @@ export class AuthService {
       filters: {
         email,
       },
+      select: [
+        'id',
+        'email',
+        'password_hash',
+        'first_name',
+        'last_name',
+        'is_verified',
+        'is_system_admin',
+      ],
     });
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -432,6 +442,7 @@ export class AuthService {
       filters: {
         email: forgotPasswordDto.email,
       },
+      select: ['id'],
     });
     if (!user) {
       // Don't reveal if email exists

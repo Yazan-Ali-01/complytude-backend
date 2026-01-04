@@ -57,6 +57,7 @@ export class TemplatesService {
     try {
       const existing = await this.templateRepository.findOne({
         filters: { key: createTemplateDto.key },
+        select: ['id'],
       });
 
       if (existing) {
@@ -317,6 +318,22 @@ export class TemplatesService {
     try {
       const template = await this.templateRepository.findOne({
         filters: { key },
+        select: [
+          'id',
+          'key',
+          'name',
+          'description',
+          'category_id',
+          'authority_id',
+          'languages',
+          'current_version',
+          'status',
+          'file_url',
+          'metadata',
+          'created_by',
+          'created_at',
+          'updated_at',
+        ],
         client,
       });
 
