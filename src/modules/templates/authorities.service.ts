@@ -45,10 +45,9 @@ export class AuthoritiesService {
     }
   }
 
-  async findAll(active?: string): Promise<Authority[]> {
+  async findAll(active?: boolean): Promise<Authority[]> {
     try {
-      const filters =
-        active == undefined ? undefined : { is_active: active === 'true' };
+      const filters = active ? { is_active: active } : undefined;
       const result = await this.authorityRepository.findAll({
         filters,
         orderBy: 'name',

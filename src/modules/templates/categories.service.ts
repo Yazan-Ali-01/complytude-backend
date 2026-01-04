@@ -44,10 +44,9 @@ export class CategoriesService {
     }
   }
 
-  async findAll(active?: string): Promise<Category[]> {
+  async findAll(active?: boolean): Promise<Category[]> {
     try {
-      const filters =
-        active == undefined ? undefined : { is_active: active === 'true' };
+      const filters = active ? { is_active: active } : undefined;
       const result = await this.categoryRepository.findAll({
         filters,
         orderBy: 'name',

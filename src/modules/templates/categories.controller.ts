@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseBoolPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -72,7 +73,9 @@ export class CategoriesController {
     description: 'List of categories',
     type: [Object],
   })
-  async findAll(@Query('active') active?: string): Promise<Category[]> {
+  async findAll(
+    @Query('active', new ParseBoolPipe({ optional: true })) active?: boolean,
+  ): Promise<Category[]> {
     return this.categoriesService.findAll(active);
   }
 

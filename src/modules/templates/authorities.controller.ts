@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseBoolPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -72,7 +73,9 @@ export class AuthoritiesController {
     description: 'List of authorities',
     type: [Object],
   })
-  async findAll(@Query('active') active?: string): Promise<Authority[]> {
+  async findAll(
+    @Query('active', new ParseBoolPipe({ optional: true })) active?: boolean,
+  ): Promise<Authority[]> {
     return this.authoritiesService.findAll(active);
   }
 
