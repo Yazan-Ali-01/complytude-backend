@@ -3,7 +3,7 @@
   "TEMPORARY_URL_GENERATION_FAILED": "Failed to create template",
   "TEMPLATE_UPDATE_FAILED": "Failed to update template",
   "TEMPLATE_DELETE_FAILED": "Failed to delete template",
-  "TEMPLATE_ALREADY_EXISTS": "Template with this name already exists",
+  "TEMPLATE_ALREADY_EXISTS": "Template with this key already exists",
   "INVALID_TEMPLATE_DATA": "Invalid template data provided",
   "TEMPLATE_NAME_REQUIRED": "Template name is required",
   "TEMPLATE_CONTENT_REQUIRED": "Template content is required",
