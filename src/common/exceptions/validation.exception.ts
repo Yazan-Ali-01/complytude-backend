@@ -7,9 +7,9 @@ export class ValidationException extends HttpException {
     super(
       {
         statusCode: HttpStatus.BAD_REQUEST,
-        error: i18n?.t('common.BAD_REQUEST'),
+        error: i18n?.t('common.BAD_REQUEST') ?? 'Bad Request',
         message:
-          i18n?.t('common.VALIDATION_ERROR') ,
+          i18n?.t('common.VALIDATION_ERROR') ?? 'Variable validation failed',
         details,
       },
       HttpStatus.BAD_REQUEST,
