@@ -166,7 +166,7 @@ Closes COM-4
 ### Commit Scope
 
 - Short descriptor of the affected module/area
-- Examples: `auth`, `templates`, `storage`, `tenant`, `database`
+- Examples: `auth`, `templates`, `storage`, `workspace`, `database`
 
 ### Commit Description
 
@@ -218,10 +218,10 @@ Fixes COM-28
 **Refactoring:**
 
 ```
-refactor(database): optimize tenant isolation queries (COM-42)
+refactor(database): optimize workspace isolation queries (COM-42)
 
-- Use prepared statements for tenant queries
-- Cache tenant schema names
+- Use prepared statements for workspace queries
+- Cache workspace schema names
 - Reduce database round trips
 
 Closes COM-42

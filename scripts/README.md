@@ -11,8 +11,8 @@ scripts/
 │   └── 002_init_auth.sql
 ├── utilities/           # Utility scripts for management and testing
 │   ├── manage-custom-features.sql
-│   ├── test-multi-tenancy.sql
-│   └── verify-multi-tenancy.sql
+│   ├── test-multi-workspace.sql
+│   └── verify-multi-workspace.sql
 ├── docker-start.sh      # Start Docker PostgreSQL
 └── run-migrations.sh    # Run all migrations
 ```
@@ -108,7 +108,7 @@ psql -U postgres -d complytude
 ```
 
 **Common operations:**
-- View tenant features
+- View workspace features
 - Grant custom features
 - Remove custom features
 - Bulk operations
@@ -116,31 +116,31 @@ psql -U postgres -d complytude
 
 See the file for complete examples.
 
-### Multi-Tenancy Testing
+### Multi-Workspace Testing
 
-**File:** `utilities/test-multi-tenancy.sql`
+**File:** `utilities/test-multi-workspace.sql`
 
-Test tenant isolation and RLS:
+Test workspace isolation and RLS:
 
 ```bash
-psql -U postgres -d complytude -f scripts/utilities/test-multi-tenancy.sql
+psql -U postgres -d complytude -f scripts/utilities/test-multi-workspace.sql
 ```
 
 **Tests:**
-- Creates test tenants
+- Creates test workspaces
 - Creates sample data
 - Tests RLS isolation
 - Tests schema isolation
 - Cleans up after itself
 
-### Multi-Tenancy Verification
+### Multi-Workspace Verification
 
-**File:** `utilities/verify-multi-tenancy.sql`
+**File:** `utilities/verify-multi-workspace.sql`
 
-Verify multi-tenancy setup:
+Verify multi-workspace setup:
 
 ```bash
-psql -U postgres -d complytude -f scripts/utilities/verify-multi-tenancy.sql
+psql -U postgres -d complytude -f scripts/utilities/verify-multi-workspace.sql
 ```
 
 **Checks:**
@@ -149,7 +149,7 @@ psql -U postgres -d complytude -f scripts/utilities/verify-multi-tenancy.sql
 - Policies configured
 - Indexes created
 - Helper functions available
-- Tenant statistics
+- Workspace statistics
 
 ---
 
@@ -281,7 +281,7 @@ npm run docker:reset
 ### Custom Features
 
 1. **Document changes** - Note why custom features were granted
-2. **Test on one tenant first** - Before bulk operations
+2. **Test on one workspace first** - Before bulk operations
 3. **Set updated_at** - Always update timestamp
 4. **Use transactions** - For complex changes
 
@@ -308,29 +308,29 @@ npm run docker:start
 npm run start:dev
 ```
 
-### Add Custom Feature to Tenant
+### Add Custom Feature to Workspace
 
 ```bash
 # Connect to database
 psql -U postgres -d complytude
 
 # Grant feature
-UPDATE public.tenants 
+UPDATE public.workspaces 
 SET features = '{"analyzer_enabled": true}'::jsonb
-WHERE tenant_id = 'tenant_123';
+WHERE workspace_id = 'workspace_123';
 ```
 
 ### Check System Status
 
 ```bash
-# Verify multi-tenancy setup
-psql -U postgres -d complytude -f scripts/utilities/verify-multi-tenancy.sql
+# Verify multi-workspace setup
+psql -U postgres -d complytude -f scripts/utilities/verify-multi-workspace.sql
 
 # Check migration status
 psql -U postgres -d complytude -c "SELECT * FROM schema_migrations;"
 
-# View tenant stats
-psql -U postgres -d complytude -c "SELECT plan, COUNT(*) FROM tenants GROUP BY plan;"
+# View workspace stats
+psql -U postgres -d complytude -c "SELECT plan, COUNT(*) FROM workspaces GROUP BY plan;"
 ```
 
 ---

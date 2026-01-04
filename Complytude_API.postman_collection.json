@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Complytude API",
-    "description": "Complete API collection for Complytude - Multi-tenant NestJS application with JWT authentication, S3/MinIO file storage, template management system with versioning, plan-based feature enforcement, and system admin role-based security",
+    "description": "Complete API collection for Complytude - Multi-workspace NestJS application with JWT authentication, S3/MinIO file storage, template management system with versioning, plan-based feature enforcement, and system admin role-based security",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "complytude",
     "version": "2.0.0"
@@ -44,10 +44,10 @@
                   "            console.log('✅ User ID saved:', response.userId);",
                   "        }",
                   "        ",
-                  "        // Save tenant ID",
-                  "        if (response.tenantId) {",
-                  "            pm.environment.set('tenantId', response.tenantId);",
-                  "            console.log('✅ Tenant ID saved:', response.tenantId);",
+                  "        // Save workspace ID",
+                  "        if (response.workspaceId) {",
+                  "            pm.environment.set('workspaceId', response.workspaceId);",
+                  "            console.log('✅ Workspace ID saved:', response.workspaceId);",
                   "        }",
                   "        ",
                   "        console.log('✅ Signup successful! Next step: Verify Email');",
@@ -76,14 +76,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"tenantName\": \"Acme Corporation\"\n}"
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"workspaceName\": \"Acme Corporation\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/signup",
               "host": ["{{baseUrl}}"],
               "path": ["auth", "signup"]
             },
-            "description": "Register a new user account and create their first tenant"
+            "description": "Register a new user account and create their first workspace"
           },
           "response": []
         },
@@ -153,12 +153,12 @@
                   "            console.log('✅ Refresh token saved');",
                   "        }",
                   "        ",
-                  "        // Save current tenant info",
-                  "        if (response.currentTenant) {",
-                  "            pm.environment.set('tenantId', response.currentTenant.tenantId);",
-                  "            pm.environment.set('tenantRole', response.currentTenant.role);",
-                  "            console.log('✅ Tenant ID:', response.currentTenant.tenantId);",
-                  "            console.log('✅ Your role:', response.currentTenant.role);",
+                  "        // Save current workspace info",
+                  "        if (response.currentWorkspace) {",
+                  "            pm.environment.set('workspaceId', response.currentWorkspace.workspaceId);",
+                  "            pm.environment.set('workspaceRole', response.currentWorkspace.role);",
+                  "            console.log('✅ Workspace ID:', response.currentWorkspace.workspaceId);",
+                  "            console.log('✅ Your role:', response.currentWorkspace.role);",
                   "        }",
                   "        ",
                   "        // Save user info",
@@ -168,11 +168,11 @@
                   "            console.log('✅ Email verified:', response.user.isVerified);",
                   "        }",
                   "        ",
-                  "        // Display available tenants",
-                  "        if (response.availableTenants && response.availableTenants.length > 0) {",
-                  "            console.log('📋 Available tenants:', response.availableTenants.length);",
-                  "            response.availableTenants.forEach((t, i) => {",
-                  "                console.log(`  ${i + 1}. Tenant: ${t.tenantId} (Role: ${t.role})`);",
+                  "        // Display available workspaces",
+                  "        if (response.availableWorkspaces && response.availableWorkspaces.length > 0) {",
+                  "            console.log('📋 Available workspaces:', response.availableWorkspaces.length);",
+                  "            response.availableWorkspaces.forEach((t, i) => {",
+                  "                console.log(`  ${i + 1}. Workspace: ${t.workspaceId} (Role: ${t.role})`);",
                   "            });",
                   "        }",
                   "        ",
@@ -508,17 +508,17 @@
           "response": []
         },
         {
-          "name": "Get User's Tenants",
+          "name": "Get User's Workspaces",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const tenants = pm.response.json();",
-                  "    console.log('✅ Your Tenants:', tenants.length);",
-                  "    tenants.forEach((t, i) => {",
-                  "        console.log(`${i + 1}. ${t.tenant_id} (${t.role})`);",
+                  "    const workspaces = pm.response.json();",
+                  "    console.log('✅ Your Workspaces:', workspaces.length);",
+                  "    workspaces.forEach((t, i) => {",
+                  "        console.log(`${i + 1}. ${t.workspace_id} (${t.role})`);",
                   "    });",
                   "}"
                 ],
@@ -530,16 +530,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/users/me/tenants",
+              "raw": "{{baseUrl}}/users/me/workspaces",
               "host": ["{{baseUrl}}"],
-              "path": ["users", "me", "tenants"]
+              "path": ["users", "me", "workspaces"]
             },
-            "description": "Get all tenants accessible by current user"
+            "description": "Get all workspaces accessible by current user"
           },
           "response": []
         },
         {
-          "name": "List Tenant Users",
+          "name": "List Workspace Users",
           "event": [
             {
               "listen": "test",
@@ -547,7 +547,7 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "    const users = pm.response.json();",
-                  "    console.log('✅ Tenant Users:', users.length);",
+                  "    console.log('✅ Workspace Users:', users.length);",
                   "    users.forEach((u, i) => {",
                   "        console.log(`${i + 1}. ${u.email} (${u.role})`);",
                   "    });",
@@ -565,7 +565,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["users"]
             },
-            "description": "List all users in current tenant (Admin/Member only)"
+            "description": "List all users in current workspace (Admin/Member only)"
           },
           "response": []
         },
@@ -604,7 +604,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["users"]
             },
-            "description": "Create or invite user to current tenant (Admin only)"
+            "description": "Create or invite user to current workspace (Admin only)"
           },
           "response": []
         },
@@ -634,12 +634,12 @@
                 }
               ]
             },
-            "description": "Update user in current tenant (Admin only)"
+            "description": "Update user in current workspace (Admin only)"
           },
           "response": []
         },
         {
-          "name": "Remove User from Tenant",
+          "name": "Remove User from Workspace",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -655,32 +655,32 @@
                 }
               ]
             },
-            "description": "Remove user from current tenant (Admin only)"
+            "description": "Remove user from current workspace (Admin only)"
           },
           "response": []
         }
       ],
-      "description": "User profile and tenant user management endpoints"
+      "description": "User profile and workspace user management endpoints"
     },
     {
-      "name": "Tenants (Self-Management)",
+      "name": "Workspaces (Self-Management)",
       "item": [
         {
-          "name": "Get My Tenant",
+          "name": "Get My Workspace",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const tenant = pm.response.json();",
-                  "    console.log('✅ Tenant Info:');",
-                  "    console.log('   ID:', tenant.tenant_id);",
-                  "    console.log('   Plan:', tenant.plan);",
-                  "    console.log('   Schema:', tenant.schema_name);",
-                  "    console.log('   Created:', tenant.created_at);",
-                  "    if (tenant.features) {",
-                  "        console.log('   Features:', JSON.stringify(tenant.features, null, 2));",
+                  "    const workspace = pm.response.json();",
+                  "    console.log('✅ Workspace Info:');",
+                  "    console.log('   ID:', workspace.workspace_id);",
+                  "    console.log('   Plan:', workspace.plan);",
+                  "    console.log('   Schema:', workspace.schema_name);",
+                  "    console.log('   Created:', workspace.created_at);",
+                  "    if (workspace.features) {",
+                  "        console.log('   Features:', JSON.stringify(workspace.features, null, 2));",
                   "    }",
                   "}"
                 ],
@@ -692,32 +692,32 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/tenants/me",
+              "raw": "{{baseUrl}}/workspaces/me",
               "host": ["{{baseUrl}}"],
-              "path": ["tenants", "me"]
+              "path": ["workspaces", "me"]
             },
-            "description": "Get your own tenant information (read-only). Displays current plan and features. To upgrade plans, use the billing portal."
+            "description": "Get your own workspace information (read-only). Displays current plan and features. To upgrade plans, use the billing portal."
           },
           "response": []
         }
       ],
-      "description": "User self-management endpoints for viewing tenant information (read-only)"
+      "description": "User self-management endpoints for viewing workspace information (read-only)"
     },
     {
-      "name": "Admin - Tenants",
+      "name": "Admin - Workspaces",
       "item": [
         {
-          "name": "List All Tenants",
+          "name": "List All Workspaces",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const tenants = pm.response.json();",
-                  "    console.log('✅ Tenants:', tenants.length);",
-                  "    tenants.forEach((t, i) => {",
-                  "        console.log(`${i + 1}. ${t.tenant_id} (${t.plan}) - ${t.email}`);",
+                  "    const workspaces = pm.response.json();",
+                  "    console.log('✅ Workspaces:', workspaces.length);",
+                  "    workspaces.forEach((t, i) => {",
+                  "        console.log(`${i + 1}. ${t.workspace_id} (${t.plan}) - ${t.email}`);",
                   "    });",
                   "}"
                 ],
@@ -729,30 +729,30 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants",
+              "raw": "{{baseUrl}}/admin/workspaces",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants"]
+              "path": ["admin", "workspaces"]
             },
-            "description": "List all tenants in the system (System Admin only). Requires is_system_admin = true."
+            "description": "List all workspaces in the system (System Admin only). Requires is_system_admin = true."
           },
           "response": []
         },
         {
-          "name": "Get Tenant by ID",
+          "name": "Get Workspace by ID",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const tenant = pm.response.json();",
-                  "    console.log('✅ Tenant Details:');",
-                  "    console.log('   ID:', tenant.tenant_id);",
-                  "    console.log('   Email:', tenant.email);",
-                  "    console.log('   Plan:', tenant.plan);",
-                  "    console.log('   Schema:', tenant.schema_name);",
-                  "    if (tenant.features) {",
-                  "        console.log('   Custom Features:', JSON.stringify(tenant.features, null, 2));",
+                  "    const workspace = pm.response.json();",
+                  "    console.log('✅ Workspace Details:');",
+                  "    console.log('   ID:', workspace.workspace_id);",
+                  "    console.log('   Email:', workspace.email);",
+                  "    console.log('   Plan:', workspace.plan);",
+                  "    console.log('   Schema:', workspace.schema_name);",
+                  "    if (workspace.features) {",
+                  "        console.log('   Custom Features:', JSON.stringify(workspace.features, null, 2));",
                   "    }",
                   "}"
                 ],
@@ -764,32 +764,32 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants/:tenantId",
+              "raw": "{{baseUrl}}/admin/workspaces/:workspaceId",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants", ":tenantId"],
+              "path": ["admin", "workspaces", ":workspaceId"],
               "variable": [
                 {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID"
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}",
+                  "description": "Workspace ID"
                 }
               ]
             },
-            "description": "Get detailed tenant information by ID (System Admin only)"
+            "description": "Get detailed workspace information by ID (System Admin only)"
           },
           "response": []
         },
         {
-          "name": "Get Tenant by Email",
+          "name": "Get Workspace by Email",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const tenant = pm.response.json();",
-                  "    pm.environment.set('tenantId', tenant.tenant_id);",
-                  "    console.log('✅ Tenant found:', tenant.tenant_id);",
+                  "    const workspace = pm.response.json();",
+                  "    pm.environment.set('workspaceId', workspace.workspace_id);",
+                  "    console.log('✅ Workspace found:', workspace.workspace_id);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -800,34 +800,34 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants/email/:email",
+              "raw": "{{baseUrl}}/admin/workspaces/email/:email",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants", "email", ":email"],
+              "path": ["admin", "workspaces", "email", ":email"],
               "variable": [
                 {
                   "key": "email",
-                  "value": "tenant@example.com",
-                  "description": "Tenant email"
+                  "value": "workspace@example.com",
+                  "description": "Workspace email"
                 }
               ]
             },
-            "description": "Get tenant information by email address (System Admin only)"
+            "description": "Get workspace information by email address (System Admin only)"
           },
           "response": []
         },
         {
-          "name": "Update Tenant (Plan & Features)",
+          "name": "Update Workspace (Plan & Features)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const tenant = pm.response.json();",
-                  "    console.log('✅ Tenant updated successfully');",
-                  "    console.log('   New plan:', tenant.plan);",
-                  "    if (tenant.features) {",
-                  "        console.log('   Custom features:', JSON.stringify(tenant.features, null, 2));",
+                  "    const workspace = pm.response.json();",
+                  "    console.log('✅ Workspace updated successfully');",
+                  "    console.log('   New plan:', workspace.plan);",
+                  "    if (workspace.features) {",
+                  "        console.log('   Custom features:', JSON.stringify(workspace.features, null, 2));",
                   "    }",
                   "}"
                 ],
@@ -848,32 +848,32 @@
               "raw": "{\n  \"plan\": \"pro\",\n  \"features\": {\n    \"document_limit\": 750,\n    \"checklist_access\": true,\n    \"analyzer_enabled\": true\n  }\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants/:tenantId",
+              "raw": "{{baseUrl}}/admin/workspaces/:workspaceId",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants", ":tenantId"],
+              "path": ["admin", "workspaces", ":workspaceId"],
               "variable": [
                 {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID"
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}",
+                  "description": "Workspace ID"
                 }
               ]
             },
-            "description": "Update tenant plan and custom features (System Admin only). Custom features override plan defaults. Available plans: early_access (10 docs), basic (50 docs), pro (500 docs), enterprise (unlimited = -1)."
+            "description": "Update workspace plan and custom features (System Admin only). Custom features override plan defaults. Available plans: early_access (10 docs), basic (50 docs), pro (500 docs), enterprise (unlimited = -1)."
           },
           "response": []
         },
         {
-          "name": "Delete Tenant",
+          "name": "Delete Workspace",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 204) {",
-                  "    console.log('✅ Tenant deleted successfully');",
-                  "    console.log('⚠️  All tenant data and schema have been removed');",
-                  "    pm.environment.unset('tenantId');",
+                  "    console.log('✅ Workspace deleted successfully');",
+                  "    console.log('⚠️  All workspace data and schema have been removed');",
+                  "    pm.environment.unset('workspaceId');",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -884,23 +884,23 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants/:tenantId",
+              "raw": "{{baseUrl}}/admin/workspaces/:workspaceId",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants", ":tenantId"],
+              "path": ["admin", "workspaces", ":workspaceId"],
               "variable": [
                 {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID"
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}",
+                  "description": "Workspace ID"
                 }
               ]
             },
-            "description": "Delete tenant and all associated data including database schema (System Admin only). This action is irreversible!"
+            "description": "Delete workspace and all associated data including database schema (System Admin only). This action is irreversible!"
           },
           "response": []
         }
       ],
-      "description": "System Administrator endpoints for full tenant management (requires is_system_admin = true)"
+      "description": "System Administrator endpoints for full workspace management (requires is_system_admin = true)"
     },
     {
       "name": "Health",
@@ -1022,7 +1022,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["storage", "upload"]
             },
-            "description": "Upload a file to tenant-isolated storage. Requires JWT authentication. Supported formats: PDF, DOCX, PNG, JPEG. Max size: 10MB. Subject to plan document limits (returns 403 if limit exceeded)."
+            "description": "Upload a file to workspace-isolated storage. Requires JWT authentication. Supported formats: PDF, DOCX, PNG, JPEG. Max size: 10MB. Subject to plan document limits (returns 403 if limit exceeded)."
           },
           "response": []
         },
@@ -1073,7 +1073,7 @@
                 }
               ]
             },
-            "description": "List all files in the current tenant's storage. Requires JWT authentication."
+            "description": "List all files in the current workspace's storage. Requires JWT authentication."
           },
           "response": []
         },
@@ -1103,14 +1103,14 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/storage/signed-url/{{fileKey}}?tenantId={{tenantId}}",
+              "raw": "{{baseUrl}}/storage/signed-url/{{fileKey}}?workspaceId={{workspaceId}}",
               "host": ["{{baseUrl}}"],
               "path": ["storage", "signed-url", "{{fileKey}}"],
               "query": [
                 {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID (required)"
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}",
+                  "description": "Workspace ID (required)"
                 },
                 {
                   "key": "expiresIn",
@@ -1120,7 +1120,7 @@
                 }
               ]
             },
-            "description": "Generate a signed URL for downloading a file. No authentication required, but tenantId must be provided."
+            "description": "Generate a signed URL for downloading a file. No authentication required, but workspaceId must be provided."
           },
           "response": []
         },
@@ -1148,18 +1148,18 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/storage/download/{{fileKey}}?tenantId={{tenantId}}",
+              "raw": "{{baseUrl}}/storage/download/{{fileKey}}?workspaceId={{workspaceId}}",
               "host": ["{{baseUrl}}"],
               "path": ["storage", "download", "{{fileKey}}"],
               "query": [
                 {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID (required)"
+                  "key": "workspaceId",
+                  "value": "{{workspaceId}}",
+                  "description": "Workspace ID (required)"
                 }
               ]
             },
-            "description": "Download a file directly. No authentication required, but tenantId must be provided. Returns file as attachment."
+            "description": "Download a file directly. No authentication required, but workspaceId must be provided. Returns file as attachment."
           },
           "response": []
         },
@@ -1192,7 +1192,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["storage", "{{fileKey}}"]
             },
-            "description": "Delete a file from tenant storage. Requires JWT authentication."
+            "description": "Delete a file from workspace storage. Requires JWT authentication."
           },
           "response": []
         }

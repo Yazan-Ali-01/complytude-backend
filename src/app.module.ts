@@ -5,13 +5,13 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './modules/health/health.module';
-import { TenantModule } from './modules/tenant/tenant.module';
+import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
-import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
+import { WorkspaceInterceptor } from './common/interceptors/workspace.interceptor';
 import databaseConfig from './config/database.config';
 import appConfig from './config/app.config';
 import jwtConfig from './config/jwt.config';
@@ -31,7 +31,7 @@ import { validationSchema } from './config/validation.schema';
     }),
     DatabaseModule,
     HealthModule,
-    TenantModule,
+    WorkspaceModule,
     AuthModule,
     UsersModule,
     StorageModule,
@@ -46,7 +46,7 @@ import { validationSchema } from './config/validation.schema';
     },
     {
       provide: APP_INTERCEPTOR,
-      useClass: TenantInterceptor,
+      useClass: WorkspaceInterceptor,
     },
   ],
 })

@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateUserDto {
   @ApiProperty({
-    description: 'User role in the tenant',
+    description: 'User role in the workspace',
     enum: ['admin', 'member', 'viewer'],
     required: false,
   })

@@ -9,19 +9,19 @@ import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
 /**
- * Interceptor to log tenant context for debugging
+ * Interceptor to log workspace context for debugging
  */
 @Injectable()
-export class TenantContextInterceptor implements NestInterceptor {
-  private readonly logger = new Logger(TenantContextInterceptor.name);
+export class WorkspaceContextInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(WorkspaceContextInterceptor.name);
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
-    const tenantContext = request.tenantContext;
+    const workspaceContext = request.workspaceContext;
 
-    if (tenantContext) {
+    if (workspaceContext) {
       this.logger.debug(
-        `Request from tenant: ${tenantContext.tenantId} | Schema: ${tenantContext.schemaName}`,
+        `Request from workspace: ${workspaceContext.workspaceId} | Schema: ${workspaceContext.schemaName}`,
       );
     }
 
@@ -31,7 +31,7 @@ export class TenantContextInterceptor implements NestInterceptor {
       tap(() => {
         const responseTime = Date.now() - now;
         this.logger.debug(
-          `Response time: ${responseTime}ms | Tenant: ${tenantContext?.tenantId || 'N/A'}`,
+          `Response time: ${responseTime}ms | Workspace: ${workspaceContext?.workspaceId || 'N/A'}`,
         );
       }),
     );

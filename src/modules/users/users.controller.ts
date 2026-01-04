@@ -67,25 +67,25 @@ export class UsersController {
     return { message: 'Password changed successfully' };
   }
 
-  @Get('me/tenants')
-  @ApiOperation({ summary: 'Get all tenants accessible by current user' })
-  @ApiResponse({ status: 200, description: 'List of accessible tenants' })
-  async getUserTenants(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.getUserTenants(user.userId);
+  @Get('me/workspaces')
+  @ApiOperation({ summary: 'Get all workspaces accessible by current user' })
+  @ApiResponse({ status: 200, description: 'List of accessible workspaces' })
+  async getUserWorkspaces(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getUserWorkspaces(user.userId);
   }
 
   @Get()
   @Roles('admin', 'member')
-  @ApiOperation({ summary: 'List all users in current tenant' })
-  @ApiResponse({ status: 200, description: 'List of users in tenant' })
-  async listTenantUsers(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.listTenantUsers(user.tenantId);
+  @ApiOperation({ summary: 'List all users in current workspace' })
+  @ApiResponse({ status: 200, description: 'List of users in workspace' })
+  async listWorkspaceUsers(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.listWorkspaceUsers(user.workspaceId);
   }
 
   @Post()
   @Roles('admin')
   @ApiOperation({
-    summary: 'Create or invite user to current tenant (admin only)',
+    summary: 'Create or invite user to current workspace (admin only)',
   })
   @ApiResponse({
     status: 201,
@@ -95,13 +95,13 @@ export class UsersController {
     status: 403,
     description: 'Forbidden - Admin access required',
   })
-  @ApiResponse({ status: 409, description: 'User already exists in tenant' })
+  @ApiResponse({ status: 409, description: 'User already exists in workspace' })
   async createUser(
     @CurrentUser() user: AuthenticatedUser,
     @Body() createUserDto: CreateUserDto,
   ) {
     return this.usersService.createUser(
-      user.tenantId,
+      user.workspaceId,
       user.userId,
       createUserDto,
     );
@@ -109,20 +109,20 @@ export class UsersController {
 
   @Patch(':id')
   @Roles('admin')
-  @ApiOperation({ summary: 'Update user in current tenant (admin only)' })
+  @ApiOperation({ summary: 'Update user in current workspace (admin only)' })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
   @ApiResponse({
     status: 403,
     description: 'Forbidden - Admin access required',
   })
-  @ApiResponse({ status: 404, description: 'User not found in tenant' })
+  @ApiResponse({ status: 404, description: 'User not found in workspace' })
   async updateUser(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') targetUserId: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.usersService.updateUser(
-      user.tenantId,
+      user.workspaceId,
       targetUserId,
       user.userId,
       updateUserDto,
@@ -132,22 +132,22 @@ export class UsersController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @Roles('admin')
-  @ApiOperation({ summary: 'Remove user from current tenant (admin only)' })
-  @ApiResponse({ status: 200, description: 'User removed from tenant' })
+  @ApiOperation({ summary: 'Remove user from current workspace (admin only)' })
+  @ApiResponse({ status: 200, description: 'User removed from workspace' })
   @ApiResponse({
     status: 403,
     description: 'Forbidden - Admin access required',
   })
-  @ApiResponse({ status: 404, description: 'User not found in tenant' })
+  @ApiResponse({ status: 404, description: 'User not found in workspace' })
   async removeUser(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') targetUserId: string,
   ) {
-    await this.usersService.removeUserFromTenant(
-      user.tenantId,
+    await this.usersService.removeUserFromWorkspace(
+      user.workspaceId,
       targetUserId,
       user.userId,
     );
-    return { message: 'User removed from tenant successfully' };
+    return { message: 'User removed from workspace successfully' };
   }
 }

@@ -8,13 +8,13 @@ import {
 
 /**
  * Guard to check if user is a system administrator
- * System admins have platform-wide access (not tenant-specific)
+ * System admins have platform-wide access (not workspace-specific)
  *
  * @example
  * ```typescript
  * @UseGuards(JwtAuthGuard, SystemAdminGuard)
- * @Get('admin/tenants')
- * async listAllTenants() {
+ * @Get('admin/workspaces')
+ * async listAllWorkspaces() {
  *   // Only system admins can access
  * }
  * ```

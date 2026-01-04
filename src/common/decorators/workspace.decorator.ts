@@ -1,24 +1,24 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 /**
- * Decorator to extract tenant context from request
- * Usage: @TenantContext() tenant: { tenantId: string, schemaName: string }
+ * Decorator to extract workspace context from request
+ * Usage: @WorkspaceContext() workspace: { workspaceId: string, schemaName: string }
  */
-export const TenantContext = createParamDecorator(
+export const WorkspaceContext = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
-    return request.tenantContext;
+    return request.workspaceContext;
   },
 );
 
 /**
- * Decorator to extract tenant ID from request
- * Usage: @TenantId() tenantId: string
+ * Decorator to extract workspace ID from request
+ * Usage: @WorkspaceId() workspaceId: string
  */
-export const TenantId = createParamDecorator(
+export const WorkspaceId = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
-    return request.tenantContext?.tenantId;
+    return request.workspaceContext?.workspaceId;
   },
 );
 
@@ -29,6 +29,6 @@ export const TenantId = createParamDecorator(
 export const SchemaName = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
-    return request.tenantContext?.schemaName;
+    return request.workspaceContext?.schemaName;
   },
 );

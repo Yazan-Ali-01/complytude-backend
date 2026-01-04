@@ -5,14 +5,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { TenantFeatures } from '../../modules/tenant/entities/tenant.entity';
+import { WorkspaceFeatures } from '../../modules/workspace/entities/workspace.entity';
 
-export interface TenantContext {
-  tenantId: string;
+export interface WorkspaceContext {
+  workspaceId: string;
   schemaName: string;
   userId?: string;
   role?: string;
-  features?: TenantFeatures;
+  features?: WorkspaceFeatures;
 }
 
 export const EXCLUDED_PATHS = [
@@ -22,28 +22,28 @@ export const EXCLUDED_PATHS = [
   '/docs',
   '/api/auth',
   '/auth',
-  '/api/tenants/initialize',
-  '/tenants/initialize',
-  '/api/tenants',
-  '/tenants',
+  '/api/workspaces/initialize',
+  '/workspaces/initialize',
+  '/api/workspaces',
+  '/workspaces',
 ];
 
 // Extend Express Request type
 declare module 'express' {
   interface Request {
-    tenantContext?: TenantContext;
+    workspaceContext?: WorkspaceContext;
   }
 }
 
 /**
- * Middleware to extract tenant context from JWT token or request headers
+ * Middleware to extract workspace context from JWT token or request headers
  * Priority:
  * 1. JWT token payload (set by JwtAuthGuard)
  * 2. Request headers (fallback for backward compatibility)
  *
  * Expected headers (fallback):
- * - x-tenant-id: The tenant identifier
- * - x-schema-name (optional): The schema name (can be derived from tenant-id)
+ * - x-workspace-id: The workspace identifier
+ * - x-schema-name (optional): The schema name (can be derived from workspace-id)
  * - x-user-id (optional): The user identifier
  * - x-user-role (optional): The user role
  *
@@ -51,8 +51,8 @@ declare module 'express' {
  * to avoid database queries on every request
  */
 @Injectable()
-export class TenantMiddleware implements NestMiddleware {
-  private readonly logger = new Logger(TenantMiddleware.name);
+export class WorkspaceMiddleware implements NestMiddleware {
+  private readonly logger = new Logger(WorkspaceMiddleware.name);
 
   use(req: any, res: Response, next: NextFunction) {
     // Get the request path - use originalUrl for Fastify/NestJS
@@ -61,58 +61,60 @@ export class TenantMiddleware implements NestMiddleware {
 
     this.logger.debug(`Processing request to: ${requestPath}`);
 
-    // For routes that don't require tenant context (like health checks and auth routes)
+    // For routes that don't require workspace context (like health checks and auth routes)
     const isExcluded = EXCLUDED_PATHS.some((path) =>
       requestPath.startsWith(path),
     );
 
     if (isExcluded) {
       this.logger.debug(
-        `Path ${requestPath} is excluded from tenant validation`,
+        `Path ${requestPath} is excluded from workspace validation`,
       );
       return next();
     }
 
-    // Extract tenant context from JWT token (preferred method)
+    // Extract workspace context from JWT token (preferred method)
     // req.user is set by JwtAuthGuard after successful authentication
     if (req.user) {
-      req.tenantContext = {
-        tenantId: req.user.tenantId,
-        schemaName: `tenant_${req.user.tenantId.replace(/-/g, '_')}`,
+      req.workspaceContext = {
+        workspaceId: req.user.workspaceId,
+        schemaName: `workspace_${req.user.workspaceId.replace(/-/g, '_')}`,
         userId: req.user.userId,
         role: req.user.role,
       };
 
       this.logger.debug(
-        `Tenant context set from JWT: ${JSON.stringify(req.tenantContext)}`,
+        `Workspace context set from JWT: ${JSON.stringify(req.workspaceContext)}`,
       );
       return next();
     }
 
-    // Fallback: Extract tenant information from headers (for backward compatibility)
-    const tenantId = req.headers['x-tenant-id'] as string;
+    // Fallback: Extract workspace information from headers (for backward compatibility)
+    const workspaceId = req.headers['x-workspace-id'] as string;
     const schemaName = req.headers['x-schema-name'] as string;
     const userId = req.headers['x-user-id'] as string;
     const role = req.headers['x-user-role'] as string;
 
-    // Tenant ID is required
-    if (!tenantId) {
-      this.logger.warn(`Missing tenant context for request to ${requestPath}`);
+    // Workspace ID is required
+    if (!workspaceId) {
+      this.logger.warn(
+        `Missing workspace context for request to ${requestPath}`,
+      );
       throw new UnauthorizedException(
-        'Tenant context is required. Please authenticate or provide x-tenant-id header.',
+        'Workspace context is required. Please authenticate or provide x-workspace-id header.',
       );
     }
 
-    // Set tenant context on request
-    req.tenantContext = {
-      tenantId,
-      schemaName: schemaName || `tenant_${tenantId.replace(/-/g, '_')}`,
+    // Set workspace context on request
+    req.workspaceContext = {
+      workspaceId,
+      schemaName: schemaName || `workspace_${workspaceId.replace(/-/g, '_')}`,
       userId,
       role,
     };
 
     this.logger.debug(
-      `Tenant context set from headers: ${JSON.stringify(req.tenantContext)}`,
+      `Workspace context set from headers: ${JSON.stringify(req.workspaceContext)}`,
     );
 
     next();

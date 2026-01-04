@@ -20,7 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:cov": "jest --coverage",
     "test:e2e:auth": "jest --config ./test/jest-e2e.json 01-authentication",
-    "test:e2e:tenant": "jest --config ./test/jest-e2e.json 02-multi-tenancy",
+    "test:e2e:workspace": "jest --config ./test/jest-e2e.json 02-multi-tenancy",
     "test:e2e:storage": "jest --config ./test/jest-e2e.json 03-storage",
     "test:e2e:templates": "jest --config ./test/jest-e2e.json 04-template-management",
     "test:e2e:features": "jest --config ./test/jest-e2e.json 05-plan-features",
@@ -41,7 +41,7 @@
     "db:migrate": "bash scripts/run-migrations.sh",
     "db:setup": "pnpm docker:start && pnpm db:wait && pnpm db:migrate",
     "db:wait": "bash scripts/wait-for-db.sh",
-    "db:verify": "psql -U postgres -h localhost -p 5432 -d complytude -f scripts/utilities/verify-multi-tenancy.sql",
+    "db:verify": "psql -U postgres -h localhost -p 5432 -d complytude -f scripts/utilities/verify-multi-workspace.sql",
     "// === 🎨 Code Quality ===": "",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -58,7 +58,7 @@
     "test:swagger": "ts-node test/utils/swagger-downloader.ts",
     "test:db:setup": "bash scripts/setup-test-db.sh",
     "test:db:reset": "dropdb -h localhost -U postgres complytude_test --if-exists && pnpm test:db:setup",
-    "db:test": "psql -U postgres -h localhost -p 5432 -d complytude -f scripts/utilities/test-multi-tenancy.sql"
+    "db:test": "psql -U postgres -h localhost -p 5432 -d complytude -f scripts/utilities/test-multi-workspace.sql"
   },
   "lint-staged": {
     "*.ts": [

@@ -47,7 +47,7 @@ export class CreateUserDto {
   lastName?: string;
 
   @ApiProperty({
-    description: 'User role in the current tenant',
+    description: 'User role in the current workspace',
     enum: ['admin', 'member', 'viewer'],
     example: 'member',
   })

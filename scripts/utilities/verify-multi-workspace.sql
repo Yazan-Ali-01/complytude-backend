@@ -1,11 +1,11 @@
 -- ============================================================================
--- Multi-Tenancy Verification Script
+-- Multi-Workspace Verification Script
 -- ============================================================================
--- Run this script to verify that multi-tenancy is properly configured
+-- Run this script to verify that multi-workspace is properly configured
 -- ============================================================================
 
 \echo '=================================='
-\echo 'Multi-Tenancy Verification Report'
+\echo 'Multi-Workspace Verification Report'
 \echo '=================================='
 \echo ''
 
@@ -13,16 +13,16 @@
 \echo '1. Checking if core tables exist...'
 SELECT 
     CASE 
-        WHEN EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'tenants')
-        THEN '✓ public.tenants exists'
-        ELSE '✗ public.tenants missing'
-    END as tenant_table_status;
+        WHEN EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'workspaces')
+        THEN '✓ public.workspaces exists'
+        ELSE '✗ public.workspaces missing'
+    END as workspace_table_status;
 
 SELECT 
     CASE 
-        WHEN EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'tenant_schemas')
-        THEN '✓ public.tenant_schemas exists'
-        ELSE '✗ public.tenant_schemas missing'
+        WHEN EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'workspace_schemas')
+        THEN '✓ public.workspace_schemas exists'
+        ELSE '✗ public.workspace_schemas missing'
     END as schema_table_status;
 
 \echo ''
@@ -35,7 +35,7 @@ SELECT
     END as rls_status
 FROM pg_tables 
 WHERE schemaname = 'public' 
-    AND tablename IN ('tenants', 'tenant_schemas')
+    AND tablename IN ('workspaces', 'workspace_schemas')
 ORDER BY tablename;
 
 \echo ''
@@ -50,7 +50,7 @@ SELECT
     END as policy_type
 FROM pg_policies 
 WHERE schemaname = 'public'
-    AND tablename IN ('tenants', 'tenant_schemas')
+    AND tablename IN ('workspaces', 'workspace_schemas')
 ORDER BY tablename, policyname;
 
 \echo ''
@@ -62,7 +62,7 @@ SELECT
     indexdef
 FROM pg_indexes 
 WHERE schemaname = 'public' 
-    AND tablename IN ('tenants', 'tenant_schemas')
+    AND tablename IN ('workspaces', 'workspace_schemas')
 ORDER BY tablename, indexname;
 
 \echo ''
@@ -71,34 +71,34 @@ SELECT
     proname as function_name,
     pg_get_function_arguments(oid) as arguments,
     CASE 
-        WHEN proname IN ('set_tenant_context', 'get_tenant_context', 'bypass_rls', 'update_updated_at_column')
+        WHEN proname IN ('set_workspace_context', 'get_workspace_context', 'bypass_rls', 'update_updated_at_column')
         THEN '✓ Available'
         ELSE 'Unknown'
     END as status
 FROM pg_proc 
 WHERE pronamespace = 'public'::regnamespace
-    AND proname IN ('set_tenant_context', 'get_tenant_context', 'bypass_rls', 'update_updated_at_column');
+    AND proname IN ('set_workspace_context', 'get_workspace_context', 'bypass_rls', 'update_updated_at_column');
 
 \echo ''
-\echo '6. Tenant Statistics...'
+\echo '6. Workspace Statistics...'
 SELECT 
-    COUNT(*) as total_tenants,
-    COUNT(CASE WHEN is_active THEN 1 END) as active_tenants,
-    COUNT(CASE WHEN NOT is_active THEN 1 END) as inactive_tenants
-FROM public.tenants;
+    COUNT(*) as total_workspaces,
+    COUNT(CASE WHEN is_active THEN 1 END) as active_workspaces,
+    COUNT(CASE WHEN NOT is_active THEN 1 END) as inactive_workspaces
+FROM public.workspaces;
 
 \echo ''
-\echo '7. Listing All Tenant Schemas...'
+\echo '7. Listing All Workspace Schemas...'
 SELECT 
-    t.tenant_id,
-    t.email,
-    t.plan,
-    ts.schema_name,
-    t.is_active,
-    t.created_at
-FROM public.tenants t
-LEFT JOIN public.tenant_schemas ts ON t.tenant_id = ts.tenant_id
-ORDER BY t.created_at DESC;
+    w.workspace_id,
+    w.email,
+    w.plan,
+    ws.schema_name,
+    w.is_active,
+    w.created_at
+FROM public.workspaces w
+LEFT JOIN public.workspace_schemas ws ON w.workspace_id = ws.workspace_id
+ORDER BY w.created_at DESC;
 
 \echo ''
 \echo '=================================='

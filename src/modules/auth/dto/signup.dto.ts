@@ -46,10 +46,10 @@ export class SignupDto {
   lastName?: string;
 
   @ApiProperty({
-    description: 'Tenant/company name for the new tenant',
+    description: 'Workspace/company name for the new workspace',
     example: 'Acme Corporation',
   })
   @IsString()
   @MaxLength(255)
-  tenantName: string;
+  workspaceName: string;
 }

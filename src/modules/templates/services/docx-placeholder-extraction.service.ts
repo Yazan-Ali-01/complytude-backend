@@ -186,7 +186,7 @@ export class DocxPlaceholderExtractionService {
     unmatchedPlaceholders.forEach((placeholder) => {
       warnings.push(
         `Placeholder {${placeholder}} found in DOCX but no field definition provided. ` +
-          `This is OK if it's a system variable (e.g., generated_date, document_id, tenant_name) ` +
+          `This is OK if it's a system variable (e.g., generated_date, document_id, workspace_name) ` +
           `or context variable. Otherwise, add a field definition.`,
       );
     });

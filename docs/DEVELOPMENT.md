@@ -88,7 +88,7 @@ export class YourModuleModule {}
 
 - ✅ **Add guards** for authentication and authorization
 - ✅ **Use `@UseGuards(JwtAuthGuard)`** for protected routes
-- ✅ **Use `@TenantId()` decorator** for tenant context
+- ✅ **Use `@WorkspaceId()` decorator** for workspace context
 - ✅ **Never expose sensitive data** in responses
 
 ### Naming Conventions

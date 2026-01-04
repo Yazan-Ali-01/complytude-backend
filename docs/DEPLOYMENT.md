@@ -593,7 +593,7 @@ The application logs to stdout in JSON format. Configure your logging infrastruc
   "context": "AuthService",
   "message": "User logged in",
   "userId": "uuid",
-  "tenantId": "uuid"
+  "workspaceId": "uuid"
 }
 ```
 

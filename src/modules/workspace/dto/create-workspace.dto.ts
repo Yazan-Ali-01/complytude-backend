@@ -8,7 +8,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class TenantFeaturesDto {
+export class WorkspaceFeaturesDto {
   @ApiProperty({ example: 5, description: 'Maximum number of documents' })
   @IsNotEmpty()
   document_limit: number;
@@ -22,20 +22,11 @@ export class TenantFeaturesDto {
   analyzer_enabled: boolean;
 }
 
-export class CreateTenantDto {
-  @ApiProperty({ example: 'user@example.com', description: 'Tenant email' })
+export class CreateWorkspaceDto {
+  @ApiProperty({ example: 'user@example.com', description: 'Workspace email' })
   @IsEmail()
   @IsNotEmpty()
   email: string;
-
-  @ApiProperty({
-    example: 'admin',
-    enum: ['admin', 'user', 'viewer'],
-    description: 'User role',
-  })
-  @IsEnum(['admin', 'user', 'viewer'])
-  @IsNotEmpty()
-  role: 'admin' | 'user' | 'viewer';
 
   @ApiProperty({
     example: 'early_access',
@@ -47,11 +38,11 @@ export class CreateTenantDto {
   plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
 
   @ApiProperty({
-    type: TenantFeaturesDto,
+    type: WorkspaceFeaturesDto,
     description: 'Feature configuration',
   })
   @IsObject()
   @ValidateNested()
-  @Type(() => TenantFeaturesDto)
-  features: TenantFeaturesDto;
+  @Type(() => WorkspaceFeaturesDto)
+  features: WorkspaceFeaturesDto;
 }

@@ -51,7 +51,7 @@ export class StorageController {
   @ApiOperation({
     summary: 'Upload a file',
     description:
-      'Upload a file to tenant-isolated storage. Requires admin, member, or system role. Subject to plan document limits.',
+      'Upload a file to workspace-isolated storage. Requires admin, member, or system role. Subject to plan document limits.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -95,7 +95,7 @@ export class StorageController {
     );
 
     const result = await this.storageService.uploadFile(
-      user.tenantId,
+      user.workspaceId,
       file.buffer,
       file.originalName,
       file.mimeType,
@@ -110,9 +110,9 @@ export class StorageController {
   @Roles('admin', 'member', 'viewer', 'system')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'List all files for current tenant',
+    summary: 'List all files for current workspace',
     description:
-      'List all files in tenant storage. Available to all authenticated users.',
+      'List all files in workspace storage. Available to all authenticated users.',
   })
   @ApiQuery({
     name: 'prefix',
@@ -134,7 +134,7 @@ export class StorageController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('prefix') prefix?: string,
   ): Promise<FileListResponseDto> {
-    const files = await this.storageService.listFiles(user.tenantId, prefix);
+    const files = await this.storageService.listFiles(user.workspaceId, prefix);
 
     return {
       files,
@@ -149,7 +149,7 @@ export class StorageController {
   @ApiOperation({
     summary: 'Get signed download URL for a file',
     description:
-      'Generate a time-limited signed URL for downloading a file. Requires authentication. All authenticated users can access files from their tenant.',
+      'Generate a time-limited signed URL for downloading a file. Requires authentication. All authenticated users can access files from their workspace.',
   })
   @ApiQuery({
     name: 'expiresIn',
@@ -174,7 +174,7 @@ export class StorageController {
     @Query('expiresIn') expiresIn?: number,
   ): Promise<SignedUrlResponseDto> {
     const url = await this.storageService.generateSignedUrl(
-      user.tenantId,
+      user.workspaceId,
       fileKey,
       expiresIn,
     );
@@ -193,7 +193,7 @@ export class StorageController {
   @ApiOperation({
     summary: 'Download a file directly',
     description:
-      'Download a file directly as a stream. Requires authentication. All authenticated users can download files from their tenant.',
+      'Download a file directly as a stream. Requires authentication. All authenticated users can download files from their workspace.',
   })
   @ApiResponse({
     status: 200,
@@ -210,7 +210,7 @@ export class StorageController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<StreamableFile> {
     const { stream, filename, contentType } =
-      await this.storageService.getFileForDownload(user.tenantId, fileKey);
+      await this.storageService.getFileForDownload(user.workspaceId, fileKey);
 
     const encodedFilename = encodeURIComponent(filename);
     const disposition = `inline; filename="${filename}"; filename*=UTF-8''${encodedFilename}`;
@@ -228,7 +228,7 @@ export class StorageController {
   @ApiOperation({
     summary: 'Delete a file',
     description:
-      'Delete a file from tenant storage. Only admins and system users can delete files.',
+      'Delete a file from workspace storage. Only admins and system users can delete files.',
   })
   @ApiResponse({
     status: 200,
@@ -246,10 +246,10 @@ export class StorageController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<DeleteFileResponseDto> {
     this.logger.log(
-      `User ${user.userId} deleting file: ${fileKey} from tenant ${user.tenantId}`,
+      `User ${user.userId} deleting file: ${fileKey} from workspace ${user.workspaceId}`,
     );
 
-    await this.storageService.deleteFile(user.tenantId, fileKey);
+    await this.storageService.deleteFile(user.workspaceId, fileKey);
 
     return {
       message: 'File deleted successfully',

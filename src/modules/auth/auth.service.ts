@@ -17,12 +17,12 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
-import { TenantService } from '../tenant/tenant.service';
-import { Tenant } from '../tenant/entities/tenant.entity';
-import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
+import { WorkspaceService } from '../workspace/workspace.service';
+import { Workspace } from '../workspace/entities/workspace.entity';
+import { WorkspaceFeaturesDto } from '../workspace/dto/create-workspace.dto';
 
-interface TenantRow {
-  tenant_id: string;
+interface WorkspaceRow {
+  workspace_id: string;
   role: string;
   schema_name: string;
 }
@@ -48,19 +48,19 @@ export class AuthService {
     private readonly databaseService: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly tenantService: TenantService,
+    private readonly workspaceService: WorkspaceService,
   ) {}
 
   /**
-   * Registers a new user and creates their first tenant.
+   * Registers a new user and creates their first workspace.
    *
    * @remarks
-   * - The creation of the tenant and corresponding tenant schema is fully handled within {@link TenantService}.
-   *   This encapsulates all tenant and multi-tenant schema provisioning logic.
-   * - Linking the user to the tenant (the `user_tenants` relation) is performed in this method.
+   * - The creation of the workspace and corresponding workspace schema is fully handled within {@link WorkspaceService}.
+   *   This encapsulates all workspace and multi-workspace schema provisioning logic.
+   * - Linking the user to the workspace (the `user_workspaces` relation) is performed in this method.
    *
-   * @param signupDto - User and initial tenant information
-   * @returns An object containing a success message, userId, tenant_id, and an email verification token (remove in production)
+   * @param signupDto - User and initial workspace information
+   * @returns An object containing a success message, userId, workspace_id, and an email verification token (remove in production)
    * @throws {ConflictException} if the email is already registered
    */
   async signup(signupDto: SignupDto) {
@@ -96,22 +96,21 @@ export class AuthService {
         ],
       );
 
-      // Create tenant and schema via TenantService (all multi-tenant setup is encapsulated there)
-      const tenant: Tenant = await this.tenantService.createTenant(
+      // Create workspace and schema via WorkspaceService (all multi-workspace setup is encapsulated there)
+      const workspace: Workspace = await this.workspaceService.createWorkspace(
         {
           email: signupDto.email,
-          role: 'admin',
           plan: 'early_access',
-          features: new TenantFeaturesDto(),
+          features: new WorkspaceFeaturesDto(),
         },
         userId,
       );
 
-      // Link user to the new tenant
+      // Link user to the new workspace as owner
       await client.query(
-        `INSERT INTO public.user_tenants (user_id, tenant_id, role, is_active)
+        `INSERT INTO public.user_workspaces (user_id, workspace_id, role, is_active)
          VALUES ($1, $2, $3, true)`,
-        [userId, tenant.tenant_id, tenant.role],
+        [userId, workspace.workspace_id, 'owner'],
       );
 
       // Create email verification record
@@ -134,7 +133,7 @@ export class AuthService {
         message:
           'Signup successful. Please check your email to verify your account.',
         userId,
-        tenant_id: tenant.tenant_id,
+        workspace_id: workspace.workspace_id,
         verificationToken, // Expose only for development/testing; remove in prod
       };
     });
@@ -147,46 +146,48 @@ export class AuthService {
     // Validate user credentials
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
-    // Get user's tenants
-    const tenantsResult = await this.databaseService.query<TenantRow>(
-      `SELECT ut.tenant_id, ut.role, t.schema_name 
-       FROM public.user_tenants ut
-       JOIN public.tenants t ON ut.tenant_id = t.tenant_id
-       WHERE ut.user_id = $1 AND ut.is_active = true`,
+    // Get user's workspaces
+    const workspacesResult = await this.databaseService.query<WorkspaceRow>(
+      `SELECT uw.workspace_id, uw.role, w.schema_name 
+       FROM public.user_workspaces uw
+       JOIN public.workspaces w ON uw.workspace_id = w.workspace_id
+       WHERE uw.user_id = $1 AND uw.is_active = true`,
       [user.id],
     );
 
-    if (tenantsResult.rows.length === 0) {
-      throw new UnauthorizedException('No active tenants found for this user');
+    if (workspacesResult.rows.length === 0) {
+      throw new UnauthorizedException(
+        'No active workspaces found for this user',
+      );
     }
 
-    // If tenantId specified, use that; otherwise use first tenant
-    let selectedTenant: TenantRow;
-    if (loginDto.tenantId) {
-      const found = tenantsResult.rows.find(
-        (t) => t.tenant_id === loginDto.tenantId,
+    // If workspaceId specified, use that; otherwise use first workspace
+    let selectedWorkspace: WorkspaceRow;
+    if (loginDto.workspaceId) {
+      const found = workspacesResult.rows.find(
+        (w) => w.workspace_id === loginDto.workspaceId,
       );
       if (!found) {
         throw new UnauthorizedException(
-          'User does not have access to specified tenant',
+          'User does not have access to specified workspace',
         );
       }
-      selectedTenant = found;
+      selectedWorkspace = found;
     } else {
-      selectedTenant = tenantsResult.rows[0];
+      selectedWorkspace = workspacesResult.rows[0];
     }
 
     // Generate tokens (includes isSystemAdmin from user object)
     const tokens = await this.generateTokens(
       user.id,
       user.email,
-      selectedTenant.tenant_id,
-      selectedTenant.role,
+      selectedWorkspace.workspace_id,
+      selectedWorkspace.role,
       user.is_system_admin || false,
     );
 
     this.logger.log(
-      `User ${user.email} logged in to tenant ${selectedTenant.tenant_id}`,
+      `User ${user.email} logged in to workspace ${selectedWorkspace.workspace_id}`,
     );
 
     return {
@@ -198,14 +199,14 @@ export class AuthService {
         lastName: user.last_name,
         isVerified: user.is_verified,
       },
-      currentTenant: {
-        tenantId: selectedTenant.tenant_id,
-        role: selectedTenant.role,
-        schemaName: selectedTenant.schema_name,
+      currentWorkspace: {
+        workspaceId: selectedWorkspace.workspace_id,
+        role: selectedWorkspace.role,
+        schemaName: selectedWorkspace.schema_name,
       },
-      availableTenants: tenantsResult.rows.map((t) => ({
-        tenantId: t.tenant_id,
-        role: t.role,
+      availableWorkspaces: workspacesResult.rows.map((w) => ({
+        workspaceId: w.workspace_id,
+        role: w.role,
       })),
     };
   }
@@ -240,14 +241,14 @@ export class AuthService {
   async generateTokens(
     userId: string,
     email: string,
-    tenantId: string,
+    workspaceId: string,
     role: string,
     isSystemAdmin: boolean = false,
   ) {
     const accessPayload: JwtPayload = {
       sub: userId,
       email,
-      tenantId,
+      workspaceId,
       role,
       isSystemAdmin,
       type: 'access',
@@ -256,7 +257,7 @@ export class AuthService {
     const refreshPayload: JwtPayload = {
       sub: userId,
       email,
-      tenantId,
+      workspaceId,
       role,
       isSystemAdmin,
       type: 'refresh',
@@ -357,21 +358,21 @@ export class AuthService {
       [validToken.id],
     );
 
-    // Get user's current tenant info and system admin status
+    // Get user's current workspace info and system admin status
     const userResult = await this.databaseService.query(
-      `SELECT u.is_system_admin, ut.tenant_id, ut.role 
+      `SELECT u.is_system_admin, uw.workspace_id, uw.role 
        FROM public.users u
-       JOIN public.user_tenants ut ON u.id = ut.user_id
-       WHERE u.id = $1 AND ut.is_active = true LIMIT 1`,
+       JOIN public.user_workspaces uw ON u.id = uw.user_id
+       WHERE u.id = $1 AND uw.is_active = true LIMIT 1`,
       [userId],
     );
 
     if (userResult.rows.length === 0) {
-      throw new UnauthorizedException('No active tenants found');
+      throw new UnauthorizedException('No active workspaces found');
     }
 
     const {
-      tenant_id: tenantId,
+      workspace_id: workspaceId,
       role,
       is_system_admin: isSystemAdmin,
     } = userResult.rows[0];
@@ -380,7 +381,7 @@ export class AuthService {
     const tokens = await this.generateTokens(
       userId,
       email,
-      tenantId,
+      workspaceId,
       role,
       isSystemAdmin || false,
     );

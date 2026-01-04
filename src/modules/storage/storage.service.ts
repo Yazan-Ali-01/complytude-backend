@@ -23,7 +23,7 @@ import { Readable } from 'stream';
 export interface FileMetadata {
   userId: string;
   originalName: string;
-  tenantId: string;
+  workspaceId: string;
   uploadedAt: string;
   contentType: string;
 }
@@ -60,7 +60,7 @@ export class StorageService {
   private readonly s3Client: S3Client;
   private readonly signedUrlExpiresIn: number;
   private readonly templatesBucket: string;
-  private readonly tenantFilesBucket: string;
+  private readonly workspaceFilesBucket: string;
 
   /**
    * AWS S3 metadata key constants
@@ -70,7 +70,7 @@ export class StorageService {
   private static readonly S3_METADATA_KEYS = {
     USER_ID: 'userid',
     ORIGINAL_NAME: 'originalname',
-    TENANT_ID: 'tenantid',
+    TENANT_ID: 'workspaceid',
     UPLOADED_AT: 'uploadedat',
   } as const;
 
@@ -79,7 +79,7 @@ export class StorageService {
     this.templatesBucket =
       this.configService.get('storage.templates.bucketName') ||
       'complytude-templates';
-    this.tenantFilesBucket =
+    this.workspaceFilesBucket =
       this.configService.get('storage.bucket.filesBucketName') ||
       'complytude-files';
     this.signedUrlExpiresIn =
@@ -100,37 +100,40 @@ export class StorageService {
     );
   }
 
-  // Get tenant Prefix
-  private getTenantPrefix(tenantId: string): string {
-    const cleanId = tenantId.startsWith('tenant_')
-      ? tenantId.substring(7)
-      : tenantId;
-    return `tenants/${cleanId}`;
+  // Get workspace Prefix
+  private getWorkspacePrefix(workspaceId: string): string {
+    const cleanId = workspaceId.startsWith('workspace_')
+      ? workspaceId.substring(7)
+      : workspaceId;
+    return `workspaces/${cleanId}`;
   }
 
   /**
-   * Validate tenant ownership of a file
+   * Validate workspace ownership of a file
    * This is a critical security control and must NEVER be bypassed
    *
-   * @throws BadRequestException if tenantId is missing or empty
-   * @throws NotFoundException if file is outside tenant's scope
+   * @throws BadRequestException if workspaceId is missing or empty
+   * @throws NotFoundException if file is outside workspace's scope
    */
-  private validateTenantOwnership(tenantId: string, fileKey: string): void {
-    // Tenant ID is mandatory for all tenant-scoped operations
-    if (!tenantId || tenantId.trim() === '') {
+  private validateWorkspaceOwnership(
+    workspaceId: string,
+    fileKey: string,
+  ): void {
+    // Workspace ID is mandatory for all workspace-scoped operations
+    if (!workspaceId || workspaceId.trim() === '') {
       this.logger.error(
-        `Tenant validation failed: tenantId is required but was ${tenantId === null ? 'null' : tenantId === undefined ? 'undefined' : 'empty'}`,
+        `Workspace validation failed: workspaceId is required but was ${workspaceId === null ? 'null' : workspaceId === undefined ? 'undefined' : 'empty'}`,
       );
       throw new BadRequestException(
-        'Tenant ID is required for file operations',
+        'Workspace ID is required for file operations',
       );
     }
 
-    const expectedPrefix = this.getTenantPrefix(tenantId);
+    const expectedPrefix = this.getWorkspacePrefix(workspaceId);
 
     if (!fileKey.startsWith(expectedPrefix + '/')) {
       this.logger.warn(
-        `Tenant ${tenantId} attempted to access file outside their scope: ${fileKey}`,
+        `Workspace ${workspaceId} attempted to access file outside their scope: ${fileKey}`,
       );
       throw new NotFoundException('File not found');
     }
@@ -168,7 +171,7 @@ export class StorageService {
     return {
       userId: response.Metadata[S3_METADATA_KEYS.USER_ID] || '',
       originalName: response.Metadata[S3_METADATA_KEYS.ORIGINAL_NAME] || '',
-      tenantId: response.Metadata[S3_METADATA_KEYS.TENANT_ID] || '',
+      workspaceId: response.Metadata[S3_METADATA_KEYS.TENANT_ID] || '',
       uploadedAt: response.Metadata[S3_METADATA_KEYS.UPLOADED_AT] || '',
       contentType: response.ContentType || '',
     };
@@ -194,26 +197,26 @@ export class StorageService {
   }
 
   /**
-   * Upload a file to tenant's bucket
+   * Upload a file to workspace's bucket
    */
   async uploadFile(
-    tenantId: string,
+    workspaceId: string,
     file: Buffer,
     originalName: string,
     contentType: string,
     userId: string,
   ): Promise<UploadResult> {
-    await this.initializeTenantFilesBucket();
+    await this.initializeWorkspaceFilesBucket();
 
-    const bucket = this.tenantFilesBucket;
-    const tenantPrefix = this.getTenantPrefix(tenantId);
+    const bucket = this.workspaceFilesBucket;
+    const workspacePrefix = this.getWorkspacePrefix(workspaceId);
     const normalizedName = this.normalizeFileName(originalName);
     const timestamp = Date.now();
-    const key = `${tenantPrefix}/${timestamp}-${normalizedName}`;
+    const key = `${workspacePrefix}/${timestamp}-${normalizedName}`;
     const metadata: FileMetadata = {
       userId,
       originalName,
-      tenantId,
+      workspaceId,
       uploadedAt: new Date().toISOString(),
       contentType,
     };
@@ -230,7 +233,7 @@ export class StorageService {
           Metadata: {
             userId: metadata.userId,
             originalName: metadata.originalName,
-            tenantId: metadata.tenantId,
+            workspaceId: metadata.workspaceId,
             uploadedAt: metadata.uploadedAt,
           },
         }),
@@ -241,7 +244,7 @@ export class StorageService {
       );
 
       // Generate a signed URL for immediate access
-      const url = await this.generateSignedUrl(tenantId, key);
+      const url = await this.generateSignedUrl(workspaceId, key);
 
       return {
         key,
@@ -257,11 +260,11 @@ export class StorageService {
   }
 
   /**
-   * Get file stream and metadata from tenant's bucket
+   * Get file stream and metadata from workspace's bucket
    * Returns both in a single S3 request (no race condition)
    */
   async getFile(fileKey: string): Promise<FileWithMetadata> {
-    const bucket = this.tenantFilesBucket;
+    const bucket = this.workspaceFilesBucket;
 
     try {
       const response = await this.s3Client.send(
@@ -298,14 +301,14 @@ export class StorageService {
   /**
    * Get file ready for download with extracted filename and content type
    * Handles filename extraction from metadata or fileKey
-   * Validates tenant ownership before allowing download
+   * Validates workspace ownership before allowing download
    */
   async getFileForDownload(
-    tenantId: string,
+    workspaceId: string,
     fileKey: string,
   ): Promise<DownloadableFile> {
-    // SECURITY: Always validate tenant ownership - no exceptions
-    this.validateTenantOwnership(tenantId, fileKey);
+    // SECURITY: Always validate workspace ownership - no exceptions
+    this.validateWorkspaceOwnership(workspaceId, fileKey);
 
     const { stream, metadata } = await this.getFile(fileKey);
 
@@ -315,7 +318,7 @@ export class StorageService {
     );
 
     // Extract filename from metadata or fallback to fileKey
-    // FileKey format: tenants/{tenantId}/{timestamp}-{filename}
+    // FileKey format: workspaces/{workspaceId}/{timestamp}-{filename}
     let filename = metadata?.originalName;
 
     // If no metadata or empty originalName, extract filename from the fileKey
@@ -340,14 +343,14 @@ export class StorageService {
   }
 
   /**
-   * Delete a file from tenant's bucket
-   * Validates tenant ownership before deletion
+   * Delete a file from workspace's bucket
+   * Validates workspace ownership before deletion
    */
-  async deleteFile(tenantId: string, fileKey: string): Promise<void> {
-    // SECURITY: Always validate tenant ownership - no exceptions
-    this.validateTenantOwnership(tenantId, fileKey);
+  async deleteFile(workspaceId: string, fileKey: string): Promise<void> {
+    // SECURITY: Always validate workspace ownership - no exceptions
+    this.validateWorkspaceOwnership(workspaceId, fileKey);
 
-    const bucket = this.tenantFilesBucket;
+    const bucket = this.workspaceFilesBucket;
 
     try {
       // First check if the file exists to provide better error messages
@@ -377,7 +380,7 @@ export class StorageService {
         throw new NotFoundException('File not found');
       }
 
-      // Handle bucket not found (404) - occurs when accessing another tenant's files
+      // Handle bucket not found (404) - occurs when accessing another workspace's files
       if (
         error.name === 'NoSuchBucket' ||
         error.Code === 'NoSuchBucket' ||
@@ -394,17 +397,17 @@ export class StorageService {
 
   /**
    * Generate a signed URL for downloading a file
-   * Validates tenant ownership before generating URL
+   * Validates workspace ownership before generating URL
    */
   async generateSignedUrl(
-    tenantId: string,
+    workspaceId: string,
     fileKey: string,
     expiresIn?: number,
   ): Promise<string> {
-    // SECURITY: Always validate tenant ownership - no exceptions
-    this.validateTenantOwnership(tenantId, fileKey);
+    // SECURITY: Always validate workspace ownership - no exceptions
+    this.validateWorkspaceOwnership(workspaceId, fileKey);
 
-    const bucket = this.tenantFilesBucket;
+    const bucket = this.workspaceFilesBucket;
     const expires = expiresIn || this.signedUrlExpiresIn;
 
     try {
@@ -425,16 +428,19 @@ export class StorageService {
   }
 
   /**
-   * List files in tenant's bucket
+   * List files in workspace's bucket
    */
-  async listFiles(tenantId: string, prefix?: string): Promise<FileListItem[]> {
-    const bucket = this.tenantFilesBucket;
-    const tenantPrefix = this.getTenantPrefix(tenantId);
+  async listFiles(
+    workspaceId: string,
+    prefix?: string,
+  ): Promise<FileListItem[]> {
+    const bucket = this.workspaceFilesBucket;
+    const workspacePrefix = this.getWorkspacePrefix(workspaceId);
     // Sanitize prefix to remove leading slashes to avoid double slashes in path
     const sanitizedPrefix = prefix ? prefix.replace(/^\/+/, '') : '';
     const fullPrefix = sanitizedPrefix
-      ? `${tenantPrefix}/${sanitizedPrefix}`
-      : tenantPrefix;
+      ? `${workspacePrefix}/${sanitizedPrefix}`
+      : workspacePrefix;
 
     try {
       const response = await this.s3Client.send(
@@ -450,7 +456,7 @@ export class StorageService {
 
       const files: FileListItem[] = await Promise.all(
         response.Contents.filter((item) => item.Key).map(async (item) => {
-          const url = await this.generateSignedUrl(tenantId, item.Key!);
+          const url = await this.generateSignedUrl(workspaceId, item.Key!);
           return {
             key: item.Key!,
             size: item.Size || 0,
@@ -481,16 +487,16 @@ export class StorageService {
     }
   }
 
-  async initializeTenantFilesBucket(): Promise<void> {
-    const bucketExists = await this.bucketExists(this.tenantFilesBucket);
+  async initializeWorkspaceFilesBucket(): Promise<void> {
+    const bucketExists = await this.bucketExists(this.workspaceFilesBucket);
 
     if (bucketExists) {
-      this.logger.debug(`Bucket ${this.tenantFilesBucket} already exists`);
+      this.logger.debug(`Bucket ${this.workspaceFilesBucket} already exists`);
       return;
     }
 
-    await this.createBucket(this.tenantFilesBucket);
-    this.logger.log(`Created bucket ${this.tenantFilesBucket}`);
+    await this.createBucket(this.workspaceFilesBucket);
+    this.logger.log(`Created bucket ${this.workspaceFilesBucket}`);
   }
 
   private async bucketExists(bucket: string): Promise<boolean> {
@@ -584,7 +590,7 @@ export class StorageService {
     const metadata: FileMetadata = {
       userId,
       originalName,
-      tenantId: 'system',
+      workspaceId: 'system',
       uploadedAt: new Date().toISOString(),
       contentType,
     };

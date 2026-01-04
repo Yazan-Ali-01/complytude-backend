@@ -12,7 +12,6 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
-  ParseUUIDPipe,
   UseInterceptors,
 } from '@nestjs/common';
 import {
@@ -500,7 +499,7 @@ export class TemplatesController {
   @ApiOperation({
     summary: 'Generate document from template',
     description:
-      'Generate a Word document (DOCX) from a template by replacing placeholders with provided variables. The generated document is saved to tenant-isolated storage and a download URL is returned.',
+      'Generate a Word document (DOCX) from a template by replacing placeholders with provided variables. The generated document is saved to workspace-isolated storage and a download URL is returned.',
   })
   @ApiParam({
     name: 'key',
@@ -537,7 +536,7 @@ export class TemplatesController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<GenerateDocumentResponseDto> {
     return this.documentGenerationService.generateDocument(
-      user.tenantId,
+      user.workspaceId,
       user.userId,
       key,
       generateDocumentDto,

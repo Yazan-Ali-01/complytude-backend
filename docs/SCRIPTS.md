@@ -73,7 +73,7 @@ pnpm test:cov       # Run tests with coverage
 
 ```bash
 pnpm test:e2e:auth        # Authentication & JWT
-pnpm test:e2e:tenant      # Multi-tenancy & organizations
+pnpm test:e2e:workspace   # Multi-workspace & organizations
 pnpm test:e2e:storage     # File uploads (MinIO/S3)
 pnpm test:e2e:templates   # Document templates
 pnpm test:e2e:features    # Plan-based features
@@ -446,8 +446,8 @@ docker-compose exec -u $(id -u):$(id -g) app bash
 pnpm db:migrate     # Run migrations
 pnpm db:setup       # Start services + run migrations
 pnpm db:wait        # Wait for database to be ready
-pnpm db:verify      # Verify multi-tenancy setup
-pnpm db:test        # Run multi-tenancy test suite
+pnpm db:verify      # Verify multi-workspace setup
+pnpm db:test        # Run multi-workspace test suite
 ```
 
 ### Details
@@ -474,15 +474,15 @@ pnpm db:test        # Run multi-tenancy test suite
 
 **`pnpm db:verify`**
 
-- Verifies multi-tenancy infrastructure
+- Verifies multi-workspace infrastructure
 - Checks RLS policies are enabled
 - Validates helper functions exist
-- Shows tenant statistics
+- Shows workspace statistics
 
 **`pnpm db:test`**
 
-- Runs comprehensive multi-tenancy test suite
-- Creates test tenants
+- Runs comprehensive multi-workspace test suite
+- Creates test workspaces
 - Tests schema isolation
 - Tests RLS policies
 - Cleans up after itself

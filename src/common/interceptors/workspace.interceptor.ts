@@ -9,22 +9,22 @@ import { Observable } from 'rxjs';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../../modules/auth/decorators/public.decorator';
 
-export interface TenantContext {
-  tenantId: string;
+export interface WorkspaceContext {
+  workspaceId: string;
   schemaName: string;
   userId?: string;
   role?: string;
 }
 
 /**
- * Interceptor to extract tenant context from authenticated user (JWT payload)
+ * Interceptor to extract workspace context from authenticated user (JWT payload)
  * Runs AFTER guards, so req.user is already populated by JwtAuthGuard
  *
- * This sets req.tenantContext for use in services/controllers
+ * This sets req.workspaceContext for use in services/controllers
  */
 @Injectable()
-export class TenantInterceptor implements NestInterceptor {
-  private readonly logger = new Logger(TenantInterceptor.name);
+export class WorkspaceInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(WorkspaceInterceptor.name);
 
   constructor(private reflector: Reflector) {}
 
@@ -37,22 +37,22 @@ export class TenantInterceptor implements NestInterceptor {
       context.getClass(),
     ]);
 
-    // If public route or no user, skip tenant context setup
+    // If public route or no user, skip workspace context setup
     if (isPublic || !request.user) {
       return next.handle();
     }
 
-    // Extract tenant context from JWT payload (req.user)
-    if (request.user.tenantId) {
-      request.tenantContext = {
-        tenantId: request.user.tenantId,
-        schemaName: `tenant_${request.user.tenantId.replace(/-/g, '_')}`,
+    // Extract workspace context from JWT payload (req.user)
+    if (request.user.workspaceId) {
+      request.workspaceContext = {
+        workspaceId: request.user.workspaceId,
+        schemaName: `workspace_${request.user.workspaceId.replace(/-/g, '_')}`,
         userId: request.user.userId,
         role: request.user.role,
       };
 
       this.logger.debug(
-        `Tenant context set: ${request.tenantContext.tenantId} (${request.tenantContext.role})`,
+        `Workspace context set: ${request.workspaceContext.workspaceId} (${request.workspaceContext.role})`,
       );
     }
 

@@ -21,7 +21,7 @@
 - [Environment Variables](#environment-variables)
 - [Available Scripts](#available-scripts)
 - [API Documentation](#api-documentation)
-- [Multi-Tenancy](#multi-tenancy)
+- [Multi-Workspace](#multi-workspace)
 - [Documentation](#documentation)
 - [Support](#support)
 - [License](#license)
@@ -45,10 +45,10 @@
 ### Core Features
 
 - **JWT Authentication** - Secure signup, login, email verification, password reset
-- **Multi-Tenancy** - Complete data isolation per organization with schema-based separation + RLS
+- **Multi-Workspace** - Complete data isolation per organization with schema-based separation + RLS
 - **User Management** - Role-based access control (Admin, Member, Viewer)
 - **Template Management** - CRUD operations for legal document templates
-- **S3-Compatible Storage** - Secure file upload/download with tenant isolation (AWS S3 or MinIO)
+- **S3-Compatible Storage** - Secure file upload/download with workspace isolation (AWS S3 or MinIO)
 - **Plan-Based Features** - Subscription tiers (Early Access, Basic, Pro, Enterprise) with document limits
 - **Health Checks** - Database and storage health monitoring
 - **API Documentation** - Auto-generated Swagger/OpenAPI documentation
@@ -233,7 +233,7 @@ pnpm test
 # Run specific feature tests
 pnpm test:e2e:auth      # Authentication
 pnpm test:e2e:storage   # File storage (uses MinIO)
-pnpm test:e2e:tenant    # Multi-tenancy
+pnpm test:e2e:workspace # Multi-workspace
 ```
 
 ---
@@ -246,7 +246,7 @@ complytude/
 │   ├── modules/              # Feature modules
 │   │   ├── auth/            # Authentication (JWT, signup, login)
 │   │   ├── users/           # User management & RBAC
-│   │   ├── tenant/          # Multi-tenancy & subscription plans
+│   │   ├── workspace/       # Multi-workspace & subscription plans
 │   │   ├── storage/         # File upload/download (S3/MinIO)
 │   │   ├── templates/       # Legal document templates
 │   │   └── health/          # Health check endpoints
@@ -265,8 +265,8 @@ complytude/
 | Module        | Description                                       | Status      |
 | ------------- | ------------------------------------------------- | ----------- |
 | **auth**      | JWT authentication, signup, login, password reset | ✅ Complete |
-| **users**     | User management, roles, multi-tenant membership   | ✅ Complete |
-| **tenant**    | Organization management, subscription plans       | ✅ Complete |
+| **users**     | User management, roles, multi-workspace membership| ✅ Complete |
+| **workspace** | Organization management, subscription plans       | ✅ Complete |
 | **storage**   | File upload/download via S3/MinIO with isolation  | ✅ Complete |
 | **templates** | Legal document template CRUD & versioning         | 🟡 Partial  |
 | **health**    | Health checks for database, storage (MinIO/S3)    | ✅ Complete |
@@ -382,7 +382,7 @@ Interactive API documentation available at: **http://localhost:3000/docs**
 | --------- | -------------------------------------------------------- |
 | Auth      | `POST /api/auth/signup`, `/login`, `/refresh`, `/logout` |
 | Users     | `GET /api/users/me`, `PATCH /api/users/me`               |
-| Tenants   | `POST /api/tenants`, `GET /api/tenants/:id`              |
+| Workspaces| `POST /api/workspaces`, `GET /api/workspaces/:id`        |
 | Storage   | `POST /api/storage/upload`, `GET /api/storage/list`      |
 | Templates | `GET /api/templates`, `POST /api/templates`              |
 | Health    | `GET /api/health`, `/health/db`, `/health/storage`       |
@@ -396,24 +396,24 @@ Pre-configured Postman collection included:
 
 ---
 
-## Multi-Tenancy
+## Multi-Workspace
 
-Complytude uses **schema-based isolation** with **Row-Level Security (RLS)** for complete data separation between tenants.
+Complytude uses **schema-based isolation** with **Row-Level Security (RLS)** for complete data separation between workspaces.
 
 **Key Features:**
 
-- Each tenant gets their own PostgreSQL schema
+- Each workspace gets their own PostgreSQL schema
 - RLS policies for additional security
-- Automatic tenant context via `@TenantId()` decorator
+- Automatic workspace context via `@WorkspaceId()` decorator
 - Plan-based feature access control
 
 Example usage:
 
 ```typescript
 @Get()
-@UseGuards(JwtAuthGuard, TenantGuard)
-async findAll(@TenantId() tenantId: string) {
-  return this.service.findAll(tenantId);
+@UseGuards(JwtAuthGuard, WorkspaceGuard)
+async findAll(@WorkspaceId() workspaceId: string) {
+  return this.service.findAll(workspaceId);
 }
 ```
 

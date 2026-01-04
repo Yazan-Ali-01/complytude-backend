@@ -6,7 +6,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 export interface JwtPayload {
   sub: string;
   email: string;
-  tenantId: string;
+  workspaceId: string;
   role: string;
   isSystemAdmin?: boolean;
   type: 'access' | 'refresh';
@@ -33,7 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     return {
       userId: payload.sub,
       email: payload.email,
-      tenantId: payload.tenantId,
+      workspaceId: payload.workspaceId,
       role: payload.role,
       isSystemAdmin: payload.isSystemAdmin || false,
     };

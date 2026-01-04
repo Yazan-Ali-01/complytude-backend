@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { FEATURES_KEY } from '../decorators/features.decorator';
-import { FeaturesService } from '../../modules/tenant/features.service';
+import { FeaturesService } from '../../modules/workspace/features.service';
 
 @Injectable()
 export class FeaturesGuard implements CanActivate {
@@ -29,19 +29,21 @@ export class FeaturesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const tenantId = String(request.tenantId || request.user?.tenantId);
+    const workspaceId = String(
+      request.workspaceId || request.user?.workspaceId,
+    );
 
-    // Ensure tenant context is available
-    if (!tenantId) {
+    // Ensure workspace context is available
+    if (!workspaceId) {
       throw new UnauthorizedException(
-        'Tenant context not found. Please authenticate.',
+        'Workspace context not found. Please authenticate.',
       );
     }
 
     // Check each required feature
     for (const feature of requiredFeatures) {
       const hasAccess = await this.featuresService.checkFeatureAccess(
-        tenantId,
+        workspaceId,
         feature,
       );
 

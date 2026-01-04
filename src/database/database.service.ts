@@ -135,23 +135,25 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Execute a query within a specific tenant schema with RLS context
-   * @param tenantId Tenant identifier for RLS
+   * Execute a query within a specific workspace schema with RLS context
+   * @param workspaceId Workspace identifier for RLS
    * @param schemaName Schema to execute query in
    * @param text SQL query string
    * @param params Query parameters
    * @returns Query result
    */
-  async queryWithTenantContext<T extends QueryResultRow = any>(
-    tenantId: string,
+  async queryWithWorkspaceContext<T extends QueryResultRow = any>(
+    workspaceId: string,
     schemaName: string,
     text: string,
     params?: any[],
   ): Promise<QueryResult<T>> {
     const client = await this.getClient();
     try {
-      // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+      // Set workspace context for RLS
+      await client.query(
+        `SET LOCAL app.current_workspace_id = '${workspaceId}'`,
+      );
 
       // Set schema search path
       await client.query(`SET search_path TO ${schemaName}, public`);
@@ -160,33 +162,33 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       const result = await client.query<T>(text, params);
 
       this.logger.debug(
-        `Executed query in schema ${schemaName} for tenant ${tenantId}`,
+        `Executed query in schema ${schemaName} for workspace ${workspaceId}`,
       );
 
       return result;
     } catch (error) {
       this.logger.error(
-        `Query error in tenant context (${tenantId}, ${schemaName})`,
+        `Query error in workspace context (${workspaceId}, ${schemaName})`,
         error,
       );
       throw error;
     } finally {
       // Reset to default schema
       await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
+      await client.query('RESET app.current_workspace_id');
       client.release();
     }
   }
 
   /**
-   * Execute a transaction within a specific tenant schema with RLS context
-   * @param tenantId Tenant identifier for RLS
+   * Execute a transaction within a specific workspace schema with RLS context
+   * @param workspaceId Workspace identifier for RLS
    * @param schemaName Schema to execute transaction in
    * @param callback Transaction callback
    * @returns Transaction result
    */
-  async transactionWithTenantContext<T>(
-    tenantId: string,
+  async transactionWithWorkspaceContext<T>(
+    workspaceId: string,
     schemaName: string,
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
@@ -194,8 +196,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       await client.query('BEGIN');
 
-      // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+      // Set workspace context for RLS
+      await client.query(
+        `SET LOCAL app.current_workspace_id = '${workspaceId}'`,
+      );
 
       // Set schema search path
       await client.query(`SET search_path TO ${schemaName}, public`);
@@ -205,41 +209,43 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
       await client.query('COMMIT');
       this.logger.debug(
-        `Transaction committed in schema ${schemaName} for tenant ${tenantId}`,
+        `Transaction committed in schema ${schemaName} for workspace ${workspaceId}`,
       );
 
       return result;
     } catch (error) {
       await client.query('ROLLBACK');
       this.logger.error(
-        `Transaction rolled back in tenant context (${tenantId}, ${schemaName})`,
+        `Transaction rolled back in workspace context (${workspaceId}, ${schemaName})`,
         error,
       );
       throw error;
     } finally {
       // Reset to default schema
       await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
+      await client.query('RESET app.current_workspace_id');
       client.release();
     }
   }
 
   /**
-   * Get a client configured for a specific tenant
+   * Get a client configured for a specific workspace
    * Remember to release the client after use!
-   * @param tenantId Tenant identifier
+   * @param workspaceId Workspace identifier
    * @param schemaName Schema name
    * @returns Configured pool client
    */
-  async getTenantClient(
-    tenantId: string,
+  async getWorkspaceClient(
+    workspaceId: string,
     schemaName: string,
   ): Promise<PoolClient> {
     const client = await this.getClient();
 
     try {
-      // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+      // Set workspace context for RLS
+      await client.query(
+        `SET LOCAL app.current_workspace_id = '${workspaceId}'`,
+      );
 
       // Set schema search path
       await client.query(`SET search_path TO ${schemaName}, public`);
@@ -252,13 +258,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Release a tenant client and reset its context
+   * Release a workspace client and reset its context
    * @param client Pool client to release
    */
-  async releaseTenantClient(client: PoolClient): Promise<void> {
+  async releaseWorkspaceClient(client: PoolClient): Promise<void> {
     try {
       await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
+      await client.query('RESET app.current_workspace_id');
     } finally {
       client.release();
     }

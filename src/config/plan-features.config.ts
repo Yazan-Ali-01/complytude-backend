@@ -1,12 +1,12 @@
-import { TenantFeatures } from '../modules/tenant/entities/tenant.entity';
+import { WorkspaceFeatures } from '../modules/workspace/entities/workspace.entity';
 
 /**
  * Default feature configurations for each subscription plan
- * Custom tenant features in the database will override these defaults
+ * Custom workspace features in the database will override these defaults
  */
 export const PLAN_FEATURES: Record<
   'early_access' | 'basic' | 'pro' | 'enterprise',
-  TenantFeatures
+  WorkspaceFeatures
 > = {
   early_access: {
     document_limit: 10,
@@ -35,7 +35,7 @@ export const PLAN_FEATURES: Record<
  */
 export function getDefaultPlanFeatures(
   plan: 'early_access' | 'basic' | 'pro' | 'enterprise',
-): TenantFeatures {
+): WorkspaceFeatures {
   return { ...PLAN_FEATURES[plan] };
 }
 

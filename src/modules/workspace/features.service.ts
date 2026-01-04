@@ -5,7 +5,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
-import { TenantFeatures } from './entities/tenant.entity';
+import { WorkspaceFeatures } from './entities/workspace.entity';
 import {
   getDefaultPlanFeatures,
   isValidPlan,
@@ -22,43 +22,50 @@ export class FeaturesService {
    */
   getDefaultFeatures(
     plan: 'early_access' | 'basic' | 'pro' | 'enterprise',
-  ): TenantFeatures {
+  ): WorkspaceFeatures {
     return getDefaultPlanFeatures(plan);
   }
 
   /**
-   * Get tenant's effective features (plan defaults merged with custom overrides)
+   * Get workspace's effective features (plan defaults merged with custom overrides)
    * Custom features in the database override default plan features
    */
-  async getTenantFeatures(tenantId: string): Promise<TenantFeatures> {
+  async getWorkspaceFeatures(workspaceId: string): Promise<WorkspaceFeatures> {
     try {
       // 🔍 DEBUG: Log the query being executed
-      this.logger.log(`🔍 [DEBUG] Getting features for tenant: ${tenantId}`);
+      this.logger.log(
+        `🔍 [DEBUG] Getting features for workspace: ${workspaceId}`,
+      );
 
       const result = await this.databaseService.query(
-        'SELECT plan, features FROM public.tenants WHERE tenant_id = $1 AND is_active = true',
-        [tenantId],
+        'SELECT plan, features FROM public.workspaces WHERE workspace_id = $1 AND is_active = true',
+        [workspaceId],
       );
 
       if (result.rows.length === 0) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
+        throw new NotFoundException(`Workspace ${workspaceId} not found`);
       }
 
       const { plan, features: customFeatures } = result.rows[0];
 
       // 🔍 DEBUG: Log raw database values
-      this.logger.log(`🔍 [DEBUG] Raw DB values for tenant ${tenantId}:`, {
-        plan: plan,
-        customFeatures: customFeatures,
-        customFeaturesType: typeof customFeatures,
-        customFeaturesStringified: JSON.stringify(customFeatures),
-      });
+      this.logger.log(
+        `🔍 [DEBUG] Raw DB values for workspace ${workspaceId}:`,
+        {
+          plan: plan,
+          customFeatures: customFeatures,
+          customFeaturesType: typeof customFeatures,
+          customFeaturesStringified: JSON.stringify(customFeatures),
+        },
+      );
 
       // Validate plan type
       const planValue = String(plan);
       if (!isValidPlan(planValue)) {
-        this.logger.error(`Invalid plan "${planValue}" for tenant ${tenantId}`);
-        throw new InternalServerErrorException('Invalid tenant plan');
+        this.logger.error(
+          `Invalid plan "${planValue}" for workspace ${workspaceId}`,
+        );
+        throw new InternalServerErrorException('Invalid workspace plan');
       }
 
       // Get default features for the plan
@@ -71,21 +78,24 @@ export class FeaturesService {
       });
 
       // Merge: custom features override defaults
-      const effectiveFeatures: TenantFeatures = {
+      const effectiveFeatures: WorkspaceFeatures = {
         ...defaultFeatures,
         ...customFeatures,
       };
 
       // 🔍 DEBUG: Log the merge process
-      this.logger.log(`🔍 [DEBUG] Feature merge for tenant ${tenantId}:`, {
-        defaultFeatures: defaultFeatures,
-        customFeatures: customFeatures,
-        effectiveFeatures: effectiveFeatures,
-        finalDocumentLimit: effectiveFeatures.document_limit,
-      });
+      this.logger.log(
+        `🔍 [DEBUG] Feature merge for workspace ${workspaceId}:`,
+        {
+          defaultFeatures: defaultFeatures,
+          customFeatures: customFeatures,
+          effectiveFeatures: effectiveFeatures,
+          finalDocumentLimit: effectiveFeatures.document_limit,
+        },
+      );
 
       this.logger.debug(
-        `Tenant ${tenantId} effective features:`,
+        `Workspace ${workspaceId} effective features:`,
         effectiveFeatures,
       );
 
@@ -97,20 +107,23 @@ export class FeaturesService {
       ) {
         throw error;
       }
-      this.logger.error(`Failed to get features for tenant ${tenantId}`, error);
+      this.logger.error(
+        `Failed to get features for workspace ${workspaceId}`,
+        error,
+      );
       throw new InternalServerErrorException('Failed to retrieve features');
     }
   }
 
   /**
-   * Check if a tenant has access to a specific feature
+   * Check if a workspace has access to a specific feature
    */
   async checkFeatureAccess(
-    tenantId: string,
+    workspaceId: string,
     featureName: string,
   ): Promise<boolean> {
     try {
-      const features = await this.getTenantFeatures(tenantId);
+      const features = await this.getWorkspaceFeatures(workspaceId);
 
       // Check if feature exists and is enabled
       if (featureName in features) {
@@ -132,12 +145,12 @@ export class FeaturesService {
 
       // Feature not found, deny access
       this.logger.warn(
-        `Feature "${featureName}" not found for tenant ${tenantId}`,
+        `Feature "${featureName}" not found for workspace ${workspaceId}`,
       );
       return false;
     } catch (error) {
       this.logger.error(
-        `Error checking feature access for tenant ${tenantId}`,
+        `Error checking feature access for workspace ${workspaceId}`,
         error,
       );
       throw error;
@@ -145,17 +158,17 @@ export class FeaturesService {
   }
 
   /**
-   * Get the document limit for a tenant
+   * Get the document limit for a workspace
    * Returns -1 for unlimited, 0 for no access, or positive number for limit
    */
-  async getDocumentLimit(tenantId: string): Promise<number> {
+  async getDocumentLimit(workspaceId: string): Promise<number> {
     try {
-      const features = await this.getTenantFeatures(tenantId);
+      const features = await this.getWorkspaceFeatures(workspaceId);
       // Use nullish coalescing to only default to 0 if undefined/null, not if explicitly 0
       return features.document_limit ?? 0;
     } catch (error) {
       this.logger.error(
-        `Error getting document limit for tenant ${tenantId}`,
+        `Error getting document limit for workspace ${workspaceId}`,
         error,
       );
       throw error;
@@ -163,14 +176,14 @@ export class FeaturesService {
   }
 
   /**
-   * Check if tenant can upload more documents based on their limit
+   * Check if workspace can upload more documents based on their limit
    */
   async checkDocumentLimit(
-    tenantId: string,
+    workspaceId: string,
     currentCount: number,
   ): Promise<{ allowed: boolean; limit: number; current: number }> {
     try {
-      const limit = await this.getDocumentLimit(tenantId);
+      const limit = await this.getDocumentLimit(workspaceId);
 
       // -1 means unlimited
       if (limit === -1) {
@@ -183,7 +196,7 @@ export class FeaturesService {
       return { allowed, limit, current: currentCount };
     } catch (error) {
       this.logger.error(
-        `Error checking document limit for tenant ${tenantId}`,
+        `Error checking document limit for workspace ${workspaceId}`,
         error,
       );
       throw error;

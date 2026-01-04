@@ -4,7 +4,7 @@ export class FileResponseDto {
   @ApiProperty({
     description: 'Signed URL for accessing the uploaded file',
     example:
-      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+      'http://localhost:9000/complytude-files/workspaces/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })
   url: string;
 }
@@ -12,7 +12,7 @@ export class FileResponseDto {
 export class FileListItemDto {
   @ApiProperty({
     description: 'File key/identifier in storage',
-    example: 'tenants/abc123/1698765432000-document.pdf',
+    example: 'workspaces/abc123/1698765432000-document.pdf',
   })
   key: string;
 
@@ -31,7 +31,7 @@ export class FileListItemDto {
   @ApiProperty({
     description: 'Signed URL for accessing the file',
     example:
-      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+      'http://localhost:9000/complytude-files/workspaces/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })
   url: string;
 }
@@ -53,14 +53,14 @@ export class FileListResponseDto {
 export class SignedUrlResponseDto {
   @ApiProperty({
     description: 'File key/identifier',
-    example: 'tenants/abc123/1698765432000-document.pdf',
+    example: 'workspaces/abc123/1698765432000-document.pdf',
   })
   key: string;
 
   @ApiProperty({
     description: 'Signed URL for downloading the file',
     example:
-      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+      'http://localhost:9000/complytude-files/workspaces/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })
   url: string;
 
@@ -80,7 +80,7 @@ export class DeleteFileResponseDto {
 
   @ApiProperty({
     description: 'Deleted file key',
-    example: 'tenants/abc123/1698765432000-document.pdf',
+    example: 'workspaces/abc123/1698765432000-document.pdf',
   })
   key: string;
 }

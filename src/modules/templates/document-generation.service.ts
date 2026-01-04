@@ -18,7 +18,7 @@ import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
 import { StorageService } from '../storage/storage.service';
 import { DatabaseService } from '../../database/database.service';
-import { TenantService } from '../tenant/tenant.service';
+import { WorkspaceService } from '../workspace/workspace.service';
 
 import { TemplateValidationService } from './template-validation.service';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
@@ -34,7 +34,7 @@ export class DocumentGenerationService {
     private readonly templateVersionsService: TemplateVersionsService,
     private readonly storageService: StorageService,
     private readonly databaseService: DatabaseService,
-    private readonly tenantService: TenantService,
+    private readonly workspaceService: WorkspaceService,
     private readonly templateValidationService: TemplateValidationService,
   ) {}
 
@@ -151,7 +151,7 @@ export class DocumentGenerationService {
    * Rolls back file upload if metadata save fails
    */
   private async saveGeneratedDocument(
-    tenantId: string,
+    workspaceId: string,
     userId: string,
     template: Template,
     templateVersion: TemplateVersion,
@@ -167,7 +167,7 @@ export class DocumentGenerationService {
 
       // Upload file to S3
       const uploadResult = await this.storageService.uploadFile(
-        tenantId,
+        workspaceId,
         outputBuffer,
         filename,
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -177,13 +177,13 @@ export class DocumentGenerationService {
 
       // Generate signed URL
       const downloadUrl = await this.storageService.generateSignedUrl(
-        tenantId,
+        workspaceId,
         uploadResult.key,
       );
 
-      // Fetch tenant schema
-      const tenant = await this.tenantService.findById(tenantId);
-      const schemaName = tenant.schema_name;
+      // Fetch workspace schema
+      const workspace = await this.workspaceService.findById(workspaceId);
+      const schemaName = workspace.schema_name;
 
       // Prepare metadata
       const documentMetadata = {
@@ -198,17 +198,17 @@ export class DocumentGenerationService {
         templateId: template.id,
       };
 
-      // Store document metadata in tenant's documents table
-      await this.databaseService.queryWithTenantContext(
-        tenantId,
+      // Store document metadata in workspace's documents table
+      await this.databaseService.queryWithWorkspaceContext(
+        workspaceId,
         schemaName,
         `INSERT INTO documents (
-          id, tenant_id, title, content, metadata, 
+          id, workspace_id, title, content, metadata, 
           template_key, template_version, generation_metadata, created_by, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           uploadResult.key,
-          tenantId,
+          workspaceId,
           `${template.name || template.key} - Generated Document`,
           null,
           JSON.stringify(documentMetadata),
@@ -224,7 +224,7 @@ export class DocumentGenerationService {
       // Rollback: delete uploaded file if metadata insert failed
       if (uploadedFileKey) {
         try {
-          await this.storageService.deleteFile(tenantId, uploadedFileKey);
+          await this.storageService.deleteFile(workspaceId, uploadedFileKey);
         } catch (deleteError) {
           this.logger.warn(
             `Failed to cleanup orphaned file: ${uploadedFileKey}`,
@@ -244,7 +244,7 @@ export class DocumentGenerationService {
   }
 
   async generateDocument(
-    tenantId: string,
+    workspaceId: string,
     userId: string,
     key: string,
     generateDocumentDto: GenerateDocumentDto,
@@ -274,7 +274,7 @@ export class DocumentGenerationService {
 
       // 4. Save with transaction safety
       const { documentId, downloadUrl } = await this.saveGeneratedDocument(
-        tenantId,
+        workspaceId,
         userId,
         template,
         templateVersion,

@@ -56,15 +56,15 @@ export class UsersService {
   }
 
   /**
-   * Get all tenants accessible by a user
+   * Get all workspaces accessible by a user
    */
-  async getUserTenants(userId: string): Promise<any[]> {
+  async getUserWorkspaces(userId: string): Promise<any[]> {
     const result = await this.databaseService.query(
-      `SELECT ut.tenant_id, ut.role, ut.is_active, ut.joined_at, t.schema_name
-       FROM public.user_tenants ut
-       JOIN public.tenants t ON ut.tenant_id = t.tenant_id
-       WHERE ut.user_id = $1
-       ORDER BY ut.joined_at DESC`,
+      `SELECT uw.workspace_id, uw.role, uw.is_active, uw.joined_at, w.schema_name
+       FROM public.user_workspaces uw
+       JOIN public.workspaces w ON uw.workspace_id = w.workspace_id
+       WHERE uw.user_id = $1
+       ORDER BY uw.joined_at DESC`,
       [userId],
     );
 
@@ -166,17 +166,17 @@ export class UsersService {
   }
 
   /**
-   * List all users in a tenant (admin/member only)
+   * List all users in a workspace (admin/member only)
    */
-  async listTenantUsers(tenantId: string): Promise<any[]> {
+  async listWorkspaceUsers(workspaceId: string): Promise<any[]> {
     const result = await this.databaseService.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
-              ut.role, ut.is_active, ut.joined_at
-       FROM public.user_tenants ut
-       JOIN public.users u ON ut.user_id = u.id
-       WHERE ut.tenant_id = $1
-       ORDER BY ut.joined_at DESC`,
-      [tenantId],
+              uw.role, uw.is_active, uw.joined_at
+       FROM public.user_workspaces uw
+       JOIN public.users u ON uw.user_id = u.id
+       WHERE uw.workspace_id = $1
+       ORDER BY uw.joined_at DESC`,
+      [workspaceId],
     );
 
     return result.rows.map((row) => ({
@@ -193,10 +193,10 @@ export class UsersService {
   }
 
   /**
-   * Create a new user and add to tenant (admin only)
+   * Create a new user and add to workspace (admin only)
    */
   async createUser(
-    tenantId: string,
+    workspaceId: string,
     creatorId: string,
     createUserDto: CreateUserDto,
   ): Promise<any> {
@@ -209,16 +209,16 @@ export class UsersService {
     let userId: string;
 
     if (existingUser.rows.length > 0) {
-      // User exists, check if already in tenant
+      // User exists, check if already in workspace
       userId = existingUser.rows[0].id;
 
       const existingAssociation = await this.databaseService.query(
-        'SELECT * FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
-        [userId, tenantId],
+        'SELECT * FROM public.user_workspaces WHERE user_id = $1 AND workspace_id = $2',
+        [userId, workspaceId],
       );
 
       if (existingAssociation.rows.length > 0) {
-        throw new ConflictException('User already exists in this tenant');
+        throw new ConflictException('User already exists in this workspace');
       }
     } else {
       // Create new user
@@ -257,15 +257,15 @@ export class UsersService {
       );
     }
 
-    // Add user to tenant
+    // Add user to workspace
     await this.databaseService.query(
-      `INSERT INTO public.user_tenants (user_id, tenant_id, role, is_active)
+      `INSERT INTO public.user_workspaces (user_id, workspace_id, role, is_active)
        VALUES ($1, $2, $3, true)`,
-      [userId, tenantId, createUserDto.role],
+      [userId, workspaceId, createUserDto.role],
     );
 
     this.logger.log(
-      `User ${userId} added to tenant ${tenantId} by ${creatorId}`,
+      `User ${userId} added to workspace ${workspaceId} by ${creatorId}`,
     );
 
     // Return user info
@@ -273,9 +273,9 @@ export class UsersService {
       `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
               ut.role, ut.is_active, ut.joined_at
        FROM public.users u
-       JOIN public.user_tenants ut ON u.id = ut.user_id
-       WHERE u.id = $1 AND ut.tenant_id = $2`,
-      [userId, tenantId],
+       JOIN public.user_workspaces ut ON u.id = ut.user_id
+       WHERE u.id = $1 AND ut.workspace_id = $2`,
+      [userId, workspaceId],
     );
 
     const user = userResult.rows[0];
@@ -293,22 +293,22 @@ export class UsersService {
   }
 
   /**
-   * Update user in tenant (admin only)
+   * Update user in workspace (admin only)
    */
   async updateUser(
-    tenantId: string,
+    workspaceId: string,
     targetUserId: string,
     updaterId: string,
     updateUserDto: UpdateUserDto,
   ): Promise<any> {
-    // Check if target user exists in tenant
+    // Check if target user exists in workspace
     const existingAssociation = await this.databaseService.query(
-      'SELECT * FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
-      [targetUserId, tenantId],
+      'SELECT * FROM public.user_workspaces WHERE user_id = $1 AND workspace_id = $2',
+      [targetUserId, workspaceId],
     );
 
     if (existingAssociation.rows.length === 0) {
-      throw new NotFoundException('User not found in this tenant');
+      throw new NotFoundException('User not found in this workspace');
     }
 
     // Prevent users from modifying their own admin status
@@ -335,52 +335,52 @@ export class UsersService {
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-    values.push(targetUserId, tenantId);
+    values.push(targetUserId, workspaceId);
 
     const query = `
-      UPDATE public.user_tenants
+      UPDATE public.user_workspaces
       SET ${updateFields.join(', ')}
-      WHERE user_id = $${paramIndex++} AND tenant_id = $${paramIndex}
+      WHERE user_id = $${paramIndex++} AND workspace_id = $${paramIndex}
       RETURNING *
     `;
 
     await this.databaseService.query(query, values);
 
     this.logger.log(
-      `User ${targetUserId} updated in tenant ${tenantId} by ${updaterId}`,
+      `User ${targetUserId} updated in workspace ${workspaceId} by ${updaterId}`,
     );
 
     // Return updated user info
-    return this.getUserInTenant(targetUserId, tenantId);
+    return this.getUserInWorkspace(targetUserId, workspaceId);
   }
 
   /**
-   * Remove user from tenant (admin only)
+   * Remove user from workspace (admin only)
    */
-  async removeUserFromTenant(
-    tenantId: string,
+  async removeUserFromWorkspace(
+    workspaceId: string,
     targetUserId: string,
     removerId: string,
   ): Promise<void> {
     // Prevent users from removing themselves
     if (targetUserId === removerId) {
-      throw new ForbiddenException('Cannot remove yourself from the tenant');
+      throw new ForbiddenException('Cannot remove yourself from the workspace');
     }
 
-    // Check if target user exists in tenant
+    // Check if target user exists in workspace
     const existingAssociation = await this.databaseService.query(
-      'SELECT * FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
-      [targetUserId, tenantId],
+      'SELECT * FROM public.user_workspaces WHERE user_id = $1 AND workspace_id = $2',
+      [targetUserId, workspaceId],
     );
 
     if (existingAssociation.rows.length === 0) {
-      throw new NotFoundException('User not found in this tenant');
+      throw new NotFoundException('User not found in this workspace');
     }
 
     // Delete the association
     await this.databaseService.query(
-      'DELETE FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
-      [targetUserId, tenantId],
+      'DELETE FROM public.user_workspaces WHERE user_id = $1 AND workspace_id = $2',
+      [targetUserId, workspaceId],
     );
 
     // Revoke refresh tokens for this user (they'll need to login again)
@@ -390,28 +390,28 @@ export class UsersService {
     );
 
     this.logger.log(
-      `User ${targetUserId} removed from tenant ${tenantId} by ${removerId}`,
+      `User ${targetUserId} removed from workspace ${workspaceId} by ${removerId}`,
     );
   }
 
   /**
-   * Get user info within a tenant
+   * Get user info within a workspace
    */
-  private async getUserInTenant(
+  private async getUserInWorkspace(
     userId: string,
-    tenantId: string,
+    workspaceId: string,
   ): Promise<any> {
     const result = await this.databaseService.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
               ut.role, ut.is_active, ut.joined_at
        FROM public.users u
-       JOIN public.user_tenants ut ON u.id = ut.user_id
-       WHERE u.id = $1 AND ut.tenant_id = $2`,
-      [userId, tenantId],
+       JOIN public.user_workspaces ut ON u.id = ut.user_id
+       WHERE u.id = $1 AND ut.workspace_id = $2`,
+      [userId, workspaceId],
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found in tenant');
+      throw new NotFoundException('User not found in workspace');
     }
 
     const user = result.rows[0];
