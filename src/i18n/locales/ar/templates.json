@@ -8,6 +8,8 @@
   "TEMPLATE_NAME_REQUIRED": "اسم القالب مطلوب",
   "TEMPLATE_CONTENT_REQUIRED": "محتوى القالب مطلوب",
   "TEMPLATE_CATEGORY_REQUIRED": "تصنيف القالب مطلوب",
+  "CATEGORY_NOT_FOUND": "التصنيف غير موجود",
+  "AUTHORITY_NOT_FOUND": "الجهة غير موجودة",
   "TEMPLATE_ACCESS_DENIED": "ليس لديك صلاحية الوصول إلى هذا القالب",
   "TEMPLATE_IN_USE": "القالب قيد الاستخدام حالياً ولا يمكن حذفه",
   "TEMPLATE_VERSION_CONFLICT": "تم اكتشاف تعارض في إصدار القالب",

@@ -8,6 +8,8 @@
   "TEMPLATE_NAME_REQUIRED": "Template name is required",
   "TEMPLATE_CONTENT_REQUIRED": "Template content is required",
   "TEMPLATE_CATEGORY_REQUIRED": "Template category is required",
+  "CATEGORY_NOT_FOUND": "Category not found",
+  "AUTHORITY_NOT_FOUND": "Authority not found",
   "TEMPLATE_ACCESS_DENIED": "You do not have permission to access this template",
   "TEMPLATE_IN_USE": "Template is currently in use and cannot be deleted",
   "TEMPLATE_VERSION_CONFLICT": "Template version conflict detected",

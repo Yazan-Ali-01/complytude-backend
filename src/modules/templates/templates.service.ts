@@ -72,7 +72,7 @@ export class TemplatesService {
         );
         if (categoryExists.rows.length === 0) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.TEMPLATE_CATEGORY_REQUIRED),
+            this.i18n.t(I18nKeys.CATEGORY_NOT_FOUND),
           );
         }
       }
@@ -85,7 +85,7 @@ export class TemplatesService {
         );
         if (authorityExists.rows.length === 0) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
+            this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
           );
         }
       }
@@ -100,7 +100,7 @@ export class TemplatesService {
         );
         if (rulesets.length !== createTemplateDto.ruleset_keys.length) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
+            this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
           );
         }
       }
@@ -484,7 +484,7 @@ export class TemplatesService {
         );
         if (categoryExists.rows.length === 0) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.TEMPLATE_CATEGORY_REQUIRED),
+            this.i18n.t(I18nKeys.CATEGORY_NOT_FOUND),
           );
         }
       }
@@ -497,7 +497,7 @@ export class TemplatesService {
         );
         if (authorityExists.rows.length === 0) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
+            this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
           );
         }
       }
@@ -512,7 +512,7 @@ export class TemplatesService {
         );
         if (rulesets.length !== updateTemplateDto.ruleset_keys.length) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
+            this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
           );
         }
       }
@@ -824,7 +824,7 @@ export class TemplatesService {
     // Validate version format (semver: x.y.z) before any DB calls
     if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
       throw new BadRequestException(
-        this.i18n.t(I18nKeys.INVALID_TEMPLATE_DATA),
+        this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
       );
     }
 
