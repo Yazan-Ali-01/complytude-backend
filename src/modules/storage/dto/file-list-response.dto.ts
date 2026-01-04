@@ -50,7 +50,7 @@ export class FileListItemDto {
     description: 'Last modified date',
     example: '2023-10-31T12:00:00.000Z',
   })
-  lastModified: Date;
+  lastModified?: Date;
 
   @ApiProperty({
     description: 'Signed URL for accessing the file',

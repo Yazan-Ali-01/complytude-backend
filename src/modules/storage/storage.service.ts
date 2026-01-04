@@ -40,7 +40,7 @@ export interface UploadResult {
 export interface FileListItem {
   key: string;
   size: number;
-  lastModified: Date;
+  lastModified?: Date;
   url: string;
 }
 
@@ -452,7 +452,7 @@ export class StorageService {
           return {
             key: item.Key!,
             size: item.Size || 0,
-            lastModified: item.LastModified || new Date(),
+            lastModified: item.LastModified,
             url,
           };
         }),
@@ -763,7 +763,7 @@ export class StorageService {
           return {
             key: item.Key!,
             size: item.Size || 0,
-            lastModified: item.LastModified || new Date(),
+            lastModified: item.LastModified,
             url,
           };
         }),
