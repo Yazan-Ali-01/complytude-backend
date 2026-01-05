@@ -30,6 +30,7 @@ export const I18nKeys = {
 
   // Templates keys
   TEMPLATE_NOT_FOUND: TemplatesTranslationKeys.TEMPLATE_NOT_FOUND,
+  TEMPLATE_FETCH_FAILED: TemplatesTranslationKeys.TEMPLATE_FETCH_FAILED,
   TEMPLATE_UPDATE_FAILED: TemplatesTranslationKeys.TEMPLATE_UPDATE_FAILED,
   TEMPLATE_DELETE_FAILED: TemplatesTranslationKeys.TEMPLATE_DELETE_FAILED,
   TEMPLATE_ALREADY_EXISTS: TemplatesTranslationKeys.TEMPLATE_ALREADY_EXISTS,

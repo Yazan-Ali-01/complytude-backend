@@ -378,7 +378,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(I18nKeys.TEMPLATE_FETCH_FAILED),
       );
     }
   }
@@ -463,7 +463,7 @@ export class TemplatesService {
         `Failed to fetch template with details: ${error.message}`,
       );
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(I18nKeys.TEMPLATE_FETCH_FAILED),
       );
     }
   }
