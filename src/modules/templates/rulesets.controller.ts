@@ -1,34 +1,34 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
   Body,
-  Query,
-  UseGuards,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
   ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { RulesetsService } from './rulesets.service';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
 import { Ruleset } from './entities/ruleset.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { RulesetsService } from './rulesets.service';
 
 @ApiTags('Rulesets')
 @Controller('rulesets')
-@ApiBearerAuth()
+@SwaggerCookieAuth.accessToken()
 export class RulesetsController {
   constructor(private readonly rulesetsService: RulesetsService) {}
 

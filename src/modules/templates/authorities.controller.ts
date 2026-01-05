@@ -1,35 +1,35 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
   Body,
-  Query,
-  UseGuards,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
   ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { AuthoritiesService } from './authorities.service';
 import {
   CreateAuthorityDto,
   UpdateAuthorityDto,
 } from './dto/create-authority.dto';
 import { Authority } from './entities/authority.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 
 @ApiTags('Authorities')
 @Controller('authorities')
-@ApiBearerAuth()
+@SwaggerCookieAuth.accessToken()
 export class AuthoritiesController {
   constructor(private readonly authoritiesService: AuthoritiesService) {}
 

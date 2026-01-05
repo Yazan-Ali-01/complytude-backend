@@ -1,15 +1,11 @@
 import { Controller, Get, Logger } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
-import { TenantService } from './tenant.service';
-import { FeaturesService } from './features.service';
-import { Tenant } from './entities/tenant.entity';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Tenant } from './entities/tenant.entity';
+import { FeaturesService } from './features.service';
+import { TenantService } from './tenant.service';
 
 @ApiTags('Tenants')
 @Controller('tenants')
@@ -26,7 +22,7 @@ export class TenantController {
   // ============================================================================
 
   @Get('me')
-  @ApiBearerAuth()
+  @SwaggerCookieAuth.accessToken()
   @ApiOperation({
     summary: 'Get my tenant information',
     description:

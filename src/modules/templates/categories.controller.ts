@@ -1,35 +1,35 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
   Body,
-  Query,
-  UseGuards,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
   ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { CategoriesService } from './categories.service';
 import {
   CreateCategoryDto,
   UpdateCategoryDto,
 } from './dto/create-category.dto';
 import { Category } from './entities/category.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 
 @ApiTags('Categories')
 @Controller('categories')
-@ApiBearerAuth()
+@SwaggerCookieAuth.accessToken()
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 

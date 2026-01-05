@@ -1,14 +1,19 @@
+import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
+import { Logger, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { ValidationPipe, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import multipart from '@fastify/multipart';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
+import {
+  ACCESS_TOKEN_COOKIE_NAME,
+  REFRESH_TOKEN_COOKIE_NAME,
+} from './common/swagger/common';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -36,6 +41,9 @@ async function bootstrap() {
     configService.get<string>('app.environment') || 'development';
   const maxFileSize =
     configService.get<number>('storage.upload.maxFileSize') || 10485760; // 10MB
+
+  // Register cookie plugin for HTTP-only cookie authentication
+  await app.register(cookie);
 
   // Register multipart for file uploads
   await app.register(multipart, {
@@ -72,7 +80,24 @@ async function bootstrap() {
     .setTitle('Complytude API')
     .setDescription('API documentation for Complytude application')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addApiKey(
+      {
+        type: 'apiKey',
+        in: 'cookie',
+        name: ACCESS_TOKEN_COOKIE_NAME,
+        description: 'JWT access token stored in http-only cookie',
+      },
+      ACCESS_TOKEN_COOKIE_NAME,
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        in: 'cookie',
+        name: REFRESH_TOKEN_COOKIE_NAME,
+        description: 'JWT refresh token stored in http-only cookie',
+      },
+      REFRESH_TOKEN_COOKIE_NAME,
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

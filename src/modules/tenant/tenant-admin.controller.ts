@@ -1,26 +1,21 @@
 import {
-  Controller,
-  Get,
-  Put,
-  Delete,
   Body,
-  Param,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
+  Param,
+  Put,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
-import { TenantService } from './tenant.service';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { TenantService } from './tenant.service';
 
 /**
  * System Administrator endpoints for tenant management
@@ -29,7 +24,7 @@ import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 @ApiTags('System Admin - Tenants')
 @Controller('admin/tenants')
 @UseGuards(SystemAdminGuard)
-@ApiBearerAuth()
+@SwaggerCookieAuth.accessToken()
 export class TenantAdminController {
   private readonly logger = new Logger(TenantAdminController.name);
 

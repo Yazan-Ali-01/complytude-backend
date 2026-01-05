@@ -1,25 +1,30 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
   BadRequestException,
+  ConflictException,
+  Injectable,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { DatabaseService } from '../../database/database.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { SignupDto } from './dto/signup.dto';
-import { LoginDto } from './dto/login.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { JwtPayload } from './strategies/jwt.strategy';
-import { TenantService } from '../tenant/tenant.service';
-import { Tenant } from '../tenant/entities/tenant.entity';
+import { FastifyReply } from 'fastify';
+import {
+  ACCESS_TOKEN_COOKIE_NAME,
+  REFRESH_TOKEN_COOKIE_NAME,
+} from 'src/common/swagger/common';
+import { DatabaseService } from '../../database/database.service';
 import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { TenantService } from '../tenant/tenant.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { LoginDto } from './dto/login.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SignupDto } from './dto/signup.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { JwtPayload } from './strategies/jwt.strategy';
 
 interface TenantRow {
   tenant_id: string;
@@ -50,6 +55,63 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly tenantService: TenantService,
   ) {}
+
+  /**
+   * Set HTTP-only auth cookies on the response
+   */
+  setAuthCookies(
+    reply: FastifyReply,
+    accessToken: string,
+    refreshToken: string,
+  ): void {
+    const isProduction =
+      this.configService.get<string>('app.environment') === 'production';
+
+    const accessExpiresIn =
+      this.configService.get<string>('jwt.accessExpiresIn') || '15m';
+    const refreshExpiresIn =
+      this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
+
+    // Set access token cookie
+    reply.setCookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: Math.floor(this.parseExpiresIn(accessExpiresIn) / 1000), // Convert ms to seconds
+    });
+
+    // Set refresh token cookie
+    reply.setCookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: Math.floor(this.parseExpiresIn(refreshExpiresIn) / 1000), // Convert ms to seconds
+    });
+  }
+
+  /**
+   * Clear auth cookies on logout
+   */
+  clearAuthCookies(reply: FastifyReply): void {
+    const isProduction =
+      this.configService.get<string>('app.environment') === 'production';
+
+    reply.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+    });
+
+    reply.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+    });
+  }
 
   /**
    * Registers a new user and creates their first tenant.
