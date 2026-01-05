@@ -33,6 +33,10 @@ type PasswordResetRow = {
   used_at: Date | null;
 };
 
+/**
+ * Repository for managing User entities.
+ * Handles user authentication, profile management, and password resets.
+ */
 @Injectable()
 export class UserRepository extends BaseRepository<User> {
   constructor(databaseService: DatabaseService) {
@@ -131,6 +135,12 @@ export class UserRepository extends BaseRepository<User> {
     return result.data;
   }
 
+  /**
+   * Map a database row to a User domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped User entity
+   */
   protected mapRow(row: Record<string, unknown>): User {
     const data = row as UserRow;
     return {
@@ -146,6 +156,12 @@ export class UserRepository extends BaseRepository<User> {
     };
   }
 
+  /**
+   * Create a password reset record.
+   *
+   * @param input - Password reset data
+   * @param options - Query options
+   */
   async createPasswordReset(
     input: CreatePasswordResetInput,
     options?: QueryOptions,
@@ -158,6 +174,13 @@ export class UserRepository extends BaseRepository<User> {
     );
   }
 
+  /**
+   * Find a valid, unexpired, and unused password reset token.
+   *
+   * @param token - The reset token
+   * @param options - Query options
+   * @returns PasswordReset object or null
+   */
   async findPasswordResetByToken(
     token: string,
     options?: QueryOptions,
@@ -181,6 +204,12 @@ export class UserRepository extends BaseRepository<User> {
     };
   }
 
+  /**
+   * Mark a password reset token as used.
+   *
+   * @param resetId - The ID of the reset record
+   * @param options - Query options
+   */
   async markPasswordResetUsed(
     resetId: string,
     options?: QueryOptions,

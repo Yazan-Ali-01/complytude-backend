@@ -1,5 +1,4 @@
 import { PoolClient } from 'pg';
-import { FilterOperator } from './query-builder';
 
 /**
  * RLS-aware tenant context used for tenant-specific schema queries.
@@ -47,25 +46,21 @@ export interface QueryOptions {
   bypassRLS?: boolean;
 }
 
+/**
+ * Options extending QueryOptions for queries requiring a specific client.
+ */
 export interface ClientQueryOptions extends QueryOptions {
   client: PoolClient;
 }
+/**
+ * Options for finding a single entity.
+ *
+ * @template TEntity - The entity type for filter typing
+ */
 export interface FindOneOptions<TEntity = Record<string, unknown>>
   extends QueryOptions {
   filters?: Partial<TEntity>;
   select?: (keyof TEntity)[];
-}
-
-/**
- * Options for list queries, supporting filters, sorting, and pagination.
- */
-export interface FindManyOptions extends QueryOptions {
-  filters?: Record<string, unknown>;
-  operators?: Record<string, FilterOperator>;
-  orderBy?: string;
-  orderDirection?: 'ASC' | 'DESC';
-  limit?: number;
-  offset?: number;
 }
 
 /**
@@ -76,63 +71,16 @@ export interface RepositoryInterface<
   TCreate = Partial<TEntity>,
   TUpdate = Partial<TEntity>,
 > {
-  /**
-   * Fetch entity by primary ID. Returns null when missing.
-   *
-   * Example: `await repo.findById(userId, { tenant })`
-   */
   findById(id: string, options?: QueryOptions): Promise<TEntity | null>;
 
-  /**
-   * Fetch the first entity matching provided filters.
-   *
-   * Example: `await repo.findOneBy({ email })`
-   */
   findOne(
     filters: Record<string, unknown>,
     options?: QueryOptions,
   ): Promise<TEntity | null>;
 
-  /**
-   * Fetch all entities respecting filters, ordering, and pagination.
-   *
-   * @deprecated Use repository-specific findMany() methods instead.
-   * Each repository should implement its own findMany() with custom filters
-   * and whitelisted sortable fields for better security and type safety.
-   *
-   * Example:
-   * ```ts
-   * await repo.findAll({
-   *   filters: { is_active: true },
-   *   orderBy: 'created_at',
-   *   orderDirection: 'DESC',
-   *   limit: 50,
-   * });
-   * ```
-   */
-  findAll(options?: FindManyOptions): Promise<{
-    data: TEntity[];
-    total: number;
-  }>;
-
-  /**
-   * Persist a new entity and return the created row.
-   *
-   * Example: `await repo.create({ email, first_name })`
-   */
   create(data: TCreate, options?: QueryOptions): Promise<TEntity>;
 
-  /**
-   * Update an entity by ID. Throws when the record is not found.
-   *
-   * Example: `await repo.update(id, { first_name: 'Jane' })`
-   */
   update(id: string, data: TUpdate, options?: QueryOptions): Promise<TEntity>;
 
-  /**
-   * Delete an entity by ID. Throws when the record is not found.
-   *
-   * Example: `await repo.delete(id)`
-   */
   delete(id: string, options?: QueryOptions): Promise<void>;
 }

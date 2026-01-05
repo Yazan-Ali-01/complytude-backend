@@ -32,6 +32,10 @@ type TenantSchemaRow = {
   created_at: Date;
 };
 
+/**
+ * Repository for managing Tenant entities and their infrastructure.
+ * Handles database operations for tenants, including schema creation and isolation.
+ */
 @Injectable()
 export class TenantRepository extends BaseRepository<Tenant> {
   private readonly tenantLogger = new Logger(TenantRepository.name);
@@ -123,6 +127,12 @@ export class TenantRepository extends BaseRepository<Tenant> {
     return result.data;
   }
 
+  /**
+   * Map a database row to a Tenant domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped Tenant entity
+   */
   protected mapRow(row: Record<string, unknown>): Tenant {
     const data = row as TenantRow;
     return {
@@ -139,6 +149,12 @@ export class TenantRepository extends BaseRepository<Tenant> {
     };
   }
 
+  /**
+   * Initialize the global infrastructure tables for multi-tenancy.
+   * Creates tenants and tenant_schemas tables, indexes, and RLS policies.
+   *
+   * @param options - Query options
+   */
   async initializeInfrastructure(options?: QueryOptions): Promise<void> {
     this.tenantLogger.debug('Initializing tenant infrastructure');
     const queryOptions = { ...options, bypassRLS: true };
@@ -208,6 +224,15 @@ export class TenantRepository extends BaseRepository<Tenant> {
     this.tenantLogger.debug('Tenant infrastructure initialized successfully');
   }
 
+  /**
+   * Update a tenant by its unique tenant_id.
+   *
+   * @param tenantId - The tenant's unique identifier (not primary key ID)
+   * @param data - Partial tenant data to update
+   * @param options - Query options
+   * @returns Updated Tenant entity
+   * @throws Error if tenant is not found
+   */
   async updateByTenantId(
     tenantId: string,
     data: Partial<Tenant>,
@@ -228,6 +253,13 @@ export class TenantRepository extends BaseRepository<Tenant> {
     return this.update(tenant.id, data, options);
   }
 
+  /**
+   * Delete a tenant by its unique tenant_id.
+   *
+   * @param tenantId - The tenant's unique identifier
+   * @param options - Query options
+   * @throws Error if tenant is not found
+   */
   async deleteByTenantId(
     tenantId: string,
     options?: QueryOptions,
@@ -245,6 +277,13 @@ export class TenantRepository extends BaseRepository<Tenant> {
     return this.delete(tenant.id, options);
   }
 
+  /**
+   * Create a record in the tenant_schemas table linking a tenant to a schema.
+   *
+   * @param tenantId - The tenant ID
+   * @param schemaName - The database schema name
+   * @param options - Query options
+   */
   async createTenantSchemaRecord(
     tenantId: string,
     schemaName: string,
@@ -267,6 +306,13 @@ export class TenantRepository extends BaseRepository<Tenant> {
     );
   }
 
+  /**
+   * Retrieve schema information for a specific tenant.
+   *
+   * @param tenantId - The tenant ID
+   * @param options - Query options
+   * @returns TenantSchema object or null if not found
+   */
   async getTenantSchema(
     tenantId: string,
     options?: QueryOptions,
@@ -293,6 +339,13 @@ export class TenantRepository extends BaseRepository<Tenant> {
     return schema;
   }
 
+  /**
+   * Create a new database schema and grant permissions.
+   * Bypasses RLS to perform DDL operations.
+   *
+   * @param schemaName - Name of the schema to create
+   * @param options - Query options
+   */
   async createTenantSchema(
     schemaName: string,
     options?: QueryOptions,
@@ -321,6 +374,14 @@ export class TenantRepository extends BaseRepository<Tenant> {
     );
   }
 
+  /**
+   * Initialize tables and policies within a tenant's schema.
+   * Sets up documents table and its RLS policies.
+   *
+   * @param schemaName - The schema name
+   * @param tenantId - The tenant ID (for policy definitions)
+   * @param options - Query options
+   */
   async initializeTenantSchema(
     schemaName: string,
     tenantId: string,
@@ -392,6 +453,12 @@ export class TenantRepository extends BaseRepository<Tenant> {
     );
   }
 
+  /**
+   * Drop a tenant's schema and all its objects.
+   *
+   * @param schemaName - The schema name to drop
+   * @param options - Query options
+   */
   async dropTenantSchema(
     schemaName: string,
     options?: QueryOptions,
@@ -408,6 +475,14 @@ export class TenantRepository extends BaseRepository<Tenant> {
     );
   }
 
+  /**
+   * Get the count of documents in a tenant's schema.
+   * Checks for table existence first.
+   *
+   * @param schemaName - The schema name
+   * @param options - Query options
+   * @returns Number of documents
+   */
   async getDocumentCount(
     schemaName: string,
     options?: QueryOptions,

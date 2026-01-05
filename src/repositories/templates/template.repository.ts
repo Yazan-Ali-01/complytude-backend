@@ -27,6 +27,10 @@ type TemplateRow = {
   updated_at: Date;
 };
 
+/**
+ * Repository for managing Template entities.
+ * Handles database operations for compliance templates.
+ */
 @Injectable()
 export class TemplateRepository extends BaseRepository<Template> {
   constructor(databaseService: DatabaseService) {
@@ -129,6 +133,12 @@ export class TemplateRepository extends BaseRepository<Template> {
     return result.data;
   }
 
+  /**
+   * Map a database row to a Template domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped Template entity
+   */
   protected mapRow(row: Record<string, unknown>): Template {
     const data = row as TemplateRow;
     return {
@@ -150,6 +160,15 @@ export class TemplateRepository extends BaseRepository<Template> {
     };
   }
 
+  /**
+   * Update the status of a template by its key.
+   *
+   * @param key - The unique key of the template
+   * @param status - New status to apply
+   * @param options - Query options
+   * @returns Updated Template entity
+   * @throws Error if template with key is not found
+   */
   async updateStatusByKey(
     key: string,
     status: Template['status'],
@@ -168,6 +187,13 @@ export class TemplateRepository extends BaseRepository<Template> {
     return this.mapRow(result.rows[0]);
   }
 
+  /**
+   * Delete a template by its key.
+   *
+   * @param key - The unique key of the template
+   * @param options - Query options
+   * @throws Error if template with key is not found
+   */
   async deleteByKey(key: string, options?: QueryOptions): Promise<void> {
     const result = await this.executeQuery(
       `DELETE FROM ${this.tableName} WHERE key = $1`,

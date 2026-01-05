@@ -20,6 +20,10 @@ type CreateEmailVerificationRow = Pick<
   'id' | 'user_id' | 'token' | 'expires_at'
 >;
 
+/**
+ * Repository for managing Email Verification entities.
+ * Handles creation and verification of email tokens.
+ */
 @Injectable()
 export class EmailVerificationRepository extends BaseRepository<
   EmailVerification,
@@ -29,6 +33,12 @@ export class EmailVerificationRepository extends BaseRepository<
     super(databaseService, 'public.email_verifications');
   }
 
+  /**
+   * Map a database row to an EmailVerification domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped EmailVerification entity
+   */
   protected mapRow(row: Record<string, unknown>): EmailVerification {
     const data = row as EmailVerificationRow;
     return {
@@ -40,6 +50,13 @@ export class EmailVerificationRepository extends BaseRepository<
     };
   }
 
+  /**
+   * Create a new email verification record.
+   *
+   * @param input - Data to create verification record
+   * @param options - Query options
+   * @returns Created EmailVerification entity
+   */
   async createEmailVerification(
     input: CreateEmailVerificationInput,
     options?: QueryOptions,
@@ -54,6 +71,13 @@ export class EmailVerificationRepository extends BaseRepository<
     return this.create(payload, options);
   }
 
+  /**
+   * Find a valid, unexpired, and unverified verification record by token.
+   *
+   * @param token - The verification token
+   * @param options - Query options
+   * @returns Verification record or null
+   */
   async findByToken(
     token: string,
     options?: QueryOptions,
@@ -71,6 +95,12 @@ export class EmailVerificationRepository extends BaseRepository<
     return this.mapRow(row);
   }
 
+  /**
+   * Mark a verification record as completed (verified).
+   *
+   * @param verificationId - The ID of the verification record
+   * @param options - Query options
+   */
   async markCompleted(
     verificationId: string,
     options?: QueryOptions,

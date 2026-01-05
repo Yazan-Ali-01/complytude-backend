@@ -27,6 +27,10 @@ type RulesetRow = {
   updated_at: Date;
 };
 
+/**
+ * Repository for managing Ruleset entities.
+ * Handles database operations for compliance rulesets.
+ */
 @Injectable()
 export class RulesetRepository extends BaseRepository<Ruleset> {
   constructor(databaseService: DatabaseService) {
@@ -116,6 +120,12 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     return result.data;
   }
 
+  /**
+   * Map a database row to a Ruleset domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped Ruleset entity
+   */
   protected mapRow(row: Record<string, unknown>): Ruleset {
     const data = row as RulesetRow;
     return {
@@ -134,6 +144,13 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     };
   }
 
+  /**
+   * Find rulesets associated with a specific template.
+   *
+   * @param templateId - The ID of the template
+   * @param options - Query options
+   * @returns Array of associated rulesets
+   */
   async findByTemplateId(
     templateId: string,
     options?: QueryOptions,
@@ -152,6 +169,14 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  /**
+   * Find multiple rulesets by their keys.
+   * Only returns active rulesets.
+   *
+   * @param keys - Array of ruleset keys to find
+   * @param options - Query options
+   * @returns Array of found active rulesets
+   */
   async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {
     if (!keys.length) return [];
 
@@ -164,6 +189,13 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  /**
+   * Delete a ruleset by its key.
+   *
+   * @param key - The unique key of the ruleset
+   * @param options - Query options
+   * @throws Error if ruleset with key is not found
+   */
   async deleteByKey(key: string, options?: QueryOptions): Promise<void> {
     const result = await this.executeQuery(
       `DELETE FROM ${this.tableName} WHERE key = $1`,
@@ -176,6 +208,14 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     }
   }
 
+  /**
+   * Associate rulesets with a template.
+   * Ignores duplicates if association already exists.
+   *
+   * @param templateId - The ID of the template
+   * @param rulesetIds - Array of ruleset IDs to associate
+   * @param options - Query options
+   */
   async associateWithTemplate(
     templateId: string,
     rulesetIds: string[],
@@ -194,6 +234,12 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     }
   }
 
+  /**
+   * Remove all ruleset associations for a specific template.
+   *
+   * @param templateId - The ID of the template
+   * @param options - Query options
+   */
   async removeTemplateAssociations(
     templateId: string,
     options?: QueryOptions,

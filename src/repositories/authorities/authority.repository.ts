@@ -20,6 +20,10 @@ type AuthorityRow = {
   updated_at: Date;
 };
 
+/**
+ * Repository for managing Authority entities.
+ * Handles database operations for regulatory authorities.
+ */
 @Injectable()
 export class AuthorityRepository extends BaseRepository<Authority> {
   constructor(databaseService: DatabaseService) {
@@ -117,6 +121,12 @@ export class AuthorityRepository extends BaseRepository<Authority> {
     return result.data;
   }
 
+  /**
+   * Map a database row to an Authority domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped Authority entity
+   */
   protected mapRow(row: Record<string, unknown>): Authority {
     const data = row as AuthorityRow;
     return {

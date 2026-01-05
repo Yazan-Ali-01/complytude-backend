@@ -2,14 +2,20 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { QueryResult, QueryResultRow } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import {
-  FindManyOptions,
   FindOneOptions,
   QueryOptions,
   ClientQueryOptions,
   RepositoryInterface,
 } from './repository.interface';
-import { QueryBuilder } from './query-builder';
 
+/**
+ * Abstract base repository providing common CRUD operations and query execution.
+ * Handles database connections, transaction contexts, and row mapping.
+ *
+ * @template TEntity - The entity type this repository manages
+ * @template TCreate - The input type for creating entities (defaults to Partial<TEntity>)
+ * @template TUpdate - The input type for updating entities (defaults to Partial<TEntity>)
+ */
 @Injectable()
 export abstract class BaseRepository<
   TEntity,
@@ -183,91 +189,6 @@ export abstract class BaseRepository<
     return result.rows[0]
       ? this.mapRow(result.rows[0] as Record<string, unknown>)
       : null;
-  }
-
-  /**
-   * Fetch all records with optional filters, ordering, and pagination.
-   *
-   * @deprecated Use repository-specific findMany() methods instead.
-   * Each repository should implement its own findMany() with:
-   * - Custom filter types based on entity
-   * - Whitelisted sortable fields (security improvement)
-   * - Type-safe pagination parameters
-   *
-   * Migration example:
-   * ```ts
-   * // Old (deprecated):
-   * await repo.findAll({ filters: { status: 'active' }, orderBy: 'name' });
-   *
-   * // New (recommended):
-   * await repo.findMany({ status: 'active' }, { page: 1, limit: 50 }, 'name');
-   * ```
-   *
-   * Example:
-   * ```ts
-   * const rows = await this.findAll({
-   *   filters: { is_active: true },
-   *   orderBy: 'created_at',
-   *   orderDirection: 'DESC',
-   *   limit: 20,
-   *   offset: 0,
-   * });
-   * ```
-   */
-  async findAll(
-    options?: FindManyOptions,
-  ): Promise<{ data: TEntity[]; total: number }> {
-    this.logger.debug(
-      `findAll: table=${this.tableName}, filters=${JSON.stringify(
-        options?.filters ?? {},
-      )}, orderBy=${options?.orderBy ?? 'none'}, direction=${
-        options?.orderDirection ?? 'ASC'
-      }, limit=${options?.limit ?? 'none'}, offset=${
-        options?.offset ?? 'none'
-      }, tenant=${options?.tenant?.tenantId ?? 'none'}`,
-    );
-    let nextIndex = 1;
-    const qb = new QueryBuilder(nextIndex);
-    qb.addFilters(options?.filters ?? {}, options?.operators);
-    const where = qb.buildWhere();
-    nextIndex = where.nextIndex;
-
-    const orderBy = QueryBuilder.buildOrderBy(
-      options?.orderBy,
-      options?.orderDirection,
-    );
-    const pagination = QueryBuilder.buildPagination(
-      options?.limit,
-      options?.offset,
-      nextIndex,
-    );
-
-    const query = [
-      `SELECT * FROM ${this.tableName}`,
-      where.clause,
-      orderBy,
-      pagination.clause,
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    const params = [...where.params, ...pagination.params];
-
-    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${where.clause}`;
-    const totalResult = await this.executeQuery(
-      totalQuery,
-      where.params,
-      options,
-    );
-    const total = parseInt(totalResult.rows[0].count as string, 10);
-
-    const result = await this.executeQuery(query, params, options);
-    return {
-      data: result.rows.map((row) =>
-        this.mapRow(row as Record<string, unknown>),
-      ),
-      total,
-    };
   }
 
   /**

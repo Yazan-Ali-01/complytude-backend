@@ -25,6 +25,10 @@ type TemplateVersionRow = {
   created_at: Date;
 };
 
+/**
+ * Repository for managing Template Version entities.
+ * Handles database operations for versioning of compliance templates.
+ */
 @Injectable()
 export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
   constructor(databaseService: DatabaseService) {
@@ -100,6 +104,12 @@ export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
     );
   }
 
+  /**
+   * Map a database row to a TemplateVersion domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped TemplateVersion entity
+   */
   protected mapRow(row: Record<string, unknown>): TemplateVersion {
     const data = row as TemplateVersionRow;
     return {
@@ -116,6 +126,13 @@ export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
     };
   }
 
+  /**
+   * Deactivate all versions for a specific template.
+   * Used when setting a new active version or deactivating the template.
+   *
+   * @param templateId - The ID of the template
+   * @param options - Query options
+   */
   async deactivateAllVersions(
     templateId: string,
     options?: QueryOptions,

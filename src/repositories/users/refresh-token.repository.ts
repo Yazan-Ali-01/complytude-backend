@@ -22,6 +22,10 @@ type UpdateRefreshTokenRow = Partial<
   Pick<RefreshTokenRow, 'token_hash' | 'expires_at' | 'revoked_at'>
 >;
 
+/**
+ * Repository for managing Refresh Token entities.
+ * Handles storage and revocation of JWT refresh tokens.
+ */
 @Injectable()
 export class RefreshTokenRepository extends BaseRepository<
   RefreshToken,
@@ -32,6 +36,12 @@ export class RefreshTokenRepository extends BaseRepository<
     super(databaseService, 'public.refresh_tokens');
   }
 
+  /**
+   * Map a database row to a RefreshToken domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped RefreshToken entity
+   */
   protected mapRow(row: Record<string, unknown>): RefreshToken {
     const data = row as RefreshTokenRow;
     return {
@@ -44,6 +54,13 @@ export class RefreshTokenRepository extends BaseRepository<
     };
   }
 
+  /**
+   * Find all active (non-expired, non-revoked) refresh tokens for a user.
+   *
+   * @param userId - The user ID
+   * @param options - Query options
+   * @returns Array of active RefreshToken entities
+   */
   async findActiveByUserId(
     userId: string,
     options?: QueryOptions,
@@ -58,6 +75,14 @@ export class RefreshTokenRepository extends BaseRepository<
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  /**
+   * Revoke a specific refresh token by ID.
+   *
+   * @param id - The token ID
+   * @param options - Query options
+   * @returns The revoked RefreshToken entity
+   * @throws Error if token not found
+   */
   async revokeById(id: string, options?: QueryOptions): Promise<RefreshToken> {
     const result = await this.executeQuery(
       `UPDATE ${this.tableName} 
@@ -72,6 +97,15 @@ export class RefreshTokenRepository extends BaseRepository<
     return this.mapRow(result.rows[0]);
   }
 
+  /**
+   * Revoke all active refresh tokens for a user.
+   * Used for security events like password changes or logout all devices.
+   *
+   * @param userId - The user ID
+   * @param options - Query options
+   * @returns The last revoked token (implementation detail, mainly used to confirm action)
+   * @throws Error if no tokens found
+   */
   async revokeAllByUserId(
     userId: string,
     options?: QueryOptions,

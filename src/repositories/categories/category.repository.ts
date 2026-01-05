@@ -20,6 +20,10 @@ type CategoryRow = {
   updated_at: Date;
 };
 
+/**
+ * Repository for managing Category entities.
+ * Handles database operations for template categories.
+ */
 @Injectable()
 export class CategoryRepository extends BaseRepository<Category> {
   constructor(databaseService: DatabaseService) {
@@ -113,6 +117,12 @@ export class CategoryRepository extends BaseRepository<Category> {
     return result.data;
   }
 
+  /**
+   * Map a database row to a Category domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped Category entity
+   */
   protected mapRow(row: Record<string, unknown>): Category {
     const data = row as CategoryRow;
     return {

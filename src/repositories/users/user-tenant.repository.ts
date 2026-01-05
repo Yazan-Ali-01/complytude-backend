@@ -18,6 +18,10 @@ type UserTenantRow = {
   schema_name: string;
 };
 
+/**
+ * Repository for managing User-Tenant associations.
+ * Handles linking users to tenants and querying membership.
+ */
 @Injectable()
 export class UserTenantRepository extends BaseRepository<
   UserTenant,
@@ -87,7 +91,12 @@ export class UserTenantRepository extends BaseRepository<
     return result.data;
   }
 
-  // BaseRepository requires a mapper even though we only expose custom queries.
+  /**
+   * Map a database row to a UserTenant domain entity.
+   *
+   * @param row - Raw database row
+   * @returns Mapped UserTenant entity
+   */
   protected mapRow(row: Record<string, unknown>): UserTenant {
     const data = row as UserTenantRow;
     return {
