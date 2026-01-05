@@ -17,7 +17,7 @@ import * as path from 'path';
       },
       resolvers: [
         { use: QueryResolver, options: ['lang'] },
-        new HeaderResolver(['x-custom-lang']),
+        new HeaderResolver(['x-lang']),
         AcceptLanguageResolver,
       ],
     }),
