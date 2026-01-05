@@ -323,7 +323,7 @@ export class TemplatesService {
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(I18nKeys.TEMPLATE_FETCH_FAILED),
       );
     }
   }
