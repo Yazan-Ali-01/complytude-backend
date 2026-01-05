@@ -11,7 +11,6 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
-  DefaultValuePipe,
   UseInterceptors,
 } from '@nestjs/common';
 import {
@@ -198,16 +197,22 @@ export class TemplatesController {
     description: 'Filter by language code',
   })
   @ApiQuery({
-    name: 'page',
+    name: 'cursor',
     required: false,
-    type: Number,
-    description: 'Page number (default: 1)',
+    type: String,
+    description: 'Cursor for pagination',
   })
   @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
     description: 'Items per page (default: 50)',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['forward', 'backward'],
+    description: 'Pagination direction (default: forward)',
   })
   @ApiResponse({
     status: 200,
@@ -219,16 +224,21 @@ export class TemplatesController {
     @Query('categoryId') categoryId?: string,
     @Query('authorityId') authorityId?: string,
     @Query('language') language?: string,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
-    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit = 50,
-  ): Promise<TemplateListResponseDto> {
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<any> {
     return this.templatesService.findAll(
       status,
       categoryId,
       authorityId,
       language,
-      page,
-      limit,
+      {
+        cursor,
+        limit,
+        direction,
+      },
     );
   }
 
@@ -296,6 +306,24 @@ export class TemplatesController {
     description: 'Get all versions of a template',
   })
   @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    type: String,
+    description: 'Cursor for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 50)',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['forward', 'backward'],
+    description: 'Pagination direction (default: forward)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Template version history',
@@ -304,9 +332,17 @@ export class TemplatesController {
   @ApiResponse({ status: 404, description: 'Template not found' })
   async getVersionHistory(
     @Param('key') key: string,
-  ): Promise<TemplateVersion[]> {
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<any> {
     const template = await this.templatesService.findByKey(key);
-    return this.templateVersionsService.getVersionHistory(template.id);
+    return this.templateVersionsService.getVersionHistory(template.id, {
+      cursor,
+      limit,
+      direction,
+    });
   }
 
   @Post(':key/versions')

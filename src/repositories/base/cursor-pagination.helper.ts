@@ -167,16 +167,19 @@ export class CursorPaginationHelper {
       data.reverse();
     }
 
+    const hasNext = direction === 'forward' ? hasMore : hasInitialCursor;
+    const hasPrevious = direction === 'forward' ? hasInitialCursor : hasMore;
+
     // Calculate cursors using both id and created_at
     const nextCursor =
-      data.length > 0
+      hasNext && data.length > 0
         ? this.encodeCursor(
             data[data.length - 1].id,
             data[data.length - 1].created_at,
           )
         : null;
     const prevCursor =
-      data.length > 0
+      hasPrevious && data.length > 0
         ? this.encodeCursor(data[0].id, data[0].created_at)
         : null;
 
@@ -184,8 +187,8 @@ export class CursorPaginationHelper {
       data,
       nextCursor,
       prevCursor,
-      hasNext: direction === 'forward' ? hasMore : hasInitialCursor,
-      hasPrevious: direction === 'forward' ? hasInitialCursor : hasMore,
+      hasNext,
+      hasPrevious,
     };
   }
 

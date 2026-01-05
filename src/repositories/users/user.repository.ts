@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
-import { QueryOptions } from '../base/repository.interface';
+import {
+  QueryOptions,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from '../base/repository.interface';
 import {
   CreatePasswordResetInput,
   PasswordReset,
 } from './interfaces/user.interfaces';
 import { User } from 'src/modules/users/entities/user.entity';
+import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 type UserRow = {
   id: string;
@@ -30,34 +35,33 @@ type PasswordResetRow = {
 
 @Injectable()
 export class UserRepository extends BaseRepository<User> {
-  private readonly SORTABLE_FIELDS = [
-    'email',
-    'first_name',
-    'last_name',
-    'created_at',
-    'updated_at',
-  ] as const;
-
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.users');
   }
 
+  /**
+   * Find users with cursor-based pagination.
+   * Supports filtering by email, is_verified, and is_system_admin.
+   *
+   * @param filters - Optional filters for email, is_verified, and is_system_admin
+   * @param cursorOptions - Cursor, limit, and direction for pagination
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Cursor-paginated results with navigation metadata
+   */
   async findMany(
     filters: {
       email?: string;
       is_verified?: boolean;
       is_system_admin?: boolean;
-    },
-    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
-    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'created_at',
+    } = {},
+    cursorOptions?: CursorPaginationOptions,
     options?: QueryOptions,
-  ): Promise<{ data: User[]; total: number }> {
-    // Validate sortBy against whitelist
-    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
-      throw new Error(`Invalid sort field: ${sortBy}`);
-    }
+  ): Promise<CursorPaginationResult<User>> {
+    // Validate and normalize cursor options
+    const paginationOpts =
+      CursorPaginationHelper.validateOptions(cursorOptions);
+    const { cursor, limit, direction } = paginationOpts;
 
-    // Build query with filters
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -74,32 +78,54 @@ export class UserRepository extends BaseRepository<User> {
       conditions.push(`is_system_admin = $${params.length}`);
     }
 
-    const orderBy = `ORDER BY ${sortBy} ASC`;
+    // Add cursor condition using helper
+    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
+      direction,
+      cursor,
+      params.length + 1,
+    );
 
-    //pagination
+    if (cursorQuery.clause) {
+      conditions.push(cursorQuery.clause);
+      params.push(...cursorQuery.params);
+    }
 
-    // Execute query
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const limitClause = CursorPaginationHelper.buildLimitClause(
+      limit,
+      params.length + 1,
+    );
+    params.push(...limitClause.params);
+
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${orderBy}`.trim();
+      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<UserRow>(query, params, options);
 
-    // Count total
-    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
-    const totalResult = await this.executeQuery(totalQuery, params, options);
+    const mappedRows = result.rows.map((row) => this.mapRow(row));
 
-    return {
-      data: result.rows.map((row) => this.mapRow(row)),
-      total: parseInt(totalResult.rows[0].count as string, 10),
-    };
+    return CursorPaginationHelper.createPaginationResponse(
+      mappedRows,
+      limit,
+      direction,
+      !!cursor,
+    );
   }
 
+  /**
+   * Find all verified users.
+   * Uses cursor pagination internally but returns only the first 1000 rows (if more exist, they are NOT returned).
+   *
+   * @note This method does NOT fetch more than 1000 verified users.
+   *
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Array of verified users
+   */
   async findActive(options?: QueryOptions): Promise<User[]> {
     const result = await this.findMany(
       { is_verified: true },
-      { page: 1, limit: 1000 },
-      'email',
+      { limit: 1000 },
       options,
     );
     return result.data;

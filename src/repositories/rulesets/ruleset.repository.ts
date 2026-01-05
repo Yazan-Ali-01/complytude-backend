@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
-import { QueryOptions } from '../base/repository.interface';
+import {
+  QueryOptions,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from '../base/repository.interface';
 import {
   Ruleset,
   RulesetClause,
 } from 'src/modules/templates/entities/ruleset.entity';
+import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 type RulesetRow = {
   id: string;
@@ -24,28 +29,28 @@ type RulesetRow = {
 
 @Injectable()
 export class RulesetRepository extends BaseRepository<Ruleset> {
-  private readonly SORTABLE_FIELDS = [
-    'name',
-    'created_at',
-    'updated_at',
-  ] as const;
-
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.rulesets');
   }
 
+  /**
+   * Find rulesets with cursor-based pagination.
+   * Supports filtering by authority_id and status.
+   *
+   * @param filters - Optional filters for authority_id and status
+   * @param cursorOptions - Cursor, limit, and direction for pagination
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Cursor-paginated results with navigation metadata
+   */
   async findMany(
-    filters: { authority_id?: string; status?: string },
-    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
-    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'name',
+    filters: { authority_id?: string; status?: string } = {},
+    cursorOptions?: CursorPaginationOptions,
     options?: QueryOptions,
-  ): Promise<{ data: Ruleset[]; total: number }> {
-    // Validate sortBy against whitelist
-    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
-      throw new Error(`Invalid sort field: ${sortBy}`);
-    }
+  ): Promise<CursorPaginationResult<Ruleset>> {
+    // Validate and normalize cursor options
+    const { cursor, limit, direction } =
+      CursorPaginationHelper.validateOptions(cursorOptions);
 
-    // Build query with filters
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -58,32 +63,54 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
       conditions.push(`status = $${params.length}`);
     }
 
-    const orderBy = `ORDER BY ${sortBy} ASC`; // TODO: add order direction
+    // Add cursor condition using helper
+    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
+      direction,
+      cursor,
+      params.length + 1,
+    );
 
-    // pagination --------------------------
+    if (cursorQuery.clause) {
+      conditions.push(cursorQuery.clause);
+      params.push(...cursorQuery.params);
+    }
 
-    // Execute query
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const limitClause = CursorPaginationHelper.buildLimitClause(
+      limit,
+      params.length + 1,
+    );
+    params.push(...limitClause.params);
+
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${orderBy}`.trim();
+      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<RulesetRow>(query, params, options);
 
-    // Count total
-    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
-    const totalResult = await this.executeQuery(totalQuery, params, options);
+    const mappedRows = result.rows.map((row) => this.mapRow(row));
 
-    return {
-      data: result.rows.map((row) => this.mapRow(row)),
-      total: parseInt(totalResult.rows[0].count as string, 10),
-    };
+    return CursorPaginationHelper.createPaginationResponse(
+      mappedRows,
+      limit,
+      direction,
+      !!cursor,
+    );
   }
 
+  /**
+   * Find all active rulesets.
+   * Uses cursor pagination internally but returns only the first 1000 rows (if more exist, they are NOT returned).
+   *
+   * @note This method does NOT fetch more than 1000 active rulesets.
+   *
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Array of active rulesets
+   */
   async findActive(options?: QueryOptions): Promise<Ruleset[]> {
     const result = await this.findMany(
       { status: 'active' },
-      { page: 1, limit: 1000 },
-      'name',
+      { limit: 1000 },
       options,
     );
     return result.data;

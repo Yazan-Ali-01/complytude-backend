@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseBoolPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,6 +28,7 @@ import {
 } from './dto/create-category.dto';
 import { Category } from './entities/category.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Categories')
 @Controller('categories')
@@ -68,6 +70,24 @@ export class CategoriesController {
     type: Boolean,
     description: 'Filter by active status',
   })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    type: String,
+    description: 'Cursor for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 50)',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['forward', 'backward'],
+    description: 'Pagination direction (default: forward)',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of categories',
@@ -75,8 +95,16 @@ export class CategoriesController {
   })
   async findAll(
     @Query('active', new ParseBoolPipe({ optional: true })) active?: boolean,
-  ): Promise<Category[]> {
-    return this.categoriesService.findAll(active);
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<CursorPaginationResult<Category>> {
+    return this.categoriesService.findAll(active, {
+      cursor,
+      limit,
+      direction,
+    });
   }
 
   @Get(':id')

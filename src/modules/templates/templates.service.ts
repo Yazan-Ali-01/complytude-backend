@@ -30,6 +30,10 @@ import { CategoryRepository } from '../../repositories/categories/category.repos
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
 import { TemplateRepository } from '../../repositories/templates/template.repository';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class TemplatesService {
@@ -241,32 +245,20 @@ export class TemplatesService {
     categoryId?: string,
     authorityId?: string,
     language?: string,
-    page = 1,
-    limit = 50,
-  ): Promise<{
-    templates: Template[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<Template>> {
     try {
-      const { data, total } = await this.templateRepository.findMany(
+      const result = await this.templateRepository.findMany(
         {
           status,
           categoryId,
           authorityId,
           language,
         },
-        { page, limit },
-        'created_at',
+        cursorOptions,
       );
 
-      return {
-        templates: data,
-        total,
-        page,
-        limit,
-      };
+      return result;
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch templates');

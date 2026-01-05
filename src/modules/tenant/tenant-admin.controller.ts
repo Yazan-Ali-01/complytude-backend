@@ -5,22 +5,26 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   HttpCode,
   HttpStatus,
   Logger,
   UseGuards,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { TenantService } from './tenant.service';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 /**
  * System Administrator endpoints for tenant management
@@ -45,6 +49,24 @@ export class TenantAdminController {
     description:
       'Retrieves a list of all tenants in the system. System admin only.',
   })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    type: String,
+    description: 'Cursor for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 50)',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['forward', 'backward'],
+    description: 'Pagination direction (default: forward)',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of all tenants',
@@ -54,9 +76,18 @@ export class TenantAdminController {
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
-  async getAllTenants(): Promise<Tenant[]> {
+  async getAllTenants(
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<CursorPaginationResult<Tenant>> {
     this.logger.log('[ADMIN] Fetching all tenants');
-    return this.tenantService.findAll();
+    return this.tenantService.findAll({
+      cursor,
+      limit,
+      direction,
+    });
   }
 
   @Get(':tenantId')

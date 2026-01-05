@@ -41,9 +41,8 @@ export class AuthorityRepository extends BaseRepository<Authority> {
     options?: QueryOptions,
   ): Promise<CursorPaginationResult<Authority>> {
     // Validate and normalize cursor options
-    const paginationOpts =
+    const { cursor, limit, direction } =
       CursorPaginationHelper.validateOptions(cursorOptions);
-    const { cursor, limit, direction } = paginationOpts;
 
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -102,7 +101,9 @@ export class AuthorityRepository extends BaseRepository<Authority> {
 
   /**
    * Find all active authorities.
-   * Uses cursor pagination internally but returns all data.
+   * Uses cursor pagination internally but returns only the first 1000 rows (if more exist, they are NOT returned).
+   *
+   * @note This method does NOT fetch more than 1000 active authorities.
    *
    * @param options - Query options (tenant context, client, etc.)
    * @returns Array of active authorities

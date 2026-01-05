@@ -24,23 +24,22 @@ export class UserTenantRepository extends BaseRepository<
   never,
   never
 > {
-  private readonly SORTABLE_FIELDS = ['joined_at', 'updated_at'] as const;
-
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.user_tenants');
   }
 
+  /**
+   * Find user tenants, without pagination.
+   * Supports filtering by user_id, tenant_id, and is_active.
+   *
+   * @param filters - Optional filters for user_id, tenant_id, and is_active
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns User tenants
+   */
   async findMany(
     filters: { user_id?: string; tenant_id?: string; is_active?: boolean },
-    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
-    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'joined_at',
     options?: QueryOptions,
-  ): Promise<{ data: UserTenant[]; total: number }> {
-    // Validate sortBy against whitelist
-    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
-      throw new Error(`Invalid sort field: ${sortBy}`);
-    }
-
+  ): Promise<{ data: UserTenant[] }> {
     // Build query with filters
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -58,10 +57,6 @@ export class UserTenantRepository extends BaseRepository<
       conditions.push(`is_active = $${params.length}`);
     }
 
-    const orderBy = `ORDER BY ${sortBy} DESC`;
-
-    // pagination --------------------------
-
     // Execute query
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -69,30 +64,26 @@ export class UserTenantRepository extends BaseRepository<
       `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at, t.schema_name 
                    FROM ${this.tableName} ut 
                    JOIN public.tenants t ON ut.tenant_id = t.tenant_id 
-                   ${whereClause} ${orderBy}`.trim();
+                   ${whereClause} ORDER BY ut.joined_at`.trim();
     const result = await this.executeQuery<UserTenantRow>(
       query,
       params,
       options,
     );
 
-    // Count total
-    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ut ${whereClause}`;
-    const totalResult = await this.executeQuery(totalQuery, params, options);
-
     return {
       data: result.rows.map((row) => this.mapRow(row)),
-      total: parseInt(totalResult.rows[0].count as string, 10),
     };
   }
 
+  /**
+   * Find all active user tenants.
+   *
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Array of active user tenants
+   */
   async findActive(options?: QueryOptions): Promise<UserTenant[]> {
-    const result = await this.findMany(
-      { is_active: true },
-      { page: 1, limit: 1000 },
-      'joined_at',
-      options,
-    );
+    const result = await this.findMany({ is_active: true }, options);
     return result.data;
   }
 
@@ -110,6 +101,13 @@ export class UserTenantRepository extends BaseRepository<
     };
   }
 
+  /**
+   * Link a user to a tenant.
+   *
+   * @param input - Link user tenant input
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns void
+   */
   async linkUserToTenant(
     input: LinkUserTenantInput,
     options?: QueryOptions,
@@ -122,6 +120,13 @@ export class UserTenantRepository extends BaseRepository<
     );
   }
 
+  /**
+   * Get user tenants.
+   *
+   * @param userId - User ID
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns User tenants
+   */
   async getUserTenants(
     userId: string,
     options?: QueryOptions,
@@ -139,6 +144,13 @@ export class UserTenantRepository extends BaseRepository<
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  /**
+   * Get all active user tenants.
+   *
+   * @param userId - User ID
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns User tenants
+   */
   async getActiveUserTenants(
     userId: string,
     options?: QueryOptions,
@@ -156,6 +168,14 @@ export class UserTenantRepository extends BaseRepository<
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  /**
+   * Get user in tenant.
+   *
+   * @param userId - User ID
+   * @param tenantId - Tenant ID
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns User in tenant
+   */
   async getUserInTenant(
     userId: string,
     tenantId: string,

@@ -12,6 +12,10 @@ import {
 } from './entities/template-version.entity';
 import { TemplateRepository } from '../../repositories/templates/template.repository';
 import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class TemplateVersionsService {
@@ -79,15 +83,17 @@ export class TemplateVersionsService {
     }
   }
 
-  async getVersionHistory(templateId: string): Promise<TemplateVersion[]> {
+  async getVersionHistory(
+    templateId: string,
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<TemplateVersion>> {
     try {
       const versions = await this.templateVersionRepository.findMany(
         { template_id: templateId },
-        { page: 1, limit: 1000 },
-        'created_at',
+        cursorOptions,
       );
 
-      return versions.data;
+      return versions;
     } catch (error) {
       this.logger.error(`Failed to fetch version history: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch version history');

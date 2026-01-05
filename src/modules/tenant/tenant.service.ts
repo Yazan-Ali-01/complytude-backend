@@ -13,6 +13,10 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant, TenantFeatures, TenantSchema } from './entities/tenant.entity';
 import { randomUUID } from 'crypto';
 import { PoolClient } from 'pg';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class TenantService {
@@ -181,20 +185,12 @@ export class TenantService {
   /**
    * Get all tenants (admin only)
    */
-  async findAll(): Promise<Tenant[]> {
+  async findAll(
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<Tenant>> {
     try {
-      const tenants = await this.tenantRepository.findMany(
-        {},
-        { page: 1, limit: 1000 },
-        'created_at',
-      );
-      return tenants.data.map((tenant) => ({
-        ...tenant,
-        features:
-          typeof tenant.features === 'string'
-            ? JSON.parse(tenant.features)
-            : tenant.features,
-      }));
+      const tenants = await this.tenantRepository.findMany({}, cursorOptions);
+      return tenants;
     } catch {
       throw new InternalServerErrorException('Failed to fetch tenants');
     }

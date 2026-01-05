@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,6 +26,7 @@ import { Ruleset } from './entities/ruleset.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Rulesets')
 @Controller('rulesets')
@@ -72,12 +74,38 @@ export class RulesetsController {
     enum: ['active', 'inactive', 'deprecated'],
     description: 'Filter by status',
   })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    type: String,
+    description: 'Cursor for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 50)',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['forward', 'backward'],
+    description: 'Pagination direction (default: forward)',
+  })
   @ApiResponse({ status: 200, description: 'List of rulesets', type: [Object] })
   async findAll(
     @Query('authorityId') authorityId?: string,
     @Query('status') status?: string,
-  ): Promise<Ruleset[]> {
-    return this.rulesetsService.findAll(authorityId, status);
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<CursorPaginationResult<Ruleset>> {
+    return this.rulesetsService.findAll(authorityId, status, {
+      cursor,
+      limit,
+      direction,
+    });
   }
 
   @Get(':key')

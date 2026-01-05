@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
-import { QueryOptions } from '../base/repository.interface';
+import {
+  QueryOptions,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from '../base/repository.interface';
 import {
   TemplateField,
   TemplateVersion,
 } from 'src/modules/templates/entities/template-version.entity';
+import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 type TemplateVersionRow = {
   id: string;
@@ -22,24 +27,28 @@ type TemplateVersionRow = {
 
 @Injectable()
 export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
-  private readonly SORTABLE_FIELDS = ['version', 'created_at'] as const;
-
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.template_versions');
   }
 
+  /**
+   * Find template versions with cursor-based pagination.
+   * Supports filtering by template_id and version.
+   *
+   * @param filters - Optional filters for template_id and version
+   * @param cursorOptions - Cursor, limit, and direction for pagination
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Cursor-paginated results with navigation metadata
+   */
   async findMany(
-    filters: { template_id?: string; version?: string },
-    _pagination: { page: number; limit: number } = { page: 1, limit: 50 },
-    sortBy: (typeof this.SORTABLE_FIELDS)[number] = 'created_at',
+    filters: { template_id?: string; version?: string } = {},
+    cursorOptions?: CursorPaginationOptions,
     options?: QueryOptions,
-  ): Promise<{ data: TemplateVersion[]; total: number }> {
-    // Validate sortBy against whitelist
-    if (!this.SORTABLE_FIELDS.includes(sortBy)) {
-      throw new Error(`Invalid sort field: ${sortBy}`);
-    }
+  ): Promise<CursorPaginationResult<TemplateVersion>> {
+    // Validate and normalize cursor options
+    const { cursor, limit, direction } =
+      CursorPaginationHelper.validateOptions(cursorOptions);
 
-    // Build query with filters
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -52,29 +61,43 @@ export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
       conditions.push(`version = $${params.length}`);
     }
 
-    const orderBy = `ORDER BY ${sortBy} DESC`;
+    // Add cursor condition using helper
+    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
+      direction,
+      cursor,
+      params.length + 1,
+    );
 
-    // pagination --------------------------
+    if (cursorQuery.clause) {
+      conditions.push(cursorQuery.clause);
+      params.push(...cursorQuery.params);
+    }
 
-    // Execute query
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const limitClause = CursorPaginationHelper.buildLimitClause(
+      limit,
+      params.length + 1,
+    );
+    params.push(...limitClause.params);
+
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${orderBy}`.trim();
+      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<TemplateVersionRow>(
       query,
       params,
       options,
     );
 
-    // Count total
-    const totalQuery = `SELECT COUNT(*) FROM ${this.tableName} ${whereClause}`;
-    const totalResult = await this.executeQuery(totalQuery, params, options);
+    const mappedRows = result.rows.map((row) => this.mapRow(row));
 
-    return {
-      data: result.rows.map((row) => this.mapRow(row)),
-      total: parseInt(totalResult.rows[0].count as string, 10),
-    };
+    return CursorPaginationHelper.createPaginationResponse(
+      mappedRows,
+      limit,
+      direction,
+      !!cursor,
+    );
   }
 
   protected mapRow(row: Record<string, unknown>): TemplateVersion {

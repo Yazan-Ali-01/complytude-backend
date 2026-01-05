@@ -10,6 +10,10 @@ import { Ruleset } from './entities/ruleset.entity';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
 import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class RulesetsService {
@@ -70,7 +74,11 @@ export class RulesetsService {
     }
   }
 
-  async findAll(authorityId?: string, status?: string): Promise<Ruleset[]> {
+  async findAll(
+    authorityId?: string,
+    status?: string,
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<Ruleset>> {
     try {
       const filters = {
         authority_id: authorityId,
@@ -78,10 +86,9 @@ export class RulesetsService {
       };
       const result = await this.rulesetRepository.findMany(
         filters,
-        { page: 1, limit: 1000 },
-        'name',
+        cursorOptions,
       );
-      return result.data;
+      return result;
     } catch (error) {
       this.logger.error(`Failed to fetch rulesets: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch rulesets');

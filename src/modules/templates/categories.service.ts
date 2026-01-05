@@ -11,6 +11,10 @@ import {
   UpdateCategoryDto,
 } from './dto/create-category.dto';
 import { CategoryRepository } from '../../repositories/categories/category.repository';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class CategoriesService {
@@ -45,15 +49,17 @@ export class CategoriesService {
     }
   }
 
-  async findAll(active?: boolean): Promise<Category[]> {
+  async findAll(
+    active?: boolean,
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<Category>> {
     try {
       const filters = active !== undefined ? { is_active: active } : {};
       const result = await this.categoryRepository.findMany(
-        filters,
-        { page: 1, limit: 1000 },
-        'name',
+        { ...filters },
+        cursorOptions,
       );
-      return result.data;
+      return result;
     } catch (error) {
       this.logger.error(`Failed to fetch categories: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch categories');

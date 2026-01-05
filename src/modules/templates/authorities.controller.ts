@@ -70,6 +70,24 @@ export class AuthoritiesController {
     type: Boolean,
     description: 'Filter by active status',
   })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    type: String,
+    description: 'Cursor for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Limit for pagination',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    type: String,
+    description: 'Direction for pagination',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of authorities',
