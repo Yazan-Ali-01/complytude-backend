@@ -37,6 +37,13 @@ export class RefreshTokenRepository extends BaseRepository<
   }
 
   /**
+   * Get the list of columns to select in queries.
+   */
+  protected getSelectColumns(): string {
+    return 'id, user_id, token_hash, expires_at, created_at, revoked_at';
+  }
+
+  /**
    * Map a database row to a RefreshToken domain entity.
    *
    * @param row - Raw database row
@@ -66,7 +73,7 @@ export class RefreshTokenRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<RefreshToken[]> {
     const result = await this.executeQuery<RefreshTokenRow>(
-      `SELECT * FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
        WHERE user_id = $1 AND expires_at > NOW() AND revoked_at IS NULL`,
       [userId],
       options,

@@ -102,7 +102,7 @@ export class TemplateRepository extends BaseRepository<Template> {
     params.push(...limitClause.params);
 
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<TemplateRow>(query, params, options);
 
     const mappedRows = result.rows.map((row) => this.mapRow(row));
@@ -131,6 +131,13 @@ export class TemplateRepository extends BaseRepository<Template> {
       options,
     );
     return result.data;
+  }
+
+  /**
+   * Get the list of columns to select in queries.
+   */
+  protected getSelectColumns(): string {
+    return 'id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by, created_at, updated_at';
   }
 
   /**

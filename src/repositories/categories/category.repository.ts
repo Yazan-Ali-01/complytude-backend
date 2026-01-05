@@ -86,7 +86,7 @@ export class CategoryRepository extends BaseRepository<Category> {
     params.push(...limitClause.params);
 
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<CategoryRow>(query, params, options);
 
     const mappedRows = result.rows.map((row) => this.mapRow(row));
@@ -115,6 +115,13 @@ export class CategoryRepository extends BaseRepository<Category> {
       options,
     );
     return result.data;
+  }
+
+  /**
+   * Get the list of columns to select in queries.
+   */
+  protected getSelectColumns(): string {
+    return 'id, code, name, description, parent_id, is_active, created_at, updated_at';
   }
 
   /**

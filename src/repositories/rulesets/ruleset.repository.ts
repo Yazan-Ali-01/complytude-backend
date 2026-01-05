@@ -89,7 +89,7 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     params.push(...limitClause.params);
 
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<RulesetRow>(query, params, options);
 
     const mappedRows = result.rows.map((row) => this.mapRow(row));
@@ -118,6 +118,13 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
       options,
     );
     return result.data;
+  }
+
+  /**
+   * Get the list of columns to select in queries.
+   */
+  protected getSelectColumns(): string {
+    return 'id, key, name, description, authority_id, clauses, metadata, version, status, created_by, created_at, updated_at';
   }
 
   /**
@@ -181,7 +188,7 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
     if (!keys.length) return [];
 
     const result = await this.executeQuery<RulesetRow>(
-      `SELECT * FROM ${this.tableName} WHERE key IN ($1) AND status = $2 ORDER BY name`,
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE key IN ($1) AND status = $2 ORDER BY name`,
       [keys, 'active'],
       options,
     );

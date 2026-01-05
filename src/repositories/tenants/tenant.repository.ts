@@ -96,7 +96,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
     params.push(...limitClause.params);
 
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<TenantRow>(query, params, options);
 
     const mappedRows = result.rows.map((row) => this.mapRow(row));
@@ -125,6 +125,13 @@ export class TenantRepository extends BaseRepository<Tenant> {
       options,
     );
     return result.data;
+  }
+
+  /**
+   * Get the list of columns to select in queries.
+   */
+  protected getSelectColumns(): string {
+    return 'id, tenant_id, email, role, plan, features, schema_name, is_active, created_at, updated_at';
   }
 
   /**
@@ -319,7 +326,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
   ): Promise<TenantSchema | null> {
     this.tenantLogger.debug(`Getting tenant schema: tenant_id=${tenantId}`);
     const result = await this.executeQuery<TenantSchemaRow>(
-      'SELECT * FROM public.tenant_schemas WHERE tenant_id = $1',
+      'SELECT tenant_id, schema_name, is_active, created_at FROM public.tenant_schemas WHERE tenant_id = $1',
       [tenantId],
       options,
     );

@@ -34,6 +34,13 @@ export class EmailVerificationRepository extends BaseRepository<
   }
 
   /**
+   * Get the list of columns to select in queries.
+   */
+  protected getSelectColumns(): string {
+    return 'id, user_id, token, expires_at, verified_at';
+  }
+
+  /**
    * Map a database row to an EmailVerification domain entity.
    *
    * @param row - Raw database row
@@ -83,7 +90,7 @@ export class EmailVerificationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<EmailVerification | null> {
     const result = await this.executeQuery<EmailVerificationRow>(
-      `SELECT * FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
        WHERE token = $1 AND expires_at > NOW() AND verified_at IS NULL`,
       [token],
       options,

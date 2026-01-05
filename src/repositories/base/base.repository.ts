@@ -37,6 +37,13 @@ export abstract class BaseRepository<
   protected abstract mapRow(row: Record<string, unknown>): TEntity;
 
   /**
+   * Get the list of columns to select in queries.
+   * Override this in child repositories to specify explicit columns.
+   * Default returns all columns (*).
+   */
+  protected abstract getSelectColumns(): string;
+
+  /**
    * Execute a query respecting transaction clients, tenant context, and RLS.
    * Falls back to DatabaseService for non-transactional access.
    *
@@ -143,8 +150,9 @@ export abstract class BaseRepository<
         options?.tenant?.tenantId ?? 'none'
       }`,
     );
+    const columns = this.getSelectColumns();
     const result = await this.executeQuery(
-      `SELECT * FROM ${this.tableName} WHERE id = $1`,
+      `SELECT ${columns} FROM ${this.tableName} WHERE id = $1`,
       [id],
       options,
     );

@@ -104,7 +104,7 @@ export class UserRepository extends BaseRepository<User> {
     params.push(...limitClause.params);
 
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<UserRow>(query, params, options);
 
     const mappedRows = result.rows.map((row) => this.mapRow(row));
@@ -133,6 +133,13 @@ export class UserRepository extends BaseRepository<User> {
       options,
     );
     return result.data;
+  }
+
+  /**
+   * Get the list of columns to select in queries.
+   */
+  protected getSelectColumns(): string {
+    return 'id, email, password_hash, first_name, last_name, is_verified, is_system_admin, created_at, updated_at';
   }
 
   /**
@@ -186,7 +193,7 @@ export class UserRepository extends BaseRepository<User> {
     options?: QueryOptions,
   ): Promise<PasswordReset | null> {
     const result = await this.executeQuery<PasswordResetRow>(
-      `SELECT * FROM public.password_resets 
+      `SELECT id, user_id, token, expires_at, used_at FROM public.password_resets 
        WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL`,
       [token],
       options,

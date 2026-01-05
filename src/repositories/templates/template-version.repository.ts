@@ -87,7 +87,7 @@ export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
     params.push(...limitClause.params);
 
     const query =
-      `SELECT * FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<TemplateVersionRow>(
       query,
       params,
@@ -102,6 +102,13 @@ export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
       direction,
       !!cursor,
     );
+  }
+
+  /**
+   * Get the list of columns to select in queries.
+   */
+  protected getSelectColumns(): string {
+    return 'id, template_id, version, fields, file_url, changelog, metadata, is_active, created_by, created_at';
   }
 
   /**
