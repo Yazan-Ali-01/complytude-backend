@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { QueryResult, QueryResultRow } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import {
@@ -275,9 +275,7 @@ export abstract class BaseRepository<
 
     const result = await this.executeQuery(query, [id, ...values], options);
     if (result.rows.length === 0) {
-      throw new NotFoundException(
-        `Record with ID ${id} not found in ${this.tableName}`,
-      );
+      throw new Error(`Record with ID ${id} not found in ${this.tableName}`);
     }
 
     return this.mapRow(result.rows[0] as Record<string, unknown>);
@@ -304,9 +302,7 @@ export abstract class BaseRepository<
     );
 
     if (result.rowCount === 0) {
-      throw new NotFoundException(
-        `Record with ID ${id} not found in ${this.tableName}`,
-      );
+      throw new Error(`Record with ID ${id} not found in ${this.tableName}`);
     }
   }
 }
