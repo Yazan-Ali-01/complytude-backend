@@ -191,7 +191,7 @@ export class UserTenantRepository extends BaseRepository<
    * @param _options - Query options
    * @throws Error - Always throws as single ID delete is not supported
    */
-  delete(_id: string, _options?: QueryOptions): Promise<void> {
+  delete(_id: string, _options?: QueryOptions): Promise<boolean> {
     throw new Error(
       'delete is not supported for UserTenantRepository. Use deleteByCompositeKey instead.',
     );

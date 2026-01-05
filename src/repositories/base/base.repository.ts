@@ -289,7 +289,7 @@ export abstract class BaseRepository<
    * await this.delete(id);
    * ```
    */
-  async delete(id: string, options?: QueryOptions): Promise<void> {
+  async delete(id: string, options?: QueryOptions): Promise<boolean> {
     this.logger.debug(
       `delete: table=${this.tableName}, id=${id}, tenant=${
         options?.tenant?.tenantId ?? 'none'
@@ -301,8 +301,6 @@ export abstract class BaseRepository<
       options,
     );
 
-    if (result.rowCount === 0) {
-      throw new Error(`Record with ID ${id} not found in ${this.tableName}`);
-    }
+    return (result.rowCount ?? 0) > 0;
   }
 }

@@ -82,5 +82,5 @@ export interface RepositoryInterface<
 
   update(id: string, data: TUpdate, options?: QueryOptions): Promise<TEntity>;
 
-  delete(id: string, options?: QueryOptions): Promise<void>;
+  delete(id: string, options?: QueryOptions): Promise<boolean>;
 }

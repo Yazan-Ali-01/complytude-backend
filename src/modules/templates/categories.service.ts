@@ -141,7 +141,10 @@ export class CategoriesService {
     try {
       await this.findById(id);
 
-      await this.categoryRepository.delete(id);
+      const deleted = await this.categoryRepository.delete(id);
+      if (!deleted) {
+        throw new NotFoundException(`Category with ID "${id}" not found`);
+      }
 
       this.logger.log(`Deleted category: ${id}`);
     } catch (error) {
