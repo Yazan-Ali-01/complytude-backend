@@ -514,7 +514,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       queryOptions,
     );
 
-    const count = parseInt(String(result.rows[0].count), 10);
+    const count = parseInt(result.rows[0].count, 10);
     this.tenantLogger.debug(
       `Document count: schema=${schemaName}, count=${count}`,
     );
