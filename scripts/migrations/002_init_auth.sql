@@ -1,5 +1,5 @@
 -- ============================================================================
--- Migration 002: Authentication & User Management (Pure RLS)
+-- Migration 002: Authentication & User Management (Tenant RLS + System Auth Tables)
 -- ============================================================================
 -- Description: User accounts, multi-tenant access, and auth tokens with RLS
 -- Dependencies: 001_init_multi_tenancy.sql
@@ -125,16 +125,10 @@ COMMENT ON TABLE public.password_resets IS 'Password reset tokens';
 -- Enable RLS on all auth tables
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_tenants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.refresh_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.email_verifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.password_resets ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS users_isolation_policy ON public.users;
 DROP POLICY IF EXISTS user_tenants_isolation_policy ON public.user_tenants;
-DROP POLICY IF EXISTS refresh_tokens_isolation_policy ON public.refresh_tokens;
-DROP POLICY IF EXISTS email_verifications_isolation_policy ON public.email_verifications;
-DROP POLICY IF EXISTS password_resets_isolation_policy ON public.password_resets;
 
 -- Users: Can see users that belong to the same tenant
 CREATE POLICY users_isolation_policy ON public.users
@@ -152,39 +146,6 @@ CREATE POLICY user_tenants_isolation_policy ON public.user_tenants
     FOR ALL
     USING (
         tenant_id = current_setting('app.current_tenant_id', true)
-        OR current_setting('app.bypass_rls', true) = 'true'
-    );
-
--- Refresh Tokens: Users can only see their own tokens
-CREATE POLICY refresh_tokens_isolation_policy ON public.refresh_tokens
-    FOR ALL
-    USING (
-        user_id IN (
-            SELECT user_id FROM public.user_tenants 
-            WHERE tenant_id = current_setting('app.current_tenant_id', true)
-        )
-        OR current_setting('app.bypass_rls', true) = 'true'
-    );
-
--- Email Verifications: Users can only see their own verification tokens
-CREATE POLICY email_verifications_isolation_policy ON public.email_verifications
-    FOR ALL
-    USING (
-        user_id IN (
-            SELECT user_id FROM public.user_tenants 
-            WHERE tenant_id = current_setting('app.current_tenant_id', true)
-        )
-        OR current_setting('app.bypass_rls', true) = 'true'
-    );
-
--- Password Resets: Users can only see their own reset tokens
-CREATE POLICY password_resets_isolation_policy ON public.password_resets
-    FOR ALL
-    USING (
-        user_id IN (
-            SELECT user_id FROM public.user_tenants 
-            WHERE tenant_id = current_setting('app.current_tenant_id', true)
-        )
         OR current_setting('app.bypass_rls', true) = 'true'
     );
 
