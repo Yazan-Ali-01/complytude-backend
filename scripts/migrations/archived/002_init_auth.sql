@@ -1,7 +1,7 @@
 -- ============================================================================
--- Migration 002: Authentication & User Management (Pure RLS)
+-- Migration 002: Authentication & User Management
 -- ============================================================================
--- Description: User accounts, multi-tenant access, and auth tokens with RLS
+-- Description: User accounts, multi-tenant access, and auth tokens
 -- Dependencies: 001_init_multi_tenancy.sql
 -- ============================================================================
 
@@ -119,77 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_password_resets_expires_at ON public.password_res
 COMMENT ON TABLE public.password_resets IS 'Password reset tokens';
 
 -- ============================================================================
--- 6. ROW LEVEL SECURITY (RLS)
--- ============================================================================
-
--- Enable RLS on all auth tables
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_tenants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.refresh_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.email_verifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.password_resets ENABLE ROW LEVEL SECURITY;
-
--- Drop existing policies if they exist
-DROP POLICY IF EXISTS users_isolation_policy ON public.users;
-DROP POLICY IF EXISTS user_tenants_isolation_policy ON public.user_tenants;
-DROP POLICY IF EXISTS refresh_tokens_isolation_policy ON public.refresh_tokens;
-DROP POLICY IF EXISTS email_verifications_isolation_policy ON public.email_verifications;
-DROP POLICY IF EXISTS password_resets_isolation_policy ON public.password_resets;
-
--- Users: Can see users that belong to the same tenant
-CREATE POLICY users_isolation_policy ON public.users
-    FOR ALL
-    USING (
-        id IN (
-            SELECT user_id FROM public.user_tenants 
-            WHERE tenant_id = current_setting('app.current_tenant_id', true)
-        )
-        OR current_setting('app.bypass_rls', true) = 'true'
-    );
-
--- User-Tenants: Can see associations for current tenant
-CREATE POLICY user_tenants_isolation_policy ON public.user_tenants
-    FOR ALL
-    USING (
-        tenant_id = current_setting('app.current_tenant_id', true)
-        OR current_setting('app.bypass_rls', true) = 'true'
-    );
-
--- Refresh Tokens: Users can only see their own tokens
-CREATE POLICY refresh_tokens_isolation_policy ON public.refresh_tokens
-    FOR ALL
-    USING (
-        user_id IN (
-            SELECT user_id FROM public.user_tenants 
-            WHERE tenant_id = current_setting('app.current_tenant_id', true)
-        )
-        OR current_setting('app.bypass_rls', true) = 'true'
-    );
-
--- Email Verifications: Users can only see their own verification tokens
-CREATE POLICY email_verifications_isolation_policy ON public.email_verifications
-    FOR ALL
-    USING (
-        user_id IN (
-            SELECT user_id FROM public.user_tenants 
-            WHERE tenant_id = current_setting('app.current_tenant_id', true)
-        )
-        OR current_setting('app.bypass_rls', true) = 'true'
-    );
-
--- Password Resets: Users can only see their own reset tokens
-CREATE POLICY password_resets_isolation_policy ON public.password_resets
-    FOR ALL
-    USING (
-        user_id IN (
-            SELECT user_id FROM public.user_tenants 
-            WHERE tenant_id = current_setting('app.current_tenant_id', true)
-        )
-        OR current_setting('app.bypass_rls', true) = 'true'
-    );
-
--- ============================================================================
--- 7. CLEANUP FUNCTION
+-- 6. CLEANUP FUNCTION
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION cleanup_expired_tokens() RETURNS void AS $$
@@ -212,7 +142,7 @@ $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION cleanup_expired_tokens IS 'Cleanup expired tokens (run daily)';
 
 -- ============================================================================
--- 8. SYSTEM ADMIN HELPER FUNCTION
+-- 7. SYSTEM ADMIN HELPER FUNCTION
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.is_system_admin(user_id_param VARCHAR)
@@ -233,7 +163,7 @@ COMMENT ON FUNCTION public.is_system_admin IS 'Check if a user is a system admin
 GRANT EXECUTE ON FUNCTION public.is_system_admin TO CURRENT_USER;
 
 -- ============================================================================
--- 9. TRIGGERS
+-- 8. TRIGGERS
 -- ============================================================================
 
 CREATE TRIGGER update_users_updated_at
@@ -247,7 +177,7 @@ CREATE TRIGGER update_user_tenants_updated_at
     EXECUTE FUNCTION public.update_updated_at_column();
 
 -- ============================================================================
--- 10. PERMISSIONS
+-- 9. PERMISSIONS
 -- ============================================================================
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.users TO CURRENT_USER;
@@ -262,8 +192,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.password_resets TO CURRENT_USER;
 
 DO $$
 BEGIN
-    RAISE NOTICE '✅ Migration 002: Authentication schema initialized with RLS';
+    RAISE NOTICE '✅ Migration 002: Authentication schema initialized';
     RAISE NOTICE '✅ System admin role included';
     RAISE NOTICE 'ℹ️  To create a system admin, run:';
     RAISE NOTICE '   UPDATE public.users SET is_system_admin = true WHERE email = ''your@email.com'';';
 END $$;
+

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Migration 003: Template Management System (Pure RLS)
+-- Migration 003: Template Management System
 -- ============================================================================
 -- Description: Template CMS for legal documents with versioning and rulesets
 -- Dependencies: 001_init_multi_tenancy.sql, 002_init_auth.sql
@@ -199,8 +199,6 @@ DROP POLICY IF EXISTS templates_write_policy ON public.templates;
 DROP POLICY IF EXISTS authorities_read_policy ON public.authorities;
 DROP POLICY IF EXISTS categories_read_policy ON public.categories;
 DROP POLICY IF EXISTS rulesets_read_policy ON public.rulesets;
-DROP POLICY IF EXISTS template_versions_read_policy ON public.template_versions;
-DROP POLICY IF EXISTS template_versions_write_policy ON public.template_versions;
 
 -- Read policies: All authenticated users can read
 CREATE POLICY templates_read_policy ON public.templates
@@ -219,11 +217,7 @@ CREATE POLICY rulesets_read_policy ON public.rulesets
     FOR SELECT
     USING (true);
 
-CREATE POLICY template_versions_read_policy ON public.template_versions
-    FOR SELECT
-    USING (true);
-
--- Write policies: Only system admins can write (enforced by bypass_rls)
+-- Write policies: Only system admins can write (enforced by application layer)
 CREATE POLICY templates_write_policy ON public.templates
     FOR ALL
     USING (current_setting('app.bypass_rls', true) = 'true');
@@ -320,3 +314,4 @@ BEGIN
     RAISE NOTICE '   - Configured RLS policies';
     RAISE NOTICE '   - Seeded initial authorities and categories';
 END $$;
+

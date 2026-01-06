@@ -1,30 +1,29 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
   BadRequestException,
+  ConflictException,
+  Injectable,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { DatabaseService } from '../../database/database.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { SignupDto } from './dto/signup.dto';
-import { LoginDto } from './dto/login.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { JwtPayload } from './strategies/jwt.strategy';
-import { TenantService } from '../tenant/tenant.service';
-import { Tenant } from '../tenant/entities/tenant.entity';
+import { DatabaseService } from '../../database/database.service';
 import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
+import { Tenant } from '../tenant/entities/tenant.entity';
+import { TenantService } from '../tenant/tenant.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { LoginDto } from './dto/login.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SignupDto } from './dto/signup.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { JwtPayload } from './strategies/jwt.strategy';
 
 interface TenantRow {
   tenant_id: string;
   role: string;
-  schema_name: string;
 }
 
 interface UserRow {
@@ -149,7 +148,7 @@ export class AuthService {
 
     // Get user's tenants
     const tenantsResult = await this.databaseService.query<TenantRow>(
-      `SELECT ut.tenant_id, ut.role, t.schema_name 
+      `SELECT ut.tenant_id, ut.role 
        FROM public.user_tenants ut
        JOIN public.tenants t ON ut.tenant_id = t.tenant_id
        WHERE ut.user_id = $1 AND ut.is_active = true`,
@@ -201,7 +200,6 @@ export class AuthService {
       currentTenant: {
         tenantId: selectedTenant.tenant_id,
         role: selectedTenant.role,
-        schemaName: selectedTenant.schema_name,
       },
       availableTenants: tenantsResult.rows.map((t) => ({
         tenantId: t.tenant_id,

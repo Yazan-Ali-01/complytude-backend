@@ -1,26 +1,26 @@
 import {
-  Controller,
-  Get,
-  Put,
-  Delete,
   Body,
-  Param,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
+  Param,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
   ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { TenantService } from './tenant.service';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { TenantService } from './tenant.service';
 
 /**
  * System Administrator endpoints for tenant management
@@ -133,7 +133,7 @@ export class TenantAdminController {
   @ApiOperation({
     summary: '[ADMIN] Delete any tenant',
     description:
-      'Deletes any tenant and all associated data including the database schema. ⚠️ This action is irreversible. System admin only.',
+      'Deletes any tenant and all associated data. ⚠️ This action is irreversible. System admin only.',
   })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
   @ApiResponse({
@@ -154,26 +154,5 @@ export class TenantAdminController {
       message: 'Tenant deleted successfully',
       tenantId,
     };
-  }
-
-  @Get(':tenantId/schema')
-  @ApiOperation({
-    summary: '[ADMIN] Get any tenant schema',
-    description: 'Retrieves schema details for any tenant. System admin only.',
-  })
-  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Tenant schema information',
-    type: Object,
-  })
-  @ApiResponse({ status: 404, description: 'Schema not found' })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - System admin privileges required',
-  })
-  async getTenantSchema(@Param('tenantId') tenantId: string) {
-    this.logger.log(`[ADMIN] Fetching schema for tenant: ${tenantId}`);
-    return this.tenantService.getTenantSchema(tenantId);
   }
 }

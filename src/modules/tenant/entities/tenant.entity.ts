@@ -15,12 +15,5 @@ export interface Tenant {
   created_at: Date;
   updated_at?: Date;
   is_active: boolean;
-  schema_name: string; // Database schema for this tenant
-}
-
-export interface TenantSchema {
-  tenant_id: string;
-  schema_name: string;
-  created_at: Date;
-  is_active: boolean;
+  // Note: schema_name removed - using Pure RLS approach (all data in public schema)
 }

@@ -1,20 +1,20 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
+  Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
-import { User } from './entities/user.entity';
-import { UpdateProfileDto } from './dto/update-profile.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { DatabaseService } from '../../database/database.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { User } from './entities/user.entity';
 
 @Injectable()
 export class UsersService {
@@ -60,7 +60,7 @@ export class UsersService {
    */
   async getUserTenants(userId: string): Promise<any[]> {
     const result = await this.databaseService.query(
-      `SELECT ut.tenant_id, ut.role, ut.is_active, ut.joined_at, t.schema_name
+      `SELECT ut.tenant_id, ut.role, ut.is_active, ut.joined_at
        FROM public.user_tenants ut
        JOIN public.tenants t ON ut.tenant_id = t.tenant_id
        WHERE ut.user_id = $1

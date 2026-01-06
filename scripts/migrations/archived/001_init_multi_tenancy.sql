@@ -1,7 +1,7 @@
 -- ============================================================================
--- Migration 001: Multi-Tenancy Infrastructure (Pure RLS)
+-- Migration 001: Multi-Tenancy Infrastructure
 -- ============================================================================
--- Description: Multi-tenancy setup with Row Level Security (no schema isolation)
+-- Description: Initial multi-tenancy setup with schema-based isolation
 -- Dependencies: None
 -- ============================================================================
 
@@ -9,10 +9,10 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================================
--- 1. TENANT MANAGEMENT TABLE
+-- 1. TENANT MANAGEMENT TABLES
 -- ============================================================================
 
--- Main tenants table (removed schema_name column)
+-- Main tenants table
 CREATE TABLE IF NOT EXISTS public.tenants (
     id VARCHAR(255) PRIMARY KEY,
     tenant_id VARCHAR(255) UNIQUE NOT NULL,
@@ -20,14 +20,25 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'viewer')),
     plan VARCHAR(50) NOT NULL CHECK (plan IN ('early_access', 'basic', 'pro', 'enterprise')),
     features JSONB NOT NULL DEFAULT '{}',
+    schema_name VARCHAR(255) UNIQUE NOT NULL,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE public.tenants IS 'Main tenants table with plan and custom features support (Pure RLS approach)';
+COMMENT ON TABLE public.tenants IS 'Main tenants table with plan and custom features support';
 COMMENT ON COLUMN public.tenants.features IS 'Custom feature overrides (JSONB) - overrides plan defaults';
 COMMENT ON COLUMN public.tenants.plan IS 'Subscription plan: early_access, basic, pro, enterprise';
+
+-- Tenant schemas tracking table
+CREATE TABLE IF NOT EXISTS public.tenant_schemas (
+    tenant_id VARCHAR(255) PRIMARY KEY REFERENCES public.tenants(tenant_id) ON DELETE CASCADE,
+    schema_name VARCHAR(255) UNIQUE NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE public.tenant_schemas IS 'Tracks tenant database schemas';
 
 -- ============================================================================
 -- 2. INDEXES
@@ -37,6 +48,8 @@ CREATE INDEX IF NOT EXISTS idx_tenants_tenant_id ON public.tenants(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tenants_email ON public.tenants(email);
 CREATE INDEX IF NOT EXISTS idx_tenants_plan ON public.tenants(plan);
 CREATE INDEX IF NOT EXISTS idx_tenants_is_active ON public.tenants(is_active);
+CREATE INDEX IF NOT EXISTS idx_tenant_schemas_tenant_id ON public.tenant_schemas(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_schemas_schema_name ON public.tenant_schemas(schema_name);
 
 -- ============================================================================
 -- 3. ROW LEVEL SECURITY (RLS)
@@ -44,12 +57,22 @@ CREATE INDEX IF NOT EXISTS idx_tenants_is_active ON public.tenants(is_active);
 
 -- Enable RLS on tenants table
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenant_schemas ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS tenant_isolation_policy ON public.tenants;
+DROP POLICY IF EXISTS tenant_schema_isolation_policy ON public.tenant_schemas;
 
 -- Policy: Users can only access their own tenant data
 CREATE POLICY tenant_isolation_policy ON public.tenants
+    FOR ALL
+    USING (
+        tenant_id = current_setting('app.current_tenant_id', true)
+        OR current_setting('app.bypass_rls', true) = 'true'
+    );
+
+-- Policy: Schema isolation
+CREATE POLICY tenant_schema_isolation_policy ON public.tenant_schemas
     FOR ALL
     USING (
         tenant_id = current_setting('app.current_tenant_id', true)
@@ -111,6 +134,7 @@ CREATE TRIGGER update_tenants_updated_at
 -- ============================================================================
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenants TO CURRENT_USER;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_schemas TO CURRENT_USER;
 
 -- ============================================================================
 -- SUCCESS
@@ -118,6 +142,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenants TO CURRENT_USER;
 
 DO $$
 BEGIN
-    RAISE NOTICE '✅ Migration 001: Multi-tenancy infrastructure initialized (Pure RLS)';
-    RAISE NOTICE 'ℹ️  No schema-based isolation - all data in public schema with RLS';
+    RAISE NOTICE '✅ Migration 001: Multi-tenancy infrastructure initialized';
 END $$;
+

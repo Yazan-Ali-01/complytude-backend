@@ -1,17 +1,17 @@
 import {
+  ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
-import { FeaturesService } from './features.service';
-import { CreateTenantDto } from './dto/create-tenant.dto';
-import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { Tenant, TenantSchema } from './entities/tenant.entity';
 import { randomUUID } from 'crypto';
 import { PoolClient } from 'pg';
+import { DatabaseService } from '../../database/database.service';
+import { CreateTenantDto } from './dto/create-tenant.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { Tenant } from './entities/tenant.entity';
+import { FeaturesService } from './features.service';
 
 @Injectable()
 export class TenantService {
@@ -24,12 +24,12 @@ export class TenantService {
 
   /**
    * Initialize the multi-tenancy infrastructure
-   * Creates the main tenants table and RLS policies
+   * Creates the main tenants table and RLS policies (Pure RLS approach)
    */
   async initializeMultiTenancy(): Promise<void> {
     try {
       await this.databaseService.transaction(async (client) => {
-        // Create tenants table
+        // Create tenants table (Pure RLS - no schema_name column)
         await client.query(`
           CREATE TABLE IF NOT EXISTS public.tenants (
             id VARCHAR(255) PRIMARY KEY,
@@ -38,20 +38,9 @@ export class TenantService {
             role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'viewer')),
             plan VARCHAR(50) NOT NULL CHECK (plan IN ('early_access', 'basic', 'pro', 'enterprise')),
             features JSONB NOT NULL DEFAULT '{}',
-            schema_name VARCHAR(255) UNIQUE NOT NULL,
             is_active BOOLEAN DEFAULT true,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-        `);
-
-        // Create tenant schemas table
-        await client.query(`
-          CREATE TABLE IF NOT EXISTS public.tenant_schemas (
-            tenant_id VARCHAR(255) PRIMARY KEY REFERENCES public.tenants(tenant_id) ON DELETE CASCADE,
-            schema_name VARCHAR(255) UNIQUE NOT NULL,
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
         `);
 
@@ -59,7 +48,8 @@ export class TenantService {
         await client.query(`
           CREATE INDEX IF NOT EXISTS idx_tenants_tenant_id ON public.tenants(tenant_id);
           CREATE INDEX IF NOT EXISTS idx_tenants_email ON public.tenants(email);
-          CREATE INDEX IF NOT EXISTS idx_tenant_schemas_tenant_id ON public.tenant_schemas(tenant_id);
+          CREATE INDEX IF NOT EXISTS idx_tenants_plan ON public.tenants(plan);
+          CREATE INDEX IF NOT EXISTS idx_tenants_is_active ON public.tenants(is_active);
         `);
 
         // Enable Row Level Security on tenants table
@@ -71,7 +61,11 @@ export class TenantService {
         await client.query(`
           DROP POLICY IF EXISTS tenant_isolation_policy ON public.tenants;
           CREATE POLICY tenant_isolation_policy ON public.tenants
-            USING (tenant_id = current_setting('app.current_tenant_id', true));
+            FOR ALL
+            USING (
+              tenant_id = current_setting('app.current_tenant_id', true)
+              OR current_setting('app.bypass_rls', true) = 'true'
+            );
         `);
       });
     } catch (error) {
@@ -83,14 +77,13 @@ export class TenantService {
   }
 
   /**
-   * Create a new tenant with isolated schema
+   * Create a new tenant (Pure RLS - no schema creation)
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
     userId: string = `user_${randomUUID()}`,
   ): Promise<Tenant> {
     const tenantId = `tenant_${randomUUID()}`;
-    const schemaName = `tenant_${tenantId.replace(/-/g, '_')}`;
 
     try {
       // Check if email already exists
@@ -104,11 +97,11 @@ export class TenantService {
       }
 
       return await this.databaseService.transaction(async (client) => {
-        // Create tenant record
+        // Create tenant record (no schema_name column)
         const tenantResult = await client.query<Tenant>(
           `
-          INSERT INTO public.tenants (id, tenant_id, email, role, plan, features, schema_name, is_active)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+          INSERT INTO public.tenants (id, tenant_id, email, role, plan, features, is_active)
+          VALUES ($1, $2, $3, $4, $5, $6, true)
           RETURNING *
         `,
           [
@@ -118,26 +111,10 @@ export class TenantService {
             createTenantDto.role,
             createTenantDto.plan,
             JSON.stringify(createTenantDto.features),
-            schemaName,
           ],
         );
 
         const tenant = tenantResult.rows[0];
-
-        // Create schema record
-        await client.query(
-          `
-          INSERT INTO public.tenant_schemas (tenant_id, schema_name, is_active)
-          VALUES ($1, $2, true)
-        `,
-          [tenantId, schemaName],
-        );
-
-        // Create the actual database schema
-        await this.createTenantSchema(client, schemaName);
-
-        // Initialize schema with base tables
-        await this.initializeTenantSchema(client, schemaName, tenantId);
 
         // Parse features back to object
         tenant.features =
@@ -154,62 +131,6 @@ export class TenantService {
       }
       throw new InternalServerErrorException('Failed to create tenant');
     }
-  }
-
-  /**
-   * Create a database schema for a tenant
-   */
-  private async createTenantSchema(
-    client: PoolClient,
-    schemaName: string,
-  ): Promise<void> {
-    await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
-    await client.query(`GRANT USAGE ON SCHEMA ${schemaName} TO CURRENT_USER`);
-    await client.query(`GRANT CREATE ON SCHEMA ${schemaName} TO CURRENT_USER`);
-  }
-
-  /**
-   * Initialize tenant schema with base tables and RLS
-   */
-  private async initializeTenantSchema(
-    client: PoolClient,
-    schemaName: string,
-    _tenantId: string,
-  ): Promise<void> {
-    // Example: Create a documents table with RLS
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS ${schemaName}.documents (
-        id VARCHAR(255) PRIMARY KEY,
-        tenant_id VARCHAR(255) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        content TEXT,
-        metadata JSONB DEFAULT '{}',
-        template_key VARCHAR(255),
-        template_version VARCHAR(50),
-        generation_metadata JSONB,
-        created_by VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id)
-      );
-    `);
-
-    // Enable RLS on tenant tables
-    await client.query(`
-      ALTER TABLE ${schemaName}.documents ENABLE ROW LEVEL SECURITY;
-    `);
-
-    // Create RLS policy - documents are isolated by tenant_id
-    await client.query(`
-      CREATE POLICY documents_tenant_isolation ON ${schemaName}.documents
-        USING (tenant_id = current_setting('app.current_tenant_id', true));
-    `);
-
-    // Create indexes
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_documents_tenant_id ON ${schemaName}.documents(tenant_id);
-      CREATE INDEX IF NOT EXISTS idx_documents_template_key ON ${schemaName}.documents(template_key);
-    `);
   }
 
   /**
@@ -348,47 +269,24 @@ export class TenantService {
   }
 
   /**
-   * Delete tenant and its schema
+   * Delete tenant (Pure RLS - data automatically deleted via CASCADE)
    */
   async deleteTenant(tenantId: string): Promise<void> {
     try {
-      const tenant = await this.findById(tenantId);
+      // Verify tenant exists
+      await this.findById(tenantId);
 
-      await this.databaseService.transaction(async (client) => {
-        // Drop the schema
-        await client.query(
-          `DROP SCHEMA IF EXISTS ${tenant.schema_name} CASCADE`,
-        );
-
-        // Delete tenant record
-        await client.query('DELETE FROM public.tenants WHERE tenant_id = $1', [
-          tenantId,
-        ]);
-      });
-    } catch (error) {
-      this.logger.error(`Failed to delete tenant: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete tenant');
-    }
-  }
-
-  /**
-   * Get tenant schema information
-   */
-  async getTenantSchema(tenantId: string): Promise<TenantSchema> {
-    try {
-      const result = await this.databaseService.query<TenantSchema>(
-        'SELECT * FROM public.tenant_schemas WHERE tenant_id = $1',
+      // Delete tenant record (CASCADE will delete related data via foreign keys)
+      await this.databaseService.query(
+        'DELETE FROM public.tenants WHERE tenant_id = $1',
         [tenantId],
       );
 
-      if (result.rows.length === 0) {
-        throw new NotFoundException(`Schema for tenant ${tenantId} not found`);
-      }
-
-      return result.rows[0];
+      this.logger.log(`Tenant ${tenantId} deleted successfully`);
     } catch (error) {
+      this.logger.error(`Failed to delete tenant: ${error.message}`);
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Failed to fetch tenant schema');
+      throw new InternalServerErrorException('Failed to delete tenant');
     }
   }
 
@@ -400,32 +298,19 @@ export class TenantService {
   }
 
   /**
-   * Get document count for a tenant
-   * Assumes documents are stored in a 'documents' table in the tenant's schema
+   * Get document count for a tenant (Pure RLS approach)
+   * Counts documents from public.documents table filtered by tenant_id via RLS
    */
   async getDocumentCount(tenantId: string): Promise<number> {
     try {
-      // Get tenant's schema name
-      const tenant = await this.findById(tenantId);
-      const schemaName = tenant.schema_name;
+      // Verify tenant exists
+      await this.findById(tenantId);
 
-      // Check if documents table exists in tenant schema
-      const tableExists = await this.databaseService.query(
-        `SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = $1 
-          AND table_name = 'documents'
-        )`,
-        [schemaName],
-      );
-
-      if (!tableExists.rows[0].exists) {
-        return 0;
-      }
-
-      // Count documents in tenant schema
+      // Count documents in public.documents table with tenant_id filter
+      // Note: RLS will automatically filter by tenant context if set
       const result = await this.databaseService.query(
-        `SELECT COUNT(*) as count FROM "${schemaName}".documents`,
+        `SELECT COUNT(*) as count FROM public.documents WHERE tenant_id = $1`,
+        [tenantId],
       );
 
       const count = parseInt(String(result.rows[0].count), 10);
