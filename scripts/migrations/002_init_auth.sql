@@ -124,7 +124,10 @@ COMMENT ON TABLE public.password_resets IS 'Password reset tokens';
 
 -- Enable RLS on all auth tables
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users FORCE ROW LEVEL SECURITY;
+
 ALTER TABLE public.user_tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_tenants FORCE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS users_isolation_policy ON public.users;
@@ -139,12 +142,23 @@ CREATE POLICY users_isolation_policy ON public.users
             WHERE tenant_id = current_setting('app.current_tenant_id', true)
         )
         OR current_setting('app.bypass_rls', true) = 'true'
+    )
+    WITH CHECK (
+        id IN (
+            SELECT user_id FROM public.user_tenants 
+            WHERE tenant_id = current_setting('app.current_tenant_id', true)
+        )
+        OR current_setting('app.bypass_rls', true) = 'true'
     );
 
 -- User-Tenants: Can see associations for current tenant
 CREATE POLICY user_tenants_isolation_policy ON public.user_tenants
     FOR ALL
     USING (
+        tenant_id = current_setting('app.current_tenant_id', true)
+        OR current_setting('app.bypass_rls', true) = 'true'
+    )
+    WITH CHECK (
         tenant_id = current_setting('app.current_tenant_id', true)
         OR current_setting('app.bypass_rls', true) = 'true'
     );
@@ -191,8 +205,6 @@ $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION public.is_system_admin IS 'Check if a user is a system administrator';
 
-GRANT EXECUTE ON FUNCTION public.is_system_admin TO CURRENT_USER;
-
 -- ============================================================================
 -- 9. TRIGGERS
 -- ============================================================================
@@ -211,11 +223,26 @@ CREATE TRIGGER update_user_tenants_updated_at
 -- 10. PERMISSIONS
 -- ============================================================================
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.users TO CURRENT_USER;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_tenants TO CURRENT_USER;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.refresh_tokens TO CURRENT_USER;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_verifications TO CURRENT_USER;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.password_resets TO CURRENT_USER;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.users TO app_user;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_tenants TO app_user;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.refresh_tokens TO app_user;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_verifications TO app_user;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.password_resets TO app_user;
+        GRANT EXECUTE ON FUNCTION public.is_system_admin TO app_user;
+        RAISE NOTICE '✅ Granted auth permissions to app_user role';
+    ELSE
+        RAISE WARNING '⚠️  Role app_user does not exist. Granting to CURRENT_USER instead.';
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.users TO ' || CURRENT_USER;
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_tenants TO ' || CURRENT_USER;
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.refresh_tokens TO ' || CURRENT_USER;
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_verifications TO ' || CURRENT_USER;
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.password_resets TO ' || CURRENT_USER;
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.is_system_admin TO ' || CURRENT_USER;
+    END IF;
+END $$;
 
 -- ============================================================================
 -- SUCCESS

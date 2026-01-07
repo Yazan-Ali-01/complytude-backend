@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. TENANT MANAGEMENT TABLE
 -- ============================================================================
 
--- Main tenants table (removed schema_name column)
+-- Main tenants table
 CREATE TABLE IF NOT EXISTS public.tenants (
     id VARCHAR(255) PRIMARY KEY,
     tenant_id VARCHAR(255) UNIQUE NOT NULL,
@@ -44,6 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_tenants_is_active ON public.tenants(is_active);
 
 -- Enable RLS on tenants table
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenants FORCE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS tenant_isolation_policy ON public.tenants;
@@ -52,6 +53,10 @@ DROP POLICY IF EXISTS tenant_isolation_policy ON public.tenants;
 CREATE POLICY tenant_isolation_policy ON public.tenants
     FOR ALL
     USING (
+        tenant_id = current_setting('app.current_tenant_id', true)
+        OR current_setting('app.bypass_rls', true) = 'true'
+    )
+    WITH CHECK (
         tenant_id = current_setting('app.current_tenant_id', true)
         OR current_setting('app.bypass_rls', true) = 'true'
     );
@@ -110,7 +115,17 @@ CREATE TRIGGER update_tenants_updated_at
 -- 6. PERMISSIONS
 -- ============================================================================
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenants TO CURRENT_USER;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenants TO app_user;
+        RAISE NOTICE '✅ Granted permissions to app_user role';
+    ELSE
+        RAISE WARNING '⚠️  Role app_user does not exist. Granting to CURRENT_USER instead.';
+        RAISE WARNING '    For production, create: CREATE ROLE app_user NOLOGIN;';
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenants TO ' || CURRENT_USER;
+    END IF;
+END $$;
 
 -- ============================================================================
 -- SUCCESS
