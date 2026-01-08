@@ -111,6 +111,7 @@ export class AuthoritiesService {
     updateAuthorityDto: UpdateAuthorityDto,
   ): Promise<Authority> {
     try {
+      await this.findById(id);
       const authority = await this.authorityRepository.update(id, {
         ...updateAuthorityDto,
         updated_at: new Date(),

@@ -78,7 +78,7 @@ export class TenantService {
             email: createTenantDto.email,
             role: createTenantDto.role,
             plan: createTenantDto.plan,
-            features: features,
+            features: JSON.stringify(features),
             schema_name: schemaName,
             is_active: true,
           },
@@ -206,10 +206,13 @@ export class TenantService {
     try {
       await this.findById(tenantId);
 
-      const updated = await this.tenantRepository.updateByTenantId(
-        tenantId,
-        updateTenantDto,
-      );
+      const updated = await this.tenantRepository.updateByTenantId(tenantId, {
+        ...updateTenantDto,
+        features:
+          updateTenantDto.features === undefined
+            ? JSON.stringify(updateTenantDto.features)
+            : undefined,
+      });
 
       if (!updated) {
         throw new NotFoundException(`Tenant ${tenantId} not found`);

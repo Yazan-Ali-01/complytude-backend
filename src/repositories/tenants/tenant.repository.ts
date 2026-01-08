@@ -12,6 +12,38 @@ import {
   TenantSchema,
 } from 'src/modules/tenant/entities/tenant.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
+
+/**
+ * Type for creating a new tenant row in the database.
+ * JSON/JSONB fields must be pre-stringified.
+ */
+export type CreateTenantRow = {
+  id: string;
+  tenant_id: string;
+  email: string;
+  role: 'admin' | 'user' | 'viewer';
+  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  features: string; // Stringified JSONB
+  schema_name: string;
+  is_active?: boolean;
+  created_at?: Date;
+  updated_at?: Date;
+};
+
+/**
+ * Type for updating an existing tenant row in the database.
+ * JSON/JSONB fields must be pre-stringified.
+ */
+export type UpdateTenantRow = {
+  email?: string;
+  role?: 'admin' | 'user' | 'viewer';
+  plan?: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  features?: string; // Stringified JSONB
+  schema_name?: string;
+  is_active?: boolean;
+  updated_at?: Date;
+};
+
 type TenantRow = {
   id: string;
   tenant_id: string;
@@ -37,7 +69,11 @@ type TenantSchemaRow = {
  * Handles database operations for tenants, including schema creation and isolation.
  */
 @Injectable()
-export class TenantRepository extends BaseRepository<Tenant> {
+export class TenantRepository extends BaseRepository<
+  Tenant,
+  CreateTenantRow,
+  UpdateTenantRow
+> {
   private readonly tenantLogger = new Logger(TenantRepository.name);
 
   constructor(databaseService: DatabaseService) {
@@ -235,13 +271,13 @@ export class TenantRepository extends BaseRepository<Tenant> {
    * Update a tenant by its unique tenant_id.
    *
    * @param tenantId - The tenant's unique identifier (not primary key ID)
-   * @param data - Partial tenant data to update
+   * @param data - Partial tenant data to update (JSON fields must be pre-stringified)
    * @param options - Query options
    * @returns Updated Tenant entity or null if not found
    */
   async updateByTenantId(
     tenantId: string,
-    data: Partial<Tenant>,
+    data: UpdateTenantRow,
     options?: QueryOptions,
   ): Promise<Tenant | null> {
     this.tenantLogger.debug(

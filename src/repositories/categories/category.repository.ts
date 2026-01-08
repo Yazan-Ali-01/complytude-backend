@@ -9,6 +9,32 @@ import {
 import { Category } from 'src/modules/templates/entities/category.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
+/**
+ * Type for creating a new category row in the database.
+ */
+export type CreateCategoryRow = {
+  id?: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  parent_id?: string | null;
+  is_active?: boolean;
+  created_at?: Date;
+  updated_at?: Date;
+};
+
+/**
+ * Type for updating an existing category row in the database.
+ */
+export type UpdateCategoryRow = {
+  code?: string;
+  name?: string;
+  description?: string | null;
+  parent_id?: string | null;
+  is_active?: boolean;
+  updated_at?: Date;
+};
+
 type CategoryRow = {
   id: string;
   code: string;
@@ -25,7 +51,11 @@ type CategoryRow = {
  * Handles database operations for template categories.
  */
 @Injectable()
-export class CategoryRepository extends BaseRepository<Category> {
+export class CategoryRepository extends BaseRepository<
+  Category,
+  CreateCategoryRow,
+  UpdateCategoryRow
+> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.categories');
   }

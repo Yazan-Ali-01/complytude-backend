@@ -9,6 +9,47 @@ import {
 import { Template } from 'src/modules/templates/entities/template.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
+/**
+ * Type for creating a new template row in the database.
+ * JSON/JSONB fields must be pre-stringified.
+ */
+export type CreateTemplateRow = {
+  id?: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  category_id?: string | null;
+  authority_id?: string | null;
+  languages?: string[];
+  current_version?: string;
+  status?: 'active' | 'inactive' | 'draft' | 'deprecated';
+  file_url?: string | null;
+  thumbnail_url?: string | null;
+  metadata: string; // Stringified JSONB object
+  created_by?: string | null;
+  created_at?: Date;
+  updated_at?: Date;
+};
+
+/**
+ * Type for updating an existing template row in the database.
+ * JSON/JSONB fields must be pre-stringified.
+ */
+export type UpdateTemplateRow = {
+  key?: string;
+  name?: string;
+  description?: string | null;
+  category_id?: string | null;
+  authority_id?: string | null;
+  languages?: string[];
+  current_version?: string;
+  status?: 'active' | 'inactive' | 'draft' | 'deprecated';
+  file_url?: string | null;
+  thumbnail_url?: string | null;
+  metadata?: string; // Stringified JSONB object
+  updated_at?: Date;
+};
+
 type TemplateRow = {
   id: string;
   key: string;
@@ -32,7 +73,11 @@ type TemplateRow = {
  * Handles database operations for compliance templates.
  */
 @Injectable()
-export class TemplateRepository extends BaseRepository<Template> {
+export class TemplateRepository extends BaseRepository<
+  Template,
+  CreateTemplateRow,
+  UpdateTemplateRow
+> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.templates');
   }

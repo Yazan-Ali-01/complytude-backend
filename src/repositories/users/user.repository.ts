@@ -13,6 +13,34 @@ import {
 import { User } from 'src/modules/users/entities/user.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
+/**
+ * Type for creating a new user row in the database.
+ */
+export type CreateUserRow = {
+  id: string;
+  email: string;
+  password_hash: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  is_verified?: boolean;
+  is_system_admin?: boolean;
+  created_at?: Date;
+  updated_at?: Date;
+};
+
+/**
+ * Type for updating an existing user row in the database.
+ */
+export type UpdateUserRow = {
+  email?: string;
+  password_hash?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  is_verified?: boolean;
+  is_system_admin?: boolean;
+  updated_at?: Date;
+};
+
 type UserRow = {
   id: string;
   email: string;
@@ -38,7 +66,11 @@ type PasswordResetRow = {
  * Handles user authentication, profile management, and password resets.
  */
 @Injectable()
-export class UserRepository extends BaseRepository<User> {
+export class UserRepository extends BaseRepository<
+  User,
+  CreateUserRow,
+  UpdateUserRow
+> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.users');
   }

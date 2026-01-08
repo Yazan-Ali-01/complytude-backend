@@ -12,9 +12,27 @@ import {
  * Abstract base repository providing common CRUD operations and query execution.
  * Handles database connections, transaction contexts, and row mapping.
  *
- * @template TEntity - The entity type this repository manages
- * @template TCreate - The input type for creating entities (defaults to Partial<TEntity>)
- * @template TUpdate - The input type for updating entities (defaults to Partial<TEntity>)
+ * @template TEntity - The entity type this repository manages (returned from queries)
+ * @template TCreate - The input type for creating entities. Should use CreateXRow types
+ *                     with JSON/JSONB fields as strings (already stringified by services)
+ * @template TUpdate - The input type for updating entities. Should use UpdateXRow types
+ *                     with optional JSON/JSONB fields as strings (already stringified by services)
+ *
+ * @example
+ * ```ts
+ * // Entity type (returned from queries)
+ * type Template = { id: string; metadata: Record<string, any> };
+ *
+ * // Create type (input to create method)
+ * type CreateTemplateRow = { name: string; metadata: string }; // JSON already stringified
+ *
+ * // Update type (input to update method)
+ * type UpdateTemplateRow = { name?: string; metadata?: string }; // JSON already stringified
+ *
+ * class TemplateRepository extends BaseRepository<Template, CreateTemplateRow, UpdateTemplateRow> {
+ *   // Repository implementation
+ * }
+ * ```
  */
 @Injectable()
 export abstract class BaseRepository<
@@ -33,6 +51,9 @@ export abstract class BaseRepository<
   /**
    * Convert a raw DB row into the concrete entity type.
    * Implemented by child repositories to keep mapping logic close to the model.
+   *
+   * This method should parse JSON/JSONB string fields back into objects/arrays
+   * for the entity type.
    */
   protected abstract mapRow(row: Record<string, unknown>): TEntity;
 
@@ -69,7 +90,7 @@ export abstract class BaseRepository<
         options?.bypassRLS ?? true
       }, sql=${query}, params=${JSON.stringify(params)}`,
     );
-    const { client, tenant, bypassRLS = true } = options ?? {};
+    const { client, tenant, bypassRLS = false } = options ?? {};
     if (client) {
       return this.runWithClient<T>(query, params, {
         client,
@@ -107,7 +128,7 @@ export abstract class BaseRepository<
     params: unknown[],
     options: ClientQueryOptions,
   ): Promise<QueryResult<T>> {
-    const { client, tenant, bypassRLS = true } = options;
+    const { client, tenant, bypassRLS = false } = options;
     const hasTenant = !!tenant;
     this.logger.debug(
       `runWithClient: table=${this.tableName}, tenant=${
@@ -202,9 +223,15 @@ export abstract class BaseRepository<
   /**
    * Insert a new record and return the mapped entity.
    *
+   * IMPORTANT: JSON/JSONB fields in data must be pre-stringified by the service layer.
+   *
    * Example:
    * ```ts
-   * const created = await this.create({ email, first_name });
+   * // Service layer stringifies JSON fields before calling repository
+   * const created = await this.create({
+   *   name: 'Template',
+   *   metadata: JSON.stringify({ key: 'value' }) // Already stringified
+   * });
    * ```
    */
   async create(data: TCreate, options?: QueryOptions): Promise<TEntity> {
@@ -237,9 +264,14 @@ export abstract class BaseRepository<
   /**
    * Update an existing record by ID; throws NotFoundException when missing.
    *
+   * IMPORTANT: JSON/JSONB fields in data must be pre-stringified by the service layer.
+   *
    * Example:
    * ```ts
-   * const updated = await this.update(id, { first_name: 'Jane' });
+   * // Service layer stringifies JSON fields before calling repository
+   * const updated = await this.update(id, {
+   *   metadata: JSON.stringify({ key: 'value' }) // Already stringified
+   * });
    * ```
    */
   async update(

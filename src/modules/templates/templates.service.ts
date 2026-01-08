@@ -153,7 +153,7 @@ export class TemplatesService {
               current_version: version,
               status: createTemplateDto.status || 'active',
               file_url: null,
-              metadata: createTemplateDto.metadata ?? {},
+              metadata: JSON.stringify(createTemplateDto.metadata ?? {}), // Stringify JSONB field
               created_by: createdBy,
             },
             { client },
@@ -440,7 +440,10 @@ export class TemplatesService {
             existing.id,
             {
               ...updateTemplateDto,
-              metadata: updateTemplateDto.metadata ?? {},
+              metadata:
+                updateTemplateDto.metadata === undefined
+                  ? JSON.stringify(updateTemplateDto.metadata)
+                  : undefined,
               updated_at: new Date(),
             },
             { client },

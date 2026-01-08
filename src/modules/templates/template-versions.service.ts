@@ -60,10 +60,10 @@ export class TemplateVersionsService {
         {
           template_id: templateId,
           version,
-          fields: fields ?? [],
+          fields: JSON.stringify(fields ?? []), // Stringify JSONB field
           file_url: fileUrl,
           changelog: changelog ?? null,
-          metadata: metadata ?? {},
+          metadata: JSON.stringify(metadata ?? {}), // Stringify JSONB field
           is_active: true,
           created_by: createdBy,
         },

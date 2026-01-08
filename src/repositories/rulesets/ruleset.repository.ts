@@ -12,6 +12,41 @@ import {
 } from 'src/modules/templates/entities/ruleset.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
+/**
+ * Type for creating a new ruleset row in the database.
+ * JSON/JSONB fields must be pre-stringified.
+ */
+export type CreateRulesetRow = {
+  id?: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  authority_id?: string | null;
+  clauses: string; // Stringified JSONB array
+  metadata: string; // Stringified JSONB object
+  version?: string;
+  status?: 'active' | 'inactive' | 'deprecated';
+  created_by?: string | null;
+  created_at?: Date;
+  updated_at?: Date;
+};
+
+/**
+ * Type for updating an existing ruleset row in the database.
+ * JSON/JSONB fields must be pre-stringified.
+ */
+export type UpdateRulesetRow = {
+  key?: string;
+  name?: string;
+  description?: string | null;
+  authority_id?: string | null;
+  clauses?: string; // Stringified JSONB array
+  metadata?: string; // Stringified JSONB object
+  version?: string;
+  status?: 'active' | 'inactive' | 'deprecated';
+  updated_at?: Date;
+};
+
 type RulesetRow = {
   id: string;
   key: string;
@@ -32,7 +67,11 @@ type RulesetRow = {
  * Handles database operations for compliance rulesets.
  */
 @Injectable()
-export class RulesetRepository extends BaseRepository<Ruleset> {
+export class RulesetRepository extends BaseRepository<
+  Ruleset,
+  CreateRulesetRow,
+  UpdateRulesetRow
+> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.rulesets');
   }

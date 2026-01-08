@@ -12,6 +12,36 @@ import {
 } from 'src/modules/templates/entities/template-version.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
+/**
+ * Type for creating a new template version row in the database.
+ * JSON/JSONB fields must be pre-stringified.
+ */
+export type CreateTemplateVersionRow = {
+  id?: string;
+  template_id: string;
+  version: string;
+  fields: string; // Stringified JSONB array
+  file_url: string;
+  changelog?: string | null;
+  metadata: string; // Stringified JSONB object
+  is_active?: boolean;
+  created_by?: string | null;
+  created_at?: Date;
+};
+
+/**
+ * Type for updating an existing template version row in the database.
+ * JSON/JSONB fields must be pre-stringified.
+ */
+export type UpdateTemplateVersionRow = {
+  version?: string;
+  fields?: string; // Stringified JSONB array
+  file_url?: string;
+  changelog?: string | null;
+  metadata?: string; // Stringified JSONB object
+  is_active?: boolean;
+};
+
 type TemplateVersionRow = {
   id: string;
   template_id: string;
@@ -30,7 +60,11 @@ type TemplateVersionRow = {
  * Handles database operations for versioning of compliance templates.
  */
 @Injectable()
-export class TemplateVersionRepository extends BaseRepository<TemplateVersion> {
+export class TemplateVersionRepository extends BaseRepository<
+  TemplateVersion,
+  CreateTemplateVersionRow,
+  UpdateTemplateVersionRow
+> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.template_versions');
   }

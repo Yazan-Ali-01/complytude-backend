@@ -9,6 +9,32 @@ import {
 import { Authority } from 'src/modules/templates/entities/authority.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
+/**
+ * Type for creating a new authority row in the database.
+ */
+export type CreateAuthorityRow = {
+  id?: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  country?: string;
+  is_active?: boolean;
+  created_at?: Date;
+  updated_at?: Date;
+};
+
+/**
+ * Type for updating an existing authority row in the database.
+ */
+export type UpdateAuthorityRow = {
+  code?: string;
+  name?: string;
+  description?: string | null;
+  country?: string;
+  is_active?: boolean;
+  updated_at?: Date;
+};
+
 type AuthorityRow = {
   id: string;
   code: string;
@@ -25,7 +51,11 @@ type AuthorityRow = {
  * Handles database operations for regulatory authorities.
  */
 @Injectable()
-export class AuthorityRepository extends BaseRepository<Authority> {
+export class AuthorityRepository extends BaseRepository<
+  Authority,
+  CreateAuthorityRow,
+  UpdateAuthorityRow
+> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.authorities');
   }
