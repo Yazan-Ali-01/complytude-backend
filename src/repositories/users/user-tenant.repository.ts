@@ -141,14 +141,13 @@ export class UserTenantRepository extends BaseRepository<
    * @param key - Composite key containing userId and tenantId
    * @param data - Fields to update (role, is_active)
    * @param options - Query options (tenant context, client, etc.)
-   * @returns Updated user-tenant relationship
-   * @throws NotFoundException if the relationship doesn't exist
+   * @returns Updated user-tenant relationship or null if not found
    */
   async updateByCompositeKey(
     key: UserTenantCompositeKey,
     data: UserTenantUpdateInput,
     options?: QueryOptions,
-  ): Promise<UserTenant> {
+  ): Promise<UserTenant | null> {
     const entries = Object.entries(data).filter(
       ([, value]) => value !== undefined,
     );
@@ -175,9 +174,7 @@ export class UserTenantRepository extends BaseRepository<
     );
 
     if (result.rows.length === 0) {
-      throw new Error(
-        `User-tenant relationship not found for user_id=${key.userId}, tenant_id=${key.tenantId}`,
-      );
+      return null;
     }
 
     return this.mapRow(result.rows[0]);
@@ -202,23 +199,19 @@ export class UserTenantRepository extends BaseRepository<
    *
    * @param key - Composite key containing userId and tenantId
    * @param options - Query options (tenant context, client, etc.)
-   * @throws NotFoundException if the relationship doesn't exist
+   * @returns Number of relationships deleted (0 if not found)
    */
   async deleteByCompositeKey(
     key: UserTenantCompositeKey,
     options?: QueryOptions,
-  ): Promise<void> {
+  ): Promise<number> {
     const result = await this.executeQuery(
       `DELETE FROM ${this.tableName} WHERE user_id = $1 AND tenant_id = $2`,
       [key.userId, key.tenantId],
       options,
     );
 
-    if (result.rowCount === 0) {
-      throw new Error(
-        `User-tenant relationship not found for user_id=${key.userId}, tenant_id=${key.tenantId}`,
-      );
-    }
+    return result.rowCount ?? 0;
   }
 
   /**

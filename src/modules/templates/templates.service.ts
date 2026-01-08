@@ -488,6 +488,10 @@ export class TemplatesService {
         'inactive',
       );
 
+      if (!template) {
+        throw new NotFoundException(`Template with key "${key}" not found`);
+      }
+
       this.logger.log(`Deactivated template: ${key}`);
       return template;
     } catch (error) {
@@ -501,7 +505,11 @@ export class TemplatesService {
 
   async delete(key: string): Promise<void> {
     try {
-      await this.templateRepository.deleteByKey(key);
+      const deleted = await this.templateRepository.deleteByKey(key);
+
+      if (deleted === 0) {
+        throw new NotFoundException(`Template with key "${key}" not found`);
+      }
 
       this.logger.log(`Deleted template: ${key}`);
     } catch (error) {

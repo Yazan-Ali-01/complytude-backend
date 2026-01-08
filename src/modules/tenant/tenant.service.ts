@@ -206,11 +206,20 @@ export class TenantService {
     try {
       await this.findById(tenantId);
 
-      return await this.tenantRepository.updateByTenantId(
+      const updated = await this.tenantRepository.updateByTenantId(
         tenantId,
         updateTenantDto,
       );
+
+      if (!updated) {
+        throw new NotFoundException(`Tenant ${tenantId} not found`);
+      }
+
+      return updated;
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       this.logger.error(`Failed to update tenant: ${error.message}`);
       throw new InternalServerErrorException('Failed to update tenant');
     }
@@ -228,9 +237,18 @@ export class TenantService {
           client,
         });
 
-        await this.tenantRepository.deleteByTenantId(tenantId, { client });
+        const deleted = await this.tenantRepository.deleteByTenantId(tenantId, {
+          client,
+        });
+
+        if (deleted === 0) {
+          throw new NotFoundException(`Tenant ${tenantId} not found`);
+        }
       });
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       this.logger.error(`Failed to delete tenant: ${error.message}`);
       throw new InternalServerErrorException('Failed to delete tenant');
     }

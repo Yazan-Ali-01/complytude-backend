@@ -87,19 +87,22 @@ export class RefreshTokenRepository extends BaseRepository<
    *
    * @param id - The token ID
    * @param options - Query options
-   * @returns The revoked RefreshToken entity
-   * @throws Error if token not found
+   * @returns The revoked RefreshToken entity or null if not found
    */
-  async revokeById(id: string, options?: QueryOptions): Promise<RefreshToken> {
-    const result = await this.executeQuery(
+  async revokeById(
+    id: string,
+    options?: QueryOptions,
+  ): Promise<RefreshToken | null> {
+    const result = await this.executeQuery<RefreshTokenRow>(
       `UPDATE ${this.tableName} 
        SET revoked_at = NOW() 
-       WHERE id = $1 AND revoked_at IS NULL`,
+       WHERE id = $1 AND revoked_at IS NULL 
+       RETURNING ${this.getSelectColumns()}`,
       [id],
       options,
     );
     if (result.rowCount === 0) {
-      throw new Error(`No refresh tokens found for id ${id}`);
+      return null;
     }
     return this.mapRow(result.rows[0]);
   }
@@ -110,13 +113,12 @@ export class RefreshTokenRepository extends BaseRepository<
    *
    * @param userId - The user ID
    * @param options - Query options
-   * @returns The last revoked token (implementation detail, mainly used to confirm action)
-   * @throws Error if no tokens found
+   * @returns Number of tokens revoked (0 if none found)
    */
   async revokeAllByUserId(
     userId: string,
     options?: QueryOptions,
-  ): Promise<RefreshToken> {
+  ): Promise<number> {
     const result = await this.executeQuery(
       `UPDATE ${this.tableName} 
        SET revoked_at = NOW() 
@@ -124,9 +126,6 @@ export class RefreshTokenRepository extends BaseRepository<
       [userId],
       options,
     );
-    if (result.rowCount === 0) {
-      throw new Error(`No refresh tokens found for user ${userId}`);
-    }
-    return this.mapRow(result.rows[0]);
+    return result.rowCount ?? 0;
   }
 }

@@ -173,14 +173,13 @@ export class TemplateRepository extends BaseRepository<Template> {
    * @param key - The unique key of the template
    * @param status - New status to apply
    * @param options - Query options
-   * @returns Updated Template entity
-   * @throws Error if template with key is not found
+   * @returns Updated Template entity or null if not found
    */
   async updateStatusByKey(
     key: string,
     status: Template['status'],
     options?: QueryOptions,
-  ): Promise<Template> {
+  ): Promise<Template | null> {
     const result = await this.executeQuery<TemplateRow>(
       `UPDATE ${this.tableName} SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2 RETURNING *`,
       [status, key],
@@ -188,7 +187,7 @@ export class TemplateRepository extends BaseRepository<Template> {
     );
 
     if (!result.rows.length) {
-      throw new Error(`Template with key ${key} not found`);
+      return null;
     }
 
     return this.mapRow(result.rows[0]);
@@ -199,17 +198,15 @@ export class TemplateRepository extends BaseRepository<Template> {
    *
    * @param key - The unique key of the template
    * @param options - Query options
-   * @throws Error if template with key is not found
+   * @returns Number of rows deleted (0 if not found)
    */
-  async deleteByKey(key: string, options?: QueryOptions): Promise<void> {
+  async deleteByKey(key: string, options?: QueryOptions): Promise<number> {
     const result = await this.executeQuery(
       `DELETE FROM ${this.tableName} WHERE key = $1`,
       [key],
       options,
     );
 
-    if (!result.rowCount) {
-      throw new Error(`Template with key ${key} not found`);
-    }
+    return result.rowCount ?? 0;
   }
 }

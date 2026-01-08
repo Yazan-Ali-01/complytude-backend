@@ -237,14 +237,13 @@ export class TenantRepository extends BaseRepository<Tenant> {
    * @param tenantId - The tenant's unique identifier (not primary key ID)
    * @param data - Partial tenant data to update
    * @param options - Query options
-   * @returns Updated Tenant entity
-   * @throws Error if tenant is not found
+   * @returns Updated Tenant entity or null if not found
    */
   async updateByTenantId(
     tenantId: string,
     data: Partial<Tenant>,
     options?: QueryOptions,
-  ): Promise<Tenant> {
+  ): Promise<Tenant | null> {
     this.tenantLogger.debug(
       `Updating tenant: tenant_id=${tenantId}, fields=${Object.keys(data).join(', ')}`,
     );
@@ -255,7 +254,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       select: ['id', 'tenant_id'],
     });
     if (!tenant) {
-      throw new Error(`Tenant ${tenantId} not found`);
+      return null;
     }
     return this.update(tenant.id, data, options);
   }
@@ -265,12 +264,12 @@ export class TenantRepository extends BaseRepository<Tenant> {
    *
    * @param tenantId - The tenant's unique identifier
    * @param options - Query options
-   * @throws Error if tenant is not found
+   * @returns Number of rows deleted (0 if not found)
    */
   async deleteByTenantId(
     tenantId: string,
     options?: QueryOptions,
-  ): Promise<void> {
+  ): Promise<number> {
     this.tenantLogger.debug(`Deleting tenant: tenant_id=${tenantId}`);
     const tenant = await this.findOne({
       filters: {
@@ -279,12 +278,9 @@ export class TenantRepository extends BaseRepository<Tenant> {
       select: ['id', 'tenant_id'],
     });
     if (!tenant) {
-      throw new Error(`Tenant ${tenantId} not found`);
+      return 0;
     }
-    const deleted = await this.delete(tenant.id, options);
-    if (deleted === 0) {
-      throw new Error(`Tenant ${tenantId} not found`);
-    }
+    return await this.delete(tenant.id, options);
   }
 
   /**

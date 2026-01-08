@@ -201,18 +201,16 @@ export class RulesetRepository extends BaseRepository<Ruleset> {
    *
    * @param key - The unique key of the ruleset
    * @param options - Query options
-   * @throws Error if ruleset with key is not found
+   * @returns Number of rows deleted (0 if not found)
    */
-  async deleteByKey(key: string, options?: QueryOptions): Promise<void> {
+  async deleteByKey(key: string, options?: QueryOptions): Promise<number> {
     const result = await this.executeQuery(
       `DELETE FROM ${this.tableName} WHERE key = $1`,
       [key],
       options,
     );
 
-    if (!result.rowCount) {
-      throw new Error(`Ruleset with key ${key} not found`);
-    }
+    return result.rowCount ?? 0;
   }
 
   /**

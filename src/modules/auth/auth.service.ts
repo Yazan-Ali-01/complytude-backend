@@ -357,7 +357,10 @@ export class AuthService {
     }
 
     // Revoke old refresh token
-    await this.refreshTokenRepository.revokeById(validToken.id);
+    const revoked = await this.refreshTokenRepository.revokeById(validToken.id);
+    if (!revoked) {
+      throw new UnauthorizedException('Failed to revoke refresh token');
+    }
 
     // Get user's current tenant info and system admin status
     const [user, activeTenants] = await Promise.all([
@@ -396,9 +399,11 @@ export class AuthService {
     for (const token of activeTokens) {
       const isValid = await bcrypt.compare(refreshToken, token.tokenHash);
       if (isValid) {
-        await this.refreshTokenRepository.revokeById(token.id);
-        this.logger.log(`User ${userId} logged out`);
-        return { message: 'Logged out successfully' };
+        const revoked = await this.refreshTokenRepository.revokeById(token.id);
+        if (revoked) {
+          this.logger.log(`User ${userId} logged out`);
+          return { message: 'Logged out successfully' };
+        }
       }
     }
 

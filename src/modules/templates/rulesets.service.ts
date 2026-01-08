@@ -204,7 +204,11 @@ export class RulesetsService {
 
   async delete(key: string): Promise<void> {
     try {
-      await this.rulesetRepository.deleteByKey(key);
+      const deleted = await this.rulesetRepository.deleteByKey(key);
+
+      if (deleted === 0) {
+        throw new NotFoundException(`Ruleset with key "${key}" not found`);
+      }
 
       this.logger.log(`Deleted ruleset: ${key}`);
     } catch (error) {
