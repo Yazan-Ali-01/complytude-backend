@@ -14,13 +14,17 @@ import {
   GetObjectCommandOutput,
   DeleteObjectCommand,
   ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   HeadBucketCommand,
   CreateBucketCommand,
   HeadObjectCommand,
-  paginateListObjectsV2,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
+const PAGINATION_DEFAULTS = {
+  DEFAULT_LIMIT: 50,
+  MAX_LIMIT: 1000,
+} as const;
 
 export interface FileMetadata {
   userId: string;
@@ -43,6 +47,12 @@ export interface FileListItem {
   size: number;
   lastModified?: Date;
   url?: string;
+}
+
+export interface PaginatedFileList {
+  files: FileListItem[];
+  nextToken?: string;
+  hasMore: boolean;
 }
 
 export interface FileWithMetadata {
@@ -423,9 +433,21 @@ export class StorageService {
   }
 
   /**
-   * List files in tenant's bucket
+   * List files in tenant's bucket with pagination support
+   * @param tenantId - Tenant identifier
+   * @param prefix - Optional prefix to filter files
+   * @param limit - Maximum number of files to return (default: 50, max: 1000)
+   * @param continuationToken - Token from previous response for pagination
+   * @param includeUrls - Whether to generate signed URLs (default: false for performance)
+   * @returns Paginated list of files with optional signed URLs
    */
-  async listFiles(tenantId: string, prefix?: string): Promise<FileListItem[]> {
+  async listFiles(
+    tenantId: string,
+    prefix?: string,
+    limit: number = PAGINATION_DEFAULTS.DEFAULT_LIMIT,
+    continuationToken?: string,
+    includeUrls: boolean = false,
+  ): Promise<PaginatedFileList> {
     const bucket = this.tenantFilesBucket;
     const tenantPrefix = this.getTenantPrefix(tenantId);
     const sanitizedPrefix = prefix
@@ -436,33 +458,22 @@ export class StorageService {
       : tenantPrefix;
 
     try {
-      const allFiles: FileListItem[] = [];
-      const paginatorConfig = {
-        client: this.s3Client,
-        pageSize: 1000,
-      };
-      const commandParams = {
-        Bucket: bucket,
-        Prefix: fullPrefix,
-      };
+      const response = await this.s3Client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: fullPrefix,
+          MaxKeys: Math.min(limit, PAGINATION_DEFAULTS.MAX_LIMIT),
+          ContinuationToken: continuationToken,
+        }),
+      );
 
-      for await (const page of paginateListObjectsV2(
-        paginatorConfig,
-        commandParams,
-      )) {
-        if (page.Contents && page.Contents.length > 0) {
-          const files = page.Contents.filter((item) => item.Key).map(
-            (item) => ({
-              key: item.Key!,
-              size: item.Size || 0,
-              lastModified: item.LastModified,
-            }),
-          );
-          allFiles.push(...files);
-        }
-      }
+      const files = includeUrls
+        ? await this.enrichFilesWithSignedUrls(response, (key) =>
+            this.generateSignedUrl(tenantId, key),
+          )
+        : this.mapFilesWithoutUrls(response);
 
-      return allFiles;
+      return this.buildPaginatedResponse(response, files);
     } catch (error) {
       // Handle bucket doesn't exist cases
       if (
@@ -475,12 +486,75 @@ export class StorageService {
         this.logger.log(
           `Bucket ${bucket} does not exist yet, returning empty list`,
         );
-        return [];
+        return this.emptyPaginatedResponse();
       }
 
       this.logger.error(`Failed to list files: ${error.message}`);
       throw new InternalServerErrorException('Failed to list files');
     }
+  }
+
+  /**
+   * Enrich S3 objects with signed URLs
+   */
+  private async enrichFilesWithSignedUrls(
+    response: ListObjectsV2CommandOutput,
+    urlGenerator: (key: string) => Promise<string>,
+  ): Promise<FileListItem[]> {
+    if (!response.Contents?.length) {
+      return [];
+    }
+
+    return Promise.all(
+      response.Contents.filter((item) => item.Key).map(async (item) => ({
+        key: item.Key!,
+        size: item.Size || 0,
+        lastModified: item.LastModified,
+        url: await urlGenerator(item.Key!),
+      })),
+    );
+  }
+
+  /**
+   * Map S3 objects to file list without generating URLs (fast)
+   */
+  private mapFilesWithoutUrls(
+    response: ListObjectsV2CommandOutput,
+  ): FileListItem[] {
+    if (!response.Contents?.length) {
+      return [];
+    }
+
+    return response.Contents.filter((item) => item.Key).map((item) => ({
+      key: item.Key!,
+      size: item.Size || 0,
+      lastModified: item.LastModified,
+      url: undefined,
+    }));
+  }
+
+  /**
+   * Build paginated response object
+   */
+  private buildPaginatedResponse(
+    response: ListObjectsV2CommandOutput,
+    files: FileListItem[],
+  ): PaginatedFileList {
+    return {
+      files,
+      nextToken: response.NextContinuationToken,
+      hasMore: response.IsTruncated || false,
+    };
+  }
+
+  /**
+   * Return empty paginated response
+   */
+  private emptyPaginatedResponse(): PaginatedFileList {
+    return {
+      files: [],
+      hasMore: false,
+    };
   }
 
   async initializeTenantFilesBucket(): Promise<void> {
@@ -746,37 +820,36 @@ export class StorageService {
   }
 
   /**
-   * List all template files
+   * List template files with pagination support
+   * @param prefix - Optional prefix to filter template files
+   * @param limit - Maximum number of files to return (default: 50, max: 1000)
+   * @param continuationToken - Token from previous response for pagination
+   * @param includeUrls - Whether to generate signed URLs (default: false for performance)
+   * @returns Paginated list of template files with optional signed URLs
    */
-  async listTemplateFiles(prefix?: string): Promise<FileListItem[]> {
+  async listTemplateFiles(
+    prefix?: string,
+    limit: number = PAGINATION_DEFAULTS.DEFAULT_LIMIT,
+    continuationToken?: string,
+    includeUrls: boolean = false,
+  ): Promise<PaginatedFileList> {
     try {
-      const allFiles: FileListItem[] = [];
-      const paginatorConfig = {
-        client: this.s3Client,
-        pageSize: 1000,
-      };
-      const commandParams = {
-        Bucket: this.templatesBucket,
-        Prefix: prefix,
-      };
+      const response = await this.s3Client.send(
+        new ListObjectsV2Command({
+          Bucket: this.templatesBucket,
+          Prefix: prefix,
+          MaxKeys: Math.min(limit, PAGINATION_DEFAULTS.MAX_LIMIT),
+          ContinuationToken: continuationToken,
+        }),
+      );
 
-      for await (const page of paginateListObjectsV2(
-        paginatorConfig,
-        commandParams,
-      )) {
-        if (page.Contents && page.Contents.length > 0) {
-          const files = page.Contents.filter((item) => item.Key).map(
-            (item) => ({
-              key: item.Key!,
-              size: item.Size || 0,
-              lastModified: item.LastModified,
-            }),
-          );
-          allFiles.push(...files);
-        }
-      }
+      const files = includeUrls
+        ? await this.enrichFilesWithSignedUrls(response, (key) =>
+            this.generateTemplateSignedUrl(key),
+          )
+        : this.mapFilesWithoutUrls(response);
 
-      return allFiles;
+      return this.buildPaginatedResponse(response, files);
     } catch (error) {
       // Handle bucket doesn't exist cases
       if (
@@ -787,7 +860,7 @@ export class StorageService {
         this.logger.log(
           `Templates bucket ${this.templatesBucket} does not exist yet, returning empty list`,
         );
-        return [];
+        return this.emptyPaginatedResponse();
       }
 
       this.logger.error(`Failed to list template files: ${error.message}`);
