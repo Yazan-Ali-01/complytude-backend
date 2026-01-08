@@ -132,7 +132,7 @@ export class AuthoritiesService {
       await this.findById(id);
 
       const deleted = await this.authorityRepository.delete(id);
-      if (!deleted) {
+      if (deleted === 0) {
         throw new NotFoundException(`Authority with ID "${id}" not found`);
       }
 

@@ -282,7 +282,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       throw new Error(`Tenant ${tenantId} not found`);
     }
     const deleted = await this.delete(tenant.id, options);
-    if (!deleted) {
+    if (deleted === 0) {
       throw new Error(`Tenant ${tenantId} not found`);
     }
   }
