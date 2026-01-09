@@ -438,15 +438,13 @@ export class StorageService {
    * @param prefix - Optional prefix to filter files
    * @param limit - Maximum number of files to return (default: 50, max: 1000)
    * @param continuationToken - Token from previous response for pagination
-   * @param includeUrls - Whether to generate signed URLs (default: false for performance)
-   * @returns Paginated list of files with optional signed URLs
+   * @returns Paginated list of files. Use /signed-url/:fileKey for individual file access URLs
    */
   async listFiles(
     tenantId: string,
     prefix?: string,
     limit: number = PAGINATION_DEFAULTS.DEFAULT_LIMIT,
     continuationToken?: string,
-    includeUrls: boolean = false,
   ): Promise<PaginatedFileList> {
     const bucket = this.tenantFilesBucket;
     const tenantPrefix = this.getTenantPrefix(tenantId);
@@ -467,11 +465,7 @@ export class StorageService {
         }),
       );
 
-      const files = includeUrls
-        ? await this.enrichFilesWithSignedUrls(response, (key) =>
-            this.generateSignedUrl(tenantId, key),
-          )
-        : this.mapFilesWithoutUrls(response);
+      const files = this.mapFilesWithoutUrls(response);
 
       return this.buildPaginatedResponse(response, files);
     } catch (error) {
@@ -492,27 +486,6 @@ export class StorageService {
       this.logger.error(`Failed to list files: ${error.message}`);
       throw new InternalServerErrorException('Failed to list files');
     }
-  }
-
-  /**
-   * Enrich S3 objects with signed URLs
-   */
-  private async enrichFilesWithSignedUrls(
-    response: ListObjectsV2CommandOutput,
-    urlGenerator: (key: string) => Promise<string>,
-  ): Promise<FileListItem[]> {
-    if (!response.Contents?.length) {
-      return [];
-    }
-
-    return Promise.all(
-      response.Contents.filter((item) => item.Key).map(async (item) => ({
-        key: item.Key!,
-        size: item.Size || 0,
-        lastModified: item.LastModified,
-        url: await urlGenerator(item.Key!),
-      })),
-    );
   }
 
   /**
@@ -824,14 +797,12 @@ export class StorageService {
    * @param prefix - Optional prefix to filter template files
    * @param limit - Maximum number of files to return (default: 50, max: 1000)
    * @param continuationToken - Token from previous response for pagination
-   * @param includeUrls - Whether to generate signed URLs (default: false for performance)
-   * @returns Paginated list of template files with optional signed URLs
+   * @returns Paginated list of template files without signed URLs
    */
   async listTemplateFiles(
     prefix?: string,
     limit: number = PAGINATION_DEFAULTS.DEFAULT_LIMIT,
     continuationToken?: string,
-    includeUrls: boolean = false,
   ): Promise<PaginatedFileList> {
     try {
       const response = await this.s3Client.send(
@@ -843,11 +814,7 @@ export class StorageService {
         }),
       );
 
-      const files = includeUrls
-        ? await this.enrichFilesWithSignedUrls(response, (key) =>
-            this.generateTemplateSignedUrl(key),
-          )
-        : this.mapFilesWithoutUrls(response);
+      const files = this.mapFilesWithoutUrls(response);
 
       return this.buildPaginatedResponse(response, files);
     } catch (error) {

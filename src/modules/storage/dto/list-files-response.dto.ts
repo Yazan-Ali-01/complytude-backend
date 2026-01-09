@@ -54,7 +54,7 @@ export class FileListItemDto {
 
   @ApiProperty({
     description:
-      'Pre-signed URL. Only included if includeUrls=true query parameter is set. Otherwise, use /signed-url/:fileKey endpoint.',
+      'Pre-signed URL (not included in list responses). Use GET /signed-url/:fileKey or GET /download/:fileKey endpoints to access files.',
     example:
       'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
     required: false,

@@ -143,13 +143,6 @@ export class StorageController {
     type: String,
     description: 'Token from previous response to fetch next page',
   })
-  @ApiQuery({
-    name: 'includeUrls',
-    required: false,
-    type: Boolean,
-    description:
-      'Generate signed URLs for each file (default: false). Set to true for immediate access, or use /signed-url/:fileKey for individual files.',
-  })
   @ApiResponse({
     status: 200,
     description: 'Files retrieved successfully',
@@ -166,7 +159,6 @@ export class StorageController {
     @Query('prefix') prefix?: string,
     @Query('limit') limit?: number,
     @Query('continuationToken') continuationToken?: string,
-    @Query('includeUrls') includeUrls?: boolean,
   ): Promise<FileListResponseDto> {
     const validatedLimit = this.validatePaginationLimit(limit);
 
@@ -175,7 +167,6 @@ export class StorageController {
       prefix,
       validatedLimit,
       continuationToken,
-      includeUrls || false,
     );
 
     return this.mapToFileListResponse(result);
