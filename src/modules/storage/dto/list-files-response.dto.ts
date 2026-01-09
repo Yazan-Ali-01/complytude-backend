@@ -7,6 +7,30 @@ export class FileResponseDto {
       'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })
   url: string;
+
+  @ApiProperty({
+    description: 'File key/identifier in storage',
+    example: 'tenants/abc123/1698765432000-document.pdf',
+  })
+  key: string;
+
+  @ApiProperty({
+    description: 'S3 bucket name',
+    example: 'complytude-files',
+  })
+  bucket: string;
+
+  @ApiProperty({
+    description: 'File size in bytes',
+    example: 1048576,
+  })
+  size: number;
+
+  @ApiProperty({
+    description: 'File content type',
+    example: 'application/pdf',
+  })
+  contentType: string;
 }
 
 export class FileListItemDto {
@@ -26,14 +50,16 @@ export class FileListItemDto {
     description: 'Last modified date',
     example: '2023-10-31T12:00:00.000Z',
   })
-  lastModified: Date;
+  lastModified?: Date;
 
   @ApiProperty({
-    description: 'Signed URL for accessing the file',
+    description:
+      'Pre-signed URL (not included in list responses). Use GET /signed-url/:fileKey or GET /download/:fileKey endpoints to access files.',
     example:
       'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+    required: false,
   })
-  url: string;
+  url?: string;
 }
 
 export class FileListResponseDto {
@@ -44,10 +70,23 @@ export class FileListResponseDto {
   files: FileListItemDto[];
 
   @ApiProperty({
-    description: 'Total number of files',
+    description: 'Total number of files in this response',
     example: 5,
   })
   total: number;
+
+  @ApiProperty({
+    description: 'Token for fetching the next page of results',
+    example: 'eyJNYXJrZXIiOiAiMDFDMTVGOEVGQzBEQjg1In0',
+    required: false,
+  })
+  nextToken?: string;
+
+  @ApiProperty({
+    description: 'Whether there are more files available',
+    example: true,
+  })
+  hasMore: boolean;
 }
 
 export class SignedUrlResponseDto {
