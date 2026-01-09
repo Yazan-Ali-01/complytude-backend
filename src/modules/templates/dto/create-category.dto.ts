@@ -7,6 +7,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class CreateCategoryDto {
   @ApiProperty({
@@ -14,6 +15,7 @@ export class CreateCategoryDto {
     description: 'Unique category code (lowercase)',
   })
   @IsString()
+  @Transform(({ value }) => value?.toLowerCase())
   @IsNotEmpty()
   @MaxLength(50)
   code: string;
@@ -46,10 +48,11 @@ export class CreateCategoryDto {
   @ApiPropertyOptional({
     example: true,
     description: 'Whether category is active',
+    default: true,
   })
   @IsBoolean()
   @IsOptional()
-  is_active?: boolean;
+  is_active: boolean = true;
 }
 
 export class UpdateCategoryDto {

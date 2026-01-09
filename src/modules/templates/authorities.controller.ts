@@ -10,6 +10,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseBoolPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,6 +28,7 @@ import {
 } from './dto/create-authority.dto';
 import { Authority } from './entities/authority.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Authorities')
 @Controller('authorities')
@@ -67,14 +70,41 @@ export class AuthoritiesController {
     type: Boolean,
     description: 'Filter by active status',
   })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    type: String,
+    description: 'Cursor for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Limit for pagination',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    type: String,
+    description: 'Direction for pagination',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of authorities',
     type: [Object],
   })
-  async findAll(@Query('active') active?: string): Promise<Authority[]> {
-    const activeOnly = active === 'true';
-    return this.authoritiesService.findAll(activeOnly);
+  async findAll(
+    @Query('active', new ParseBoolPipe({ optional: true })) active?: boolean,
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<CursorPaginationResult<Authority>> {
+    return this.authoritiesService.findAll(active, {
+      cursor,
+      limit,
+      direction,
+    });
   }
 
   @Get(':id')

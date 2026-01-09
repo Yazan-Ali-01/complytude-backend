@@ -8,6 +8,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { DatabaseModule } from '../../database/database.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
+import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
+import { UserRepository } from '../../repositories/users/user.repository';
+import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 
 @Module({
   imports: [
@@ -18,7 +22,15 @@ import { TenantModule } from '../tenant/tenant.module';
     TenantModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    EmailVerificationRepository,
+    RefreshTokenRepository,
+    UserRepository,
+    UserTenantRepository,
+  ],
   exports: [AuthService, JwtStrategy, PassportModule],
 })
 export class AuthModule {}

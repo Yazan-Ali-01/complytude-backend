@@ -18,6 +18,11 @@ import { RulesetsService } from './rulesets.service';
 import { DocumentGenerationService } from './document-generation.service';
 import { TemplateValidationService } from './template-validation.service';
 import { DocxPlaceholderExtractionService } from './services/docx-placeholder-extraction.service';
+import { CategoryRepository } from '../../repositories/categories/category.repository';
+import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
+import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
+import { TemplateRepository } from '../../repositories/templates/template.repository';
+import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
 
 @Module({
   imports: [DatabaseModule, StorageModule, TenantModule],
@@ -36,6 +41,11 @@ import { DocxPlaceholderExtractionService } from './services/docx-placeholder-ex
     DocumentGenerationService,
     TemplateValidationService,
     DocxPlaceholderExtractionService,
+    TemplateRepository,
+    TemplateVersionRepository,
+    CategoryRepository,
+    AuthorityRepository,
+    RulesetRepository,
   ],
   exports: [
     TemplatesService,
@@ -46,6 +56,11 @@ import { DocxPlaceholderExtractionService } from './services/docx-placeholder-ex
     DocumentGenerationService,
     TemplateValidationService,
     DocxPlaceholderExtractionService,
+    TemplateRepository,
+    TemplateVersionRepository,
+    CategoryRepository,
+    AuthorityRepository,
+    RulesetRepository,
   ],
 })
 export class TemplatesModule {}

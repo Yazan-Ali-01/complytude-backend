@@ -13,7 +13,7 @@ export interface Tenant {
   plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
   features: TenantFeatures;
   created_at: Date;
-  updated_at?: Date;
+  updated_at: Date | null;
   is_active: boolean;
   schema_name: string; // Database schema for this tenant
 }

@@ -16,7 +16,6 @@ import {
 } from './dto/create-template.dto';
 import { TemplateDownloadResponseDto } from './dto/template-response.dto';
 import { TemplateVersionsService } from './template-versions.service';
-import { RulesetsService } from './rulesets.service';
 import { PoolClient } from 'pg';
 import {
   DocxPlaceholderExtractionService,
@@ -27,6 +26,14 @@ import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,
 } from './constants/template.constants';
+import { CategoryRepository } from '../../repositories/categories/category.repository';
+import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
+import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
+import { TemplateRepository } from '../../repositories/templates/template.repository';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class TemplatesService {
@@ -34,10 +41,13 @@ export class TemplatesService {
 
   constructor(
     private readonly databaseService: DatabaseService,
+    private readonly templateRepository: TemplateRepository,
     private readonly templateVersionsService: TemplateVersionsService,
-    private readonly rulesetsService: RulesetsService,
     private readonly placeholderExtractionService: DocxPlaceholderExtractionService,
     private readonly storageService: StorageService,
+    private readonly categoryRepository: CategoryRepository,
+    private readonly authorityRepository: AuthorityRepository,
+    private readonly rulesetRepository: RulesetRepository,
   ) {}
   async create(
     createTemplateDto: CreateTemplateDto,
@@ -49,13 +59,12 @@ export class TemplatesService {
     }
   > {
     try {
-      // Check if key already exists
-      const existing = await this.databaseService.query(
-        'SELECT id FROM public.templates WHERE key = $1',
-        [createTemplateDto.key],
-      );
+      const existing = await this.templateRepository.findOne({
+        filters: { key: createTemplateDto.key },
+        select: ['id'],
+      });
 
-      if (existing.rows.length > 0) {
+      if (existing) {
         throw new ConflictException(
           `Template with key "${createTemplateDto.key}" already exists`,
         );
@@ -63,11 +72,10 @@ export class TemplatesService {
 
       // Validate category_id if provided
       if (createTemplateDto.category_id) {
-        const categoryExists = await this.databaseService.query(
-          'SELECT id FROM public.categories WHERE id = $1',
-          [createTemplateDto.category_id],
+        const categoryExists = await this.categoryRepository.findById(
+          createTemplateDto.category_id,
         );
-        if (categoryExists.rows.length === 0) {
+        if (!categoryExists) {
           throw new BadRequestException(
             `Category with ID "${createTemplateDto.category_id}" not found`,
           );
@@ -76,11 +84,10 @@ export class TemplatesService {
 
       // Validate authority_id if provided
       if (createTemplateDto.authority_id) {
-        const authorityExists = await this.databaseService.query(
-          'SELECT id FROM public.authorities WHERE id = $1',
-          [createTemplateDto.authority_id],
+        const authorityExists = await this.authorityRepository.findById(
+          createTemplateDto.authority_id,
         );
-        if (authorityExists.rows.length === 0) {
+        if (!authorityExists) {
           throw new BadRequestException(
             `Authority with ID "${createTemplateDto.authority_id}" not found`,
           );
@@ -92,7 +99,7 @@ export class TemplatesService {
         createTemplateDto.ruleset_keys &&
         createTemplateDto.ruleset_keys.length > 0
       ) {
-        const rulesets = await this.rulesetsService.findByKeys(
+        const rulesets = await this.rulesetRepository.findByKeys(
           createTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== createTemplateDto.ruleset_keys.length) {
@@ -135,30 +142,23 @@ export class TemplatesService {
       let templateId: string | null = null;
       try {
         await this.databaseService.transaction(async (client) => {
-          // 1. Create template record FIRST (without file_url)
-          const templateResult = await client.query<Template>(
-            `
-          INSERT INTO public.templates 
-          (key, name, description, category_id, authority_id, languages, current_version, status, file_url, metadata, created_by)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-          RETURNING *
-        `,
-            [
-              createTemplateDto.key,
-              createTemplateDto.name,
-              createTemplateDto.description || null,
-              createTemplateDto.category_id || null,
-              createTemplateDto.authority_id || null,
-              createTemplateDto.languages,
-              version,
-              createTemplateDto.status || 'active',
-              null, // file_url is null - only needed in version record
-              JSON.stringify(createTemplateDto.metadata || {}),
-              createdBy,
-            ],
+          const template = await this.templateRepository.create(
+            {
+              key: createTemplateDto.key,
+              name: createTemplateDto.name,
+              description: createTemplateDto.description ?? null,
+              category_id: createTemplateDto.category_id ?? null,
+              authority_id: createTemplateDto.authority_id ?? null,
+              languages: createTemplateDto.languages,
+              current_version: version,
+              status: createTemplateDto.status || 'active',
+              file_url: null,
+              metadata: JSON.stringify(createTemplateDto.metadata ?? {}), // Stringify JSONB field
+              created_by: createdBy,
+            },
+            { client },
           );
 
-          const template = this.parseTemplate(templateResult.rows[0]);
           templateId = template.id;
 
           // 2. Upload file to S3 using template ID
@@ -195,9 +195,9 @@ export class TemplatesService {
             createTemplateDto.ruleset_keys.length > 0
           ) {
             await this.associateRulesets(
-              client,
               template.id,
               createTemplateDto.ruleset_keys,
+              client,
             );
           }
         });
@@ -245,58 +245,20 @@ export class TemplatesService {
     categoryId?: string,
     authorityId?: string,
     language?: string,
-    page = 1,
-    limit = 50,
-  ): Promise<{
-    templates: Template[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<Template>> {
     try {
-      let query = 'SELECT * FROM public.templates WHERE 1=1';
-      const params: any[] = [];
-
-      if (status) {
-        params.push(status);
-        query += ` AND status = $${params.length}`;
-      }
-
-      if (categoryId) {
-        params.push(categoryId);
-        query += ` AND category_id = $${params.length}`;
-      }
-
-      if (authorityId) {
-        params.push(authorityId);
-        query += ` AND authority_id = $${params.length}`;
-      }
-
-      if (language) {
-        params.push(language);
-        query += ` AND $${params.length} = ANY(languages)`;
-      }
-
-      // Get total count
-      const countResult = await this.databaseService.query(
-        `SELECT COUNT(*) as count FROM (${query}) as filtered`,
-        params,
+      const result = await this.templateRepository.findMany(
+        {
+          status,
+          categoryId,
+          authorityId,
+          language,
+        },
+        cursorOptions,
       );
-      const total = parseInt(countResult.rows[0].count as string, 10);
 
-      // Add pagination
-      const offset = (page - 1) * limit;
-      query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-      params.push(limit, offset);
-
-      const result = await this.databaseService.query<Template>(query, params);
-
-      return {
-        templates: result.rows.map((t) => this.parseTemplate(t)),
-        total,
-        page,
-        limit,
-      };
+      return result;
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch templates');
@@ -305,12 +267,7 @@ export class TemplatesService {
 
   async findActiveTemplates(): Promise<Template[]> {
     try {
-      const result = await this.databaseService.query<Template>(
-        'SELECT * FROM public.templates WHERE status = $1 ORDER BY name',
-        ['active'],
-      );
-
-      return result.rows.map((t) => this.parseTemplate(t));
+      return await this.templateRepository.findActive();
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
       throw new InternalServerErrorException(
@@ -321,16 +278,13 @@ export class TemplatesService {
 
   async findById(id: string): Promise<Template> {
     try {
-      const result = await this.databaseService.query<Template>(
-        'SELECT * FROM public.templates WHERE id = $1',
-        [id],
-      );
+      const template = await this.templateRepository.findById(id);
 
-      if (result.rows.length === 0) {
+      if (!template) {
         throw new NotFoundException(`Template with ID "${id}" not found`);
       }
 
-      return this.parseTemplate(result.rows[0]);
+      return template;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -342,21 +296,32 @@ export class TemplatesService {
 
   async findByKey(key: string, client?: PoolClient): Promise<Template> {
     try {
-      const result = client
-        ? await client.query<Template>(
-            'SELECT * FROM public.templates WHERE key = $1',
-            [key],
-          )
-        : await this.databaseService.query<Template>(
-            'SELECT * FROM public.templates WHERE key = $1',
-            [key],
-          );
+      const template = await this.templateRepository.findOne({
+        filters: { key },
+        select: [
+          'id',
+          'key',
+          'name',
+          'description',
+          'category_id',
+          'authority_id',
+          'languages',
+          'current_version',
+          'status',
+          'file_url',
+          'metadata',
+          'created_by',
+          'created_at',
+          'updated_at',
+        ],
+        client,
+      });
 
-      if (result.rows.length === 0) {
+      if (!template) {
         throw new NotFoundException(`Template with key "${key}" not found`);
       }
 
-      return this.parseTemplate(result.rows[0]);
+      return template;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -376,53 +341,26 @@ export class TemplatesService {
       // Fetch category details
       let category;
       if (template.category_id) {
-        const categoryResult = client
-          ? await client.query(
-              'SELECT id, code, name FROM public.categories WHERE id = $1',
-              [template.category_id],
-            )
-          : await this.databaseService.query(
-              'SELECT id, code, name FROM public.categories WHERE id = $1',
-              [template.category_id],
-            );
-        category = categoryResult.rows[0];
+        category = await this.categoryRepository.findById(
+          template.category_id,
+          { client },
+        );
       }
 
       // Fetch authority details
       let authority;
       if (template.authority_id) {
-        const authorityResult = client
-          ? await client.query(
-              'SELECT id, code, name FROM public.authorities WHERE id = $1',
-              [template.authority_id],
-            )
-          : await this.databaseService.query(
-              'SELECT id, code, name FROM public.authorities WHERE id = $1',
-              [template.authority_id],
-            );
-        authority = authorityResult.rows[0];
+        authority = await this.authorityRepository.findById(
+          template.authority_id,
+          { client },
+        );
       }
 
       // Fetch rulesets
-      const rulesetsResult = client
-        ? await client.query(
-            `
-        SELECT r.id, r.key, r.name
-        FROM public.rulesets r
-        INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
-        WHERE tr.template_id = $1
-      `,
-            [template.id],
-          )
-        : await this.databaseService.query(
-            `
-        SELECT r.id, r.key, r.name
-        FROM public.rulesets r
-        INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
-        WHERE tr.template_id = $1
-      `,
-            [template.id],
-          );
+      const rulesets = await this.rulesetRepository.findByTemplateId(
+        template.id,
+        { client },
+      );
 
       // Fetch current version details
       const currentVersion =
@@ -435,8 +373,8 @@ export class TemplatesService {
         ...template,
         category,
         authority,
-        rulesets: rulesetsResult.rows,
-        current_version_details: currentVersion || undefined,
+        rulesets,
+        current_version_details: currentVersion || null,
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -454,18 +392,17 @@ export class TemplatesService {
   async update(
     key: string,
     updateTemplateDto: UpdateTemplateDto,
-    updatedBy: string,
+    _updatedBy: string,
   ): Promise<TemplateWithDetails> {
     try {
       const existing = await this.findByKey(key);
 
       // Validate category_id if provided
       if (updateTemplateDto.category_id) {
-        const categoryExists = await this.databaseService.query(
-          'SELECT id FROM public.categories WHERE id = $1',
-          [updateTemplateDto.category_id],
+        const categoryExists = await this.categoryRepository.findById(
+          updateTemplateDto.category_id,
         );
-        if (categoryExists.rows.length === 0) {
+        if (!categoryExists) {
           throw new BadRequestException(
             `Category with ID "${updateTemplateDto.category_id}" not found`,
           );
@@ -474,11 +411,10 @@ export class TemplatesService {
 
       // Validate authority_id if provided
       if (updateTemplateDto.authority_id) {
-        const authorityExists = await this.databaseService.query(
-          'SELECT id FROM public.authorities WHERE id = $1',
-          [updateTemplateDto.authority_id],
+        const authorityExists = await this.authorityRepository.findById(
+          updateTemplateDto.authority_id,
         );
-        if (authorityExists.rows.length === 0) {
+        if (!authorityExists) {
           throw new BadRequestException(
             `Authority with ID "${updateTemplateDto.authority_id}" not found`,
           );
@@ -490,7 +426,7 @@ export class TemplatesService {
         updateTemplateDto.ruleset_keys &&
         updateTemplateDto.ruleset_keys.length > 0
       ) {
-        const rulesets = await this.rulesetsService.findByKeys(
+        const rulesets = await this.rulesetRepository.findByKeys(
           updateTemplateDto.ruleset_keys,
         );
         if (rulesets.length !== updateTemplateDto.ruleset_keys.length) {
@@ -499,95 +435,34 @@ export class TemplatesService {
       }
 
       return await this.databaseService.transaction(async (client) => {
-        // Build update query for template
-        const updateFields: string[] = [];
-        const values: any[] = [];
-        let paramIndex = 1;
-
-        if (updateTemplateDto.name !== undefined) {
-          updateFields.push(`name = $${paramIndex++}`);
-          values.push(updateTemplateDto.name);
-        }
-        if (updateTemplateDto.description !== undefined) {
-          updateFields.push(`description = $${paramIndex++}`);
-          values.push(updateTemplateDto.description);
-        }
-        if (updateTemplateDto.category_id !== undefined) {
-          updateFields.push(`category_id = $${paramIndex++}`);
-          values.push(updateTemplateDto.category_id);
-        }
-        if (updateTemplateDto.authority_id !== undefined) {
-          updateFields.push(`authority_id = $${paramIndex++}`);
-          values.push(updateTemplateDto.authority_id);
-        }
-        if (updateTemplateDto.languages !== undefined) {
-          updateFields.push(`languages = $${paramIndex++}`);
-          values.push(updateTemplateDto.languages);
-        }
-        if (updateTemplateDto.status !== undefined) {
-          updateFields.push(`status = $${paramIndex++}`);
-          values.push(updateTemplateDto.status);
-        }
-        if (updateTemplateDto.metadata !== undefined) {
-          updateFields.push(`metadata = $${paramIndex++}`);
-          values.push(JSON.stringify(updateTemplateDto.metadata));
-        }
-
-        // If fields updated, create new version
-        if (updateTemplateDto.fields || updateTemplateDto.version) {
-          const currentVersion =
-            await this.templateVersionsService.getCurrentVersion(
-              existing.id,
-              client,
-            );
-          const newVersion =
-            updateTemplateDto.version ||
-            this.incrementVersion(existing.current_version);
-          const newFields =
-            updateTemplateDto.fields || currentVersion?.fields || [];
-          const newFileUrl = currentVersion?.file_url || '';
-
-          await this.templateVersionsService.createVersion(
+        if (Object.keys(updateTemplateDto).length > 0) {
+          await this.templateRepository.update(
             existing.id,
-            newVersion,
-            newFields,
-            newFileUrl,
-            updateTemplateDto.changelog,
-            updateTemplateDto.metadata || {},
-            updatedBy,
-            client,
-          );
-
-          // Update template's current_version field
-          updateFields.push(`current_version = $${paramIndex++}`);
-          values.push(newVersion);
-        }
-
-        // Update template if there are fields to update
-        if (updateFields.length > 0) {
-          updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-          values.push(key);
-
-          await client.query(
-            `UPDATE public.templates SET ${updateFields.join(', ')} WHERE key = $${paramIndex}`,
-            values,
+            {
+              ...updateTemplateDto,
+              metadata:
+                updateTemplateDto.metadata === undefined
+                  ? JSON.stringify(updateTemplateDto.metadata)
+                  : undefined,
+              updated_at: new Date(),
+            },
+            { client },
           );
         }
 
         // Update rulesets if provided
         if (updateTemplateDto.ruleset_keys !== undefined) {
           // Remove existing associations
-          await client.query(
-            'DELETE FROM public.template_rulesets WHERE template_id = $1',
-            [existing.id],
-          );
+          await this.rulesetRepository.removeTemplateAssociations(existing.id, {
+            client,
+          });
 
           // Add new associations
           if (updateTemplateDto.ruleset_keys.length > 0) {
             await this.associateRulesets(
-              client,
               existing.id,
               updateTemplateDto.ruleset_keys,
+              client,
             );
           }
         }
@@ -611,15 +486,17 @@ export class TemplatesService {
 
   async deactivate(key: string): Promise<Template> {
     try {
-      const _template = await this.findByKey(key);
-
-      const result = await this.databaseService.query<Template>(
-        'UPDATE public.templates SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2 RETURNING *',
-        ['inactive', key],
+      const template = await this.templateRepository.updateStatusByKey(
+        key,
+        'inactive',
       );
 
+      if (!template) {
+        throw new NotFoundException(`Template with key "${key}" not found`);
+      }
+
       this.logger.log(`Deactivated template: ${key}`);
-      return this.parseTemplate(result.rows[0]);
+      return template;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -631,12 +508,11 @@ export class TemplatesService {
 
   async delete(key: string): Promise<void> {
     try {
-      await this.findByKey(key);
+      const deleted = await this.templateRepository.deleteByKey(key);
 
-      await this.databaseService.query(
-        'DELETE FROM public.templates WHERE key = $1',
-        [key],
-      );
+      if (deleted === 0) {
+        throw new NotFoundException(`Template with key "${key}" not found`);
+      }
 
       this.logger.log(`Deleted template: ${key}`);
     } catch (error) {
@@ -658,17 +534,6 @@ export class TemplatesService {
   ): Promise<CreateTemplateVersionResponseDto> {
     // Find template by key
     const template = await this.findByKey(key);
-
-    // Check if version already exists
-    const existingVersion = await this.databaseService.query(
-      'SELECT id FROM public.template_versions WHERE template_id = $1 AND version = $2',
-      [template.id, createVersionDto.version],
-    );
-    if (existingVersion.rows.length > 0) {
-      throw new ConflictException(
-        `Version "${createVersionDto.version}" already exists for template "${key}"`,
-      );
-    }
 
     // Extract placeholders from DOCX
     let placeholders: string[] = [];
@@ -727,11 +592,14 @@ export class TemplatesService {
           createdBy,
           client,
         );
-
         // Update template's current_version
-        await client.query(
-          'UPDATE public.templates SET current_version = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-          [createVersionDto.version, template.id],
+        await this.templateRepository.update(
+          template.id,
+          {
+            current_version: createVersionDto.version,
+            file_url: fileUrl,
+          },
+          { client },
         );
       });
     } catch (error) {
@@ -760,21 +628,20 @@ export class TemplatesService {
    * Associate rulesets with a template
    */
   private async associateRulesets(
-    client: any,
     templateId: string,
     rulesetKeys: string[],
+    client?: PoolClient,
   ): Promise<void> {
     // Get ruleset IDs from keys
-    const rulesets = await this.rulesetsService.findByKeys(rulesetKeys);
+    const rulesets = await this.rulesetRepository.findByKeys(rulesetKeys, {
+      client,
+    });
     const rulesetIds = rulesets.map((r) => r.id);
 
     // Insert associations
-    for (const rulesetId of rulesetIds) {
-      await client.query(
-        'INSERT INTO public.template_rulesets (template_id, ruleset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [templateId, rulesetId],
-      );
-    }
+    await this.rulesetRepository.associateWithTemplate(templateId, rulesetIds, {
+      client,
+    });
   }
 
   /**
@@ -843,18 +710,5 @@ export class TemplatesService {
         'Failed to generate template download URL',
       );
     }
-  }
-
-  /**
-   * Parse JSONB fields from database
-   */
-  private parseTemplate(template: any): Template {
-    return {
-      ...template,
-      metadata:
-        typeof template.metadata === 'string'
-          ? JSON.parse(template.metadata as string)
-          : template.metadata,
-    };
   }
 }
