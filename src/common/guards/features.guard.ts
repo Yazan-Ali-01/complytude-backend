@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { FEATURES_KEY } from '../decorators/features.decorator';
-import { FeaturesService } from '../../modules/tenant/features.service';
+import { FeaturesService } from 'src/modules/tenants/features.service';
 
 @Injectable()
 export class FeaturesGuard implements CanActivate {

@@ -14,7 +14,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TemplateFieldDto } from './template-field.dto';
+import { TemplateFieldDto } from 'src/modules/templates/dto/template-field.dto';
 import {
   IsFileMaxSize,
   IsFileMimeType,

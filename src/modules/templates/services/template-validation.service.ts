@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Ajv, { ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
-import { TemplateField } from './entities/template-version.entity';
+import { TemplateField } from '../entities/template-version.entity';
 
 export interface ValidationError {
   field: string;

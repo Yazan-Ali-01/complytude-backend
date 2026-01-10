@@ -27,7 +27,7 @@ import {
   UpdateCategoryDto,
 } from './dto/create-category.dto';
 import { Category } from './entities/category.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Categories')

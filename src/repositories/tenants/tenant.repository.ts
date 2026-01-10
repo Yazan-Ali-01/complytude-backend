@@ -10,7 +10,7 @@ import {
   Tenant,
   TenantFeatures,
   TenantSchema,
-} from 'src/modules/tenant/entities/tenant.entity';
+} from 'src/modules/tenants/entities/tenant.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**

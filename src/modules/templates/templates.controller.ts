@@ -26,7 +26,7 @@ import {
 import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
 import { TemplatesService } from './templates.service';
 import { TemplateVersionsService } from './template-versions.service';
-import { DocumentGenerationService } from './document-generation.service';
+import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
@@ -43,7 +43,10 @@ import {
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
 } from './dto/generate-document.dto';
-import { Template, TemplateWithDetails } from './entities/template.entity';
+import {
+  Template,
+  TemplateWithDetails,
+} from 'src/modules/templates/entities/template.entity';
 import { TemplateVersion } from './entities/template-version.entity';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';

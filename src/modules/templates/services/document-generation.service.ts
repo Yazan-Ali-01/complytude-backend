@@ -12,19 +12,19 @@ import PizZip from 'pizzip';
 import {
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
-} from './dto/generate-document.dto';
+} from '../dto/generate-document.dto';
 
-import { TemplatesService } from './templates.service';
-import { TemplateVersionsService } from './template-versions.service';
-import { StorageService } from '../storage/storage.service';
-import { DatabaseService } from '../../database/database.service';
-import { TenantService } from '../tenant/tenant.service';
+import { TemplatesService } from 'src/modules/templates/templates.service';
+import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
+import { StorageService } from 'src/modules/storage/storage.service';
+import { DatabaseService } from 'src/database/database.service';
+import { TenantService } from 'src/modules/tenants/tenant.service';
 
 import { TemplateValidationService } from './template-validation.service';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
-import { Template } from './entities/template.entity';
-import { TemplateVersion } from './entities/template-version.entity';
-import { TEMPLATE_PLACEHOLDER_DELIMITERS } from './constants/template.constants';
+import { Template } from 'src/modules/templates/entities/template.entity';
+import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
+import { TEMPLATE_PLACEHOLDER_DELIMITERS } from 'src/modules/templates/constants/template.constants';
 @Injectable()
 export class DocumentGenerationService {
   private readonly logger = new Logger(DocumentGenerationService.name);

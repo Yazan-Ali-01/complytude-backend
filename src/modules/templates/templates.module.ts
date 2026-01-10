@@ -1,22 +1,17 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../../database/database.module';
+import { DatabaseModule } from 'src/database/database.module';
 import { StorageModule } from '../storage/storage.module';
-import { TenantModule } from '../tenant/tenant.module';
+import { TenantModule } from 'src/modules/tenants/tenant.module';
 
 // Controllers
-import { TemplatesController } from './templates.controller';
-import { AuthoritiesController } from './authorities.controller';
-import { CategoriesController } from './categories.controller';
-import { RulesetsController } from './rulesets.controller';
+import { TemplatesController } from 'src/modules/templates/templates.controller';
 
 // Services
-import { TemplatesService } from './templates.service';
-import { TemplateVersionsService } from './template-versions.service';
-import { AuthoritiesService } from './authorities.service';
-import { CategoriesService } from './categories.service';
-import { RulesetsService } from './rulesets.service';
-import { DocumentGenerationService } from './document-generation.service';
-import { TemplateValidationService } from './template-validation.service';
+import { TemplatesService } from 'src/modules/templates/templates.service';
+import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
+import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
+import { TemplateValidationService } from 'src/modules/templates/services/template-validation.service';
+import { RulesetsModule } from '../rulesets/rulesets.module';
 import { DocxPlaceholderExtractionService } from './services/docx-placeholder-extraction.service';
 import { CategoryRepository } from '../../repositories/categories/category.repository';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
@@ -25,19 +20,11 @@ import { TemplateRepository } from '../../repositories/templates/template.reposi
 import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
 
 @Module({
-  imports: [DatabaseModule, StorageModule, TenantModule],
-  controllers: [
-    TemplatesController,
-    AuthoritiesController,
-    CategoriesController,
-    RulesetsController,
-  ],
+  imports: [DatabaseModule, StorageModule, RulesetsModule, TenantModule],
+  controllers: [TemplatesController],
   providers: [
     TemplatesService,
     TemplateVersionsService,
-    AuthoritiesService,
-    CategoriesService,
-    RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
     DocxPlaceholderExtractionService,
@@ -50,9 +37,6 @@ import { TemplateVersionRepository } from '../../repositories/templates/template
   exports: [
     TemplatesService,
     TemplateVersionsService,
-    AuthoritiesService,
-    CategoriesService,
-    RulesetsService,
     DocumentGenerationService,
     TemplateValidationService,
     DocxPlaceholderExtractionService,

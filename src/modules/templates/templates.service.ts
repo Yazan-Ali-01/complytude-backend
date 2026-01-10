@@ -6,8 +6,11 @@ import {
   InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
-import { Template, TemplateWithDetails } from './entities/template.entity';
+import { DatabaseService } from 'src/database/database.service';
+import {
+  Template,
+  TemplateWithDetails,
+} from 'src/modules/templates/entities/template.entity';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,

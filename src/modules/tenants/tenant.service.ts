@@ -5,7 +5,7 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
+import { DatabaseService } from 'src/database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { FeaturesService } from './features.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
