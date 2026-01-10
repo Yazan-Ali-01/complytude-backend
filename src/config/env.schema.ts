@@ -30,7 +30,6 @@ export const validationSchema = Joi.object({
   S3_REGION: Joi.string().default('us-east-1'),
   S3_ACCESS_KEY: Joi.string().default('minioadmin'),
   S3_SECRET_KEY: Joi.string().default('minioadmin'),
-  S3_BUCKET_PREFIX: Joi.string().default('complytude'),
   S3_FORCE_PATH_STYLE: Joi.boolean().default(true),
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes

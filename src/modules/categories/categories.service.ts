@@ -5,52 +5,41 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
 import { Category } from './entities/category.entity';
 import {
   CreateCategoryDto,
   UpdateCategoryDto,
 } from './dto/create-category.dto';
+import { CategoryRepository } from '../../repositories/categories/category.repository';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class CategoriesService {
   private readonly logger = new Logger(CategoriesService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly categoryRepository: CategoryRepository) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     try {
       // Check if code already exists
-      const existing = await this.databaseService.query(
-        'SELECT id FROM public.categories WHERE code = $1',
-        [createCategoryDto.code],
-      );
+      const existing = await this.categoryRepository.findOne({
+        filters: { code: createCategoryDto.code.toLowerCase() },
+        select: ['id'],
+      });
 
-      if (existing.rows.length > 0) {
+      if (existing) {
         throw new ConflictException(
           `Category with code "${createCategoryDto.code}" already exists`,
         );
       }
 
-      const result = await this.databaseService.query<Category>(
-        `
-        INSERT INTO public.categories (code, name, description, parent_id, is_active)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING *
-      `,
-        [
-          createCategoryDto.code.toLowerCase(),
-          createCategoryDto.name,
-          createCategoryDto.description || null,
-          createCategoryDto.parent_id || null,
-          createCategoryDto.is_active !== undefined
-            ? createCategoryDto.is_active
-            : true,
-        ],
-      );
+      const category = await this.categoryRepository.create(createCategoryDto);
 
-      this.logger.log(`Created category: ${createCategoryDto.code}`);
-      return result.rows[0];
+      this.logger.log(`Created category: ${category.code}`);
+      return category;
     } catch (error) {
       if (error instanceof ConflictException) {
         throw error;
@@ -60,14 +49,17 @@ export class CategoriesService {
     }
   }
 
-  async findAll(activeOnly = false): Promise<Category[]> {
+  async findAll(
+    active?: boolean,
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<Category>> {
     try {
-      const query = activeOnly
-        ? 'SELECT * FROM public.categories WHERE is_active = true ORDER BY name'
-        : 'SELECT * FROM public.categories ORDER BY name';
-
-      const result = await this.databaseService.query<Category>(query);
-      return result.rows;
+      const filters = active !== undefined ? { is_active: active } : {};
+      const result = await this.categoryRepository.findMany(
+        { ...filters },
+        cursorOptions,
+      );
+      return result;
     } catch (error) {
       this.logger.error(`Failed to fetch categories: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch categories');
@@ -76,16 +68,13 @@ export class CategoriesService {
 
   async findById(id: string): Promise<Category> {
     try {
-      const result = await this.databaseService.query<Category>(
-        'SELECT * FROM public.categories WHERE id = $1',
-        [id],
-      );
+      const category = await this.categoryRepository.findById(id);
 
-      if (result.rows.length === 0) {
+      if (!category) {
         throw new NotFoundException(`Category with ID "${id}" not found`);
       }
 
-      return result.rows[0];
+      return category;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -97,16 +86,25 @@ export class CategoriesService {
 
   async findByCode(code: string): Promise<Category> {
     try {
-      const result = await this.databaseService.query<Category>(
-        'SELECT * FROM public.categories WHERE code = $1',
-        [code.toLowerCase()],
-      );
+      const category = await this.categoryRepository.findOne({
+        filters: { code: code.toLowerCase() },
+        select: [
+          'id',
+          'code',
+          'name',
+          'description',
+          'parent_id',
+          'is_active',
+          'created_at',
+          'updated_at',
+        ],
+      });
 
-      if (result.rows.length === 0) {
+      if (!category) {
         throw new NotFoundException(`Category with code "${code}" not found`);
       }
 
-      return result.rows[0];
+      return category;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -123,45 +121,13 @@ export class CategoriesService {
     try {
       await this.findById(id);
 
-      const updateFields: string[] = [];
-      const values: any[] = [];
-      let paramIndex = 1;
-
-      if (updateCategoryDto.name !== undefined) {
-        updateFields.push(`name = $${paramIndex++}`);
-        values.push(updateCategoryDto.name);
-      }
-      if (updateCategoryDto.description !== undefined) {
-        updateFields.push(`description = $${paramIndex++}`);
-        values.push(updateCategoryDto.description);
-      }
-      if (updateCategoryDto.parent_id !== undefined) {
-        updateFields.push(`parent_id = $${paramIndex++}`);
-        values.push(updateCategoryDto.parent_id);
-      }
-      if (updateCategoryDto.is_active !== undefined) {
-        updateFields.push(`is_active = $${paramIndex++}`);
-        values.push(updateCategoryDto.is_active);
-      }
-
-      if (updateFields.length === 0) {
-        return this.findById(id);
-      }
-
-      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-      values.push(id);
-
-      const query = `
-        UPDATE public.categories 
-        SET ${updateFields.join(', ')}
-        WHERE id = $${paramIndex}
-        RETURNING *
-      `;
-
-      const result = await this.databaseService.query<Category>(query, values);
+      const category = await this.categoryRepository.update(id, {
+        ...updateCategoryDto,
+        updated_at: new Date(),
+      });
 
       this.logger.log(`Updated category: ${id}`);
-      return result.rows[0];
+      return category;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -175,10 +141,10 @@ export class CategoriesService {
     try {
       await this.findById(id);
 
-      await this.databaseService.query(
-        'DELETE FROM public.categories WHERE id = $1',
-        [id],
-      );
+      const deleted = await this.categoryRepository.delete(id);
+      if (deleted === 0) {
+        throw new NotFoundException(`Category with ID "${id}" not found`);
+      }
 
       this.logger.log(`Deleted category: ${id}`);
     } catch (error) {

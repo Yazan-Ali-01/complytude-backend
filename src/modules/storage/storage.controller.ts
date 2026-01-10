@@ -11,7 +11,6 @@ import {
   BadRequestException,
   Logger,
   StreamableFile,
-  Header,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,11 +19,12 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { FastifyFileInterceptor } from './interceptors/fastify-file.interceptor';
 import { StorageService } from './storage.service';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
-import { Public } from '../auth/decorators/public.decorator';
+import type { ValidatedFile } from './pipes/file-validation.pipe';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { DocumentLimitGuard } from '../../common/guards/document-limit.guard';
@@ -35,21 +35,17 @@ import {
   FileListResponseDto,
   SignedUrlResponseDto,
   DeleteFileResponseDto,
-} from './dto/file-response.dto';
-
-interface UploadedFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  buffer: Buffer;
-  size: number;
-}
+} from './dto/list-files-response.dto';
 
 @ApiTags('Storage')
 @Controller('storage')
 export class StorageController {
   private readonly logger = new Logger(StorageController.name);
+
+  private readonly PAGINATION = {
+    DEFAULT_LIMIT: 50,
+    MAX_LIMIT: 1000,
+  } as const;
 
   constructor(private readonly storageService: StorageService) {}
 
@@ -92,7 +88,7 @@ export class StorageController {
   })
   @UseInterceptors(FastifyFileInterceptor('file'))
   async uploadFile(
-    @UploadedFile(FileValidationPipe) file: UploadedFile,
+    @UploadedFile(FileValidationPipe) file: ValidatedFile,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<FileResponseDto> {
     if (!file) {
@@ -100,18 +96,24 @@ export class StorageController {
     }
 
     this.logger.log(
-      `User ${user.userId} uploading file: ${file.originalname} (${file.size} bytes)`,
+      `User ${user.userId} uploading file: ${file.originalName} (${file.size} bytes)`,
     );
 
     const result = await this.storageService.uploadFile(
       user.tenantId,
       file.buffer,
-      file.originalname,
-      file.mimetype,
+      file.originalName,
+      file.mimeType,
       user.userId,
     );
 
-    return result;
+    return {
+      url: result.url,
+      key: result.key,
+      bucket: result.bucket,
+      size: result.size,
+      contentType: result.contentType,
+    };
   }
 
   @Get('list')
@@ -119,15 +121,34 @@ export class StorageController {
   @Roles('admin', 'member', 'viewer', 'system')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'List all files for current tenant',
+    summary: 'List files for current tenant',
     description:
-      'List all files in tenant storage. Available to all authenticated users.',
+      'List files in tenant storage with pagination support. Available to all authenticated users.',
+  })
+  @ApiQuery({
+    name: 'prefix',
+    required: false,
+    type: String,
+    description: 'Optional prefix to filter files by path',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Maximum number of files to return (default: 50, max: 1000)',
+  })
+  @ApiQuery({
+    name: 'continuationToken',
+    required: false,
+    type: String,
+    description: 'Token from previous response to fetch next page',
   })
   @ApiResponse({
     status: 200,
     description: 'Files retrieved successfully',
     type: FileListResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Invalid parameters' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
     status: 403,
@@ -136,43 +157,88 @@ export class StorageController {
   async listFiles(
     @CurrentUser() user: AuthenticatedUser,
     @Query('prefix') prefix?: string,
+    @Query('limit') limit?: number,
+    @Query('continuationToken') continuationToken?: string,
   ): Promise<FileListResponseDto> {
-    const files = await this.storageService.listFiles(user.tenantId, prefix);
+    const validatedLimit = this.validatePaginationLimit(limit);
 
+    const result = await this.storageService.listFiles(
+      user.tenantId,
+      prefix,
+      validatedLimit,
+      continuationToken,
+    );
+
+    return this.mapToFileListResponse(result);
+  }
+
+  /**
+   * Validate and sanitize pagination limit
+   */
+  private validatePaginationLimit(limit?: number): number {
+    if (limit === undefined) {
+      return this.PAGINATION.DEFAULT_LIMIT;
+    }
+
+    const parsed = Number(limit);
+    if (isNaN(parsed) || parsed < 1) {
+      throw new BadRequestException(
+        `Limit must be a positive number (max: ${this.PAGINATION.MAX_LIMIT})`,
+      );
+    }
+
+    return Math.min(parsed, this.PAGINATION.MAX_LIMIT);
+  }
+
+  /**
+   * Map service result to API response DTO
+   */
+  private mapToFileListResponse(result: {
+    files: any[];
+    nextToken?: string;
+    hasMore: boolean;
+  }): FileListResponseDto {
     return {
-      files,
-      total: files.length,
+      files: result.files,
+      total: result.files.length,
+      nextToken: result.nextToken,
+      hasMore: result.hasMore,
     };
   }
 
   @Get('signed-url/:fileKey')
-  @Public()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'member', 'system')
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get signed download URL for a file',
     description:
-      'Generate a time-limited signed URL for downloading a file. Public endpoint - no authentication required, but tenantId must be provided.',
+      'Generate a time-limited signed URL for downloading a file. Requires authentication. All authenticated users can access files from their tenant.',
+  })
+  @ApiQuery({
+    name: 'expiresIn',
+    required: false,
+    type: Number,
+    description: 'URL expiration time in seconds (default: 900)',
   })
   @ApiResponse({
     status: 200,
     description: 'Signed URL generated successfully',
     type: SignedUrlResponseDto,
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
-    status: 400,
-    description: 'tenantId query parameter required',
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
   })
   @ApiResponse({ status: 404, description: 'File not found' })
   async getSignedUrl(
     @Param('fileKey') fileKey: string,
-    @Query('tenantId') tenantId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('expiresIn') expiresIn?: number,
   ): Promise<SignedUrlResponseDto> {
-    if (!tenantId) {
-      throw new BadRequestException('tenantId query parameter is required');
-    }
-
     const url = await this.storageService.generateSignedUrl(
-      tenantId,
+      user.tenantId,
       fileKey,
       expiresIn,
     );
@@ -185,41 +251,37 @@ export class StorageController {
   }
 
   @Get('download/:fileKey')
-  @Public()
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'member', 'system')
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Download a file directly',
     description:
-      'Download a file as an attachment. Public endpoint - no authentication required, but tenantId must be provided. All roles can download files from their tenant.',
+      'Download a file directly as a stream. Requires authentication. All authenticated users can download files from their tenant.',
   })
   @ApiResponse({
     status: 200,
     description: 'File downloaded successfully',
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
-    status: 400,
-    description: 'tenantId query parameter required',
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
   })
   @ApiResponse({ status: 404, description: 'File not found' })
-  @Header('Content-Type', 'application/octet-stream')
   async downloadFile(
     @Param('fileKey') fileKey: string,
-    @Query('tenantId') tenantId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<StreamableFile> {
-    if (!tenantId) {
-      throw new BadRequestException('tenantId query parameter is required');
-    }
+    const { stream, filename, contentType } =
+      await this.storageService.getFileForDownload(user.tenantId, fileKey);
 
-    const stream = await this.storageService.getFile(tenantId, fileKey);
-
-    // Get file metadata for proper content type
-    const metadata = await this.storageService.getFileMetadata(
-      tenantId,
-      fileKey,
-    );
+    const encodedFilename = encodeURIComponent(filename);
+    const disposition = `inline; filename="${filename}"; filename*=UTF-8''${encodedFilename}`;
 
     return new StreamableFile(stream, {
-      type: metadata?.contentType || 'application/octet-stream',
-      disposition: `attachment; filename="${metadata?.originalName || fileKey}"`,
+      type: contentType,
+      disposition,
     });
   }
 

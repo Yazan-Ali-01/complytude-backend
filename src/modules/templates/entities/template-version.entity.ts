@@ -4,10 +4,10 @@ export interface TemplateVersion {
   version: string;
   fields: TemplateField[];
   file_url: string;
-  changelog?: string;
+  changelog: string | null;
   metadata: Record<string, any>;
   is_active: boolean;
-  created_by?: string;
+  created_by: string | null;
   created_at: Date;
 }
 

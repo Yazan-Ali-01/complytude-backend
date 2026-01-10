@@ -1,18 +1,60 @@
+# Dependencies
 node_modules
-dist
 npm-debug.log
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.git
-.gitignore
-README.md
-.prettierrc
-.eslintrc.js
+pnpm-debug.log
+yarn-error.log
+
+# Testing
 coverage
 .nyc_output
-*.log
-.DS_Store
+test-results
 
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Logs
+logs
+*.log
+
+# Build artifacts (we build inside Docker)
+dist
+
+# Scripts (except migrations)
+scripts
+!scripts/migrations
+
+# Test files
+test
+*.spec.ts
+*.e2e-spec.ts
+jest.config.js

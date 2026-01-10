@@ -5,52 +5,42 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
 import { Authority } from './entities/authority.entity';
 import {
   CreateAuthorityDto,
   UpdateAuthorityDto,
 } from './dto/create-authority.dto';
+import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
 
 @Injectable()
 export class AuthoritiesService {
   private readonly logger = new Logger(AuthoritiesService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly authorityRepository: AuthorityRepository) {}
 
   async create(createAuthorityDto: CreateAuthorityDto): Promise<Authority> {
     try {
       // Check if code already exists
-      const existing = await this.databaseService.query(
-        'SELECT id FROM public.authorities WHERE code = $1',
-        [createAuthorityDto.code],
-      );
+      const existing = await this.authorityRepository.findOne({
+        filters: { code: createAuthorityDto.code.toUpperCase() },
+        select: ['id'],
+      });
 
-      if (existing.rows.length > 0) {
+      if (existing) {
         throw new ConflictException(
           `Authority with code "${createAuthorityDto.code}" already exists`,
         );
       }
 
-      const result = await this.databaseService.query<Authority>(
-        `
-        INSERT INTO public.authorities (code, name, description, country, is_active)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING *
-      `,
-        [
-          createAuthorityDto.code.toUpperCase(),
-          createAuthorityDto.name,
-          createAuthorityDto.description || null,
-          createAuthorityDto.country || 'UAE',
-          createAuthorityDto.is_active !== undefined
-            ? createAuthorityDto.is_active
-            : true,
-        ],
-      );
+      const authority =
+        await this.authorityRepository.create(createAuthorityDto);
 
-      this.logger.log(`Created authority: ${createAuthorityDto.code}`);
-      return result.rows[0];
+      this.logger.log(`Created authority: ${authority.code}`);
+      return authority;
     } catch (error) {
       if (error instanceof ConflictException) {
         throw error;
@@ -60,14 +50,17 @@ export class AuthoritiesService {
     }
   }
 
-  async findAll(activeOnly = false): Promise<Authority[]> {
+  async findAll(
+    active?: boolean,
+    cursorOptions?: CursorPaginationOptions,
+  ): Promise<CursorPaginationResult<Authority>> {
     try {
-      const query = activeOnly
-        ? 'SELECT * FROM public.authorities WHERE is_active = true ORDER BY name'
-        : 'SELECT * FROM public.authorities ORDER BY name';
-
-      const result = await this.databaseService.query<Authority>(query);
-      return result.rows;
+      const filters = active !== undefined ? { is_active: active } : {};
+      const result = await this.authorityRepository.findMany(
+        { ...filters },
+        cursorOptions,
+      );
+      return result;
     } catch (error) {
       this.logger.error(`Failed to fetch authorities: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch authorities');
@@ -76,16 +69,13 @@ export class AuthoritiesService {
 
   async findById(id: string): Promise<Authority> {
     try {
-      const result = await this.databaseService.query<Authority>(
-        'SELECT * FROM public.authorities WHERE id = $1',
-        [id],
-      );
+      const authority = await this.authorityRepository.findById(id);
 
-      if (result.rows.length === 0) {
+      if (!authority) {
         throw new NotFoundException(`Authority with ID "${id}" not found`);
       }
 
-      return result.rows[0];
+      return authority;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -97,16 +87,16 @@ export class AuthoritiesService {
 
   async findByCode(code: string): Promise<Authority> {
     try {
-      const result = await this.databaseService.query<Authority>(
-        'SELECT * FROM public.authorities WHERE code = $1',
-        [code.toUpperCase()],
-      );
+      const authority = await this.authorityRepository.findOne({
+        filters: { code: code.toUpperCase() },
+        select: ['id', 'code', 'name', 'description', 'country', 'is_active'],
+      });
 
-      if (result.rows.length === 0) {
+      if (!authority) {
         throw new NotFoundException(`Authority with code "${code}" not found`);
       }
 
-      return result.rows[0];
+      return authority;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -122,46 +112,13 @@ export class AuthoritiesService {
   ): Promise<Authority> {
     try {
       await this.findById(id);
-
-      const updateFields: string[] = [];
-      const values: any[] = [];
-      let paramIndex = 1;
-
-      if (updateAuthorityDto.name !== undefined) {
-        updateFields.push(`name = $${paramIndex++}`);
-        values.push(updateAuthorityDto.name);
-      }
-      if (updateAuthorityDto.description !== undefined) {
-        updateFields.push(`description = $${paramIndex++}`);
-        values.push(updateAuthorityDto.description);
-      }
-      if (updateAuthorityDto.country !== undefined) {
-        updateFields.push(`country = $${paramIndex++}`);
-        values.push(updateAuthorityDto.country);
-      }
-      if (updateAuthorityDto.is_active !== undefined) {
-        updateFields.push(`is_active = $${paramIndex++}`);
-        values.push(updateAuthorityDto.is_active);
-      }
-
-      if (updateFields.length === 0) {
-        return this.findById(id);
-      }
-
-      updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-      values.push(id);
-
-      const query = `
-        UPDATE public.authorities 
-        SET ${updateFields.join(', ')}
-        WHERE id = $${paramIndex}
-        RETURNING *
-      `;
-
-      const result = await this.databaseService.query<Authority>(query, values);
+      const authority = await this.authorityRepository.update(id, {
+        ...updateAuthorityDto,
+        updated_at: new Date(),
+      });
 
       this.logger.log(`Updated authority: ${id}`);
-      return result.rows[0];
+      return authority;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -175,10 +132,10 @@ export class AuthoritiesService {
     try {
       await this.findById(id);
 
-      await this.databaseService.query(
-        'DELETE FROM public.authorities WHERE id = $1',
-        [id],
-      );
+      const deleted = await this.authorityRepository.delete(id);
+      if (deleted === 0) {
+        throw new NotFoundException(`Authority with ID "${id}" not found`);
+      }
 
       this.logger.log(`Deleted authority: ${id}`);
     } catch (error) {

@@ -1,0 +1,225 @@
+/**
+ * Cursor-based pagination helper for efficient, consistent pagination.
+ * Uses base64-encoded IDs as cursors for bidirectional navigation.
+ */
+
+/** Default number of items per page */
+const DEFAULT_PAGE_LIMIT = 50;
+
+/** Maximum allowed items per page */
+const MAX_PAGE_LIMIT = 1000;
+
+export type PaginationDirection = 'forward' | 'backward';
+
+export interface CursorPaginationOptions {
+  cursor?: string | null;
+  limit: number;
+  direction: PaginationDirection;
+}
+
+export interface CursorPaginationResult<T> {
+  data: T[];
+  nextCursor: string | null;
+  prevCursor: string | null;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export interface CursorQueryResult {
+  clause: string;
+  params: unknown[];
+  nextIndex: number;
+  orderClause: string;
+}
+
+export interface CursorData {
+  id: string;
+  created_at: Date;
+}
+
+export class CursorPaginationHelper {
+  /**
+   * Encode ID and created_at as a base64 cursor string.
+   *
+   * @param id - The entity ID to encode
+   * @param created_at - The entity creation timestamp
+   * @returns Base64-encoded cursor string
+   */
+  static encodeCursor(id: string, created_at: Date): string {
+    const cursorData: CursorData = { id, created_at };
+    return Buffer.from(JSON.stringify(cursorData), 'utf-8').toString('base64');
+  }
+
+  /**
+   * Decode a base64 cursor string back to ID and created_at.
+   *
+   * @param cursor - Base64-encoded cursor
+   * @returns Decoded cursor data with ID and timestamp
+   * @throws Error if cursor is invalid
+   */
+  static decodeCursor(cursor: string): CursorData {
+    try {
+      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+      const parsed = JSON.parse(decoded);
+
+      if (!parsed.id || !parsed.created_at) {
+        throw new Error('Cursor missing required fields');
+      }
+
+      if (typeof parsed.id !== 'string') {
+        throw new Error('Invalid cursor: id must be a string');
+      }
+
+      return {
+        id: parsed.id as string,
+        created_at: new Date(parsed.created_at as string),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Invalid cursor format: ${message}`);
+    }
+  }
+
+  /**
+   * Build a WHERE clause for cursor-based pagination using created_at and id.
+   *
+   * @param direction - Pagination direction ('forward' or 'backward')
+   * @param cursor - Optional cursor string to paginate from
+   * @param nextIndex - The next parameter index for parameterized queries
+   * @returns Query clause, parameters, and updated index
+   */
+  static buildCursorQuery(
+    direction: PaginationDirection,
+    cursor: string | null | undefined,
+    nextIndex: number,
+  ): CursorQueryResult {
+    if (!cursor) {
+      return {
+        clause: '',
+        orderClause: 'ORDER BY created_at ASC, id ASC',
+        params: [],
+        nextIndex,
+      };
+    }
+
+    const decoded = this.decodeCursor(cursor);
+    const operator = direction === 'forward' ? '>' : '<';
+
+    // Build composite cursor comparison:
+    const clause = `(created_at ${operator} $${nextIndex} OR (created_at = $${nextIndex} AND id ${operator} $${nextIndex + 1}))`;
+
+    const orderClause =
+      direction === 'forward'
+        ? 'ORDER BY created_at ASC, id ASC'
+        : 'ORDER BY created_at DESC, id DESC';
+
+    return {
+      clause,
+      orderClause,
+      params: [decoded.created_at, decoded.id],
+      nextIndex: nextIndex + 2,
+    };
+  }
+
+  /**
+   * Build LIMIT clause for cursor pagination.
+   * Fetches limit + 1 to detect if there are more records.
+   *
+   * @param limit - Number of records to fetch
+   * @param nextIndex - The next parameter index for parameterized queries
+   * @returns Query clause with LIMIT and updated parameter index
+   */
+  static buildLimitClause(
+    limit: number,
+    nextIndex: number,
+  ): { clause: string; params: unknown[]; nextIndex: number } {
+    return {
+      clause: `LIMIT $${nextIndex}`,
+      params: [limit + 1], // Fetch one extra to determine hasMore
+      nextIndex: nextIndex + 1,
+    };
+  }
+
+  /**
+   * Create a cursor pagination response from query results.
+   * Handles trimming extra records and determining navigation flags.
+   *
+   * @param rows - Raw query results (must include id and created_at)
+   * @param limit - Requested limit
+   * @param direction - Pagination direction
+   * @param hasInitialCursor - Whether a cursor was provided (indicates hasPrevious for forward)
+   * @returns Formatted cursor pagination result
+   */
+  static createPaginationResponse<T extends { id: string; created_at: Date }>(
+    rows: T[],
+    limit: number,
+    direction: PaginationDirection,
+    hasInitialCursor: boolean,
+  ): CursorPaginationResult<T> {
+    // Check if there are more records than requested
+    const hasMore = rows.length > limit;
+
+    // Trim to the requested limit
+    const data = hasMore ? rows.slice(0, limit) : rows;
+
+    // For backward pagination, reverse the results to show correct order
+    if (direction === 'backward') {
+      data.reverse();
+    }
+
+    const hasNext = direction === 'forward' ? hasMore : hasInitialCursor;
+    const hasPrevious = direction === 'forward' ? hasInitialCursor : hasMore;
+
+    // Calculate cursors using both id and created_at
+    const nextCursor =
+      hasNext && data.length > 0
+        ? this.encodeCursor(
+            data[data.length - 1].id,
+            data[data.length - 1].created_at,
+          )
+        : null;
+    const prevCursor =
+      hasPrevious && data.length > 0
+        ? this.encodeCursor(data[0].id, data[0].created_at)
+        : null;
+
+    return {
+      data,
+      nextCursor,
+      prevCursor,
+      hasNext,
+      hasPrevious,
+    };
+  }
+
+  /**
+   * Validate and normalize pagination options.
+   *
+   * @param options - Raw cursor pagination options
+   * @returns Validated options with defaults applied
+   */
+  static validateOptions(
+    options?: Partial<CursorPaginationOptions>,
+  ): CursorPaginationOptions {
+    const limit = options?.limit ?? DEFAULT_PAGE_LIMIT;
+    const direction = options?.direction ?? 'forward';
+
+    if (limit <= 0) {
+      throw new Error('Limit must be greater than 0');
+    }
+
+    if (limit > MAX_PAGE_LIMIT) {
+      throw new Error(`Limit cannot exceed ${MAX_PAGE_LIMIT}`);
+    }
+
+    if (direction !== 'forward' && direction !== 'backward') {
+      throw new Error('Direction must be "forward" or "backward"');
+    }
+
+    return {
+      cursor: options?.cursor,
+      limit,
+      direction,
+    };
+  }
+}

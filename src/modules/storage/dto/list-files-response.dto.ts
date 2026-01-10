@@ -2,14 +2,21 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class FileResponseDto {
   @ApiProperty({
+    description: 'Signed URL for accessing the uploaded file',
+    example:
+      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+  })
+  url: string;
+
+  @ApiProperty({
     description: 'File key/identifier in storage',
-    example: '1698765432000-document.pdf',
+    example: 'tenants/abc123/1698765432000-document.pdf',
   })
   key: string;
 
   @ApiProperty({
-    description: 'Bucket name where file is stored',
-    example: 'complytude-tenant-123',
+    description: 'S3 bucket name',
+    example: 'complytude-files',
   })
   bucket: string;
 
@@ -20,22 +27,16 @@ export class FileResponseDto {
   size: number;
 
   @ApiProperty({
-    description: 'File MIME type',
+    description: 'File content type',
     example: 'application/pdf',
   })
   contentType: string;
-
-  @ApiProperty({
-    description: 'Signed URL for accessing the file',
-    example: 'https://minio.example.com/bucket/file?signature=...',
-  })
-  url: string;
 }
 
 export class FileListItemDto {
   @ApiProperty({
     description: 'File key/identifier in storage',
-    example: '1698765432000-document.pdf',
+    example: 'tenants/abc123/1698765432000-document.pdf',
   })
   key: string;
 
@@ -49,13 +50,16 @@ export class FileListItemDto {
     description: 'Last modified date',
     example: '2023-10-31T12:00:00.000Z',
   })
-  lastModified: Date;
+  lastModified?: Date;
 
   @ApiProperty({
-    description: 'Signed URL for accessing the file',
-    example: 'https://minio.example.com/bucket/file?signature=...',
+    description:
+      'Pre-signed URL (not included in list responses). Use GET /signed-url/:fileKey or GET /download/:fileKey endpoints to access files.',
+    example:
+      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+    required: false,
   })
-  url: string;
+  url?: string;
 }
 
 export class FileListResponseDto {
@@ -66,22 +70,36 @@ export class FileListResponseDto {
   files: FileListItemDto[];
 
   @ApiProperty({
-    description: 'Total number of files',
+    description: 'Total number of files in this response',
     example: 5,
   })
   total: number;
+
+  @ApiProperty({
+    description: 'Token for fetching the next page of results',
+    example: 'eyJNYXJrZXIiOiAiMDFDMTVGOEVGQzBEQjg1In0',
+    required: false,
+  })
+  nextToken?: string;
+
+  @ApiProperty({
+    description: 'Whether there are more files available',
+    example: true,
+  })
+  hasMore: boolean;
 }
 
 export class SignedUrlResponseDto {
   @ApiProperty({
     description: 'File key/identifier',
-    example: '1698765432000-document.pdf',
+    example: 'tenants/abc123/1698765432000-document.pdf',
   })
   key: string;
 
   @ApiProperty({
     description: 'Signed URL for downloading the file',
-    example: 'https://minio.example.com/bucket/file?signature=...',
+    example:
+      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })
   url: string;
 
@@ -101,7 +119,7 @@ export class DeleteFileResponseDto {
 
   @ApiProperty({
     description: 'Deleted file key',
-    example: '1698765432000-document.pdf',
+    example: 'tenants/abc123/1698765432000-document.pdf',
   })
   key: string;
 }

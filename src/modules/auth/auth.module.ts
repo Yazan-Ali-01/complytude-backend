@@ -7,6 +7,11 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { DatabaseModule } from 'src/database/database.module';
+import { TenantModule } from '../tenants/tenant.module';
+import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
+import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
+import { UserRepository } from '../../repositories/users/user.repository';
+import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 
 @Module({
   imports: [
@@ -14,9 +19,18 @@ import { DatabaseModule } from 'src/database/database.module';
     ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({}), // Configuration done in strategies
+    TenantModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    EmailVerificationRepository,
+    RefreshTokenRepository,
+    UserRepository,
+    UserTenantRepository,
+  ],
   exports: [AuthService, JwtStrategy, PassportModule],
 })
 export class AuthModule {}
