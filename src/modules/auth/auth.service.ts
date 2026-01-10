@@ -21,9 +21,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
-import { TenantService } from '../tenant/tenant.service';
-import { Tenant } from '../tenant/entities/tenant.entity';
-import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
+import { TenantService } from '../tenants/tenant.service';
+import { Tenant } from '../tenants/entities/tenant.entity';
+import { TenantFeaturesDto } from '../tenants/dto/create-tenant.dto';
 import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.interfaces';
 import { User } from 'src/modules/users/entities/user.entity';
 

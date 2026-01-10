@@ -6,7 +6,7 @@ import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from '../base/repository.interface';
-import { Authority } from 'src/modules/templates/entities/authority.entity';
+import { Authority } from 'src/modules/authorities/entities/authority.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**

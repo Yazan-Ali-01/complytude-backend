@@ -9,7 +9,7 @@ import {
 import {
   Ruleset,
   RulesetClause,
-} from 'src/modules/templates/entities/ruleset.entity';
+} from 'src/modules/rulesets/entities/ruleset.entity';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**
