@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Template } from '../entities/template.entity';
+import { Template } from 'src/modules/templates/entities/template.entity';
 
 export class TemplateResponseDto {
   @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })

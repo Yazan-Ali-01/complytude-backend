@@ -8,6 +8,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
+import { UserRepository } from '../../repositories/users/user.repository';
+import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
+import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
+import { I18nService, I18n } from 'nestjs-i18n';
+import { DatabaseService } from 'src/database/database.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { FastifyReply } from 'fastify';
@@ -17,34 +23,18 @@ import {
   COOKIE_SAME_SITE,
   REFRESH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
-import { DatabaseService } from '../../database/database.service';
-import { TenantFeaturesDto } from '../tenant/dto/create-tenant.dto';
-import { Tenant } from '../tenant/entities/tenant.entity';
-import { TenantService } from '../tenant/tenant.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignupDto } from './dto/signup.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
-
-interface TenantRow {
-  tenant_id: string;
-  role: string;
-  schema_name: string;
-}
-
-interface UserRow {
-  id: string;
-  email: string;
-  password_hash: string;
-  first_name: string;
-  last_name: string;
-  is_verified: boolean;
-  is_system_admin: boolean;
-  created_at: Date;
-  updated_at: Date;
-}
+import { TenantService } from '../tenants/tenant.service';
+import { Tenant } from '../tenants/entities/tenant.entity';
+import { TenantFeaturesDto } from '../tenants/dto/create-tenant.dto';
+import { I18nKeys } from '../../common/constants/i18n-keys';
+import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.interfaces';
+import { User } from 'src/modules/users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -52,10 +42,15 @@ export class AuthService {
   private readonly BCRYPT_ROUNDS = 12;
 
   constructor(
-    private readonly databaseService: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tenantService: TenantService,
+    private readonly refreshTokenRepository: RefreshTokenRepository,
+    private readonly emailVerificationRepository: EmailVerificationRepository,
+    private readonly userRepository: UserRepository,
+    private readonly userTenantRepository: UserTenantRepository,
+    private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -128,14 +123,16 @@ export class AuthService {
    * @throws {ConflictException} if the email is already registered
    */
   async signup(signupDto: SignupDto) {
-    // Check if user already exists
-    const existingUser = await this.databaseService.query(
-      'SELECT id FROM public.users WHERE email = $1',
-      [signupDto.email],
-    );
-
-    if (existingUser.rows.length > 0) {
-      throw new ConflictException('Email already registered');
+    const existingUser = await this.userRepository.findOne({
+      filters: {
+        email: signupDto.email,
+      },
+      select: ['id'],
+    });
+    if (existingUser) {
+      throw new ConflictException(
+        this.i18n.t(I18nKeys.EMAIL_ALREADY_REGISTERED),
+      );
     }
 
     // Hash password
@@ -148,45 +145,60 @@ export class AuthService {
 
     return await this.databaseService.transaction(async (client) => {
       // Create user account
-      await client.query(
-        `INSERT INTO public.users (id, email, password_hash, first_name, last_name, is_verified)
-         VALUES ($1, $2, $3, $4, $5, false)`,
-        [
-          userId,
-          signupDto.email,
-          passwordHash,
-          signupDto.firstName,
-          signupDto.lastName,
-        ],
+      this.logger.log(`Creating user account for ${signupDto.email}`);
+      await this.userRepository.create(
+        {
+          id: userId,
+          email: signupDto.email,
+          password_hash: passwordHash,
+          first_name: signupDto.firstName ?? null,
+          last_name: signupDto.lastName ?? null,
+          is_verified: false,
+          is_system_admin: false,
+        },
+        { client },
       );
 
       // Create tenant and schema via TenantService (all multi-tenant setup is encapsulated there)
+      this.logger.log(`Creating tenant for ${signupDto.email}`);
       const tenant: Tenant = await this.tenantService.createTenant(
         {
           email: signupDto.email,
           role: 'admin',
           plan: 'early_access',
           features: new TenantFeaturesDto(),
+          userId,
         },
-        userId,
+        { client },
       );
 
       // Link user to the new tenant
-      await client.query(
-        `INSERT INTO public.user_tenants (user_id, tenant_id, role, is_active)
-         VALUES ($1, $2, $3, true)`,
-        [userId, tenant.tenant_id, tenant.role],
+      this.logger.log(`Linking user to tenant for ${signupDto.email}`);
+      await this.userTenantRepository.linkUserToTenant(
+        {
+          userId,
+          tenantId: tenant.tenant_id,
+          role: tenant.role,
+          isActive: true,
+        },
+        { client },
       );
 
       // Create email verification record
       const verificationToken = randomUUID();
       const verificationId = `verify_${randomUUID()}`;
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-      await client.query(
-        `INSERT INTO public.email_verifications (id, user_id, token, expires_at)
-         VALUES ($1, $2, $3, $4)`,
-        [verificationId, userId, verificationToken, expiresAt],
+      this.logger.log(
+        `Creating email verification record for ${signupDto.email}`,
+      );
+      await this.emailVerificationRepository.createEmailVerification(
+        {
+          id: verificationId,
+          userId,
+          token: verificationToken,
+          expiresAt,
+        },
+        { client },
       );
 
       // TODO: Hook in actual email sending here
@@ -195,8 +207,7 @@ export class AuthService {
       );
 
       return {
-        message:
-          'Signup successful. Please check your email to verify your account.',
+        message: this.i18n.t(I18nKeys.SIGNUP_SUCCESS),
         userId,
         tenant_id: tenant.tenant_id,
         verificationToken, // Expose only for development/testing; remove in prod
@@ -212,32 +223,25 @@ export class AuthService {
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
     // Get user's tenants
-    const tenantsResult = await this.databaseService.query<TenantRow>(
-      `SELECT ut.tenant_id, ut.role, t.schema_name 
-       FROM public.user_tenants ut
-       JOIN public.tenants t ON ut.tenant_id = t.tenant_id
-       WHERE ut.user_id = $1 AND ut.is_active = true`,
-      [user.id],
+    const tenants = await this.userTenantRepository.getActiveUserTenants(
+      user.id,
     );
-
-    if (tenantsResult.rows.length === 0) {
-      throw new UnauthorizedException('No active tenants found for this user');
+    if (tenants.length === 0) {
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
     }
 
     // If tenantId specified, use that; otherwise use first tenant
-    let selectedTenant: TenantRow;
+    let selectedTenant;
     if (loginDto.tenantId) {
-      const found = tenantsResult.rows.find(
-        (t) => t.tenant_id === loginDto.tenantId,
-      );
+      const found = tenants.find((t) => t.tenant_id === loginDto.tenantId);
       if (!found) {
         throw new UnauthorizedException(
-          'User does not have access to specified tenant',
+          this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
         );
       }
       selectedTenant = found;
     } else {
-      selectedTenant = tenantsResult.rows[0];
+      selectedTenant = tenants[0];
     }
 
     // Generate tokens (includes isSystemAdmin from user object)
@@ -267,7 +271,7 @@ export class AuthService {
         role: selectedTenant.role,
         schemaName: selectedTenant.schema_name,
       },
-      availableTenants: tenantsResult.rows.map((t) => ({
+      availableTenants: tenants.map((t) => ({
         tenantId: t.tenant_id,
         role: t.role,
       })),
@@ -277,22 +281,33 @@ export class AuthService {
   /**
    * Validate user credentials
    */
-  async validateUser(email: string, password: string): Promise<UserRow> {
-    const result = await this.databaseService.query<UserRow>(
-      'SELECT * FROM public.users WHERE email = $1',
-      [email],
-    );
-
-    if (result.rows.length === 0) {
-      throw new UnauthorizedException('Invalid credentials');
+  async validateUser(email: string, password: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      filters: {
+        email,
+      },
+      select: [
+        'id',
+        'email',
+        'password_hash',
+        'first_name',
+        'last_name',
+        'is_verified',
+        'is_system_admin',
+      ],
+    });
+    if (!user) {
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
     }
-
-    const user = result.rows[0];
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
     }
 
     return user;
@@ -358,11 +373,12 @@ export class AuthService {
       this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
     const expiresAt = new Date(Date.now() + this.parseExpiresIn(expiresIn));
 
-    await this.databaseService.query(
-      `INSERT INTO public.refresh_tokens (id, user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [tokenId, userId, tokenHash, expiresAt],
-    );
+    await this.refreshTokenRepository.create({
+      id: tokenId,
+      user_id: userId,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+    });
   }
 
   /**
@@ -391,20 +407,19 @@ export class AuthService {
    */
   async refreshTokens(userId: string, email: string, oldRefreshToken: string) {
     // Verify refresh token exists and is not revoked
-    const result = await this.databaseService.query(
-      `SELECT * FROM public.refresh_tokens 
-       WHERE user_id = $1 AND expires_at > NOW() AND revoked_at IS NULL`,
-      [userId],
-    );
+    const activeTokens =
+      await this.refreshTokenRepository.findActiveByUserId(userId);
 
-    if (result.rows.length === 0) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+    if (activeTokens.length === 0) {
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+      );
     }
 
     // Find matching token
-    let validToken: any = null;
-    for (const token of result.rows) {
-      const isValid = await bcrypt.compare(oldRefreshToken, token.token_hash);
+    let validToken: RefreshToken | null = null;
+    for (const token of activeTokens) {
+      const isValid = await bcrypt.compare(oldRefreshToken, token.tokenHash);
       if (isValid) {
         validToken = token;
         break;
@@ -412,41 +427,36 @@ export class AuthService {
     }
 
     if (!validToken) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+      );
     }
 
     // Revoke old refresh token
-    await this.databaseService.query(
-      'UPDATE public.refresh_tokens SET revoked_at = NOW() WHERE id = $1',
-      [validToken.id],
-    );
-
-    // Get user's current tenant info and system admin status
-    const userResult = await this.databaseService.query(
-      `SELECT u.is_system_admin, ut.tenant_id, ut.role 
-       FROM public.users u
-       JOIN public.user_tenants ut ON u.id = ut.user_id
-       WHERE u.id = $1 AND ut.is_active = true LIMIT 1`,
-      [userId],
-    );
-
-    if (userResult.rows.length === 0) {
-      throw new UnauthorizedException('No active tenants found');
+    const revoked = await this.refreshTokenRepository.revokeById(validToken.id);
+    if (!revoked) {
+      throw new UnauthorizedException('Failed to revoke refresh token');
     }
 
-    const {
-      tenant_id: tenantId,
-      role,
-      is_system_admin: isSystemAdmin,
-    } = userResult.rows[0];
+    // Get user's current tenant info and system admin status
+    const [user, activeTenants] = await Promise.all([
+      this.userRepository.findById(userId),
+      this.userTenantRepository.getActiveUserTenants(userId),
+    ]);
+
+    if (!user || activeTenants.length === 0) {
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
+    }
+
+    const { tenant_id, role } = activeTenants[0];
 
     // Generate new tokens
     const tokens = await this.generateTokens(
       userId,
       email,
-      tenantId,
+      tenant_id,
       role,
-      isSystemAdmin || false,
+      user.is_system_admin || false,
     );
 
     this.logger.log(`Tokens refreshed for user ${userId}`);
@@ -459,87 +469,82 @@ export class AuthService {
    */
   async logout(userId: string, refreshToken: string) {
     // Find and revoke the refresh token
-    const result = await this.databaseService.query(
-      'SELECT * FROM public.refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL',
-      [userId],
-    );
+    const activeTokens =
+      await this.refreshTokenRepository.findActiveByUserId(userId);
 
-    for (const token of result.rows) {
-      const isValid = await bcrypt.compare(refreshToken, token.token_hash);
+    for (const token of activeTokens) {
+      const isValid = await bcrypt.compare(refreshToken, token.tokenHash);
       if (isValid) {
-        await this.databaseService.query(
-          'UPDATE public.refresh_tokens SET revoked_at = NOW() WHERE id = $1',
-          [token.id],
-        );
-        this.logger.log(`User ${userId} logged out`);
-        return { message: 'Logged out successfully' };
+        const revoked = await this.refreshTokenRepository.revokeById(token.id);
+        if (revoked) {
+          this.logger.log(`User ${userId} logged out`);
+          return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
+        }
       }
     }
 
-    throw new BadRequestException('Invalid refresh token');
+    throw new BadRequestException(this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN));
   }
 
   /**
    * Verify email address
    */
   async verifyEmail(verifyEmailDto: VerifyEmailDto) {
-    const result = await this.databaseService.query(
-      `SELECT * FROM public.email_verifications 
-       WHERE token = $1 AND expires_at > NOW() AND verified_at IS NULL`,
-      [verifyEmailDto.token],
+    const verification = await this.emailVerificationRepository.findByToken(
+      verifyEmailDto.token,
     );
 
-    if (result.rows.length === 0) {
-      throw new BadRequestException('Invalid or expired verification token');
+    if (!verification) {
+      throw new BadRequestException(
+        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
+      );
     }
 
-    const verification = result.rows[0];
-
     await this.databaseService.transaction(async (client) => {
-      // Mark email as verified
-      await client.query(
-        'UPDATE public.users SET is_verified = true WHERE id = $1',
-        [verification.user_id],
+      await this.userRepository.update(
+        verification.userId,
+        { is_verified: true, updated_at: new Date() },
+        { client },
       );
 
-      // Mark verification as completed
-      await client.query(
-        'UPDATE public.email_verifications SET verified_at = NOW() WHERE id = $1',
-        [verification.id],
-      );
+      await this.emailVerificationRepository.markCompleted(verification.id, {
+        client,
+      });
     });
 
-    this.logger.log(`Email verified for user ${verification.user_id}`);
+    this.logger.log(`Email verified for user ${verification.userId}`);
 
-    return { message: 'Email verified successfully' };
+    return { message: this.i18n.t(I18nKeys.EMAIL_VERIFIED) };
   }
 
   /**
    * Request password reset
    */
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
-    const result = await this.databaseService.query(
-      'SELECT id FROM public.users WHERE email = $1',
-      [forgotPasswordDto.email],
-    );
-
-    if (result.rows.length === 0) {
+    const user = await this.userRepository.findOne({
+      filters: {
+        email: forgotPasswordDto.email,
+      },
+      select: ['id'],
+    });
+    if (!user) {
       // Don't reveal if email exists
       return {
-        message: 'If the email exists, a password reset link has been sent',
+        message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
       };
     }
 
-    const userId = result.rows[0].id;
+    const userId = user.id;
     const resetToken = randomUUID();
     const resetId = `reset_${randomUUID()}`;
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    await this.databaseService.query(
-      `INSERT INTO public.password_resets (id, user_id, token, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [resetId, userId, resetToken, expiresAt],
-    );
+    await this.userRepository.createPasswordReset({
+      id: resetId,
+      userId,
+      token: resetToken,
+      expiresAt,
+    });
 
     // TODO: Send password reset email
     this.logger.log(
@@ -547,7 +552,7 @@ export class AuthService {
     );
 
     return {
-      message: 'If the email exists, a password reset link has been sent',
+      message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
       resetToken, // Remove in production
     };
   }
@@ -556,17 +561,15 @@ export class AuthService {
    * Reset password using token
    */
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
-    const result = await this.databaseService.query(
-      `SELECT * FROM public.password_resets 
-       WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL`,
-      [resetPasswordDto.token],
+    const reset = await this.userRepository.findPasswordResetByToken(
+      resetPasswordDto.token,
     );
 
-    if (result.rows.length === 0) {
-      throw new BadRequestException('Invalid or expired reset token');
+    if (!reset) {
+      throw new BadRequestException(
+        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
+      );
     }
-
-    const reset = result.rows[0];
 
     // Hash new password
     const passwordHash = await bcrypt.hash(
@@ -575,27 +578,22 @@ export class AuthService {
     );
 
     await this.databaseService.transaction(async (client) => {
-      // Update password
-      await client.query(
-        'UPDATE public.users SET password_hash = $1 WHERE id = $2',
-        [passwordHash, reset.user_id],
+      await this.userRepository.update(
+        reset.userId,
+        { password_hash: passwordHash, updated_at: new Date() },
+        { client },
       );
 
-      // Mark token as used
-      await client.query(
-        'UPDATE public.password_resets SET used_at = NOW() WHERE id = $1',
-        [reset.id],
-      );
+      await this.userRepository.markPasswordResetUsed(reset.id, { client });
 
       // Revoke all refresh tokens for this user (force re-login)
-      await client.query(
-        'UPDATE public.refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL',
-        [reset.user_id],
-      );
+      await this.refreshTokenRepository.revokeAllByUserId(reset.userId, {
+        client,
+      });
     });
 
-    this.logger.log(`Password reset for user ${reset.user_id}`);
+    this.logger.log(`Password reset for user ${reset.userId}`);
 
-    return { message: 'Password reset successfully' };
+    return { message: this.i18n.t(I18nKeys.PASSWORD_RESET_SUCCESS) };
   }
 }

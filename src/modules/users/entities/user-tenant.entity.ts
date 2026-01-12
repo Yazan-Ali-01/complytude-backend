@@ -21,4 +21,7 @@ export class UserTenant {
 
   @ApiProperty({ description: 'Last update timestamp' })
   updated_at: Date;
+
+  @ApiProperty({ description: 'Schema name' })
+  schema_name: string;
 }

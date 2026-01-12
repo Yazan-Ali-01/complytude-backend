@@ -4,8 +4,10 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { I18nService, I18n } from 'nestjs-i18n';
 import {
   S3Client,
   PutObjectCommand,
@@ -13,12 +15,18 @@ import {
   GetObjectCommandOutput,
   DeleteObjectCommand,
   ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   HeadBucketCommand,
   CreateBucketCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
+import { I18nKeys } from '../../common/constants/i18n-keys';
+const PAGINATION_DEFAULTS = {
+  DEFAULT_LIMIT: 50,
+  MAX_LIMIT: 1000,
+} as const;
 
 export interface FileMetadata {
   userId: string;
@@ -39,8 +47,14 @@ export interface UploadResult {
 export interface FileListItem {
   key: string;
   size: number;
-  lastModified: Date;
-  url: string;
+  lastModified?: Date;
+  url?: string;
+}
+
+export interface PaginatedFileList {
+  files: FileListItem[];
+  nextToken?: string;
+  hasMore: boolean;
 }
 
 export interface FileWithMetadata {
@@ -74,7 +88,10 @@ export class StorageService {
     UPLOADED_AT: 'uploadedat',
   } as const;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @I18n() private readonly i18n: I18nService,
+  ) {
     const s3Config = this.configService.get('storage.s3');
     this.templatesBucket =
       this.configService.get('storage.templates.bucketName') ||
@@ -132,7 +149,7 @@ export class StorageService {
       this.logger.warn(
         `Tenant ${tenantId} attempted to access file outside their scope: ${fileKey}`,
       );
-      throw new NotFoundException('File not found');
+      throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
     }
   }
 
@@ -252,7 +269,9 @@ export class StorageService {
       };
     } catch (error) {
       this.logger.error(`Failed to upload file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to upload file');
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.FILE_UPLOAD_FAILED),
+      );
     }
   }
 
@@ -272,12 +291,8 @@ export class StorageService {
       );
 
       if (!response.Body) {
-        throw new NotFoundException('File not found');
+        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
       }
-
-      this.logger.debug(
-        `Raw S3 metadata for ${fileKey}: ${JSON.stringify(response.Metadata)}`,
-      );
 
       const metadata = this.mapS3MetadataToFileMetadata(response);
 
@@ -287,11 +302,13 @@ export class StorageService {
       };
     } catch (error) {
       if (this.isNotFoundError(error)) {
-        throw new NotFoundException('File not found');
+        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
       }
 
       this.logger.error(`Failed to get file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to retrieve file');
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.FILE_DOWNLOAD_FAILED),
+      );
     }
   }
 
@@ -374,7 +391,7 @@ export class StorageService {
         error.name === 'NotFound' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException('File not found');
+        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
       }
 
       // Handle bucket not found (404) - occurs when accessing another tenant's files
@@ -384,11 +401,13 @@ export class StorageService {
         error.message?.includes('bucket') ||
         error.message?.includes('does not exist')
       ) {
-        throw new NotFoundException('File not found');
+        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
       }
 
       this.logger.error(`Failed to delete file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete file');
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.FILE_DELETE_FAILED),
+      );
     }
   }
 
@@ -420,20 +439,33 @@ export class StorageService {
       return url;
     } catch (error) {
       this.logger.error(`Failed to generate signed URL: ${error.message}`);
-      throw new InternalServerErrorException('Failed to generate download URL');
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+      );
     }
   }
 
   /**
-   * List files in tenant's bucket
+   * List files in tenant's bucket with pagination support
+   * @param tenantId - Tenant identifier
+   * @param prefix - Optional prefix to filter files
+   * @param limit - Maximum number of files to return (default: 50, max: 1000)
+   * @param continuationToken - Token from previous response for pagination
+   * @returns Paginated list of files. Use /signed-url/:fileKey for individual file access URLs
    */
-  async listFiles(tenantId: string, prefix?: string): Promise<FileListItem[]> {
+  async listFiles(
+    tenantId: string,
+    prefix?: string,
+    limit: number = PAGINATION_DEFAULTS.DEFAULT_LIMIT,
+    continuationToken?: string,
+  ): Promise<PaginatedFileList> {
     const bucket = this.tenantFilesBucket;
     const tenantPrefix = this.getTenantPrefix(tenantId);
-    // Sanitize prefix to remove leading slashes to avoid double slashes in path
-    const sanitizedPrefix = prefix ? prefix.replace(/^\/+/, '') : '';
+    const sanitizedPrefix = prefix
+      ? prefix.replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/')
+      : '';
     const fullPrefix = sanitizedPrefix
-      ? `${tenantPrefix}/${sanitizedPrefix}`
+      ? `${tenantPrefix.replace(/\/+$/, '')}/${sanitizedPrefix}`
       : tenantPrefix;
 
     try {
@@ -441,26 +473,14 @@ export class StorageService {
         new ListObjectsV2Command({
           Bucket: bucket,
           Prefix: fullPrefix,
+          MaxKeys: Math.min(limit, PAGINATION_DEFAULTS.MAX_LIMIT),
+          ContinuationToken: continuationToken,
         }),
       );
 
-      if (!response.Contents || response.Contents.length === 0) {
-        return [];
-      }
+      const files = this.mapFilesWithoutUrls(response);
 
-      const files: FileListItem[] = await Promise.all(
-        response.Contents.filter((item) => item.Key).map(async (item) => {
-          const url = await this.generateSignedUrl(tenantId, item.Key!);
-          return {
-            key: item.Key!,
-            size: item.Size || 0,
-            lastModified: item.LastModified || new Date(),
-            url,
-          };
-        }),
-      );
-
-      return files;
+      return this.buildPaginatedResponse(response, files);
     } catch (error) {
       // Handle bucket doesn't exist cases
       if (
@@ -473,12 +493,56 @@ export class StorageService {
         this.logger.log(
           `Bucket ${bucket} does not exist yet, returning empty list`,
         );
-        return [];
+        return this.emptyPaginatedResponse();
       }
 
       this.logger.error(`Failed to list files: ${error.message}`);
-      throw new InternalServerErrorException('Failed to list files');
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.STORAGE_ACCESS_FAILED),
+      );
     }
+  }
+
+  /**
+   * Map S3 objects to file list without generating URLs (fast)
+   */
+  private mapFilesWithoutUrls(
+    response: ListObjectsV2CommandOutput,
+  ): FileListItem[] {
+    if (!response.Contents?.length) {
+      return [];
+    }
+
+    return response.Contents.filter((item) => item.Key).map((item) => ({
+      key: item.Key!,
+      size: item.Size || 0,
+      lastModified: item.LastModified,
+      url: undefined,
+    }));
+  }
+
+  /**
+   * Build paginated response object
+   */
+  private buildPaginatedResponse(
+    response: ListObjectsV2CommandOutput,
+    files: FileListItem[],
+  ): PaginatedFileList {
+    return {
+      files,
+      nextToken: response.NextContinuationToken,
+      hasMore: response.IsTruncated || false,
+    };
+  }
+
+  /**
+   * Return empty paginated response
+   */
+  private emptyPaginatedResponse(): PaginatedFileList {
+    return {
+      files: [],
+      hasMore: false,
+    };
   }
 
   async initializeTenantFilesBucket(): Promise<void> {
@@ -624,7 +688,9 @@ export class StorageService {
       };
     } catch (error) {
       this.logger.error(`Failed to upload template file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to upload template file');
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.FILE_UPLOAD_FAILED),
+      );
     }
   }
 
@@ -645,7 +711,7 @@ export class StorageService {
       );
 
       if (!response.Body) {
-        throw new NotFoundException('Template file not found');
+        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
       }
 
       return response.Body as Readable;
@@ -654,12 +720,12 @@ export class StorageService {
         error.name === 'NoSuchKey' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException('Template file not found');
+        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
       }
 
       this.logger.error(`Failed to get template file: ${error.message}`);
       throw new InternalServerErrorException(
-        'Failed to retrieve template file',
+        this.i18n.t(I18nKeys.FILE_DOWNLOAD_FAILED),
       );
     }
   }
@@ -689,7 +755,7 @@ export class StorageService {
         `Failed to generate template signed URL: ${error.message}`,
       );
       throw new InternalServerErrorException(
-        'Failed to generate template download URL',
+        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
       );
     }
   }
@@ -725,7 +791,7 @@ export class StorageService {
         error.name === 'NotFound' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException('Template file not found');
+        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
       }
 
       // Handle bucket not found (404)
@@ -735,43 +801,41 @@ export class StorageService {
         error.message?.includes('bucket') ||
         error.message?.includes('does not exist')
       ) {
-        throw new NotFoundException('Template file not found');
+        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
       }
 
       this.logger.error(`Failed to delete template file: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete template file');
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.FILE_DELETE_FAILED),
+      );
     }
   }
 
   /**
-   * List all template files
+   * List template files with pagination support
+   * @param prefix - Optional prefix to filter template files
+   * @param limit - Maximum number of files to return (default: 50, max: 1000)
+   * @param continuationToken - Token from previous response for pagination
+   * @returns Paginated list of template files without signed URLs
    */
-  async listTemplateFiles(prefix?: string): Promise<FileListItem[]> {
+  async listTemplateFiles(
+    prefix?: string,
+    limit: number = PAGINATION_DEFAULTS.DEFAULT_LIMIT,
+    continuationToken?: string,
+  ): Promise<PaginatedFileList> {
     try {
       const response = await this.s3Client.send(
         new ListObjectsV2Command({
           Bucket: this.templatesBucket,
           Prefix: prefix,
+          MaxKeys: Math.min(limit, PAGINATION_DEFAULTS.MAX_LIMIT),
+          ContinuationToken: continuationToken,
         }),
       );
 
-      if (!response.Contents || response.Contents.length === 0) {
-        return [];
-      }
+      const files = this.mapFilesWithoutUrls(response);
 
-      const files: FileListItem[] = await Promise.all(
-        response.Contents.filter((item) => item.Key).map(async (item) => {
-          const url = await this.generateTemplateSignedUrl(item.Key!);
-          return {
-            key: item.Key!,
-            size: item.Size || 0,
-            lastModified: item.LastModified || new Date(),
-            url,
-          };
-        }),
-      );
-
-      return files;
+      return this.buildPaginatedResponse(response, files);
     } catch (error) {
       // Handle bucket doesn't exist cases
       if (
@@ -782,11 +846,13 @@ export class StorageService {
         this.logger.log(
           `Templates bucket ${this.templatesBucket} does not exist yet, returning empty list`,
         );
-        return [];
+        return this.emptyPaginatedResponse();
       }
 
       this.logger.error(`Failed to list template files: ${error.message}`);
-      throw new InternalServerErrorException('Failed to list template files');
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.STORAGE_ACCESS_FAILED),
+      );
     }
   }
 }

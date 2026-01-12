@@ -5,7 +5,9 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { TenantService } from '../../modules/tenant/tenant.service';
+import { I18nContext } from 'nestjs-i18n';
+import { TenantService } from 'src/modules/tenants/tenant.service';
+import { I18nKeys } from '../constants/i18n-keys';
 
 /**
  * Guard to enforce document upload limits based on tenant's plan
@@ -30,8 +32,9 @@ export class DocumentLimitGuard implements CanActivate {
 
     // Ensure tenant context is available
     if (!tenantId) {
+      const i18n = I18nContext.current();
       throw new UnauthorizedException(
-        'Tenant context not found. Please authenticate.',
+        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
       );
     }
 
@@ -39,12 +42,15 @@ export class DocumentLimitGuard implements CanActivate {
     const uploadCheck = await this.tenantService.canUploadDocument(tenantId);
 
     if (!uploadCheck.allowed) {
+      const i18n = I18nContext.current();
       throw new ForbiddenException({
         message: uploadCheck.message,
         limit: uploadCheck.limit,
         current: uploadCheck.current,
         statusCode: 403,
-        error: 'Document Limit Exceeded',
+        error:
+          i18n?.t(I18nKeys.DOCUMENT_LIMIT_EXCEEDED) ??
+          'Document Limit Exceeded',
       });
     }
 
