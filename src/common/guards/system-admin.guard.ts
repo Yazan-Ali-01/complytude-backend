@@ -5,6 +5,8 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { I18nContext } from 'nestjs-i18n';
+import { I18nKeys } from '../constants/i18n-keys';
 
 /**
  * Guard to check if user is a system administrator
@@ -24,17 +26,18 @@ export class SystemAdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
+    const i18n = I18nContext.current();
 
     // Ensure user is authenticated
     if (!user) {
-      throw new UnauthorizedException('Authentication required. Please login.');
+      throw new UnauthorizedException(
+        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+      );
     }
 
     // Check if user is system admin
     if (!user.isSystemAdmin) {
-      throw new ForbiddenException(
-        'Access denied. System administrator privileges required.',
-      );
+      throw new ForbiddenException(i18n?.t(I18nKeys.FORBIDDEN) ?? 'Forbidden');
     }
 
     return true;

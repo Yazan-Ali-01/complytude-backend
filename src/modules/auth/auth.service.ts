@@ -12,6 +12,7 @@ import { RefreshTokenRepository } from '../../repositories/users/refresh-token.r
 import { UserRepository } from '../../repositories/users/user.repository';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
+import { I18nService, I18n } from 'nestjs-i18n';
 import { DatabaseService } from 'src/database/database.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
@@ -24,6 +25,7 @@ import { JwtPayload } from './strategies/jwt.strategy';
 import { TenantService } from '../tenants/tenant.service';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { TenantFeaturesDto } from '../tenants/dto/create-tenant.dto';
+import { I18nKeys } from '../../common/constants/i18n-keys';
 import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.interfaces';
 import { User } from 'src/modules/users/entities/user.entity';
 
@@ -36,6 +38,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tenantService: TenantService,
+    @I18n() private readonly i18n: I18nService,
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly emailVerificationRepository: EmailVerificationRepository,
     private readonly userRepository: UserRepository,
@@ -63,7 +66,9 @@ export class AuthService {
       select: ['id'],
     });
     if (existingUser) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictException(
+        this.i18n.t(I18nKeys.EMAIL_ALREADY_REGISTERED),
+      );
     }
 
     // Hash password
@@ -138,8 +143,7 @@ export class AuthService {
       );
 
       return {
-        message:
-          'Signup successful. Please check your email to verify your account.',
+        message: this.i18n.t(I18nKeys.SIGNUP_SUCCESS),
         userId,
         tenant_id: tenant.tenant_id,
         verificationToken, // Expose only for development/testing; remove in prod
@@ -159,7 +163,7 @@ export class AuthService {
       user.id,
     );
     if (tenants.length === 0) {
-      throw new UnauthorizedException('No active tenants found for this user');
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
     }
 
     // If tenantId specified, use that; otherwise use first tenant
@@ -168,7 +172,7 @@ export class AuthService {
       const found = tenants.find((t) => t.tenant_id === loginDto.tenantId);
       if (!found) {
         throw new UnauthorizedException(
-          'User does not have access to specified tenant',
+          this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
         );
       }
       selectedTenant = found;
@@ -229,13 +233,17 @@ export class AuthService {
       ],
     });
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
     }
 
     return user;
@@ -339,7 +347,9 @@ export class AuthService {
       await this.refreshTokenRepository.findActiveByUserId(userId);
 
     if (activeTokens.length === 0) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+      );
     }
 
     // Find matching token
@@ -353,7 +363,9 @@ export class AuthService {
     }
 
     if (!validToken) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+      );
     }
 
     // Revoke old refresh token
@@ -369,7 +381,7 @@ export class AuthService {
     ]);
 
     if (!user || activeTenants.length === 0) {
-      throw new UnauthorizedException('No active tenants found');
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
     }
 
     const { tenant_id, role } = activeTenants[0];
@@ -402,12 +414,12 @@ export class AuthService {
         const revoked = await this.refreshTokenRepository.revokeById(token.id);
         if (revoked) {
           this.logger.log(`User ${userId} logged out`);
-          return { message: 'Logged out successfully' };
+          return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
         }
       }
     }
 
-    throw new BadRequestException('Invalid refresh token');
+    throw new BadRequestException(this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN));
   }
 
   /**
@@ -419,7 +431,9 @@ export class AuthService {
     );
 
     if (!verification) {
-      throw new BadRequestException('Invalid or expired verification token');
+      throw new BadRequestException(
+        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
+      );
     }
 
     await this.databaseService.transaction(async (client) => {
@@ -436,7 +450,7 @@ export class AuthService {
 
     this.logger.log(`Email verified for user ${verification.userId}`);
 
-    return { message: 'Email verified successfully' };
+    return { message: this.i18n.t(I18nKeys.EMAIL_VERIFIED) };
   }
 
   /**
@@ -452,7 +466,7 @@ export class AuthService {
     if (!user) {
       // Don't reveal if email exists
       return {
-        message: 'If the email exists, a password reset link has been sent',
+        message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
       };
     }
 
@@ -474,7 +488,7 @@ export class AuthService {
     );
 
     return {
-      message: 'If the email exists, a password reset link has been sent',
+      message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
       resetToken, // Remove in production
     };
   }
@@ -488,7 +502,9 @@ export class AuthService {
     );
 
     if (!reset) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException(
+        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
+      );
     }
 
     // Hash new password
@@ -514,6 +530,6 @@ export class AuthService {
 
     this.logger.log(`Password reset for user ${reset.userId}`);
 
-    return { message: 'Password reset successfully' };
+    return { message: this.i18n.t(I18nKeys.PASSWORD_RESET_SUCCESS) };
   }
 }

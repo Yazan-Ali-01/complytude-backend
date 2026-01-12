@@ -15,6 +15,7 @@ import { AuthoritiesModule } from './modules/authorities/authorities.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
+import { I18nModule } from './i18n/i18n.module';
 import databaseConfig from 'src/config/database.config';
 import appConfig from 'src/config/app.config';
 import jwtConfig from 'src/config/jwt.config';
@@ -32,6 +33,7 @@ import { validationSchema } from 'src/config/env.schema';
         abortEarly: false,
       },
     }),
+    I18nModule,
     DatabaseModule,
     HealthModule,
     TenantModule,
