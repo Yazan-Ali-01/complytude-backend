@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
-import { TenantService } from '../../modules/tenant/tenant.service';
+import { TenantService } from 'src/modules/tenants/tenant.service';
 import { I18nKeys } from '../constants/i18n-keys';
 
 /**

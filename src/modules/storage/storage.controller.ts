@@ -35,12 +35,17 @@ import {
   FileListResponseDto,
   SignedUrlResponseDto,
   DeleteFileResponseDto,
-} from './dto/file-response.dto';
+} from './dto/list-files-response.dto';
 
 @ApiTags('Storage')
 @Controller('storage')
 export class StorageController {
   private readonly logger = new Logger(StorageController.name);
+
+  private readonly PAGINATION = {
+    DEFAULT_LIMIT: 50,
+    MAX_LIMIT: 1000,
+  } as const;
 
   constructor(private readonly storageService: StorageService) {}
 
@@ -102,7 +107,13 @@ export class StorageController {
       user.userId,
     );
 
-    return { url: result.url };
+    return {
+      url: result.url,
+      key: result.key,
+      bucket: result.bucket,
+      size: result.size,
+      contentType: result.contentType,
+    };
   }
 
   @Get('list')
@@ -110,9 +121,9 @@ export class StorageController {
   @Roles('admin', 'member', 'viewer', 'system')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'List all files for current tenant',
+    summary: 'List files for current tenant',
     description:
-      'List all files in tenant storage. Available to all authenticated users.',
+      'List files in tenant storage with pagination support. Available to all authenticated users.',
   })
   @ApiQuery({
     name: 'prefix',
@@ -120,11 +131,24 @@ export class StorageController {
     type: String,
     description: 'Optional prefix to filter files by path',
   })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Maximum number of files to return (default: 50, max: 1000)',
+  })
+  @ApiQuery({
+    name: 'continuationToken',
+    required: false,
+    type: String,
+    description: 'Token from previous response to fetch next page',
+  })
   @ApiResponse({
     status: 200,
     description: 'Files retrieved successfully',
     type: FileListResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Invalid parameters' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
     status: 403,
@@ -133,12 +157,52 @@ export class StorageController {
   async listFiles(
     @CurrentUser() user: AuthenticatedUser,
     @Query('prefix') prefix?: string,
+    @Query('limit') limit?: number,
+    @Query('continuationToken') continuationToken?: string,
   ): Promise<FileListResponseDto> {
-    const files = await this.storageService.listFiles(user.tenantId, prefix);
+    const validatedLimit = this.validatePaginationLimit(limit);
 
+    const result = await this.storageService.listFiles(
+      user.tenantId,
+      prefix,
+      validatedLimit,
+      continuationToken,
+    );
+
+    return this.mapToFileListResponse(result);
+  }
+
+  /**
+   * Validate and sanitize pagination limit
+   */
+  private validatePaginationLimit(limit?: number): number {
+    if (limit === undefined) {
+      return this.PAGINATION.DEFAULT_LIMIT;
+    }
+
+    const parsed = Number(limit);
+    if (isNaN(parsed) || parsed < 1) {
+      throw new BadRequestException(
+        `Limit must be a positive number (max: ${this.PAGINATION.MAX_LIMIT})`,
+      );
+    }
+
+    return Math.min(parsed, this.PAGINATION.MAX_LIMIT);
+  }
+
+  /**
+   * Map service result to API response DTO
+   */
+  private mapToFileListResponse(result: {
+    files: any[];
+    nextToken?: string;
+    hasMore: boolean;
+  }): FileListResponseDto {
     return {
-      files,
-      total: files.length,
+      files: result.files,
+      total: result.files.length,
+      nextToken: result.nextToken,
+      hasMore: result.hasMore,
     };
   }
 

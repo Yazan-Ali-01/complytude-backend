@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
 import { FEATURES_KEY } from '../decorators/features.decorator';
-import { FeaturesService } from '../../modules/tenant/features.service';
+import { FeaturesService } from 'src/modules/tenants/features.service';
 import { I18nKeys } from '../constants/i18n-keys';
 
 @Injectable()
