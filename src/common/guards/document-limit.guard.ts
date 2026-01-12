@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { TenantService } from '../../modules/tenant/tenant.service';
+import { TenantService } from 'src/modules/tenants/tenant.service';
 
 /**
  * Guard to enforce document upload limits based on tenant's plan
