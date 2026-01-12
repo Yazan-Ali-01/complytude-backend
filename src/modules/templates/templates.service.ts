@@ -6,7 +6,7 @@ import {
   InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
-import { I18nService } from 'nestjs-i18n';
+import { I18nService, I18n } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import { Template, TemplateWithDetails } from './entities/template.entity';
 import {
@@ -40,7 +40,7 @@ export class TemplatesService {
     private readonly rulesetsService: RulesetsService,
     private readonly placeholderExtractionService: DocxPlaceholderExtractionService,
     private readonly storageService: StorageService,
-    private readonly i18n: I18nService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
   async create(
     createTemplateDto: CreateTemplateDto,

@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { I18nService } from 'nestjs-i18n';
+import { I18nService, I18n } from 'nestjs-i18n';
 import { DatabaseService } from '../../database/database.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
@@ -51,7 +51,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tenantService: TenantService,
-    private readonly i18n: I18nService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
