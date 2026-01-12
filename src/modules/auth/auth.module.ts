@@ -1,17 +1,13 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from '../../database/database.module';
+import { TenantModule } from '../tenants/tenant.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
-import { DatabaseModule } from 'src/database/database.module';
-import { TenantModule } from '../tenants/tenant.module';
-import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
-import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
-import { UserRepository } from '../../repositories/users/user.repository';
-import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
+import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
@@ -22,15 +18,7 @@ import { UserTenantRepository } from '../../repositories/users/user-tenant.repos
     TenantModule,
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    JwtStrategy,
-    JwtRefreshStrategy,
-    EmailVerificationRepository,
-    RefreshTokenRepository,
-    UserRepository,
-    UserTenantRepository,
-  ],
-  exports: [AuthService, JwtStrategy, PassportModule],
+  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
+  exports: [AuthService],
 })
 export class AuthModule {}

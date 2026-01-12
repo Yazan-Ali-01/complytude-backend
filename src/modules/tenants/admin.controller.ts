@@ -1,29 +1,29 @@
 import {
-  Controller,
-  Get,
-  Put,
-  Delete,
   Body,
-  Param,
-  Query,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
-  UseGuards,
+  Param,
   ParseIntPipe,
+  Put,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
   ApiOperation,
-  ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiBearerAuth,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { TenantService } from './tenant.service';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { TenantService } from './tenant.service';
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 /**
@@ -33,7 +33,7 @@ import { CursorPaginationResult } from 'src/repositories/base/repository.interfa
 @ApiTags('System Admin - Tenants')
 @Controller('admin/tenants')
 @UseGuards(SystemAdminGuard)
-@ApiBearerAuth()
+@SwaggerCookieAuth.accessToken()
 export class TenantAdminController {
   private readonly logger = new Logger(TenantAdminController.name);
 

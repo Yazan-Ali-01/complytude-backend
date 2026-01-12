@@ -1,44 +1,45 @@
 import {
-  Controller,
-  Post,
-  Get,
-  Delete,
-  Param,
-  Query,
-  UseInterceptors,
-  UseGuards,
-  UploadedFile,
   BadRequestException,
+  Controller,
+  Delete,
+  Get,
   Logger,
+  Param,
+  Post,
+  Query,
   StreamableFile,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiConsumes,
   ApiBody,
+  ApiConsumes,
+  ApiOperation,
   ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { FastifyFileInterceptor } from './interceptors/fastify-file.interceptor';
-import { StorageService } from './storage.service';
-import { FileValidationPipe } from './pipes/file-validation.pipe';
-import type { ValidatedFile } from './pipes/file-validation.pipe';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { DocumentLimitGuard } from '../../common/guards/document-limit.guard';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { DocumentLimitGuard } from '../../common/guards/document-limit.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import {
-  FileResponseDto,
-  FileListResponseDto,
-  SignedUrlResponseDto,
   DeleteFileResponseDto,
+  FileListResponseDto,
+  FileResponseDto,
+  SignedUrlResponseDto,
 } from './dto/list-files-response.dto';
+import { FastifyFileInterceptor } from './interceptors/fastify-file.interceptor';
+import type { ValidatedFile } from './pipes/file-validation.pipe';
+import { FileValidationPipe } from './pipes/file-validation.pipe';
+import { StorageService } from './storage.service';
 
 @ApiTags('Storage')
 @Controller('storage')
+@SwaggerCookieAuth.accessToken()
 export class StorageController {
   private readonly logger = new Logger(StorageController.name);
 
@@ -52,7 +53,6 @@ export class StorageController {
   @Post('upload')
   @UseGuards(RolesGuard, DocumentLimitGuard)
   @Roles('admin', 'member', 'system')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Upload a file',
     description:
@@ -119,7 +119,6 @@ export class StorageController {
   @Get('list')
   @UseGuards(RolesGuard)
   @Roles('admin', 'member', 'viewer', 'system')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'List files for current tenant',
     description:
@@ -209,7 +208,6 @@ export class StorageController {
   @Get('signed-url/:fileKey')
   @UseGuards(RolesGuard)
   @Roles('admin', 'member', 'system')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get signed download URL for a file',
     description:
@@ -253,7 +251,6 @@ export class StorageController {
   @Get('download/:fileKey')
   @UseGuards(RolesGuard)
   @Roles('admin', 'member', 'system')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Download a file directly',
     description:
@@ -288,7 +285,6 @@ export class StorageController {
   @Delete(':fileKey')
   @UseGuards(RolesGuard)
   @Roles('admin', 'system')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Delete a file',
     description:
