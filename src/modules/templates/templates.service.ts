@@ -132,7 +132,7 @@ export class TemplatesService {
           error.stack,
         );
         throw new InternalServerErrorException(
-          this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+          this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
         );
       }
 
@@ -242,7 +242,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to create template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
       );
     }
   }
@@ -307,7 +307,7 @@ export class TemplatesService {
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
       );
     }
   }
@@ -348,7 +348,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
       );
     }
   }
@@ -716,7 +716,7 @@ export class TemplatesService {
         error.stack,
       );
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
       );
     }
 
@@ -823,9 +823,7 @@ export class TemplatesService {
   ): Promise<TemplateDownloadResponseDto> {
     // Validate version format (semver: x.y.z) before any DB calls
     if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
-      throw new BadRequestException(
-        this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
-      );
+      throw new BadRequestException(this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND));
     }
 
     try {
@@ -865,7 +863,7 @@ export class TemplatesService {
         `Failed to generate download URL for template "${key}": ${error.message}`,
       );
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
       );
     }
   }

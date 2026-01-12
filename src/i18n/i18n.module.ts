@@ -4,6 +4,7 @@ import {
   HeaderResolver,
   QueryResolver,
   AcceptLanguageResolver,
+  CookieResolver,
 } from 'nestjs-i18n';
 import * as path from 'path';
 
@@ -17,6 +18,7 @@ import * as path from 'path';
       },
       resolvers: [
         { use: QueryResolver, options: ['lang'] },
+        new CookieResolver(['lang', 'language']),
         new HeaderResolver(['x-lang']),
         AcceptLanguageResolver,
       ],

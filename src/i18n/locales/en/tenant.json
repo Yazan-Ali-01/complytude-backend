@@ -8,5 +8,6 @@
   "INVALID_TENANT_DATA": "Invalid tenant data provided",
   "TENANT_NAME_REQUIRED": "Tenant name is required",
   "TENANT_SUSPENDED": "Tenant account is suspended",
-  "TENANT_INACTIVE": "Tenant is inactive"
+  "TENANT_INACTIVE": "Tenant is inactive",
+  "DOCUMENT_LIMIT_EXCEEDED": "Document upload limit exceeded for your plan"
 }

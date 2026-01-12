@@ -8,5 +8,6 @@
   "INVALID_TENANT_DATA": "بيانات المستأجر المقدمة غير صالحة",
   "TENANT_NAME_REQUIRED": "اسم المستأجر مطلوب",
   "TENANT_SUSPENDED": "حساب المستأجر معلق",
-  "TENANT_INACTIVE": "المستأجر غير نشط"
+  "TENANT_INACTIVE": "المستأجر غير نشط",
+  "DOCUMENT_LIMIT_EXCEEDED": "تم تجاوز حد تحميل المستندات لخطتك"
 }

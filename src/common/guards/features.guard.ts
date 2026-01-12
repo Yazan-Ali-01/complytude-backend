@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { I18nService } from 'nestjs-i18n';
+import { I18nContext } from 'nestjs-i18n';
 import { FEATURES_KEY } from '../decorators/features.decorator';
 import { FeaturesService } from '../../modules/tenant/features.service';
 import { I18nKeys } from '../constants/i18n-keys';
@@ -16,7 +16,6 @@ export class FeaturesGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private featuresService: FeaturesService,
-    private readonly i18n: I18nService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -33,10 +32,13 @@ export class FeaturesGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const tenantId = String(request.tenantId || request.user?.tenantId);
+    const i18n = I18nContext.current();
 
     // Ensure tenant context is available
     if (!tenantId) {
-      throw new UnauthorizedException(this.i18n.t(I18nKeys.UNAUTHORIZED));
+      throw new UnauthorizedException(
+        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+      );
     }
 
     // Check each required feature
@@ -47,7 +49,9 @@ export class FeaturesGuard implements CanActivate {
       );
 
       if (!hasAccess) {
-        throw new ForbiddenException(this.i18n.t(I18nKeys.FORBIDDEN));
+        throw new ForbiddenException(
+          i18n?.t(I18nKeys.FORBIDDEN) ?? 'Forbidden',
+        );
       }
     }
 

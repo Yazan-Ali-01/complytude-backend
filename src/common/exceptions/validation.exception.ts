@@ -3,7 +3,7 @@ import { I18nContext } from 'nestjs-i18n';
 import { I18nKeys } from '../../common/constants/i18n-keys';
 
 export class ValidationException extends HttpException {
-  constructor(details: any[]) {
+  constructor(_details: any[]) {
     const i18n = I18nContext.current();
     super(
       {

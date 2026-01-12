@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { I18nService } from 'nestjs-i18n';
+import { I18nContext } from 'nestjs-i18n';
 import { TenantService } from '../../modules/tenant/tenant.service';
 import { I18nKeys } from '../constants/i18n-keys';
 
@@ -24,10 +24,7 @@ import { I18nKeys } from '../constants/i18n-keys';
  */
 @Injectable()
 export class DocumentLimitGuard implements CanActivate {
-  constructor(
-    private tenantService: TenantService,
-    private readonly i18n: I18nService,
-  ) {}
+  constructor(private tenantService: TenantService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -35,19 +32,25 @@ export class DocumentLimitGuard implements CanActivate {
 
     // Ensure tenant context is available
     if (!tenantId) {
-      throw new UnauthorizedException(this.i18n.t(I18nKeys.UNAUTHORIZED));
+      const i18n = I18nContext.current();
+      throw new UnauthorizedException(
+        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+      );
     }
 
     // Check if tenant can upload more documents
     const uploadCheck = await this.tenantService.canUploadDocument(tenantId);
 
     if (!uploadCheck.allowed) {
+      const i18n = I18nContext.current();
       throw new ForbiddenException({
         message: uploadCheck.message,
         limit: uploadCheck.limit,
         current: uploadCheck.current,
         statusCode: 403,
-        error: 'Document Limit Exceeded',
+        error:
+          i18n?.t(I18nKeys.DOCUMENT_LIMIT_EXCEEDED) ??
+          'Document Limit Exceeded',
       });
     }
 
