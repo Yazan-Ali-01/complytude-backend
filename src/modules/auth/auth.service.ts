@@ -13,6 +13,8 @@ import { randomUUID } from 'crypto';
 import { FastifyReply } from 'fastify';
 import {
   ACCESS_TOKEN_COOKIE_NAME,
+  COOKIE_PATH,
+  COOKIE_SAME_SITE,
   REFRESH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
 import { DatabaseService } from '../../database/database.service';
@@ -76,8 +78,8 @@ export class AuthService {
     reply.setCookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
-      path: '/',
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
       maxAge: Math.floor(this.parseExpiresIn(accessExpiresIn) / 1000), // Convert ms to seconds
     });
 
@@ -85,8 +87,8 @@ export class AuthService {
     reply.setCookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
-      path: '/',
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
       maxAge: Math.floor(this.parseExpiresIn(refreshExpiresIn) / 1000), // Convert ms to seconds
     });
   }
@@ -98,18 +100,18 @@ export class AuthService {
     const isProduction =
       this.configService.get<string>('app.environment') === 'production';
 
-    reply.clearCookie('accessToken', {
+    reply.clearCookie(ACCESS_TOKEN_COOKIE_NAME, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
-      path: '/',
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
     });
 
-    reply.clearCookie('refreshToken', {
+    reply.clearCookie(REFRESH_TOKEN_COOKIE_NAME, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
-      path: '/',
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
     });
   }
 
