@@ -1,22 +1,22 @@
 import {
+  ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
-import { TenantRepository } from '../../repositories/tenants/tenant.repository';
-import { FeaturesService } from './features.service';
-import { CreateTenantDto } from './dto/create-tenant.dto';
-import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { Tenant, TenantFeatures, TenantSchema } from './entities/tenant.entity';
 import { randomUUID } from 'crypto';
 import { PoolClient } from 'pg';
+import { DatabaseService } from 'src/database/database.service';
 import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from 'src/repositories/base/repository.interface';
+import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { CreateTenantDto } from './dto/create-tenant.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { Tenant, TenantFeatures } from './entities/tenant.entity';
+import { FeaturesService } from './features.service';
 
 @Injectable()
 export class TenantService {
@@ -29,24 +29,7 @@ export class TenantService {
   ) {}
 
   /**
-   * Initialize the multi-tenancy infrastructure
-   * Creates the main tenants table and RLS policies
-   */
-  async initializeMultiTenancy(): Promise<void> {
-    try {
-      await this.databaseService.transaction(async (client) => {
-        await this.tenantRepository.initializeInfrastructure({ client });
-      });
-    } catch (error) {
-      this.logger.error('Failed to initialize multi-tenancy', error);
-      throw new InternalServerErrorException(
-        'Failed to initialize multi-tenancy',
-      );
-    }
-  }
-
-  /**
-   * Create a new tenant with isolated schema
+   * Create a new tenant
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
@@ -56,7 +39,6 @@ export class TenantService {
   ): Promise<Tenant> {
     const { client } = options ?? {};
     const tenantId = `tenant_${randomUUID()}`;
-    const schemaName = `tenant_${tenantId.replace(/-/g, '_')}`;
     const features: TenantFeatures = { ...createTenantDto.features };
 
     try {
@@ -79,22 +61,8 @@ export class TenantService {
             role: createTenantDto.role,
             plan: createTenantDto.plan,
             features: JSON.stringify(features),
-            schema_name: schemaName,
             is_active: true,
           },
-          { client },
-        );
-
-        await this.tenantRepository.createTenantSchemaRecord(
-          tenantId,
-          schemaName,
-          { client },
-        );
-
-        await this.tenantRepository.createTenantSchema(schemaName, { client });
-        await this.tenantRepository.initializeTenantSchema(
-          schemaName,
-          tenantId,
           { client },
         );
 
@@ -130,7 +98,6 @@ export class TenantService {
           'role',
           'plan',
           'features',
-          'schema_name',
           'is_active',
           'created_at',
           'updated_at',
@@ -164,7 +131,6 @@ export class TenantService {
           'role',
           'plan',
           'features',
-          'schema_name',
           'is_active',
           'created_at',
           'updated_at',
@@ -229,17 +195,11 @@ export class TenantService {
   }
 
   /**
-   * Delete tenant and its schema
+   * Delete tenant
    */
   async deleteTenant(tenantId: string): Promise<void> {
     try {
-      const tenant = await this.findById(tenantId);
-
       await this.databaseService.transaction(async (client) => {
-        await this.tenantRepository.dropTenantSchema(tenant.schema_name, {
-          client,
-        });
-
         const deleted = await this.tenantRepository.deleteByTenantId(tenantId, {
           client,
         });
@@ -258,24 +218,6 @@ export class TenantService {
   }
 
   /**
-   * Get tenant schema information
-   */
-  async getTenantSchema(tenantId: string): Promise<TenantSchema> {
-    try {
-      const schema = await this.tenantRepository.getTenantSchema(tenantId);
-
-      if (!schema) {
-        throw new NotFoundException(`Schema for tenant ${tenantId} not found`);
-      }
-
-      return schema;
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Failed to fetch tenant schema');
-    }
-  }
-
-  /**
    * Get document count for a tenant
    * Assumes documents are stored in a 'documents' table in the tenant's schema
    */
@@ -283,7 +225,7 @@ export class TenantService {
     try {
       const tenant = await this.findById(tenantId);
 
-      return await this.tenantRepository.getDocumentCount(tenant.schema_name);
+      return await this.tenantRepository.getDocumentCount(tenant.tenant_id);
     } catch (error) {
       this.logger.error(
         `Failed to get document count for tenant ${tenantId}`,

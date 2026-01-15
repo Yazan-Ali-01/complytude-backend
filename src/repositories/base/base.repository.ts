@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { QueryResult, QueryResultRow } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import {
+  ClientQueryOptions,
   FindOneOptions,
   QueryOptions,
-  ClientQueryOptions,
   RepositoryInterface,
 } from './repository.interface';
 
@@ -102,7 +102,6 @@ export abstract class BaseRepository<
     if (tenant) {
       return this.databaseService.queryWithTenantContext<T>(
         tenant.tenantId,
-        tenant.schema,
         query,
         params,
       );

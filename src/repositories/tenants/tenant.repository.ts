@@ -1,17 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { BaseRepository } from '../base/base.repository';
-import { DatabaseService } from '../../database/database.service';
-import {
-  QueryOptions,
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from '../base/repository.interface';
 import {
   Tenant,
   TenantFeatures,
-  TenantSchema,
 } from 'src/modules/tenants/entities/tenant.entity';
+import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  QueryOptions,
+} from '../base/repository.interface';
 
 /**
  * Type for creating a new tenant row in the database.
@@ -24,7 +23,6 @@ export type CreateTenantRow = {
   role: 'admin' | 'user' | 'viewer';
   plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
   features: string; // Stringified JSONB
-  schema_name: string;
   is_active?: boolean;
   created_at?: Date;
   updated_at?: Date;
@@ -39,7 +37,6 @@ export type UpdateTenantRow = {
   role?: 'admin' | 'user' | 'viewer';
   plan?: 'early_access' | 'basic' | 'pro' | 'enterprise';
   features?: string; // Stringified JSONB
-  schema_name?: string;
   is_active?: boolean;
   updated_at?: Date;
 };
@@ -51,17 +48,9 @@ type TenantRow = {
   role: 'admin' | 'user' | 'viewer';
   plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
   features: unknown;
-  schema_name: string;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
-};
-
-type TenantSchemaRow = {
-  tenant_id: string;
-  schema_name: string;
-  is_active: boolean;
-  created_at: Date;
 };
 
 /**
@@ -167,7 +156,7 @@ export class TenantRepository extends BaseRepository<
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'id, tenant_id, email, role, plan, features, schema_name, is_active, created_at, updated_at';
+    return 'id, tenant_id, email, role, plan, features, is_active, created_at, updated_at';
   }
 
   /**
@@ -185,7 +174,6 @@ export class TenantRepository extends BaseRepository<
       role: data.role,
       plan: data.plan,
       features: data.features as TenantFeatures,
-      schema_name: data.schema_name,
       is_active: data.is_active,
       created_at: data.created_at,
       updated_at: data.updated_at,
@@ -198,6 +186,7 @@ export class TenantRepository extends BaseRepository<
    *
    * @param options - Query options
    */
+  // todo: this will need to be changed or removed?
   async initializeInfrastructure(options?: QueryOptions): Promise<void> {
     this.tenantLogger.debug('Initializing tenant infrastructure');
     const queryOptions = { ...options, bypassRLS: true };
@@ -212,7 +201,6 @@ export class TenantRepository extends BaseRepository<
           role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'viewer')),
           plan VARCHAR(50) NOT NULL CHECK (plan IN ('early_access', 'basic', 'pro', 'enterprise')),
           features JSONB NOT NULL DEFAULT '{}',
-          schema_name VARCHAR(255) UNIQUE NOT NULL,
           is_active BOOLEAN DEFAULT true,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -227,7 +215,6 @@ export class TenantRepository extends BaseRepository<
       `
         CREATE TABLE IF NOT EXISTS public.tenant_schemas (
           tenant_id VARCHAR(255) PRIMARY KEY REFERENCES public.tenants(tenant_id) ON DELETE CASCADE,
-          schema_name VARCHAR(255) UNIQUE NOT NULL,
           is_active BOOLEAN DEFAULT true,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -241,7 +228,6 @@ export class TenantRepository extends BaseRepository<
       `
         CREATE INDEX IF NOT EXISTS idx_tenants_tenant_id ON public.tenants(tenant_id);
         CREATE INDEX IF NOT EXISTS idx_tenants_email ON public.tenants(email);
-        CREATE INDEX IF NOT EXISTS idx_tenant_schemas_tenant_id ON public.tenant_schemas(tenant_id);
       `,
       [],
       queryOptions,
@@ -346,39 +332,6 @@ export class TenantRepository extends BaseRepository<
     this.tenantLogger.debug(
       `Tenant schema record created: tenant_id=${tenantId}, schema=${schemaName}`,
     );
-  }
-
-  /**
-   * Retrieve schema information for a specific tenant.
-   *
-   * @param tenantId - The tenant ID
-   * @param options - Query options
-   * @returns TenantSchema object or null if not found
-   */
-  async getTenantSchema(
-    tenantId: string,
-    options?: QueryOptions,
-  ): Promise<TenantSchema | null> {
-    this.tenantLogger.debug(`Getting tenant schema: tenant_id=${tenantId}`);
-    const result = await this.executeQuery<TenantSchemaRow>(
-      'SELECT tenant_id, schema_name, is_active, created_at FROM public.tenant_schemas WHERE tenant_id = $1',
-      [tenantId],
-      options,
-    );
-
-    const row = result.rows[0];
-    const schema = row
-      ? {
-          tenant_id: row.tenant_id,
-          schema_name: row.schema_name,
-          is_active: row.is_active,
-          created_at: row.created_at,
-        }
-      : null;
-    this.tenantLogger.debug(
-      `Tenant schema lookup: tenant_id=${tenantId}, ${schema ? `found schema=${schema.schema_name}` : 'not found'}`,
-    );
-    return schema;
   }
 
   /**
