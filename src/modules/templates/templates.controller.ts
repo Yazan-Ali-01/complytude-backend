@@ -1,60 +1,58 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
   Body,
-  Query,
-  UseGuards,
+  Controller,
+  DefaultValuePipe,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
   ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiParam,
-  ApiQuery,
   ApiBody,
   ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
-import { TemplatesService } from './templates.service';
-import { TemplateVersionsService } from './template-versions.service';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
 import {
   CreateTemplateDto,
-  UpdateTemplateDto,
   CreateTemplateVersionDto,
   CreateTemplateVersionResponseDto,
+  UpdateTemplateDto,
 } from './dto/create-template.dto';
-import {
-  TemplateResponseDto,
-  TemplateListResponseDto,
-  TemplateVersionResponseDto,
-  TemplateDownloadResponseDto,
-} from './dto/template-response.dto';
 import {
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
 } from './dto/generate-document.dto';
 import {
-  Template,
-  TemplateWithDetails,
-} from 'src/modules/templates/entities/template.entity';
+  TemplateDownloadResponseDto,
+  TemplateListResponseDto,
+  TemplateResponseDto,
+  TemplateVersionResponseDto,
+} from './dto/template-response.dto';
 import { TemplateVersion } from './entities/template-version.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { Template, TemplateWithDetails } from './entities/template.entity';
+import { TemplateVersionsService } from './template-versions.service';
+import { TemplatesService } from './templates.service';
 
 @ApiTags('Templates')
 @Controller('templates')
-@ApiBearerAuth()
+@SwaggerCookieAuth.accessToken()
 export class TemplatesController {
   constructor(
     private readonly templatesService: TemplatesService,

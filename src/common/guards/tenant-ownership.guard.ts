@@ -6,6 +6,8 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import { I18nContext } from 'nestjs-i18n';
+import { I18nKeys } from '../constants/i18n-keys';
 
 /**
  * Guard to check if user belongs to the tenant they're trying to access
@@ -25,10 +27,13 @@ export class TenantOwnershipGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
+    const i18n = I18nContext.current();
 
     // Ensure user is authenticated
     if (!user) {
-      throw new UnauthorizedException('Authentication required. Please login.');
+      throw new UnauthorizedException(
+        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+      );
     }
 
     // System admins bypass tenant ownership checks
@@ -43,23 +48,21 @@ export class TenantOwnershipGuard implements CanActivate {
 
     // If no tenant ID in request, this guard shouldn't be used
     if (!targetTenantId) {
-      throw new BadRequestException('Tenant ID is required for this operation');
+      throw new BadRequestException(
+        i18n?.t(I18nKeys.BAD_REQUEST) ?? 'Bad Request',
+      );
     }
 
     // Check if user belongs to this tenant
     const userTenantId = user.tenantId;
 
     if (!userTenantId) {
-      throw new ForbiddenException(
-        'You do not have access to any tenant. Please contact support.',
-      );
+      throw new ForbiddenException(i18n?.t(I18nKeys.FORBIDDEN) ?? 'Forbidden');
     }
 
     // Check if user's tenant matches the requested tenant
     if (userTenantId !== targetTenantId) {
-      throw new ForbiddenException(
-        'Access denied. You can only access your own tenant.',
-      );
+      throw new ForbiddenException(i18n?.t(I18nKeys.FORBIDDEN) ?? 'Forbidden');
     }
 
     return true;

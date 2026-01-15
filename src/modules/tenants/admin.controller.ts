@@ -13,13 +13,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -33,7 +33,7 @@ import { TenantService } from './tenant.service';
 @ApiTags('System Admin - Tenants')
 @Controller('admin/tenants')
 @UseGuards(SystemAdminGuard)
-@ApiBearerAuth()
+@SwaggerCookieAuth.accessToken()
 export class TenantAdminController {
   private readonly logger = new Logger(TenantAdminController.name);
 

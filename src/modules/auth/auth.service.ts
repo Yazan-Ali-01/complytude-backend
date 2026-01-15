@@ -10,9 +10,18 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { FastifyReply } from 'fastify';
+import { I18n, I18nService } from 'nestjs-i18n';
+import {
+  ACCESS_TOKEN_COOKIE_NAME,
+  COOKIE_PATH,
+  COOKIE_SAME_SITE,
+  REFRESH_TOKEN_COOKIE_NAME,
+} from 'src/common/swagger/common';
 import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
 import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.interfaces';
+import { I18nKeys } from '../../common/constants/i18n-keys';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
@@ -41,7 +50,65 @@ export class AuthService {
     private readonly userRepository: UserRepository,
     private readonly userTenantRepository: UserTenantRepository,
     private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
+
+  /**
+   * Set HTTP-only auth cookies on the response
+   */
+  setAuthCookies(
+    reply: FastifyReply,
+    accessToken: string,
+    refreshToken: string,
+  ): void {
+    const isProduction =
+      this.configService.get<string>('app.environment') === 'production';
+
+    const accessExpiresIn =
+      this.configService.get<string>('jwt.accessExpiresIn') || '15m';
+    const refreshExpiresIn =
+      this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
+
+    // Set access token cookie
+    reply.setCookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+      maxAge: Math.floor(this.parseExpiresIn(accessExpiresIn) / 1000), // Convert ms to seconds
+    });
+
+    // Set refresh token cookie
+    reply.setCookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+      maxAge: Math.floor(this.parseExpiresIn(refreshExpiresIn) / 1000), // Convert ms to seconds
+    });
+  }
+
+  /**
+   * Clear auth cookies on logout
+   */
+  clearAuthCookies(reply: FastifyReply): void {
+    const isProduction =
+      this.configService.get<string>('app.environment') === 'production';
+
+    reply.clearCookie(ACCESS_TOKEN_COOKIE_NAME, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+    });
+
+    reply.clearCookie(REFRESH_TOKEN_COOKIE_NAME, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+    });
+  }
 
   /**
    * Registers a new user and creates their first tenant.
@@ -63,7 +130,9 @@ export class AuthService {
       select: ['id'],
     });
     if (existingUser) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictException(
+        this.i18n.t(I18nKeys.EMAIL_ALREADY_REGISTERED),
+      );
     }
 
     // Hash password
@@ -138,8 +207,7 @@ export class AuthService {
       );
 
       return {
-        message:
-          'Signup successful. Please check your email to verify your account.',
+        message: this.i18n.t(I18nKeys.SIGNUP_SUCCESS),
         userId,
         tenant_id: tenant.tenant_id,
         verificationToken, // Expose only for development/testing; remove in prod
@@ -159,7 +227,7 @@ export class AuthService {
       user.id,
     );
     if (tenants.length === 0) {
-      throw new UnauthorizedException('No active tenants found for this user');
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
     }
 
     // If tenantId specified, use that; otherwise use first tenant
@@ -168,7 +236,7 @@ export class AuthService {
       const found = tenants.find((t) => t.tenant_id === loginDto.tenantId);
       if (!found) {
         throw new UnauthorizedException(
-          'User does not have access to specified tenant',
+          this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
         );
       }
       selectedTenant = found;
@@ -228,13 +296,17 @@ export class AuthService {
       ],
     });
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
     }
 
     return user;
@@ -338,7 +410,9 @@ export class AuthService {
       await this.refreshTokenRepository.findActiveByUserId(userId);
 
     if (activeTokens.length === 0) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+      );
     }
 
     // Find matching token
@@ -352,7 +426,9 @@ export class AuthService {
     }
 
     if (!validToken) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+      );
     }
 
     // Revoke old refresh token
@@ -368,7 +444,7 @@ export class AuthService {
     ]);
 
     if (!user || activeTenants.length === 0) {
-      throw new UnauthorizedException('No active tenants found');
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
     }
 
     const { tenant_id, role } = activeTenants[0];
@@ -401,12 +477,12 @@ export class AuthService {
         const revoked = await this.refreshTokenRepository.revokeById(token.id);
         if (revoked) {
           this.logger.log(`User ${userId} logged out`);
-          return { message: 'Logged out successfully' };
+          return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
         }
       }
     }
 
-    throw new BadRequestException('Invalid refresh token');
+    throw new BadRequestException(this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN));
   }
 
   /**
@@ -418,7 +494,9 @@ export class AuthService {
     );
 
     if (!verification) {
-      throw new BadRequestException('Invalid or expired verification token');
+      throw new BadRequestException(
+        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
+      );
     }
 
     await this.databaseService.transaction(async (client) => {
@@ -435,7 +513,7 @@ export class AuthService {
 
     this.logger.log(`Email verified for user ${verification.userId}`);
 
-    return { message: 'Email verified successfully' };
+    return { message: this.i18n.t(I18nKeys.EMAIL_VERIFIED) };
   }
 
   /**
@@ -451,7 +529,7 @@ export class AuthService {
     if (!user) {
       // Don't reveal if email exists
       return {
-        message: 'If the email exists, a password reset link has been sent',
+        message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
       };
     }
 
@@ -473,7 +551,7 @@ export class AuthService {
     );
 
     return {
-      message: 'If the email exists, a password reset link has been sent',
+      message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
       resetToken, // Remove in production
     };
   }
@@ -487,7 +565,9 @@ export class AuthService {
     );
 
     if (!reset) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException(
+        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
+      );
     }
 
     // Hash new password
@@ -513,6 +593,6 @@ export class AuthService {
 
     this.logger.log(`Password reset for user ${reset.userId}`);
 
-    return { message: 'Password reset successfully' };
+    return { message: this.i18n.t(I18nKeys.PASSWORD_RESET_SUCCESS) };
   }
 }

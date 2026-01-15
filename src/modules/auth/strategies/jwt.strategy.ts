@@ -1,7 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-jwt';
+import { FastifyRequest } from 'fastify';
 
 export interface JwtPayload {
   sub: string;
@@ -12,11 +13,16 @@ export interface JwtPayload {
   type: 'access' | 'refresh';
 }
 
+// Custom extractor to get access token from HTTP-only cookie
+const cookieExtractor = (req: FastifyRequest): string | null => {
+  return req?.cookies?.accessToken || null;
+};
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(private configService: ConfigService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
       secretOrKey:
         configService.get<string>('jwt.accessSecret') || 'fallback-secret',

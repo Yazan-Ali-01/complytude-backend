@@ -6,8 +6,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18nContext } from 'nestjs-i18n';
 import { FEATURES_KEY } from '../decorators/features.decorator';
 import { FeaturesService } from 'src/modules/tenants/features.service';
+import { I18nKeys } from '../constants/i18n-keys';
 
 @Injectable()
 export class FeaturesGuard implements CanActivate {
@@ -30,11 +32,12 @@ export class FeaturesGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const tenantId = String(request.tenantId || request.user?.tenantId);
+    const i18n = I18nContext.current();
 
     // Ensure tenant context is available
     if (!tenantId) {
       throw new UnauthorizedException(
-        'Tenant context not found. Please authenticate.',
+        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
       );
     }
 
@@ -47,7 +50,7 @@ export class FeaturesGuard implements CanActivate {
 
       if (!hasAccess) {
         throw new ForbiddenException(
-          `Access denied. Your plan does not include the "${feature}" feature. Please upgrade your plan.`,
+          i18n?.t(I18nKeys.FORBIDDEN) ?? 'Forbidden',
         );
       }
     }
