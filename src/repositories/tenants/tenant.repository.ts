@@ -450,6 +450,8 @@ export class TenantRepository extends BaseRepository<
           created_by VARCHAR(255),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP,
+          deleted_by VARCHAR(255),
           CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id)
         );
       `,

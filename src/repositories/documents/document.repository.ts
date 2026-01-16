@@ -2,23 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
-
-/**
- * Document entity returned from queries.
- */
-export interface Document {
-  id: string;
-  tenant_id: string;
-  title: string;
-  content: string | null;
-  metadata: Record<string, any>;
-  template_key: string | null;
-  template_version: string | null;
-  generation_metadata: Record<string, any> | null;
-  created_by: string | null;
-  created_at: Date;
-  updated_at: Date;
-}
+import {
+  Document,
+  DocumentGenerationMetadata,
+  DocumentMetadata,
+} from 'src/modules/documents/entities/document.entity';
+import {
+  CursorPaginationHelper,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from '../base/cursor-pagination.helper';
 
 /**
  * Type for creating a new document row in the database.
@@ -64,6 +57,8 @@ type DocumentRow = {
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
+  deleted_at: Date | null;
+  deleted_by: string | null;
 };
 
 /**
@@ -105,21 +100,16 @@ export class DocumentRepository extends BaseRepository<
       tenant_id: data.tenant_id,
       title: data.title,
       content: data.content,
-      metadata:
-        typeof data.metadata === 'string'
-          ? JSON.parse(data.metadata)
-          : (data.metadata as Record<string, any>),
+      metadata: data.metadata as DocumentMetadata,
       template_key: data.template_key,
       template_version: data.template_version,
       generation_metadata:
-        data.generation_metadata === null
-          ? null
-          : typeof data.generation_metadata === 'string'
-            ? JSON.parse(data.generation_metadata)
-            : (data.generation_metadata as Record<string, any>),
+        data.generation_metadata as DocumentGenerationMetadata | null,
       created_by: data.created_by,
       created_at: data.created_at,
       updated_at: data.updated_at,
+      deleted_at: data.deleted_at,
+      deleted_by: data.deleted_by,
     };
   }
 
@@ -214,12 +204,13 @@ export class DocumentRepository extends BaseRepository<
   async findByIdInSchema(
     schemaName: string,
     id: string,
+    select?: string[],
     options?: QueryOptions,
   ): Promise<Document | null> {
-    const schemaQualifiedTable = `"${schemaName}".${this.tableName}`;
-    const columns = this.getSelectColumns();
+    const schemaQualifiedTable = `${schemaName}.${this.tableName}`;
+    const columns = select ? select.join(', ') : this.getSelectColumns();
     const result = await this.executeQuery(
-      `SELECT ${columns} FROM ${schemaQualifiedTable} WHERE id = $1`,
+      `SELECT ${columns} FROM ${schemaQualifiedTable} WHERE id = $1 AND deleted_at IS NULL`,
       [id],
       options,
     );
@@ -227,6 +218,91 @@ export class DocumentRepository extends BaseRepository<
     return result.rows[0]
       ? this.mapRow(result.rows[0] as Record<string, unknown>)
       : null;
+  }
+
+  /**
+   * Find many documents in a tenant-specific schema with cursor-based pagination.
+   *
+   * @param schemaName - The tenant schema name (e.g., 'tenant_abc')
+   * @param filters - Optional filters for template_key, created_by, title, date range
+   * @param cursorOptions - Cursor pagination options
+   * @param options - Query options
+   * @returns Cursor pagination result with documents
+   */
+  async findManyInSchema(
+    schemaName: string,
+    filters: {
+      template_key?: string;
+      created_by?: string;
+      title?: string;
+      start_date?: Date | string;
+      end_date?: Date | string;
+    } = {},
+    cursorOptions?: CursorPaginationOptions,
+    options?: QueryOptions,
+  ): Promise<CursorPaginationResult<Document>> {
+    // Validate and normalize cursor options
+    const { cursor, limit, direction } =
+      CursorPaginationHelper.validateOptions(cursorOptions);
+
+    const conditions: string[] = ['deleted_at IS NULL'];
+    const params: unknown[] = [];
+
+    if (filters.template_key) {
+      params.push(filters.template_key);
+      conditions.push(`template_key = $${params.length}`);
+    }
+    if (filters.created_by) {
+      params.push(filters.created_by);
+      conditions.push(`created_by = $${params.length}`);
+    }
+    if (filters.title) {
+      params.push(`%${filters.title}%`);
+      conditions.push(`title ILIKE $${params.length}`);
+    }
+    if (filters.start_date) {
+      params.push(filters.start_date);
+      conditions.push(`created_at >= $${params.length}`);
+    }
+    if (filters.end_date) {
+      params.push(filters.end_date);
+      conditions.push(`created_at <= $${params.length}`);
+    }
+
+    // Add cursor condition using helper
+    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
+      direction,
+      cursor,
+      params.length + 1,
+    );
+
+    if (cursorQuery.clause) {
+      conditions.push(cursorQuery.clause);
+      params.push(...cursorQuery.params);
+    }
+
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const limitClause = CursorPaginationHelper.buildLimitClause(
+      limit,
+      params.length + 1,
+    );
+    params.push(...limitClause.params);
+
+    const schemaQualifiedTable = `"${schemaName}".${this.tableName}`;
+    const query =
+      `SELECT ${this.getSelectColumns()} FROM ${schemaQualifiedTable} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
+    const result = await this.executeQuery<DocumentRow>(query, params, options);
+
+    const mappedRows = result.rows.map((row) => this.mapRow(row));
+
+    return CursorPaginationHelper.createPaginationResponse(
+      mappedRows,
+      limit,
+      direction,
+      !!cursor,
+    );
   }
 
   /**
@@ -249,6 +325,29 @@ export class DocumentRepository extends BaseRepository<
       options,
     );
 
+    return result.rowCount ?? 0;
+  }
+
+  /**
+   * Soft delete a document by ID in a tenant-specific schema.
+   *
+   * @param schemaName - The tenant schema name (e.g., 'tenant_abc')
+   * @param id - The document ID
+   * @param options - Query options
+   * @returns Number of rows deleted (0 if not found)
+   */
+  async softDeleteInSchema(
+    schemaName: string,
+    id: string,
+    deletedBy: string,
+    options?: QueryOptions,
+  ): Promise<number> {
+    const schemaQualifiedTable = `"${schemaName}".${this.tableName}`;
+    const result = await this.executeQuery(
+      `UPDATE ${schemaQualifiedTable} SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2`,
+      [deletedBy, id],
+      options,
+    );
     return result.rowCount ?? 0;
   }
 

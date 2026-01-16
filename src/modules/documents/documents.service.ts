@@ -11,13 +11,17 @@ import {
   ListDocumentsDto,
   ListDocumentsResponseDto,
 } from './dto/list-documents.dto';
+import { DocumentRepository } from 'src/repositories/documents/document.repository';
 
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly documentRepository: DocumentRepository,
+  ) {}
 
   /**
-   * Find all documents for a tenant with pagination and filters
+   * Find all documents for a tenant with cursor-based pagination and filters
    */
   async findAll(
     tenantId: string,
@@ -27,61 +31,59 @@ export class DocumentsService {
   ): Promise<ListDocumentsResponseDto> {
     const isAdmin = user?.isSystemAdmin || user?.role === 'admin';
 
-    // Build query with filters - exclude soft-deleted documents
-    let query = `SELECT * FROM ${schemaName}.documents WHERE deleted_at IS NULL`;
-    const params: any[] = [];
+    // Build repository filters
+    const repositoryFilters: {
+      template_key?: string;
+      created_by?: string;
+      title?: string;
+      start_date?: string;
+      end_date?: string;
+    } = {};
 
     if (filters.templateKey) {
-      params.push(filters.templateKey);
-      query += ` AND template_key = $${params.length}`;
+      repositoryFilters.template_key = filters.templateKey;
     }
 
     if (filters.startDate) {
-      params.push(filters.startDate);
-      query += ` AND created_at >= $${params.length}`;
+      repositoryFilters.start_date = filters.startDate;
     }
 
     if (filters.endDate) {
-      params.push(filters.endDate);
-      query += ` AND created_at <= $${params.length}`;
+      repositoryFilters.end_date = filters.endDate;
+    }
+
+    if (filters.title) {
+      repositoryFilters.title = filters.title;
     }
 
     // Non-admin users can only see documents they created
     if (!isAdmin) {
-      params.push(user.userId);
-      query += ` AND created_by = $${params.length}`;
+      repositoryFilters.created_by = user.userId;
     }
 
-    const countResult = await this.databaseService.queryWithTenantContext(
-      tenantId,
+    // Use repository with cursor pagination
+    const result = await this.documentRepository.findManyInSchema(
       schemaName,
-      `SELECT COUNT(*) as count FROM (${query}) as filtered`,
-      params,
-    );
-    const total = parseInt(countResult.rows[0].count as string, 10);
-
-    // pagination and ordering with limit and offset
-    const offset = (filters.page - 1) * filters.limit;
-    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(filters.limit, offset);
-
-    const result = await this.databaseService.queryWithTenantContext<Document>(
-      tenantId,
-      schemaName,
-      query,
-      params,
+      repositoryFilters,
+      {
+        cursor: filters.cursor,
+        limit: filters.limit,
+        direction: filters.direction,
+      },
+      { tenant: { tenantId, schema: schemaName } },
     );
 
     // Transform to DTOs (exclude content for list view)
-    const documents: DocumentResponseDto[] = result.rows.map((doc) =>
-      this.transformToDto(doc, false),
+    const documents: DocumentResponseDto[] = result.data.map((doc) =>
+      this.transformToDto(doc),
     );
 
     return {
       documents,
-      total,
-      page: filters.page,
-      limit: filters.limit,
+      nextCursor: result.nextCursor,
+      prevCursor: result.prevCursor,
+      hasNext: result.hasNext,
+      hasPrevious: result.hasPrevious,
     };
   }
 
@@ -95,25 +97,34 @@ export class DocumentsService {
     user: AuthenticatedUser,
   ): Promise<DocumentResponseDto> {
     const isAdmin = user?.isSystemAdmin || user?.role === 'admin';
-    const query = `SELECT * FROM ${schemaName}.documents WHERE id = $1 AND deleted_at IS NULL`;
-    const result = await this.databaseService.queryWithTenantContext<Document>(
-      tenantId,
+    const select = [
+      'id',
+      'title',
+      'template_key',
+      'metadata',
+      'generation_metadata',
+      'created_by',
+      'created_at',
+      'updated_at',
+    ];
+    const document = await this.documentRepository.findByIdInSchema(
       schemaName,
-      query,
-      [documentId],
+      documentId,
+      select,
+      { tenant: { tenantId, schema: schemaName } },
     );
 
-    if (result.rows.length === 0) {
+    if (!document) {
       throw new NotFoundException(`Document with ID ${documentId} not found`);
     }
 
     // Check if user has access to this document
-    if (!isAdmin && result.rows[0].created_by !== user.userId) {
+    if (!isAdmin && document.created_by !== user.userId) {
       throw new ForbiddenException('You do not have access to this document');
     }
 
     // Include content in single document view
-    return this.transformToDto(result.rows[0], true);
+    return this.transformToDto(document);
   }
 
   /**
@@ -125,52 +136,48 @@ export class DocumentsService {
     documentId: string,
     userId: string,
   ): Promise<void> {
-    // First check if document exists and is not already deleted
-    const checkQuery = `SELECT id FROM ${schemaName}.documents WHERE id = $1 AND deleted_at IS NULL`;
-    const checkResult =
-      await this.databaseService.queryWithTenantContext<Document>(
-        tenantId,
+    await this.databaseService.transaction(async (client) => {
+      const document = await this.documentRepository.findByIdInSchema(
         schemaName,
-        checkQuery,
-        [documentId],
+        documentId,
+        ['id', 'created_by'],
+        { client, tenant: { tenantId, schema: schemaName } },
       );
 
-    if (checkResult.rows.length === 0) {
-      throw new NotFoundException(`Document with ID ${documentId} not found`);
-    }
+      if (!document) {
+        throw new NotFoundException(`Document with ID ${documentId} not found`);
+      }
+      if (document.created_by !== userId) {
+        throw new ForbiddenException(
+          'You do not have permission to delete this document',
+        );
+      }
 
-    // Soft delete the document
-    const deleteQuery = `
-      UPDATE ${schemaName}.documents 
-      SET deleted_at = NOW(), deleted_by = $2 
-      WHERE id = $1
-    `;
-    await this.databaseService.queryWithTenantContext(
-      tenantId,
-      schemaName,
-      deleteQuery,
-      [documentId, userId],
-    );
+      // Soft delete the document
+      await this.documentRepository.softDeleteInSchema(
+        schemaName,
+        documentId,
+        userId,
+        { client, tenant: { tenantId, schema: schemaName } },
+      );
+    });
+    // First check if document exists and is not already deleted
   }
 
   /**
    * Transform database document to DTO
    */
-  private transformToDto(
-    doc: Document,
-    includeContent: boolean,
-  ): DocumentResponseDto {
+  private transformToDto(doc: Document): DocumentResponseDto {
     return {
       id: doc.id,
       tenantId: doc.tenant_id,
       title: doc.title,
-      content: includeContent ? doc.content : undefined,
-      templateKey: doc.template_key,
-      metadata: doc.metadata || {},
-      generationMetadata: doc.generation_metadata,
-      createdBy: doc.created_by,
-      createdAt: doc.created_at,
-      updatedAt: doc.updated_at,
+      templateKey: doc.template_key ?? undefined,
+      metadata: doc.metadata ?? {},
+      generationMetadata: doc.generation_metadata ?? undefined,
+      createdBy: doc.created_by ?? undefined,
+      createdAt: doc.created_at ?? undefined,
+      updatedAt: doc.updated_at ?? undefined,
     };
   }
 }

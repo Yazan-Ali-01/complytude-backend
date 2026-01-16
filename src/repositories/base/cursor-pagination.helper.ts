@@ -94,9 +94,14 @@ export class CursorPaginationHelper {
     nextIndex: number,
   ): CursorQueryResult {
     if (!cursor) {
+      // When no cursor: forward starts from beginning (ASC), backward starts from end (DESC)
+      const orderClause =
+        direction === 'forward'
+          ? 'ORDER BY created_at ASC, id ASC'
+          : 'ORDER BY created_at DESC, id DESC';
       return {
         clause: '',
-        orderClause: 'ORDER BY created_at ASC, id ASC',
+        orderClause,
         params: [],
         nextIndex,
       };
@@ -162,8 +167,10 @@ export class CursorPaginationHelper {
     // Trim to the requested limit
     const data = hasMore ? rows.slice(0, limit) : rows;
 
-    // For backward pagination, reverse the results to show correct order
-    if (direction === 'backward') {
+    // For backward pagination with cursor, reverse results to maintain consistent order
+    // (query was in DESC, we reverse to ASC to match forward pagination order)
+    // Without cursor, backward direction already queries in DESC, so no reversal needed
+    if (direction === 'backward' && hasInitialCursor) {
       data.reverse();
     }
 

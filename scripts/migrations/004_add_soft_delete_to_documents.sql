@@ -32,7 +32,7 @@ DECLARE
   tenant_schema RECORD;
 BEGIN
   FOR tenant_schema IN 
-    SELECT schema_name FROM public.tenant_schemas WHERE is_active = true
+    SELECT schema_name FROM public.tenant_schemas
   LOOP
     PERFORM add_soft_delete_to_tenant_documents(tenant_schema.schema_name);
   END LOOP;

@@ -42,21 +42,29 @@ export class DocumentsController {
   @ApiOperation({
     summary: 'List documents',
     description:
-      "Get paginated list of generated documents for the authenticated user's tenant. Supports filtering by template key and date range.",
+      "Get paginated list of generated documents for the authenticated user's tenant. Uses cursor-based pagination for efficient browsing. Supports filtering by template key, date range, and title.",
   })
   @ApiQuery({
-    name: 'page',
+    name: 'cursor',
     required: false,
-    type: Number,
-    description: 'Page number (default: 1)',
-    example: 1,
+    type: String,
+    description: 'Cursor for pagination (base64 encoded)',
+    example:
+      'eyJpZCI6IjEyMyIsImNyZWF0ZWRfYXQiOiIyMDI0LTAxLTAxVDAwOjAwOjAwLjAwMFoifQ==',
   })
   @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Items per page (default: 50, max: 100)',
+    description: 'Number of items per page (default: 50, max: 1000)',
     example: 50,
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['forward', 'backward'],
+    description: 'Pagination direction (default: forward)',
+    example: 'forward',
   })
   @ApiQuery({
     name: 'templateKey',
@@ -64,6 +72,13 @@ export class DocumentsController {
     type: String,
     description: 'Filter by template key',
     example: 'employment_contract',
+  })
+  @ApiQuery({
+    name: 'title',
+    required: false,
+    type: String,
+    description: 'Filter by title (partial match, case-insensitive)',
+    example: 'Annual Report',
   })
   @ApiQuery({
     name: 'startDate',
@@ -81,7 +96,7 @@ export class DocumentsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'List of documents with pagination metadata',
+    description: 'List of documents with cursor pagination metadata',
     type: ListDocumentsResponseDto,
   })
   @ApiResponse({
@@ -146,7 +161,6 @@ export class DocumentsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete document',
