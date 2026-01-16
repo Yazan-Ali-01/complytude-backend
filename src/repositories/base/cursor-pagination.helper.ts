@@ -110,8 +110,7 @@ export class CursorPaginationHelper {
     const decoded = this.decodeCursor(cursor);
     const operator = direction === 'forward' ? '>' : '<';
 
-    // Build composite cursor comparison:
-    const clause = `(created_at ${operator} $${nextIndex} OR (created_at = $${nextIndex} AND id ${operator} $${nextIndex + 1}))`;
+    const clause = `created_at ${operator} $${nextIndex} or (created_at = $${nextIndex + 1} and id ${operator} $${nextIndex + 2})`;
 
     const orderClause =
       direction === 'forward'
@@ -121,8 +120,8 @@ export class CursorPaginationHelper {
     return {
       clause,
       orderClause,
-      params: [decoded.created_at, decoded.id],
-      nextIndex: nextIndex + 2,
+      params: [decoded.created_at, decoded.created_at, decoded.id],
+      nextIndex: nextIndex + 3,
     };
   }
 
