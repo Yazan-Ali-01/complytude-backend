@@ -12,7 +12,6 @@ import { TemplateVersionsService } from 'src/modules/templates/template-versions
 import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
 import { TemplateValidationService } from 'src/modules/templates/services/template-validation.service';
 import { RulesetsModule } from '../rulesets/rulesets.module';
-import { DocumentsService } from './documents.service';
 import { DocxPlaceholderExtractionService } from './services/docx-placeholder-extraction.service';
 import { CategoryRepository } from '../../repositories/categories/category.repository';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
@@ -28,7 +27,6 @@ import { TemplateVersionRepository } from '../../repositories/templates/template
     TemplateVersionsService,
     DocumentGenerationService,
     TemplateValidationService,
-    DocumentsService,
     DocxPlaceholderExtractionService,
     TemplateRepository,
     TemplateVersionRepository,
@@ -41,7 +39,6 @@ import { TemplateVersionRepository } from '../../repositories/templates/template
     TemplateVersionsService,
     DocumentGenerationService,
     TemplateValidationService,
-    DocumentsService,
     DocxPlaceholderExtractionService,
     TemplateRepository,
     TemplateVersionRepository,

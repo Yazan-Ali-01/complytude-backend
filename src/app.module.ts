@@ -21,6 +21,7 @@ import appConfig from 'src/config/app.config';
 import jwtConfig from 'src/config/jwt.config';
 import storageConfig from 'src/config/storage.config';
 import { validationSchema } from 'src/config/env.schema';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { validationSchema } from 'src/config/env.schema';
     CategoriesModule,
     AuthoritiesModule,
     RulesetsModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [
