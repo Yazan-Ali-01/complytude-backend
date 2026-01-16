@@ -1,59 +1,57 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
   Body,
-  Query,
-  UseGuards,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
   ParseIntPipe,
-  DefaultValuePipe,
-  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiParam,
-  ApiQuery,
   ApiBody,
   ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
-import { TemplatesService } from './templates.service';
-import { TemplateVersionsService } from './template-versions.service';
-import { DocumentGenerationService } from './document-generation.service';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
 import {
   CreateTemplateDto,
-  UpdateTemplateDto,
   CreateTemplateVersionDto,
   CreateTemplateVersionResponseDto,
+  UpdateTemplateDto,
 } from './dto/create-template.dto';
-import {
-  TemplateResponseDto,
-  TemplateListResponseDto,
-  TemplateVersionResponseDto,
-  TemplateDownloadResponseDto,
-} from './dto/template-response.dto';
 import {
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
 } from './dto/generate-document.dto';
-import { Template, TemplateWithDetails } from './entities/template.entity';
+import {
+  TemplateDownloadResponseDto,
+  TemplateListResponseDto,
+  TemplateResponseDto,
+  TemplateVersionResponseDto,
+} from './dto/template-response.dto';
 import { TemplateVersion } from './entities/template-version.entity';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { Template, TemplateWithDetails } from './entities/template.entity';
+import { TemplateVersionsService } from './template-versions.service';
+import { TemplatesService } from './templates.service';
 
 @ApiTags('Templates')
 @Controller('templates')
-@ApiBearerAuth()
+@SwaggerCookieAuth.accessToken()
 export class TemplatesController {
   constructor(
     private readonly templatesService: TemplatesService,
@@ -199,16 +197,22 @@ export class TemplatesController {
     description: 'Filter by language code',
   })
   @ApiQuery({
-    name: 'page',
+    name: 'cursor',
     required: false,
-    type: Number,
-    description: 'Page number (default: 1)',
+    type: String,
+    description: 'Cursor for pagination',
   })
   @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
     description: 'Items per page (default: 50)',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['forward', 'backward'],
+    description: 'Pagination direction (default: forward)',
   })
   @ApiResponse({
     status: 200,
@@ -220,16 +224,21 @@ export class TemplatesController {
     @Query('categoryId') categoryId?: string,
     @Query('authorityId') authorityId?: string,
     @Query('language') language?: string,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
-    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit = 50,
-  ): Promise<TemplateListResponseDto> {
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<any> {
     return this.templatesService.findAll(
       status,
       categoryId,
       authorityId,
       language,
-      page,
-      limit,
+      {
+        cursor,
+        limit,
+        direction,
+      },
     );
   }
 
@@ -297,6 +306,24 @@ export class TemplatesController {
     description: 'Get all versions of a template',
   })
   @ApiParam({ name: 'key', description: 'Template unique key' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    type: String,
+    description: 'Cursor for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 50)',
+  })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['forward', 'backward'],
+    description: 'Pagination direction (default: forward)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Template version history',
@@ -305,9 +332,17 @@ export class TemplatesController {
   @ApiResponse({ status: 404, description: 'Template not found' })
   async getVersionHistory(
     @Param('key') key: string,
-  ): Promise<TemplateVersion[]> {
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('direction')
+    direction?: 'forward' | 'backward',
+  ): Promise<any> {
     const template = await this.templatesService.findByKey(key);
-    return this.templateVersionsService.getVersionHistory(template.id);
+    return this.templateVersionsService.getVersionHistory(template.id, {
+      cursor,
+      limit,
+      direction,
+    });
   }
 
   @Post(':key/versions')

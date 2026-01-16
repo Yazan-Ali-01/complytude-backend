@@ -1,27 +1,24 @@
 import {
-  Controller,
-  Post,
   Body,
+  Controller,
   HttpCode,
   HttpStatus,
+  Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { FastifyReply } from 'fastify';
+import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { AuthService } from './auth.service';
-import { SignupDto } from './dto/signup.dto';
-import { LoginDto } from './dto/login.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { LoginDto } from './dto/login.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SignupDto } from './dto/signup.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -46,45 +43,73 @@ export class AuthController {
   @ApiOperation({ summary: 'Login to user account' })
   @ApiResponse({
     status: 200,
-    description: 'Login successful. Returns access and refresh tokens.',
+    description: 'Login successful. Sets HTTP-only auth cookies.',
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const { accessToken, refreshToken, ...responseWithoutTokens } =
+      await this.authService.login(loginDto);
+
+    // !Set HTTP-only cookies for tokens
+    this.authService.setAuthCookies(reply, accessToken, refreshToken);
+
+    // !Return response without tokens (they're in cookies now)
+    return responseWithoutTokens;
   }
 
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtRefreshGuard)
-  @ApiOperation({ summary: 'Refresh access token' })
+  @SwaggerCookieAuth.refreshToken()
+  @ApiOperation({ summary: 'Refresh access token using HTTP-only cookie' })
   @ApiResponse({
     status: 200,
-    description: 'Tokens refreshed successfully',
+    description: 'Tokens refreshed successfully. New cookies set.',
   })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refresh(
-    @Body() refreshTokenDto: RefreshTokenDto,
     @CurrentUser()
     user: { userId: string; email: string; refreshToken: string },
+    @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    return this.authService.refreshTokens(
+    const tokens = await this.authService.refreshTokens(
       user.userId,
       user.email,
       user.refreshToken,
     );
+
+    // Set new HTTP-only cookies
+    this.authService.setAuthCookies(
+      reply,
+      tokens.accessToken,
+      tokens.refreshToken,
+    );
+
+    return { message: 'Tokens refreshed successfully' };
   }
 
+  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
+  @UseGuards(JwtRefreshGuard)
+  @SwaggerCookieAuth.refreshToken()
   @ApiOperation({ summary: 'Logout from current session' })
   @ApiResponse({ status: 200, description: 'Logged out successfully' })
   async logout(
-    @Body() refreshTokenDto: RefreshTokenDto,
-    @CurrentUser() user: { userId: string },
+    @CurrentUser() user: { userId: string; refreshToken: string },
+    @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    return this.authService.logout(user.userId, refreshTokenDto.refreshToken);
+    // Revoke the refresh token in database
+    await this.authService.logout(user.userId, user.refreshToken);
+
+    // Clear auth cookies
+    this.authService.clearAuthCookies(reply);
+
+    return { message: 'Logged out successfully' };
   }
 
   @Public()

@@ -44,11 +44,13 @@ test/
 ## Available Commands
 
 ### Run All Tests
+
 ```bash
 npm run test:e2e
 ```
 
 ### Run Specific Flow
+
 ```bash
 npm run test:e2e:auth         # Authentication flow
 npm run test:e2e:tenant       # Multi-tenancy flow
@@ -58,6 +60,7 @@ npm run test:e2e:features     # Plan features
 ```
 
 ### Other Options
+
 ```bash
 npm run test:e2e:watch        # Watch mode
 npm run test:e2e:coverage     # With coverage
@@ -68,6 +71,7 @@ npm run test:swagger          # Download Swagger spec
 ## What Gets Tested
 
 ### ✅ Business Logic
+
 - Authentication & authorization
 - Multi-tenant data isolation
 - Document upload limits (plan-based)
@@ -76,18 +80,21 @@ npm run test:swagger          # Download Swagger spec
 - Feature flag access control
 
 ### ✅ Data Integrity
+
 - Foreign key relationships
 - Cascade delete operations
 - Tenant schema isolation
 - Audit trail consistency
 
 ### ✅ API Contract
+
 - Swagger/OpenAPI schema validation
 - Response structure verification
 - Request validation
 - HTTP status codes
 
 ### ✅ Error Scenarios
+
 - Invalid authentication tokens
 - Expired sessions
 - Quota exceeded (403)
@@ -132,14 +139,17 @@ validateSwaggerSchema('SignupResponse', response.body);
 ## Troubleshooting
 
 ### Database Not Running
+
 ```bash
-npm run docker:up
+npm run docker:start
 ```
 
 ### Port Conflict
+
 Edit `test/test.env` and change the PORT value.
 
 ### Swagger Not Found
+
 ```bash
 # Start server first
 npm run start:dev
@@ -149,20 +159,14 @@ npm run test:swagger
 ```
 
 ### Tests Timeout
+
 Increase timeout in `jest-e2e.json`:
+
 ```json
 {
   "testTimeout": 60000
 }
 ```
-
-## Documentation
-
-See [TEST_FLOWS.md](../TEST_FLOWS.md) for comprehensive documentation including:
-- Detailed test flow descriptions
-- Setup instructions
-- Troubleshooting guide
-- CI/CD integration examples
 
 ## Best Practices
 
@@ -188,5 +192,4 @@ When adding new tests:
 
 ---
 
-For more information, see [TEST_FLOWS.md](../TEST_FLOWS.md)
-
+For more information, see the [main README](../README.md) and [documentation](../docs/README.md).

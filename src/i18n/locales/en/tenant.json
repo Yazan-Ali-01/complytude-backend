@@ -1,0 +1,13 @@
+{
+  "TENANT_NOT_FOUND": "Tenant not found",
+  "TENANT_CREATION_FAILED": "Failed to create tenant",
+  "TENANT_UPDATE_FAILED": "Failed to update tenant",
+  "TENANT_DELETE_FAILED": "Failed to delete tenant",
+  "TENANT_ALREADY_EXISTS": "Tenant with this name already exists",
+  "TENANT_ACCESS_DENIED": "You do not have permission to access this tenant",
+  "INVALID_TENANT_DATA": "Invalid tenant data provided",
+  "TENANT_NAME_REQUIRED": "Tenant name is required",
+  "TENANT_SUSPENDED": "Tenant account is suspended",
+  "TENANT_INACTIVE": "Tenant is inactive",
+  "DOCUMENT_LIMIT_EXCEEDED": "Document upload limit exceeded for your plan"
+}

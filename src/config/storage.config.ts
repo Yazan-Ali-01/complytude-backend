@@ -9,7 +9,8 @@ export default registerAs('storage', () => ({
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true' || true, // Required for MinIO
   },
   bucket: {
-    prefix: process.env.S3_BUCKET_PREFIX || 'complytude',
+    filesBucketName:
+      process.env.COMPLYTUDE_FILES_BUCKET_NAME || 'complytude-files',
   },
   templates: {
     bucketName: process.env.TEMPLATES_BUCKET_NAME || 'complytude-templates',

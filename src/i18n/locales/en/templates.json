@@ -1,0 +1,20 @@
+{
+  "TEMPLATE_NOT_FOUND": "Template with ID {{id}} not found",
+  "TEMPORARY_URL_GENERATION_FAILED": "Failed to create template",
+  "TEMPLATE_FETCH_FAILED": "Failed to fetch template details",
+  "TEMPLATE_UPDATE_FAILED": "Failed to update template",
+  "TEMPLATE_DELETE_FAILED": "Failed to delete template",
+  "TEMPLATE_ALREADY_EXISTS": "Template with this key already exists",
+  "INVALID_TEMPLATE_DATA": "Invalid template data provided",
+  "TEMPLATE_NAME_REQUIRED": "Template name is required",
+  "TEMPLATE_CONTENT_REQUIRED": "Template content is required",
+  "TEMPLATE_CATEGORY_REQUIRED": "Template category is required",
+  "CATEGORY_NOT_FOUND": "Category not found",
+  "AUTHORITY_NOT_FOUND": "Authority not found",
+  "TEMPLATE_ACCESS_DENIED": "You do not have permission to access this template",
+  "TEMPLATE_IN_USE": "Template is currently in use and cannot be deleted",
+  "TEMPLATE_VERSION_CONFLICT": "Template version conflict detected",
+  "TEMPLATE_CLONED_SUCCESS": "Template cloned successfully",
+  "TEMPLATE_PUBLISHED_SUCCESS": "Template published successfully",
+  "TEMPLATE_ARCHIVED_SUCCESS": "Template archived successfully"
+}

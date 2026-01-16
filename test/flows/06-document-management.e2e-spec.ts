@@ -185,7 +185,9 @@ describe('Document Management Flow (e2e)', () => {
             filename: 'contract_1.pdf',
             size: 102400,
             contentType: 'application/pdf',
-            generatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            generatedAt: new Date(
+              Date.now() - 2 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
             variables: { companyName: 'Test Corp', employeeName: 'John Doe' },
           }),
           'user_test_1',
@@ -206,7 +208,9 @@ describe('Document Management Flow (e2e)', () => {
             filename: 'nda_1.pdf',
             size: 51200,
             contentType: 'application/pdf',
-            generatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+            generatedAt: new Date(
+              Date.now() - 1 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
             variables: { party1: 'Test Corp', party2: 'Vendor Inc' },
           }),
           'user_test_1',
@@ -546,4 +550,3 @@ describe('Document Management Flow (e2e)', () => {
     });
   });
 });
-
