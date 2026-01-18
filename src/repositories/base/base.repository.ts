@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { QueryResult, QueryResultRow } from 'pg';
 import { DatabaseService } from '../../database/database.service';
+import { ValidationHelper } from '../../common/helpers/validation.helper';
 import {
   FindOneOptions,
   QueryOptions,
@@ -130,6 +131,12 @@ export abstract class BaseRepository<
   ): Promise<QueryResult<T>> {
     const { client, tenant, bypassRLS = false } = options;
     const hasTenant = !!tenant;
+
+    // Validate tenant context if provided
+    if (hasTenant) {
+      ValidationHelper.validateTenantContext(tenant.tenantId, tenant.schema);
+    }
+
     this.logger.debug(
       `runWithClient: table=${this.tableName}, tenant=${
         tenant?.tenantId ?? 'none'

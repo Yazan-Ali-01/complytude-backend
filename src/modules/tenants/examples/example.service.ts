@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
+import { ValidationHelper } from 'src/common/helpers/validation.helper';
 
 /**
  * Example service demonstrating multi-tenancy patterns
@@ -15,6 +16,8 @@ export class ExampleTenantService {
    * Example 1: Simple query with tenant context
    */
   async findAllDocuments(tenantId: string, schemaName: string) {
+    ValidationHelper.validateTenantContext(tenantId, schemaName);
+
     const result = await this.db.queryWithTenantContext(
       tenantId,
       schemaName,
@@ -124,6 +127,9 @@ export class ExampleTenantService {
    * Example 5: Create a new table in tenant schema with RLS
    */
   async createTenantTable(schemaName: string, _tenantId: string) {
+    // Validate schema name format first
+    ValidationHelper.validateSchemaName(schemaName);
+
     // Validate schema exists to prevent SQL injection
     const schemaCheck = await this.db.query(
       'SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1',
@@ -132,13 +138,6 @@ export class ExampleTenantService {
 
     if (schemaCheck.rows.length === 0) {
       throw new Error(`Invalid schema name: ${schemaName}`);
-    }
-
-    // Additional validation: schema name must match tenant schema pattern
-    if (!/^tenant_[a-z0-9_]+$/.test(schemaName)) {
-      throw new Error(
-        `Schema name must match tenant pattern: tenant_<identifier>`,
-      );
     }
 
     await this.db.transaction(async (client) => {

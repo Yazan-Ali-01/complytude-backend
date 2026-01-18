@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { ValidationHelper } from '../common/helpers/validation.helper';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -160,6 +161,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     text: string,
     params?: any[],
   ): Promise<QueryResult<T>> {
+    // Validate inputs to prevent SQL injection
+    ValidationHelper.validateTenantContext(tenantId, schemaName);
+
     const client = await this.getClient();
     try {
       await client.query('SELECT set_config($1, $2, true)', [
@@ -210,6 +214,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     schemaName: string,
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
+    // Validate inputs to prevent SQL injection
+    ValidationHelper.validateTenantContext(tenantId, schemaName);
+
     const client = await this.getClient();
     try {
       await client.query('BEGIN');
@@ -263,6 +270,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     tenantId: string,
     schemaName: string,
   ): Promise<PoolClient> {
+    // Validate inputs to prevent SQL injection
+    ValidationHelper.validateTenantContext(tenantId, schemaName);
+
     const client = await this.getClient();
 
     try {
