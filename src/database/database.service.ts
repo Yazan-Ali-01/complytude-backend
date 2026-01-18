@@ -69,7 +69,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const client = await this.getClient();
     try {
       if (bypassRLS) {
-        await client.query("SET LOCAL app.bypass_rls = 'true'");
+        await client.query('SELECT set_config($1, $2, true)', [
+          'app.bypass_rls',
+          'true',
+        ]);
       }
       const result = await client.query<T>(text, params);
       const duration = Date.now() - start;
@@ -80,7 +83,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw error;
     } finally {
       if (bypassRLS) {
-        await client.query('RESET app.bypass_rls');
+        await client.query('SELECT set_config($1, $2, true)', [
+          'app.bypass_rls',
+          'false',
+        ]);
       }
       client.release();
     }
@@ -108,7 +114,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       await client.query('BEGIN');
       if (bypassRLS) {
-        await client.query("SET LOCAL app.bypass_rls = 'true'");
+        await client.query('SELECT set_config($1, $2, true)', [
+          'app.bypass_rls',
+          'true',
+        ]);
       }
       const result = await callback(client);
       await client.query('COMMIT');
@@ -120,7 +129,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw error;
     } finally {
       if (bypassRLS) {
-        await client.query('RESET app.bypass_rls');
+        await client.query('SELECT set_config($1, $2, true)', [
+          'app.bypass_rls',
+          'false',
+        ]);
       }
       client.release();
     }
@@ -150,11 +162,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   ): Promise<QueryResult<T>> {
     const client = await this.getClient();
     try {
-      // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
-
-      // Set schema search path
-      await client.query(`SET search_path TO ${schemaName}, public`);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.current_tenant_id',
+        tenantId,
+      ]);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'search_path',
+        `${schemaName}, public`,
+      ]);
 
       // Execute query
       const result = await client.query<T>(text, params);
@@ -171,9 +186,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
       throw error;
     } finally {
-      // Reset to default schema
-      await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
+      await client.query('SELECT set_config($1, $2, true)', [
+        'search_path',
+        'public',
+      ]);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.current_tenant_id',
+        '',
+      ]);
       client.release();
     }
   }
@@ -194,11 +214,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       await client.query('BEGIN');
 
-      // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
-
-      // Set schema search path
-      await client.query(`SET search_path TO ${schemaName}, public`);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.current_tenant_id',
+        tenantId,
+      ]);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'search_path',
+        `${schemaName}, public`,
+      ]);
 
       // Execute transaction
       const result = await callback(client);
@@ -217,9 +240,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
       throw error;
     } finally {
-      // Reset to default schema
-      await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
+      await client.query('SELECT set_config($1, $2, true)', [
+        'search_path',
+        'public',
+      ]);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.current_tenant_id',
+        '',
+      ]);
       client.release();
     }
   }
@@ -238,11 +266,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const client = await this.getClient();
 
     try {
-      // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
-
-      // Set schema search path
-      await client.query(`SET search_path TO ${schemaName}, public`);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.current_tenant_id',
+        tenantId,
+      ]);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'search_path',
+        `${schemaName}, public`,
+      ]);
 
       return client;
     } catch (error) {
@@ -257,8 +288,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    */
   async releaseTenantClient(client: PoolClient): Promise<void> {
     try {
-      await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
+      await client.query('SELECT set_config($1, $2, true)', [
+        'search_path',
+        'public',
+      ]);
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.current_tenant_id',
+        '',
+      ]);
     } finally {
       client.release();
     }

@@ -124,6 +124,23 @@ export class ExampleTenantService {
    * Example 5: Create a new table in tenant schema with RLS
    */
   async createTenantTable(schemaName: string, _tenantId: string) {
+    // Validate schema exists to prevent SQL injection
+    const schemaCheck = await this.db.query(
+      'SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1',
+      [schemaName],
+    );
+
+    if (schemaCheck.rows.length === 0) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    // Additional validation: schema name must match tenant schema pattern
+    if (!/^tenant_[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(
+        `Schema name must match tenant pattern: tenant_<identifier>`,
+      );
+    }
+
     await this.db.transaction(async (client) => {
       // Create table
       await client.query(`
