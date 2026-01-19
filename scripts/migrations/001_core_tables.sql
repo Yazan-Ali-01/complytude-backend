@@ -1,0 +1,267 @@
+BEGIN;
+
+-- =========================
+-- Migration 001: Core Tables
+-- =========================
+-- Description: Core schema with tenants, users, user-tenant relationships, and auth artifacts
+-- Uses UUID for IDs, ENUMs for constrained types, optimized indexes
+-- =========================
+
+-- =========================
+-- ENUMS
+-- =========================
+
+CREATE TYPE tenant_plan AS ENUM ('early_access', 'basic', 'pro', 'enterprise');
+CREATE TYPE tenant_role AS ENUM ('admin', 'member', 'viewer');
+
+-- =========================
+-- Tenants
+-- =========================
+CREATE TABLE public.tenants (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plan          tenant_plan NOT NULL,
+    features      JSONB NOT NULL DEFAULT '{}',
+    is_active     BOOLEAN NOT NULL DEFAULT true,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE public.tenants IS 'Organizations/companies using the platform';
+COMMENT ON COLUMN public.tenants.id IS 'Unique tenant identifier (UUID)';
+COMMENT ON COLUMN public.tenants.plan IS 'Subscription plan: early_access, basic, pro, or enterprise';
+COMMENT ON COLUMN public.tenants.features IS 'JSON object of enabled feature flags for this tenant';
+COMMENT ON COLUMN public.tenants.is_active IS 'Whether the tenant account is active (soft delete flag)';
+
+-- =========================
+-- Users
+-- =========================
+CREATE TABLE public.users (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email            VARCHAR(255) UNIQUE NOT NULL,
+    password_hash    VARCHAR(255) NOT NULL,
+    first_name       VARCHAR(255),
+    last_name        VARCHAR(255),
+    is_verified      BOOLEAN NOT NULL DEFAULT false,
+    is_system_admin  BOOLEAN NOT NULL DEFAULT false,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE public.users IS 'User accounts that can access multiple tenants';
+COMMENT ON COLUMN public.users.id IS 'Unique user identifier (UUID)';
+COMMENT ON COLUMN public.users.email IS 'User email address (unique across platform)';
+COMMENT ON COLUMN public.users.password_hash IS 'Bcrypt hashed password';
+COMMENT ON COLUMN public.users.is_verified IS 'Whether user has verified their email address';
+COMMENT ON COLUMN public.users.is_system_admin IS 'System-level admin flag for platform administration (not tenant-specific)';
+
+-- =========================
+-- User ↔ Tenant Membership
+-- =========================
+CREATE TABLE public.user_tenants (
+    user_id     UUID NOT NULL,
+    tenant_id   UUID NOT NULL,
+    role        tenant_role NOT NULL,
+    is_active   BOOLEAN NOT NULL DEFAULT true,
+    joined_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (user_id, tenant_id),
+
+    CONSTRAINT fk_user_tenants_user
+        FOREIGN KEY (user_id)
+        REFERENCES public.users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_user_tenants_tenant
+        FOREIGN KEY (tenant_id)
+        REFERENCES public.tenants(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+COMMENT ON TABLE public.user_tenants IS 'Many-to-many relationship: users can belong to multiple tenants with different roles';
+COMMENT ON COLUMN public.user_tenants.role IS 'User role within this tenant: admin, member, or viewer';
+COMMENT ON COLUMN public.user_tenants.is_active IS 'Whether this membership is active (soft delete for user removal)';
+
+-- =========================
+-- Auth Artifacts
+-- =========================
+CREATE TABLE public.refresh_tokens (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID NOT NULL,
+    token_hash   VARCHAR(255) NOT NULL,
+    expires_at   TIMESTAMPTZ NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    revoked_at   TIMESTAMPTZ,
+
+    CONSTRAINT fk_refresh_tokens_user
+        FOREIGN KEY (user_id)
+        REFERENCES public.users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+COMMENT ON TABLE public.refresh_tokens IS 'Refresh tokens for session management (JWT refresh flow)';
+COMMENT ON COLUMN public.refresh_tokens.token_hash IS 'Hashed refresh token value';
+COMMENT ON COLUMN public.refresh_tokens.revoked_at IS 'Timestamp when token was revoked (NULL if still valid)';
+
+CREATE TABLE public.email_verifications (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID NOT NULL,
+    token        VARCHAR(255) UNIQUE NOT NULL,
+    expires_at   TIMESTAMPTZ NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    verified_at  TIMESTAMPTZ,
+
+    CONSTRAINT fk_email_verifications_user
+        FOREIGN KEY (user_id)
+        REFERENCES public.users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+COMMENT ON TABLE public.email_verifications IS 'Email verification tokens sent during signup';
+COMMENT ON COLUMN public.email_verifications.token IS 'Unique verification token sent via email';
+COMMENT ON COLUMN public.email_verifications.verified_at IS 'Timestamp when email was verified (NULL if not yet verified)';
+
+CREATE TABLE public.password_resets (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID NOT NULL,
+    token        VARCHAR(255) UNIQUE NOT NULL,
+    expires_at   TIMESTAMPTZ NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    used_at      TIMESTAMPTZ,
+
+    CONSTRAINT fk_password_resets_user
+        FOREIGN KEY (user_id)
+        REFERENCES public.users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+COMMENT ON TABLE public.password_resets IS 'Password reset tokens for forgot-password flow';
+COMMENT ON COLUMN public.password_resets.token IS 'Unique reset token sent via email';
+COMMENT ON COLUMN public.password_resets.used_at IS 'Timestamp when token was used to reset password (NULL if not yet used)';
+
+-- =========================
+-- Indexes
+-- =========================
+
+-- Tenants
+CREATE INDEX idx_tenants_plan ON public.tenants(plan);
+CREATE INDEX idx_tenants_is_active ON public.tenants(is_active) WHERE is_active = true;
+
+-- Users
+-- Note: idx_users_email is NOT created - UNIQUE constraint already creates an index
+
+-- User Tenants
+CREATE INDEX idx_user_tenants_user_id ON public.user_tenants(user_id);
+CREATE INDEX idx_user_tenants_tenant_id ON public.user_tenants(tenant_id);
+
+-- Composite partial index for RLS policy optimization
+-- This covers: WHERE tenant_id = ? AND is_active = true
+CREATE INDEX idx_user_tenants_tenant_active ON public.user_tenants(tenant_id, is_active) 
+WHERE is_active = true;
+
+-- Refresh Tokens
+CREATE INDEX idx_refresh_tokens_user_id ON public.refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_token_hash ON public.refresh_tokens(token_hash);
+CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at);
+CREATE INDEX idx_refresh_tokens_revoked_at ON public.refresh_tokens(revoked_at) WHERE revoked_at IS NOT NULL;
+
+-- Email Verifications
+CREATE INDEX idx_email_verifications_user_id ON public.email_verifications(user_id);
+CREATE INDEX idx_email_verifications_token ON public.email_verifications(token);
+CREATE INDEX idx_email_verifications_expires_at ON public.email_verifications(expires_at);
+
+-- Password Resets
+CREATE INDEX idx_password_resets_user_id ON public.password_resets(user_id);
+CREATE INDEX idx_password_resets_token ON public.password_resets(token);
+CREATE INDEX idx_password_resets_expires_at ON public.password_resets(expires_at);
+
+-- =========================
+-- Triggers
+-- =========================
+
+-- Function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.update_updated_at_column IS 'Trigger function to automatically update updated_at timestamp on row updates';
+
+-- Apply triggers to tables with updated_at
+CREATE TRIGGER update_tenants_updated_at
+    BEFORE UPDATE ON public.tenants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON public.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_user_tenants_updated_at
+    BEFORE UPDATE ON public.user_tenants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+COMMIT;
+
+-- =========================
+-- ROLLBACK SCRIPT
+-- =========================
+-- To rollback this migration, run the following:
+/*
+BEGIN;
+
+-- Drop triggers
+DROP TRIGGER IF EXISTS update_user_tenants_updated_at ON public.user_tenants;
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+DROP TRIGGER IF EXISTS update_tenants_updated_at ON public.tenants;
+
+-- Drop function
+DROP FUNCTION IF EXISTS public.update_updated_at_column();
+
+-- Drop indexes
+DROP INDEX IF EXISTS public.idx_password_resets_expires_at;
+DROP INDEX IF EXISTS public.idx_password_resets_token;
+DROP INDEX IF EXISTS public.idx_password_resets_user_id;
+
+DROP INDEX IF EXISTS public.idx_email_verifications_expires_at;
+DROP INDEX IF EXISTS public.idx_email_verifications_token;
+DROP INDEX IF EXISTS public.idx_email_verifications_user_id;
+
+DROP INDEX IF EXISTS public.idx_refresh_tokens_revoked_at;
+DROP INDEX IF EXISTS public.idx_refresh_tokens_expires_at;
+DROP INDEX IF EXISTS public.idx_refresh_tokens_token_hash;
+DROP INDEX IF EXISTS public.idx_refresh_tokens_user_id;
+
+DROP INDEX IF EXISTS public.idx_user_tenants_tenant_active;
+DROP INDEX IF EXISTS public.idx_user_tenants_tenant_id;
+DROP INDEX IF EXISTS public.idx_user_tenants_user_id;
+
+DROP INDEX IF EXISTS public.idx_tenants_is_active;
+DROP INDEX IF EXISTS public.idx_tenants_plan;
+
+-- Drop tables (in reverse dependency order)
+DROP TABLE IF EXISTS public.password_resets;
+DROP TABLE IF EXISTS public.email_verifications;
+DROP TABLE IF EXISTS public.refresh_tokens;
+DROP TABLE IF EXISTS public.user_tenants;
+DROP TABLE IF EXISTS public.users;
+DROP TABLE IF EXISTS public.tenants;
+
+-- Drop ENUMs
+DROP TYPE IF EXISTS tenant_role;
+DROP TYPE IF EXISTS tenant_plan;
+
+COMMIT;
+*/

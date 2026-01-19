@@ -355,6 +355,11 @@ pnpm start:prod     # Run production build
 pnpm docker:start   # Start PostgreSQL + MinIO
 pnpm docker:stop    # Stop services (keeps data)
 
+# Database
+pnpm db:migrate     # Run database migrations
+pnpm db:seed        # Seed database with initial/test data
+pnpm db:setup:full  # Run migrations + seeds (complete setup)
+
 # Docker - Full Stack
 pnpm docker:build   # Build NestJS Docker image
 pnpm docker:up:full # Start everything in Docker

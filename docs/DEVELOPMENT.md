@@ -143,15 +143,33 @@ BEGIN
 END $$;
 ```
 
-### Migration Commands
+### Database Commands
 
 ```bash
+# Schema Management
 pnpm db:migrate      # Run all migrations
 pnpm db:verify       # Verify database setup
-pnpm db:reset        # ⚠️ Reset database (deletes all data)
+
+# Data Seeding (New!)
+pnpm db:seed         # Seed database with initial/test data
+pnpm db:setup:full   # Run migrations + seeds (complete setup)
+
+# Database Reset
+pnpm docker:reset    # ⚠️ Reset database (deletes all data)
 ```
 
-For detailed migration documentation, see [scripts/README.md](../scripts/README.md).
+**When to seed:**
+- After initial setup for test data
+- When you need sample tenants, users, or documents
+- For development and testing environments
+
+**Seeded data includes:**
+- Global authorities and categories
+- Test tenants (3 different subscription plans)
+- Test users with various roles
+- Sample templates and documents
+
+For detailed migration and seeding documentation, see [scripts/README.md](../scripts/README.md) and [scripts/seeds/README.md](../scripts/seeds/README.md).
 
 ---
 
