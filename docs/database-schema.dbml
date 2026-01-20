@@ -1,0 +1,390 @@
+// Complytude Database Schema
+// Multi-tenant SaaS platform for UAE legal document generation
+// Generated: 2026-01-20
+
+Project Complytude {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # Complytude Database Schema
+    Multi-tenant architecture with Row-Level Security (RLS)
+    - Schema-based tenant isolation
+    - Global reference tables (authorities, categories, templates)
+    - Tenant-scoped data (documents)
+    - Version control for templates and rulesets
+  '''
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+Enum tenant_plan {
+  early_access
+  basic
+  pro
+  enterprise
+}
+
+Enum tenant_role {
+  admin
+  member
+  viewer
+}
+
+Enum template_status {
+  active
+  inactive
+  draft
+  deprecated
+}
+
+Enum ruleset_status {
+  active
+  inactive
+  deprecated
+}
+
+// ============================================
+// CORE TABLES (Multi-Tenancy & Authentication)
+// ============================================
+
+Table tenants {
+  id uuid [pk, default: `gen_random_uuid()`]
+  plan tenant_plan [not null, note: 'Subscription plan tier']
+  features jsonb [not null, default: '{}', note: 'Feature flags and custom features']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    plan
+    (is_active) // [where: 'is_active = true']
+  }
+  
+  Note: 'Organizations/companies using the platform'
+}
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  email varchar(255) [unique, not null]
+  password_hash varchar(255) [not null]
+  first_name varchar(255)
+  last_name varchar(255)
+  is_verified boolean [not null, default: false, note: 'Email verification status']
+  is_system_admin boolean [not null, default: false, note: 'Platform admin (not tenant-specific)']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  Note: 'User accounts that can access multiple tenants'
+}
+
+Table user_tenants {
+  user_id uuid [pk, not null, ref: > users.id]
+  tenant_id uuid [pk, not null, ref: > tenants.id]
+  role tenant_role [not null, note: 'User role within this tenant']
+  is_active boolean [not null, default: true]
+  joined_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    user_id
+    tenant_id
+    (tenant_id, is_active) // [where: 'is_active = true', note: 'RLS optimization']
+  }
+  
+  Note: 'Many-to-many: users can belong to multiple tenants with different roles'
+}
+
+// ============================================
+// AUTHENTICATION TABLES
+// ============================================
+
+Table refresh_tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  token_hash varchar(255) [not null]
+  expires_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+  revoked_at timestamptz [null, note: 'NULL if still valid']
+  
+  indexes {
+    user_id
+    token_hash
+    expires_at
+    (revoked_at) // [where: 'revoked_at IS NOT NULL']
+  }
+  
+  Note: 'JWT refresh tokens for session management'
+}
+
+Table email_verifications {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  token varchar(255) [unique, not null]
+  expires_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+  verified_at timestamptz [null, note: 'NULL if not yet verified']
+  
+  indexes {
+    user_id
+    token
+    expires_at
+  }
+  
+  Note: 'Email verification tokens sent during signup'
+}
+
+Table password_resets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  token varchar(255) [unique, not null]
+  expires_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+  used_at timestamptz [null, note: 'NULL if not yet used']
+  
+  indexes {
+    user_id
+    token
+    expires_at
+  }
+  
+  Note: 'Password reset tokens for forgot-password flow'
+}
+
+// ============================================
+// GLOBAL REFERENCE TABLES (No RLS)
+// ============================================
+
+Table authorities {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(50) [unique, not null, note: 'e.g., DMCC, IFZA, DIFC']
+  name varchar(255) [not null]
+  description text
+  country varchar(100) [default: 'UAE']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    code
+    (is_active) // [where: 'is_active = true']
+    country
+  }
+  
+  Note: 'UAE legal authorities (DMCC, IFZA, DED, RAKEZ, etc.)'
+}
+
+Table categories {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(50) [unique, not null]
+  name varchar(255) [not null]
+  description text
+  parent_id uuid [null, ref: > categories.id, note: 'Self-referencing for hierarchy']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    code
+    parent_id
+    (is_active) // [where: 'is_active = true']
+  }
+  
+  Note: 'Template categories with hierarchical support (employment, corporate, etc.)'
+}
+
+Table rulesets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  key varchar(255) [unique, not null, note: 'e.g., dmcc_employment_rules_v1']
+  name varchar(255) [not null]
+  description text
+  authority_id uuid [null, ref: > authorities.id]
+  current_version varchar(50) [not null, default: '1.0.0']
+  status ruleset_status [not null, default: 'active']
+  metadata jsonb [default: '{}']
+  created_by uuid [null, ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    key
+    authority_id
+    status
+    created_by
+  }
+  
+  Note: 'Legal rulesets containing authority-specific clauses and rules'
+}
+
+Table ruleset_versions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  ruleset_id uuid [not null, ref: > rulesets.id]
+  version varchar(50) [not null]
+  clauses jsonb [not null, default: '[]', note: 'Array of legal clauses/rules']
+  changelog text
+  metadata jsonb [default: '{}']
+  is_active boolean [not null, default: true]
+  created_by uuid [null, ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    ruleset_id
+    version
+    (is_active) // [where: 'is_active = true']
+    created_by
+    (ruleset_id, version) [unique]
+  }
+  
+  Note: 'Version history for rulesets - immutable audit trail'
+}
+
+Table templates {
+  id uuid [pk, default: `gen_random_uuid()`]
+  key varchar(255) [unique, not null, note: 'e.g., dmcc_employment_v1']
+  name varchar(255) [not null]
+  description text
+  category_id uuid [null, ref: > categories.id]
+  authority_id uuid [null, ref: > authorities.id]
+  languages text[] [not null, default: `ARRAY['en']`, note: 'en, ar, bilingual']
+  current_version varchar(50) [not null, default: '1.0.0']
+  status template_status [not null, default: 'active']
+  file_url text [note: 'S3 URL to current version DOCX file']
+  thumbnail_url text
+  metadata jsonb [default: '{}']
+  created_by uuid [null, ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    key
+    category_id
+    authority_id
+    status
+    created_by
+    languages [type: gin]
+  }
+  
+  Note: 'Template metadata - main template registry'
+}
+
+Table template_versions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  template_id uuid [not null, ref: > templates.id]
+  version varchar(50) [not null]
+  fields jsonb [not null, default: '[]', note: 'Field definitions for this version']
+  file_url text [not null, note: 'S3 URL to this version DOCX file']
+  changelog text
+  metadata jsonb [default: '{}']
+  is_active boolean [not null, default: true]
+  created_by uuid [null, ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    template_id
+    version
+    (is_active) // [where: 'is_active = true']
+    created_by
+    (template_id, version) [unique]
+  }
+  
+  Note: 'Version history for templates - immutable audit trail'
+}
+
+// ============================================
+// JUNCTION TABLES (Many-to-Many)
+// ============================================
+
+Table template_rulesets {
+  template_id uuid [pk, not null, ref: > templates.id]
+  ruleset_id uuid [pk, not null, ref: > rulesets.id]
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    template_id
+    ruleset_id
+  }
+  
+  Note: 'Many-to-many: templates can use multiple rulesets'
+}
+
+Table template_version_ruleset_versions {
+  template_version_id uuid [pk, not null, ref: > template_versions.id]
+  ruleset_version_id uuid [pk, not null, ref: > ruleset_versions.id]
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    template_version_id
+    ruleset_version_id
+  }
+  
+  Note: 'Many-to-many: tracks which ruleset versions were used in each template version'
+}
+
+// ============================================
+// TENANT-SCOPED TABLES (With RLS)
+// ============================================
+
+Table documents {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  title varchar(255) [not null]
+  content text
+  metadata jsonb [default: '{}', note: 'Tags, custom fields, etc.']
+  template_id uuid [null, ref: > templates.id]
+  template_version_id uuid [null, ref: > template_versions.id, note: 'Specific version used']
+  generation_metadata jsonb [default: '{}', note: 'AI model, parameters, etc.']
+  created_by uuid [null, ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    tenant_id [note: 'Critical for RLS performance']
+    template_id
+    template_version_id
+    created_by
+    (created_at) [type: btree, note: 'DESC order']
+    (tenant_id, created_at) [note: 'Composite for tenant queries']
+    (tenant_id, template_id)
+  }
+  
+  Note: '''
+    Tenant-scoped documents with RLS-based tenant isolation
+    RLS Policies:
+    - SELECT: tenant_id = current_tenant_id_or_null()
+    - INSERT: tenant_id = current_tenant_id_or_null()
+  '''
+}
+
+// ============================================
+// TABLE GROUPS (For Visual Organization)
+// ============================================
+
+TableGroup "Core Multi-Tenancy" {
+  tenants
+  users
+  user_tenants
+}
+
+TableGroup "Authentication" {
+  refresh_tokens
+  email_verifications
+  password_resets
+}
+
+TableGroup "Global Reference Data" {
+  authorities
+  categories
+  rulesets
+  ruleset_versions
+  templates
+  template_versions
+}
+
+TableGroup "Junction Tables" {
+  template_rulesets
+  template_version_ruleset_versions
+}
+
+TableGroup "Tenant-Scoped Data (RLS)" {
+  documents
+}
