@@ -31,6 +31,13 @@ export const validationSchema = Joi.object({
   S3_ACCESS_KEY: Joi.string().default('minioadmin'),
   S3_SECRET_KEY: Joi.string().default('minioadmin'),
   S3_FORCE_PATH_STYLE: Joi.boolean().default(true),
+
+  // Storage Buckets
+  COMPLYTUDE_FILES_BUCKET_NAME: Joi.string().default('complytude-files'),
+  TEMPLATES_BUCKET_NAME: Joi.string().default('complytude-templates'),
+
+  // File Upload Limits
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
+  TEMPLATE_MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
 });
