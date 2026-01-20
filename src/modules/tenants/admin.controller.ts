@@ -112,28 +112,6 @@ export class TenantAdminController {
     return this.tenantService.findById(tenantId);
   }
 
-  @Get('email/:email')
-  @ApiOperation({
-    summary: '[ADMIN] Get tenant by email',
-    description:
-      'Retrieves tenant information by email address. System admin only.',
-  })
-  @ApiParam({ name: 'email', description: 'Tenant email' })
-  @ApiResponse({
-    status: 200,
-    description: 'Tenant details',
-    type: Object,
-  })
-  @ApiResponse({ status: 404, description: 'Tenant not found' })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - System admin privileges required',
-  })
-  async getTenantByEmail(@Param('email') email: string): Promise<Tenant> {
-    this.logger.log(`[ADMIN] Fetching tenant by email: ${email}`);
-    return this.tenantService.findByEmail(email);
-  }
-
   @Put(':tenantId')
   @ApiOperation({
     summary: '[ADMIN] Update any tenant',

@@ -18,6 +18,7 @@ CREATE FUNCTION public.current_tenant_id()
 RETURNS UUID
 LANGUAGE plpgsql
 STABLE
+-- VOLATILE
 AS $$
 DECLARE
     tenant_id_val TEXT;
@@ -45,6 +46,7 @@ CREATE FUNCTION public.current_tenant_id_or_null()
 RETURNS UUID
 LANGUAGE plpgsql
 STABLE
+-- VOLATILE
 AS $$
 DECLARE
     tenant_id_val TEXT;
@@ -73,6 +75,7 @@ CREATE FUNCTION public.is_tenant_admin()
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
+-- VOLATILE
 AS $$
 DECLARE
     role_val TEXT;
@@ -89,6 +92,7 @@ CREATE FUNCTION public.is_auth_flow()
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
+-- VOLATILE
 AS $$
 BEGIN
     RETURN COALESCE(current_setting('app.is_auth_flow', true), 'false') = 'true';

@@ -17,7 +17,7 @@ CREATE POLICY tenant_select
 ON public.tenants
 FOR SELECT
 USING (
-    id = current_tenant_id_or_null()
+    id = current_tenant_id_or_null() OR is_auth_flow()
 );
 
 -- Tenant creation happens during signup (auth flow)
@@ -50,7 +50,7 @@ CREATE POLICY user_tenants_select
 ON public.user_tenants
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_auth_flow()
 );
 
 -- User-tenant association created during signup (auth flow)

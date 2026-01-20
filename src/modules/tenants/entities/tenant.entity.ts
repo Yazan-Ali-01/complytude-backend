@@ -6,14 +6,10 @@ export interface TenantFeatures {
 }
 
 export interface Tenant {
-  id: string;
-  tenant_id: string;
-  email: string;
-  role: 'admin' | 'user' | 'viewer';
+  id: string; // Primary key (UUID) - this IS the tenant identifier
   plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
   features: TenantFeatures;
-  created_at: Date;
-  updated_at: Date | null;
   is_active: boolean;
-  // Note: schema_name removed - using Pure RLS approach (all data in public schema)
+  created_at: Date;
+  updated_at: Date;
 }

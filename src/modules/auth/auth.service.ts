@@ -39,7 +39,7 @@ import { JwtPayload } from './strategies/jwt.strategy';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly BCRYPT_ROUNDS = 12;
+  private readonly BCRYPT_ROUNDS = 10;
 
   constructor(
     private readonly jwtService: JwtService,
@@ -114,12 +114,13 @@ export class AuthService {
    * Registers a new user and creates their first tenant.
    *
    * @remarks
-   * - The creation of the tenant and corresponding tenant schema is fully handled within {@link TenantService}.
-   *   This encapsulates all tenant and multi-tenant schema provisioning logic.
-   * - Linking the user to the tenant (the `user_tenants` relation) is performed in this method.
+   * - Creates a new user account
+   * - Creates a new tenant with default plan and features
+   * - Links the user to the tenant with admin role in user_tenants table
+   * - Creates email verification token
    *
-   * @param signupDto - User and initial tenant information
-   * @returns An object containing a success message, userId, tenant_id, and an email verification token (remove in production)
+   * @param signupDto - User registration information
+   * @returns An object containing a success message, userId, tenantId, and an email verification token (remove in production)
    * @throws {ConflictException} if the email is already registered
    */
   async signup(signupDto: SignupDto) {
@@ -141,9 +142,12 @@ export class AuthService {
       this.BCRYPT_ROUNDS,
     );
 
-    const userId = `user_${randomUUID()}`;
+    const userId = randomUUID();
 
     return await this.databaseService.transaction(async (client) => {
+      // Set is_auth_flow flag for this transaction to allow tenant creation
+      await client.query("SET LOCAL app.is_auth_flow = 'true'");
+
       // Create user account
       this.logger.log(`Creating user account for ${signupDto.email}`);
       await this.userRepository.create(
@@ -159,26 +163,23 @@ export class AuthService {
         { client },
       );
 
-      // Create tenant and schema via TenantService (all multi-tenant setup is encapsulated there)
+      // Create tenant with default settings
       this.logger.log(`Creating tenant for ${signupDto.email}`);
       const tenant: Tenant = await this.tenantService.createTenant(
         {
-          email: signupDto.email,
-          role: 'admin',
           plan: 'early_access',
           features: new TenantFeaturesDto(),
-          userId,
         },
         { client },
       );
 
-      // Link user to the new tenant
+      // Link user to the new tenant as admin
       this.logger.log(`Linking user to tenant for ${signupDto.email}`);
       await this.userTenantRepository.linkUserToTenant(
         {
           userId,
-          tenantId: tenant.tenant_id,
-          role: tenant.role,
+          tenantId: tenant.id,
+          role: 'admin', // User is admin of their own tenant
           isActive: true,
         },
         { client },
@@ -186,7 +187,7 @@ export class AuthService {
 
       // Create email verification record
       const verificationToken = randomUUID();
-      const verificationId = `verify_${randomUUID()}`;
+      const verificationId = randomUUID();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
       this.logger.log(
         `Creating email verification record for ${signupDto.email}`,
@@ -209,7 +210,7 @@ export class AuthService {
       return {
         message: this.i18n.t(I18nKeys.SIGNUP_SUCCESS),
         userId,
-        tenant_id: tenant.tenant_id,
+        tenantId: tenant.id,
         verificationToken, // Expose only for development/testing; remove in prod
       };
     });
@@ -222,9 +223,11 @@ export class AuthService {
     // Validate user credentials
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
-    // Get user's tenants
+    // Get user's active tenants
     const tenants = await this.userTenantRepository.getActiveUserTenants(
       user.id,
+      undefined,
+      true,
     );
     if (tenants.length === 0) {
       throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
@@ -367,13 +370,12 @@ export class AuthService {
    */
   private async storeRefreshToken(userId: string, refreshToken: string) {
     const tokenHash = await bcrypt.hash(refreshToken, 10);
-    const tokenId = `refresh_${randomUUID()}`;
     const expiresIn =
       this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
     const expiresAt = new Date(Date.now() + this.parseExpiresIn(expiresIn));
 
     await this.refreshTokenRepository.create({
-      id: tokenId,
+      id: randomUUID(),
       user_id: userId,
       token_hash: tokenHash,
       expires_at: expiresAt,
@@ -440,20 +442,20 @@ export class AuthService {
     // Get user's current tenant info and system admin status
     const [user, activeTenants] = await Promise.all([
       this.userRepository.findById(userId),
-      this.userTenantRepository.getActiveUserTenants(userId),
+      this.userTenantRepository.getActiveUserTenants(userId, undefined, true),
     ]);
 
     if (!user || activeTenants.length === 0) {
       throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
     }
 
-    const { tenant_id, role } = activeTenants[0];
+    const { tenant_id: tenantId, role } = activeTenants[0];
 
     // Generate new tokens
     const tokens = await this.generateTokens(
       userId,
       email,
-      tenant_id,
+      tenantId,
       role,
       user.is_system_admin || false,
     );
@@ -535,7 +537,7 @@ export class AuthService {
 
     const userId = user.id;
     const resetToken = randomUUID();
-    const resetId = `reset_${randomUUID()}`;
+    const resetId = randomUUID();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await this.userRepository.createPasswordReset({

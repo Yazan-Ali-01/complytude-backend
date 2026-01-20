@@ -80,7 +80,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw error;
     } finally {
       if (bypassRLS) {
-        await client.query('RESET app.bypass_rls');
+        // await client.query('RESET app.bypass_rls');
       }
       client.release();
     }
@@ -102,7 +102,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    */
   async transaction<T>(
     callback: (client: PoolClient) => Promise<T>,
-    bypassRLS: boolean = true,
+    bypassRLS: boolean = false,
   ): Promise<T> {
     const client = await this.getClient();
     try {
@@ -120,7 +120,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw error;
     } finally {
       if (bypassRLS) {
-        await client.query('RESET app.bypass_rls');
+        // await client.query('RESET app.bypass_rls');
       }
       client.release();
     }
@@ -162,7 +162,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw error;
     } finally {
       // Reset tenant context
-      await client.query('RESET app.current_tenant_id');
+      // await client.query('RESET app.current_tenant_id');
       client.release();
     }
   }
@@ -200,7 +200,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw error;
     } finally {
       // Reset tenant context
-      await client.query('RESET app.current_tenant_id');
+      // await client.query('RESET app.current_tenant_id');
       client.release();
     }
   }
@@ -229,11 +229,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * Release a tenant client and reset its context
    * @param client Pool client to release
    */
-  async releaseTenantClient(client: PoolClient): Promise<void> {
-    try {
-      await client.query('RESET app.current_tenant_id');
-    } finally {
-      client.release();
-    }
+  releaseTenantClient(client: PoolClient): void {
+    client.release();
   }
 }

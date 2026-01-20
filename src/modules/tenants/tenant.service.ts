@@ -1,11 +1,9 @@
 import {
-  ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { PoolClient } from 'pg';
 import { DatabaseService } from 'src/database/database.service';
 import {
@@ -30,6 +28,9 @@ export class TenantService {
 
   /**
    * Create a new tenant
+   * @param createTenantDto - Tenant configuration (plan, features)
+   * @param options - Optional database client for transaction support
+   * @returns Created Tenant entity
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
@@ -38,27 +39,12 @@ export class TenantService {
     },
   ): Promise<Tenant> {
     const { client } = options ?? {};
-    const tenantId = `tenant_${randomUUID()}`;
     const features: TenantFeatures = { ...createTenantDto.features };
 
     try {
-      const existingTenant = await this.tenantRepository.findOne({
-        filters: {
-          email: createTenantDto.email,
-        },
-        select: ['id'],
-      });
-
-      if (existingTenant) {
-        throw new ConflictException('Email already registered');
-      }
-      const tenantCreation = async (client) => {
+      const tenantCreation = async (client: PoolClient) => {
         const tenant = await this.tenantRepository.create(
           {
-            id: createTenantDto.userId ?? `tenant_${randomUUID()}`,
-            tenant_id: tenantId,
-            email: createTenantDto.email,
-            role: createTenantDto.role,
             plan: createTenantDto.plan,
             features: JSON.stringify(features),
             is_active: true,
@@ -68,6 +54,7 @@ export class TenantService {
 
         return tenant;
       };
+
       if (client) {
         return await tenantCreation(client);
       } else {
@@ -75,9 +62,6 @@ export class TenantService {
       }
     } catch (error) {
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
-      if (error instanceof ConflictException) {
-        throw error;
-      }
       throw new InternalServerErrorException('Failed to create tenant');
     }
   }
@@ -87,58 +71,10 @@ export class TenantService {
    */
   async findById(tenantId: string): Promise<Tenant> {
     try {
-      const tenant = await this.tenantRepository.findOne({
-        filters: {
-          tenant_id: tenantId,
-        },
-        select: [
-          'id',
-          'tenant_id',
-          'email',
-          'role',
-          'plan',
-          'features',
-          'is_active',
-          'created_at',
-          'updated_at',
-        ],
-      });
+      const tenant = await this.tenantRepository.findById(tenantId);
 
       if (!tenant) {
         throw new NotFoundException(`Tenant ${tenantId} not found`);
-      }
-
-      return tenant;
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Failed to fetch tenant');
-    }
-  }
-
-  /**
-   * Get tenant by email
-   */
-  async findByEmail(email: string): Promise<Tenant> {
-    try {
-      const tenant = await this.tenantRepository.findOne({
-        filters: {
-          email,
-        },
-        select: [
-          'id',
-          'tenant_id',
-          'email',
-          'role',
-          'plan',
-          'features',
-          'is_active',
-          'created_at',
-          'updated_at',
-        ],
-      });
-
-      if (!tenant) {
-        throw new NotFoundException(`Tenant with email ${email} not found`);
       }
 
       return tenant;
@@ -172,10 +108,10 @@ export class TenantService {
     try {
       await this.findById(tenantId);
 
-      const updated = await this.tenantRepository.updateByTenantId(tenantId, {
+      const updated = await this.tenantRepository.update(tenantId, {
         ...updateTenantDto,
         features:
-          updateTenantDto.features === undefined
+          updateTenantDto.features !== undefined
             ? JSON.stringify(updateTenantDto.features)
             : undefined,
       });
@@ -200,7 +136,7 @@ export class TenantService {
   async deleteTenant(tenantId: string): Promise<void> {
     try {
       await this.databaseService.transaction(async (client) => {
-        const deleted = await this.tenantRepository.deleteByTenantId(tenantId, {
+        const deleted = await this.tenantRepository.delete(tenantId, {
           client,
         });
 
@@ -219,13 +155,12 @@ export class TenantService {
 
   /**
    * Get document count for a tenant
-   * Assumes documents are stored in a 'documents' table in the tenant's schema
    */
   async getDocumentCount(tenantId: string): Promise<number> {
     try {
-      const tenant = await this.findById(tenantId);
+      await this.findById(tenantId); // Ensure tenant exists
 
-      return await this.tenantRepository.getDocumentCount(tenant.tenant_id);
+      return await this.tenantRepository.getDocumentCount(tenantId);
     } catch (error) {
       this.logger.error(
         `Failed to get document count for tenant ${tenantId}`,
