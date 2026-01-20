@@ -169,27 +169,33 @@ export class UsersService {
    * List all users in a tenant (admin/member only)
    */
   async listTenantUsers(tenantId: string): Promise<any[]> {
-    const result = await this.databaseService.query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
+    return this.databaseService.transaction(async (client) => {
+      await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [
+        tenantId,
+      ]);
+
+      const result = await client.query(
+        `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
               ut.role, ut.is_active, ut.joined_at
        FROM public.user_tenants ut
        JOIN public.users u ON ut.user_id = u.id
        WHERE ut.tenant_id = $1
        ORDER BY ut.joined_at DESC`,
-      [tenantId],
-    );
+        [tenantId],
+      );
 
-    return result.rows.map((row) => ({
-      id: row.id,
-      email: row.email,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      isVerified: row.is_verified,
-      createdAt: row.created_at,
-      role: row.role,
-      isActive: row.is_active,
-      joinedAt: row.joined_at,
-    }));
+      return result.rows.map((row) => ({
+        id: row.id,
+        email: row.email,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        isVerified: row.is_verified,
+        createdAt: row.created_at,
+        role: row.role,
+        isActive: row.is_active,
+        joinedAt: row.joined_at,
+      }));
+    });
   }
 
   /**
@@ -222,7 +228,7 @@ export class UsersService {
       }
     } else {
       // Create new user
-      userId = `user_${randomUUID()}`;
+      userId = randomUUID();
       const passwordHash = await bcrypt.hash(
         createUserDto.password,
         this.BCRYPT_ROUNDS,
@@ -242,7 +248,7 @@ export class UsersService {
 
       // Create email verification token
       const verificationToken = randomUUID();
-      const verificationId = `verify_${randomUUID()}`;
+      const verificationId = randomUUID();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       await this.databaseService.query(
