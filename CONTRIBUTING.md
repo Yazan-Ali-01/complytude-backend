@@ -38,6 +38,7 @@ cd complytude
 pnpm install
 cp .env.example .env
 pnpm project:setup              # Starts PostgreSQL + MinIO, runs migrations
+pnpm db:seed                    # (Optional) Seed test data for development
 
 # Daily development
 pnpm dev                # Auto-starts services + development server

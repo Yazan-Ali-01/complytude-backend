@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { QueryResult, QueryResultRow } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import {
+  ClientQueryOptions,
   FindOneOptions,
   QueryOptions,
-  ClientQueryOptions,
   RepositoryInterface,
 } from './repository.interface';
 
@@ -87,7 +87,7 @@ export abstract class BaseRepository<
       `executeQuery: table=${this.tableName}, client=${
         options?.client ? 'yes' : 'no'
       }, tenant=${options?.tenant?.tenantId ?? 'none'}, bypassRLS=${
-        options?.bypassRLS ?? true
+        options?.bypassRLS ?? false
       }, sql=${query}, params=${JSON.stringify(params)}`,
     );
     const { client, tenant, bypassRLS = false } = options ?? {};
@@ -102,7 +102,6 @@ export abstract class BaseRepository<
     if (tenant) {
       return this.databaseService.queryWithTenantContext<T>(
         tenant.tenantId,
-        tenant.schema,
         query,
         params,
       );
@@ -149,10 +148,10 @@ export abstract class BaseRepository<
       return await client.query<T>(query, params);
     } finally {
       if (hasTenant) {
-        await client.query('RESET search_path');
-        await client.query('RESET app.current_tenant_id');
+        // await client.query('RESET search_path');
+        // await client.query('RESET app.current_tenant_id');
       } else if (bypassRLS) {
-        await client.query('RESET app.bypass_rls');
+        // await client.query('RESET app.bypass_rls');
       }
     }
   }

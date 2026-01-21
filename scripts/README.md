@@ -1,270 +1,419 @@
 # Scripts Directory
 
-This directory contains database migrations and utility scripts for Complytude.
+This directory contains database migrations, seeding, and utility scripts for Complytude.
+
+## 🚀 Quick Start
+
+**New to the project? Start here:**
+
+```bash
+# Complete setup: migrations + seeds
+./scripts/setup-database.sh development
+```
+
+See **[QUICK_START.md](./QUICK_START.md)** for detailed instructions and troubleshooting.
+
+---
 
 ## 📁 Directory Structure
 
 ```
 scripts/
-├── migrations/           # Database migration files (run in order)
-│   ├── 001_init_multi_tenancy.sql
-│   └── 002_init_auth.sql
-├── utilities/           # Utility scripts for management and testing
-│   ├── manage-custom-features.sql
-│   ├── test-multi-tenancy.sql
-│   └── verify-multi-tenancy.sql
-├── docker-start.sh      # Start Docker PostgreSQL
-└── run-migrations.sh    # Run all migrations
+├── migrations/              # Database schema migrations (run in order)
+│   ├── 001_core_tables.sql
+│   ├── 002_grants_to_app_user.sql
+│   ├── 003_session_context_contract.sql
+│   ├── 004_rls_enablement.sql
+│   ├── 005_rls_policies_core.sql
+│   ├── 006_global_tables.sql
+│   ├── 007_documents_table.sql
+│   ├── 008_grants_global_tables.sql
+│   └── archived/            # Old migration versions
+│
+├── seeds/                   # Database seed data
+│   ├── 001_seed_authorities.sql
+│   ├── 002_seed_categories.sql
+│   ├── 003_seed_test_tenants_users.sql
+│   ├── 004_seed_templates.sql
+│   ├── 005_seed_test_documents.sql
+│   └── README.md
+│
+├── utilities/               # Management and testing scripts
+│   └── manage-custom-features.sql
+│
+├── setup-database.sh        # 🔥 Complete setup (migrations + seeds)
+├── run-migrations.sh        # Run all migrations
+├── run-seeds.sh             # Run all seed scripts
+├── docker-start.sh          # Start Docker PostgreSQL
+├── wait-for-db.sh           # Wait for database readiness
+├── setup-roles.sh           # Create database roles
+└── QUICK_START.md           # 📖 Comprehensive guide
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🎯 Main Scripts
 
-### 1. Start Database
+### 1. Complete Database Setup (Recommended)
+
+**File:** `setup-database.sh`
+
+Sets up everything in one command:
 
 ```bash
-npm run docker:start
-# or
-./scripts/docker-start.sh
+# Development (full test data)
+./scripts/setup-database.sh development
+
+# Staging (limited test data)
+./scripts/setup-database.sh staging
+
+# Production (reference data only)
+./scripts/setup-database.sh production
+
+# Migrations only, skip seeds
+./scripts/setup-database.sh development --skip-seeds
 ```
 
-### 2. Run Migrations
+**What it does:**
+1. ✅ Runs all 8 migrations (schema, RLS, grants)
+2. ✅ Seeds authorities and categories
+3. ✅ Seeds test data (dev only)
+4. ✅ Provides summary and next steps
+
+### 2. Run Migrations Only
+
+**File:** `run-migrations.sh`
+
+Runs database migrations:
 
 ```bash
 ./scripts/run-migrations.sh
 ```
 
-This will:
-- Create the database if it doesn't exist
-- Run all migrations in order
-- Track which migrations have been executed
-- Skip already-executed migrations
+**Features:**
+- Creates database if it doesn't exist
+- Tracks which migrations have run
+- Skips already-executed migrations
+- Stops on first error
+- Shows detailed progress
+
+### 3. Run Seeds Only
+
+**File:** `run-seeds.sh`
+
+Populates database with initial data:
+
+```bash
+# Development environment
+./scripts/run-seeds.sh development
+
+# Staging environment
+./scripts/run-seeds.sh staging
+
+# Production (reference data only)
+./scripts/run-seeds.sh production
+```
+
+**Seeds:**
+- 10 UAE authorities (DMCC, DIFC, etc.)
+- 10 template categories
+- 3 test tenants (dev/staging)
+- 7 test users (dev/staging)
+- 5 sample templates (dev/staging)
+- 7 sample documents (dev/staging)
 
 ---
 
 ## 📋 Migrations
 
-Migrations are numbered SQL files that run in sequential order. They are **idempotent** - safe to run multiple times.
-
 ### Available Migrations
 
-| Migration | Description | Dependencies |
-|-----------|-------------|--------------|
-| `001_init_multi_tenancy.sql` | Multi-tenancy infrastructure with schema isolation and RLS | None |
-| `002_init_auth.sql` | Authentication tables, user management, tokens | Migration 001 |
+| # | File | Description |
+|---|------|-------------|
+| 001 | `core_tables.sql` | Core schema: tenants, users, user_tenants, refresh_tokens |
+| 002 | `grants_to_app_user.sql` | Grant permissions to `complytude_app` user |
+| 003 | `session_context_contract.sql` | Session variables for RLS (tenant_id, user_id, role) |
+| 004 | `rls_enablement.sql` | Enable RLS on tenant-specific tables |
+| 005 | `rls_policies_core.sql` | RLS policies for multi-tenancy |
+| 006 | `global_tables.sql` | Authorities, categories, templates, rulesets |
+| 007 | `documents_table.sql` | Documents table with tenant isolation |
+| 008 | `grants_global_tables.sql` | Permissions for global tables |
 
 ### Migration Tracking
 
-Migrations are tracked in the `public.schema_migrations` table:
+Migrations are tracked in `public.schema_migrations`:
 
 ```sql
-SELECT * FROM public.schema_migrations ORDER BY executed_at DESC;
+SELECT migration_name, executed_at 
+FROM public.schema_migrations 
+ORDER BY executed_at DESC;
 ```
 
-### Creating a New Migration
+### Creating New Migrations
 
-1. Create a new file: `scripts/migrations/00X_description.sql`
-2. Use the next sequential number
-3. Include header comment with description and dependencies
-4. Make it idempotent using `IF NOT EXISTS` clauses
-5. Run `./scripts/run-migrations.sh` to apply
+1. Create file: `scripts/migrations/009_description.sql`
+2. Use next sequential number
+3. Include header with description
+4. Make it idempotent
+5. Run `./scripts/run-migrations.sh`
 
 **Template:**
 
 ```sql
--- ============================================================================
--- Migration 003: Your Description
--- ============================================================================
--- Description: What this migration does
--- Dependencies: 001, 002
--- ============================================================================
+-- =========================
+-- Migration 009: Description
+-- =========================
+-- Description: What this does
+-- Dependencies: 001-008
+-- =========================
+
+BEGIN;
 
 -- Your SQL here
 CREATE TABLE IF NOT EXISTS ...
 
--- Success message
-DO $$
-BEGIN
-    RAISE NOTICE '✅ Migration 003: Your description completed';
-END $$;
+COMMIT;
+```
+
+---
+
+## 🌱 Seeds
+
+### Available Seed Scripts
+
+| # | File | Description | Environment |
+|---|------|-------------|-------------|
+| 001 | `seed_authorities.sql` | UAE authorities (DMCC, DIFC, etc.) | All |
+| 002 | `seed_categories.sql` | Template categories | All |
+| 003 | `seed_test_tenants_users.sql` | Test tenants and users | Dev/Staging |
+| 004 | `seed_templates.sql` | Sample templates | Dev/Staging |
+| 005 | `seed_test_documents.sql` | Tenant-specific documents | Dev/Staging |
+
+### Test Credentials
+
+After seeding development data:
+
+**Email:** `admin@tenant1.test`  
+**Password:** `Test123!@#`
+
+See `scripts/seeds/README.md` for complete credential list.
+
+### Testing RLS Isolation
+
+```sql
+-- Connect as app user
+\c complytude complytude_app
+
+-- Set context for Tenant 1
+SELECT set_config('app.tenant_id', '11111111-1111-1111-1111-111111111111', false);
+SELECT set_config('app.user_id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', false);
+SELECT set_config('app.role', 'admin', false);
+
+-- Should return 3 documents for Tenant 1
+SELECT * FROM public.documents;
+
+-- Change to Tenant 2
+SELECT set_config('app.tenant_id', '22222222-2222-2222-2222-222222222222', false);
+
+-- Should return 2 DIFFERENT documents
+SELECT * FROM public.documents;
 ```
 
 ---
 
 ## 🛠️ Utility Scripts
 
-### Custom Feature Management
-
-**File:** `utilities/manage-custom-features.sql`
-
-Manage custom feature overrides for special customers:
+### Docker Management
 
 ```bash
-# Connect to database
-psql -U postgres -d complytude
-
-# Copy and paste queries from the file
-```
-
-**Common operations:**
-- View tenant features
-- Grant custom features
-- Remove custom features
-- Bulk operations
-- Reporting queries
-
-See the file for complete examples.
-
-### Multi-Tenancy Testing
-
-**File:** `utilities/test-multi-tenancy.sql`
-
-Test tenant isolation and RLS:
-
-```bash
-psql -U postgres -d complytude -f scripts/utilities/test-multi-tenancy.sql
-```
-
-**Tests:**
-- Creates test tenants
-- Creates sample data
-- Tests RLS isolation
-- Tests schema isolation
-- Cleans up after itself
-
-### Multi-Tenancy Verification
-
-**File:** `utilities/verify-multi-tenancy.sql`
-
-Verify multi-tenancy setup:
-
-```bash
-psql -U postgres -d complytude -f scripts/utilities/verify-multi-tenancy.sql
-```
-
-**Checks:**
-- Tables exist
-- RLS enabled
-- Policies configured
-- Indexes created
-- Helper functions available
-- Tenant statistics
-
----
-
-## 🐳 Docker Scripts
-
-### Docker Start
-
-**File:** `docker-start.sh`
-
-Starts PostgreSQL in Docker:
-
-```bash
+# Start PostgreSQL
 npm run docker:start
 # or
 ./scripts/docker-start.sh
+
+# Stop PostgreSQL
+npm run docker:stop
+
+# View logs
+npm run docker:logs
+
+# Reset database (⚠️ deletes all data)
+npm run docker:reset
 ```
 
-**Features:**
-- Checks if Docker is running
-- Creates/starts PostgreSQL container
-- Waits for database to be ready
-- Shows connection details
+### Role Setup
 
-**Related commands:**
 ```bash
-npm run docker:start   # Start database
-npm run docker:stop    # Stop database
-npm run docker:logs    # View logs
-npm run docker:reset   # Reset database (⚠️ deletes all data)
+./scripts/setup-roles.sh
+```
+
+Creates database roles:
+- `complytude_admin` - Full access
+- `complytude_app` - Application user with RLS
+
+### Wait for Database
+
+```bash
+./scripts/wait-for-db.sh
+```
+
+Waits for PostgreSQL to be ready (useful in CI/CD).
+
+### Custom Features Management
+
+**File:** `utilities/manage-custom-features.sql`
+
+Manage tenant features:
+
+```sql
+-- View tenant features
+SELECT id, plan, features FROM public.tenants;
+
+-- Grant custom feature
+UPDATE public.tenants 
+SET features = jsonb_set(features, '{custom_feature}', 'true')
+WHERE id = 'tenant-id';
 ```
 
 ---
 
 ## 📊 Database Management
 
-### View Migration Status
-
-```sql
--- See which migrations have run
-SELECT 
-    migration_name, 
-    executed_at 
-FROM public.schema_migrations 
-ORDER BY executed_at DESC;
-```
-
-### Manual Migration Execution
-
-If you need to run a specific migration:
+### Check Database Status
 
 ```bash
-psql -U postgres -d complytude -f scripts/migrations/001_init_multi_tenancy.sql
+# View tables
+psql -d complytude -c "\dt"
+
+# Count records
+psql -d complytude -c "
+  SELECT 'Tenants' as table_name, COUNT(*) as count FROM public.tenants
+  UNION ALL
+  SELECT 'Users', COUNT(*) FROM public.users
+  UNION ALL
+  SELECT 'Templates', COUNT(*) FROM public.templates
+  UNION ALL
+  SELECT 'Documents', COUNT(*) FROM public.documents;
+"
+
+# Check RLS policies
+psql -d complytude -c "\d+ documents"
 ```
 
-### Rollback Migrations
-
-Migrations don't have automatic rollback. To rollback:
-
-1. Manually write and execute DROP statements
-2. Remove the entry from `schema_migrations`
-3. Re-run migrations
-
-**Example:**
+### Verify RLS is Enabled
 
 ```sql
--- Remove migration record
-DELETE FROM public.schema_migrations WHERE migration_name = '002_init_auth.sql';
+SELECT 
+    tablename, 
+    rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public' 
+AND rowsecurity = true;
+```
 
--- Drop created objects
-DROP TABLE IF EXISTS public.users CASCADE;
--- ... more DROP statements ...
+### View User-Tenant Relationships
 
--- Re-run migration
--- Run: psql -f scripts/migrations/002_init_auth.sql
+```sql
+SELECT 
+    u.email,
+    t.plan,
+    ut.role
+FROM public.user_tenants ut
+JOIN public.users u ON ut.user_id = u.id
+JOIN public.tenants t ON ut.tenant_id = t.id
+ORDER BY t.plan, u.email;
 ```
 
 ---
 
 ## 🔧 Troubleshooting
 
+### "psql: command not found"
+
+Install PostgreSQL client:
+
+```bash
+# macOS
+brew install postgresql
+
+# Ubuntu/Debian
+sudo apt install postgresql-client
+
+# Windows
+# Download from: https://www.postgresql.org/download/windows/
+```
+
+### "Cannot connect to database"
+
+1. Check Docker is running:
+   ```bash
+   docker ps
+   ```
+
+2. Start database:
+   ```bash
+   npm run docker:start
+   ```
+
+3. Wait for readiness:
+   ```bash
+   ./scripts/wait-for-db.sh
+   ```
+
+4. Verify connection:
+   ```bash
+   psql -d complytude -c "SELECT 1;"
+   ```
+
+### "Permission denied: ./scripts/..."
+
+Make scripts executable:
+
+```bash
+chmod +x scripts/*.sh
+```
+
 ### Migration Fails
 
-1. Check the error message
-2. Fix the migration file
-3. Remove from tracking if partially executed:
+1. Check error message
+2. Fix migration file
+3. Remove from tracking if needed:
    ```sql
-   DELETE FROM public.schema_migrations WHERE migration_name = 'xxx_failed.sql';
+   DELETE FROM public.schema_migrations 
+   WHERE migration_name = 'failed_migration.sql';
    ```
 4. Re-run: `./scripts/run-migrations.sh`
 
-### Database Connection Issues
+### No Test Data Showing
+
+Make sure you ran seeds for development:
 
 ```bash
-# Check Docker is running
-docker ps
-
-# Check database is ready
-docker exec complytude-postgres pg_isready
-
-# View logs
-npm run docker:logs
-
-# Restart database
-npm run docker:stop
-npm run docker:start
+./scripts/run-seeds.sh development
 ```
 
-### Reset Database
+Production environment only seeds reference data, not test data.
 
-⚠️ **Warning: This deletes ALL data**
+### RLS Not Working
 
-```bash
-npm run docker:reset
-./scripts/run-migrations.sh
-```
+1. Verify RLS is enabled:
+   ```sql
+   SELECT tablename, rowsecurity 
+   FROM pg_tables 
+   WHERE schemaname = 'public';
+   ```
+
+2. Check policies exist:
+   ```sql
+   SELECT * FROM pg_policies WHERE schemaname = 'public';
+   ```
+
+3. Verify session context is set:
+   ```sql
+   SELECT current_setting('app.tenant_id', true);
+   SELECT current_setting('app.user_id', true);
+   SELECT current_setting('app.role', true);
+   ```
 
 ---
 
@@ -272,95 +421,169 @@ npm run docker:reset
 
 ### Migrations
 
-1. **Always idempotent** - Use `IF NOT EXISTS`, `IF EXISTS`
-2. **Sequential numbering** - Use 001, 002, 003...
-3. **Clear descriptions** - Document what and why
-4. **Test before commit** - Run on clean database
-5. **Never modify executed migrations** - Create new migration instead
+✅ **DO:**
+- Always make migrations idempotent
+- Use sequential numbering (001, 002, 003...)
+- Include clear descriptions
+- Test on clean database before committing
+- Use transactions (BEGIN/COMMIT)
 
-### Custom Features
+❌ **DON'T:**
+- Modify executed migrations (create new one instead)
+- Skip numbers in sequence
+- Use production data in migrations
+- Forget to grant permissions to app user
 
-1. **Document changes** - Note why custom features were granted
-2. **Test on one tenant first** - Before bulk operations
-3. **Set updated_at** - Always update timestamp
-4. **Use transactions** - For complex changes
+### Seeds
 
-### Utilities
+✅ **DO:**
+- Use `ON CONFLICT DO NOTHING` for idempotency
+- Include verification queries
+- Use realistic test data
+- Document test credentials
 
-1. **Run in non-production first** - Test scripts safely
-2. **Backup before bulk operations** - Especially for DELETE/UPDATE
-3. **Use RLS bypass carefully** - Only when needed
+❌ **DON'T:**
+- Use real user passwords in seeds
+- Seed test data in production
+- Hardcode production values
+
+### RLS Testing
+
+✅ **DO:**
+- Test tenant isolation thoroughly
+- Verify cross-tenant queries return nothing
+- Test different user roles
+- Use session context properly
+
+❌ **DON'T:**
+- Bypass RLS in application code
+- Assume RLS works without testing
+- Use superuser role in production
 
 ---
 
 ## 🎯 Common Tasks
 
-### New Project Setup
+### New Developer Onboarding
 
 ```bash
-# 1. Start database
+# 1. Clone repository
+git clone <repo-url>
+
+# 2. Install dependencies
+pnpm install
+
+# 3. Setup environment
+cp .env.example .env
+# Edit .env with your settings
+
+# 4. Start database
 npm run docker:start
 
-# 2. Run migrations
-./scripts/run-migrations.sh
+# 5. Setup database
+./scripts/setup-database.sh development
 
-# 3. Start app
-npm run start:dev
+# 6. Start application
+pnpm start:dev
+
+# 7. Access Swagger docs
+open http://localhost:3000/docs
 ```
 
-### Add Custom Feature to Tenant
+### Reset Database Completely
+
+⚠️ **Warning: Deletes all data**
 
 ```bash
-# Connect to database
-psql -U postgres -d complytude
+# Stop and remove database
+npm run docker:reset
 
-# Grant feature
-UPDATE public.tenants 
-SET features = '{"analyzer_enabled": true}'::jsonb
-WHERE tenant_id = 'tenant_123';
+# Start fresh database
+npm run docker:start
+
+# Run migrations and seeds
+./scripts/setup-database.sh development
 ```
 
-### Check System Status
+### Add New Authority
 
-```bash
-# Verify multi-tenancy setup
-psql -U postgres -d complytude -f scripts/utilities/verify-multi-tenancy.sql
+```sql
+INSERT INTO public.authorities (code, name, description, country, is_active)
+VALUES ('NEW_AUTH', 'New Authority Name', 'Description here', 'UAE', true)
+ON CONFLICT (code) DO NOTHING;
+```
 
-# Check migration status
-psql -U postgres -d complytude -c "SELECT * FROM schema_migrations;"
+### Add New Template Category
 
-# View tenant stats
-psql -U postgres -d complytude -c "SELECT plan, COUNT(*) FROM tenants GROUP BY plan;"
+```sql
+INSERT INTO public.categories (code, name, description, parent_id, is_active)
+VALUES ('new_category', 'New Category', 'Description here', NULL, true)
+ON CONFLICT (code) DO NOTHING;
+```
+
+### Create Test Tenant Manually
+
+```sql
+-- Create tenant
+INSERT INTO public.tenants (id, plan, features, is_active)
+VALUES (gen_random_uuid(), 'pro', '{"api_access": true}'::jsonb, true)
+RETURNING id;
+
+-- Create user (use the returned tenant ID)
+INSERT INTO public.users (email, password_hash, first_name, last_name, is_verified)
+VALUES ('test@example.com', '$2b$10$hash...', 'Test', 'User', true)
+RETURNING id;
+
+-- Link user to tenant (use both returned IDs)
+INSERT INTO public.user_tenants (user_id, tenant_id, role)
+VALUES ('user-id', 'tenant-id', 'admin');
 ```
 
 ---
 
 ## 📚 Related Documentation
 
-- [PLAN_FEATURES_GUIDE.md](../PLAN_FEATURES_GUIDE.md) - Plan-based features
-- [MULTI_TENANCY.md](../MULTI_TENANCY.md) - Multi-tenancy overview
-- [AUTH_GUIDE.md](../AUTH_GUIDE.md) - Authentication guide
-- [DOCKER.md](../DOCKER.md) - Docker setup
+- **[QUICK_START.md](./QUICK_START.md)** - Comprehensive setup guide
+- **[seeds/README.md](./seeds/README.md)** - Seed scripts documentation
+- **[../PLAN_FEATURES_GUIDE.md](../PLAN_FEATURES_GUIDE.md)** - Plan-based features
+- **[../MULTI_TENANCY.md](../MULTI_TENANCY.md)** - Multi-tenancy overview
+- **[../AUTH_GUIDE.md](../AUTH_GUIDE.md)** - Authentication guide
 
 ---
 
 ## 🆘 Need Help?
 
-- Check the error message carefully
-- Review related documentation
-- Check Docker and PostgreSQL are running
-- Verify .env configuration
-- Check migration tracking table
+1. Read [QUICK_START.md](./QUICK_START.md)
+2. Check error messages carefully
+3. Review PostgreSQL logs: `npm run docker:logs`
+4. Verify `.env` configuration
+5. Test connection: `psql -d complytude -c "SELECT 1;"`
+6. Check migration status: `SELECT * FROM schema_migrations;`
 
-**Connection Issues?**
-```bash
-# Test connection
-psql -U postgres -h localhost -p 5432 -d complytude -c "SELECT 1;"
-```
+**Still stuck?**
+- Ensure Docker is running
+- Verify database credentials
+- Check user permissions: `\du` in psql
+- Try resetting database
 
-**Migration Issues?**
-```bash
-# Check what's been run
-psql -U postgres -d complytude -c "SELECT * FROM schema_migrations;"
-```
+---
 
+## 📊 Statistics
+
+After full setup (development):
+
+| Entity | Count |
+|--------|-------|
+| Migrations | 8 |
+| Tenants | 3 |
+| Users | 7 |
+| Authorities | 10 |
+| Categories | 10 |
+| Templates | 5 |
+| Documents | 7 |
+
+**Database size:** ~2-5 MB with test data
+
+---
+
+**Happy coding! 🚀**

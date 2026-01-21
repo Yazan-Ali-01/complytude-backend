@@ -20,11 +20,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
 import { TenantService } from './tenant.service';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 /**
  * System Administrator endpoints for tenant management
@@ -112,28 +112,6 @@ export class TenantAdminController {
     return this.tenantService.findById(tenantId);
   }
 
-  @Get('email/:email')
-  @ApiOperation({
-    summary: '[ADMIN] Get tenant by email',
-    description:
-      'Retrieves tenant information by email address. System admin only.',
-  })
-  @ApiParam({ name: 'email', description: 'Tenant email' })
-  @ApiResponse({
-    status: 200,
-    description: 'Tenant details',
-    type: Object,
-  })
-  @ApiResponse({ status: 404, description: 'Tenant not found' })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - System admin privileges required',
-  })
-  async getTenantByEmail(@Param('email') email: string): Promise<Tenant> {
-    this.logger.log(`[ADMIN] Fetching tenant by email: ${email}`);
-    return this.tenantService.findByEmail(email);
-  }
-
   @Put(':tenantId')
   @ApiOperation({
     summary: '[ADMIN] Update any tenant',
@@ -164,7 +142,7 @@ export class TenantAdminController {
   @ApiOperation({
     summary: '[ADMIN] Delete any tenant',
     description:
-      'Deletes any tenant and all associated data including the database schema. ⚠️ This action is irreversible. System admin only.',
+      'Deletes any tenant and all associated data. ⚠️ This action is irreversible. System admin only.',
   })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
   @ApiResponse({
@@ -185,26 +163,5 @@ export class TenantAdminController {
       message: 'Tenant deleted successfully',
       tenantId,
     };
-  }
-
-  @Get(':tenantId/schema')
-  @ApiOperation({
-    summary: '[ADMIN] Get any tenant schema',
-    description: 'Retrieves schema details for any tenant. System admin only.',
-  })
-  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Tenant schema information',
-    type: Object,
-  })
-  @ApiResponse({ status: 404, description: 'Schema not found' })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - System admin privileges required',
-  })
-  async getTenantSchema(@Param('tenantId') tenantId: string) {
-    this.logger.log(`[ADMIN] Fetching schema for tenant: ${tenantId}`);
-    return this.tenantService.getTenantSchema(tenantId);
   }
 }

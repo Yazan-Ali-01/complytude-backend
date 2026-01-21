@@ -1,8 +1,8 @@
 import {
   Injectable,
+  Logger,
   OnModuleDestroy,
   OnModuleInit,
-  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
@@ -57,7 +57,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * Execute a query with parameters
    * @param text SQL query string
    * @param params Query parameters
-   * @param bypassRLS Whether to bypass row level security (default: true for templates tables)
+   * @param bypassRLS Whether to bypass row level security (default: true)
    * @returns Query result
    */
   async query<T extends QueryResultRow = any>(
@@ -80,7 +80,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw error;
     } finally {
       if (bypassRLS) {
-        await client.query('RESET app.bypass_rls');
+        // await client.query('RESET app.bypass_rls');
       }
       client.release();
     }
@@ -97,12 +97,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   /**
    * Execute multiple queries in a transaction
    * @param callback Transaction callback
-   * @param bypassRLS Whether to bypass row level security (default: true for templates tables)
+   * @param bypassRLS Whether to bypass row level security (default: true)
    * @returns Transaction result
    */
   async transaction<T>(
     callback: (client: PoolClient) => Promise<T>,
-    bypassRLS: boolean = true,
+    bypassRLS: boolean = false,
   ): Promise<T> {
     const client = await this.getClient();
     try {
@@ -120,7 +120,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw error;
     } finally {
       if (bypassRLS) {
-        await client.query('RESET app.bypass_rls');
+        // await client.query('RESET app.bypass_rls');
       }
       client.release();
     }
@@ -135,59 +135,46 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Execute a query within a specific tenant schema with RLS context
+   * Execute a query within a specific tenant context with RLS
    * @param tenantId Tenant identifier for RLS
-   * @param schemaName Schema to execute query in
    * @param text SQL query string
    * @param params Query parameters
    * @returns Query result
    */
   async queryWithTenantContext<T extends QueryResultRow = any>(
     tenantId: string,
-    schemaName: string,
     text: string,
     params?: any[],
   ): Promise<QueryResult<T>> {
     const client = await this.getClient();
     try {
       // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
-
-      // Set schema search path
-      await client.query(`SET search_path TO ${schemaName}, public`);
+      await client.query(`SET LOCAL app.current_tenant_id = $1`, [tenantId]);
 
       // Execute query
       const result = await client.query<T>(text, params);
 
-      this.logger.debug(
-        `Executed query in schema ${schemaName} for tenant ${tenantId}`,
-      );
+      this.logger.debug(`Executed query for tenant ${tenantId}`);
 
       return result;
     } catch (error) {
-      this.logger.error(
-        `Query error in tenant context (${tenantId}, ${schemaName})`,
-        error,
-      );
+      this.logger.error(`Query error in tenant context (${tenantId})`, error);
       throw error;
     } finally {
-      // Reset to default schema
-      await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
+      // Reset tenant context
+      // await client.query('RESET app.current_tenant_id');
       client.release();
     }
   }
 
   /**
-   * Execute a transaction within a specific tenant schema with RLS context
+   * Execute a transaction within a specific tenant context with RLS
    * @param tenantId Tenant identifier for RLS
-   * @param schemaName Schema to execute transaction in
    * @param callback Transaction callback
    * @returns Transaction result
    */
   async transactionWithTenantContext<T>(
     tenantId: string,
-    schemaName: string,
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.getClient();
@@ -195,54 +182,41 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       await client.query('BEGIN');
 
       // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
-
-      // Set schema search path
-      await client.query(`SET search_path TO ${schemaName}, public`);
+      await client.query(`SET LOCAL app.current_tenant_id = $1`, [tenantId]);
 
       // Execute transaction
       const result = await callback(client);
 
       await client.query('COMMIT');
-      this.logger.debug(
-        `Transaction committed in schema ${schemaName} for tenant ${tenantId}`,
-      );
+      this.logger.debug(`Transaction committed for tenant ${tenantId}`);
 
       return result;
     } catch (error) {
       await client.query('ROLLBACK');
       this.logger.error(
-        `Transaction rolled back in tenant context (${tenantId}, ${schemaName})`,
+        `Transaction rolled back in tenant context (${tenantId})`,
         error,
       );
       throw error;
     } finally {
-      // Reset to default schema
-      await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
+      // Reset tenant context
+      // await client.query('RESET app.current_tenant_id');
       client.release();
     }
   }
 
   /**
-   * Get a client configured for a specific tenant
+   * Get a client configured for a specific tenant (RLS context only)
    * Remember to release the client after use!
    * @param tenantId Tenant identifier
-   * @param schemaName Schema name
    * @returns Configured pool client
    */
-  async getTenantClient(
-    tenantId: string,
-    schemaName: string,
-  ): Promise<PoolClient> {
+  async getTenantClient(tenantId: string): Promise<PoolClient> {
     const client = await this.getClient();
 
     try {
       // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
-
-      // Set schema search path
-      await client.query(`SET search_path TO ${schemaName}, public`);
+      await client.query(`SET LOCAL app.current_tenant_id = $1`, [tenantId]);
 
       return client;
     } catch (error) {
@@ -255,12 +229,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * Release a tenant client and reset its context
    * @param client Pool client to release
    */
-  async releaseTenantClient(client: PoolClient): Promise<void> {
-    try {
-      await client.query('RESET search_path');
-      await client.query('RESET app.current_tenant_id');
-    } finally {
-      client.release();
-    }
+  releaseTenantClient(client: PoolClient): void {
+    client.release();
   }
 }

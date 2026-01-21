@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository } from '../base/base.repository';
+import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';
 import {
   LinkUserTenantInput,
   UserTenantWithUserRow,
 } from './interfaces/user-tenant.intefaces';
-import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 
 type UserTenantRow = {
   user_id: string;
@@ -15,7 +15,6 @@ type UserTenantRow = {
   is_active: boolean;
   joined_at: Date;
   updated_at: Date;
-  schema_name: string;
 };
 
 type UserTenantCompositeKey = {
@@ -67,7 +66,6 @@ export class UserTenantRepository extends BaseRepository<
       is_active: data.is_active,
       joined_at: data.joined_at,
       updated_at: data.updated_at,
-      schema_name: data.schema_name,
     };
   }
 
@@ -75,7 +73,7 @@ export class UserTenantRepository extends BaseRepository<
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at, t.schema_name';
+    return 'user_id, tenant_id, role, is_active, joined_at, updated_at';
   }
 
   /**
@@ -104,10 +102,9 @@ export class UserTenantRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<UserTenant | null> {
     const result = await this.executeQuery<UserTenantRow>(
-      `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at, t.schema_name
-       FROM ${this.tableName} ut
-       JOIN public.tenants t ON ut.tenant_id = t.tenant_id
-       WHERE ut.user_id = $1 AND ut.tenant_id = $2
+      `SELECT ${this.getSelectColumns()}
+       FROM ${this.tableName}
+       WHERE user_id = $1 AND tenant_id = $2
        LIMIT 1`,
       [key.userId, key.tenantId],
       options,
@@ -162,12 +159,9 @@ export class UserTenantRepository extends BaseRepository<
     const values = entries.map(([, value]) => value);
 
     const result = await this.executeQuery<UserTenantRow>(
-      `UPDATE ${this.tableName} ut
+      `UPDATE ${this.tableName}
        SET ${setClause}, updated_at = NOW()
-       FROM public.tenants t
-       WHERE ut.user_id = $1 
-         AND ut.tenant_id = $2
-         AND ut.tenant_id = t.tenant_id
+       WHERE user_id = $1 AND tenant_id = $2
        RETURNING ${this.getSelectColumns()}`,
       [key.userId, key.tenantId, ...values],
       options,
@@ -247,9 +241,8 @@ export class UserTenantRepository extends BaseRepository<
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const query = `SELECT ${this.getSelectColumns()} 
-                   FROM ${this.tableName} ut 
-                   JOIN public.tenants t ON ut.tenant_id = t.tenant_id 
-                   ${whereClause} ORDER BY ut.joined_at`.trim();
+                   FROM ${this.tableName}
+                   ${whereClause} ORDER BY joined_at`.trim();
     const result = await this.executeQuery<UserTenantRow>(
       query,
       params,
@@ -308,10 +301,9 @@ export class UserTenantRepository extends BaseRepository<
   ): Promise<UserTenant[]> {
     const result = await this.executeQuery<UserTenantRow>(
       `SELECT ${this.getSelectColumns()}
-       FROM public.user_tenants ut
-       JOIN public.tenants t ON ut.tenant_id = t.tenant_id
-       WHERE ut.user_id = $1
-       ORDER BY ut.joined_at DESC`,
+       FROM ${this.tableName}
+       WHERE user_id = $1
+       ORDER BY joined_at DESC`,
       [userId],
       options,
     );
@@ -329,18 +321,21 @@ export class UserTenantRepository extends BaseRepository<
   async getActiveUserTenants(
     userId: string,
     options?: QueryOptions,
+    isAuthflow: boolean = false,
   ): Promise<UserTenant[]> {
-    const result = await this.executeQuery<UserTenantRow>(
-      `SELECT ${this.getSelectColumns()}
-       FROM public.user_tenants ut
-       JOIN public.tenants t ON ut.tenant_id = t.tenant_id
-       WHERE ut.user_id = $1 AND ut.is_active = true
-       ORDER BY ut.joined_at DESC`,
-      [userId],
-      options,
-    );
-
-    return result.rows.map((row) => this.mapRow(row));
+    return this.databaseService.transaction<UserTenant[]>(async (client) => {
+      if (isAuthflow) {
+        await client.query("SET LOCAL app.is_auth_flow = 'true'");
+      }
+      return this.executeQuery<UserTenantRow>(
+        `SELECT ${this.getSelectColumns()}
+       FROM ${this.tableName}
+       WHERE user_id = $1 AND is_active = true
+       ORDER BY joined_at DESC`,
+        [userId],
+        { client, ...options },
+      ).then((result) => result.rows.map((row) => this.mapRow(row)));
+    });
   }
 
   /**
@@ -357,11 +352,10 @@ export class UserTenantRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<UserTenantWithUserRow | null> {
     const result = await this.executeQuery<UserTenantWithUserRow>(
-      `SELECT ${this.getSelectColumns()},
+      `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at,
               u.email, u.first_name, u.last_name, u.is_verified, u.is_system_admin
-       FROM public.user_tenants ut
+       FROM ${this.tableName} ut
        JOIN public.users u ON ut.user_id = u.id
-       JOIN public.tenants t ON ut.tenant_id = t.tenant_id
        WHERE ut.user_id = $1 AND ut.tenant_id = $2
        LIMIT 1`,
       [userId, tenantId],
@@ -370,6 +364,6 @@ export class UserTenantRepository extends BaseRepository<
 
     const row = result.rows[0];
 
-    return row;
+    return row || null;
   }
 }

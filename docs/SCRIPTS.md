@@ -444,7 +444,9 @@ docker-compose exec -u $(id -u):$(id -g) app bash
 
 ```bash
 pnpm db:migrate     # Run migrations
+pnpm db:seed        # Seed database with initial/test data
 pnpm db:setup       # Start services + run migrations
+pnpm db:setup:full  # Run migrations + seeds (complete setup)
 pnpm db:wait        # Wait for database to be ready
 pnpm db:verify      # Verify multi-tenancy setup
 pnpm db:test        # Run multi-tenancy test suite
@@ -459,12 +461,62 @@ pnpm db:test        # Run multi-tenancy test suite
 - Tracks execution in `schema_migrations` table
 - Safe to run multiple times (idempotent)
 
+**`pnpm db:seed`** ⭐ New
+
+- Seeds the database with initial and test data
+- Includes:
+  - Global data (authorities, categories)
+  - Test tenants and users (development only)
+  - Sample templates
+  - Test documents
+- Supports environment-specific seeding (development/staging/production)
+- Safe to run multiple times (includes conflict handling)
+- Provides test credentials and statistics after completion
+
+**Usage:**
+
+```bash
+# Seed with development data (default)
+pnpm db:seed
+
+# Seed specific environment
+bash scripts/run-seeds.sh staging
+bash scripts/run-seeds.sh production
+```
+
 **`pnpm db:setup`**
 
 - Combined command for initial database setup
 - Starts Docker services
 - Waits for database readiness
-- Runs all migrations
+- Runs all migrations (schema only, no data)
+
+**`pnpm db:setup:full`** ⭐ New
+
+- Complete database setup: migrations + seeds
+- One-command solution for setting up a working database
+- Runs all migrations first, then all seeds
+- Supports `--skip-seeds` flag if you only want migrations
+- Perfect for:
+  - Fresh development environment setup
+  - CI/CD pipelines that need test data
+  - Demo environments
+
+**Usage:**
+
+```bash
+# Full setup with seeds (recommended for development)
+pnpm db:setup:full
+
+# Or with specific environment
+bash scripts/setup-database.sh development
+
+# Migrations only (skip seeds)
+bash scripts/setup-database.sh development --skip-seeds
+
+# Production setup (requires confirmation)
+bash scripts/setup-database.sh production
+```
 
 **`pnpm db:wait`**
 
@@ -486,6 +538,64 @@ pnpm db:test        # Run multi-tenancy test suite
 - Tests schema isolation
 - Tests RLS policies
 - Cleans up after itself
+
+### Seeded Data Overview
+
+After running `pnpm db:seed` or `pnpm db:setup:full`, your database will contain:
+
+**Global Data (All Environments):**
+- 10 UAE Authorities (DMCC, IFZA, DED, RAKEZ, etc.)
+- 10 Document Categories (Employment, Corporate, etc.)
+
+**Test Data (Development Only):**
+- 3 Test Tenants:
+  - Tenant 1 (Pro Plan)
+  - Tenant 2 (Basic Plan)
+  - Tenant 3 (Enterprise Plan)
+- 7 Test Users across different roles (Admin, Member, Viewer)
+- 5 Sample Templates
+- 7 Test Documents (distributed across tenants)
+
+**Test Credentials:**
+```bash
+Email: admin@tenant1.test
+Password: Test123!@#
+```
+
+### Database Setup Workflows
+
+**First-Time Developer Setup:**
+
+```bash
+# Option 1: Minimal (just schema)
+pnpm db:setup
+
+# Option 2: Full with test data (recommended)
+pnpm db:setup:full
+```
+
+**Reset Database with Fresh Data:**
+
+```bash
+pnpm docker:reset      # ⚠️ Deletes all data
+pnpm db:setup:full     # Recreate schema + seed data
+```
+
+**Add Seeds to Existing Database:**
+
+```bash
+pnpm db:seed           # Add/update seed data only
+```
+
+**CI/CD Pipeline:**
+
+```bash
+# Setup for testing
+pnpm docker:start
+pnpm db:wait
+pnpm db:setup:full     # Schema + test data
+pnpm test:e2e
+```
 
 For detailed database documentation, see [scripts/README.md](../scripts/README.md).
 

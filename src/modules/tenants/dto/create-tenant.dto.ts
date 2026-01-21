@@ -1,14 +1,6 @@
-import {
-  IsEmail,
-  IsEnum,
-  IsNotEmpty,
-  IsObject,
-  IsOptional,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNotEmpty, IsObject, ValidateNested } from 'class-validator';
 
 export class TenantFeaturesDto {
   @ApiProperty({ example: 5, description: 'Maximum number of documents' })
@@ -25,20 +17,6 @@ export class TenantFeaturesDto {
 }
 
 export class CreateTenantDto {
-  @ApiProperty({ example: 'user@example.com', description: 'Tenant email' })
-  @IsEmail()
-  @IsNotEmpty()
-  email: string;
-
-  @ApiProperty({
-    example: 'admin',
-    enum: ['admin', 'user', 'viewer'],
-    description: 'User role',
-  })
-  @IsEnum(['admin', 'user', 'viewer'])
-  @IsNotEmpty()
-  role: 'admin' | 'user' | 'viewer';
-
   @ApiProperty({
     example: 'early_access',
     enum: ['early_access', 'basic', 'pro', 'enterprise'],
@@ -56,13 +34,4 @@ export class CreateTenantDto {
   @ValidateNested()
   @Type(() => TenantFeaturesDto)
   features: TenantFeaturesDto;
-
-  @ApiProperty({
-    example: 'user_123e4567-e89b-12d3-a456-426614174000',
-    description: 'User ID (optional)',
-  })
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  userId?: string;
 }
