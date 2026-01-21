@@ -13,6 +13,8 @@ Welcome to the Complytude documentation hub. This index provides links to all pr
 | [DEPLOYMENT.md](DEPLOYMENT.md)        | Deployment instructions, production setup             |
 | [ARCHITECTURE.md](ARCHITECTURE.md)    | System architecture and design patterns               |
 | [DATABASE.md](DATABASE.md)            | Database schema, RLS, and data model                  |
+| [API_CONTRACTS.md](API_CONTRACTS.md)  | API contract standards, DTOs, Swagger documentation   |
+| [API_CONTRACTS_QUICK_REFERENCE.md](API_CONTRACTS_QUICK_REFERENCE.md) | Quick reference for API patterns and examples |
 
 ## Additional Documentation
 
@@ -33,6 +35,7 @@ Welcome to the Complytude documentation hub. This index provides links to all pr
 
 ### For Developers
 
+- **Building APIs?** See [API_CONTRACTS.md](API_CONTRACTS.md) for contract standards and [Quick Reference](API_CONTRACTS_QUICK_REFERENCE.md) for templates.
 - **Running tests?** See [test/README.md](../test/README.md) for testing documentation.
 - **Working with the database?** See [scripts/README.md](../scripts/README.md) for migration guides.
 - **Deploying?** Check [DEPLOYMENT.md](DEPLOYMENT.md) for deployment instructions.
