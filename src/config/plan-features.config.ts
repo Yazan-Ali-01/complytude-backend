@@ -1,49 +1,121 @@
-import { TenantFeatures } from 'src/modules/tenants/entities/tenant.entity';
+import { TenantFeatures, PlanType } from 'src/modules/tenants/entities/tenant.entity';
 
-/**
- * Default feature configurations for each subscription plan
- * Custom tenant features in the database will override these defaults
- */
-export const PLAN_FEATURES: Record<
-  'early_access' | 'basic' | 'pro' | 'enterprise',
-  TenantFeatures
-> = {
-  early_access: {
-    document_limit: 10,
-    checklist_access: false,
-    analyzer_enabled: false,
+export const PLAN_FEATURES: Record<PlanType, TenantFeatures> = {
+  navigator: {
+    documents_per_month: 5,
+    template_library: 'basic',
+    bilingual_quality: 'none',
+    contract_reviews_per_month: 3,
+    risk_analysis_level: 'basic',
+    redlining_enabled: false,
+    localizer_check: false,
+    regulatory_hub_access: false,
+    regulatory_queries_per_month: 0,
+    license_verifier_lookups: 0,
+    jurisdictions: ['UAE'],
+    selected_jurisdiction: 'UAE',
+    user_seats: 1,
+    data_isolation: 'shared',
+    custom_playbooks: false,
+    white_label_exports: false,
   },
-  basic: {
-    document_limit: 50,
-    checklist_access: true,
-    analyzer_enabled: false,
+  shield: {
+    documents_per_month: 25,
+    template_library: 'basic',
+    bilingual_quality: 'standard',
+    contract_reviews_per_month: 15,
+    risk_analysis_level: 'advanced',
+    redlining_enabled: true,
+    localizer_check: true,
+    regulatory_hub_access: true,
+    regulatory_queries_per_month: 20,
+    license_verifier_lookups: 10,
+    jurisdictions: ['UAE', 'DIFC', 'ADGM'],
+    selected_jurisdiction: 'UAE',
+    user_seats: 3,
+    data_isolation: 'shared',
+    custom_playbooks: false,
+    white_label_exports: false,
   },
-  pro: {
-    document_limit: 500,
-    checklist_access: true,
-    analyzer_enabled: true,
+  general_counsel: {
+    documents_per_month: 100,
+    template_library: 'full',
+    bilingual_quality: 'premium',
+    contract_reviews_per_month: 50,
+    risk_analysis_level: 'comprehensive',
+    redlining_enabled: true,
+    localizer_check: true,
+    regulatory_hub_access: true,
+    regulatory_queries_per_month: 100,
+    license_verifier_lookups: 50,
+    jurisdictions: ['UAE', 'DIFC', 'ADGM', 'DMCC', 'RAKEZ', 'IFZA'],
+    selected_jurisdiction: 'UAE',
+    user_seats: 10,
+    data_isolation: 'shared',
+    custom_playbooks: true,
+    white_label_exports: true,
   },
-  enterprise: {
-    document_limit: -1, // -1 means unlimited
-    checklist_access: true,
-    analyzer_enabled: true,
+  infrastructure: {
+    documents_per_month: -1,
+    template_library: 'full',
+    bilingual_quality: 'premium',
+    contract_reviews_per_month: -1,
+    risk_analysis_level: 'comprehensive',
+    redlining_enabled: true,
+    localizer_check: true,
+    regulatory_hub_access: true,
+    regulatory_queries_per_month: -1,
+    license_verifier_lookups: -1,
+    jurisdictions: ['UAE', 'DIFC', 'ADGM', 'DMCC', 'RAKEZ', 'IFZA', 'JAFZA', 'DAFZA'],
+    selected_jurisdiction: 'UAE',
+    user_seats: -1,
+    data_isolation: 'dedicated',
+    custom_playbooks: true,
+    white_label_exports: true,
   },
 };
 
-/**
- * Get default features for a given plan
- */
-export function getDefaultPlanFeatures(
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise',
-): TenantFeatures {
+export const USAGE_TRACKED_FEATURES = [
+  'documents_per_month',
+  'contract_reviews_per_month',
+  'regulatory_queries_per_month',
+  'license_verifier_lookups',
+] as const;
+
+export type UsageTrackedFeature = typeof USAGE_TRACKED_FEATURES[number];
+
+export const PLAN_METADATA: Record<PlanType, { name: string; price_aed: number; description: string }> = {
+  navigator: { name: 'Navigator', price_aed: 0, description: 'Free tier for founders' },
+  shield: { name: 'Shield', price_aed: 249, description: 'Solo entrepreneurs (1-5 employees)' },
+  general_counsel: { name: 'General Counsel', price_aed: 599, description: 'Active SMEs (5-50 employees)' },
+  infrastructure: { name: 'Infrastructure', price_aed: 2499, description: 'Agencies & enterprise' },
+};
+
+export function getDefaultPlanFeatures(plan: PlanType): TenantFeatures {
   return { ...PLAN_FEATURES[plan] };
 }
 
-/**
- * Check if a plan is valid
- */
-export function isValidPlan(
-  plan: string,
-): plan is 'early_access' | 'basic' | 'pro' | 'enterprise' {
+export function isValidPlan(plan: string): plan is PlanType {
   return plan in PLAN_FEATURES;
+}
+
+export function isUsageTrackedFeature(feature: string): feature is UsageTrackedFeature {
+  return USAGE_TRACKED_FEATURES.includes(feature as UsageTrackedFeature);
+}
+
+export const CREDIT_PRICES: Partial<Record<UsageTrackedFeature, number>> = {
+  documents_per_month: 125,
+  contract_reviews_per_month: 99,
+  regulatory_queries_per_month: 49,
+  license_verifier_lookups: 29,
+};
+
+export function getDocumentCreditsRequired(pageCount: number): number {
+  if (pageCount >= 40) return 3;
+  if (pageCount >= 15) return 2;
+  return 1;
+}
+
+export function getCreditPrice(featureKey: UsageTrackedFeature): number {
+  return CREDIT_PRICES[featureKey] ?? 0;
 }
