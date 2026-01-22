@@ -9,7 +9,7 @@ export class UserTenant {
 
   @ApiProperty({
     description: 'User role in the tenant',
-    enum: ['admin', 'member', 'viewer'],
+    enum: ['tenant_admin', 'legal_counsel', 'member', 'viewer'],
   })
   role: string;
 

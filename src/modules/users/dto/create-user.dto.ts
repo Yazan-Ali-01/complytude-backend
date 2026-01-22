@@ -7,6 +7,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import type { TenantRole } from '../../rbac/types/rbac.types';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -48,10 +49,10 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'User role in the current tenant',
-    enum: ['admin', 'member', 'viewer'],
+    enum: ['tenant_admin', 'legal_counsel', 'member', 'viewer'],
     example: 'member',
   })
   @IsString()
-  @IsIn(['admin', 'member', 'viewer'])
-  role: string;
+  @IsIn(['tenant_admin', 'legal_counsel', 'member', 'viewer'])
+  role: TenantRole;
 }

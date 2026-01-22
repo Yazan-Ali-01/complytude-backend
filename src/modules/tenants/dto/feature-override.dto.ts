@@ -151,7 +151,8 @@ export class CreditBalanceResponseDto {
 
 export class UsageWithCreditsResponseDto {
   @ApiProperty({ example: true }) allowed: boolean;
-  @ApiProperty({ example: 'quota', enum: ['quota', 'credits', 'none'] }) source: string;
+  @ApiProperty({ example: 'quota', enum: ['quota', 'credits', 'none'] })
+  source: string;
   @ApiProperty({ example: 100 }) current_usage: number;
   @ApiProperty({ example: 100 }) usage_limit: number;
   @ApiProperty({ example: 0 }) remaining_quota: number;
@@ -168,7 +169,11 @@ export class CreditPurchaseResponseDto {
   @ApiProperty() price_aed: number;
   @ApiPropertyOptional() stripe_payment_intent_id?: string;
   @ApiPropertyOptional() stripe_invoice_id?: string;
-  @ApiProperty() payment_status: 'pending' | 'completed' | 'failed' | 'refunded';
+  @ApiProperty() payment_status:
+    | 'pending'
+    | 'completed'
+    | 'failed'
+    | 'refunded';
   @ApiPropertyOptional() purchased_by?: string;
   @ApiProperty() purchased_at: Date;
   @ApiPropertyOptional() metadata?: Record<string, any>;

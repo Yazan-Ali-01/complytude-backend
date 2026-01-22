@@ -49,6 +49,10 @@ import { TemplateVersion } from './entities/template-version.entity';
 import { Template, TemplateWithDetails } from './entities/template.entity';
 import { TemplateVersionsService } from './template-versions.service';
 import { TemplatesService } from './templates.service';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Templates')
 @Controller('templates')
@@ -173,6 +177,7 @@ export class TemplatesController {
   }
 
   @Get()
+  @RequirePermissions('documents:read')
   @ApiOperation({
     summary: 'List all templates',
     description: 'Get paginated list of templates with optional filters',
@@ -244,6 +249,7 @@ export class TemplatesController {
   }
 
   @Get('active')
+  @RequirePermissions('documents:read')
   @ApiOperation({
     summary: 'List active templates',
     description: 'Get all active templates (shortcut for status=active)',
@@ -258,6 +264,7 @@ export class TemplatesController {
   }
 
   @Get(':key')
+  @RequirePermissions('documents:read')
   @ApiOperation({
     summary: 'Get template by key',
     description:
@@ -302,6 +309,7 @@ export class TemplatesController {
   }
 
   @Get(':key/versions')
+  @RequirePermissions('documents:read')
   @ApiOperation({
     summary: 'Get template version history',
     description: 'Get all versions of a template',
@@ -427,6 +435,7 @@ export class TemplatesController {
   }
 
   @Get(':key/versions/:version')
+  @RequirePermissions('documents:read')
   @ApiOperation({
     summary: 'Get specific template version',
     description: 'Get details of a specific version of a template',

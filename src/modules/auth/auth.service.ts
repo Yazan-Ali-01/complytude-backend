@@ -329,7 +329,7 @@ export class AuthService {
       sub: userId,
       email,
       tenantId,
-      role,
+      role: role as any,
       isSystemAdmin,
       type: 'access',
     };
@@ -338,7 +338,7 @@ export class AuthService {
       sub: userId,
       email,
       tenantId,
-      role,
+      role: role as any,
       isSystemAdmin,
       type: 'refresh',
     };

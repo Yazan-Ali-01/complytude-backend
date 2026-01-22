@@ -55,11 +55,11 @@ export class UsageSchedulerService {
           continue;
         }
 
-        const planFeatures = getDefaultPlanFeatures(plan as PlanType);
+        const planFeatures = getDefaultPlanFeatures(plan);
 
         // Initialize usage records for each tracked feature
         for (const featureKey of USAGE_TRACKED_FEATURES) {
-          const limit = planFeatures[featureKey] as number;
+          const limit = planFeatures[featureKey];
 
           await this.databaseService.query(
             `INSERT INTO public.tenant_usage
@@ -111,10 +111,10 @@ export class UsageSchedulerService {
     );
 
     const { period_start, period_end } = periodResult.rows[0];
-    const planFeatures = getDefaultPlanFeatures(plan as PlanType);
+    const planFeatures = getDefaultPlanFeatures(plan);
 
     for (const featureKey of USAGE_TRACKED_FEATURES) {
-      const limit = planFeatures[featureKey] as number;
+      const limit = planFeatures[featureKey];
 
       await this.databaseService.query(
         `INSERT INTO public.tenant_usage

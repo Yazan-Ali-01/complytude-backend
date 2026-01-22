@@ -1,4 +1,9 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { FeaturesService } from '../../modules/tenants/features.service';
@@ -22,7 +27,7 @@ export class UsageConsumeInterceptor implements NestInterceptor {
           usageFeature,
           creditsRequired ?? 1,
           user?.userId,
-          { endpoint: request.url, method: request.method }
+          { endpoint: request.url, method: request.method },
         );
       }),
     );

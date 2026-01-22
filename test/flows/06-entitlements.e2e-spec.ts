@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from '../utils/test-context';
@@ -39,7 +39,8 @@ describe('Entitlements System E2E', () => {
     navigatorUserId = navigatorSignup.body.userId;
 
     // Verify and setup navigator tenant
-    const navVerifyToken = navigatorSignup.body.verificationToken ||
+    const navVerifyToken =
+      navigatorSignup.body.verificationToken ||
       (await TestDatabase.getVerificationToken(navigatorUser.email));
     if (navVerifyToken) {
       await request(app.getHttpServer())
@@ -79,7 +80,8 @@ describe('Entitlements System E2E', () => {
     shieldTenantId = shieldSignup.body.tenantId;
 
     // Verify and setup shield tenant
-    const shieldVerifyToken = shieldSignup.body.verificationToken ||
+    const shieldVerifyToken =
+      shieldSignup.body.verificationToken ||
       (await TestDatabase.getVerificationToken(shieldUser.email));
     if (shieldVerifyToken) {
       await request(app.getHttpServer())
@@ -114,7 +116,8 @@ describe('Entitlements System E2E', () => {
 
     systemAdminId = adminSignup.body.userId;
 
-    const adminVerifyToken = adminSignup.body.verificationToken ||
+    const adminVerifyToken =
+      adminSignup.body.verificationToken ||
       (await TestDatabase.getVerificationToken(adminUser.email));
     if (adminVerifyToken) {
       await request(app.getHttpServer())
@@ -267,7 +270,10 @@ describe('Entitlements System E2E', () => {
         .expect([200, 404]);
 
       // If credits exist, they should be used when quota is exhausted
-      if (creditsResponse.status === 200 && creditsResponse.body.credits?.documents_per_month > 0) {
+      if (
+        creditsResponse.status === 200 &&
+        creditsResponse.body.credits?.documents_per_month > 0
+      ) {
         console.log('Credits found in system, should be used as fallback');
       }
     });
@@ -283,7 +289,9 @@ describe('Entitlements System E2E', () => {
           feature_key: 'redlining_enabled',
           override_value: true,
           reason: '30-day enterprise trial',
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          expires_at: new Date(
+            Date.now() + 30 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
         })
         .expect([200, 201, 404]);
 
@@ -296,7 +304,7 @@ describe('Entitlements System E2E', () => {
 
     it('should reflect override in effective features', async () => {
       // Give migration time to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const response = await request(app.getHttpServer())
         .get(`/api/admin/tenants/${navigatorTenantId}/effective-features`)
@@ -338,7 +346,7 @@ describe('Entitlements System E2E', () => {
         });
 
       // Wait for it to expire
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Should be back to plan default (5)
       const response = await request(app.getHttpServer())
@@ -376,8 +384,12 @@ describe('Entitlements System E2E', () => {
         .expect([200, 404]);
 
       if (response.status === 200) {
-        const creds = Array.isArray(response.body) ? response.body : [response.body];
-        const docCredits = creds.find((c: any) => c.feature_key === 'documents_per_month');
+        const creds = Array.isArray(response.body)
+          ? response.body
+          : [response.body];
+        const docCredits = creds.find(
+          (c: any) => c.feature_key === 'documents_per_month',
+        );
         if (docCredits) {
           expect(docCredits.credits_remaining).toBeDefined();
         }
@@ -496,7 +508,9 @@ describe('Entitlements System E2E', () => {
 
       if (tenantResponse.body.features) {
         expect(tenantResponse.body.features.documents_per_month).toBe(-1);
-        expect(tenantResponse.body.features.contract_reviews_per_month).toBe(-1);
+        expect(tenantResponse.body.features.contract_reviews_per_month).toBe(
+          -1,
+        );
       }
     });
 

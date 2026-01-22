@@ -1,12 +1,10 @@
 import {
   Controller,
   Post,
-  Get,
   Body,
   UseGuards,
-  HttpCode,
-  HttpStatus,
   Logger,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,10 +21,16 @@ import {
   ContractAnalysisResponseDto,
   RedlineResponseDto,
 } from './dto/contract.dto';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import {
+  UseRoleRateLimit,
+  UseAiModelCheck,
+  RequirePiiMasking,
+} from '../../common/decorators/rbac.decorators';
 import { FeaturesGuard } from '../../common/guards/features.guard';
 import { UsageLimitGuard } from '../../common/guards/usage-limit.guard';
+import { AiModelGuard } from '../../common/guards/ai-model.guard';
+import { RoleRateLimitGuard } from '../../common/guards/role-rate-limit.guard';
 import { UsageConsumeInterceptor } from '../../common/interceptors/usage-consume.interceptor';
 import { RequireFeature } from '../../common/decorators/features.decorator';
 import { RequireUsage } from '../../common/decorators/require-usage.decorator';
@@ -35,7 +39,6 @@ import type { AuthenticatedUser } from '../auth/decorators/current-user.decorato
 
 @ApiTags('Contracts')
 @Controller('contracts')
-@UseGuards(RolesGuard)
 @ApiBearerAuth()
 export class ContractsController {
   private readonly logger = new Logger(ContractsController.name);
@@ -43,14 +46,18 @@ export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}
 
   @Post('analyze')
-  @UseGuards(FeaturesGuard, UsageLimitGuard)
+  @UseGuards(FeaturesGuard, UsageLimitGuard, AiModelGuard, RoleRateLimitGuard)
   @UseInterceptors(UsageConsumeInterceptor)
+  @RequirePermissions('contracts:analyze')
   @RequireFeature('risk_analysis_level')
   @RequireUsage('contract_reviews_per_month')
-  @Roles('admin', 'member', 'viewer', 'system')
+  @UseAiModelCheck()
+  @UseRoleRateLimit()
+  @RequirePiiMasking()
   @ApiOperation({
     summary: 'Analyze contract for risks',
-    description: 'AI-powered contract risk analysis. Requires analyzer feature and consumes contract review quota.',
+    description:
+      'AI-powered contract risk analysis. Requires analyzer feature and consumes contract review quota.',
   })
   @ApiResponse({
     status: 200,
@@ -58,7 +65,10 @@ export class ContractsController {
     type: ContractAnalysisResponseDto,
   })
   @ApiResponse({ status: 403, description: 'Feature not included in plan' })
-  @ApiResponse({ status: 403, description: 'Monthly contract review limit reached' })
+  @ApiResponse({
+    status: 403,
+    description: 'Monthly contract review limit reached',
+  })
   async analyzeContract(
     @Body() dto: AnalyzeContractDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -75,14 +85,18 @@ export class ContractsController {
   }
 
   @Post('redline')
-  @UseGuards(FeaturesGuard, UsageLimitGuard)
+  @UseGuards(FeaturesGuard, UsageLimitGuard, AiModelGuard, RoleRateLimitGuard)
   @UseInterceptors(UsageConsumeInterceptor)
+  @RequirePermissions('contracts:redline')
   @RequireFeature('redlining_enabled')
   @RequireUsage('contract_reviews_per_month')
-  @Roles('admin', 'member', 'system')
+  @UseAiModelCheck()
+  @UseRoleRateLimit()
+  @RequirePiiMasking()
   @ApiOperation({
     summary: 'Redline contract with suggestions',
-    description: 'AI suggests compliant wording alternatives. Requires redlining feature and consumes quota.',
+    description:
+      'AI suggests compliant wording alternatives. Requires redlining feature and consumes quota.',
   })
   @ApiResponse({
     status: 200,
@@ -90,7 +104,10 @@ export class ContractsController {
     type: RedlineResponseDto,
   })
   @ApiResponse({ status: 403, description: 'Redlining not included in plan' })
-  @ApiResponse({ status: 403, description: 'Monthly contract review limit reached' })
+  @ApiResponse({
+    status: 403,
+    description: 'Monthly contract review limit reached',
+  })
   async redlineContract(
     @Body() dto: RedlineContractDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -107,21 +124,28 @@ export class ContractsController {
   }
 
   @Post('review')
-  @UseGuards(FeaturesGuard, UsageLimitGuard)
+  @UseGuards(FeaturesGuard, UsageLimitGuard, AiModelGuard, RoleRateLimitGuard)
   @UseInterceptors(UsageConsumeInterceptor)
+  @RequirePermissions('contracts:analyze')
   @RequireFeature('risk_analysis_level')
   @RequireUsage('contract_reviews_per_month')
-  @Roles('admin', 'member', 'viewer', 'system')
+  @UseAiModelCheck()
+  @UseRoleRateLimit()
+  @RequirePiiMasking()
   @ApiOperation({
     summary: 'Review contract comprehensively',
-    description: 'Full contract review with risk flags and recommendations. Consumes review quota.',
+    description:
+      'Full contract review with risk flags and recommendations. Consumes review quota.',
   })
   @ApiResponse({
     status: 200,
     description: 'Contract review completed',
     type: ContractAnalysisResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Monthly contract review limit reached' })
+  @ApiResponse({
+    status: 403,
+    description: 'Monthly contract review limit reached',
+  })
   async reviewContract(
     @Body() dto: ReviewContractDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -140,18 +164,23 @@ export class ContractsController {
   @Post('localizer-check')
   @UseGuards(FeaturesGuard, UsageLimitGuard)
   @UseInterceptors(UsageConsumeInterceptor)
+  @RequirePermissions('contracts:analyze')
   @RequireFeature('localizer_check')
   @RequireUsage('contract_reviews_per_month')
-  @Roles('admin', 'member', 'viewer', 'system')
+  @RequirePiiMasking()
   @ApiOperation({
     summary: 'Jurisdiction compliance check',
-    description: 'Flags governing law / jurisdiction mismatches. Requires localizer feature. Consumes review quota.',
+    description:
+      'Flags governing law / jurisdiction mismatches. Requires localizer feature. Consumes review quota.',
   })
   @ApiResponse({
     status: 200,
     description: 'Localizer check completed',
   })
-  @ApiResponse({ status: 403, description: 'Localizer check not included in plan' })
+  @ApiResponse({
+    status: 403,
+    description: 'Localizer check not included in plan',
+  })
   async localizerCheck(
     @Body() dto: LocalizerCheckDto,
     @CurrentUser() user: AuthenticatedUser,

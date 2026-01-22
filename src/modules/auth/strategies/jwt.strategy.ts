@@ -3,12 +3,13 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { Strategy } from 'passport-jwt';
 import { FastifyRequest } from 'fastify';
+import { TenantRole } from '../../rbac/types/rbac.types';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   tenantId: string;
-  role: string;
+  role: TenantRole;
   isSystemAdmin?: boolean;
   type: 'access' | 'refresh';
 }
@@ -30,12 +31,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   validate(payload: JwtPayload) {
-    // Ensure it's an access token
     if (payload.type !== 'access') {
       throw new UnauthorizedException('Invalid token type');
     }
 
-    // Return user information to be attached to request.user
     return {
       userId: payload.sub,
       email: payload.email,

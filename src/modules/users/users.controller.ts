@@ -24,6 +24,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Users')
 @Controller('users')
@@ -71,7 +72,7 @@ export class UsersController {
   }
 
   @Get()
-  @Roles('admin', 'member')
+  @RequirePermissions('documents:read')
   @ApiOperation({ summary: 'List all users in current tenant' })
   @ApiResponse({ status: 200, description: 'List of users in tenant' })
   async listTenantUsers(@CurrentUser() user: AuthenticatedUser) {
@@ -79,7 +80,7 @@ export class UsersController {
   }
 
   @Post()
-  @Roles('admin')
+  @RequirePermissions('team:manage')
   @ApiOperation({
     summary: 'Create or invite user to current tenant (admin only)',
   })
@@ -104,7 +105,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles('admin')
+  @RequirePermissions('team:manage')
   @ApiOperation({ summary: 'Update user in current tenant (admin only)' })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
   @ApiResponse({
@@ -127,7 +128,7 @@ export class UsersController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  @Roles('admin')
+  @RequirePermissions('team:manage')
   @ApiOperation({ summary: 'Remove user from current tenant (admin only)' })
   @ApiResponse({ status: 200, description: 'User removed from tenant' })
   @ApiResponse({
