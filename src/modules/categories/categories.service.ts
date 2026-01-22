@@ -1,20 +1,17 @@
 import {
+  ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
 } from '@nestjs/common';
-import { Category } from './entities/category.entity';
-import {
-  CreateCategoryDto,
-  UpdateCategoryDto,
-} from './dto/create-category.dto';
-import { CategoryRepository } from '../../repositories/categories/category.repository';
 import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from 'src/repositories/base/repository.interface';
+import { CategoryRepository } from '../../repositories/categories/category.repository';
+import { CreateCategoryDto, UpdateCategoryDto } from './dto';
+import { Category } from './entities/category.entity';
 
 @Injectable()
 export class CategoriesService {

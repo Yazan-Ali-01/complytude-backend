@@ -1,40 +1,28 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
   IsBoolean,
+  IsOptional,
+  IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
 
 /**
- * Create category DTO
- * Defines required and optional fields for creating a new category
+ * Update category DTO
+ * All fields are optional - only provided fields will be updated
  */
-export class CreateCategoryDto {
-  @ApiProperty({
-    example: 'employment',
-    description: 'Unique category code (lowercase)',
-  })
-  @IsString()
-  @Transform(({ value }) => value?.toLowerCase())
-  @IsNotEmpty()
-  @MaxLength(50)
-  code: string;
-
-  @ApiProperty({
+export class UpdateCategoryDto {
+  @ApiPropertyOptional({
     example: 'Employment Contracts',
     description: 'Category display name',
   })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MaxLength(255)
-  name: string;
+  name?: string;
 
   @ApiPropertyOptional({
-    example: 'Employment and labor agreements',
+    example: 'Updated description',
     description: 'Category description',
   })
   @IsString()
@@ -52,9 +40,8 @@ export class CreateCategoryDto {
   @ApiPropertyOptional({
     example: true,
     description: 'Whether category is active',
-    default: true,
   })
   @IsBoolean()
   @IsOptional()
-  isActive: boolean = true;
+  isActive?: boolean;
 }
