@@ -1,38 +1,37 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsUUID,
+  ArrayMinSize,
   IsArray,
   IsEnum,
+  IsNotEmpty,
   IsObject,
-  MaxLength,
+  IsOptional,
+  IsString,
+  IsUUID,
   Matches,
-  ValidateNested,
-  ArrayMinSize,
+  MaxLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TemplateFieldDto } from 'src/modules/templates/dto/template-field.dto';
 import {
   IsFileMaxSize,
   IsFileMimeType,
   IsFileUploaded,
   IsMulterLikeFile,
 } from 'src/common/decorators/file-validators.decorator';
+import { JsonField } from 'src/common/decorators/json-field.decorator';
+import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
+import { TemplateFieldDto } from 'src/modules/templates/dto/template-field.dto';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_MAX_FILE_SIZE,
 } from '../constants/template.constants';
-import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
-import { JsonField } from 'src/common/decorators/json-field.decorator';
 
-export {
-  CreateTemplateVersionDto,
-  CreateTemplateVersionResponseDto,
-} from './create-template-version.dto';
-
+/**
+ * Create template request DTO
+ * Used to create a new template with initial version and file upload
+ */
 export class CreateTemplateDto {
   @ApiProperty({
     example: 'dmcc_employment_v1',
@@ -155,7 +154,10 @@ export class CreateTemplateDto {
    * Populated by interceptor with the uploaded file object
    */
   @ApiProperty({
-    description: 'DOCX template file (required, max 5MB)',
+    description:
+      'DOCX template file (required, max 5MB, content type: application/vnd.openxmlformats-officedocument.wordprocessingml.document)',
+    type: 'string',
+    format: 'binary',
   })
   @IsFileUploaded()
   @IsMulterLikeFile()
@@ -164,6 +166,11 @@ export class CreateTemplateDto {
   file: MulterLikeFile;
 }
 
+// todo: remove later
+/**
+ * Update template request DTO
+ * Used to update template metadata and create a new version with optional file upload
+ */
 export class UpdateTemplateDto {
   @ApiPropertyOptional({
     example: 'DMCC Employment Contract v2',

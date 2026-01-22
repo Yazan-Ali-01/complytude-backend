@@ -34,6 +34,7 @@ import {
   CreateRulesetDto,
   CreateRulesetVersionDto,
   ListRulesetsQueryDto,
+  RollbackRulesetVersionDto,
   RulesetKeyParamDto,
   RulesetListResponseDto,
   RulesetResponseDto,
@@ -184,6 +185,37 @@ export class RulesetsController {
   @ApiGetResponses(RulesetVersionResponseDto, 'Ruleset version')
   findVersion(
     @Param() _params: RulesetVersionParamDto,
+  ): Promise<RulesetVersionResponseDto> {
+    // Implementation will be added by service layer
+    return null as any;
+  }
+
+  @Post(':key/versions/:version/rollback')
+  @UseGuards(SystemAdminGuard)
+  @ApiOperation({
+    summary: 'Rollback to previous ruleset version',
+    description:
+      'Create a new ruleset version based on a previous version. This endpoint is restricted to system administrators only. The new version will be created with a higher version number and will contain the same clauses as the specified old version.',
+  })
+  @ApiParam({
+    name: 'key',
+    description: 'Ruleset unique key',
+    example: 'dmcc_employment_rules_v1',
+  })
+  @ApiParam({
+    name: 'version',
+    description: 'Version number to rollback from (semantic versioning)',
+    example: '1.0.0',
+  })
+  @ApiCreateResponses(
+    RulesetVersionResponseDto,
+    'New ruleset version created from rollback',
+  )
+  @ApiConflictError('New version number already exists')
+  rollback(
+    @Param() _params: RulesetVersionParamDto,
+    @Body() _dto: RollbackRulesetVersionDto,
+    @CurrentUser() _user: AuthenticatedUser,
   ): Promise<RulesetVersionResponseDto> {
     // Implementation will be added by service layer
     return null as any;
