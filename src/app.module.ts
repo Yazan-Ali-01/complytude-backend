@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -29,6 +30,7 @@ import { validationSchema } from './config/validation.schema';
         abortEarly: false,
       },
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     HealthModule,
     TenantModule,
