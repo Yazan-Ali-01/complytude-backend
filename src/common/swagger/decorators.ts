@@ -162,6 +162,22 @@ export const ApiListResponses = <T extends Type<any>>(
   );
 };
 
+// Array operation (GET multiple - not paginated)
+export const ApiArrayResponses = <T extends Type<any>>(
+  responseType: T,
+  resourceName: string,
+) => {
+  return applyDecorators(
+    ApiResponse({
+      status: 200,
+      description: `${resourceName} retrieved successfully`,
+      type: [responseType],
+      isArray: true,
+    }),
+    ApiAuthenticatedResponses(),
+  );
+};
+
 // Update operation (PUT/PATCH)
 export const ApiUpdateResponses = <T extends Type<any>>(
   responseType: T,

@@ -39,13 +39,34 @@ export class LoginTenantDto {
     description: 'Tenant unique identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  id: string;
+  tenantId: string;
 
   @ApiProperty({
     description: 'Tenant/company name',
     example: 'Acme Corporation',
   })
-  name: string;
+  tenantName: string;
+
+  @ApiProperty({
+    description: 'User role within the tenant',
+    enum: ['admin', 'member', 'viewer'],
+    example: 'member',
+  })
+  role: 'admin' | 'member' | 'viewer';
+
+  @ApiProperty({
+    description: 'Whether user access is active in this tenant',
+    example: true,
+  })
+  isActive: boolean;
+
+  @ApiProperty({
+    description: 'When user joined the tenant',
+    example: '2026-01-15T08:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  joinedAt: string;
 }
 
 /**
@@ -69,6 +90,22 @@ export class LoginResponseDto {
     description: 'List of tenants user belongs to',
     type: [LoginTenantDto],
     isArray: true,
+    example: [
+      {
+        tenantId: '550e8400-e29b-41d4-a716-446655440000',
+        tenantName: 'Acme Corporation',
+        role: 'admin',
+        isActive: true,
+        joinedAt: '2026-01-10T08:00:00.000Z',
+      },
+      {
+        tenantId: '660e8400-e29b-41d4-a716-446655440001',
+        tenantName: 'TechStart LLC',
+        role: 'member',
+        isActive: true,
+        joinedAt: '2026-01-15T10:30:00.000Z',
+      },
+    ],
   })
   tenants: LoginTenantDto[];
 }

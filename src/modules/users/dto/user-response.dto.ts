@@ -1,0 +1,170 @@
+import { ApiProperty } from '@nestjs/swagger';
+
+/**
+ * User profile response DTO
+ * Returns current user profile with all details (excludes password)
+ */
+export class UserProfileResponseDto {
+  @ApiProperty({
+    description: 'User unique identifier',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  id: string;
+
+  @ApiProperty({
+    description: 'User email address',
+    example: 'user@example.com',
+  })
+  email: string;
+
+  @ApiProperty({
+    description: 'User first name',
+    example: 'John',
+    nullable: true,
+  })
+  firstName: string | null;
+
+  @ApiProperty({
+    description: 'User last name',
+    example: 'Doe',
+    nullable: true,
+  })
+  lastName: string | null;
+
+  @ApiProperty({
+    description: 'Email verification status',
+    example: true,
+  })
+  isVerified: boolean;
+
+  @ApiProperty({
+    description: 'System administrator status',
+    example: false,
+  })
+  isSystemAdmin: boolean;
+
+  @ApiProperty({
+    description: 'Account creation timestamp',
+    example: '2026-01-21T10:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  createdAt: string;
+
+  @ApiProperty({
+    description: 'Last update timestamp',
+    example: '2026-01-21T12:30:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  updatedAt: string;
+}
+
+/**
+ * User tenant membership response DTO
+ * Returns tenant membership info including role
+ */
+export class UserTenantResponseDto {
+  @ApiProperty({
+    description: 'Tenant unique identifier',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  tenantId: string;
+
+  @ApiProperty({
+    description: 'Tenant name',
+    example: 'Acme Corporation',
+  })
+  tenantName: string;
+
+  @ApiProperty({
+    description: 'User role within the tenant',
+    enum: ['admin', 'member', 'viewer'],
+    example: 'member',
+  })
+  role: 'admin' | 'member' | 'viewer';
+
+  @ApiProperty({
+    description: 'Whether user access is active in this tenant',
+    example: true,
+  })
+  isActive: boolean;
+
+  @ApiProperty({
+    description: 'When user joined the tenant',
+    example: '2026-01-15T08:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  joinedAt: string;
+}
+
+/**
+ * Tenant features nested object
+ */
+export class TenantFeaturesDto {
+  @ApiProperty({
+    description: 'Maximum number of documents that can be created',
+    example: 100,
+  })
+  documentLimit: number;
+
+  @ApiProperty({
+    description: 'Access to compliance checklist feature',
+    example: true,
+  })
+  checklistAccess: boolean;
+
+  @ApiProperty({
+    description: 'Contract analyzer feature enabled',
+    example: false,
+  })
+  analyzerEnabled: boolean;
+}
+
+/**
+ * Current tenant info response DTO
+ * Returns tenant details resolved from JWT token
+ */
+export class TenantInfoResponseDto {
+  @ApiProperty({
+    description: 'Tenant unique identifier',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  id: string;
+
+  @ApiProperty({
+    description: 'Subscription plan tier',
+    enum: ['early_access', 'basic', 'pro', 'enterprise'],
+    example: 'pro',
+  })
+  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
+
+  @ApiProperty({
+    description: 'Tenant features and limits based on subscription plan',
+    type: TenantFeaturesDto,
+  })
+  features: TenantFeaturesDto;
+
+  @ApiProperty({
+    description: 'Whether tenant is active',
+    example: true,
+  })
+  isActive: boolean;
+
+  @ApiProperty({
+    description: 'Tenant creation timestamp',
+    example: '2026-01-10T10:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  createdAt: string;
+
+  @ApiProperty({
+    description: 'Last update timestamp',
+    example: '2026-01-20T15:45:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  updatedAt: string;
+}
