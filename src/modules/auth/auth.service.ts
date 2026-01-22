@@ -94,7 +94,7 @@ export class AuthService {
           tenantId,
           signupDto.email,
           'admin',
-          'early_access',
+          'navigator',
           '{}',
           schemaName,
         ],

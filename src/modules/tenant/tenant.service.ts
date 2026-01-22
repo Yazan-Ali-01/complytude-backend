@@ -38,7 +38,7 @@ export class TenantService {
             tenant_id VARCHAR(255) UNIQUE NOT NULL,
             email VARCHAR(255) UNIQUE NOT NULL,
             role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user', 'viewer')),
-            plan VARCHAR(50) NOT NULL CHECK (plan IN ('early_access', 'basic', 'pro', 'enterprise')),
+            plan VARCHAR(50) NOT NULL CHECK (plan IN ('navigator', 'shield', 'general_counsel', 'infrastructure')),
             features JSONB NOT NULL DEFAULT '{}',
             schema_name VARCHAR(255) UNIQUE NOT NULL,
             is_active BOOLEAN DEFAULT true,

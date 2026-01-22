@@ -38,13 +38,13 @@ export class CreateTenantDto {
   role: 'admin' | 'user' | 'viewer';
 
   @ApiProperty({
-    example: 'early_access',
-    enum: ['early_access', 'basic', 'pro', 'enterprise'],
+    example: 'navigator',
+    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
     description: 'Subscription plan',
   })
-  @IsEnum(['early_access', 'basic', 'pro', 'enterprise'])
+  @IsEnum(['navigator', 'shield', 'general_counsel', 'infrastructure'])
   @IsNotEmpty()
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  plan: 'navigator' | 'shield' | 'general_counsel' | 'infrastructure';
 
   @ApiProperty({
     type: TenantFeaturesDto,

@@ -28,6 +28,9 @@ import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { DocumentLimitGuard } from '../../common/guards/document-limit.guard';
+import { UsageLimitGuard } from '../../common/guards/usage-limit.guard';
+import { UsageConsumeInterceptor } from '../../common/interceptors/usage-consume.interceptor';
+import { RequireUsage } from '../../common/decorators/require-usage.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import {
@@ -54,7 +57,9 @@ export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
   @Post('upload')
-  @UseGuards(RolesGuard, DocumentLimitGuard)
+  @UseGuards(RolesGuard, DocumentLimitGuard, UsageLimitGuard)
+  @UseInterceptors(UsageConsumeInterceptor)
+  @RequireUsage('documents_per_month')
   @Roles('admin', 'member', 'system')
   @ApiBearerAuth()
   @ApiOperation({
