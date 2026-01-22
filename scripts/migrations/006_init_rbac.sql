@@ -1,9 +1,9 @@
 -- ============================================================================
 -- Migration 006: Role-Based Access Control (RBAC) - COM-73
 -- ============================================================================
--- Description: Implement tenant-scoped RBAC system with permissions, 
+-- Description: Implement tenant-scoped RBAC system with permissions,
 --              role-permission mappings, and audit logging.
--- Dependencies: 002_init_auth.sql
+-- Dependencies: 001_core_tables.sql (users, tenants, user_tenants)
 -- ============================================================================
 
 -- ============================================================================
@@ -11,37 +11,44 @@
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.permissions (
-    id VARCHAR(255) PRIMARY KEY DEFAULT ('permission_' || uuid_generate_v4()),
+    id VARCHAR(255) PRIMARY KEY DEFAULT ('permission_' || gen_random_uuid()),
     key VARCHAR(100) UNIQUE NOT NULL,
     resource VARCHAR(50) NOT NULL,
     action VARCHAR(50) NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 COMMENT ON TABLE public.permissions IS 'Permission definitions for RBAC system';
+COMMENT ON COLUMN public.permissions.id IS 'Unique permission identifier (permission_<uuid>)';
 COMMENT ON COLUMN public.permissions.key IS 'Permission string in format resource:action (e.g., documents:create)';
 COMMENT ON COLUMN public.permissions.resource IS 'Resource type (e.g., documents, contracts, templates)';
 COMMENT ON COLUMN public.permissions.action IS 'Action type (e.g., create, read, delete, analyze)';
+COMMENT ON COLUMN public.permissions.is_active IS 'Whether this permission is currently active';
 
 CREATE INDEX IF NOT EXISTS idx_permissions_key ON public.permissions(key);
 CREATE INDEX IF NOT EXISTS idx_permissions_resource ON public.permissions(resource);
-CREATE INDEX IF NOT EXISTS idx_permissions_is_active ON public.permissions(is_active);
+CREATE INDEX IF NOT EXISTS idx_permissions_is_active ON public.permissions(is_active) WHERE is_active = true;
 
 -- ============================================================================
 -- 2. ROLE-PERMISSION MAPPINGS TABLE
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.role_permissions (
-    id VARCHAR(255) PRIMARY KEY DEFAULT ('role_perm_' || uuid_generate_v4()),
+    id VARCHAR(255) PRIMARY KEY DEFAULT ('role_perm_' || gen_random_uuid()),
     role VARCHAR(50) NOT NULL,
-    permission_key VARCHAR(100) NOT NULL REFERENCES public.permissions(key) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(role, permission_key)
+    permission_key VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+
+    -- Explicit constraints
+    CONSTRAINT fk_role_permissions_permission FOREIGN KEY (permission_key)
+        REFERENCES public.permissions(key) ON DELETE CASCADE,
+    CONSTRAINT uq_role_permissions_role_key UNIQUE(role, permission_key)
 );
 
 COMMENT ON TABLE public.role_permissions IS 'Maps roles to their permissions';
+COMMENT ON COLUMN public.role_permissions.id IS 'Unique role-permission mapping identifier';
 COMMENT ON COLUMN public.role_permissions.role IS 'Tenant role: tenant_admin, legal_counsel, member, viewer';
 COMMENT ON COLUMN public.role_permissions.permission_key IS 'Permission key from permissions table';
 
@@ -53,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_role_permissions_permission_key ON public.role_pe
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.rbac_audit_log (
-    id VARCHAR(255) PRIMARY KEY DEFAULT ('rbac_log_' || uuid_generate_v4()),
+    id VARCHAR(255) PRIMARY KEY DEFAULT ('rbac_log_' || gen_random_uuid()),
     user_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL,
@@ -62,22 +69,48 @@ CREATE TABLE IF NOT EXISTS public.rbac_audit_log (
     resource_id VARCHAR(255),
     granted BOOLEAN NOT NULL,
     ai_model_used VARCHAR(100),
-    metadata JSONB,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+
+    -- Explicit constraints
+    CONSTRAINT fk_rbac_audit_user FOREIGN KEY (user_id)
+        REFERENCES public.users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_rbac_audit_tenant FOREIGN KEY (tenant_id)
+        REFERENCES public.tenants(tenant_id) ON DELETE CASCADE
 );
 
 COMMENT ON TABLE public.rbac_audit_log IS 'Audit log for all RBAC permission checks';
+COMMENT ON COLUMN public.rbac_audit_log.user_id IS 'User who triggered the permission check';
+COMMENT ON COLUMN public.rbac_audit_log.tenant_id IS 'Tenant context for the permission check';
+COMMENT ON COLUMN public.rbac_audit_log.role IS 'Role of the user at time of check';
+COMMENT ON COLUMN public.rbac_audit_log.action IS 'Action being attempted (e.g., documents:create)';
+COMMENT ON COLUMN public.rbac_audit_log.granted IS 'Whether the permission was granted';
+COMMENT ON COLUMN public.rbac_audit_log.ai_model_used IS 'AI model used if this was an AI operation';
 
 CREATE INDEX IF NOT EXISTS idx_rbac_audit_log_user_id ON public.rbac_audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_rbac_audit_log_tenant_id ON public.rbac_audit_log(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_rbac_audit_log_role ON public.rbac_audit_log(role);
+CREATE INDEX IF NOT EXISTS idx_rbac_audit_log_action ON public.rbac_audit_log(action);
 CREATE INDEX IF NOT EXISTS idx_rbac_audit_log_created_at ON public.rbac_audit_log(created_at DESC);
 
 -- ============================================================================
 -- 4. PARENT TENANT COLUMN FOR AGENCY HIERARCHY
 -- ============================================================================
 
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS parent_tenant_id VARCHAR(255) REFERENCES public.tenants(id) ON DELETE SET NULL;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS parent_tenant_id VARCHAR(255);
+
+-- Add constraint separately to handle IF NOT EXISTS scenario
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_tenants_parent'
+        AND table_name = 'tenants'
+    ) THEN
+        ALTER TABLE public.tenants ADD CONSTRAINT fk_tenants_parent
+            FOREIGN KEY (parent_tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_tenants_parent_tenant_id ON public.tenants(parent_tenant_id);
 
@@ -162,8 +195,8 @@ ON CONFLICT (role, permission_key) DO NOTHING;
 ALTER TABLE public.user_tenants DROP CONSTRAINT IF EXISTS user_tenants_role_check;
 
 -- Migrate existing 'admin' roles to 'tenant_admin'
-UPDATE public.user_tenants 
-SET role = 'tenant_admin', updated_at = CURRENT_TIMESTAMP 
+UPDATE public.user_tenants
+SET role = 'tenant_admin', updated_at = now()
 WHERE role = 'admin';
 
 -- Add new constraint with all four tenant roles
@@ -180,28 +213,43 @@ ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rbac_audit_log ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if they exist
+-- Drop existing policies if they exist (idempotency)
 DROP POLICY IF EXISTS permissions_read_policy ON public.permissions;
+DROP POLICY IF EXISTS permissions_write_policy ON public.permissions;
 DROP POLICY IF EXISTS role_permissions_read_policy ON public.role_permissions;
+DROP POLICY IF EXISTS role_permissions_write_policy ON public.role_permissions;
 DROP POLICY IF EXISTS rbac_audit_log_read_policy ON public.rbac_audit_log;
+DROP POLICY IF EXISTS rbac_audit_log_write_policy ON public.rbac_audit_log;
 
--- Permissions table: Allow read access for all users with bypass
+-- Permissions table: Allow read access for all, write for admins
 CREATE POLICY permissions_read_policy ON public.permissions
     FOR SELECT
     USING (true);
 
--- Role permissions table: Allow read access for all users with bypass
+CREATE POLICY permissions_write_policy ON public.permissions
+    FOR ALL
+    USING (current_setting('app.bypass_rls', true) = 'true');
+
+-- Role permissions table: Allow read access for all, write for admins
 CREATE POLICY role_permissions_read_policy ON public.role_permissions
     FOR SELECT
     USING (true);
 
--- RBAC audit log: Read access for tenant scope
+CREATE POLICY role_permissions_write_policy ON public.role_permissions
+    FOR ALL
+    USING (current_setting('app.bypass_rls', true) = 'true');
+
+-- RBAC audit log: Tenant-scoped read, admin write
 CREATE POLICY rbac_audit_log_read_policy ON public.rbac_audit_log
     FOR SELECT
     USING (
         tenant_id = current_setting('app.current_tenant_id', true)
         OR current_setting('app.bypass_rls', true) = 'true'
     );
+
+CREATE POLICY rbac_audit_log_write_policy ON public.rbac_audit_log
+    FOR ALL
+    USING (current_setting('app.bypass_rls', true) = 'true');
 
 -- ============================================================================
 -- 9. PERMISSIONS
@@ -223,13 +271,13 @@ DECLARE
 BEGIN
     -- Count permissions
     SELECT COUNT(*) INTO perm_count FROM public.permissions;
-    
+
     -- Count role-permission mappings
     SELECT COUNT(*) INTO role_perm_count FROM public.role_permissions;
-    
+
     -- Count migrated admin users
     SELECT COUNT(*) INTO migrated_count FROM public.user_tenants WHERE role = 'tenant_admin';
-    
+
     RAISE NOTICE '✅ Migration 006: RBAC system initialized';
     RAISE NOTICE '✅ Created % permissions (14 expected)', perm_count;
     RAISE NOTICE '✅ Created % role-permission mappings (32 expected)', role_perm_count;
