@@ -13,14 +13,14 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.authorities (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     country VARCHAR(100) DEFAULT 'UAE',
     is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_authorities_code ON public.authorities(code);
@@ -34,14 +34,14 @@ COMMENT ON COLUMN public.authorities.code IS 'Unique authority code (e.g., DMCC,
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     parent_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
     is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_categories_code ON public.categories(code);
@@ -56,7 +56,7 @@ COMMENT ON COLUMN public.categories.parent_id IS 'For hierarchical categories (o
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.rulesets (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     key VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -66,8 +66,8 @@ CREATE TABLE IF NOT EXISTS public.rulesets (
     version VARCHAR(50) NOT NULL DEFAULT '1.0.0',
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'deprecated')),
     created_by VARCHAR(255) REFERENCES public.users(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_rulesets_key ON public.rulesets(key);
@@ -84,7 +84,7 @@ COMMENT ON COLUMN public.rulesets.metadata IS 'Additional metadata about the rul
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.templates (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     key VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -97,8 +97,8 @@ CREATE TABLE IF NOT EXISTS public.templates (
     thumbnail_url TEXT,
     metadata JSONB DEFAULT '{}',
     created_by VARCHAR(255) REFERENCES public.users(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_templates_key ON public.templates(key);
@@ -119,7 +119,7 @@ COMMENT ON COLUMN public.templates.languages IS 'Supported languages: en, ar, bi
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.template_versions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     template_id UUID NOT NULL REFERENCES public.templates(id) ON DELETE CASCADE,
     version VARCHAR(50) NOT NULL,
     fields JSONB NOT NULL DEFAULT '[]',
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS public.template_versions (
     metadata JSONB DEFAULT '{}',
     is_active BOOLEAN DEFAULT true,
     created_by VARCHAR(255) REFERENCES public.users(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE(template_id, version)
 );
 
@@ -149,7 +149,7 @@ COMMENT ON COLUMN public.template_versions.is_active IS 'Whether this version is
 CREATE TABLE IF NOT EXISTS public.template_rulesets (
     template_id UUID NOT NULL REFERENCES public.templates(id) ON DELETE CASCADE,
     ruleset_id UUID NOT NULL REFERENCES public.rulesets(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT now(),
     PRIMARY KEY (template_id, ruleset_id)
 );
 
@@ -276,7 +276,7 @@ BEGIN
         UPDATE public.templates
         SET current_version = NEW.version,
             file_url = NEW.file_url,
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = now()
         WHERE id = NEW.template_id;
         
         RAISE NOTICE 'Updated template % to version %', NEW.template_id, NEW.version;

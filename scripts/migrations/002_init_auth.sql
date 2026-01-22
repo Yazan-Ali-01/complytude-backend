@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS public.users (
     last_name VARCHAR(255),
     is_verified BOOLEAN DEFAULT false,
     is_system_admin BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
@@ -39,8 +39,8 @@ CREATE TABLE IF NOT EXISTS public.user_tenants (
     tenant_id VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'member', 'viewer')),
     is_active BOOLEAN DEFAULT true,
-    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    joined_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
     PRIMARY KEY (user_id, tenant_id),
     CONSTRAINT fk_user_tenants_user FOREIGN KEY (user_id) 
         REFERENCES public.users(id) ON DELETE CASCADE,
@@ -63,9 +63,9 @@ CREATE TABLE IF NOT EXISTS public.refresh_tokens (
     id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
     token_hash VARCHAR(255) NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    revoked_at TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    revoked_at TIMESTAMPTZ,
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) 
         REFERENCES public.users(id) ON DELETE CASCADE
 );
@@ -84,9 +84,9 @@ CREATE TABLE IF NOT EXISTS public.email_verifications (
     id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
     token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    verified_at TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    verified_at TIMESTAMPTZ,
     CONSTRAINT fk_email_verifications_user FOREIGN KEY (user_id) 
         REFERENCES public.users(id) ON DELETE CASCADE
 );
@@ -105,9 +105,9 @@ CREATE TABLE IF NOT EXISTS public.password_resets (
     id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
     token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    used_at TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    used_at TIMESTAMPTZ,
     CONSTRAINT fk_password_resets_user FOREIGN KEY (user_id) 
         REFERENCES public.users(id) ON DELETE CASCADE
 );

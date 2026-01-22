@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS public.tenants (
     features JSONB NOT NULL DEFAULT '{}',
     schema_name VARCHAR(255) UNIQUE NOT NULL,
     is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 COMMENT ON TABLE public.tenants IS 'Main tenants table with plan and custom features support';
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_schemas (
     tenant_id VARCHAR(255) PRIMARY KEY REFERENCES public.tenants(tenant_id) ON DELETE CASCADE,
     schema_name VARCHAR(255) UNIQUE NOT NULL,
     is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 COMMENT ON TABLE public.tenant_schemas IS 'Tracks tenant database schemas';
@@ -115,7 +115,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = now();
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

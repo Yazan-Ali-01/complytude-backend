@@ -1,6 +1,9 @@
 -- ============================================================================
 -- Migration 004: Plan-Based Entitlements System
 -- ============================================================================
+-- Description: Entitlements, usage tracking, credits system (Stripe-ready)
+-- Dependencies: 001_init_multi_tenancy.sql, 002_init_auth.sql
+-- ============================================================================
 
 -- 1. Update plan constraint to new plans only
 ALTER TABLE public.tenants
@@ -423,3 +426,30 @@ CREATE POLICY credit_usage_read ON public.credit_usage_log FOR SELECT
     USING (tenant_id = current_setting('app.current_tenant_id', true) OR current_setting('app.bypass_rls', true) = 'true');
 CREATE POLICY credit_usage_write ON public.credit_usage_log FOR ALL
     USING (current_setting('app.bypass_rls', true) = 'true');
+
+-- ============================================================================
+-- 13. PERMISSIONS
+-- ============================================================================
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.features TO CURRENT_USER;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_feature_overrides TO CURRENT_USER;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_usage TO CURRENT_USER;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_usage_log TO CURRENT_USER;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_credits TO CURRENT_USER;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.credit_purchases TO CURRENT_USER;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.credit_usage_log TO CURRENT_USER;
+
+-- ============================================================================
+-- SUCCESS
+-- ============================================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '✅ Migration 004: Plan-Based Entitlements System initialized';
+    RAISE NOTICE '   - Created tables: features, tenant_feature_overrides, tenant_usage, tenant_usage_log';
+    RAISE NOTICE '   - Created tables: tenant_credits, credit_purchases, credit_usage_log';
+    RAISE NOTICE '   - Created helper functions: get_active_overrides, check_usage_limit, check_usage_with_credits';
+    RAISE NOTICE '   - Created credit functions: get_credits_balance, deduct_credits, add_credits';
+    RAISE NOTICE '   - Configured RLS policies';
+    RAISE NOTICE '   - Seeded feature definitions';
+END $$;
