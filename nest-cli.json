@@ -1,14 +1,57 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
+  "monorepo": true,
+  "root": "apps/api",
+  "sourceRoot": "apps/api/src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": [
-      {
-        "include": "i18n/locales/**/*",
-        "outDir": "dist"
+    "webpack": false,
+    "tsConfigPath": "apps/api/tsconfig.app.json"
+  },
+  "projects": {
+    "api": {
+      "type": "application",
+      "root": "apps/api",
+      "entryFile": "main",
+      "sourceRoot": "apps/api/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "../../../libs/shared/src/i18n/locales/**/*",
+            "outDir": "dist/apps/api/i18n/locales",
+            "watchAssets": true
+          }
+        ]
       }
-    ]
+    },
+    "worker-ingestion": {
+      "type": "application",
+      "root": "apps/worker-ingestion",
+      "entryFile": "main",
+      "sourceRoot": "apps/worker-ingestion/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/worker-ingestion/tsconfig.app.json"
+      }
+    },
+    "worker-ai": {
+      "type": "application",
+      "root": "apps/worker-ai",
+      "entryFile": "main",
+      "sourceRoot": "apps/worker-ai/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/worker-ai/tsconfig.app.json"
+      }
+    },
+    "shared": {
+      "type": "library",
+      "root": "libs/shared",
+      "entryFile": "index",
+      "sourceRoot": "libs/shared/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/shared/tsconfig.lib.json"
+      }
+    }
   }
 }
