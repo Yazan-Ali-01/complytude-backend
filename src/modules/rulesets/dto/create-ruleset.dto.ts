@@ -1,18 +1,16 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsUUID,
+  ArrayMinSize,
   IsArray,
+  IsNotEmpty,
   IsObject,
-  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
   MaxLength,
   ValidateNested,
-  ArrayMinSize,
-  Matches,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ClauseDto } from 'src/modules/rulesets/dto/clause.dto';
 
 export class CreateRulesetDto {
@@ -77,29 +75,9 @@ export class CreateRulesetDto {
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
-
-  @ApiPropertyOptional({
-    example: '1.0.0',
-    description: 'Ruleset version',
-  })
-  @IsString()
-  @IsOptional()
-  @MaxLength(50)
-  @Matches(/^\d+\.\d+\.\d+$/, {
-    message: 'version must be in format x.y.z (e.g., 1.0.0)',
-  })
-  version: string = '1.0.0';
-
-  @ApiPropertyOptional({
-    example: 'active',
-    enum: ['active', 'inactive', 'deprecated'],
-    description: 'Ruleset status',
-  })
-  @IsEnum(['active', 'inactive', 'deprecated'])
-  @IsOptional()
-  status: 'active' | 'inactive' | 'deprecated' = 'active';
 }
 
+// todo: should be removed
 export class UpdateRulesetDto {
   @ApiPropertyOptional({
     example: 'DMCC Employment Rules v1.1',
@@ -144,25 +122,4 @@ export class UpdateRulesetDto {
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
-
-  @ApiPropertyOptional({
-    example: '1.1.0',
-    description: 'Ruleset version',
-  })
-  @IsString()
-  @Matches(/^\d+\.\d+\.\d+$/, {
-    message: 'version must be in format x.y.z (e.g., 1.0.0)',
-  })
-  @IsOptional()
-  @MaxLength(50)
-  version?: string;
-
-  @ApiPropertyOptional({
-    example: 'active',
-    enum: ['active', 'inactive', 'deprecated'],
-    description: 'Ruleset status',
-  })
-  @IsEnum(['active', 'inactive', 'deprecated'])
-  @IsOptional()
-  status?: 'active' | 'inactive' | 'deprecated';
 }

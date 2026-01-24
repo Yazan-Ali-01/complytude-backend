@@ -52,7 +52,7 @@ export class CreateAuthorityDto {
   })
   @IsBoolean()
   @IsOptional()
-  is_active: boolean = true;
+  isActive: boolean = true;
 }
 
 export class UpdateAuthorityDto {
@@ -88,5 +88,5 @@ export class UpdateAuthorityDto {
   })
   @IsBoolean()
   @IsOptional()
-  is_active?: boolean;
+  isActive?: boolean;
 }

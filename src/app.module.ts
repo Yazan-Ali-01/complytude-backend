@@ -13,6 +13,7 @@ import { TemplatesModule } from './modules/templates/templates.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { I18nModule } from './i18n/i18n.module';
@@ -44,6 +45,7 @@ import { validationSchema } from 'src/config/env.schema';
     CategoriesModule,
     AuthoritiesModule,
     RulesetsModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [

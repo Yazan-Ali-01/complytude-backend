@@ -1,44 +1,46 @@
 import {
+  BadRequestException,
+  ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
-  BadRequestException,
 } from '@nestjs/common';
-import { I18nService, I18n } from 'nestjs-i18n';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { PoolClient } from 'pg';
 import { DatabaseService } from 'src/database/database.service';
 import {
   Template,
   TemplateWithDetails,
 } from 'src/modules/templates/entities/template.entity';
 import {
-  CreateTemplateDto,
-  UpdateTemplateDto,
-  CreateTemplateVersionDto,
-  CreateTemplateVersionResponseDto,
-} from './dto/create-template.dto';
-import { TemplateDownloadResponseDto } from './dto/template-response.dto';
-import { TemplateVersionsService } from './template-versions.service';
-import { PoolClient } from 'pg';
-import {
-  DocxPlaceholderExtractionService,
-  PlaceholderValidationResult,
-} from './services/docx-placeholder-extraction.service';
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from 'src/repositories/base/repository.interface';
+import { I18nKeys } from '../../common/constants/i18n-keys';
+import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
+import { CategoryRepository } from '../../repositories/categories/category.repository';
+import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
+import { TemplateRepository } from '../../repositories/templates/template.repository';
 import { StorageService } from '../storage/storage.service';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,
 } from './constants/template.constants';
-import { I18nKeys } from '../../common/constants/i18n-keys';
-import { CategoryRepository } from '../../repositories/categories/category.repository';
-import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
-import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
-import { TemplateRepository } from '../../repositories/templates/template.repository';
 import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
+  CreateTemplateVersionDto,
+  CreateTemplateVersionResponseDto,
+} from './dto/create-template-version.dto';
+import {
+  CreateTemplateDto,
+  UpdateTemplateDto,
+} from './dto/create-template.dto';
+import { TemplateDownloadResponseDto } from './dto/template-download-response.dto';
+import {
+  DocxPlaceholderExtractionService,
+  PlaceholderValidationResult,
+} from './services/docx-placeholder-extraction.service';
+import { TemplateVersionsService } from './template-versions.service';
 
 @Injectable()
 export class TemplatesService {
@@ -727,11 +729,9 @@ export class TemplatesService {
       const fileName = `${template.key}_${targetVersion}.docx`;
 
       return {
-        downloadUrl,
-        expiresIn,
-        expiresAt,
-        fileName,
-        version: targetVersion,
+        signedUrl: downloadUrl,
+        expiresAt: expiresAt,
+        filename: fileName,
       };
     } catch (error) {
       if (
