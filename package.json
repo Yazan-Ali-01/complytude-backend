@@ -94,6 +94,7 @@
     "cache-manager": "^7.2.8",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "compromise": "^14.14.5",
     "docx": "^9.5.1",
     "docxtemplater": "^3.67.1",
     "fastify": "^5.2.1",
