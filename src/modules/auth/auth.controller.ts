@@ -31,6 +31,7 @@ import {
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
+import { AdminLoginResponseDto } from './dto/admin-login-response.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { InvitationIdParamDto } from './dto/invitation-id-param.dto';
 import { InvitationListResponseDto } from './dto/invitation-list-response.dto';
@@ -43,6 +44,7 @@ import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { JwtTenantSwitchAuthGuard } from './guards/jwt-tenant-switch-auth.guard';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -68,11 +70,8 @@ export class AuthController {
   @ApiValidationError()
   @ApiConflictError('Email already registered')
   @ApiPublicResponses()
-  signup(@Body() _signupDto: SignupDto): MessageResponseDto {
-    // Implementation will be added later
-    return {
-      message: 'User registered successfully. Please verify your email.',
-    };
+  signup(@Body() signupDto: SignupDto): Promise<MessageResponseDto> {
+    return this.authService.signup(signupDto);
   }
 
   /**
@@ -96,9 +95,10 @@ export class AuthController {
     description: 'Invalid or expired verification token',
   })
   @ApiPublicResponses()
-  verifyEmail(@Body() _verifyEmailDto: VerifyEmailDto): MessageResponseDto {
-    // Implementation will be added later
-    return { message: 'Email verified successfully' };
+  verifyEmail(
+    @Body() verifyEmailDto: VerifyEmailDto,
+  ): Promise<MessageResponseDto> {
+    return this.authService.verifyEmail(verifyEmailDto);
   }
 
   /**
@@ -111,7 +111,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Login to user account',
     description:
-      'Authenticate user and return temporary auth cookie. User must then select a tenant to receive full authentication.',
+      'Authenticate user and return temporary auth cookie. User must then select a tenant to receive full authentication. Not for system admins.',
   })
   @ApiResponse({
     status: 200,
@@ -121,26 +121,54 @@ export class AuthController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Invalid credentials or email not verified',
+    description:
+      'Invalid credentials, email not verified, or system admin attempting to use this endpoint',
   })
   @ApiValidationError()
   @ApiPublicResponses()
-  login(
-    @Body() _loginDto: LoginDto,
-    @Res({ passthrough: true }) _reply: FastifyReply,
-  ): LoginResponseDto {
-    // Implementation will be added later
-    // Should set tempAuthToken cookie (10 minutes)
-    return {
-      message: 'Login successful. Please select a tenant.',
-      user: {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        email: 'user@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-      },
-      tenants: [],
-    };
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<LoginResponseDto> {
+    const { tempAuthToken, ...loginResponse } =
+      await this.authService.login(loginDto);
+    this.authService.setTempAuthCookie(reply, tempAuthToken);
+    return new LoginResponseDto(loginResponse);
+  }
+
+  /**
+   * 3b. POST /auth/admin/login
+   * System admin login - receives full authentication immediately
+   */
+  @Public()
+  @Post('admin/login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'System admin login',
+    description:
+      'Authenticate system administrator. Returns full access and refresh tokens immediately without tenant selection. Only for system admins.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Admin login successful. Full authentication cookies set. Returns admin user info.',
+    type: AdminLoginResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description:
+      'Invalid credentials, email not verified, or non-admin attempting to use this endpoint',
+  })
+  @ApiValidationError()
+  @ApiPublicResponses()
+  async adminLogin(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<AdminLoginResponseDto> {
+    const { accessToken, refreshToken, ...adminLoginResponse } =
+      await this.authService.adminLogin(loginDto);
+    this.authService.setAuthCookies(reply, accessToken, refreshToken);
+    return new AdminLoginResponseDto(adminLoginResponse);
   }
 
   /**
@@ -148,6 +176,7 @@ export class AuthController {
    * Select active tenant and receive full authentication
    */
   @Public()
+  @UseGuards(JwtTenantSwitchAuthGuard)
   @Post('tenant-switch')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -169,25 +198,26 @@ export class AuthController {
   @ApiForbiddenError('User does not belong to specified tenant')
   @ApiNotFoundError('Tenant')
   @ApiPublicResponses()
-  tenantSwitch(
-    @Body() _tenantSwitchDto: TenantSwitchDto,
-    @Res({ passthrough: true }) _reply: FastifyReply,
-  ): TenantSwitchResponseDto {
-    // Implementation will be added later
-    // Should validate user belongs to tenant
-    // Should set accessToken and refreshToken cookies
-    // Should clear tempAuthToken if present
+  async tenantSwitch(
+    @Body() tenantSwitchDto: TenantSwitchDto,
+    @CurrentUser() currentUser: { userId: string; email: string },
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<TenantSwitchResponseDto> {
+    const { accessToken, refreshToken, user, tenant } =
+      await this.authService.tenantSwitch(
+        currentUser,
+        tenantSwitchDto.tenantId,
+      );
+
+    // Set full authentication cookies
+    this.authService.setAuthCookies(reply, accessToken, refreshToken);
+
+    // Clear temp auth token if present
+    this.authService.clearTempAuthCookie(reply);
+
     return {
-      message: 'Tenant switched successfully',
-      tenant: {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        name: 'Acme Corporation',
-      },
-      user: {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        email: 'user@example.com',
-        role: 'member',
-      },
+      tenant,
+      user,
     };
   }
 
@@ -215,13 +245,18 @@ export class AuthController {
     description: 'Invalid or expired refresh token',
   })
   @ApiPublicResponses()
-  refresh(
+  async refresh(
     @CurrentUser()
-    _user: { userId: string; email: string; refreshToken: string },
-    @Res({ passthrough: true }) _reply: FastifyReply,
-  ): MessageResponseDto {
-    // Implementation will be added later
-    // Should set new accessToken and refreshToken cookies
+    user: { userId: string; email: string; refreshToken: string },
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MessageResponseDto> {
+    const { accessToken, refreshToken } = await this.authService.refreshTokens(
+      user.userId,
+      user.email,
+      user.refreshToken,
+    );
+
+    this.authService.setAuthCookies(reply, accessToken, refreshToken);
     return { message: 'Tokens refreshed successfully' };
   }
 
@@ -249,14 +284,16 @@ export class AuthController {
     description: 'Invalid refresh token',
   })
   @ApiPublicResponses()
-  logout(
-    @CurrentUser() _user: { userId: string; refreshToken: string },
-    @Res({ passthrough: true }) _reply: FastifyReply,
-  ): MessageResponseDto {
-    // Implementation will be added later
-    // Should revoke refresh token in database
-    // Should clear all auth cookies (accessToken, refreshToken, tempAuthToken)
-    return { message: 'Logged out successfully' };
+  async logout(
+    @CurrentUser() user: { userId: string; refreshToken: string },
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MessageResponseDto> {
+    const { message } = await this.authService.logout(
+      user.userId,
+      user.refreshToken,
+    );
+    this.authService.clearAuthCookies(reply);
+    return { message };
   }
 
   /**
@@ -279,12 +316,9 @@ export class AuthController {
   @ApiValidationError()
   @ApiPublicResponses()
   forgotPassword(
-    @Body() _forgotPasswordDto: ForgotPasswordDto,
-  ): MessageResponseDto {
-    // Implementation will be added later
-    return {
-      message: 'If the email exists, a password reset link has been sent',
-    };
+    @Body() forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<MessageResponseDto> {
+    return this.authService.forgotPassword(forgotPasswordDto);
   }
 
   /**
@@ -308,11 +342,10 @@ export class AuthController {
     description: 'Invalid or expired reset token / Validation error',
   })
   @ApiPublicResponses()
-  resetPassword(
-    @Body() _resetPasswordDto: ResetPasswordDto,
-  ): MessageResponseDto {
-    // Implementation will be added later
-    return { message: 'Password reset successfully' };
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ): Promise<MessageResponseDto> {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 
   /**

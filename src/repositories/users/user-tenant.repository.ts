@@ -321,12 +321,8 @@ export class UserTenantRepository extends BaseRepository<
   async getActiveUserTenants(
     userId: string,
     options?: QueryOptions,
-    isAuthflow: boolean = false,
   ): Promise<UserTenant[]> {
     return this.databaseService.transaction<UserTenant[]>(async (client) => {
-      if (isAuthflow) {
-        await client.query("SET LOCAL app.is_auth_flow = 'true'");
-      }
       return this.executeQuery<UserTenantRow>(
         `SELECT ${this.getSelectColumns()}
        FROM ${this.tableName}

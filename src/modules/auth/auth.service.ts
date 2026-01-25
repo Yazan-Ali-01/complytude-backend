@@ -3,38 +3,44 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
+import * as crypto from 'crypto';
 import { FastifyReply } from 'fastify';
 import { I18n, I18nService } from 'nestjs-i18n';
+import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
   ACCESS_TOKEN_COOKIE_NAME,
   COOKIE_PATH,
   COOKIE_SAME_SITE,
   REFRESH_TOKEN_COOKIE_NAME,
+  TEMP_AUTH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
 import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
-import { RefreshToken } from 'src/repositories/users/interfaces/refresh-token.interfaces';
 import { I18nKeys } from '../../common/constants/i18n-keys';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { UserRepository } from '../../repositories/users/user.repository';
-import { TenantFeaturesDto } from '../tenants/dto/create-tenant.dto';
-import { Tenant } from '../tenants/entities/tenant.entity';
 import { TenantService } from '../tenants/tenant.service';
+import { AdminLoginResponseDto } from './dto/admin-login-response.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { LoginResponseDto } from './dto/login-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignupDto } from './dto/signup.dto';
+import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-import { JwtPayload } from './strategies/jwt.strategy';
+import {
+  JwtPayload,
+  TempAuthPayload,
+} from './strategies/jwt-payload.interface';
 
 @Injectable()
 export class AuthService {
@@ -89,6 +95,40 @@ export class AuthService {
   }
 
   /**
+   * Set temporary authentication cookie (used after login, before tenant selection)
+   */
+  setTempAuthCookie(reply: FastifyReply, tempAuthToken: string): void {
+    const isProduction =
+      this.configService.get<string>('app.environment') === 'production';
+
+    const tempAuthExpiresIn =
+      this.configService.get<string>('jwt.tempAuthExpiresIn') || '10m';
+
+    reply.setCookie(TEMP_AUTH_TOKEN_COOKIE_NAME, tempAuthToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+      maxAge: Math.floor(this.parseExpiresIn(tempAuthExpiresIn) / 1000), // Convert ms to seconds
+    });
+  }
+
+  /**
+   * Clear temp auth cookie
+   */
+  clearTempAuthCookie(reply: FastifyReply): void {
+    const isProduction =
+      this.configService.get<string>('app.environment') === 'production';
+
+    reply.clearCookie(TEMP_AUTH_TOKEN_COOKIE_NAME, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+    });
+  }
+
+  /**
    * Clear auth cookies on logout
    */
   clearAuthCookies(reply: FastifyReply): void {
@@ -103,6 +143,13 @@ export class AuthService {
     });
 
     reply.clearCookie(REFRESH_TOKEN_COOKIE_NAME, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+    });
+
+    reply.clearCookie(TEMP_AUTH_TOKEN_COOKIE_NAME, {
       httpOnly: true,
       secure: isProduction,
       sameSite: COOKIE_SAME_SITE,
@@ -123,7 +170,7 @@ export class AuthService {
    * @returns An object containing a success message, userId, tenantId, and an email verification token (remove in production)
    * @throws {ConflictException} if the email is already registered
    */
-  async signup(signupDto: SignupDto) {
+  async signup(signupDto: SignupDto): Promise<MessageResponseDto> {
     const existingUser = await this.userRepository.findOne({
       filters: {
         email: signupDto.email,
@@ -142,17 +189,11 @@ export class AuthService {
       this.BCRYPT_ROUNDS,
     );
 
-    const userId = randomUUID();
-
-    return await this.databaseService.transaction(async (client) => {
-      // Set is_auth_flow flag for this transaction to allow tenant creation
-      await client.query("SET LOCAL app.is_auth_flow = 'true'");
-
+    return this.databaseService.transaction(async (client) => {
       // Create user account
       this.logger.log(`Creating user account for ${signupDto.email}`);
-      await this.userRepository.create(
+      const { id: userId } = await this.userRepository.create(
         {
-          id: userId,
           email: signupDto.email,
           password_hash: passwordHash,
           first_name: signupDto.firstName ?? null,
@@ -163,40 +204,27 @@ export class AuthService {
         { client },
       );
 
-      // Create tenant with default settings
-      this.logger.log(`Creating tenant for ${signupDto.email}`);
-      const tenant: Tenant = await this.tenantService.createTenant(
-        {
-          plan: 'early_access',
-          features: new TenantFeaturesDto(),
-        },
-        { client },
-      );
-
-      // Link user to the new tenant as admin
-      this.logger.log(`Linking user to tenant for ${signupDto.email}`);
-      await this.userTenantRepository.linkUserToTenant(
-        {
-          userId,
-          tenantId: tenant.id,
-          role: 'admin', // User is admin of their own tenant
-          isActive: true,
-        },
-        { client },
-      );
-
       // Create email verification record
-      const verificationToken = randomUUID();
-      const verificationId = randomUUID();
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = crypto
+        .createHash('sha256')
+        .update(verificationToken)
+        .digest('hex');
+
+      const expiresAt = new Date(
+        Date.now() +
+          this.parseExpiresIn(
+            this.configService.get<string>('EMAIL_VERIFICATION_EXPIRES_IN') ||
+              '1d',
+          ),
+      );
       this.logger.log(
         `Creating email verification record for ${signupDto.email}`,
       );
       await this.emailVerificationRepository.createEmailVerification(
         {
-          id: verificationId,
           userId,
-          token: verificationToken,
+          token: hashedToken,
           expiresAt,
         },
         { client },
@@ -207,76 +235,132 @@ export class AuthService {
         `Verification token for ${signupDto.email}: ${verificationToken}`,
       );
 
-      return {
+      const result = {
         message: this.i18n.t(I18nKeys.SIGNUP_SUCCESS),
-        userId,
-        tenantId: tenant.id,
-        verificationToken, // Expose only for development/testing; remove in prod
-      };
+      } as unknown as MessageResponseDto & { verificationToken: string };
+
+      if (this.configService.get<string>('NODE_ENV') !== 'production') {
+        (result as unknown as { verificationToken: string }).verificationToken =
+          verificationToken;
+      }
+
+      return result;
     });
   }
 
   /**
-   * Login user and return JWT tokens
+   * Login user and generate temporary authentication token
+   * Returns user info and list of available tenants
+   * Note: This is NOT for system admins
    */
-  async login(loginDto: LoginDto) {
+  async login(
+    loginDto: LoginDto,
+  ): Promise<LoginResponseDto & { tempAuthToken: string }> {
     // Validate user credentials
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
+    // Check if user is verified
+    if (!user.is_verified) {
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.EMAIL_NOT_VERIFIED));
+    }
+
+    // System admins should not use this login flow
+    if (user.is_system_admin) {
+      this.logger.error(`System admin ${user.email} tried to login`);
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
+    }
+
     // Get user's active tenants
-    const tenants = await this.userTenantRepository.getActiveUserTenants(
+    const userTenants = await this.userTenantRepository.getActiveUserTenants(
       user.id,
-      undefined,
-      true,
-    );
-    if (tenants.length === 0) {
-      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
-    }
-
-    // If tenantId specified, use that; otherwise use first tenant
-    let selectedTenant;
-    if (loginDto.tenantId) {
-      const found = tenants.find((t) => t.tenant_id === loginDto.tenantId);
-      if (!found) {
-        throw new UnauthorizedException(
-          this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
-        );
-      }
-      selectedTenant = found;
-    } else {
-      selectedTenant = tenants[0];
-    }
-
-    // Generate tokens (includes isSystemAdmin from user object)
-    const tokens = await this.generateTokens(
-      user.id,
-      user.email,
-      selectedTenant.tenant_id,
-      selectedTenant.role,
-      user.is_system_admin || false,
+      { isAuthflow: true },
     );
 
-    this.logger.log(
-      `User ${user.email} logged in to tenant ${selectedTenant.tenant_id}`,
-    );
+    // Map user tenants to response format
+    // Note: Tenant names are not stored in the database yet
+    // TODO: Add tenant names to the database
+    // Using tenant ID as display name for now
+    const tenantsWithDetails = userTenants.map((ut) => ({
+      tenantId: ut.tenant_id,
+      tenantName: `Temp Tenant name ${ut.tenant_id.substring(0, 8)}`, // Temporary: using first 8 chars of UUID
+      role: ut.role as 'admin' | 'member' | 'viewer',
+      isActive: ut.is_active,
+      joinedAt: ut.joined_at.toISOString(),
+    }));
 
+    // Generate temporary authentication token
+    const tempAuthToken = this.generateTempAuthToken(user.id, user.email);
+
+    this.logger.log(`User ${user.email} logged in successfully`);
+
+    // Return user info and available tenants
     return {
-      ...tokens,
       user: {
         id: user.id,
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        isVerified: user.is_verified,
       },
-      currentTenant: {
-        tenantId: selectedTenant.tenant_id,
-        role: selectedTenant.role,
+      tenants: tenantsWithDetails,
+      tempAuthToken,
+    };
+  }
+
+  /**
+   * Admin login - generates full access and refresh tokens immediately
+   * No tenant selection required for system admins
+   */
+  async adminLogin(
+    loginDto: LoginDto,
+  ): Promise<
+    AdminLoginResponseDto & { accessToken: string; refreshToken: string }
+  > {
+    // Validate user credentials
+    const user = await this.validateUser(loginDto.email, loginDto.password);
+
+    // Check if user is verified
+    if (!user.is_verified) {
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.EMAIL_NOT_VERIFIED));
+    }
+
+    // Only system admins can use this endpoint
+    if (!user.is_system_admin) {
+      this.logger.warn(
+        `Non-admin user ${user.email} attempted to use admin login`,
+      );
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+      );
+    }
+
+    // System admins don't have tenants, so we use a special tenant ID
+    // This allows them to access system-wide resources
+    const SYSTEM_ADMIN_TENANT_ID = '00000000-0000-0000-0000-000000000000';
+    const SYSTEM_ADMIN_ROLE = 'admin';
+
+    // Generate full access and refresh tokens
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      SYSTEM_ADMIN_TENANT_ID,
+      SYSTEM_ADMIN_ROLE,
+      true, // isSystemAdmin
+    );
+
+    this.logger.log(`System admin ${user.email} logged in successfully`);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        isSystemAdmin: true,
       },
-      availableTenants: tenants.map((t) => ({
-        tenantId: t.tenant_id,
-        role: t.role,
-      })),
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     };
   }
 
@@ -313,6 +397,28 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  /**
+   * Generate temporary authentication token (for post-login, pre-tenant-selection)
+   * This token is NOT for system admins - only for regular users
+   */
+  generateTempAuthToken(userId: string, email: string): string {
+    const payload: TempAuthPayload = {
+      sub: userId,
+      email,
+      type: 'temp-auth',
+    };
+
+    const tempAuthToken = this.jwtService.sign(
+      payload as any,
+      {
+        secret: this.configService.get<string>('jwt.tempAuthSecret'),
+        expiresIn: this.configService.get<string>('jwt.tempAuthExpiresIn'),
+      } as any,
+    );
+
+    return tempAuthToken;
   }
 
   /**
@@ -369,17 +475,26 @@ export class AuthService {
    * Store refresh token in database
    */
   private async storeRefreshToken(userId: string, refreshToken: string) {
-    const tokenHash = await bcrypt.hash(refreshToken, 10);
+    const tokenHash = this.hashRefreshToken(refreshToken);
     const expiresIn =
       this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
     const expiresAt = new Date(Date.now() + this.parseExpiresIn(expiresIn));
 
     await this.refreshTokenRepository.create({
-      id: randomUUID(),
       user_id: userId,
       token_hash: tokenHash,
       expires_at: expiresAt,
     });
+  }
+
+  private hashRefreshToken(refreshToken: string): string {
+    const refreshHashSecret =
+      this.configService.get<string>('jwt.refreshHashSecret') ||
+      'fallback-secret';
+    return crypto
+      .createHmac('sha256', refreshHashSecret)
+      .update(refreshToken)
+      .digest('hex');
   }
 
   /**
@@ -407,26 +522,9 @@ export class AuthService {
    * Refresh access token
    */
   async refreshTokens(userId: string, email: string, oldRefreshToken: string) {
-    // Verify refresh token exists and is not revoked
-    const activeTokens =
-      await this.refreshTokenRepository.findActiveByUserId(userId);
-
-    if (activeTokens.length === 0) {
-      throw new UnauthorizedException(
-        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
-      );
-    }
-
-    // Find matching token
-    let validToken: RefreshToken | null = null;
-    for (const token of activeTokens) {
-      const isValid = await bcrypt.compare(oldRefreshToken, token.tokenHash);
-      if (isValid) {
-        validToken = token;
-        break;
-      }
-    }
-
+    const oldTokenHash = this.hashRefreshToken(oldRefreshToken);
+    const validToken =
+      await this.refreshTokenRepository.findByTokenHash(oldTokenHash);
     if (!validToken) {
       throw new UnauthorizedException(
         this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
@@ -442,7 +540,9 @@ export class AuthService {
     // Get user's current tenant info and system admin status
     const [user, activeTenants] = await Promise.all([
       this.userRepository.findById(userId),
-      this.userTenantRepository.getActiveUserTenants(userId, undefined, true),
+      this.userTenantRepository.getActiveUserTenants(userId, {
+        isAuthflow: true,
+      }),
     ]);
 
     if (!user || activeTenants.length === 0) {
@@ -469,31 +569,38 @@ export class AuthService {
    * Logout user (revoke refresh token)
    */
   async logout(userId: string, refreshToken: string) {
-    // Find and revoke the refresh token
-    const activeTokens =
-      await this.refreshTokenRepository.findActiveByUserId(userId);
-
-    for (const token of activeTokens) {
-      const isValid = await bcrypt.compare(refreshToken, token.tokenHash);
-      if (isValid) {
-        const revoked = await this.refreshTokenRepository.revokeById(token.id);
-        if (revoked) {
-          this.logger.log(`User ${userId} logged out`);
-          return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
-        }
-      }
+    const oldTokenHash = this.hashRefreshToken(refreshToken);
+    const validToken =
+      await this.refreshTokenRepository.findByTokenHash(oldTokenHash);
+    if (!validToken) {
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+      );
+    }
+    const revoked = await this.refreshTokenRepository.revokeById(validToken.id);
+    if (!revoked) {
+      throw new InternalServerErrorException(
+        this.i18n.t(I18nKeys.INTERNAL_SERVER_ERROR),
+      );
     }
 
-    throw new BadRequestException(this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN));
+    this.logger.log(`User ${userId} logged out`);
+    return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
   }
 
   /**
    * Verify email address
    */
-  async verifyEmail(verifyEmailDto: VerifyEmailDto) {
-    const verification = await this.emailVerificationRepository.findByToken(
-      verifyEmailDto.token,
-    );
+  async verifyEmail(
+    verifyEmailDto: VerifyEmailDto,
+  ): Promise<MessageResponseDto> {
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(verifyEmailDto.token)
+      .digest('hex');
+
+    const verification =
+      await this.emailVerificationRepository.findByToken(hashedToken);
 
     if (!verification) {
       throw new BadRequestException(
@@ -521,10 +628,10 @@ export class AuthService {
   /**
    * Request password reset
    */
-  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+  async forgotPassword({ email }: ForgotPasswordDto) {
     const user = await this.userRepository.findOne({
       filters: {
-        email: forgotPasswordDto.email,
+        email,
       },
       select: ['id'],
     });
@@ -536,36 +643,43 @@ export class AuthService {
     }
 
     const userId = user.id;
-    const resetToken = randomUUID();
-    const resetId = randomUUID();
+    const resetToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
 
     await this.userRepository.createPasswordReset({
-      id: resetId,
       userId,
-      token: resetToken,
+      token: hashedToken,
       expiresAt,
     });
 
     // TODO: Send password reset email
-    this.logger.log(
-      `Password reset token for ${forgotPasswordDto.email}: ${resetToken}`,
-    );
+    this.logger.log(`Password reset token for ${email}: ${resetToken}`);
 
-    return {
+    const result = {
       message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
-      resetToken, // Remove in production
     };
+
+    if (this.configService.get<string>('NODE_ENV') !== 'production') {
+      (result as unknown as { resetToken: string }).resetToken = resetToken;
+    }
+
+    return result;
   }
 
   /**
    * Reset password using token
    */
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
-    const reset = await this.userRepository.findPasswordResetByToken(
-      resetPasswordDto.token,
-    );
-
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(resetPasswordDto.token)
+      .digest('hex');
+    const reset =
+      await this.userRepository.findPasswordResetByToken(hashedToken);
     if (!reset) {
       throw new BadRequestException(
         this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
@@ -596,5 +710,61 @@ export class AuthService {
     this.logger.log(`Password reset for user ${reset.userId}`);
 
     return { message: this.i18n.t(I18nKeys.PASSWORD_RESET_SUCCESS) };
+  }
+
+  /**
+   * Switch to a different tenant
+   * User is already authenticated via JwtTenantSwitchAuthGuard (accepts either tempAuthToken or accessToken)
+   */
+  async tenantSwitch(
+    { userId, email }: { userId: string; email: string },
+    tenantId: string,
+  ): Promise<
+    TenantSwitchResponseDto & { accessToken: string; refreshToken: string }
+  > {
+    return this.databaseService.transaction(async (client) => {
+      // Validate that user belongs to the specified tenant
+      const userTenant = await this.userTenantRepository.findOne({
+        client,
+        filters: {
+          user_id: userId,
+          tenant_id: tenantId,
+          is_active: true,
+        },
+        isAuthflow: true,
+      });
+
+      if (!userTenant) {
+        throw new UnauthorizedException(
+          this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
+        );
+      }
+
+      // Generate full access and refresh tokens
+      const tokens = await this.generateTokens(
+        userId,
+        email,
+        tenantId,
+        userTenant.role,
+        false, // Regular users are not system admins
+      );
+
+      this.logger.log(`User ${email} switched to tenant ${tenantId}`);
+
+      // Return user and tenant info along with tokens
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        user: {
+          id: userId,
+          email,
+          role: userTenant.role,
+        },
+        tenant: {
+          id: tenantId,
+          name: `Temp Tenant name ${tenantId.substring(0, 8)}`, // Temporary: using first 8 chars of UUID
+        },
+      };
+    });
   }
 }

@@ -75,12 +75,6 @@ export class LoginTenantDto {
  */
 export class LoginResponseDto {
   @ApiProperty({
-    description: 'Success message',
-    example: 'Login successful. Please select a tenant.',
-  })
-  message: string;
-
-  @ApiProperty({
     description: 'User information',
     type: LoginUserDto,
   })
@@ -108,4 +102,8 @@ export class LoginResponseDto {
     ],
   })
   tenants: LoginTenantDto[];
+
+  constructor(data: LoginResponseDto) {
+    Object.assign(this, data);
+  }
 }

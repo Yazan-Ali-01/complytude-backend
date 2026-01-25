@@ -8,7 +8,6 @@ export interface RefreshToken {
 }
 
 export interface CreateRefreshTokenInput {
-  id: string;
   userId: string;
   tokenHash: string;
   expiresAt: Date;

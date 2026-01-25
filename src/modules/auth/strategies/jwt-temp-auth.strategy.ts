@@ -3,40 +3,37 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { FastifyRequest } from 'fastify';
 import { Strategy } from 'passport-jwt';
-import { JwtPayload } from './jwt-payload.interface';
+import { TempAuthPayload } from './jwt-payload.interface';
 
-// Custom extractor to get refresh token from HTTP-only cookie
+// Custom extractor to get temp auth token from HTTP-only cookie
 const cookieExtractor = (req: FastifyRequest): string | null => {
-  return req?.cookies?.refreshToken || null;
+  return req?.cookies?.tempAuthToken || null;
 };
 
 @Injectable()
-export class JwtRefreshStrategy extends PassportStrategy(
+export class JwtTempAuthStrategy extends PassportStrategy(
   Strategy,
-  'jwt-refresh',
+  'jwt-temp-auth',
 ) {
   constructor(private configService: ConfigService) {
     super({
       jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
       secretOrKey:
-        configService.get<string>('jwt.refreshSecret') || 'fallback-secret',
-      passReqToCallback: true,
+        configService.get<string>('jwt.tempAuthSecret') || 'fallback-secret',
     });
   }
 
-  validate(req: FastifyRequest, payload: JwtPayload) {
-    // Ensure it's a refresh token
-    if (payload.type !== 'refresh') {
+  validate(payload: TempAuthPayload) {
+    // Ensure it's an access token
+    if (payload.type !== 'temp-auth') {
       throw new UnauthorizedException('Invalid token type');
     }
 
-    const refreshToken = req.cookies?.refreshToken;
-
+    // Return user information to be attached to request.user
     return {
       userId: payload.sub,
       email: payload.email,
-      refreshToken,
     };
   }
 }

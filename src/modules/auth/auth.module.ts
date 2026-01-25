@@ -11,6 +11,7 @@ import { TenantModule } from '../tenants/tenant.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { JwtTempAuthStrategy } from './strategies/jwt-temp-auth.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
@@ -26,6 +27,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     AuthService,
     JwtStrategy,
     JwtRefreshStrategy,
+    JwtTempAuthStrategy,
     UserRepository,
     RefreshTokenRepository,
     EmailVerificationRepository,

@@ -1,23 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository } from '../base/base.repository';
+import { User } from 'src/modules/users/entities/user.entity';
 import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
+import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 import {
-  QueryOptions,
   CursorPaginationOptions,
   CursorPaginationResult,
+  QueryOptions,
 } from '../base/repository.interface';
 import {
   CreatePasswordResetInput,
   PasswordReset,
 } from './interfaces/user.interfaces';
-import { User } from 'src/modules/users/entities/user.entity';
-import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**
  * Type for creating a new user row in the database.
  */
 export type CreateUserRow = {
-  id: string;
+  // id: string;
   email: string;
   password_hash: string;
   first_name?: string | null;
@@ -206,9 +206,9 @@ export class UserRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<void> {
     await this.executeQuery(
-      `INSERT INTO public.password_resets (id, user_id, token, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [input.id, input.userId, input.token, input.expiresAt],
+      `INSERT INTO public.password_resets (user_id, token, expires_at)
+       VALUES ($1, $2, $3)`,
+      [input.userId, input.token, input.expiresAt],
       options,
     );
   }

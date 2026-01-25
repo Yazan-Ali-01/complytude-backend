@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';
 import { RefreshToken } from './interfaces/refresh-token.interfaces';
 
@@ -15,7 +15,7 @@ type RefreshTokenRow = {
 
 type CreateRefreshTokenRow = Pick<
   RefreshTokenRow,
-  'id' | 'user_id' | 'token_hash' | 'expires_at'
+  'user_id' | 'token_hash' | 'expires_at'
 >;
 
 type UpdateRefreshTokenRow = Partial<
@@ -62,24 +62,25 @@ export class RefreshTokenRepository extends BaseRepository<
   }
 
   /**
-   * Find all active (non-expired, non-revoked) refresh tokens for a user.
+   * Find a valid, unexpired, and unrevoked refresh token by token hash.
    *
-   * @param userId - The user ID
+   * @param tokenHash - The token hash
    * @param options - Query options
-   * @returns Array of active RefreshToken entities
+   * @returns The RefreshToken entity or null if not found
    */
-  async findActiveByUserId(
-    userId: string,
+  async findByTokenHash(
+    tokenHash: string,
     options?: QueryOptions,
-  ): Promise<RefreshToken[]> {
+  ): Promise<RefreshToken | null> {
     const result = await this.executeQuery<RefreshTokenRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
-       WHERE user_id = $1 AND expires_at > NOW() AND revoked_at IS NULL`,
-      [userId],
+       WHERE token_hash = $1 AND expires_at > NOW() AND revoked_at IS NULL`,
+      [tokenHash],
       options,
     );
-
-    return result.rows.map((row) => this.mapRow(row));
+    const row = result.rows[0];
+    if (!row) return null;
+    return this.mapRow(row);
   }
 
   /**

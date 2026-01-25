@@ -1,17 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
-import { Strategy } from 'passport-jwt';
+import { PassportStrategy } from '@nestjs/passport';
 import { FastifyRequest } from 'fastify';
-
-export interface JwtPayload {
-  sub: string;
-  email: string;
-  tenantId: string;
-  role: string;
-  isSystemAdmin?: boolean;
-  type: 'access' | 'refresh';
-}
+import { Strategy } from 'passport-jwt';
+import { JwtPayload } from './jwt-payload.interface';
 
 // Custom extractor to get access token from HTTP-only cookie
 const cookieExtractor = (req: FastifyRequest): string | null => {

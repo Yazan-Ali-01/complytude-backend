@@ -46,12 +46,6 @@ export class TenantSwitchUserDto {
  */
 export class TenantSwitchResponseDto {
   @ApiProperty({
-    description: 'Success message',
-    example: 'Tenant switched successfully',
-  })
-  message: string;
-
-  @ApiProperty({
     description: 'Selected tenant information',
     type: TenantSwitchTenantDto,
   })

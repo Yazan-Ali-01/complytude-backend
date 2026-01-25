@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository } from '../base/base.repository';
 import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';
 import {
-  EmailVerification,
   CreateEmailVerificationInput,
+  EmailVerification,
 } from './interfaces/email-verification.interface';
 
 type EmailVerificationRow = {
@@ -17,7 +17,7 @@ type EmailVerificationRow = {
 
 type CreateEmailVerificationRow = Pick<
   EmailVerificationRow,
-  'id' | 'user_id' | 'token' | 'expires_at'
+  'user_id' | 'token' | 'expires_at'
 >;
 
 /**
@@ -69,7 +69,6 @@ export class EmailVerificationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<EmailVerification> {
     const payload: CreateEmailVerificationRow = {
-      id: input.id,
       user_id: input.userId,
       token: input.token,
       expires_at: input.expiresAt,

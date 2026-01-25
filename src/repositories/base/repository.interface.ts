@@ -38,12 +38,12 @@ export interface CursorPaginationResult<T> {
  * Options that control how queries are executed.
  * - client: existing PoolClient for transactional flow.
  * - tenant: tenant context to set search_path and RLS variables.
- * - bypassRLS: toggle app.bypass_rls flag for cross-tenant reads when allowed.
+ * - isAuthflow: toggle app.is_auth_flow flag for auth flow operations.
  */
 export interface QueryOptions {
   client?: PoolClient;
   tenant?: TenantContext;
-  bypassRLS?: boolean;
+  isAuthflow?: boolean;
 }
 
 /**
@@ -61,6 +61,7 @@ export interface FindOneOptions<TEntity = Record<string, unknown>>
   extends QueryOptions {
   filters?: Partial<TEntity>;
   select?: (keyof TEntity)[];
+  isAuthflow?: boolean;
 }
 
 /**

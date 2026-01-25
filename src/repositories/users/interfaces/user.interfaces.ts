@@ -7,7 +7,6 @@ export interface PasswordReset {
 }
 
 export interface CreatePasswordResetInput {
-  id: string;
   userId: string;
   token: string;
   expiresAt: Date;
