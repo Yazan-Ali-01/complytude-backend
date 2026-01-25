@@ -1,15 +1,13 @@
-export interface TenantFeatures {
-  document_limit: number;
-  checklist_access: boolean;
-  analyzer_enabled: boolean;
-  [key: string]: any; // Allow additional custom features
-}
+import { TenantFeatures } from './tenant-features.interface';
+import { AnyPlanTier } from 'src/common/types/plans';
 
 export interface Tenant {
-  id: string; // Primary key (UUID) - this IS the tenant identifier
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  id: string;
+  plan: AnyPlanTier;
   features: TenantFeatures;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
 }
+
+export type { TenantFeatures } from './tenant-features.interface';

@@ -6,6 +6,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Tenant } from './entities/tenant.entity';
 import { FeaturesService } from './features.service';
 import { TenantService } from './tenant.service';
+import { UsageTrackingService } from './usage-tracking.service';
+import { UsageSummaryResponseDto } from './dto/usage.dto';
 
 @ApiTags('Tenants')
 @Controller('tenants')
@@ -15,11 +17,8 @@ export class TenantController {
   constructor(
     private readonly tenantService: TenantService,
     private readonly featuresService: FeaturesService,
+    private readonly usageService: UsageTrackingService,
   ) {}
-
-  // ============================================================================
-  // SELF-MANAGEMENT ENDPOINTS (Read-only access to own tenant)
-  // ============================================================================
 
   @Get('me')
   @SwaggerCookieAuth.accessToken()
@@ -37,18 +36,44 @@ export class TenantController {
   async getMyTenant(@CurrentUser() user: AuthenticatedUser): Promise<Tenant> {
     this.logger.log(`User ${user.userId} fetching their tenant info`);
 
-    // Get tenant data
     const tenant = await this.tenantService.findById(user.tenantId);
 
-    // Get effective features (plan defaults + custom overrides)
     const effectiveFeatures = await this.featuresService.getTenantFeatures(
       user.tenantId,
     );
 
-    // Return tenant with effective features instead of just DB custom overrides
     return {
       ...tenant,
       features: effectiveFeatures,
+    };
+  }
+
+  @Get('me/usage')
+  @SwaggerCookieAuth.accessToken()
+  @ApiOperation({
+    summary: 'Get my tenant usage',
+    description:
+      'Get current usage for all metered features in the current billing period.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Usage summary for all metered features',
+    type: UsageSummaryResponseDto,
+  })
+  async getMyUsage(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<UsageSummaryResponseDto> {
+    this.logger.log(`User ${user.userId} fetching their usage`);
+
+    const usageSummary = await this.usageService.getTenantUsageSummary(
+      user.tenantId,
+    );
+
+    return {
+      tenantId: usageSummary.tenantId,
+      periodStart: usageSummary.periodStart,
+      periodEnd: usageSummary.periodEnd,
+      features: usageSummary.features,
     };
   }
 }

@@ -10,33 +10,122 @@ import {
   getDefaultPlanFeatures,
   isValidPlan,
 } from 'src/config/plan-features.config';
+import { getEntitlementsConfig } from 'src/config/entitlements.config';
+import {
+  FeatureOverride,
+  mapOverrideRow,
+} from './entities/feature-override.entity';
+
+interface CachedFeatures {
+  data: TenantFeatures;
+  expires: number;
+}
 
 @Injectable()
 export class FeaturesService {
   private readonly logger = new Logger(FeaturesService.name);
+  private featureCache = new Map<string, CachedFeatures>();
+  private readonly cacheTtlMs: number;
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: DatabaseService) {
+    this.cacheTtlMs = getEntitlementsConfig().featuresCacheTtlMs;
+  }
 
   /**
    * Get default features for a specific plan
    */
   getDefaultFeatures(
-    plan: 'early_access' | 'basic' | 'pro' | 'enterprise',
+    plan:
+      | 'early_access'
+      | 'basic'
+      | 'pro'
+      | 'enterprise'
+      | 'navigator'
+      | 'shield'
+      | 'general_counsel'
+      | 'infrastructure',
   ): TenantFeatures {
     return getDefaultPlanFeatures(plan);
   }
 
   /**
+   * Get active (non-expired) overrides for a tenant from the normalized table
+   */
+  async getActiveOverrides(tenantId: string): Promise<FeatureOverride[]> {
+    try {
+      const result = await this.databaseService.query(
+        `SELECT id, tenant_id, feature_key, value, granted_by, granted_at, reason, expires_at, created_at, updated_at
+         FROM public.tenant_feature_overrides
+         WHERE tenant_id = $1
+           AND (expires_at IS NULL OR expires_at > NOW())`,
+        [tenantId],
+      );
+      return result.rows.map(mapOverrideRow);
+    } catch (error) {
+      this.logger.error(
+        `Failed to get active overrides for tenant ${tenantId}: ${error.message}`,
+        error,
+      );
+      throw new InternalServerErrorException('Failed to retrieve overrides');
+    }
+  }
+
+  /**
+   * Invalidate feature cache for a tenant
+   */
+  invalidateCache(tenantId: string): void {
+    const keysToDelete: string[] = [];
+    for (const [key] of this.featureCache) {
+      if (key.startsWith(tenantId)) {
+        keysToDelete.push(key);
+      }
+    }
+    for (const key of keysToDelete) {
+      this.featureCache.delete(key);
+    }
+    this.logger.debug(`Invalidated cache for tenant ${tenantId}`);
+  }
+
+  /**
+   * Clean up stale cache entries (for cron job)
+   */
+  cleanupStaleCache(): number {
+    const now = Date.now();
+    let cleaned = 0;
+    const keysToDelete: string[] = [];
+
+    for (const [key, entry] of this.featureCache.entries()) {
+      if (entry.expires < now) {
+        keysToDelete.push(key);
+      }
+    }
+
+    for (const key of keysToDelete) {
+      this.featureCache.delete(key);
+      cleaned++;
+    }
+
+    return cleaned;
+  }
+
+  /**
    * Get tenant's effective features (plan defaults merged with custom overrides)
    * Custom features in the database override default plan features
+   * Merge order: Plan defaults <- Normalized overrides <- Legacy JSONB (for backward compat)
    */
   async getTenantFeatures(tenantId: string): Promise<TenantFeatures> {
+    const cacheKey = tenantId;
+    const cached = this.featureCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) {
+      this.logger.debug(`Returning cached features for tenant ${tenantId}`);
+      return cached.data;
+    }
+
     try {
-      // 🔍 DEBUG: Log the query being executed
-      this.logger.log(`🔍 [DEBUG] Getting features for tenant: ${tenantId}`);
+      this.logger.debug(`Getting features for tenant: ${tenantId}`);
 
       const result = await this.databaseService.query(
-        'SELECT plan, features FROM public.tenants WHERE tenant_id = $1 AND is_active = true',
+        'SELECT id, plan, features FROM public.tenants WHERE id = $1 AND is_active = true',
         [tenantId],
       );
 
@@ -44,44 +133,32 @@ export class FeaturesService {
         throw new NotFoundException(`Tenant ${tenantId} not found`);
       }
 
-      const { plan, features: customFeatures } = result.rows[0];
-
-      // 🔍 DEBUG: Log raw database values
-      this.logger.log(`🔍 [DEBUG] Raw DB values for tenant ${tenantId}:`, {
-        plan: plan,
-        customFeatures: customFeatures,
-        customFeaturesType: typeof customFeatures,
-        customFeaturesStringified: JSON.stringify(customFeatures),
-      });
-
-      // Validate plan type
+      const { plan, features: legacyFeatures } = result.rows[0];
       const planValue = String(plan);
+
       if (!isValidPlan(planValue)) {
         this.logger.error(`Invalid plan "${planValue}" for tenant ${tenantId}`);
         throw new InternalServerErrorException('Invalid tenant plan');
       }
 
-      // Get default features for the plan
       const defaultFeatures = this.getDefaultFeatures(planValue);
 
-      // 🔍 DEBUG: Log plan defaults
-      this.logger.log(`🔍 [DEBUG] Plan defaults for ${planValue}:`, {
-        defaultFeatures: defaultFeatures,
-        document_limit: defaultFeatures.document_limit,
-      });
+      const activeOverrides = await this.getActiveOverrides(tenantId);
 
-      // Merge: custom features override defaults
+      const normalizedOverrides: TenantFeatures = {};
+      for (const override of activeOverrides) {
+        normalizedOverrides[override.featureKey] = override.value;
+      }
+
       const effectiveFeatures: TenantFeatures = {
         ...defaultFeatures,
-        ...customFeatures,
+        ...legacyFeatures,
+        ...normalizedOverrides,
       };
 
-      // 🔍 DEBUG: Log the merge process
-      this.logger.log(`🔍 [DEBUG] Feature merge for tenant ${tenantId}:`, {
-        defaultFeatures: defaultFeatures,
-        customFeatures: customFeatures,
-        effectiveFeatures: effectiveFeatures,
-        finalDocumentLimit: effectiveFeatures.document_limit,
+      this.featureCache.set(cacheKey, {
+        data: effectiveFeatures,
+        expires: Date.now() + this.cacheTtlMs,
       });
 
       this.logger.debug(

@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from 'src/database/database.module';
 import { HealthModule } from 'src/modules/health/health.module';
 import { TenantModule } from './modules/tenants/tenant.module';
 import { AuthModule } from 'src/modules/auth/auth.module';
-import { UsersModule } from 'src/modules/users/users.module';
+import { UsersModule } from './modules/users/users.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -22,6 +23,8 @@ import appConfig from 'src/config/app.config';
 import jwtConfig from 'src/config/jwt.config';
 import storageConfig from 'src/config/storage.config';
 import { validationSchema } from 'src/config/env.schema';
+import { ExpiredOverridesCleanupJob } from './jobs/expired-overrides-cleanup.job';
+import { UsageResetJob } from './jobs/usage-reset.job';
 
 @Module({
   imports: [
@@ -34,6 +37,7 @@ import { validationSchema } from 'src/config/env.schema';
         abortEarly: false,
       },
     }),
+    ScheduleModule.forRoot(),
     I18nModule,
     DatabaseModule,
     HealthModule,
@@ -58,6 +62,8 @@ import { validationSchema } from 'src/config/env.schema';
       provide: APP_INTERCEPTOR,
       useClass: TenantInterceptor,
     },
+    ExpiredOverridesCleanupJob,
+    UsageResetJob,
   ],
 })
 export class AppModule {}
