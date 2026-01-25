@@ -2,9 +2,9 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 /**
  * Decorator to extract tenant context from request
- * Usage: @TenantContext() tenant: { tenantId: string, schemaName: string }
+ * Usage: @GetTenantContext() tenant: { tenantId: string, schemaName: string }
  */
-export const TenantContext = createParamDecorator(
+export const GetTenantContext = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
     return request.tenantContext;

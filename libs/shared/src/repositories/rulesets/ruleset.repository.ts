@@ -6,10 +6,7 @@ import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from '../base/repository.interface';
-import {
-  Ruleset,
-  RulesetClause,
-} from 'src/modules/rulesets/entities/ruleset.entity';
+import { Ruleset, RulesetClause } from '../../types/entities.js';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**

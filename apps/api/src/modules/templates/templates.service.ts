@@ -8,8 +8,18 @@ import {
 } from '@nestjs/common';
 import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { DatabaseService, CursorPaginationOptions, CursorPaginationResult, I18nKeys, AuthorityRepository, CategoryRepository, RulesetRepository, TemplateRepository } from '@complytude/shared';
+import {
+  DatabaseService,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  I18nKeys,
+  AuthorityRepository,
+  CategoryRepository,
+  RulesetRepository,
+  TemplateRepository,
+} from '@complytude/shared';
 import { StorageService } from '../storage/storage.service';
+import { Template, TemplateWithDetails } from './entities/template.entity';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,

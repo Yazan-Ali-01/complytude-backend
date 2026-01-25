@@ -10,7 +10,7 @@ import {
   CreatePasswordResetInput,
   PasswordReset,
 } from './interfaces/user.interfaces';
-import { User } from 'src/modules/users/entities/user.entity';
+import { User } from '../../types/entities.js';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**

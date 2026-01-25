@@ -6,15 +6,13 @@ import {
   ValidationArguments,
 } from 'class-validator';
 import { MulterLikeFile } from '../interfaces/multer-file.interface';
-import { formatFileSize, isMulterLikeFile } from '../helper';
+import { formatFileSize, isMulterLikeFile } from '../utils/helper.js';
 
 /**
  * Validator constraint for checking if value is a MulterLikeFile object
  */
 @ValidatorConstraint({ name: 'isValidFile', async: false })
-export class IsMulterLikeFileConstraint
-  implements ValidatorConstraintInterface
-{
+export class IsMulterLikeFileConstraint implements ValidatorConstraintInterface {
   validate(file: unknown) {
     if (!file) {
       // If no file, let IsFileUploaded handle it

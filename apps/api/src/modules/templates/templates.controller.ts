@@ -22,7 +22,7 @@ import {
   PaginationQueryDto,
 } from '@complytude/shared';
 import { SystemAdminGuard } from '@complytude/shared';
-import { SwaggerCookieAuth } from '@complytude/shared';
+import { SwaggerCookieAuth } from '../../common/swagger/common';
 import {
   ApiConflictError,
   ApiCreateResponses,

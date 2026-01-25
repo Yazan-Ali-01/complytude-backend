@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
+import { UserTenant } from '../../types/entities.js';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';

@@ -3,20 +3,46 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
 } from '@nestjs/common';
-import { AiUsageTrackingService } from '../../modules/ai/services/ai-usage-tracking.service';
-import { TenantRoles } from '../../modules/rbac/constants/roles.constant';
-import { AiRateLimits } from '../../modules/rbac/constants/rate-limits.constant';
 
 export const AI_GENERATION_FEATURE = 'ai_generation';
 
+// Service injection token for AiUsageTrackingService
+export const AI_USAGE_TRACKING_SERVICE = Symbol('AI_USAGE_TRACKING_SERVICE');
+
+export interface IAiUsageTrackingService {
+  getDailyAiUsage(userId: string, tenantId: string): Promise<number>;
+  incrementAiGeneration(userId: string, tenantId: string): Promise<void>;
+}
+
+// Constants that can be overridden via injection or config
+export const TenantRoles = {
+  MEMBER: 'member',
+  ADMIN: 'admin',
+  OWNER: 'owner',
+} as const;
+
+export const AiRateLimits = {
+  MEMBER_DAILY_LIMIT: 50,
+} as const;
+
+interface RequestUser {
+  userId: string;
+  tenantId: string;
+  role: string;
+}
+
 @Injectable()
 export class AiRateLimitGuard implements CanActivate {
-  constructor(private readonly aiUsageService: AiUsageTrackingService) {}
+  constructor(
+    @Inject(AI_USAGE_TRACKING_SERVICE)
+    private readonly aiUsageService: IAiUsageTrackingService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const user = request.user as RequestUser | undefined;
 
     if (!user) {
       throw new ForbiddenException('User not authenticated');

@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  Tenant,
-  TenantFeatures,
-} from 'src/modules/tenants/entities/tenant.entity';
-import { PlanTier } from 'src/common/types/plans';
+import { Tenant, TenantFeatures } from '../../types/entities.js';
+import { PlanTier } from '../../types/plans.js';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';

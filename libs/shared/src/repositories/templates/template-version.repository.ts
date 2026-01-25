@@ -6,10 +6,7 @@ import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from '../base/repository.interface';
-import {
-  TemplateField,
-  TemplateVersion,
-} from 'src/modules/templates/entities/template-version.entity';
+import { TemplateField, TemplateVersion } from '../../types/entities.js';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**

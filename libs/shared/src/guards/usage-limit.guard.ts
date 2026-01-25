@@ -4,21 +4,39 @@ import {
   ExecutionContext,
   ForbiddenException,
   UnauthorizedException,
+  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
 import {
   USAGE_FEATURE_KEY,
   UsageQuotaMeta,
-} from '../decorators/usage-quota.decorator';
-import { UsageTrackingService } from '../../modules/tenants/usage-tracking.service';
-import { I18nKeys } from '../constants/i18n-keys';
+} from '../decorators/usage-quota.decorator.js';
+import { I18nKeys } from '../constants/i18n-keys.js';
+import { MeteredFeature } from '../types/tenant-features.interface.js';
+
+// Service injection token for UsageTrackingService
+export const USAGE_TRACKING_SERVICE = Symbol('USAGE_TRACKING_SERVICE');
+
+export interface IUsageTrackingService {
+  checkUsageLimit(
+    tenantId: string,
+    feature: MeteredFeature,
+  ): Promise<{
+    allowed: boolean;
+    message?: string;
+    limit?: number;
+    current?: number;
+    remaining?: number;
+    periodEnd?: Date;
+  }>;
+}
 
 @Injectable()
 export class UsageLimitGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private usageService: UsageTrackingService,
+    @Inject(USAGE_TRACKING_SERVICE) private usageService: IUsageTrackingService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

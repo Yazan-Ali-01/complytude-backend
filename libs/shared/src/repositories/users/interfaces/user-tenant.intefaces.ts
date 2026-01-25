@@ -1,4 +1,4 @@
-import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
+import { UserTenant } from '../../../types/entities.js';
 
 export interface LinkUserTenantInput {
   userId: string;

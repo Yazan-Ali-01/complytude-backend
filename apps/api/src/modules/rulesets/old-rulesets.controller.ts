@@ -19,7 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from '@complytude/shared';
+import { SwaggerCookieAuth } from '../../common/swagger/common';
 import { SystemAdminGuard, CursorPaginationResult } from '@complytude/shared';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';

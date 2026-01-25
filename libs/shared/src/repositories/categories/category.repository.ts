@@ -6,7 +6,7 @@ import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from '../base/repository.interface';
-import { Category } from 'src/modules/categories/entities/category.entity';
+import { Category } from '../../types/entities.js';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**

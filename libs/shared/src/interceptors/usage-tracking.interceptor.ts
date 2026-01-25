@@ -3,6 +3,7 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
+  Inject,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
@@ -10,14 +11,27 @@ import { Reflector } from '@nestjs/core';
 import {
   USAGE_FEATURE_KEY,
   UsageQuotaMeta,
-} from '../decorators/usage-quota.decorator';
-import { UsageTrackingService } from '../../modules/tenants/usage-tracking.service';
+} from '../decorators/usage-quota.decorator.js';
+import { USAGE_TRACKING_SERVICE } from '../guards/usage-limit.guard.js';
+
+// Re-export the token for convenience
+export { USAGE_TRACKING_SERVICE };
+
+export interface IUsageTrackingServiceForInterceptor {
+  incrementUsageUnchecked(
+    tenantId: string,
+    feature: string,
+    userId?: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void>;
+}
 
 @Injectable()
 export class UsageTrackingInterceptor implements NestInterceptor {
   constructor(
     private reflector: Reflector,
-    private usageService: UsageTrackingService,
+    @Inject(USAGE_TRACKING_SERVICE)
+    private usageService: IUsageTrackingServiceForInterceptor,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {

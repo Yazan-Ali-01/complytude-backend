@@ -5,7 +5,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { AppModule } from '../../src/app.module';
-import { DatabaseService } from '../../src/database/database.service';
+import { DatabaseService } from '@complytude/shared';
 import { TestDatabase } from './test-database';
 import { ConnectionPoolHealthCheck } from './health-checks';
 import multipart from '@fastify/multipart';

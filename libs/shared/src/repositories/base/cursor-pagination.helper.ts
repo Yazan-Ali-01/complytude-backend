@@ -3,33 +3,33 @@
  * Uses base64-encoded IDs as cursors for bidirectional navigation.
  */
 
+import type {
+  PaginationDirection,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+} from './repository.interface.js';
+
 /** Default number of items per page */
 const DEFAULT_PAGE_LIMIT = 50;
 
 /** Maximum allowed items per page */
 const MAX_PAGE_LIMIT = 1000;
 
-export type PaginationDirection = 'forward' | 'backward';
-
-export interface CursorPaginationOptions {
-  cursor?: string | null;
-  limit: number;
-  direction: PaginationDirection;
-}
-
-export interface CursorPaginationResult<T> {
-  data: T[];
-  nextCursor: string | null;
-  prevCursor: string | null;
-  hasNext: boolean;
-  hasPrevious: boolean;
-}
-
 export interface CursorQueryResult {
   clause: string;
   params: unknown[];
   nextIndex: number;
   orderClause: string;
+}
+
+/**
+ * Validated cursor pagination options with all required fields.
+ * Returned by validateOptions after applying defaults.
+ */
+export interface ValidatedCursorPaginationOptions {
+  cursor?: string | null;
+  limit: number;
+  direction: PaginationDirection;
 }
 
 export interface CursorData {
@@ -200,7 +200,7 @@ export class CursorPaginationHelper {
    */
   static validateOptions(
     options?: Partial<CursorPaginationOptions>,
-  ): CursorPaginationOptions {
+  ): ValidatedCursorPaginationOptions {
     const limit = options?.limit ?? DEFAULT_PAGE_LIMIT;
     const direction = options?.direction ?? 'forward';
 

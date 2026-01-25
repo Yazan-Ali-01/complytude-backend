@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import { MeteredFeature } from '../../modules/tenants/entities/tenant-features.interface';
+import { MeteredFeature } from '../types/tenant-features.interface.js';
 
 export const USAGE_FEATURE_KEY = 'usageFeature';
 

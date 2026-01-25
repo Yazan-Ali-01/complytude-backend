@@ -43,6 +43,8 @@ export * from './interfaces/multer-file.interface.js';
 // Types
 export * from './types/plans.js';
 export * from './types/validation.types.js';
+export * from './types/tenant-features.interface.js';
+export * from './types/entities.js';
 
 // Constants
 export * from './constants/i18n-keys.js';

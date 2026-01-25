@@ -3,20 +3,26 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { RbacService } from '../../modules/rbac/services/rbac.service';
-import { TenantRole } from '../../modules/rbac/constants/roles.constant';
 import {
   PERMISSIONS_KEY,
   PermissionRequirement,
-} from '../decorators/require-permissions.decorator';
+} from '../decorators/require-permissions.decorator.js';
+
+// Service injection token for RbacService
+export const RBAC_SERVICE = Symbol('RBAC_SERVICE');
+
+export interface IRbacService {
+  getPermissionsForRole(role: string): Promise<Set<string>>;
+}
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private rbacService: RbacService,
+    @Inject(RBAC_SERVICE) private rbacService: IRbacService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -39,7 +45,7 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const role = user.role as TenantRole;
+    const role = user.role as string;
     const userPermissions = await this.rbacService.getPermissionsForRole(role);
     const hasPermission = this.checkPermissions(
       requiredPermissions,

@@ -6,7 +6,7 @@ import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from '../base/repository.interface';
-import { Template } from 'src/modules/templates/entities/template.entity';
+import { Template } from '../../types/entities.js';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**

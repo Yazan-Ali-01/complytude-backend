@@ -4,12 +4,40 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Reflector } from '@nestjs/core';
-import { AuditService } from '../../modules/rbac/services/audit.service';
-import { AUDIT_ACTION_KEY } from '../decorators/audit-action.decorator';
+import { AUDIT_ACTION_KEY } from '../decorators/audit-action.decorator.js';
+
+// Service injection token for AuditService
+export const AUDIT_SERVICE = Symbol('AUDIT_SERVICE');
+
+export interface IAuditService {
+  logFromRequest(
+    action: string,
+    resourceType: string,
+    request: {
+      user: { userId: string; tenantId: string; role: string };
+      body?: unknown;
+      params?: unknown;
+      query?: unknown;
+    },
+    resourceId?: string,
+    aiModelUsed?: string,
+  ): Promise<void>;
+
+  log(data: {
+    userId: string;
+    tenantId: string;
+    roleName: string;
+    action: string;
+    resourceType: string;
+    resourceId?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void>;
+}
 
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
@@ -17,7 +45,7 @@ export class AuditLogInterceptor implements NestInterceptor {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly auditService: AuditService,
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {

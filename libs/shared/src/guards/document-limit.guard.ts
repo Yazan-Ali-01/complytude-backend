@@ -4,10 +4,22 @@ import {
   ExecutionContext,
   ForbiddenException,
   UnauthorizedException,
+  Inject,
 } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
-import { TenantService } from 'src/modules/tenants/tenant.service';
-import { I18nKeys } from '../constants/i18n-keys';
+import { I18nKeys } from '../constants/i18n-keys.js';
+
+// Service injection token for TenantService
+export const TENANT_SERVICE = Symbol('TENANT_SERVICE');
+
+export interface ITenantService {
+  canUploadDocument(tenantId: string): Promise<{
+    allowed: boolean;
+    message?: string;
+    limit?: number;
+    current?: number;
+  }>;
+}
 
 /**
  * Guard to enforce document upload limits based on tenant's plan
@@ -24,7 +36,7 @@ import { I18nKeys } from '../constants/i18n-keys';
  */
 @Injectable()
 export class DocumentLimitGuard implements CanActivate {
-  constructor(private tenantService: TenantService) {}
+  constructor(@Inject(TENANT_SERVICE) private tenantService: ITenantService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();

@@ -15,8 +15,12 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { MessageResponseDto, PaginationMetaDto, SystemAdminGuard } from '@complytude/shared';
-import { SwaggerCookieAuth } from '@complytude/shared';
+import {
+  MessageResponseDto,
+  PaginationMetaDto,
+  SystemAdminGuard,
+} from '@complytude/shared';
+import { SwaggerCookieAuth } from '../../common/swagger/common';
 import {
   ApiConflictError,
   ApiCreateResponses,

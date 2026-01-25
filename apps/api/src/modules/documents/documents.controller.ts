@@ -21,7 +21,7 @@ import { PaginationMetaDto } from '@complytude/shared';
 import { RequirePermissions, AuditAction } from '@complytude/shared';
 import { RequireUsageQuota } from '@complytude/shared';
 import { UsageLimitGuard, UsageTrackingInterceptor } from '@complytude/shared';
-import { SwaggerCookieAuth } from '@complytude/shared';
+import { SwaggerCookieAuth } from '../../common/swagger/common';
 import {
   ApiConflictError,
   ApiCreateResponses,

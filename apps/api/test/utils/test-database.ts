@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg';
-import type { DatabaseService } from '../../src/database/database.service';
+import type { DatabaseService } from '@complytude/shared';
 
 /**
  * Test Database Utilities

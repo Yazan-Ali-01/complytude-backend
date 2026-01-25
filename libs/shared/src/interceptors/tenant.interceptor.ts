@@ -7,13 +7,11 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../../modules/auth/decorators/public.decorator';
 
-export interface TenantContext {
-  tenantId: string;
-  userId?: string;
-  role?: string;
-}
+// Public route metadata key - can be set by the API app's Public decorator
+export const IS_PUBLIC_KEY = 'isPublic';
+
+// TenantContext interface is exported from repository.interface.ts
 
 /**
  * Interceptor to extract tenant context from authenticated user (JWT payload)

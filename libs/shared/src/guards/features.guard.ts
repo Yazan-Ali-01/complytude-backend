@@ -4,18 +4,25 @@ import {
   ExecutionContext,
   ForbiddenException,
   UnauthorizedException,
+  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
-import { FEATURES_KEY } from '../decorators/features.decorator';
-import { FeaturesService } from 'src/modules/tenants/features.service';
-import { I18nKeys } from '../constants/i18n-keys';
+import { FEATURES_KEY } from '../decorators/features.decorator.js';
+import { I18nKeys } from '../constants/i18n-keys.js';
+
+// Service injection token for FeaturesService
+export const FEATURES_SERVICE = Symbol('FEATURES_SERVICE');
+
+export interface IFeaturesService {
+  checkFeatureAccess(tenantId: string, feature: string): Promise<boolean>;
+}
 
 @Injectable()
 export class FeaturesGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private featuresService: FeaturesService,
+    @Inject(FEATURES_SERVICE) private featuresService: IFeaturesService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

@@ -1,5 +1,5 @@
 import { TestDatabase } from './test-database';
-import type { DatabaseService } from '../../src/database/database.service';
+import type { DatabaseService } from '@complytude/shared';
 
 /**
  * Connection Pool Health Checks
