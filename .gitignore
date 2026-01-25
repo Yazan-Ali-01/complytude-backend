@@ -1,7 +1,14 @@
 # compiled output
-/dist
-node_modules
-/build
+dist/
+build/
+*.js.map
+*.d.ts
+
+# Dependencies - ignore in all workspaces
+node_modules/
+
+# Shared library build output
+libs/shared/dist/
 
 # Logs
 logs
