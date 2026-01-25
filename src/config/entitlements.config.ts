@@ -3,6 +3,7 @@ export const ENTITLEMENTS_CONFIG = {
   defaultBillingPeriodDays: 30,
   usageGracePeriodHours: 0,
   maxOverridesPerTenant: 50,
+  maxCacheSize: 10000,
   overrideCleanupCron: '0 * * * *',
   usageResetCron: '0 0 * * *',
 } as const;
@@ -39,6 +40,7 @@ export function getEntitlementsConfig() {
       process.env.FEATURES_CACHE_TTL_MS || '5000',
       10,
     ),
+    maxCacheSize: parseInt(process.env.FEATURES_MAX_CACHE_SIZE || '10000', 10),
     overrideCleanupCron:
       process.env.OVERRIDE_CLEANUP_CRON ||
       ENTITLEMENTS_CONFIG.overrideCleanupCron,

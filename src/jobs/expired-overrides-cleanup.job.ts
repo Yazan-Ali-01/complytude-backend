@@ -7,7 +7,8 @@ import { getEntitlementsConfig } from 'src/config/entitlements.config';
 @Injectable()
 export class ExpiredOverridesCleanupJob {
   private readonly logger = new Logger(ExpiredOverridesCleanupJob.name);
-  private isRunning = false;
+  private isOverridesCleanupRunning = false;
+  private isCacheCleanupRunning = false;
 
   constructor(
     private readonly overridesService: OverridesService,
@@ -17,11 +18,11 @@ export class ExpiredOverridesCleanupJob {
   @Cron('0 * * * *')
   async handleExpiredOverridesCleanup(): Promise<void> {
     const config = getEntitlementsConfig();
-    if (!config.jobsEnabled || this.isRunning) {
+    if (!config.jobsEnabled || this.isOverridesCleanupRunning) {
       return;
     }
 
-    this.isRunning = true;
+    this.isOverridesCleanupRunning = true;
     try {
       this.logger.log('Starting expired overrides cleanup');
 
@@ -33,22 +34,22 @@ export class ExpiredOverridesCleanupJob {
       );
     } catch (error) {
       this.logger.error(
-        `Failed to cleanup expired overrides: ${error.message}`,
+        `Failed to cleanup expired overrides: ${(error as Error).message}`,
         error,
       );
     } finally {
-      this.isRunning = false;
+      this.isOverridesCleanupRunning = false;
     }
   }
 
-  @Cron('0 * * * *')
+  @Cron('30 * * * *') // Run at :30 minutes to avoid overlap with overrides cleanup
   handleStaleCacheCleanup(): void {
     const config = getEntitlementsConfig();
-    if (!config.jobsEnabled || this.isRunning) {
+    if (!config.jobsEnabled || this.isCacheCleanupRunning) {
       return;
     }
 
-    this.isRunning = true;
+    this.isCacheCleanupRunning = true;
     try {
       this.logger.debug('Starting stale cache cleanup');
 
@@ -61,11 +62,11 @@ export class ExpiredOverridesCleanupJob {
       }
     } catch (error) {
       this.logger.error(
-        `Failed to cleanup stale cache: ${error.message}`,
+        `Failed to cleanup stale cache: ${(error as Error).message}`,
         error,
       );
     } finally {
-      this.isRunning = false;
+      this.isCacheCleanupRunning = false;
     }
   }
 }

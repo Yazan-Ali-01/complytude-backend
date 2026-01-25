@@ -114,6 +114,18 @@ VALUES
     ('Document Length Surcharge (15+ pages)', 'documents_per_month', 2, 125.00, true),
     ('Document Length Surcharge (40+ pages)', 'documents_per_month', 3, 125.00, true);
 
+-- =========================
+-- GRANTS
+-- =========================
+GRANT SELECT ON public.credit_packages TO complytude_app;
+GRANT ALL ON public.credit_packages TO complytude_admin;
+
+GRANT SELECT, INSERT, UPDATE ON public.tenant_credits TO complytude_app;
+GRANT ALL ON public.tenant_credits TO complytude_admin;
+
+GRANT SELECT, INSERT ON public.credit_transactions TO complytude_app;
+GRANT ALL ON public.credit_transactions TO complytude_admin;
+
 COMMIT;
 
 -- =========================
@@ -133,20 +145,3 @@ DROP TABLE IF EXISTS public.credit_packages;
 DROP TYPE IF EXISTS credit_transaction_status;
 COMMIT;
 */
-
--- =========================
--- GRANTS
--- =========================
-
-BEGIN;
-
-GRANT SELECT ON public.credit_packages TO complytude_app;
-GRANT ALL ON public.credit_packages TO complytude_admin;
-
-GRANT SELECT, INSERT, UPDATE ON public.tenant_credits TO complytude_app;
-GRANT ALL ON public.tenant_credits TO complytude_admin;
-
-GRANT SELECT, INSERT ON public.credit_transactions TO complytude_app;
-GRANT ALL ON public.credit_transactions TO complytude_admin;
-
-COMMIT;

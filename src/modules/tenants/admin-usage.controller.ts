@@ -21,7 +21,10 @@ import {
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 import { UsageTrackingService } from './usage-tracking.service';
-import { MeteredFeature } from './entities/tenant-features.interface';
+import {
+  MeteredFeature,
+  METERED_FEATURES,
+} from './entities/tenant-features.interface';
 import {
   UsageQueryDto,
   UsageCheckResponseDto,
@@ -94,16 +97,9 @@ export class TenantUsageAdminController {
       `[ADMIN] Checking usage limit for tenant ${tenantId}, feature: ${featureKey}`,
     );
 
-    if (
-      ![
-        'documents_per_month',
-        'contract_reviews_per_month',
-        'regulatory_queries_per_month',
-        'license_verifier_lookups',
-      ].includes(featureKey)
-    ) {
+    if (!METERED_FEATURES.includes(featureKey as MeteredFeature)) {
       throw new BadRequestException(
-        `Invalid metered feature key: ${featureKey}`,
+        `Invalid metered feature key: ${featureKey}. Valid keys: ${METERED_FEATURES.join(', ')}`,
       );
     }
 

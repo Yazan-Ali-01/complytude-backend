@@ -189,6 +189,122 @@ export class UsageTrackingService {
   }
 
   /**
+   * Atomically check usage limit and increment if allowed.
+   * Uses row-level locking to prevent race conditions.
+   *
+   * @returns UsageCheckResult with allowed=true if increment succeeded, false if limit exceeded
+   */
+  async checkAndIncrementUsage(
+    tenantId: string,
+    featureKey: MeteredFeature,
+    userId?: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<UsageCheckResult> {
+    try {
+      const features = await this.featuresService.getTenantFeatures(tenantId);
+      const { periodStart, periodEnd } = this.getCurrentBillingPeriod();
+      const limit = (features[featureKey] as number) ?? 0;
+
+      // Unlimited feature - just increment
+      if (limit === -1) {
+        await this.incrementUsage(tenantId, featureKey, userId, metadata);
+        const current = await this.getCurrentUsage(tenantId, featureKey);
+        return {
+          allowed: true,
+          limit: -1,
+          current,
+          remaining: -1,
+          periodStart,
+          periodEnd,
+          message: `${current}/${featureKey} used this month (unlimited)`,
+        };
+      }
+
+      // Use transaction with row-level locking for atomic check-and-increment
+      const result = await this.databaseService.transaction(async (client) => {
+        // Upsert and lock the usage row
+        const usageResult = await client.query(
+          `INSERT INTO public.tenant_usage
+            (tenant_id, feature_key, period_start, period_end, usage_count)
+           VALUES ($1, $2, $3, $4, 0)
+           ON CONFLICT (tenant_id, feature_key, period_start)
+           DO UPDATE SET updated_at = now()
+           RETURNING usage_count FOR UPDATE`,
+          [tenantId, featureKey, periodStart, periodEnd],
+        );
+
+        const currentUsage = usageResult.rows[0]?.usage_count ?? 0;
+
+        // Check if increment would exceed limit
+        if (currentUsage >= limit) {
+          return {
+            allowed: false,
+            current: currentUsage,
+          };
+        }
+
+        // Increment usage atomically
+        await client.query(
+          `UPDATE public.tenant_usage
+           SET usage_count = usage_count + 1, updated_at = now()
+           WHERE tenant_id = $1 AND feature_key = $2 AND period_start = $3`,
+          [tenantId, featureKey, periodStart],
+        );
+
+        // Record the event
+        await client.query(
+          `INSERT INTO public.tenant_usage_events
+            (tenant_id, feature_key, user_id, event_type, delta, metadata)
+           VALUES ($1, $2, $3, 'increment', $4, $5)`,
+          [
+            tenantId,
+            featureKey,
+            userId || null,
+            1,
+            metadata ? JSON.stringify(metadata) : null,
+          ],
+        );
+
+        return {
+          allowed: true,
+          current: currentUsage + 1,
+        };
+      });
+
+      const remaining = Math.max(0, limit - result.current);
+
+      if (result.allowed) {
+        this.logger.debug(
+          `Usage atomically incremented for tenant ${tenantId}, feature: ${featureKey}. Now: ${result.current}/${limit}`,
+        );
+      }
+
+      return {
+        allowed: result.allowed,
+        limit,
+        current: result.current,
+        remaining,
+        periodStart,
+        periodEnd,
+        message: result.allowed
+          ? `${result.current}/${limit} ${featureKey} used this month`
+          : `Usage limit exceeded: ${result.current}/${limit} ${featureKey}`,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to check and increment usage for tenant ${tenantId}, feature ${featureKey}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to check and increment usage',
+      );
+    }
+  }
+
+  /**
    * Get usage summary for all metered features
    */
   async getTenantUsageSummary(tenantId: string): Promise<UsageSummary> {

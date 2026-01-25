@@ -26,9 +26,35 @@ export class FeaturesService {
   private readonly logger = new Logger(FeaturesService.name);
   private featureCache = new Map<string, CachedFeatures>();
   private readonly cacheTtlMs: number;
+  private readonly maxCacheSize: number;
 
   constructor(private readonly databaseService: DatabaseService) {
-    this.cacheTtlMs = getEntitlementsConfig().featuresCacheTtlMs;
+    const config = getEntitlementsConfig();
+    this.cacheTtlMs = config.featuresCacheTtlMs;
+    this.maxCacheSize = config.maxCacheSize ?? 10000; // Default 10k tenants
+  }
+
+  /**
+   * Evict oldest entries if cache exceeds max size (LRU-style eviction)
+   */
+  private enforceMaxCacheSize(): void {
+    if (this.featureCache.size <= this.maxCacheSize) {
+      return;
+    }
+
+    // Evict 10% of oldest entries
+    const entriesToEvict = Math.ceil(this.maxCacheSize * 0.1);
+    const entries = Array.from(this.featureCache.entries())
+      .sort((a, b) => a[1].expires - b[1].expires)
+      .slice(0, entriesToEvict);
+
+    for (const [key] of entries) {
+      this.featureCache.delete(key);
+    }
+
+    this.logger.debug(
+      `Cache size exceeded ${this.maxCacheSize}, evicted ${entriesToEvict} entries`,
+    );
   }
 
   /**
@@ -150,11 +176,17 @@ export class FeaturesService {
         normalizedOverrides[override.featureKey] = override.value;
       }
 
+      // Merge features: plan defaults <- legacy JSONB (if exists) <- normalized overrides
       const effectiveFeatures: TenantFeatures = {
         ...defaultFeatures,
-        ...legacyFeatures,
+        ...(legacyFeatures && typeof legacyFeatures === 'object'
+          ? legacyFeatures
+          : {}),
         ...normalizedOverrides,
       };
+
+      // Enforce max cache size before adding new entry
+      this.enforceMaxCacheSize();
 
       this.featureCache.set(cacheKey, {
         data: effectiveFeatures,
