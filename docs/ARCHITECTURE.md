@@ -110,26 +110,61 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 
 ## Architecture Patterns
 
-### 1. Clean Architecture
+### 1. Monorepo Architecture
 
-Complytude follows clean architecture principles with clear separation of concerns:
+Complytude uses a **NestJS monorepo** with pnpm workspaces for code organization:
 
 ```
-src/
-├── modules/              # Feature modules (business logic)
-│   ├── auth/            # Authentication & authorization
-│   ├── tenant/          # Multi-tenancy management
-│   ├── users/           # User management
-│   ├── templates/       # Template CRUD
-│   └── storage/         # File storage
-├── common/              # Cross-cutting concerns
-│   ├── guards/         # Authorization guards
-│   ├── interceptors/   # Request/response transformation
-│   ├── decorators/     # Custom decorators
-│   └── pipes/          # Validation pipes
-├── config/             # Configuration management
-└── database/           # Database connection & utilities
+backend/
+├── apps/
+│   ├── api/                      # Main API application
+│   │   └── src/
+│   │       ├── main.ts
+│   │       ├── app.module.ts
+│   │       ├── modules/          # API-specific feature modules
+│   │       │   ├── auth/
+│   │       │   ├── tenants/
+│   │       │   ├── users/
+│   │       │   ├── templates/
+│   │       │   └── storage/
+│   │       ├── common/           # API-specific cross-cutting concerns
+│   │       ├── config/           # API-specific configuration
+│   │       ├── i18n/             # Internationalization
+│   │       └── jobs/             # Scheduled jobs
+│   │
+│   ├── worker-ingestion/         # PII & file processing worker
+│   │   └── src/
+│   │       ├── main.ts
+│   │       └── worker-ingestion.module.ts
+│   │
+│   └── worker-ai/                # LLM orchestration worker
+│       └── src/
+│           ├── main.ts
+│           └── worker-ai.module.ts
+│
+├── libs/
+│   └── shared/                   # Shared library (@complytude/shared)
+│       └── src/
+│           ├── index.ts          # Public exports
+│           ├── database/         # DatabaseService, DatabaseModule
+│           ├── repositories/     # All repository classes
+│           ├── dto/              # Shared DTOs
+│           ├── guards/           # Reusable guards
+│           ├── decorators/       # Reusable decorators
+│           ├── interceptors/     # Reusable interceptors
+│           └── constants/        # i18n keys, error codes
+│
+├── package.json                  # Workspace manager
+├── pnpm-workspace.yaml           # pnpm workspace config
+├── nest-cli.json                 # Monorepo nest-cli config
+└── tsconfig.json                 # Base TypeScript config
 ```
+
+**Key Benefits:**
+- ✅ Independent deployment of API and workers
+- ✅ Smaller Docker images for workers (minimal deps)
+- ✅ Per-app versioning via separate package.json
+- ✅ Shared code via `@complytude/shared` package
 
 ### 2. Dependency Injection
 
@@ -547,4 +582,4 @@ S3_SECRET_KEY=<secret>
 
 ---
 
-**Last Updated:** January 20, 2026
+**Last Updated:** January 25, 2026

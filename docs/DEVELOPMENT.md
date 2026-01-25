@@ -4,26 +4,73 @@ This guide covers development workflow, module creation, best practices, and cod
 
 ## Table of Contents
 
+- [Monorepo Structure](#monorepo-structure)
 - [Creating a New Module](#creating-a-new-module)
 - [Module Structure](#module-structure)
+- [Using Shared Library](#using-shared-library)
 - [Best Practices](#best-practices)
 - [Adding Database Migrations](#adding-database-migrations)
 - [Code Quality Checks](#code-quality-checks)
 
 ---
 
-## Creating a New Module
+## Monorepo Structure
 
-Use the NestJS CLI to generate new modules:
+Complytude uses a **NestJS monorepo** with pnpm workspaces:
+
+```
+backend/
+├── apps/
+│   ├── api/                 # Main API (NestJS + Fastify)
+│   ├── worker-ingestion/    # File processing worker
+│   └── worker-ai/           # LLM orchestration worker
+├── libs/
+│   └── shared/              # Shared code (@complytude/shared)
+├── package.json             # Workspace manager
+└── pnpm-workspace.yaml      # Workspace config
+```
+
+### Common Commands
 
 ```bash
-# Generate a new module
-nest g module modules/your-module
+# Install all dependencies
+pnpm install
+
+# Build shared library (do this first!)
+pnpm build:shared
+
+# Start API in development
+pnpm start:api
+
+# Build specific app
+pnpm build:api
+pnpm build:worker-ingestion
+pnpm build:worker-ai
+
+# Run all apps in parallel
+pnpm start:all
+```
+
+---
+
+## Creating a New Module
+
+### For API Modules
+
+Use the NestJS CLI to generate new modules in the API app:
+
+```bash
+# Generate a new module in the API app
+nest g module modules/your-module --project api
 
 # Generate controller and service
-nest g controller modules/your-module
-nest g service modules/your-module
+nest g controller modules/your-module --project api
+nest g service modules/your-module --project api
 ```
+
+### For Worker Modules
+
+Workers have simpler structure - manually create files in `apps/worker-*/src/`.
 
 ---
 
@@ -32,7 +79,7 @@ nest g service modules/your-module
 Each module should follow this structure:
 
 ```
-modules/your-module/
+apps/api/src/modules/your-module/
 ├── your-module.module.ts        # Module definition
 ├── your-module.controller.ts    # HTTP endpoints
 ├── your-module.service.ts       # Business logic
@@ -48,16 +95,59 @@ modules/your-module/
 ```typescript
 // your-module.module.ts
 import { Module } from '@nestjs/common';
+import { DatabaseModule } from '@complytude/shared';  // Import from shared
 import { YourModuleController } from './your-module.controller';
 import { YourModuleService } from './your-module.service';
 
 @Module({
+  imports: [DatabaseModule],  // Use shared DatabaseModule
   controllers: [YourModuleController],
   providers: [YourModuleService],
   exports: [YourModuleService], // Export if needed by other modules
 })
 export class YourModuleModule {}
 ```
+
+---
+
+## Using Shared Library
+
+The `@complytude/shared` library contains reusable code for all apps.
+
+### What's in Shared Library
+
+| Category | Examples |
+|----------|----------|
+| **Database** | `DatabaseService`, `DatabaseModule` |
+| **Repositories** | `UserRepository`, `TenantRepository`, etc. |
+| **DTOs** | `PaginationQueryDto`, `MessageResponseDto` |
+| **Guards** | `SystemAdminGuard`, `FeaturesGuard` |
+| **Decorators** | `@RequirePermissions()`, `@AuditAction()` |
+| **Interceptors** | `TenantInterceptor`, `UsageTrackingInterceptor` |
+| **Constants** | `I18nKeys`, error codes |
+
+### Importing from Shared
+
+```typescript
+// ✅ CORRECT: Import from @complytude/shared
+import {
+  DatabaseService,
+  UserRepository,
+  PaginationQueryDto,
+  SystemAdminGuard
+} from '@complytude/shared';
+
+// ❌ WRONG: Don't use relative paths to libs/
+import { DatabaseService } from '../../../libs/shared/src/database';
+```
+
+### Adding New Exports
+
+When adding new shared code:
+
+1. Create the file in `libs/shared/src/`
+2. Export it in `libs/shared/src/index.ts`
+3. Rebuild: `pnpm build:shared`
 
 ---
 
