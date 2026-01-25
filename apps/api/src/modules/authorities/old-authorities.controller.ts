@@ -20,15 +20,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { SwaggerCookieAuth } from '@complytude/shared';
+import { SystemAdminGuard, CursorPaginationResult } from '@complytude/shared';
 import { AuthoritiesService } from './authorities.service';
 import {
   CreateAuthorityDto,
   UpdateAuthorityDto,
 } from './dto/create-authority.dto';
 import { Authority } from './entities/authority.entity';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Authorities')
 @Controller('authorities')

@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
-import { PaginationQueryDto } from 'src/common/dto';
+import { PaginationQueryDto } from '@complytude/shared';
 
 export enum DocumentSortBy {
   CREATED_AT = 'createdAt',

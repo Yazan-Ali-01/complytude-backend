@@ -11,9 +11,8 @@ import { OverridesService } from './overrides.service';
 import { UsageTrackingService } from './usage-tracking.service';
 import { CreditsService } from './credits.service';
 import { CreditsController } from './credits.controller';
-import { DatabaseModule } from 'src/database/database.module';
-import { TenantRepository } from '../../repositories/tenants/tenant.repository';
-import { getEntitlementsConfig } from 'src/config/entitlements.config';
+import { DatabaseModule, TenantRepository } from '@complytude/shared';
+import { getEntitlementsConfig } from '../../config/entitlements.config';
 
 @Module({
   imports: [

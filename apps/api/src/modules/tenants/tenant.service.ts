@@ -5,12 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { DatabaseService } from 'src/database/database.service';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
-import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { DatabaseService, CursorPaginationOptions, CursorPaginationResult, TenantRepository } from '@complytude/shared';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant, TenantFeatures } from './entities/tenant.entity';

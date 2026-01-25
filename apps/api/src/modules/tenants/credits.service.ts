@@ -7,7 +7,7 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@complytude/shared';
 import {
   CreditPackage,
   TenantCredits,

@@ -20,11 +20,9 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { SwaggerCookieAuth } from '@complytude/shared';
+import { SystemAdminGuard, CursorPaginationResult } from '@complytude/shared';
 import { CategoriesService } from './categories.service';
-
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { Category } from './entities/category.entity';
 

@@ -10,7 +10,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SwaggerCookieAuth } from '@complytude/shared';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreditsService } from './credits.service';

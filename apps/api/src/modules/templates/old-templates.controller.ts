@@ -22,10 +22,9 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
+import { SwaggerCookieAuth } from '@complytude/shared';
+import { DocumentGenerationService } from './services/document-generation.service';
+import { SystemAdminGuard, FastifyMultipartInterceptor } from '@complytude/shared';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {

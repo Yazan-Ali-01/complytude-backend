@@ -19,9 +19,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { SwaggerCookieAuth } from '../../common/swagger/common';
+import { CursorPaginationResult, SystemAdminGuard } from '@complytude/shared';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
 import { TenantService } from './tenant.service';

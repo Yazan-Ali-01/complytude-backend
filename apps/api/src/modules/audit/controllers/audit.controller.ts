@@ -7,7 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { AuditService } from '../../rbac/services/audit.service';
 import { AuditQueryDto } from '../dto/audit-query.dto';
-import { RequirePermissions } from 'src/common/decorators/require-permissions.decorator';
+import { RequirePermissions } from '@complytude/shared';
 import { Permissions } from '../../rbac/constants/permissions.constant';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/decorators/current-user.decorator';

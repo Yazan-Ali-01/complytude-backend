@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { PaginatedResponseDto } from 'src/common/dto';
+import { PaginatedResponseDto } from '@complytude/shared';
 import { CategoryResponseDto } from './category-response.dto';
 
 /**

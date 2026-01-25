@@ -18,7 +18,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyReply } from 'fastify';
-import { MessageResponseDto } from 'src/common/dto/message-response.dto';
+import { MessageResponseDto } from '@complytude/shared';
 import {
   ApiAuthenticatedResponses,
   ApiConflictError,
@@ -27,7 +27,7 @@ import {
   ApiPublicResponses,
   ApiValidationError,
   SwaggerCookieAuth,
-} from 'src/common/swagger';
+} from '../../common/swagger';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';

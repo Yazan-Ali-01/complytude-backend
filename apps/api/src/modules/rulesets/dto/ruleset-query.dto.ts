@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { PaginationQueryDto } from 'src/common/dto/pagination.dto';
+import { PaginationQueryDto } from '@complytude/shared';
 
 /**
  * Query parameters for listing rulesets

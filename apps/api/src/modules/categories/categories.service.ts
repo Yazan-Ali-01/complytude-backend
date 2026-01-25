@@ -5,11 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
-import { CategoryRepository } from '../../repositories/categories/category.repository';
+import { CategoryRepository, CursorPaginationOptions, CursorPaginationResult } from '@complytude/shared';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { Category } from './entities/category.entity';
 

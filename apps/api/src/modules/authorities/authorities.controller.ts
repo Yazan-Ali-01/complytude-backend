@@ -15,9 +15,8 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { MessageResponseDto, PaginationMetaDto } from 'src/common/dto';
-import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { MessageResponseDto, PaginationMetaDto, SystemAdminGuard } from '@complytude/shared';
+import { SwaggerCookieAuth } from '@complytude/shared';
 import {
   ApiConflictError,
   ApiCreateResponses,
@@ -25,9 +24,9 @@ import {
   ApiGetResponses,
   ApiListResponses,
   ApiUpdateResponses,
-} from 'src/common/swagger/decorators';
-import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+} from '../../common/swagger/decorators';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   AuthorityIdParamDto,
   AuthorityListResponseDto,

@@ -1,5 +1,5 @@
 import { TenantFeatures } from './tenant-features.interface';
-import { PlanTier } from 'src/common/types/plans';
+import { PlanTier } from '@complytude/shared';
 
 export interface Tenant {
   id: string;

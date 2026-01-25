@@ -18,8 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
+import { SwaggerCookieAuth, SystemAdminGuard } from '@complytude/shared';
 import { FeaturesService } from './features.service';
 import {
   FeatureResponseDto,

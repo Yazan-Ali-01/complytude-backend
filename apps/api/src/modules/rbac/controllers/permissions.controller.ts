@@ -1,10 +1,10 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SwaggerCookieAuth } from '../../../common/swagger/common';
 import {
   ApiGetResponses,
   ApiListResponses,
-} from 'src/common/swagger/decorators';
+} from '../../../common/swagger/decorators';
 import { PermissionsService } from '../services/permissions.service';
 import {
   PermissionListResponseDto,

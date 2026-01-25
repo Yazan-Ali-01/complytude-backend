@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../../database/database.module';
+import { DatabaseModule } from '@complytude/shared';
 import { AuditController } from './controllers/audit.controller';
 import { AuditService } from '../rbac/services/audit.service';
 import { AuditRepository } from '../rbac/repositories/audit.repository';

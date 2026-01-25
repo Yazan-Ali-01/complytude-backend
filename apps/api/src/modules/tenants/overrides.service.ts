@@ -5,7 +5,7 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@complytude/shared';
 import {
   FeatureOverride,
   CreateOverrideInput,
@@ -13,7 +13,7 @@ import {
   FeatureOverrideRow,
 } from './entities/feature-override.entity';
 import { FeaturesService } from './features.service';
-import { getEntitlementsConfig } from 'src/config/entitlements.config';
+import { getEntitlementsConfig } from '../../config/entitlements.config';
 
 interface FeatureDefinition {
   key: string;

@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../database/database.service';
+import { DatabaseService } from '@complytude/shared';
 import { RolePermission } from '../entities/role-permission.entity';
 import { Permission } from '../entities/permission.entity';
-import { QueryOptions } from '../../../repositories/base/repository.interface';
+import { QueryOptions } from '@complytude/shared';
 
 @Injectable()
 export class RolePermissionsRepository {

@@ -3,7 +3,7 @@ import {
   Logger,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../../database/database.service';
+import { DatabaseService } from '@complytude/shared';
 
 export interface UserDailyUsage {
   userId: string;

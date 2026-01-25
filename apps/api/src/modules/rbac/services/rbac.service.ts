@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PermissionsRepository } from '../repositories/permissions.repository';
 import { RolePermissionsRepository } from '../repositories/role-permissions.repository';
-import { UserTenantRepository } from '../../../repositories/users/user-tenant.repository';
+import { UserTenantRepository } from '@complytude/shared';
 import { TenantRole } from '../constants/roles.constant';
 
 @Injectable()

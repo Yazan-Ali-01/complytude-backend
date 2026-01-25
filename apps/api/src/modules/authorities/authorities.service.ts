@@ -10,11 +10,7 @@ import {
   CreateAuthorityDto,
   UpdateAuthorityDto,
 } from './dto/create-authority.dto';
-import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
+import { AuthorityRepository, CursorPaginationOptions, CursorPaginationResult } from '@complytude/shared';
 
 @Injectable()
 export class AuthoritiesService {

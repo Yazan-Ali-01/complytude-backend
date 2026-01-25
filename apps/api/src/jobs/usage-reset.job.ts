@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { UsageTrackingService } from 'src/modules/tenants/usage-tracking.service';
-import { getEntitlementsConfig } from 'src/config/entitlements.config';
+import { UsageTrackingService } from '../modules/tenants/usage-tracking.service';
+import { getEntitlementsConfig } from '../config/entitlements.config';
 
 @Injectable()
 export class UsageResetJob {

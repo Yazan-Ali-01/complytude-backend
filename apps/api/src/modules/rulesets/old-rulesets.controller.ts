@@ -19,14 +19,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { SwaggerCookieAuth } from '@complytude/shared';
+import { SystemAdminGuard, CursorPaginationResult } from '@complytude/shared';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
 import { Ruleset } from './entities/ruleset.entity';
 import { RulesetsService } from './rulesets.service';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Rulesets')
 @Controller('rulesets')

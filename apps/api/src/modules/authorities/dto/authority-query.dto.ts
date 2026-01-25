@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
-import { PaginationQueryDto } from 'src/common/dto';
+import { PaginationQueryDto } from '@complytude/shared';
 
 /**
  * Query parameters for listing authorities

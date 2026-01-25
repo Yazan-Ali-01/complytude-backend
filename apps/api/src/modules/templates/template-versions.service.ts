@@ -10,12 +10,7 @@ import {
   TemplateVersion,
   TemplateField,
 } from './entities/template-version.entity';
-import { TemplateRepository } from '../../repositories/templates/template.repository';
-import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
+import { TemplateRepository, TemplateVersionRepository, CursorPaginationOptions, CursorPaginationResult } from '@complytude/shared';
 
 @Injectable()
 export class TemplateVersionsService {

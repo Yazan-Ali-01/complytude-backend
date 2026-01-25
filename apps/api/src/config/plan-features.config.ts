@@ -1,5 +1,5 @@
-import { TenantFeatures } from 'src/modules/tenants/entities/tenant-features.interface';
-import { PlanTier } from 'src/common/types/plans';
+import { TenantFeatures } from '../modules/tenants/entities/tenant-features.interface';
+import { PlanTier } from '@complytude/shared';
 
 export const PLAN_FEATURES: Record<PlanTier, TenantFeatures> = {
   navigator: {

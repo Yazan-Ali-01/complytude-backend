@@ -8,12 +8,7 @@ import {
 } from '@nestjs/common';
 import { Ruleset } from './entities/ruleset.entity';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
-import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
-import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
+import { RulesetRepository, AuthorityRepository, CursorPaginationOptions, CursorPaginationResult } from '@complytude/shared';
 
 @Injectable()
 export class RulesetsService {

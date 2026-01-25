@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../database/database.service';
+import { DatabaseService } from '@complytude/shared';
 import {
   Permission,
   CreatePermissionRow,
   UpdatePermissionRow,
 } from '../entities/permission.entity';
-import { QueryOptions } from '../../../repositories/base/repository.interface';
+import { QueryOptions } from '@complytude/shared';
 
 @Injectable()
 export class PermissionsRepository {

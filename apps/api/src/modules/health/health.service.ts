@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@complytude/shared';
 
 export interface HealthCheckResult {
   status: string;

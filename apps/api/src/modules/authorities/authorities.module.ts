@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthoritiesController } from './authorities.controller';
 import { AuthoritiesService } from './authorities.service';
-import { DatabaseModule } from 'src/database/database.module';
-import { AuthorityRepository } from 'src/repositories/authorities/authority.repository';
+import { DatabaseModule, AuthorityRepository } from '@complytude/shared';
 
 @Module({
   imports: [DatabaseModule],

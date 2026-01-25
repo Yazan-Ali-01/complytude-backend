@@ -13,7 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SwaggerCookieAuth } from '../../common/swagger/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';

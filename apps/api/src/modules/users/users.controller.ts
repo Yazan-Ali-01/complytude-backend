@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { MessageResponseDto } from 'src/common/dto/message-response.dto';
+import { MessageResponseDto } from '@complytude/shared';
 import {
   ApiArrayResponses,
   ApiAuthenticatedResponses,
@@ -8,7 +8,7 @@ import {
   ApiUpdateResponses,
   ApiValidationError,
   SwaggerCookieAuth,
-} from 'src/common/swagger';
+} from '../../common/swagger';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';

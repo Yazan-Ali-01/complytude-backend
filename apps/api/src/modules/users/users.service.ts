@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@complytude/shared';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';

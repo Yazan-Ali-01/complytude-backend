@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply } from 'fastify';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { SwaggerCookieAuth } from '@complytude/shared';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';

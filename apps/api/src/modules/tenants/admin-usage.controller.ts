@@ -18,9 +18,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import { SwaggerCookieAuth, SystemAdminGuard } from '@complytude/shared';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UsageTrackingService } from './usage-tracking.service';
 import {
   MeteredFeature,

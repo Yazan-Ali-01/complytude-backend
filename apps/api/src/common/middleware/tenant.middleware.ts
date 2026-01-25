@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { TenantFeatures } from 'src/modules/tenants/entities/tenant.entity';
+import { TenantFeatures } from '../../modules/tenants/entities/tenant.entity';
 
 export interface TenantContext {
   tenantId: string;

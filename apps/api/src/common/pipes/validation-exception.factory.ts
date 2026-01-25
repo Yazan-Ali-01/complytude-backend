@@ -3,7 +3,7 @@ import { ValidationException } from '../exceptions/validation.exception';
 import {
   ValidationDetail,
   ValidationRuleContext,
-} from 'src/common/types/validation.types';
+} from '../types/validation.types';
 import { formatFileSize } from '../helper';
 
 /**

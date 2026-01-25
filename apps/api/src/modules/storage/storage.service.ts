@@ -22,7 +22,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
-import { I18nKeys } from '../../common/constants/i18n-keys';
+import { I18nKeys } from '@complytude/shared';
 const PAGINATION_DEFAULTS = {
   DEFAULT_LIMIT: 50,
   MAX_LIMIT: 1000,

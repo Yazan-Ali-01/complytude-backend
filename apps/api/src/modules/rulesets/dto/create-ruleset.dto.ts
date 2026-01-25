@@ -11,7 +11,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { ClauseDto } from 'src/modules/rulesets/dto/clause.dto';
+import { ClauseDto } from './clause.dto';
 
 export class CreateRulesetDto {
   @ApiProperty({

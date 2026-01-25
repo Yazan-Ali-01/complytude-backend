@@ -8,14 +8,14 @@ import {
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@complytude/shared';
 import { TenantFeatures } from './entities/tenant.entity';
 import {
   getDefaultPlanFeatures,
   isValidPlan,
-} from 'src/config/plan-features.config';
-import { PlanTier } from 'src/common/types/plans';
-import { getEntitlementsConfig } from 'src/config/entitlements.config';
+} from '../../config/plan-features.config';
+import { PlanTier } from '@complytude/shared';
+import { getEntitlementsConfig } from '../../config/entitlements.config';
 import {
   FeatureOverride,
   mapOverrideRow,

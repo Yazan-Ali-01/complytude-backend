@@ -17,9 +17,9 @@ import {
   IsFileMimeType,
   IsFileUploaded,
   IsMulterLikeFile,
-} from 'src/common/decorators/file-validators.decorator';
-import { JsonField } from 'src/common/decorators/json-field.decorator';
-import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
+} from '@complytude/shared';
+import { JsonField } from '@complytude/shared';
+import type { MulterLikeFile } from '@complytude/shared';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_MAX_FILE_SIZE,

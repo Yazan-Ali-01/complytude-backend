@@ -17,13 +17,11 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { PaginationMetaDto } from 'src/common/dto';
-import { RequirePermissions } from 'src/common/decorators/require-permissions.decorator';
-import { AuditAction } from 'src/common/decorators/audit-action.decorator';
-import { RequireUsageQuota } from 'src/common/decorators/usage-quota.decorator';
-import { UsageLimitGuard } from 'src/common/guards/usage-limit.guard';
-import { UsageTrackingInterceptor } from 'src/common/interceptors/usage-tracking.interceptor';
-import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { PaginationMetaDto } from '@complytude/shared';
+import { RequirePermissions, AuditAction } from '@complytude/shared';
+import { RequireUsageQuota } from '@complytude/shared';
+import { UsageLimitGuard, UsageTrackingInterceptor } from '@complytude/shared';
+import { SwaggerCookieAuth } from '@complytude/shared';
 import {
   ApiConflictError,
   ApiCreateResponses,
@@ -32,8 +30,8 @@ import {
   ApiGetResponses,
   ApiListResponses,
   ApiNotFoundError,
-} from 'src/common/swagger/decorators';
-import { Permissions } from 'src/modules/rbac/constants/permissions.constant';
+} from '../../common/swagger/decorators';
+import { Permissions } from '../rbac/constants/permissions.constant';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { DocumentsService } from './documents.service';

@@ -6,7 +6,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@complytude/shared';
 import { TenantService } from './tenant.service';
 import { FeaturesService } from './features.service';
 import { CreditsService } from './credits.service';
