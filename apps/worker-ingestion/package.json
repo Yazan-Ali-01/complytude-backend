@@ -1,0 +1,31 @@
+{
+  "name": "@complytude/worker-ingestion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PII & file processing worker - smaller footprint than API",
+  "scripts": {
+    "build": "nest build worker-ingestion",
+    "start": "nest start worker-ingestion",
+    "start:dev": "nest start worker-ingestion --watch",
+    "start:prod": "node dist/main.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@complytude/shared": "workspace:*",
+    "@nestjs/bullmq": "^11.0.0",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@aws-sdk/client-s3": "^3.914.0",
+    "bullmq": "^5.34.8",
+    "ioredis": "^5.4.2",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.2",
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3"
+  }
+}
