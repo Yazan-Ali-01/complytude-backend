@@ -205,7 +205,7 @@ See `scripts/seeds/README.md` for complete credential list.
 \c complytude complytude_app
 
 -- Set context for Tenant 1
-SELECT set_config('app.tenant_id', '11111111-1111-1111-1111-111111111111', false);
+SELECT set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', false);
 SELECT set_config('app.user_id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', false);
 SELECT set_config('app.role', 'admin', false);
 
@@ -213,7 +213,7 @@ SELECT set_config('app.role', 'admin', false);
 SELECT * FROM public.documents;
 
 -- Change to Tenant 2
-SELECT set_config('app.tenant_id', '22222222-2222-2222-2222-222222222222', false);
+SELECT set_config('app.tenant_id', '22222222-2222-4222-8222-222222222222', false);
 
 -- Should return 2 DIFFERENT documents
 SELECT * FROM public.documents;

@@ -460,13 +460,13 @@ To verify tenant isolation:
 \c complytude complytude_app
 
 -- Set context for Tenant 1
-SELECT set_config('app.tenant_id', '11111111-1111-1111-1111-111111111111', false);
+SELECT set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', false);
 
 -- Query documents (should only see Tenant 1's documents)
 SELECT * FROM documents;
 
 -- Change to Tenant 2
-SELECT set_config('app.tenant_id', '22222222-2222-2222-2222-222222222222', false);
+SELECT set_config('app.tenant_id', '22222222-2222-4222-8222-222222222222', false);
 
 -- Query again (should see different documents)
 SELECT * FROM documents;
