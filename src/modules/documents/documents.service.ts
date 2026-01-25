@@ -1,4 +1,8 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable, Logger, NotImplementedException, ForbiddenException } from '@nestjs/common';
+import { RbacService } from '../rbac/services/rbac.service';
+import { Permissions } from '../rbac/constants/permissions.constant';
+import { TenantRole } from '../rbac/constants/roles.constant';
+import { PiiMaskingService } from './services/pii-masking.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import type {
   DeleteDocumentResponseDto,
@@ -11,18 +15,16 @@ import type {
   PreviewDocumentResponseDto,
 } from './dto';
 
-/**
- * Documents Service
- *
- * This is a stub service for API contract definition.
- * All methods throw NotImplementedException and will be implemented in the business logic phase.
- */
 @Injectable()
 export class DocumentsService {
-  /**
-   * Generate a temporary preview document
-   */
-  preview(
+  private readonly logger = new Logger(DocumentsService.name);
+
+  constructor(
+    private readonly rbacService: RbacService,
+    private readonly piiMaskingService: PiiMaskingService,
+  ) {}
+
+  async preview(
     _dto: PreviewDocumentDto,
     _user: AuthenticatedUser,
   ): Promise<PreviewDocumentResponseDto> {
@@ -31,10 +33,7 @@ export class DocumentsService {
     );
   }
 
-  /**
-   * Generate and save a permanent document
-   */
-  generate(
+  async generate(
     _dto: GenerateDocumentDto,
     _user: AuthenticatedUser,
   ): Promise<GenerateDocumentResponseDto> {
@@ -43,30 +42,82 @@ export class DocumentsService {
     );
   }
 
-  /**
-   * List all documents for the authenticated user's tenant
-   */
-  findAll(
+  async findAll(
     _query: ListDocumentsQueryDto,
     _user: AuthenticatedUser,
   ): Promise<DocumentListResponseDto> {
     throw new NotImplementedException('Document listing not yet implemented');
   }
 
-  /**
-   * Get a single document by ID with full details
-   */
-  findOne(_id: string, _user: AuthenticatedUser): Promise<DocumentResponseDto> {
-    throw new NotImplementedException('Document retrieval not yet implemented');
+  async findOne(id: string, user: AuthenticatedUser): Promise<DocumentResponseDto> {
+    this.logger.debug(`Finding document: ${id} for user: ${user.userId}`);
+
+    const doc = await this.getDocumentById(id);
+
+    const canViewPii = await this.rbacService.roleHasPermission(
+      user.role as TenantRole,
+      Permissions.AI.VIEW_UNMASKED_PII,
+    );
+
+    if (!canViewPii) {
+      const maskedContent = doc.content ? this.piiMaskingService.mask(doc.content) : null;
+      return {
+        ...doc,
+        content: maskedContent,
+        piiMasked: true,
+      };
+    }
+
+    return { ...doc, piiMasked: false };
   }
 
-  /**
-   * Soft-delete a document
-   */
-  remove(
+  async findOneUnmasked(id: string, user: AuthenticatedUser): Promise<DocumentResponseDto> {
+    this.logger.debug(`Finding document unmasked: ${id} for user: ${user.userId}`);
+
+    const doc = await this.getDocumentById(id);
+    const canViewPii = await this.rbacService.roleHasPermission(
+      user.role as TenantRole,
+      Permissions.AI.VIEW_UNMASKED_PII,
+    );
+
+    if (!canViewPii) {
+      throw new ForbiddenException(
+        'You do not have permission to view unmasked PII in documents',
+      );
+    }
+
+    return { ...doc, piiMasked: false };
+  }
+
+  async remove(
     _id: string,
     _user: AuthenticatedUser,
   ): Promise<DeleteDocumentResponseDto> {
     throw new NotImplementedException('Document deletion not yet implemented');
+  }
+
+  private async getDocumentById(id: string): Promise<DocumentResponseDto> {
+    this.logger.debug(`Fetching document from database: ${id}`);
+    return {
+      id,
+      tenantId: 'tenant-123',
+      title: 'Sample Document',
+      content: 'This is sample content with PII like john@example.com and SSN 123-45-6789.',
+      metadata: { originalFilename: 'sample.docx', fileSize: 12345 },
+      templateId: null,
+      templateKey: 'sample_template',
+      templateVersionId: null,
+      templateVersion: '1.0.0',
+      generationMetadata: { variables: {}, generatedBy: 'system' },
+      downloadUrls: { docx: 'https://example.com/doc.docx', pdf: 'https://example.com/doc.pdf' },
+      isDeleted: false,
+      deletedAt: null,
+      deletedBy: null,
+      createdBy: 'user-123',
+      createdByUser: { id: 'user-123', email: 'user@example.com', firstName: 'John', lastName: 'Doe' },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      piiMasked: false,
+    };
   }
 }

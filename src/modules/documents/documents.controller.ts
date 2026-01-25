@@ -8,7 +8,6 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiExtraModels,
@@ -17,6 +16,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { PaginationMetaDto } from 'src/common/dto';
+import { RequirePermissions } from 'src/common/decorators/require-permissions.decorator';
+import { AuditAction } from 'src/common/decorators/audit-action.decorator';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiConflictError,
@@ -27,10 +28,9 @@ import {
   ApiListResponses,
   ApiNotFoundError,
 } from 'src/common/swagger/decorators';
+import { Permissions } from 'src/modules/rbac/constants/permissions.constant';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { DocumentsService } from './documents.service';
 import {
   DeleteDocumentResponseDto,
@@ -59,15 +59,14 @@ export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
   @Post('preview')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'member')
+  @RequirePermissions(Permissions.DOCUMENTS.CREATE)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Generate document preview',
     description:
       'Generate a temporary preview document (DOCX or PDF) for user review before final generation. ' +
       'Preview files are temporary with short-lived signed URLs (15 minutes) and are not saved to the documents table. ' +
-      'Requires admin or member role.',
+      'Requires documents:create permission.',
   })
   @ApiCreateResponses(PreviewDocumentResponseDto, 'Preview')
   @ApiNotFoundError('Template')
@@ -79,8 +78,7 @@ export class DocumentsController {
   }
 
   @Post('generate')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'member')
+  @RequirePermissions(Permissions.DOCUMENTS.CREATE)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Generate and save document',
@@ -88,7 +86,7 @@ export class DocumentsController {
       'Generate and permanently save a document to tenant storage. ' +
       'Supports generating multiple formats (DOCX, PDF) in a single request. ' +
       'The document is saved to the documents table and storage, with download URLs valid for 15 minutes. ' +
-      'Subject to plan-based document limits. Requires admin or member role.',
+      'Subject to plan-based document limits. Requires documents:create permission.',
   })
   @ApiCreateResponses(GenerateDocumentResponseDto, 'Document')
   @ApiNotFoundError('Template')
@@ -139,8 +137,8 @@ export class DocumentsController {
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles('admin')
+  @RequirePermissions(Permissions.DOCUMENTS.DELETE)
+  @AuditAction('documents:delete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Soft-delete document',
@@ -148,7 +146,7 @@ export class DocumentsController {
       'Soft-delete a document by setting the deletedAt timestamp and deletedBy user ID. ' +
       'This operation does NOT delete files from S3 storage (for audit and legal compliance). ' +
       'Deleted documents remain queryable by ID but are hidden from lists (unless admin uses includeDeleted=true). ' +
-      'Only admin users can delete documents.',
+      'Requires documents:delete permission.',
   })
   @ApiParam({
     name: 'id',

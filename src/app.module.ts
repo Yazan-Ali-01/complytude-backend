@@ -15,7 +15,10 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { RbacModule } from './modules/rbac/rbac.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { FeaturesGuard } from './common/guards/features.guard';
+import { PermissionsGuard } from './common/guards/permissions.guard';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { I18nModule } from './i18n/i18n.module';
 import databaseConfig from 'src/config/database.config';
@@ -49,6 +52,7 @@ import { UsageResetJob } from './jobs/usage-reset.job';
     AuthoritiesModule,
     RulesetsModule,
     DocumentsModule,
+    RbacModule,
   ],
   controllers: [AppController],
   providers: [
@@ -56,6 +60,14 @@ import { UsageResetJob } from './jobs/usage-reset.job';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: FeaturesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
     },
     {
       provide: APP_INTERCEPTOR,

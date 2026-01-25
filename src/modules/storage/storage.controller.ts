@@ -9,7 +9,6 @@ import {
   Query,
   StreamableFile,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import {
@@ -21,21 +20,20 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { DocumentLimitGuard } from '../../common/guards/document-limit.guard';
+import { RequirePermissions } from 'src/common/decorators/require-permissions.decorator';
+import { Permissions } from 'src/modules/rbac/constants/permissions.constant';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { StorageService } from './storage.service';
+import { FastifyFileInterceptor } from './interceptors/fastify-file.interceptor';
+import type { ValidatedFile } from './pipes/file-validation.pipe';
+import { FileValidationPipe } from './pipes/file-validation.pipe';
 import {
   DeleteFileResponseDto,
   FileListResponseDto,
   FileResponseDto,
   SignedUrlResponseDto,
 } from './dto/list-files-response.dto';
-import { FastifyFileInterceptor } from './interceptors/fastify-file.interceptor';
-import type { ValidatedFile } from './pipes/file-validation.pipe';
-import { FileValidationPipe } from './pipes/file-validation.pipe';
-import { StorageService } from './storage.service';
 
 @ApiTags('Storage')
 @Controller('storage')
@@ -51,12 +49,11 @@ export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
   @Post('upload')
-  @UseGuards(RolesGuard, DocumentLimitGuard)
-  @Roles('admin', 'member', 'system')
+  @RequirePermissions(Permissions.DOCUMENTS.CREATE)
   @ApiOperation({
     summary: 'Upload a file',
     description:
-      'Upload a file to tenant-isolated storage. Requires admin, member, or system role. Subject to plan document limits.',
+      'Upload a file to tenant-isolated storage. Requires documents:create permission. Subject to plan document limits.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -117,12 +114,11 @@ export class StorageController {
   }
 
   @Get('list')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'member', 'viewer', 'system')
+  @RequirePermissions(Permissions.DOCUMENTS.READ)
   @ApiOperation({
     summary: 'List files for current tenant',
     description:
-      'List files in tenant storage with pagination support. Available to all authenticated users.',
+      'List files in tenant storage with pagination support. Requires documents:read permission.',
   })
   @ApiQuery({
     name: 'prefix',
@@ -206,12 +202,11 @@ export class StorageController {
   }
 
   @Get('signed-url/:fileKey')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'member', 'system')
+  @RequirePermissions(Permissions.DOCUMENTS.READ)
   @ApiOperation({
     summary: 'Get signed download URL for a file',
     description:
-      'Generate a time-limited signed URL for downloading a file. Requires authentication. All authenticated users can access files from their tenant.',
+      'Generate a time-limited signed URL for downloading a file. Requires documents:read permission.',
   })
   @ApiQuery({
     name: 'expiresIn',
@@ -249,12 +244,11 @@ export class StorageController {
   }
 
   @Get('download/:fileKey')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'member', 'system')
+  @RequirePermissions(Permissions.DOCUMENTS.READ)
   @ApiOperation({
     summary: 'Download a file directly',
     description:
-      'Download a file directly as a stream. Requires authentication. All authenticated users can download files from their tenant.',
+      'Download a file directly as a stream. Requires documents:read permission.',
   })
   @ApiResponse({
     status: 200,
@@ -283,12 +277,11 @@ export class StorageController {
   }
 
   @Delete(':fileKey')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'system')
+  @RequirePermissions(Permissions.DOCUMENTS.DELETE)
   @ApiOperation({
     summary: 'Delete a file',
     description:
-      'Delete a file from tenant storage. Only admins and system users can delete files.',
+      'Delete a file from tenant storage. Requires documents:delete permission.',
   })
   @ApiResponse({
     status: 200,
