@@ -20,6 +20,11 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
-  }
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@complytude/shared": ["libs/shared/src/index.ts"],
+      "@complytude/shared/*": ["libs/shared/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "**/dist"]
 }

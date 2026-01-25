@@ -1,0 +1,11 @@
+# Compiled output
+dist/
+*.js
+*.js.map
+*.d.ts
+!src/**/*.d.ts
+
+# IDE
+.idea/
+*.swp
+*.swo
