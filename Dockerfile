@@ -111,6 +111,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start production server
-CMD ["node", "dist/main"]
+# Start production server (monorepo: apps/api)
+CMD ["node", "dist/apps/api/main.js"]
 

@@ -242,21 +242,37 @@ pnpm test:e2e:tenant    # Multi-tenancy
 
 ```
 complytude/
-├── src/
-│   ├── modules/              # Feature modules
-│   │   ├── auth/            # Authentication (JWT, signup, login)
-│   │   ├── users/           # User management & RBAC
-│   │   ├── tenant/          # Multi-tenancy & subscription plans
-│   │   ├── storage/         # File upload/download (S3/MinIO)
-│   │   ├── templates/       # Legal document templates
-│   │   └── health/          # Health check endpoints
-│   ├── common/               # Guards, decorators, interceptors, middleware
-│   ├── config/               # Configuration files
-│   ├── database/             # Database service & connection
-│   └── main.ts               # Application entry point
+├── apps/
+│   ├── api/                  # Main API application
+│   │   ├── src/
+│   │   │   ├── modules/      # Feature modules (auth, users, tenant, storage, templates, health)
+│   │   │   ├── common/       # Guards, decorators, interceptors, middleware
+│   │   │   ├── config/       # Configuration files
+│   │   │   ├── i18n/         # Internationalization (locales)
+│   │   │   └── main.ts       # API entry point
+│   │   ├── test/             # E2E test suites
+│   │   └── package.json      # API-specific dependencies
+│   ├── worker-ingestion/     # PII & file processing worker
+│   │   ├── src/
+│   │   └── package.json      # Worker-specific dependencies (BullMQ, etc.)
+│   └── worker-ai/            # LLM orchestration worker
+│       ├── src/
+│       └── package.json      # AI-specific dependencies (OpenAI, Anthropic)
+├── libs/
+│   └── shared/               # Shared library (@complytude/shared)
+│       ├── src/
+│       │   ├── database/     # Database service & module
+│       │   ├── repositories/ # Base & domain repositories
+│       │   ├── dto/          # Shared DTOs
+│       │   ├── guards/       # Shared guards
+│       │   ├── decorators/   # Shared decorators
+│       │   ├── interceptors/ # Shared interceptors
+│       │   └── types/        # Shared types & interfaces
+│       └── package.json
 ├── scripts/                  # Migrations and utility scripts
-├── test/                     # E2E test suites
 ├── docs/                     # Documentation
+├── nest-cli.json             # NestJS monorepo configuration
+├── pnpm-workspace.yaml       # pnpm workspace configuration
 └── docker-compose.yml        # Docker services
 ```
 

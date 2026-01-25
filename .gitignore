@@ -1,13 +1,12 @@
 # compiled output
 dist/
 build/
-*.js.map
-*.d.ts
+*.tsbuildinfo
 
 # Dependencies - ignore in all workspaces
 node_modules/
 
-# Shared library build output
+# Shared library build output (compiled .js/.d.ts handled by libs/shared/.gitignore)
 libs/shared/dist/
 
 # Logs
