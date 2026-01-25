@@ -43,9 +43,16 @@ export class UsageTrackingService {
   }
 
   /**
-   * Increment usage for a metered feature
+   * Increment usage for a metered feature WITHOUT checking limits.
+   * Use this only when you've already verified limits or when tracking
+   * should happen regardless of limits (e.g., in unlimited plans).
+   *
+   * For most cases, prefer `checkAndIncrementUsage()` which atomically
+   * checks limits and increments in a single transaction.
+   *
+   * @see checkAndIncrementUsage - Atomic check + increment with limit enforcement
    */
-  async incrementUsage(
+  async incrementUsageUnchecked(
     tenantId: string,
     featureKey: MeteredFeature,
     userId?: string,
@@ -207,7 +214,12 @@ export class UsageTrackingService {
 
       // Unlimited feature - just increment
       if (limit === -1) {
-        await this.incrementUsage(tenantId, featureKey, userId, metadata);
+        await this.incrementUsageUnchecked(
+          tenantId,
+          featureKey,
+          userId,
+          metadata,
+        );
         const current = await this.getCurrentUsage(tenantId, featureKey);
         return {
           allowed: true,
@@ -496,10 +508,15 @@ export class UsageTrackingService {
 
   /**
    * Reset usage for a specific feature (admin operation)
+   * @param tenantId - The tenant whose usage is being reset
+   * @param featureKey - The feature key to reset
+   * @param resetBy - User ID of the admin performing the reset (for audit trail)
+   * @param reason - Reason for the reset
    */
   async resetUsage(
     tenantId: string,
     featureKey: string,
+    resetBy?: string,
     reason?: string,
   ): Promise<void> {
     try {
@@ -516,12 +533,14 @@ export class UsageTrackingService {
         await client.query(
           `INSERT INTO public.tenant_usage_events
             (tenant_id, feature_key, user_id, event_type, delta, metadata)
-           VALUES ($1, $2, NULL, 'reset', 0, $3)`,
+           VALUES ($1, $2, $3, 'reset', 0, $4)`,
           [
             tenantId,
             featureKey,
+            resetBy || null,
             JSON.stringify({
               reason: reason || 'Manual reset',
+              reset_by: resetBy || 'system',
               reset_at: new Date().toISOString(),
             }),
           ],
@@ -529,7 +548,7 @@ export class UsageTrackingService {
       });
 
       this.logger.log(
-        `Usage reset for tenant ${tenantId}, feature: ${featureKey}, reason: ${reason}`,
+        `Usage reset for tenant ${tenantId}, feature: ${featureKey}, by: ${resetBy || 'system'}, reason: ${reason}`,
       );
     } catch (error) {
       this.logger.error(

@@ -8,6 +8,8 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiExtraModels,
@@ -18,6 +20,9 @@ import {
 import { PaginationMetaDto } from 'src/common/dto';
 import { RequirePermissions } from 'src/common/decorators/require-permissions.decorator';
 import { AuditAction } from 'src/common/decorators/audit-action.decorator';
+import { RequireUsageQuota } from 'src/common/decorators/usage-quota.decorator';
+import { UsageLimitGuard } from 'src/common/guards/usage-limit.guard';
+import { UsageTrackingInterceptor } from 'src/common/interceptors/usage-tracking.interceptor';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiConflictError,
@@ -79,6 +84,9 @@ export class DocumentsController {
 
   @Post('generate')
   @RequirePermissions(Permissions.DOCUMENTS.CREATE)
+  @RequireUsageQuota('documents_per_month')
+  @UseGuards(UsageLimitGuard)
+  @UseInterceptors(UsageTrackingInterceptor)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Generate and save document',

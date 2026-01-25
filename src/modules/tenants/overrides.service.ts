@@ -15,6 +15,12 @@ import {
 import { FeaturesService } from './features.service';
 import { getEntitlementsConfig } from 'src/config/entitlements.config';
 
+interface FeatureDefinition {
+  key: string;
+  dataType: 'boolean' | 'number' | 'enum' | 'string';
+  enumValues: string[] | null;
+}
+
 @Injectable()
 export class OverridesService {
   private readonly logger = new Logger(OverridesService.name);
@@ -30,11 +36,22 @@ export class OverridesService {
     grantedBy: string,
   ): Promise<FeatureOverride> {
     try {
-      const validFeature = await this.validateFeatureKey(input.featureKey);
-      if (!validFeature) {
+      const featureDefinition = await this.getFeatureDefinition(
+        input.featureKey,
+      );
+      if (!featureDefinition) {
         throw new BadRequestException(
           `Invalid feature key: ${input.featureKey}`,
         );
+      }
+
+      // Validate value against feature's data type
+      const validationError = this.validateFeatureValue(
+        input.value,
+        featureDefinition,
+      );
+      if (validationError) {
+        throw new BadRequestException(validationError);
       }
 
       const { maxOverridesPerTenant } = getEntitlementsConfig();
@@ -305,19 +322,126 @@ export class OverridesService {
     }
   }
 
-  private async validateFeatureKey(featureKey: string): Promise<boolean> {
+  /**
+   * Soft-revoke expired overrides (cleanup job).
+   * Expired overrides are already excluded from active queries,
+   * but this marks them as revoked for a clean audit trail.
+   */
+  async cleanupExpiredOverrides(): Promise<number> {
     try {
       const result = await this.databaseService.query(
-        `SELECT key FROM public.features WHERE key = $1`,
-        [featureKey],
+        `UPDATE public.tenant_feature_overrides
+         SET revoked_at = now(), updated_at = now()
+         WHERE expires_at IS NOT NULL AND expires_at <= NOW() AND revoked_at IS NULL
+         RETURNING id`,
       );
-      return result.rows.length > 0;
+
+      const revokedCount = result.rows.length;
+      if (revokedCount > 0) {
+        this.logger.log(`Cleaned up ${revokedCount} expired overrides`);
+      }
+
+      return revokedCount;
     } catch (error) {
       this.logger.error(
-        `Failed to validate feature key ${featureKey}: ${(error as Error).message}`,
+        `Failed to cleanup expired overrides: ${(error as Error).message}`,
         error,
       );
-      return false;
+      throw new InternalServerErrorException(
+        'Failed to cleanup expired overrides',
+      );
     }
+  }
+
+  /**
+   * Simple boolean check: does this feature key exist in the registry?
+   */
+  private async validateFeatureKey(featureKey: string): Promise<boolean> {
+    return (await this.getFeatureDefinition(featureKey)) !== null;
+  }
+
+  /**
+   * Get feature definition from the registry for type validation
+   */
+  private async getFeatureDefinition(
+    featureKey: string,
+  ): Promise<FeatureDefinition | null> {
+    try {
+      const result = await this.databaseService.query(
+        `SELECT key, data_type, enum_values FROM public.features WHERE key = $1`,
+        [featureKey],
+      );
+      if (result.rows.length === 0) {
+        return null;
+      }
+      const row = result.rows[0] as {
+        key: string;
+        data_type: FeatureDefinition['dataType'];
+        enum_values: string | string[] | null;
+      };
+      return {
+        key: row.key,
+        dataType: row.data_type,
+        enumValues: row.enum_values
+          ? typeof row.enum_values === 'string'
+            ? (JSON.parse(row.enum_values) as string[])
+            : row.enum_values
+          : null,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to get feature definition for ${featureKey}: ${(error as Error).message}`,
+        error,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Validate a value against the feature's declared data type
+   * Returns error message if invalid, null if valid
+   */
+  private validateFeatureValue(
+    value: unknown,
+    feature: FeatureDefinition,
+  ): string | null {
+    switch (feature.dataType) {
+      case 'boolean':
+        if (typeof value !== 'boolean') {
+          return `Feature '${feature.key}' expects a boolean value, got ${typeof value}`;
+        }
+        break;
+
+      case 'number':
+        if (typeof value !== 'number' || Number.isNaN(value)) {
+          return `Feature '${feature.key}' expects a number value, got ${typeof value}`;
+        }
+        break;
+
+      case 'string':
+        if (typeof value !== 'string') {
+          return `Feature '${feature.key}' expects a string value, got ${typeof value}`;
+        }
+        break;
+
+      case 'enum':
+        if (typeof value !== 'string') {
+          return `Feature '${feature.key}' expects an enum string value, got ${typeof value}`;
+        }
+        if (feature.enumValues && !feature.enumValues.includes(value)) {
+          return `Feature '${feature.key}' expects one of [${feature.enumValues.join(', ')}], got '${value}'`;
+        }
+        break;
+
+      default: {
+        // Handle unexpected data types from DB (defensive coding)
+        const unknownType = feature.dataType as string;
+        this.logger.warn(
+          `Unknown data type '${unknownType}' for feature ${feature.key}`,
+        );
+      }
+    }
+
+    return null;
   }
 }

@@ -37,8 +37,10 @@ export class UsageTrackingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: () => {
+          // Using incrementUsage because this interceptor runs AFTER the request succeeds
+          // The UsageLimitGuard should have already verified limits before the request was processed
           this.usageService
-            .incrementUsage(tenantId, meta.feature, userId, {
+            .incrementUsageUnchecked(tenantId, meta.feature, userId, {
               endpoint: request.url,
               method: request.method,
               timestamp: new Date().toISOString(),

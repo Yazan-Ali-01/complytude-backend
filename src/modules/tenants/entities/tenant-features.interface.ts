@@ -78,3 +78,27 @@ export const FEATURE_CATEGORIES = {
     'white_label_exports',
   ],
 } as const;
+
+/**
+ * Mapping of deprecated/legacy feature keys to their new equivalents
+ * @deprecated These features will be removed in a future version
+ */
+export const LEGACY_FEATURE_MAPPING: Readonly<Record<string, string | null>> = {
+  document_limit: 'documents_per_month',
+  checklist_access: null, // No direct replacement, feature consolidated
+  analyzer_enabled: 'contract_reviews_per_month', // Now controlled by having contract reviews quota
+} as const;
+
+/**
+ * Check if a feature key is deprecated
+ */
+export function isLegacyFeature(key: string): boolean {
+  return key in LEGACY_FEATURE_MAPPING;
+}
+
+/**
+ * Get the replacement feature key for a legacy feature (if any)
+ */
+export function getLegacyFeatureReplacement(key: string): string | null {
+  return LEGACY_FEATURE_MAPPING[key] ?? null;
+}

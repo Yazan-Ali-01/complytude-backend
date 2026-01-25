@@ -27,6 +27,10 @@ import {
   UpdateFeatureDto,
   FeatureQueryDto,
 } from './dto/feature.dto';
+import {
+  isLegacyFeature,
+  getLegacyFeatureReplacement,
+} from './entities/tenant-features.interface';
 
 @Injectable()
 export class FeaturesService {
@@ -155,6 +159,14 @@ export class FeaturesService {
     featureName: string,
   ): Promise<boolean> {
     try {
+      // Log deprecation warning for legacy features
+      if (isLegacyFeature(featureName)) {
+        const replacement = getLegacyFeatureReplacement(featureName);
+        this.logger.warn(
+          `DEPRECATION: Feature '${featureName}' is deprecated. ${replacement ? `Use '${replacement}' instead.` : 'This feature will be removed in a future version.'}`,
+        );
+      }
+
       const features = await this.getTenantFeatures(tenantId);
 
       // Check if feature exists and is enabled
@@ -192,8 +204,12 @@ export class FeaturesService {
   /**
    * Get the document limit for a tenant
    * Returns -1 for unlimited, 0 for no access, or positive number for limit
+   * @deprecated Use documents_per_month with usage tracking instead
    */
   async getDocumentLimit(tenantId: string): Promise<number> {
+    this.logger.warn(
+      `DEPRECATION: getDocumentLimit() uses legacy 'document_limit' feature. Migrate to 'documents_per_month' with usage tracking.`,
+    );
     try {
       const features = await this.getTenantFeatures(tenantId);
       // Use nullish coalescing to only default to 0 if undefined/null, not if explicitly 0

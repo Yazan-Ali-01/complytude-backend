@@ -20,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
+import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
 import { UsageTrackingService } from './usage-tracking.service';
 import {
   MeteredFeature,
@@ -234,6 +235,7 @@ export class TenantUsageAdminController {
     @Param('tenantId') tenantId: string,
     @Param('featureKey') featureKey: string,
     @Body() dto: ResetUsageDto,
+    @CurrentUser() user: { id: string },
   ): Promise<{
     success: boolean;
     tenantId: string;
@@ -241,12 +243,13 @@ export class TenantUsageAdminController {
     message: string;
   }> {
     this.logger.log(
-      `[ADMIN] Resetting usage for tenant ${tenantId}, feature: ${featureKey}`,
+      `[ADMIN] Resetting usage for tenant ${tenantId}, feature: ${featureKey}, by user: ${user.id}`,
     );
 
     await this.usageTrackingService.resetUsage(
       tenantId,
       featureKey,
+      user.id,
       dto.reason,
     );
 
