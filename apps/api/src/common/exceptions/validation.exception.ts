@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
-import { I18nKeys } from '../../common/constants/i18n-keys';
+import { I18nKeys } from '@complytude/shared';
 
 export class ValidationException extends HttpException {
   constructor(_details: any[]) {

@@ -3,8 +3,8 @@ import { ValidationException } from '../exceptions/validation.exception';
 import {
   ValidationDetail,
   ValidationRuleContext,
-} from '../types/validation.types';
-import { formatFileSize } from '../helper';
+  formatFileSize,
+} from '@complytude/shared';
 
 /**
  * Validation rule names used by class-validator

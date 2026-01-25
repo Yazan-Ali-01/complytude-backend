@@ -7,7 +7,7 @@ import {
   ValidationErrorDto,
   ConflictErrorDto,
   InternalServerErrorDto,
-} from '../dto/error-response.dto';
+} from '@complytude/shared';
 import { SwaggerCookieAuth } from './common';
 
 /**

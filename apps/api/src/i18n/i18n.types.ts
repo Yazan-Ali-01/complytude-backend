@@ -1,4 +1,4 @@
-import { I18nKeys } from '../common/constants/i18n-keys';
+import { I18nKeys } from '@complytude/shared';
 
 /**
  * Translation namespaces used in the application
