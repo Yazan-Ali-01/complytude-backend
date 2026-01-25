@@ -119,7 +119,7 @@ export interface TemplateField {
 
 export interface Tenant {
   id: string;
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  plan: 'navigator' | 'shield' | 'general_counsel' | 'infrastructure';
   features: TenantFeatures;
   is_active: boolean;
   created_at: Date;

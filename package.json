@@ -57,7 +57,7 @@
     "db:verify": "psql -U postgres -h localhost -p 5432 -d complytude -f scripts/utilities/verify-multi-tenancy.sql",
     "// === 🎨 Code Quality ===": "",
     "lint": "eslint \"{apps,libs}/**/*.ts\" --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "type-check": "tsc --noEmit",
     "// === 🔧 Git Hooks ===": "",
     "prepare": "husky || true",
