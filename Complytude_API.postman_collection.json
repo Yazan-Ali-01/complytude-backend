@@ -1,20 +1,10 @@
 {
   "info": {
     "name": "Complytude API",
-    "description": "Complete API collection for Complytude - Multi-tenant NestJS application with JWT authentication, S3/MinIO file storage, template management system with versioning, plan-based feature enforcement, and system admin role-based security",
+    "description": "Complete API collection for Complytude - Multi-tenant NestJS application with JWT authentication (HTTP-only cookies), S3/MinIO file storage, document generation, template management with versioning, plan-based feature enforcement, usage tracking, audit logging, and role-based access control (RBAC).\n\n**Authentication Flow:**\n1. Login → Returns tenant list (temp auth cookie set)\n2. Tenant Switch → Selects active tenant (access/refresh cookies set)\n3. All subsequent requests use cookies automatically\n\n**Version:** 3.0.0\n**Last Updated:** 2026-01-25",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "complytude",
-    "version": "2.0.0"
-  },
-  "auth": {
-    "type": "bearer",
-    "bearer": [
-      {
-        "key": "token",
-        "value": "{{accessToken}}",
-        "type": "string"
-      }
-    ]
+    "version": "3.0.0"
   },
   "item": [
     {
@@ -27,35 +17,13 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "// Check if request was successful",
                   "if (pm.response.code === 201 || pm.response.code === 200) {",
-                  "    try {",
-                  "        const response = pm.response.json();",
-                  "        ",
-                  "        // Save verification token (for email verification)",
-                  "        if (response.verificationToken) {",
-                  "            pm.environment.set('verificationToken', response.verificationToken);",
-                  "            console.log('✅ Verification token saved:', response.verificationToken);",
-                  "        }",
-                  "        ",
-                  "        // Save user ID",
-                  "        if (response.userId) {",
-                  "            pm.environment.set('userId', response.userId);",
-                  "            console.log('✅ User ID saved:', response.userId);",
-                  "        }",
-                  "        ",
-                  "        // Save tenant ID",
-                  "        if (response.tenantId) {",
-                  "            pm.environment.set('tenantId', response.tenantId);",
-                  "            console.log('✅ Tenant ID saved:', response.tenantId);",
-                  "        }",
-                  "        ",
-                  "        console.log('✅ Signup successful! Next step: Verify Email');",
-                  "    } catch (e) {",
-                  "        console.error('❌ Error parsing response:', e);",
-                  "    }",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Signup successful!');",
+                  "    console.log('   Message:', response.message);",
+                  "    console.log('Next step: Check email for verification link (or use dev token from logs)');",
                   "} else {",
-                  "    console.error('❌ Signup failed with status:', pm.response.code);",
+                  "    console.error('❌ Signup failed:', pm.response.code);",
                   "    console.error('Response:', pm.response.text());",
                   "}"
                 ],
@@ -64,9 +32,6 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -76,14 +41,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"tenantName\": \"Acme Corporation\"\n}"
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/signup",
               "host": ["{{baseUrl}}"],
               "path": ["auth", "signup"]
             },
-            "description": "Register a new user account and create their first tenant"
+            "description": "Register a new user account. Creates user and sends verification email."
           },
           "response": []
         },
@@ -107,9 +72,6 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -126,7 +88,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["auth", "verify-email"]
             },
-            "description": "Verify user email address using token from signup"
+            "description": "Verify user email address using token from signup email"
           },
           "response": []
         },
@@ -138,50 +100,21 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    try {",
-                  "        const response = pm.response.json();",
-                  "        ",
-                  "        // Save access token",
-                  "        if (response.accessToken) {",
-                  "            pm.environment.set('accessToken', response.accessToken);",
-                  "            console.log('✅ Access token saved');",
-                  "        }",
-                  "        ",
-                  "        // Save refresh token",
-                  "        if (response.refreshToken) {",
-                  "            pm.environment.set('refreshToken', response.refreshToken);",
-                  "            console.log('✅ Refresh token saved');",
-                  "        }",
-                  "        ",
-                  "        // Save current tenant info",
-                  "        if (response.currentTenant) {",
-                  "            pm.environment.set('tenantId', response.currentTenant.tenantId);",
-                  "            pm.environment.set('tenantRole', response.currentTenant.role);",
-                  "            console.log('✅ Tenant ID:', response.currentTenant.tenantId);",
-                  "            console.log('✅ Your role:', response.currentTenant.role);",
-                  "        }",
-                  "        ",
-                  "        // Save user info",
-                  "        if (response.user) {",
-                  "            pm.environment.set('userId', response.user.id);",
-                  "            console.log('✅ User ID:', response.user.id);",
-                  "            console.log('✅ Email verified:', response.user.isVerified);",
-                  "        }",
-                  "        ",
-                  "        // Display available tenants",
-                  "        if (response.availableTenants && response.availableTenants.length > 0) {",
-                  "            console.log('📋 Available tenants:', response.availableTenants.length);",
-                  "            response.availableTenants.forEach((t, i) => {",
-                  "                console.log(`  ${i + 1}. Tenant: ${t.tenantId} (Role: ${t.role})`);",
-                  "            });",
-                  "        }",
-                  "        ",
-                  "        console.log('✅ Login successful! You can now access protected endpoints.');",
-                  "    } catch (e) {",
-                  "        console.error('❌ Error parsing response:', e);",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Login successful!');",
+                  "    console.log('   User:', response.user.email);",
+                  "    console.log('   Tenants available:', response.tenants.length);",
+                  "    ",
+                  "    if (response.tenants && response.tenants.length > 0) {",
+                  "        response.tenants.forEach((t, i) => {",
+                  "            console.log(`   ${i + 1}. ${t.tenantName} (${t.role})`);",
+                  "        });",
+                  "        // Save first tenant ID for convenience",
+                  "        pm.environment.set('tenantId', response.tenants[0].tenantId);",
+                  "        console.log('\\n⚠️  Temp auth cookie set. Next step: Call Tenant Switch to select a tenant');",
                   "    }",
                   "} else {",
-                  "    console.error('❌ Login failed with status:', pm.response.code);",
+                  "    console.error('❌ Login failed:', pm.response.code);",
                   "    console.error('Response:', pm.response.text());",
                   "}"
                 ],
@@ -190,9 +123,6 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -209,7 +139,54 @@
               "host": ["{{baseUrl}}"],
               "path": ["auth", "login"]
             },
-            "description": "Login to user account and receive JWT tokens"
+            "description": "Login to user account. Returns list of tenants user belongs to. A temporary auth cookie is set - you must call Tenant Switch to get full access."
+          },
+          "response": []
+        },
+        {
+          "name": "Tenant Switch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Tenant switched successfully!');",
+                  "    console.log('   Tenant:', response.tenant.name);",
+                  "    console.log('   Role:', response.user.role);",
+                  "    console.log('');",
+                  "    console.log('🔐 Access and refresh tokens set in cookies');",
+                  "    console.log('You can now access all protected endpoints');",
+                  "    ",
+                  "    pm.environment.set('tenantId', response.tenant.id);",
+                  "} else {",
+                  "    console.error('❌ Tenant switch failed:', pm.response.code);",
+                  "    console.error('Response:', pm.response.text());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"{{tenantId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/tenant-switch",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "tenant-switch"]
+            },
+            "description": "Switch to a specific tenant after login. Sets access and refresh token cookies. Required step after login to access protected resources."
           },
           "response": []
         },
@@ -221,24 +198,8 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    try {",
-                  "        const response = pm.response.json();",
-                  "        ",
-                  "        // Update tokens",
-                  "        if (response.accessToken) {",
-                  "            pm.environment.set('accessToken', response.accessToken);",
-                  "            console.log('✅ Access token refreshed');",
-                  "        }",
-                  "        ",
-                  "        if (response.refreshToken) {",
-                  "            pm.environment.set('refreshToken', response.refreshToken);",
-                  "            console.log('✅ Refresh token rotated');",
-                  "        }",
-                  "        ",
-                  "        console.log('✅ Tokens refreshed successfully');",
-                  "    } catch (e) {",
-                  "        console.error('❌ Error parsing response:', e);",
-                  "    }",
+                  "    console.log('✅ Tokens refreshed successfully');",
+                  "    console.log('New access token cookie has been set');",
                   "} else {",
                   "    console.error('❌ Token refresh failed');",
                   "    console.error('You may need to login again');",
@@ -249,26 +210,14 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-            },
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/auth/refresh",
               "host": ["{{baseUrl}}"],
               "path": ["auth", "refresh"]
             },
-            "description": "Refresh access token using refresh token"
+            "description": "Refresh access token using refresh token from cookie. New tokens are set automatically in cookies."
           },
           "response": []
         },
@@ -280,11 +229,8 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    // Clear all tokens",
-                  "    pm.environment.unset('accessToken');",
-                  "    pm.environment.unset('refreshToken');",
                   "    console.log('✅ Logged out successfully');",
-                  "    console.log('All tokens have been cleared');",
+                  "    console.log('All tokens have been revoked and cookies cleared');",
                   "} else {",
                   "    console.error('❌ Logout failed');",
                   "}"
@@ -295,22 +241,13 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-            },
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/auth/logout",
               "host": ["{{baseUrl}}"],
               "path": ["auth", "logout"]
             },
-            "description": "Logout from current session and revoke refresh token"
+            "description": "Logout from current session. Revokes refresh token and clears cookies."
           },
           "response": []
         },
@@ -322,20 +259,8 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    try {",
-                  "        const response = pm.response.json();",
-                  "        ",
-                  "        // Save reset token (in development, it's in response)",
-                  "        if (response.resetToken) {",
-                  "            pm.environment.set('resetToken', response.resetToken);",
-                  "            console.log('✅ Reset token saved:', response.resetToken);",
-                  "        }",
-                  "        ",
-                  "        console.log('✅ Password reset requested');",
-                  "        console.log('Check server logs for reset token (development mode)');",
-                  "    } catch (e) {",
-                  "        console.error('❌ Error:', e);",
-                  "    }",
+                  "    console.log('✅ Password reset requested');",
+                  "    console.log('Check email for reset link (or server logs in dev mode)');",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -343,9 +268,6 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -362,7 +284,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["auth", "forgot-password"]
             },
-            "description": "Request password reset link"
+            "description": "Request password reset link. Email is sent if account exists."
           },
           "response": []
         },
@@ -385,9 +307,6 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -409,7 +328,143 @@
           "response": []
         }
       ],
-      "description": "Authentication endpoints for signup, login, and password management"
+      "description": "Authentication endpoints for signup, login, tenant selection, and password management. Uses HTTP-only cookies for JWT tokens."
+    },
+    {
+      "name": "Invitations",
+      "item": [
+        {
+          "name": "Resolve Invitation (Public)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Invitation details:');",
+                  "    console.log('   Email:', response.email);",
+                  "    console.log('   Tenant:', response.tenantName);",
+                  "    console.log('   Role:', response.role);",
+                  "    console.log('   Invited by:', response.invitedBy.email);",
+                  "    console.log('   Expires:', response.expiresAt);",
+                  "    pm.environment.set('invitationId', response.invitationId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/invitations/resolve?token={{invitationToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "invitations", "resolve"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{invitationToken}}",
+                  "description": "Invitation token from email link"
+                }
+              ]
+            },
+            "description": "Get invitation details by token. Public endpoint - no authentication required. Used to display invitation info before accepting."
+          },
+          "response": []
+        },
+        {
+          "name": "List My Invitations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Pending invitations:', response.invitations.length);",
+                  "    response.invitations.forEach((inv, i) => {",
+                  "        console.log(`   ${i + 1}. ${inv.tenantName} (${inv.role}) - from ${inv.invitedBy.email}`);",
+                  "    });",
+                  "    if (response.invitations.length > 0) {",
+                  "        pm.environment.set('invitationId', response.invitations[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/invitations",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "invitations"]
+            },
+            "description": "List all pending invitations for the authenticated user"
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Invitation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Invitation accepted!');",
+                  "    console.log('You can now switch to the new tenant');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/invitations/{{invitationId}}/accept",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "invitations", "{{invitationId}}", "accept"]
+            },
+            "description": "Accept a tenant invitation. User will be added to the tenant with the specified role."
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Invitation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Invitation rejected');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/invitations/{{invitationId}}/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "invitations", "{{invitationId}}", "reject"]
+            },
+            "description": "Reject a tenant invitation"
+          },
+          "response": []
+        }
+      ],
+      "description": "Tenant invitation management - accept or reject invitations to join tenants"
     },
     {
       "name": "User Management",
@@ -426,8 +481,8 @@
                   "    console.log('✅ User Profile:');",
                   "    console.log('   ID:', user.id);",
                   "    console.log('   Email:', user.email);",
-                  "    console.log('   Name:', user.first_name, user.last_name);",
-                  "    console.log('   Verified:', user.is_verified);",
+                  "    console.log('   Name:', user.firstName, user.lastName);",
+                  "    console.log('   Verified:', user.isVerified);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -518,7 +573,7 @@
                   "    const tenants = pm.response.json();",
                   "    console.log('✅ Your Tenants:', tenants.length);",
                   "    tenants.forEach((t, i) => {",
-                  "        console.log(`${i + 1}. ${t.tenant_id} (${t.role})`);",
+                  "        console.log(`   ${i + 1}. ${t.tenantId} (${t.role})`);",
                   "    });",
                   "}"
                 ],
@@ -539,6 +594,37 @@
           "response": []
         },
         {
+          "name": "Get Current Active Tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const tenant = pm.response.json();",
+                  "    console.log('✅ Current Tenant:');",
+                  "    console.log('   ID:', tenant.tenantId);",
+                  "    console.log('   Name:', tenant.tenantName);",
+                  "    console.log('   Role:', tenant.role);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me/current-tenant",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me", "current-tenant"]
+            },
+            "description": "Get information about the current active tenant context"
+          },
+          "response": []
+        },
+        {
           "name": "List Tenant Users",
           "event": [
             {
@@ -549,7 +635,7 @@
                   "    const users = pm.response.json();",
                   "    console.log('✅ Tenant Users:', users.length);",
                   "    users.forEach((u, i) => {",
-                  "        console.log(`${i + 1}. ${u.email} (${u.role})`);",
+                  "        console.log(`   ${i + 1}. ${u.email} (${u.role})`);",
                   "    });",
                   "}"
                 ],
@@ -604,7 +690,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["users"]
             },
-            "description": "Create or invite user to current tenant (Admin only)"
+            "description": "Create or invite user to current tenant (Admin only). Roles: admin, member, viewer"
           },
           "response": []
         },
@@ -629,7 +715,7 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "user_123456",
+                  "value": "{{userId}}",
                   "description": "User ID to update"
                 }
               ]
@@ -650,7 +736,7 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "user_123456",
+                  "value": "{{userId}}",
                   "description": "User ID to remove"
                 }
               ]
@@ -675,13 +761,10 @@
                   "if (pm.response.code === 200) {",
                   "    const tenant = pm.response.json();",
                   "    console.log('✅ Tenant Info:');",
-                  "    console.log('   ID:', tenant.tenant_id);",
+                  "    console.log('   ID:', tenant.id);",
+                  "    console.log('   Name:', tenant.name);",
                   "    console.log('   Plan:', tenant.plan);",
-                  "    console.log('   Schema:', tenant.schema_name);",
-                  "    console.log('   Created:', tenant.created_at);",
-                  "    if (tenant.features) {",
-                  "        console.log('   Features:', JSON.stringify(tenant.features, null, 2));",
-                  "    }",
+                  "    console.log('   Created:', tenant.createdAt);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -696,12 +779,378 @@
               "host": ["{{baseUrl}}"],
               "path": ["tenants", "me"]
             },
-            "description": "Get your own tenant information (read-only). Displays current plan and features. To upgrade plans, use the billing portal."
+            "description": "Get your current tenant information including features and limits"
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Tenant Usage",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const usage = pm.response.json();",
+                  "    console.log('✅ Tenant Usage Summary:');",
+                  "    console.log('   Period:', usage.periodStart, 'to', usage.periodEnd);",
+                  "    Object.entries(usage.features).forEach(([key, value]) => {",
+                  "        console.log(`   ${key}: ${value.current}/${value.limit} (${value.remaining} remaining)`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/me/usage",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "me", "usage"]
+            },
+            "description": "Get usage summary for current billing period including all metered features"
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Tenant Credits",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const credits = pm.response.json();",
+                  "    console.log('✅ Credit Balances:');",
+                  "    console.log(JSON.stringify(credits, null, 2));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/me/credits",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "me", "credits"]
+            },
+            "description": "Get current tenant's credit balances"
           },
           "response": []
         }
       ],
-      "description": "User self-management endpoints for viewing tenant information (read-only)"
+      "description": "User self-management endpoints for viewing tenant information"
+    },
+    {
+      "name": "Credits",
+      "item": [
+        {
+          "name": "List Credit Packages",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const packages = pm.response.json();",
+                  "    console.log('✅ Credit Packages:', packages.length);",
+                  "    packages.forEach((pkg, i) => {",
+                  "        console.log(`   ${i + 1}. ${pkg.name}: ${pkg.credits} credits for $${pkg.price}`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/credits/packages",
+              "host": ["{{baseUrl}}"],
+              "path": ["credits", "packages"]
+            },
+            "description": "List available credit packages for purchase"
+          },
+          "response": []
+        },
+        {
+          "name": "Purchase Credits",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 501) {",
+                  "    console.log('⚠️  Credit purchase not yet implemented');",
+                  "    console.log('Stripe integration required');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"packageId\": \"pkg_standard\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/credits/purchase",
+              "host": ["{{baseUrl}}"],
+              "path": ["credits", "purchase"]
+            },
+            "description": "Purchase credit package (NOT YET IMPLEMENTED - requires Stripe integration)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Credit package management for document generation"
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "Preview Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Preview generated!');",
+                  "    console.log('   Template:', response.templateKey);",
+                  "    console.log('   Format:', response.format);",
+                  "    console.log('   Preview URL:', response.previewUrl.substring(0, 80) + '...');",
+                  "    console.log('   Expires:', response.expiresAt);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateKey\": \"dmcc_employment_v1\",\n  \"variables\": {\n    \"employee_name\": \"John Doe\",\n    \"salary\": \"15000\",\n    \"start_date\": \"2026-02-01\",\n    \"position\": \"Software Engineer\"\n  },\n  \"format\": \"docx\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/preview",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "preview"]
+            },
+            "description": "Generate a preview document without saving. Returns temporary signed URL. Formats: docx, pdf"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Document generated and saved!');",
+                  "    console.log('   ID:', response.id);",
+                  "    console.log('   Template:', response.templateKey, 'v' + response.templateVersion);",
+                  "    console.log('   Download URLs:');",
+                  "    Object.entries(response.downloadUrls).forEach(([format, url]) => {",
+                  "        console.log(`     ${format}: ${url.substring(0, 60)}...`);",
+                  "    });",
+                  "    pm.environment.set('documentId', response.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateKey\": \"dmcc_employment_v1\",\n  \"variables\": {\n    \"employee_name\": \"John Doe\",\n    \"salary\": \"15000\",\n    \"start_date\": \"2026-02-01\",\n    \"position\": \"Software Engineer\"\n  },\n  \"formats\": [\"docx\", \"pdf\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "generate"]
+            },
+            "description": "Generate and save document. Subject to plan limits. Returns signed download URLs for each requested format."
+          },
+          "response": []
+        },
+        {
+          "name": "List Documents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Documents:', response.total);",
+                  "    console.log('   Page:', response.page);",
+                  "    if (response.documents && response.documents.length > 0) {",
+                  "        response.documents.forEach((doc, i) => {",
+                  "            console.log(`   ${i + 1}. ${doc.title} (${doc.templateKey} v${doc.templateVersion})`);",
+                  "        });",
+                  "        pm.environment.set('documentId', response.documents[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page (default: 20, max: 100)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search by title",
+                  "disabled": true
+                },
+                {
+                  "key": "templateKey",
+                  "value": "",
+                  "description": "Filter by template key",
+                  "disabled": true
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt",
+                  "description": "Sort field: createdAt, title",
+                  "disabled": true
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc",
+                  "description": "Sort order: asc, desc",
+                  "disabled": true
+                },
+                {
+                  "key": "includeDeleted",
+                  "value": "false",
+                  "description": "Include soft-deleted documents (admin only)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List tenant documents with pagination, search, and filtering"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Document by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const doc = pm.response.json();",
+                  "    console.log('✅ Document:');",
+                  "    console.log('   ID:', doc.id);",
+                  "    console.log('   Title:', doc.title);",
+                  "    console.log('   Template:', doc.templateKey, 'v' + doc.templateVersion);",
+                  "    console.log('   Created:', doc.createdAt);",
+                  "    console.log('   Created by:', doc.createdByUser.email);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "{{documentId}}"]
+            },
+            "description": "Get document details including metadata and download URLs"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Document deleted (soft delete)');",
+                  "    console.log('   ID:', response.id);",
+                  "    console.log('   Deleted at:', response.deletedAt);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "{{documentId}}"]
+            },
+            "description": "Soft delete a document (marked as deleted, can be recovered by admin)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Document generation and management using templates"
     },
     {
       "name": "Admin - Tenants",
@@ -714,11 +1163,15 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const tenants = pm.response.json();",
-                  "    console.log('✅ Tenants:', tenants.length);",
-                  "    tenants.forEach((t, i) => {",
-                  "        console.log(`${i + 1}. ${t.tenant_id} (${t.plan}) - ${t.email}`);",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Tenants:', response.items.length);",
+                  "    console.log('   Has more:', response.hasMore);",
+                  "    response.items.forEach((t, i) => {",
+                  "        console.log(`   ${i + 1}. ${t.id} - ${t.name} (${t.plan})`);",
                   "    });",
+                  "    if (response.nextCursor) {",
+                  "        pm.environment.set('tenantCursor', response.nextCursor);",
+                  "    }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -729,11 +1182,30 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants",
+              "raw": "{{baseUrl}}/admin/tenants?limit=20",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants"]
+              "path": ["admin", "tenants"],
+              "query": [
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor for pagination",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page (default: 20)"
+                },
+                {
+                  "key": "direction",
+                  "value": "next",
+                  "description": "Pagination direction: next, prev",
+                  "disabled": true
+                }
+              ]
             },
-            "description": "List all tenants in the system (System Admin only). Requires is_system_admin = true."
+            "description": "List all tenants in the system using cursor pagination (System Admin only)"
           },
           "response": []
         },
@@ -747,13 +1219,9 @@
                   "if (pm.response.code === 200) {",
                   "    const tenant = pm.response.json();",
                   "    console.log('✅ Tenant Details:');",
-                  "    console.log('   ID:', tenant.tenant_id);",
-                  "    console.log('   Email:', tenant.email);",
+                  "    console.log('   ID:', tenant.id);",
+                  "    console.log('   Name:', tenant.name);",
                   "    console.log('   Plan:', tenant.plan);",
-                  "    console.log('   Schema:', tenant.schema_name);",
-                  "    if (tenant.features) {",
-                  "        console.log('   Custom Features:', JSON.stringify(tenant.features, null, 2));",
-                  "    }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -764,23 +1232,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants/:tenantId",
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants", ":tenantId"],
-              "variable": [
-                {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID"
-                }
-              ]
+              "path": ["admin", "tenants", "{{tenantId}}"]
             },
             "description": "Get detailed tenant information by ID (System Admin only)"
           },
           "response": []
         },
         {
-          "name": "Get Tenant by Email",
+          "name": "Update Tenant",
           "event": [
             {
               "listen": "test",
@@ -788,47 +1249,9 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "    const tenant = pm.response.json();",
-                  "    pm.environment.set('tenantId', tenant.tenant_id);",
-                  "    console.log('✅ Tenant found:', tenant.tenant_id);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/admin/tenants/email/:email",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants", "email", ":email"],
-              "variable": [
-                {
-                  "key": "email",
-                  "value": "tenant@example.com",
-                  "description": "Tenant email"
-                }
-              ]
-            },
-            "description": "Get tenant information by email address (System Admin only)"
-          },
-          "response": []
-        },
-        {
-          "name": "Update Tenant (Plan & Features)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    const tenant = pm.response.json();",
-                  "    console.log('✅ Tenant updated successfully');",
-                  "    console.log('   New plan:', tenant.plan);",
-                  "    if (tenant.features) {",
-                  "        console.log('   Custom features:', JSON.stringify(tenant.features, null, 2));",
-                  "    }",
+                  "    console.log('✅ Tenant updated');",
+                  "    console.log('   Name:', tenant.name);",
+                  "    console.log('   Plan:', tenant.plan);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -845,21 +1268,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"plan\": \"pro\",\n  \"features\": {\n    \"document_limit\": 750,\n    \"checklist_access\": true,\n    \"analyzer_enabled\": true\n  }\n}"
+              "raw": "{\n  \"name\": \"Updated Company Name\",\n  \"plan\": \"pro\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants/:tenantId",
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants", ":tenantId"],
-              "variable": [
-                {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID"
-                }
-              ]
+              "path": ["admin", "tenants", "{{tenantId}}"]
             },
-            "description": "Update tenant plan and custom features (System Admin only). Custom features override plan defaults. Available plans: early_access (10 docs), basic (50 docs), pro (500 docs), enterprise (unlimited = -1)."
+            "description": "Update tenant details (System Admin only). Plans: early_access, basic, pro, enterprise"
           },
           "response": []
         },
@@ -870,9 +1286,9 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "if (pm.response.code === 204) {",
-                  "    console.log('✅ Tenant deleted successfully');",
-                  "    console.log('⚠️  All tenant data and schema have been removed');",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Tenant deleted');",
+                  "    console.log('⚠️  All tenant data has been removed');",
                   "    pm.environment.unset('tenantId');",
                   "}"
                 ],
@@ -884,23 +1300,752 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/tenants/:tenantId",
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["admin", "tenants", ":tenantId"],
-              "variable": [
-                {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID"
-                }
-              ]
+              "path": ["admin", "tenants", "{{tenantId}}"]
             },
-            "description": "Delete tenant and all associated data including database schema (System Admin only). This action is irreversible!"
+            "description": "Delete tenant and all associated data (System Admin only). This action is irreversible!"
           },
           "response": []
         }
       ],
-      "description": "System Administrator endpoints for full tenant management (requires is_system_admin = true)"
+      "description": "System Administrator endpoints for tenant management (requires is_system_admin = true)"
+    },
+    {
+      "name": "Admin - Features",
+      "item": [
+        {
+          "name": "List All Features",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Features:', response.total);",
+                  "    response.features.forEach((f, i) => {",
+                  "        console.log(`   ${i + 1}. ${f.key} (${f.dataType}) - ${f.displayName}`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/features",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "features"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "documents",
+                  "description": "Filter by category",
+                  "disabled": true
+                },
+                {
+                  "key": "isMetered",
+                  "value": "true",
+                  "description": "Filter metered features only",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Max results",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all system features with their configurations (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Feature by Key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/features/:featureKey",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "features", ":featureKey"],
+              "variable": [
+                {
+                  "key": "featureKey",
+                  "value": "documents_per_month",
+                  "description": "Feature key"
+                }
+              ]
+            },
+            "description": "Get details of a specific feature (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Feature",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const feature = pm.response.json();",
+                  "    console.log('✅ Feature created:', feature.key);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"custom_reports_per_month\",\n  \"dataType\": \"number\",\n  \"category\": \"reports\",\n  \"displayName\": \"Custom Reports Per Month\",\n  \"description\": \"Maximum custom reports tenant can generate per month\",\n  \"defaultValue\": 10,\n  \"isMetered\": true,\n  \"sortOrder\": 500\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/features",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "features"]
+            },
+            "description": "Create a new system feature (System Admin only). Data types: boolean, number, enum, string"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Feature",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Feature Name\",\n  \"description\": \"Updated description\",\n  \"sortOrder\": 150\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/features/:featureKey",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "features", ":featureKey"],
+              "variable": [
+                {
+                  "key": "featureKey",
+                  "value": "documents_per_month",
+                  "description": "Feature key"
+                }
+              ]
+            },
+            "description": "Update feature display settings (System Admin only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "System feature registry management (System Admin only)"
+    },
+    {
+      "name": "Admin - Feature Overrides",
+      "item": [
+        {
+          "name": "Create Feature Override",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const override = pm.response.json();",
+                  "    console.log('✅ Override created');",
+                  "    console.log('   Feature:', override.featureKey);",
+                  "    console.log('   Value:', override.value);",
+                  "    console.log('   Expires:', override.expiresAt || 'Never');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"featureKey\": \"documents_per_month\",\n  \"value\": 100,\n  \"reason\": \"Enterprise trial - 30 days\",\n  \"expiresAt\": \"2026-02-25T00:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/overrides",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "overrides"]
+            },
+            "description": "Grant a feature override to a tenant (System Admin only). Overrides plan defaults."
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Create Overrides",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Bulk overrides created:', response.total);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"overrides\": [\n    {\n      \"featureKey\": \"documents_per_month\",\n      \"value\": 100,\n      \"expiresAt\": \"2026-02-25T00:00:00Z\"\n    },\n    {\n      \"featureKey\": \"contract_reviews_per_month\",\n      \"value\": 20,\n      \"expiresAt\": \"2026-02-25T00:00:00Z\"\n    }\n  ],\n  \"reason\": \"Partnership deal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/overrides/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "overrides", "bulk"]
+            },
+            "description": "Create multiple feature overrides at once (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "List Tenant Overrides",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Overrides:', response.total);",
+                  "    response.overrides.forEach((o, i) => {",
+                  "        console.log(`   ${i + 1}. ${o.featureKey}: ${o.value} (expires: ${o.expiresAt || 'never'})`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/overrides",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "overrides"],
+              "query": [
+                {
+                  "key": "includeExpired",
+                  "value": "false",
+                  "description": "Include expired overrides",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all feature overrides for a tenant (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Specific Override",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/overrides/:featureKey",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "overrides", ":featureKey"],
+              "variable": [
+                {
+                  "key": "featureKey",
+                  "value": "documents_per_month",
+                  "description": "Feature key"
+                }
+              ]
+            },
+            "description": "Get specific feature override for a tenant (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Override",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Override revoked');",
+                  "    console.log('   Feature:', response.featureKey);",
+                  "    console.log('   Tenant will now use plan defaults');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/overrides/:featureKey",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "overrides", ":featureKey"],
+              "variable": [
+                {
+                  "key": "featureKey",
+                  "value": "documents_per_month",
+                  "description": "Feature key"
+                }
+              ]
+            },
+            "description": "Revoke a feature override (System Admin only). Tenant reverts to plan defaults."
+          },
+          "response": []
+        }
+      ],
+      "description": "Feature override management for tenants (System Admin only)"
+    },
+    {
+      "name": "Admin - Usage",
+      "item": [
+        {
+          "name": "Get Tenant Usage Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const usage = pm.response.json();",
+                  "    console.log('✅ Usage Summary for', usage.tenantId);",
+                  "    console.log('   Period:', usage.periodStart, 'to', usage.periodEnd);",
+                  "    Object.entries(usage.features).forEach(([key, value]) => {",
+                  "        console.log(`   ${key}: ${value.current}/${value.limit}`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/usage",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "usage"]
+            },
+            "description": "Get usage summary for a specific tenant (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Check Usage Limit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const check = pm.response.json();",
+                  "    console.log('✅ Usage Check:');",
+                  "    console.log('   Allowed:', check.allowed);",
+                  "    console.log('   Current:', check.current, '/', check.limit);",
+                  "    console.log('   Remaining:', check.remaining);",
+                  "    console.log('   Message:', check.message);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/usage/check/:featureKey",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "usage", "check", ":featureKey"],
+              "variable": [
+                {
+                  "key": "featureKey",
+                  "value": "documents_per_month",
+                  "description": "Feature key to check"
+                }
+              ]
+            },
+            "description": "Check if tenant can use more of a specific feature (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Usage History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const history = pm.response.json();",
+                  "    console.log('✅ Usage History:', history.total, 'events');",
+                  "    history.events.forEach((e, i) => {",
+                  "        console.log(`   ${i + 1}. ${e.featureKey}: ${e.eventType} (${e.delta}) at ${e.createdAt}`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/usage/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "usage", "history"],
+              "query": [
+                {
+                  "key": "featureKey",
+                  "value": "documents_per_month",
+                  "description": "Filter by feature",
+                  "disabled": true
+                },
+                {
+                  "key": "startDate",
+                  "value": "2026-01-01",
+                  "description": "Start date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-01-31",
+                  "description": "End date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Max results",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get usage event history for a tenant (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Usage Records",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/usage/records",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "usage", "records"]
+            },
+            "description": "Get all current usage records for a tenant (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Usage Counter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Usage counter reset');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Customer support request - billing adjustment\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/tenants/{{tenantId}}/usage/:featureKey",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "tenants", "{{tenantId}}", "usage", ":featureKey"],
+              "variable": [
+                {
+                  "key": "featureKey",
+                  "value": "documents_per_month",
+                  "description": "Feature key to reset"
+                }
+              ]
+            },
+            "description": "Reset usage counter for a specific feature (System Admin only). Logged for audit."
+          },
+          "response": []
+        }
+      ],
+      "description": "Tenant usage tracking and management (System Admin only)"
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "Get Audit Logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Audit Logs:', response.total);",
+                  "    response.logs.forEach((log, i) => {",
+                  "        console.log(`   ${i + 1}. ${log.action} by ${log.userId} at ${log.createdAt}`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2026-01-01T00:00:00Z",
+                  "description": "Start date (ISO string)",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-01-31T23:59:59Z",
+                  "description": "End date (ISO string)",
+                  "disabled": true
+                },
+                {
+                  "key": "action",
+                  "value": "documents:delete",
+                  "description": "Filter by action",
+                  "disabled": true
+                },
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": "Filter by user ID",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Max results",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Offset for pagination",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get tenant audit logs. Requires settings:manage permission."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/user/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "user", ":userId"],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "description": "User ID"
+                }
+              ]
+            },
+            "description": "Get audit logs for a specific user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recent Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/recent?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "recent"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Number of recent logs (default: 10)"
+                }
+              ]
+            },
+            "description": "Get most recent audit log entries"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Activity Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const activity = pm.response.json();",
+                  "    console.log('✅ User Activity Summary:');",
+                  "    Object.entries(activity).forEach(([action, count]) => {",
+                  "        console.log(`   ${action}: ${count}`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/activity/:userId?days=7",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "activity", ":userId"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "7",
+                  "description": "Number of days to summarize (default: 7)"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "description": "User ID"
+                }
+              ]
+            },
+            "description": "Get summary of user activity by action type over specified days"
+          },
+          "response": []
+        }
+      ],
+      "description": "Audit log endpoints for compliance and tracking. Requires settings:manage permission."
+    },
+    {
+      "name": "Permissions",
+      "item": [
+        {
+          "name": "List All Permissions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Permissions:', response.permissions.length);",
+                  "    response.permissions.forEach((p, i) => {",
+                  "        console.log(`   ${i + 1}. ${p.name}: ${p.description}`);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["permissions"]
+            },
+            "description": "List all available permissions in the RBAC system"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Permission by Name",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/permissions/:name",
+              "host": ["{{baseUrl}}"],
+              "path": ["permissions", ":name"],
+              "variable": [
+                {
+                  "key": "name",
+                  "value": "documents:create",
+                  "description": "Permission name"
+                }
+              ]
+            },
+            "description": "Get details of a specific permission"
+          },
+          "response": []
+        }
+      ],
+      "description": "RBAC permission endpoints"
     },
     {
       "name": "Health",
@@ -915,7 +2060,6 @@
                   "if (pm.response.code === 200) {",
                   "    const health = pm.response.json();",
                   "    console.log('✅ Service Health:', health.status);",
-                  "    console.log('   Uptime:', health.uptime);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -923,9 +2067,6 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "GET",
             "header": [],
             "url": {
@@ -947,7 +2088,7 @@
                   "if (pm.response.code === 200) {",
                   "    const health = pm.response.json();",
                   "    console.log('✅ Database Health:', health.status);",
-                  "    console.log('   Connected:', health.database.connected);",
+                  "    console.log('   Connected:', health.database);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -955,9 +2096,6 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "GET",
             "header": [],
             "url": {
@@ -984,19 +2122,13 @@
                 "exec": [
                   "if (pm.response.code === 201 || pm.response.code === 200) {",
                   "    const response = pm.response.json();",
-                  "    ",
-                  "    // Save file key for other requests",
                   "    if (response.key) {",
                   "        pm.environment.set('fileKey', response.key);",
-                  "        console.log('✅ File uploaded successfully!');",
-                  "        console.log('   File key:', response.key);",
+                  "        console.log('✅ File uploaded!');",
+                  "        console.log('   Key:', response.key);",
                   "        console.log('   Size:', response.size, 'bytes');",
                   "        console.log('   Content-Type:', response.contentType);",
-                  "        console.log('   Bucket:', response.bucket);",
                   "    }",
-                  "} else {",
-                  "    console.error('❌ Upload failed:', pm.response.code);",
-                  "    console.error('Error:', pm.response.json());",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -1022,7 +2154,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["storage", "upload"]
             },
-            "description": "Upload a file to tenant-isolated storage. Requires JWT authentication. Supported formats: PDF, DOCX, PNG, JPEG. Max size: 10MB. Subject to plan document limits (returns 403 if limit exceeded)."
+            "description": "Upload a file to tenant-isolated storage. Subject to plan document limits."
           },
           "response": []
         },
@@ -1035,21 +2167,12 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "    const response = pm.response.json();",
-                  "    console.log('✅ Files retrieved successfully!');",
-                  "    console.log('   Total files:', response.total);",
-                  "    ",
+                  "    console.log('✅ Files:', response.files ? response.files.length : 0);",
                   "    if (response.files && response.files.length > 0) {",
-                  "        console.log('\\n📁 Files:');",
-                  "        response.files.forEach((file, index) => {",
-                  "            console.log(`   ${index + 1}. ${file.key}`);",
-                  "            console.log(`      Size: ${file.size} bytes`);",
-                  "            console.log(`      Last Modified: ${file.lastModified}`);",
+                  "        response.files.forEach((file, i) => {",
+                  "            console.log(`   ${i + 1}. ${file.key} (${file.size} bytes)`);",
                   "        });",
-                  "        ",
-                  "        // Save first file key for other requests",
                   "        pm.environment.set('fileKey', response.files[0].key);",
-                  "    } else {",
-                  "        console.log('   No files found');",
                   "    }",
                   "}"
                 ],
@@ -1070,10 +2193,16 @@
                   "value": "",
                   "description": "Optional prefix to filter files",
                   "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Max results",
+                  "disabled": true
                 }
               ]
             },
-            "description": "List all files in the current tenant's storage. Requires JWT authentication."
+            "description": "List all files in the current tenant's storage"
           },
           "response": []
         },
@@ -1086,10 +2215,9 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "    const response = pm.response.json();",
-                  "    console.log('✅ Signed URL generated successfully!');",
-                  "    console.log('   File key:', response.key);",
-                  "    console.log('   Expires in:', response.expiresIn, 'seconds');",
-                  "    console.log('   URL:', response.url.substring(0, 100) + '...');",
+                  "    console.log('✅ Signed URL generated');",
+                  "    console.log('   Expires in:', response.expiresIn || 900, 'seconds');",
+                  "    console.log('   URL:', response.signedUrl.substring(0, 80) + '...');",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -1097,21 +2225,13 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/storage/signed-url/{{fileKey}}?tenantId={{tenantId}}",
+              "raw": "{{baseUrl}}/storage/signed-url/{{fileKey}}",
               "host": ["{{baseUrl}}"],
               "path": ["storage", "signed-url", "{{fileKey}}"],
               "query": [
-                {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID (required)"
-                },
                 {
                   "key": "expiresIn",
                   "value": "900",
@@ -1120,7 +2240,7 @@
                 }
               ]
             },
-            "description": "Generate a signed URL for downloading a file. No authentication required, but tenantId must be provided."
+            "description": "Generate a signed URL for downloading a file"
           },
           "response": []
         },
@@ -1132,9 +2252,8 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    console.log('✅ File downloaded successfully!');",
+                  "    console.log('✅ File downloaded');",
                   "    console.log('   Content-Type:', pm.response.headers.get('content-type'));",
-                  "    console.log('   Content-Disposition:', pm.response.headers.get('content-disposition'));",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -1142,24 +2261,14 @@
             }
           ],
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/storage/download/{{fileKey}}?tenantId={{tenantId}}",
+              "raw": "{{baseUrl}}/storage/download/{{fileKey}}",
               "host": ["{{baseUrl}}"],
-              "path": ["storage", "download", "{{fileKey}}"],
-              "query": [
-                {
-                  "key": "tenantId",
-                  "value": "{{tenantId}}",
-                  "description": "Tenant ID (required)"
-                }
-              ]
+              "path": ["storage", "download", "{{fileKey}}"]
             },
-            "description": "Download a file directly. No authentication required, but tenantId must be provided. Returns file as attachment."
+            "description": "Download a file directly as a stream"
           },
           "response": []
         },
@@ -1171,12 +2280,7 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const response = pm.response.json();",
-                  "    console.log('✅ File deleted successfully!');",
-                  "    console.log('   Message:', response.message);",
-                  "    console.log('   Key:', response.key);",
-                  "    ",
-                  "    // Clear the fileKey from environment",
+                  "    console.log('✅ File deleted');",
                   "    pm.environment.unset('fileKey');",
                   "}"
                 ],
@@ -1192,12 +2296,12 @@
               "host": ["{{baseUrl}}"],
               "path": ["storage", "{{fileKey}}"]
             },
-            "description": "Delete a file from tenant storage. Requires JWT authentication."
+            "description": "Delete a file from tenant storage"
           },
           "response": []
         }
       ],
-      "description": "File storage endpoints using S3-compatible storage (MinIO for local development)"
+      "description": "File storage endpoints using S3-compatible storage"
     },
     {
       "name": "Templates - Authorities",
@@ -1210,11 +2314,13 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const authorities = pm.response.json();",
-                  "    console.log('✅ Authorities:', authorities.length);",
-                  "    if (authorities.length > 0) {",
-                  "        pm.environment.set('authorityId', authorities[0].id);",
-                  "        console.log('   First authority:', authorities[0].code, '-', authorities[0].name);",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Authorities:', response.total);",
+                  "    if (response.authorities && response.authorities.length > 0) {",
+                  "        pm.environment.set('authorityId', response.authorities[0].id);",
+                  "        response.authorities.forEach((a, i) => {",
+                  "            console.log(`   ${i + 1}. ${a.code} - ${a.name}`);",
+                  "        });",
                   "    }",
                   "}"
                 ],
@@ -1231,9 +2337,19 @@
               "path": ["authorities"],
               "query": [
                 {
-                  "key": "active",
+                  "key": "isActive",
                   "value": "true",
                   "description": "Filter by active status",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
                   "disabled": true
                 }
               ]
@@ -1283,7 +2399,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"TECOM\",\n  \"name\": \"Dubai Technology and Media Free Zone\",\n  \"description\": \"Dubai's technology and media free zone authority\",\n  \"country\": \"UAE\",\n  \"is_active\": true\n}"
+              "raw": "{\n  \"code\": \"TECOM\",\n  \"name\": \"Dubai Technology and Media Free Zone\",\n  \"description\": \"Dubai's technology and media free zone authority\",\n  \"country\": \"UAE\",\n  \"isActive\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/authorities",
@@ -1297,7 +2413,7 @@
         {
           "name": "Update Authority",
           "request": {
-            "method": "PUT",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1327,12 +2443,12 @@
               "host": ["{{baseUrl}}"],
               "path": ["authorities", "{{authorityId}}"]
             },
-            "description": "Delete an authority (System Admin only)"
+            "description": "Soft delete an authority (System Admin only)"
           },
           "response": []
         }
       ],
-      "description": "Manage legal authorities (DMCC, IFZA, DED, RAKEZ, etc.) - System Admin only for write operations"
+      "description": "Legal authorities management - System Admin only for write operations"
     },
     {
       "name": "Templates - Categories",
@@ -1345,11 +2461,13 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const categories = pm.response.json();",
-                  "    console.log('✅ Categories:', categories.length);",
-                  "    if (categories.length > 0) {",
-                  "        pm.environment.set('categoryId', categories[0].id);",
-                  "        console.log('   First category:', categories[0].code, '-', categories[0].name);",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Categories:', response.total);",
+                  "    if (response.categories && response.categories.length > 0) {",
+                  "        pm.environment.set('categoryId', response.categories[0].id);",
+                  "        response.categories.forEach((c, i) => {",
+                  "            console.log(`   ${i + 1}. ${c.code} - ${c.name}`);",
+                  "        });",
                   "    }",
                   "}"
                 ],
@@ -1366,9 +2484,19 @@
               "path": ["categories"],
               "query": [
                 {
-                  "key": "active",
+                  "key": "isActive",
                   "value": "true",
                   "description": "Filter by active status",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
                   "disabled": true
                 }
               ]
@@ -1418,7 +2546,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"real_estate\",\n  \"name\": \"Real Estate Contracts\",\n  \"description\": \"Property purchase, sale, and rental agreements\",\n  \"is_active\": true\n}"
+              "raw": "{\n  \"code\": \"real_estate\",\n  \"name\": \"Real Estate Contracts\",\n  \"description\": \"Property purchase, sale, and rental agreements\",\n  \"isActive\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/categories",
@@ -1432,7 +2560,7 @@
         {
           "name": "Update Category",
           "request": {
-            "method": "PUT",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1462,12 +2590,12 @@
               "host": ["{{baseUrl}}"],
               "path": ["categories", "{{categoryId}}"]
             },
-            "description": "Delete a category (System Admin only)"
+            "description": "Soft delete a category (System Admin only)"
           },
           "response": []
         }
       ],
-      "description": "Manage template categories - System Admin only for write operations"
+      "description": "Template category management - System Admin only for write operations"
     },
     {
       "name": "Templates - Rulesets",
@@ -1480,11 +2608,13 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const rulesets = pm.response.json();",
-                  "    console.log('✅ Rulesets:', rulesets.length);",
-                  "    if (rulesets.length > 0) {",
-                  "        pm.environment.set('rulesetKey', rulesets[0].key);",
-                  "        console.log('   First ruleset:', rulesets[0].key, '-', rulesets[0].name);",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Rulesets:', response.total);",
+                  "    if (response.rulesets && response.rulesets.length > 0) {",
+                  "        pm.environment.set('rulesetKey', response.rulesets[0].key);",
+                  "        response.rulesets.forEach((r, i) => {",
+                  "            console.log(`   ${i + 1}. ${r.key} - ${r.name} (v${r.currentVersion})`);",
+                  "        });",
                   "    }",
                   "}"
                 ],
@@ -1507,14 +2637,24 @@
                   "disabled": true
                 },
                 {
-                  "key": "status",
-                  "value": "active",
-                  "description": "Filter by status",
+                  "key": "isActive",
+                  "value": "true",
+                  "description": "Filter by active status",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
                   "disabled": true
                 }
               ]
             },
-            "description": "Get list of all legal rulesets with clauses"
+            "description": "Get list of all legal rulesets"
           },
           "response": []
         },
@@ -1559,7 +2699,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"key\": \"dmcc_employment_rules_v1\",\n  \"name\": \"DMCC Employment Rules v1.0\",\n  \"description\": \"Standard employment rules for DMCC contracts\",\n  \"authority_id\": \"{{authorityId}}\",\n  \"clauses\": [\n    {\n      \"id\": \"clause_1\",\n      \"title\": \"Probation Period\",\n      \"content\": \"The employee shall be subject to a probation period of {probation_months} months.\",\n      \"order\": 1,\n      \"is_required\": true\n    },\n    {\n      \"id\": \"clause_2\",\n      \"title\": \"Working Hours\",\n      \"content\": \"Standard working hours are 8 hours per day, 5 days per week as per UAE Labor Law.\",\n      \"order\": 2,\n      \"is_required\": true\n    },\n    {\n      \"id\": \"clause_3\",\n      \"title\": \"Notice Period\",\n      \"content\": \"Either party may terminate this contract by providing 30 days written notice.\",\n      \"order\": 3,\n      \"is_required\": true\n    }\n  ],\n  \"version\": \"1.0.0\",\n  \"status\": \"active\",\n  \"metadata\": {\n    \"tags\": [\"employment\", \"dmcc\", \"standard\"]\n  }\n}"
+              "raw": "{\n  \"key\": \"dmcc_employment_rules_v1\",\n  \"name\": \"DMCC Employment Rules v1.0\",\n  \"description\": \"Standard employment rules for DMCC contracts\",\n  \"authorityId\": \"{{authorityId}}\",\n  \"clauses\": [\n    {\n      \"id\": \"clause_1\",\n      \"title\": \"Probation Period\",\n      \"content\": \"The employee shall be subject to a probation period of {probation_months} months.\",\n      \"order\": 1,\n      \"isRequired\": true\n    },\n    {\n      \"id\": \"clause_2\",\n      \"title\": \"Working Hours\",\n      \"content\": \"Standard working hours are 8 hours per day, 5 days per week as per UAE Labor Law.\",\n      \"order\": 2,\n      \"isRequired\": true\n    }\n  ],\n  \"version\": \"1.0.0\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/rulesets",
@@ -1567,29 +2707,6 @@
               "path": ["rulesets"]
             },
             "description": "Create a new legal ruleset with clauses (System Admin only)"
-          },
-          "response": []
-        },
-        {
-          "name": "Update Ruleset",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"DMCC Employment Rules v1.1\",\n  \"version\": \"1.1.0\",\n  \"clauses\": [\n    {\n      \"id\": \"clause_1\",\n      \"title\": \"Probation Period\",\n      \"content\": \"The employee shall be subject to a probation period of {probation_months} months (maximum 6 months).\",\n      \"order\": 1,\n      \"is_required\": true\n    },\n    {\n      \"id\": \"clause_2\",\n      \"title\": \"Working Hours\",\n      \"content\": \"Standard working hours are 8 hours per day, 5 days per week as per UAE Labor Law.\",\n      \"order\": 2,\n      \"is_required\": true\n    },\n    {\n      \"id\": \"clause_3\",\n      \"title\": \"Notice Period\",\n      \"content\": \"Either party may terminate this contract by providing 30 days written notice.\",\n      \"order\": 3,\n      \"is_required\": true\n    },\n    {\n      \"id\": \"clause_4\",\n      \"title\": \"Annual Leave\",\n      \"content\": \"Employee is entitled to 30 calendar days of annual leave per year.\",\n      \"order\": 4,\n      \"is_required\": true\n    }\n  ]\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/rulesets/{{rulesetKey}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["rulesets", "{{rulesetKey}}"]
-            },
-            "description": "Update an existing ruleset (System Admin only)"
           },
           "response": []
         },
@@ -1603,12 +2720,98 @@
               "host": ["{{baseUrl}}"],
               "path": ["rulesets", "{{rulesetKey}}"]
             },
-            "description": "Delete a ruleset (System Admin only)"
+            "description": "Deactivate a ruleset (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "List Ruleset Versions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rulesets/{{rulesetKey}}/versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["rulesets", "{{rulesetKey}}", "versions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all versions of a ruleset"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Ruleset Version",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": \"1.1.0\",\n  \"changelog\": \"Added annual leave clause\",\n  \"clauses\": [\n    {\n      \"id\": \"clause_1\",\n      \"title\": \"Probation Period\",\n      \"content\": \"The employee shall be subject to a probation period of {probation_months} months (maximum 6 months).\",\n      \"order\": 1,\n      \"isRequired\": true\n    },\n    {\n      \"id\": \"clause_2\",\n      \"title\": \"Working Hours\",\n      \"content\": \"Standard working hours are 8 hours per day, 5 days per week as per UAE Labor Law.\",\n      \"order\": 2,\n      \"isRequired\": true\n    },\n    {\n      \"id\": \"clause_3\",\n      \"title\": \"Annual Leave\",\n      \"content\": \"Employee is entitled to 30 calendar days of annual leave per year.\",\n      \"order\": 3,\n      \"isRequired\": true\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rulesets/{{rulesetKey}}/versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["rulesets", "{{rulesetKey}}", "versions"]
+            },
+            "description": "Create a new version of a ruleset (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ruleset Version",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rulesets/{{rulesetKey}}/versions/1.0.0",
+              "host": ["{{baseUrl}}"],
+              "path": ["rulesets", "{{rulesetKey}}", "versions", "1.0.0"]
+            },
+            "description": "Get details of a specific ruleset version"
+          },
+          "response": []
+        },
+        {
+          "name": "Rollback Ruleset Version",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Rolling back due to compliance issue\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rulesets/{{rulesetKey}}/versions/1.0.0/rollback",
+              "host": ["{{baseUrl}}"],
+              "path": ["rulesets", "{{rulesetKey}}", "versions", "1.0.0", "rollback"]
+            },
+            "description": "Rollback ruleset to a previous version (System Admin only)"
           },
           "response": []
         }
       ],
-      "description": "Manage legal rulesets and clauses - System Admin only for write operations"
+      "description": "Legal ruleset and clause management with versioning - System Admin only for write operations"
     },
     {
       "name": "Templates",
@@ -1623,10 +2826,11 @@
                   "if (pm.response.code === 200) {",
                   "    const response = pm.response.json();",
                   "    console.log('✅ Templates:', response.total);",
-                  "    console.log('   Page:', response.page, 'of', Math.ceil(response.total / response.limit));",
                   "    if (response.templates && response.templates.length > 0) {",
                   "        pm.environment.set('templateKey', response.templates[0].key);",
-                  "        console.log('   First template:', response.templates[0].key, '-', response.templates[0].name);",
+                  "        response.templates.forEach((t, i) => {",
+                  "            console.log(`   ${i + 1}. ${t.key} - ${t.name} (v${t.currentVersion})`);",
+                  "        });",
                   "    }",
                   "}"
                 ],
@@ -1643,9 +2847,9 @@
               "path": ["templates"],
               "query": [
                 {
-                  "key": "status",
-                  "value": "active",
-                  "description": "Filter by status",
+                  "key": "isActive",
+                  "value": "true",
+                  "description": "Filter by active status",
                   "disabled": true
                 },
                 {
@@ -1668,48 +2872,15 @@
                 },
                 {
                   "key": "page",
-                  "value": "1",
-                  "description": "Page number"
+                  "value": "1"
                 },
                 {
                   "key": "limit",
-                  "value": "50",
-                  "description": "Items per page"
+                  "value": "50"
                 }
               ]
             },
             "description": "Get paginated list of templates with optional filters"
-          },
-          "response": []
-        },
-        {
-          "name": "List Active Templates",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    const templates = pm.response.json();",
-                  "    console.log('✅ Active Templates:', templates.length);",
-                  "    templates.forEach((t, i) => {",
-                  "        console.log(`   ${i + 1}. ${t.key} - ${t.name} (v${t.current_version})`);",
-                  "    });",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/templates/active",
-              "host": ["{{baseUrl}}"],
-              "path": ["templates", "active"]
-            },
-            "description": "Get all active templates (shortcut for status=active)"
           },
           "response": []
         },
@@ -1722,20 +2893,12 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "    const template = pm.response.json();",
-                  "    console.log('✅ Template Details:');",
+                  "    console.log('✅ Template:');",
                   "    console.log('   Key:', template.key);",
                   "    console.log('   Name:', template.name);",
-                  "    console.log('   Current Version:', template.current_version);",
-                  "    console.log('   Status:', template.status);",
+                  "    console.log('   Version:', template.currentVersion);",
                   "    console.log('   Category:', template.category?.name || 'None');",
                   "    console.log('   Authority:', template.authority?.name || 'None');",
-                  "    console.log('   Languages:', template.languages.join(', '));",
-                  "    if (template.current_version_details) {",
-                  "        console.log('   Fields:', template.current_version_details.fields.length);",
-                  "    }",
-                  "    if (template.rulesets) {",
-                  "        console.log('   Rulesets:', template.rulesets.length);",
-                  "    }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -1750,7 +2913,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["templates", "{{templateKey}}"]
             },
-            "description": "Get detailed template information including current version, fields, category, authority, and rulesets"
+            "description": "Get detailed template information including current version, fields, and rulesets"
           },
           "response": []
         },
@@ -1765,8 +2928,141 @@
                   "    const template = pm.response.json();",
                   "    pm.environment.set('templateKey', template.key);",
                   "    console.log('✅ Template created:', template.key);",
-                  "    console.log('   Version:', template.current_version);",
-                  "    console.log('   Status:', template.status);",
+                  "    console.log('   Version:', template.currentVersion);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Template file (DOCX with placeholders)"
+                },
+                {
+                  "key": "key",
+                  "value": "dmcc_employment_v1",
+                  "type": "text",
+                  "description": "Unique template key"
+                },
+                {
+                  "key": "name",
+                  "value": "DMCC Employment Contract",
+                  "type": "text",
+                  "description": "Template display name"
+                },
+                {
+                  "key": "description",
+                  "value": "Standard employment contract for DMCC employees",
+                  "type": "text",
+                  "description": "Template description"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "type": "text",
+                  "description": "Category UUID"
+                },
+                {
+                  "key": "authorityId",
+                  "value": "{{authorityId}}",
+                  "type": "text",
+                  "description": "Authority UUID"
+                },
+                {
+                  "key": "version",
+                  "value": "1.0.0",
+                  "type": "text",
+                  "description": "Initial version"
+                },
+                {
+                  "key": "fields",
+                  "value": "[{\"key\":\"employee_name\",\"label\":\"Employee Name\",\"type\":\"text\",\"required\":true,\"order\":1},{\"key\":\"salary\",\"label\":\"Monthly Salary\",\"type\":\"number\",\"required\":true,\"order\":2}]",
+                  "type": "text",
+                  "description": "JSON array of field definitions"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates"]
+            },
+            "description": "Create a new document template with file upload (System Admin only). Multipart form-data with template file and metadata."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Template",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/templates/{{templateKey}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates", "{{templateKey}}"]
+            },
+            "description": "Deactivate a template (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Template Download URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Download URL generated');",
+                  "    console.log('   Filename:', response.filename);",
+                  "    console.log('   Expires:', response.expiresAt);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/templates/{{templateKey}}/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates", "{{templateKey}}", "download"],
+              "query": [
+                {
+                  "key": "version",
+                  "value": "1.0.0",
+                  "description": "Specific version (optional, defaults to current)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get signed download URL for template file"
+          },
+          "response": []
+        },
+        {
+          "name": "Link Rulesets to Template",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Rulesets linked');",
+                  "    console.log('   Linked:', response.linked);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -1783,71 +3079,29 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"key\": \"dmcc_employment_v1\",\n  \"name\": \"DMCC Employment Contract\",\n  \"description\": \"Standard employment contract for DMCC employees\",\n  \"category_id\": \"{{categoryId}}\",\n  \"authority_id\": \"{{authorityId}}\",\n  \"languages\": [\"en\", \"ar\"],\n  \"fields\": [\n    {\n      \"key\": \"employee_name\",\n      \"label\": \"Employee Full Name\",\n      \"type\": \"text\",\n      \"required\": true,\n      \"placeholder\": \"Enter employee full name\",\n      \"help_text\": \"Full legal name as per Emirates ID\",\n      \"order\": 1\n    },\n    {\n      \"key\": \"job_title\",\n      \"label\": \"Job Title\",\n      \"type\": \"text\",\n      \"required\": true,\n      \"placeholder\": \"e.g., Software Engineer\",\n      \"order\": 2\n    },\n    {\n      \"key\": \"salary\",\n      \"label\": \"Monthly Salary (AED)\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"placeholder\": \"e.g., 15000\",\n      \"validation_rules\": {\n        \"min\": 3000,\n        \"max\": 100000\n      },\n      \"order\": 3\n    },\n    {\n      \"key\": \"probation_months\",\n      \"label\": \"Probation Period (Months)\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"default_value\": 6,\n      \"validation_rules\": {\n        \"min\": 3,\n        \"max\": 6\n      },\n      \"order\": 4\n    },\n    {\n      \"key\": \"start_date\",\n      \"label\": \"Employment Start Date\",\n      \"type\": \"date\",\n      \"required\": true,\n      \"order\": 5\n    }\n  ],\n  \"ruleset_keys\": [\"dmcc_employment_rules_v1\"],\n  \"version\": \"1.0.0\",\n  \"status\": \"active\",\n  \"metadata\": {\n    \"tags\": [\"employment\", \"dmcc\", \"standard\"]\n  }\n}"
+              "raw": "{\n  \"rulesetKeys\": [\"dmcc_employment_rules_v1\", \"uae_labor_law_v1\"]\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/templates",
+              "raw": "{{baseUrl}}/templates/{{templateKey}}/rulesets",
               "host": ["{{baseUrl}}"],
-              "path": ["templates"]
+              "path": ["templates", "{{templateKey}}", "rulesets"]
             },
-            "description": "Create a new document template with field definitions (System Admin only)"
+            "description": "Link rulesets to a template (System Admin only)"
           },
           "response": []
         },
         {
-          "name": "Update Template",
+          "name": "List Template Versions",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "if (pm.response.code === 200) {",
-                  "    const template = pm.response.json();",
-                  "    console.log('✅ Template updated:', template.key);",
-                  "    console.log('   New version:', template.current_version);",
-                  "    if (template.current_version_details) {",
-                  "        console.log('   Fields:', template.current_version_details.fields.length);",
-                  "        console.log('   Changelog:', template.current_version_details.changelog || 'None');",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"DMCC Employment Contract v1.1\",\n  \"version\": \"1.1.0\",\n  \"changelog\": \"Added benefits field and updated validation rules\",\n  \"fields\": [\n    {\n      \"key\": \"employee_name\",\n      \"label\": \"Employee Full Name\",\n      \"type\": \"text\",\n      \"required\": true,\n      \"order\": 1\n    },\n    {\n      \"key\": \"job_title\",\n      \"label\": \"Job Title\",\n      \"type\": \"text\",\n      \"required\": true,\n      \"order\": 2\n    },\n    {\n      \"key\": \"salary\",\n      \"label\": \"Monthly Salary (AED)\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"validation_rules\": {\n        \"min\": 3000,\n        \"max\": 100000\n      },\n      \"order\": 3\n    },\n    {\n      \"key\": \"probation_months\",\n      \"label\": \"Probation Period (Months)\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"default_value\": 6,\n      \"validation_rules\": {\n        \"min\": 3,\n        \"max\": 6\n      },\n      \"order\": 4\n    },\n    {\n      \"key\": \"start_date\",\n      \"label\": \"Employment Start Date\",\n      \"type\": \"date\",\n      \"required\": true,\n      \"order\": 5\n    },\n    {\n      \"key\": \"benefits\",\n      \"label\": \"Additional Benefits\",\n      \"type\": \"textarea\",\n      \"required\": false,\n      \"placeholder\": \"List any additional benefits\",\n      \"order\": 6\n    }\n  ]\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/templates/{{templateKey}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["templates", "{{templateKey}}"]
-            },
-            "description": "Update template metadata and/or create new version (System Admin only)"
-          },
-          "response": []
-        },
-        {
-          "name": "Get Version History",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    const versions = pm.response.json();",
-                  "    console.log('✅ Template Versions:', versions.length);",
-                  "    versions.forEach((v, i) => {",
-                  "        console.log(`   ${i + 1}. Version ${v.version} - ${v.is_active ? '(ACTIVE)' : ''}`, v.changelog || '');",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Template Versions:', response.total);",
+                  "    response.versions.forEach((v, i) => {",
+                  "        console.log(`   ${i + 1}. v${v.version} ${v.isActive ? '(ACTIVE)' : ''} - ${v.changelog || 'Initial'}`);",
                   "    });",
                   "}"
                 ],
@@ -1861,14 +3115,69 @@
             "url": {
               "raw": "{{baseUrl}}/templates/{{templateKey}}/versions",
               "host": ["{{baseUrl}}"],
-              "path": ["templates", "{{templateKey}}", "versions"]
+              "path": ["templates", "{{templateKey}}", "versions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
             },
-            "description": "Get all versions of a template with full history"
+            "description": "Get all versions of a template"
           },
           "response": []
         },
         {
-          "name": "Get Specific Version",
+          "name": "Create Template Version",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Updated template file"
+                },
+                {
+                  "key": "version",
+                  "value": "1.1.0",
+                  "type": "text",
+                  "description": "New version number"
+                },
+                {
+                  "key": "changelog",
+                  "value": "Added benefits section",
+                  "type": "text",
+                  "description": "Version changelog"
+                },
+                {
+                  "key": "fields",
+                  "value": "[{\"key\":\"employee_name\",\"label\":\"Employee Name\",\"type\":\"text\",\"required\":true,\"order\":1},{\"key\":\"salary\",\"label\":\"Monthly Salary\",\"type\":\"number\",\"required\":true,\"order\":2},{\"key\":\"benefits\",\"label\":\"Benefits\",\"type\":\"textarea\",\"required\":false,\"order\":3}]",
+                  "type": "text",
+                  "description": "Updated field definitions"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/templates/{{templateKey}}/versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["templates", "{{templateKey}}", "versions"]
+            },
+            "description": "Create a new version of a template (System Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Template Version",
           "request": {
             "method": "GET",
             "header": [],
@@ -1877,12 +3186,12 @@
               "host": ["{{baseUrl}}"],
               "path": ["templates", "{{templateKey}}", "versions", "1.0.0"]
             },
-            "description": "Get details of a specific version of a template"
+            "description": "Get details of a specific template version"
           },
           "response": []
         },
         {
-          "name": "Rollback to Version",
+          "name": "Rollback Template Version",
           "event": [
             {
               "listen": "test",
@@ -1891,7 +3200,6 @@
                   "if (pm.response.code === 200) {",
                   "    const version = pm.response.json();",
                   "    console.log('✅ Template rolled back to version:', version.version);",
-                  "    console.log('   This version is now active');",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -1900,7 +3208,16 @@
           ],
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Rolling back due to formatting issues\"\n}"
+            },
             "url": {
               "raw": "{{baseUrl}}/templates/{{templateKey}}/versions/1.0.0/rollback",
               "host": ["{{baseUrl}}"],
@@ -1909,68 +3226,40 @@
             "description": "Rollback template to a previous version (System Admin only)"
           },
           "response": []
-        },
-        {
-          "name": "Deactivate Template",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    const template = pm.response.json();",
-                  "    console.log('✅ Template deactivated:', template.key);",
-                  "    console.log('   Status:', template.status);",
-                  "    console.log('   Template will not appear in active lists');",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/templates/{{templateKey}}/deactivate",
-              "host": ["{{baseUrl}}"],
-              "path": ["templates", "{{templateKey}}", "deactivate"]
-            },
-            "description": "Soft delete - set template status to inactive (System Admin only)"
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Template",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 204) {",
-                  "    console.log('✅ Template permanently deleted');",
-                  "    console.log('⚠️  All versions have been removed');",
-                  "    pm.environment.unset('templateKey');",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/templates/{{templateKey}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["templates", "{{templateKey}}"]
-            },
-            "description": "Permanently delete a template and all its versions (System Admin only)"
-          },
-          "response": []
         }
       ],
       "description": "Document template management with versioning and field definitions - System Admin only for write operations"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Complytude API - Pre-request Script",
+          "// This collection uses HTTP-only cookies for authentication",
+          "// Cookies are automatically handled by Postman"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script",
+          "if (pm.response.code >= 400) {",
+          "    console.error('❌ Request failed with status:', pm.response.code);",
+          "    try {",
+          "        const error = pm.response.json();",
+          "        console.error('Error:', error.message || error.error || JSON.stringify(error));",
+          "    } catch (e) {",
+          "        console.error('Response:', pm.response.text());",
+          "    }",
+          "}"
+        ]
+      }
     }
   ],
   "variable": [
