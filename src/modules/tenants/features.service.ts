@@ -1,9 +1,12 @@
 import {
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { DatabaseService } from 'src/database/database.service';
 import { TenantFeatures } from './entities/tenant.entity';
 import {
@@ -16,45 +19,17 @@ import {
   mapOverrideRow,
 } from './entities/feature-override.entity';
 
-interface CachedFeatures {
-  data: TenantFeatures;
-  expires: number;
-}
-
 @Injectable()
 export class FeaturesService {
   private readonly logger = new Logger(FeaturesService.name);
-  private featureCache = new Map<string, CachedFeatures>();
   private readonly cacheTtlMs: number;
-  private readonly maxCacheSize: number;
 
-  constructor(private readonly databaseService: DatabaseService) {
+  constructor(
+    private readonly databaseService: DatabaseService,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+  ) {
     const config = getEntitlementsConfig();
     this.cacheTtlMs = config.featuresCacheTtlMs;
-    this.maxCacheSize = config.maxCacheSize ?? 10000; // Default 10k tenants
-  }
-
-  /**
-   * Evict oldest entries if cache exceeds max size (LRU-style eviction)
-   */
-  private enforceMaxCacheSize(): void {
-    if (this.featureCache.size <= this.maxCacheSize) {
-      return;
-    }
-
-    // Evict 10% of oldest entries
-    const entriesToEvict = Math.ceil(this.maxCacheSize * 0.1);
-    const entries = Array.from(this.featureCache.entries())
-      .sort((a, b) => a[1].expires - b[1].expires)
-      .slice(0, entriesToEvict);
-
-    for (const [key] of entries) {
-      this.featureCache.delete(key);
-    }
-
-    this.logger.debug(
-      `Cache size exceeded ${this.maxCacheSize}, evicted ${entriesToEvict} entries`,
-    );
   }
 
   /**
@@ -99,59 +74,29 @@ export class FeaturesService {
   /**
    * Invalidate feature cache for a tenant
    */
-  invalidateCache(tenantId: string): void {
-    const keysToDelete: string[] = [];
-    for (const [key] of this.featureCache) {
-      if (key.startsWith(tenantId)) {
-        keysToDelete.push(key);
-      }
-    }
-    for (const key of keysToDelete) {
-      this.featureCache.delete(key);
-    }
+  async invalidateCache(tenantId: string): Promise<void> {
+    await this.cacheManager.del(`features:${tenantId}`);
     this.logger.debug(`Invalidated cache for tenant ${tenantId}`);
-  }
-
-  /**
-   * Clean up stale cache entries (for cron job)
-   */
-  cleanupStaleCache(): number {
-    const now = Date.now();
-    let cleaned = 0;
-    const keysToDelete: string[] = [];
-
-    for (const [key, entry] of this.featureCache.entries()) {
-      if (entry.expires < now) {
-        keysToDelete.push(key);
-      }
-    }
-
-    for (const key of keysToDelete) {
-      this.featureCache.delete(key);
-      cleaned++;
-    }
-
-    return cleaned;
   }
 
   /**
    * Get tenant's effective features (plan defaults merged with custom overrides)
    * Custom features in the database override default plan features
-   * Merge order: Plan defaults <- Normalized overrides <- Legacy JSONB (for backward compat)
+   * Merge order: Plan defaults <- Normalized overrides
    */
   async getTenantFeatures(tenantId: string): Promise<TenantFeatures> {
-    const cacheKey = tenantId;
-    const cached = this.featureCache.get(cacheKey);
-    if (cached && cached.expires > Date.now()) {
+    const cacheKey = `features:${tenantId}`;
+    const cached = await this.cacheManager.get<TenantFeatures>(cacheKey);
+    if (cached) {
       this.logger.debug(`Returning cached features for tenant ${tenantId}`);
-      return cached.data;
+      return cached;
     }
 
     try {
       this.logger.debug(`Getting features for tenant: ${tenantId}`);
 
       const result = await this.databaseService.query(
-        'SELECT id, plan, features FROM public.tenants WHERE id = $1 AND is_active = true',
+        'SELECT id, plan FROM public.tenants WHERE id = $1 AND is_active = true',
         [tenantId],
       );
 
@@ -159,7 +104,7 @@ export class FeaturesService {
         throw new NotFoundException(`Tenant ${tenantId} not found`);
       }
 
-      const { plan, features: legacyFeatures } = result.rows[0];
+      const { plan } = result.rows[0];
       const planValue = String(plan);
 
       if (!isValidPlan(planValue)) {
@@ -176,22 +121,13 @@ export class FeaturesService {
         normalizedOverrides[override.featureKey] = override.value;
       }
 
-      // Merge features: plan defaults <- legacy JSONB (if exists) <- normalized overrides
+      // Merge features: plan defaults <- normalized overrides
       const effectiveFeatures: TenantFeatures = {
         ...defaultFeatures,
-        ...(legacyFeatures && typeof legacyFeatures === 'object'
-          ? legacyFeatures
-          : {}),
         ...normalizedOverrides,
       };
 
-      // Enforce max cache size before adding new entry
-      this.enforceMaxCacheSize();
-
-      this.featureCache.set(cacheKey, {
-        data: effectiveFeatures,
-        expires: Date.now() + this.cacheTtlMs,
-      });
+      await this.cacheManager.set(cacheKey, effectiveFeatures, this.cacheTtlMs);
 
       this.logger.debug(
         `Tenant ${tenantId} effective features:`,

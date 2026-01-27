@@ -23,7 +23,6 @@ import appConfig from 'src/config/app.config';
 import jwtConfig from 'src/config/jwt.config';
 import storageConfig from 'src/config/storage.config';
 import { validationSchema } from 'src/config/env.schema';
-import { ExpiredOverridesCleanupJob } from './jobs/expired-overrides-cleanup.job';
 import { UsageResetJob } from './jobs/usage-reset.job';
 
 @Module({
@@ -62,7 +61,6 @@ import { UsageResetJob } from './jobs/usage-reset.job';
       provide: APP_INTERCEPTOR,
       useClass: TenantInterceptor,
     },
-    ExpiredOverridesCleanupJob,
     UsageResetJob,
   ],
 })

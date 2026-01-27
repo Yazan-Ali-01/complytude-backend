@@ -1,11 +1,10 @@
 export const ENTITLEMENTS_CONFIG = {
-  featuresCacheTtlMs: 5000,
-  defaultBillingPeriodDays: 30,
-  usageGracePeriodHours: 0,
-  maxOverridesPerTenant: 50,
-  maxCacheSize: 10000,
-  overrideCleanupCron: '0 * * * *',
-  usageResetCron: '0 0 * * *',
+  featuresCacheTtlMs: 5000, // milliseconds
+  defaultBillingPeriodDays: 30, // days
+  usageGracePeriodHours: 0, // hours
+  maxOverridesPerTenant: 50, // max override entries per tenant
+  maxCacheSize: 10000, // max number of cached tenant entries
+  usageResetCron: '0 0 * * *', // daily at midnight
 } as const;
 
 export const FEATURE_CATEGORY_ORDER = [
@@ -41,9 +40,6 @@ export function getEntitlementsConfig() {
       10,
     ),
     maxCacheSize: parseInt(process.env.FEATURES_MAX_CACHE_SIZE || '10000', 10),
-    overrideCleanupCron:
-      process.env.OVERRIDE_CLEANUP_CRON ||
-      ENTITLEMENTS_CONFIG.overrideCleanupCron,
     usageResetCron:
       process.env.USAGE_RESET_CRON || ENTITLEMENTS_CONFIG.usageResetCron,
     jobsEnabled:

@@ -101,7 +101,7 @@ export class OverridesService {
         `Override granted for tenant ${tenantId}, feature: ${input.featureKey}`,
       );
 
-      this.featuresService.invalidateCache(tenantId);
+      await this.featuresService.invalidateCache(tenantId);
 
       return mapOverrideRow(result as FeatureOverrideRow);
     } catch (error) {
@@ -138,7 +138,7 @@ export class OverridesService {
         `Override revoked for tenant ${tenantId}, feature: ${featureKey}`,
       );
 
-      this.featuresService.invalidateCache(tenantId);
+      await this.featuresService.invalidateCache(tenantId);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -200,31 +200,6 @@ export class OverridesService {
         error,
       );
       throw new InternalServerErrorException('Failed to retrieve override');
-    }
-  }
-
-  async cleanupExpiredOverrides(): Promise<number> {
-    try {
-      const result = await this.databaseService.query(
-        `DELETE FROM public.tenant_feature_overrides
-         WHERE expires_at IS NOT NULL AND expires_at <= NOW()
-         RETURNING id`,
-      );
-
-      const deletedCount = result.rows.length;
-      if (deletedCount > 0) {
-        this.logger.log(`Cleaned up ${deletedCount} expired overrides`);
-      }
-
-      return deletedCount;
-    } catch (error) {
-      this.logger.error(
-        `Failed to cleanup expired overrides: ${error.message}`,
-        error,
-      );
-      throw new InternalServerErrorException(
-        'Failed to cleanup expired overrides',
-      );
     }
   }
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
 import { TenantService } from './tenant.service';
 import { TenantController } from './tenant.controller';
 import { TenantAdminController } from './admin.controller';
@@ -12,9 +13,16 @@ import { CreditsService } from './credits.service';
 import { CreditsController } from './credits.controller';
 import { DatabaseModule } from 'src/database/database.module';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { getEntitlementsConfig } from 'src/config/entitlements.config';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [
+    DatabaseModule,
+    CacheModule.register({
+      ttl: getEntitlementsConfig().featuresCacheTtlMs, // milliseconds
+      max: getEntitlementsConfig().maxCacheSize, // max cached entries
+    }),
+  ],
   controllers: [
     TenantController,
     TenantAdminController,
