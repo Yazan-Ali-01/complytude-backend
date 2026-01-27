@@ -31,15 +31,15 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 
 ### Key Statistics
 
-| Metric | Count |
-|--------|-------|
-| Total Tables | 15 |
-| Core Tables | 3 |
-| Auth Tables | 3 |
-| Global Tables | 6 |
-| Tenant-Scoped Tables | 1 |
-| Junction Tables | 2 |
-| Enums | 4 |
+| Metric               | Count |
+| -------------------- | ----- |
+| Total Tables         | 16    |
+| Core Tables          | 3     |
+| Auth Tables          | 4     |
+| Global Tables        | 6     |
+| Tenant-Scoped Tables | 1     |
+| Junction Tables      | 2     |
+| Enums                | 5     |
 
 ---
 
@@ -52,12 +52,14 @@ The complete ER diagram is available in DBML format:
 **📁 File:** `docs/database-schema.dbml`
 
 **To view:**
+
 1. Go to [dbdiagram.io](https://dbdiagram.io/)
 2. Copy the contents of `database-schema.dbml`
 3. Paste into the editor
 4. The diagram will render automatically
 
 **Export Options:**
+
 - PNG (for documentation)
 - PDF (for printing)
 - SVG (for presentations)
@@ -65,6 +67,7 @@ The complete ER diagram is available in DBML format:
 ### Diagram Preview
 
 The diagram shows:
+
 - All 16 tables with columns and data types
 - Relationships (foreign keys) with cardinality
 - Table groups color-coded by purpose
@@ -124,11 +127,18 @@ Tables that define the multi-tenant structure:
 
 ### 2. Authentication
 
-Tables for JWT-based authentication:
+Tables for JWT-based authentication and user onboarding:
 
-- `refresh_tokens` - Session management
+- `refresh_tokens` - Session management (stores refresh tokens)
 - `email_verifications` - Email verification flow
 - `password_resets` - Password reset flow
+- `invitations` - Tenant invitation management
+
+**Note:** The application uses a **multi-step authentication flow**:
+
+1. Login → `tempAuthToken` cookie (10 minutes, for tenant selection)
+2. Tenant selection → `accessToken` + `refreshToken` cookies (full authentication)
+3. Refresh tokens are stored in the `refresh_tokens` table for session management
 
 ### 3. Global Reference Data
 
@@ -162,16 +172,17 @@ Tables with tenant isolation:
 
 Organizations using the platform.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `plan` | ENUM | Subscription plan: `early_access`, `basic`, `pro`, `enterprise` |
-| `features` | JSONB | Feature flags (e.g., `{"api_access": true}`) |
-| `is_active` | BOOLEAN | Soft delete flag |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| Column       | Type        | Description                                                     |
+| ------------ | ----------- | --------------------------------------------------------------- |
+| `id`         | UUID        | Primary key                                                     |
+| `plan`       | ENUM        | Subscription plan: `early_access`, `basic`, `pro`, `enterprise` |
+| `features`   | JSONB       | Feature flags (e.g., `{"api_access": true}`)                    |
+| `is_active`  | BOOLEAN     | Soft delete flag                                                |
+| `created_at` | TIMESTAMPTZ | Creation timestamp                                              |
+| `updated_at` | TIMESTAMPTZ | Last update timestamp                                           |
 
 **Indexes:**
+
 - `idx_tenants_plan` - Filter by plan
 - `idx_tenants_is_active` - Active tenants only (partial)
 
@@ -179,37 +190,39 @@ Organizations using the platform.
 
 User accounts that can access multiple tenants.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `email` | VARCHAR(255) | Unique email address |
-| `password_hash` | VARCHAR(255) | Bcrypt hashed password |
-| `first_name` | VARCHAR(255) | First name |
-| `last_name` | VARCHAR(255) | Last name |
-| `is_verified` | BOOLEAN | Email verification status |
-| `is_system_admin` | BOOLEAN | Platform admin (not tenant-specific) |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| Column            | Type         | Description                          |
+| ----------------- | ------------ | ------------------------------------ |
+| `id`              | UUID         | Primary key                          |
+| `email`           | VARCHAR(255) | Unique email address                 |
+| `password_hash`   | VARCHAR(255) | Bcrypt hashed password               |
+| `first_name`      | VARCHAR(255) | First name                           |
+| `last_name`       | VARCHAR(255) | Last name                            |
+| `is_verified`     | BOOLEAN      | Email verification status            |
+| `is_system_admin` | BOOLEAN      | Platform admin (not tenant-specific) |
+| `created_at`      | TIMESTAMPTZ  | Creation timestamp                   |
+| `updated_at`      | TIMESTAMPTZ  | Last update timestamp                |
 
 **Indexes:**
+
 - Unique constraint on `email` (creates implicit index)
 
 ### user_tenants
 
 Many-to-many relationship: users belong to tenants with roles.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `user_id` | UUID | FK to users |
-| `tenant_id` | UUID | FK to tenants |
-| `role` | ENUM | Role: `admin`, `member`, `viewer` |
-| `is_active` | BOOLEAN | Active membership flag |
-| `joined_at` | TIMESTAMPTZ | When user joined tenant |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| Column       | Type        | Description                       |
+| ------------ | ----------- | --------------------------------- |
+| `user_id`    | UUID        | FK to users                       |
+| `tenant_id`  | UUID        | FK to tenants                     |
+| `role`       | ENUM        | Role: `admin`, `member`, `viewer` |
+| `is_active`  | BOOLEAN     | Active membership flag            |
+| `joined_at`  | TIMESTAMPTZ | When user joined tenant           |
+| `updated_at` | TIMESTAMPTZ | Last update timestamp             |
 
 **Primary Key:** `(user_id, tenant_id)`
 
 **Indexes:**
+
 - `idx_user_tenants_user_id`
 - `idx_user_tenants_tenant_id`
 - `idx_user_tenants_tenant_active` - Optimizes RLS queries
@@ -222,16 +235,17 @@ Many-to-many relationship: users belong to tenants with roles.
 
 JWT refresh tokens for session management.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `user_id` | UUID | FK to users |
-| `token_hash` | VARCHAR(255) | Hashed refresh token |
-| `expires_at` | TIMESTAMPTZ | Token expiration |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `revoked_at` | TIMESTAMPTZ | Revocation timestamp (NULL if valid) |
+| Column       | Type         | Description                          |
+| ------------ | ------------ | ------------------------------------ |
+| `id`         | UUID         | Primary key                          |
+| `user_id`    | UUID         | FK to users                          |
+| `token_hash` | VARCHAR(255) | Hashed refresh token                 |
+| `expires_at` | TIMESTAMPTZ  | Token expiration                     |
+| `created_at` | TIMESTAMPTZ  | Creation timestamp                   |
+| `revoked_at` | TIMESTAMPTZ  | Revocation timestamp (NULL if valid) |
 
 **Indexes:**
+
 - `idx_refresh_tokens_user_id`
 - `idx_refresh_tokens_token_hash`
 - `idx_refresh_tokens_expires_at`
@@ -240,27 +254,65 @@ JWT refresh tokens for session management.
 
 Email verification tokens sent during signup.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `user_id` | UUID | FK to users |
-| `token` | VARCHAR(255) | Unique verification token |
-| `expires_at` | TIMESTAMPTZ | Token expiration |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `verified_at` | TIMESTAMPTZ | Verification timestamp (NULL if pending) |
+| Column        | Type         | Description                              |
+| ------------- | ------------ | ---------------------------------------- |
+| `id`          | UUID         | Primary key                              |
+| `user_id`     | UUID         | FK to users                              |
+| `token`       | VARCHAR(255) | Unique verification token                |
+| `expires_at`  | TIMESTAMPTZ  | Token expiration                         |
+| `created_at`  | TIMESTAMPTZ  | Creation timestamp                       |
+| `verified_at` | TIMESTAMPTZ  | Verification timestamp (NULL if pending) |
 
 ### password_resets
 
 Password reset tokens for forgot-password flow.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `user_id` | UUID | FK to users |
-| `token` | VARCHAR(255) | Unique reset token |
-| `expires_at` | TIMESTAMPTZ | Token expiration |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `used_at` | TIMESTAMPTZ | When token was used (NULL if unused) |
+| Column       | Type         | Description                          |
+| ------------ | ------------ | ------------------------------------ |
+| `id`         | UUID         | Primary key                          |
+| `user_id`    | UUID         | FK to users                          |
+| `token`      | VARCHAR(255) | Unique reset token                   |
+| `expires_at` | TIMESTAMPTZ  | Token expiration                     |
+| `created_at` | TIMESTAMPTZ  | Creation timestamp                   |
+| `used_at`    | TIMESTAMPTZ  | When token was used (NULL if unused) |
+
+### invitations
+
+Tenant invitations for inviting users to join organizations.
+
+| Column        | Type         | Description                                                     |
+| ------------- | ------------ | --------------------------------------------------------------- |
+| `id`          | UUID         | Primary key                                                     |
+| `email`       | VARCHAR(255) | Email address of invited user                                   |
+| `tenant_id`   | UUID         | FK to tenants (organization inviting the user)                  |
+| `token_hash`  | VARCHAR(255) | Hashed invitation token                                         |
+| `invited_by`  | UUID         | FK to users (who sent the invitation)                           |
+| `expires_at`  | TIMESTAMPTZ  | Token expiration                                                |
+| `accepted_at` | TIMESTAMPTZ  | When invitation was accepted (NULL if pending)                  |
+| `rejected_at` | TIMESTAMPTZ  | When invitation was rejected (NULL if not rejected)             |
+| `revoked_at`  | TIMESTAMPTZ  | When invitation was revoked by admin (NULL if active)           |
+| `revoked_by`  | UUID         | FK to users (who revoked the invitation)                        |
+| `role`        | ENUM         | Role to assign: `admin`, `member`, `viewer` (default: `member`) |
+| `status`      | ENUM         | Status: `pending`, `accepted`, `rejected`, `revoked`, `expired` |
+| `created_at`  | TIMESTAMPTZ  | Creation timestamp                                              |
+| `updated_at`  | TIMESTAMPTZ  | Last update timestamp                                           |
+
+**Indexes:**
+
+- `idx_invitations_token_hash` - Fast token lookup
+- `idx_invitations_email` - Filter by email
+- `idx_invitations_tenant_id` - Filter by tenant
+- `idx_invitations_invited_by` - Track who invited
+- `idx_invitations_status` - Filter by status
+- `idx_invitations_email_status` - Composite for queries
+- `idx_invitations_email_tenant_pending` - Unique constraint (one pending invitation per email per tenant)
+
+**Business Rules:**
+
+- Only one pending invitation per email per tenant
+- Invitations expire after a configured period (default: 7 days)
+- Accepted invitations create a `user_tenants` record
+- Status transitions: `pending` → `accepted`/`rejected`/`revoked`/`expired`
 
 ---
 
@@ -272,45 +324,45 @@ These tables are **shared across all tenants** and have **no RLS policies**.
 
 UAE legal authorities (DMCC, IFZA, DED, RAKEZ, etc.).
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `code` | VARCHAR(50) | Unique code (e.g., "DMCC") |
-| `name` | VARCHAR(255) | Full name |
-| `description` | TEXT | Authority description |
-| `country` | VARCHAR(100) | Country (default: "UAE") |
-| `is_active` | BOOLEAN | Active status |
+| Column        | Type         | Description                |
+| ------------- | ------------ | -------------------------- |
+| `id`          | UUID         | Primary key                |
+| `code`        | VARCHAR(50)  | Unique code (e.g., "DMCC") |
+| `name`        | VARCHAR(255) | Full name                  |
+| `description` | TEXT         | Authority description      |
+| `country`     | VARCHAR(100) | Country (default: "UAE")   |
+| `is_active`   | BOOLEAN      | Active status              |
 
 ### categories
 
 Hierarchical template categories.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `code` | VARCHAR(50) | Unique code |
-| `name` | VARCHAR(255) | Category name |
-| `description` | TEXT | Category description |
-| `parent_id` | UUID | Parent category (self-referencing FK) |
-| `is_active` | BOOLEAN | Active status |
+| Column        | Type         | Description                           |
+| ------------- | ------------ | ------------------------------------- |
+| `id`          | UUID         | Primary key                           |
+| `code`        | VARCHAR(50)  | Unique code                           |
+| `name`        | VARCHAR(255) | Category name                         |
+| `description` | TEXT         | Category description                  |
+| `parent_id`   | UUID         | Parent category (self-referencing FK) |
+| `is_active`   | BOOLEAN      | Active status                         |
 
 ### templates
 
 Template metadata and version control.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `key` | VARCHAR(255) | Unique key (e.g., "dmcc_employment_v1") |
-| `name` | VARCHAR(255) | Template name |
-| `category_id` | UUID | FK to categories |
-| `authority_id` | UUID | FK to authorities |
-| `languages` | TEXT[] | Supported languages (e.g., `['en', 'ar']`) |
-| `current_version` | VARCHAR(50) | Current active version |
-| `status` | ENUM | `active`, `inactive`, `draft`, `deprecated` |
-| `file_url` | TEXT | S3 URL to DOCX file |
-| `metadata` | JSONB | Additional metadata |
-| `created_by` | UUID | FK to users |
+| Column            | Type         | Description                                 |
+| ----------------- | ------------ | ------------------------------------------- |
+| `id`              | UUID         | Primary key                                 |
+| `key`             | VARCHAR(255) | Unique key (e.g., "dmcc_employment_v1")     |
+| `name`            | VARCHAR(255) | Template name                               |
+| `category_id`     | UUID         | FK to categories                            |
+| `authority_id`    | UUID         | FK to authorities                           |
+| `languages`       | TEXT[]       | Supported languages (e.g., `['en', 'ar']`)  |
+| `current_version` | VARCHAR(50)  | Current active version                      |
+| `status`          | ENUM         | `active`, `inactive`, `draft`, `deprecated` |
+| `file_url`        | TEXT         | S3 URL to DOCX file                         |
+| `metadata`        | JSONB        | Additional metadata                         |
+| `created_by`      | UUID         | FK to users                                 |
 
 **Automatic Version Sync:**
 When a new `template_version` is created with `is_active = true`, a trigger automatically updates `templates.current_version` and `templates.file_url`.
@@ -319,16 +371,16 @@ When a new `template_version` is created with `is_active = true`, a trigger auto
 
 Immutable version history for templates.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `template_id` | UUID | FK to templates |
-| `version` | VARCHAR(50) | Version number (e.g., "1.0.0") |
-| `fields` | JSONB | Field definitions for this version |
-| `file_url` | TEXT | S3 URL to this version's DOCX file |
-| `changelog` | TEXT | Description of changes |
-| `is_active` | BOOLEAN | Whether this is the active version |
-| `created_by` | UUID | FK to users |
+| Column        | Type        | Description                        |
+| ------------- | ----------- | ---------------------------------- |
+| `id`          | UUID        | Primary key                        |
+| `template_id` | UUID        | FK to templates                    |
+| `version`     | VARCHAR(50) | Version number (e.g., "1.0.0")     |
+| `fields`      | JSONB       | Field definitions for this version |
+| `file_url`    | TEXT        | S3 URL to this version's DOCX file |
+| `changelog`   | TEXT        | Description of changes             |
+| `is_active`   | BOOLEAN     | Whether this is the active version |
+| `created_by`  | UUID        | FK to users                        |
 
 **Unique Constraint:** `(template_id, version)`
 
@@ -354,21 +406,22 @@ These tables have **Row-Level Security (RLS) enabled** for tenant isolation.
 
 Tenant-specific generated documents.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `tenant_id` | UUID | **RLS isolation key** (FK to tenants) |
-| `title` | VARCHAR(255) | Document title |
-| `content` | TEXT | Document content |
-| `metadata` | JSONB | Tags, custom fields, etc. |
-| `template_id` | UUID | FK to templates (which template was used) |
-| `template_version_id` | UUID | FK to template_versions (specific version) |
-| `generation_metadata` | JSONB | AI model, parameters, etc. |
-| `created_by` | UUID | FK to users |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| Column                | Type         | Description                                |
+| --------------------- | ------------ | ------------------------------------------ |
+| `id`                  | UUID         | Primary key                                |
+| `tenant_id`           | UUID         | **RLS isolation key** (FK to tenants)      |
+| `title`               | VARCHAR(255) | Document title                             |
+| `content`             | TEXT         | Document content                           |
+| `metadata`            | JSONB        | Tags, custom fields, etc.                  |
+| `template_id`         | UUID         | FK to templates (which template was used)  |
+| `template_version_id` | UUID         | FK to template_versions (specific version) |
+| `generation_metadata` | JSONB        | AI model, parameters, etc.                 |
+| `created_by`          | UUID         | FK to users                                |
+| `created_at`          | TIMESTAMPTZ  | Creation timestamp                         |
+| `updated_at`          | TIMESTAMPTZ  | Last update timestamp                      |
 
 **Critical Index:**
+
 - `idx_documents_tenant_id` - **Required for RLS performance**
 
 **RLS Policies:**
@@ -388,6 +441,7 @@ FOR INSERT WITH CHECK (
 ```
 
 **What this means:**
+
 - Users can only see documents for their current tenant
 - Users can only create documents for their current tenant
 - No cross-tenant data access is possible
@@ -399,20 +453,19 @@ FOR INSERT WITH CHECK (
 ### How RLS Works
 
 1. **Application sets session context** before queries:
+
    ```typescript
-   await db.query(
-     `SELECT set_config('app.tenant_id', $1, false)`,
-     [tenantId]
-   );
+   await db.query(`SELECT set_config('app.tenant_id', $1, false)`, [tenantId]);
    ```
 
 2. **PostgreSQL applies policies automatically:**
+
    ```sql
    -- User executes:
    SELECT * FROM documents;
-   
+
    -- PostgreSQL converts to:
-   SELECT * FROM documents 
+   SELECT * FROM documents
    WHERE tenant_id = current_setting('app.tenant_id');
    ```
 
@@ -493,7 +546,7 @@ SELECT * FROM documents;
 CREATE INDEX idx_documents_tenant_id ON documents(tenant_id);
 
 -- Composite for tenant-scoped queries
-CREATE INDEX idx_documents_tenant_created 
+CREATE INDEX idx_documents_tenant_created
 ON documents(tenant_id, created_at DESC);
 ```
 
@@ -501,8 +554,8 @@ ON documents(tenant_id, created_at DESC);
 
 ```sql
 -- Optimizes RLS policy checks
-CREATE INDEX idx_user_tenants_tenant_active 
-ON user_tenants(tenant_id, is_active) 
+CREATE INDEX idx_user_tenants_tenant_active
+ON user_tenants(tenant_id, is_active)
 WHERE is_active = true;
 ```
 
@@ -523,16 +576,16 @@ Database schema is managed through versioned migration files:
 
 **Location:** `scripts/migrations/`
 
-| # | File | Description |
-|---|------|-------------|
-| 001 | `core_tables.sql` | Tenants, users, user_tenants, auth tables |
-| 002 | `grants_to_app_user.sql` | Grant permissions to app user |
-| 003 | `session_context_contract.sql` | RLS helper functions |
-| 004 | `rls_enablement.sql` | Enable RLS on tables |
-| 005 | `rls_policies_core.sql` | Create RLS policies |
-| 006 | `global_tables.sql` | Authorities, categories, templates, rulesets |
-| 007 | `documents_table.sql` | Documents table with RLS |
-| 008 | `grants_global_tables.sql` | Permissions for global tables |
+| #   | File                           | Description                                  |
+| --- | ------------------------------ | -------------------------------------------- |
+| 001 | `core_tables.sql`              | Tenants, users, user_tenants, auth tables    |
+| 002 | `grants_to_app_user.sql`       | Grant permissions to app user                |
+| 003 | `session_context_contract.sql` | RLS helper functions                         |
+| 004 | `rls_enablement.sql`           | Enable RLS on tables                         |
+| 005 | `rls_policies_core.sql`        | Create RLS policies                          |
+| 006 | `global_tables.sql`            | Authorities, categories, templates, rulesets |
+| 007 | `documents_table.sql`          | Documents table with RLS                     |
+| 008 | `grants_global_tables.sql`     | Permissions for global tables                |
 
 ### Running Migrations
 
@@ -549,8 +602,8 @@ pnpm db:migrate
 Executed migrations are tracked in `public.schema_migrations`:
 
 ```sql
-SELECT migration_name, executed_at 
-FROM schema_migrations 
+SELECT migration_name, executed_at
+FROM schema_migrations
 ORDER BY executed_at DESC;
 ```
 
@@ -604,14 +657,14 @@ pg_dump complytude > full_backup.sql
 ```bash
 # Verify RLS is enabled
 psql -d complytude -c "
-  SELECT tablename, rowsecurity 
-  FROM pg_tables 
+  SELECT tablename, rowsecurity
+  FROM pg_tables
   WHERE schemaname = 'public' AND rowsecurity = true;
 "
 
 # Check table sizes
 psql -d complytude -c "
-  SELECT 
+  SELECT
     schemaname,
     tablename,
     pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size

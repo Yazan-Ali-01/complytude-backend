@@ -56,15 +56,15 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 
 ### Key Architectural Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| **Framework** | NestJS 11 with Fastify | Performance, modularity, TypeScript-first |
-| **Database** | PostgreSQL 16 | JSONB support, RLS for multi-tenancy, reliability |
-| **Multi-Tenancy** | Row-Level Security (RLS) | Strong data isolation at database level |
-| **Authentication** | JWT with Passport | Stateless, scalable, industry standard |
-| **Storage** | S3-compatible (MinIO/AWS) | Scalable, tenant-isolated buckets |
-| **Validation** | class-validator | Declarative, type-safe validation |
-| **Documentation** | Swagger/OpenAPI | Auto-generated, interactive API docs |
+| Decision           | Choice                    | Rationale                                         |
+| ------------------ | ------------------------- | ------------------------------------------------- |
+| **Framework**      | NestJS 11 with Fastify    | Performance, modularity, TypeScript-first         |
+| **Database**       | PostgreSQL 16             | JSONB support, RLS for multi-tenancy, reliability |
+| **Multi-Tenancy**  | Row-Level Security (RLS)  | Strong data isolation at database level           |
+| **Authentication** | JWT with Passport         | Stateless, scalable, industry standard            |
+| **Storage**        | S3-compatible (MinIO/AWS) | Scalable, tenant-isolated buckets                 |
+| **Validation**     | class-validator           | Declarative, type-safe validation                 |
+| **Documentation**  | Swagger/OpenAPI           | Auto-generated, interactive API docs              |
 
 ---
 
@@ -118,8 +118,9 @@ Complytude follows clean architecture principles with clear separation of concer
 src/
 ├── modules/              # Feature modules (business logic)
 │   ├── auth/            # Authentication & authorization
-│   ├── tenant/          # Multi-tenancy management
+│   ├── tenants/         # Multi-tenancy management
 │   ├── users/           # User management
+│   ├── invitations/     # Tenant invitations & membership
 │   ├── templates/       # Template CRUD
 │   └── storage/         # File storage
 ├── common/              # Cross-cutting concerns
@@ -146,6 +147,7 @@ export class TemplateService {
 ```
 
 **Benefits:**
+
 - Loose coupling
 - Easy testing (mocking)
 - Clear dependencies
@@ -218,14 +220,15 @@ graph TD
 
 ### Core Modules
 
-| Module | Responsibility | Dependencies |
-|--------|---------------|-------------|
-| **auth** | JWT authentication, signup, login, token refresh | users, database |
-| **users** | User management, profile updates | database |
-| **tenant** | Tenant creation, subscription management | users, database |
-| **templates** | Template CRUD, versioning | storage, database |
-| **storage** | File upload/download, S3 integration | tenant, database |
-| **health** | Health checks for services | database, storage |
+| Module          | Responsibility                                                          | Dependencies                 |
+| --------------- | ----------------------------------------------------------------------- | ---------------------------- |
+| **auth**        | JWT authentication, signup, login, token refresh, user invitation flows | users, invitations, database |
+| **users**       | User management, profile updates                                        | database                     |
+| **tenants**     | Tenant creation, subscription management                                | users, database              |
+| **invitations** | Tenant invitations, accept/reject, admin management                     | users, tenants, database     |
+| **templates**   | Template CRUD, versioning                                               | storage, database            |
+| **storage**     | File upload/download, S3 integration                                    | tenants, database            |
+| **health**      | Health checks for services                                              | database, storage            |
 
 ---
 
@@ -268,6 +271,7 @@ View the complete ER diagram:
 **📁 File:** `docs/database-schema.dbml`
 
 **View online:**
+
 1. Go to [dbdiagram.io](https://dbdiagram.io/)
 2. Copy contents of `database-schema.dbml`
 3. Paste into editor
@@ -281,6 +285,7 @@ View the complete ER diagram:
 Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
 
 **Advantages:**
+
 - ✅ Strong isolation at database level
 - ✅ No application-level filtering needed
 - ✅ Automatic enforcement (can't be bypassed)
@@ -289,26 +294,26 @@ Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
 ### How It Works
 
 1. **Application sets session context:**
+
    ```typescript
    @Injectable()
    export class TenantContextService {
      async setContext(tenantId: string, role: string, isAuthFlow = false) {
        // Set tenant context (transaction-local)
-       await this.db.query(
-         `SELECT set_config('app.tenant_id', $1, true)`,
-         [tenantId]
-       );
-       
+       await this.db.query(`SELECT set_config('app.tenant_id', $1, true)`, [
+         tenantId,
+       ]);
+
        // Set user-tenant role (transaction-local)
        await this.db.query(
          `SELECT set_config('app.user_tenant_role', $2, true)`,
-         [role]
+         [role],
        );
-       
+
        // Set auth flow flag if needed (transaction-local)
        if (isAuthFlow) {
          await this.db.query(
-           `SELECT set_config('app.is_auth_flow', 'true', true)`
+           `SELECT set_config('app.is_auth_flow', 'true', true)`,
          );
        }
      }
@@ -316,6 +321,7 @@ Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
    ```
 
 2. **RLS policies filter automatically:**
+
    ```sql
    CREATE POLICY documents_select ON documents
    FOR SELECT USING (
@@ -333,16 +339,18 @@ Request → JWT Validation → Extract tenant_id → Set Session Context → Exe
 
 ### Global vs Tenant-Scoped Tables
 
-| Type | Tables | RLS | Access |
-|------|--------|-----|--------|
-| **Global** | authorities, categories, templates | ❌ No | Shared across all tenants |
-| **Tenant-Scoped** | documents | ✅ Yes | Isolated per tenant |
+| Type              | Tables                             | RLS    | Access                    |
+| ----------------- | ---------------------------------- | ------ | ------------------------- |
+| **Global**        | authorities, categories, templates | ❌ No  | Shared across all tenants |
+| **Tenant-Scoped** | documents                          | ✅ Yes | Isolated per tenant       |
 
 ---
 
 ## Authentication & Authorization
 
 ### JWT-Based Authentication
+
+**Multi-Step Authentication Flow (Regular Users):**
 
 ```
 ┌────────────┐         ┌──────────────┐         ┌──────────────┐
@@ -354,25 +362,38 @@ Request → JWT Validation → Extract tenant_id → Set Session Context → Exe
       │                       │  2. Validate Credentials│
       │                       ├────────────────────────>│
       │                       │<────────────────────────│
-      │                       │  3. Generate JWT        │
-      │  4. Access + Refresh  │                         │
+      │                       │  3. Generate TempToken  │
+      │  4. TempAuthToken     │                         │
       │<──────────────────────│                         │
       │                       │                         │
-      │  5. API Request       │                         │
+      │  5. Tenant Selection  │                         │
+      │     + TempAuthToken   │                         │
+      ├──────────────────────>│                         │
+      │                       │  6. Validate TempToken  │
+      │                       │  7. Generate Full Tokens│
+      │  8. Access + Refresh  │                         │
+      │<──────────────────────│                         │
+      │                       │                         │
+      │  9. API Request       │                         │
       │     + Access Token    │                         │
       ├──────────────────────>│                         │
-      │                       │  6. Validate JWT        │
-      │                       │  7. Set Tenant Context  │
+      │                       │  10. Validate JWT       │
+      │                       │  11. Set Tenant Context │
       │                       ├────────────────────────>│
-      │                       │  8. Query (RLS applies) │
+      │                       │  12. Query (RLS applies)│
       │                       │<────────────────────────│
-      │  9. Response          │                         │
+      │  13. Response         │                         │
       │<──────────────────────│                         │
 ```
 
+**Direct Authentication (System Admins):**
+
+- System admins skip tenant selection and receive full tokens immediately
+
 ### Token Strategy
 
-- **Access Token:** Short-lived (30 minutes), contains user + tenant info
+- **Temp Auth Token:** Very short-lived (10 minutes), issued after login for tenant selection
+- **Access Token:** Short-lived (30 minutes), contains user + tenant info, used for API access
 - **Refresh Token:** Long-lived (14 days), stored in database, used to get new access tokens
 
 ### Authorization Levels
@@ -434,17 +455,18 @@ export class StorageService {
 
 All endpoints follow REST conventions:
 
-| Method | Endpoint | Action |
-|--------|----------|--------|
-| GET | `/api/templates` | List all templates |
-| GET | `/api/templates/:id` | Get one template |
-| POST | `/api/templates` | Create template |
-| PATCH | `/api/templates/:id` | Update template |
-| DELETE | `/api/templates/:id` | Delete template |
+| Method | Endpoint             | Action             |
+| ------ | -------------------- | ------------------ |
+| GET    | `/api/templates`     | List all templates |
+| GET    | `/api/templates/:id` | Get one template   |
+| POST   | `/api/templates`     | Create template    |
+| PATCH  | `/api/templates/:id` | Update template    |
+| DELETE | `/api/templates/:id` | Delete template    |
 
 ### Response Format
 
 **Success:**
+
 ```json
 {
   "id": "uuid",
@@ -455,6 +477,7 @@ All endpoints follow REST conventions:
 ```
 
 **Error:**
+
 ```json
 {
   "statusCode": 400,
@@ -472,6 +495,7 @@ Future versions: `/api/v2`
 ### Documentation
 
 Interactive API docs available at:
+
 - **Development:** http://localhost:3000/docs
 - **Swagger JSON:** http://localhost:3000/docs-json
 

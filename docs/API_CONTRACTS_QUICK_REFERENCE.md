@@ -2,25 +2,48 @@
 
 > **TL;DR:** Copy-paste examples for common API contract patterns
 
+**Authentication Note:** This API uses a multi-step authentication flow with three token types:
+
+- `tempAuthToken` - Short-lived (10 min) token after login, used for tenant selection
+- `accessToken` - Standard API access token (30 min), issued after tenant selection
+- `refreshToken` - Long-lived token (14 days) for obtaining new access tokens
+
 ---
 
 ## Import Statements
 
 ```typescript
 // Controller imports
-import { Controller, Get, Post, Put, Patch, Delete, Body, Query, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Query,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 
 // Common DTOs
-import { 
-  PaginationQueryDto, 
+import {
+  PaginationQueryDto,
   PaginatedResponseDto,
   MessageResponseDto,
-  UuidParamDto 
+  UuidParamDto,
 } from 'src/common/dto';
 
 // Swagger helpers
-import { 
+import {
   SwaggerCookieAuth,
   ApiAuthenticatedResponses,
   ApiProtectedResponses,
@@ -389,12 +412,12 @@ export class ResourceIdParamDto {
 
 ## Response Status Codes
 
-| Method | Success | Error Scenarios |
-|--------|---------|-----------------|
-| GET | 200 | 401, 403, 404, 500 |
-| POST | 201 | 400, 401, 403, 409, 500 |
-| PUT/PATCH | 200 | 400, 401, 403, 404, 500 |
-| DELETE | 200 | 401, 403, 404, 500 |
+| Method    | Success | Error Scenarios         |
+| --------- | ------- | ----------------------- |
+| GET       | 200     | 401, 403, 404, 500      |
+| POST      | 201     | 400, 401, 403, 409, 500 |
+| PUT/PATCH | 200     | 400, 401, 403, 404, 500 |
+| DELETE    | 200     | 401, 403, 404, 500      |
 
 ---
 
@@ -427,6 +450,7 @@ modules/resource/
 ## Common Pitfalls
 
 ❌ **Don't:**
+
 - Use `any` type
 - Forget `@ApiProperty()` decorators
 - Miss error response documentation
@@ -434,6 +458,7 @@ modules/resource/
 - Use implicit authentication
 
 ✅ **Do:**
+
 - Define explicit response DTOs
 - Document all status codes
 - Use type-safe enums

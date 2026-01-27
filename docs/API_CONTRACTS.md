@@ -16,6 +16,7 @@
 - [Error Handling](#error-handling)
 - [Naming Conventions](#naming-conventions)
 - [Swagger Documentation](#swagger-documentation)
+- [Invitation System](#invitation-system)
 - [Examples](#examples)
 
 ---
@@ -44,34 +45,59 @@ This document defines the standards for API contract definition in the Complytud
 
 The application uses **HTTP-only cookies** for JWT token management:
 
-| Cookie Name | Purpose | Lifetime | Usage |
-|-------------|---------|----------|-------|
-| `accessToken` | API access | 30 minutes | Sent with every API request |
-| `refreshToken` | Token renewal | 14 days | Used at `/auth/refresh` endpoint |
+| Cookie Name     | Purpose              | Lifetime   | Usage                                                |
+| --------------- | -------------------- | ---------- | ---------------------------------------------------- |
+| `tempAuthToken` | Multi-step auth flow | 10 minutes | Temporary token for tenant selection after login     |
+| `accessToken`   | API access           | 30 minutes | Sent with every API request (after tenant selection) |
+| `refreshToken`  | Token renewal        | 14 days    | Used at `/auth/refresh` endpoint                     |
 
 ### Authentication Flow
+
+**Multi-Step Authentication (Regular Users):**
 
 ```
 1. Login (POST /auth/login)
    ↓
-2. Server sets HTTP-only cookies
+2. Server sets tempAuthToken cookie (short-lived, 10 minutes)
    ↓
-3. Browser automatically sends cookies with requests
+3. User selects tenant (POST /auth/tenant-switch)
    ↓
-4. Access token expires after 30 minutes
+4. Server sets accessToken + refreshToken cookies
    ↓
-5. Client calls /auth/refresh
+5. tempAuthToken is cleared
    ↓
-6. Server issues new tokens in cookies
+6. Browser automatically sends accessToken with requests
+   ↓
+7. Access token expires after 30 minutes
+   ↓
+8. Client calls /auth/refresh
+   ↓
+9. Server issues new tokens in cookies
+```
+
+**Direct Authentication (System Admins):**
+
+```
+1. Admin Login (POST /auth/admin/login)
+   ↓
+2. Server sets accessToken + refreshToken cookies immediately
+   ↓
+3. No tenant selection needed
 ```
 
 ### Endpoint Authentication
 
-| Decorator | When to Use | Status Codes |
-|-----------|-------------|--------------|
-| `@Public()` | Public endpoints (no auth required) | - |
-| `@SwaggerCookieAuth.accessToken()` | Protected endpoints (auth required) | 401 if unauthenticated |
-| `@UseGuards(RolesGuard)` + `@Roles()` | Role-based access | 403 if insufficient permissions |
+| Decorator                             | When to Use                                     | Status Codes                    |
+| ------------------------------------- | ----------------------------------------------- | ------------------------------- |
+| `@Public()`                           | Public endpoints (no auth required)             | -                               |
+| `@SwaggerCookieAuth.tempAuthToken()`  | Multi-step auth (tenant selection, invitations) | 401 if unauthenticated          |
+| `@SwaggerCookieAuth.accessToken()`    | Protected endpoints (full auth required)        | 401 if unauthenticated          |
+| `@UseGuards(RolesGuard)` + `@Roles()` | Role-based access                               | 403 if insufficient permissions |
+
+**Note:** Some endpoints accept **both** `tempAuthToken` and `accessToken` using `@UseGuards(JwtBothTokensAuthGuard)`. This allows users to perform actions (like viewing/accepting invitations) either:
+
+- After login but before tenant selection (using tempAuthToken)
+- After full authentication (using accessToken)
 
 ### Swagger Documentation
 
@@ -102,11 +128,11 @@ async create() { ... }
 
 ### DTO Types
 
-| Type | Naming Pattern | Purpose | Example |
-|------|---------------|---------|---------|
-| **Body DTO** | `Create{Resource}Dto`, `Update{Resource}Dto` | Request body validation | `CreateTemplateDto` |
-| **Query DTO** | `{Resource}QueryDto`, `List{Resource}QueryDto` | Query string parameters | `TemplateQueryDto` |
-| **Param DTO** | `{Resource}IdParamDto`, `UuidParamDto` | Path parameters | `TemplateIdParamDto` |
+| Type          | Naming Pattern                                 | Purpose                 | Example              |
+| ------------- | ---------------------------------------------- | ----------------------- | -------------------- |
+| **Body DTO**  | `Create{Resource}Dto`, `Update{Resource}Dto`   | Request body validation | `CreateTemplateDto`  |
+| **Query DTO** | `{Resource}QueryDto`, `List{Resource}QueryDto` | Query string parameters | `TemplateQueryDto`   |
+| **Param DTO** | `{Resource}IdParamDto`, `UuidParamDto`         | Path parameters         | `TemplateIdParamDto` |
 
 ### Body DTOs
 
@@ -243,12 +269,12 @@ export class TemplateResponseDto {
 
 ### Standard Response Types
 
-| Type | When to Use | Example |
-|------|-------------|---------|
-| **Resource DTO** | Returning single resource | `TemplateResponseDto` |
-| **List DTO** | Returning multiple resources | `PaginatedResponseDto<TemplateResponseDto>` |
-| **Message DTO** | Simple confirmation | `MessageResponseDto` |
-| **Nested DTO** | Resource with relations | `TemplateWithVersionsResponseDto` |
+| Type             | When to Use                  | Example                                     |
+| ---------------- | ---------------------------- | ------------------------------------------- |
+| **Resource DTO** | Returning single resource    | `TemplateResponseDto`                       |
+| **List DTO**     | Returning multiple resources | `PaginatedResponseDto<TemplateResponseDto>` |
+| **Message DTO**  | Simple confirmation          | `MessageResponseDto`                        |
+| **Nested DTO**   | Resource with relations      | `TemplateWithVersionsResponseDto`           |
 
 ### Paginated Responses
 
@@ -282,6 +308,7 @@ async list(@Query() query: ListTemplatesQueryDto): Promise<PaginatedResponseDto<
 ### Timestamp Fields
 
 All timestamps should be:
+
 - **Format:** ISO 8601 string (`YYYY-MM-DDTHH:mm:ss.sssZ`)
 - **Type:** `string` (not `Date` object)
 - **Example:** `2026-01-21T10:30:00.000Z`
@@ -316,16 +343,16 @@ All errors use `ErrorResponseDto`:
 
 ### HTTP Status Codes
 
-| Code | Type | When to Use | DTO |
-|------|------|-------------|-----|
-| **200** | Success | Successful GET, PUT, PATCH, DELETE | Resource DTO |
-| **201** | Created | Successful POST | Resource DTO |
-| **400** | Bad Request | Validation failed | `ValidationErrorDto` |
-| **401** | Unauthorized | Missing/invalid authentication | `UnauthorizedErrorDto` |
-| **403** | Forbidden | Insufficient permissions | `ForbiddenErrorDto` |
-| **404** | Not Found | Resource doesn't exist | `NotFoundErrorDto` |
-| **409** | Conflict | Resource already exists | `ConflictErrorDto` |
-| **500** | Server Error | Unexpected server error | `InternalServerErrorDto` |
+| Code    | Type         | When to Use                        | DTO                      |
+| ------- | ------------ | ---------------------------------- | ------------------------ |
+| **200** | Success      | Successful GET, PUT, PATCH, DELETE | Resource DTO             |
+| **201** | Created      | Successful POST                    | Resource DTO             |
+| **400** | Bad Request  | Validation failed                  | `ValidationErrorDto`     |
+| **401** | Unauthorized | Missing/invalid authentication     | `UnauthorizedErrorDto`   |
+| **403** | Forbidden    | Insufficient permissions           | `ForbiddenErrorDto`      |
+| **404** | Not Found    | Resource doesn't exist             | `NotFoundErrorDto`       |
+| **409** | Conflict     | Resource already exists            | `ConflictErrorDto`       |
+| **500** | Server Error | Unexpected server error            | `InternalServerErrorDto` |
 
 ### Documenting Errors
 
@@ -364,14 +391,14 @@ async create(@Body() dto: CreateTemplateDto) { ... }
 
 ### DTOs
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| Create | `Create{Resource}Dto` | `CreateTemplateDto` |
-| Update | `Update{Resource}Dto` | `UpdateTemplateDto` |
-| Response | `{Resource}ResponseDto` | `TemplateResponseDto` |
-| List Response | `{Resource}ListResponseDto` | `TemplateListResponseDto` |
-| Query | `{Resource}QueryDto` or `List{Resource}QueryDto` | `TemplateQueryDto` |
-| Param | `{Resource}IdParamDto` | `TemplateIdParamDto` |
+| Type          | Pattern                                          | Example                   |
+| ------------- | ------------------------------------------------ | ------------------------- |
+| Create        | `Create{Resource}Dto`                            | `CreateTemplateDto`       |
+| Update        | `Update{Resource}Dto`                            | `UpdateTemplateDto`       |
+| Response      | `{Resource}ResponseDto`                          | `TemplateResponseDto`     |
+| List Response | `{Resource}ListResponseDto`                      | `TemplateListResponseDto` |
+| Query         | `{Resource}QueryDto` or `List{Resource}QueryDto` | `TemplateQueryDto`        |
+| Param         | `{Resource}IdParamDto`                           | `TemplateIdParamDto`      |
 
 ### Properties
 
@@ -539,6 +566,8 @@ Available decorators in `src/common/swagger/decorators.ts`:
 ---
 
 **For questions or clarifications, refer to existing examples in:**
+
 - `src/modules/auth/auth.controller.ts` - Authentication endpoints
+- `src/modules/tenants/invitations.controller.ts` - Invitation management
 - `src/modules/storage/storage.controller.ts` - File upload/download
 - `src/modules/templates/templates.controller.ts` - Complex CRUD operations
