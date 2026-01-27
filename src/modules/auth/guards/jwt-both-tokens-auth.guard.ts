@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()
-export class JwtTenantSwitchAuthGuard extends AuthGuard([
+export class JwtBothTokensAuthGuard extends AuthGuard([
   'jwt-temp-auth',
   'jwt',
 ]) {
@@ -10,9 +10,7 @@ export class JwtTenantSwitchAuthGuard extends AuthGuard([
     if (err || !user) {
       throw (
         err ||
-        new UnauthorizedException(
-          'Invalid or missing temporary authentication token',
-        )
+        new UnauthorizedException('Invalid or missing authentication token')
       );
     }
     return user;

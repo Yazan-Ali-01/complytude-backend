@@ -1,0 +1,220 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { MessageResponseDto } from 'src/common/dto/message-response.dto';
+import {
+  ApiAuthenticatedResponses,
+  ApiConflictError,
+  ApiForbiddenError,
+  ApiNotFoundError,
+  ApiValidationError,
+  SwaggerCookieAuth,
+} from 'src/common/swagger';
+import { TenantRole } from 'src/repositories/invitations/interfaces/invitation.interface';
+import {
+  type AuthenticatedUser,
+  CurrentUser,
+} from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { InvitationsService } from '../invitations/invitations.service';
+import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { InvitationListQueryDto } from './dto/invitation-list-query.dto';
+import {
+  CreateInvitationResponseDto,
+  InvitationResponseDto,
+  ResendInvitationResponseDto,
+} from './dto/invitation-response.dto';
+
+/**
+ * Tenant-scoped invitation management endpoints
+ * Requires tenant admin permissions
+ */
+@ApiTags('Tenant - Invitations')
+@Controller('tenants/admin/invitations')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(TenantRole.admin)
+@SwaggerCookieAuth.accessToken()
+export class TenantInvitationsController {
+  private readonly logger = new Logger(TenantInvitationsController.name);
+
+  constructor(private readonly invitationsService: InvitationsService) {}
+
+  /**
+   * Create a new invitation to join the tenant
+   */
+  @Post()
+  @ApiOperation({
+    summary: 'Create invitation',
+    description:
+      'Invite a user to join the tenant. Requires tenant admin permissions. Returns a token to be sent via email.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Invitation created successfully',
+    type: CreateInvitationResponseDto,
+  })
+  @ApiValidationError()
+  @ApiConflictError('User already member or pending invitation exists')
+  @ApiForbiddenError('Requires tenant admin permissions')
+  @ApiAuthenticatedResponses()
+  async createInvitation(
+    @Body() createInvitationDto: CreateInvitationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CreateInvitationResponseDto> {
+    this.logger.log(
+      `Admin ${user.userId} creating invitation for ${createInvitationDto.email} to tenant ${user.tenantId}`,
+    );
+
+    const result = await this.invitationsService.createInvitation({
+      tenantId: user.tenantId,
+      invitedBy: user.userId,
+      email: createInvitationDto.email,
+      role: createInvitationDto.role ?? TenantRole.member,
+    });
+
+    // TODO: Send email with token
+    this.logger.log(
+      `Invitation created: ${result.invitationId}. Token (for email): ${result.token}`,
+    );
+
+    return {
+      invitationId: result.invitationId,
+      token: result.token,
+      message: 'Invitation created successfully',
+    };
+  }
+
+  /**
+   * List invitations for the tenant
+   */
+  @Get()
+  @ApiOperation({
+    summary: 'List tenant invitations',
+    description:
+      'Retrieve paginated list of invitations for the tenant. Supports filtering by status and email. Requires tenant admin permissions.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitations list retrieved successfully',
+    type: [InvitationResponseDto],
+  })
+  @ApiForbiddenError('Requires tenant admin permissions')
+  @ApiAuthenticatedResponses()
+  async listInvitations(
+    @Query() query: InvitationListQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    this.logger.log(`Listing invitations for tenant ${user.tenantId}`);
+
+    return this.invitationsService.listTenantInvitations(
+      user.tenantId,
+      {
+        email: query.email,
+        status: query.status,
+      },
+      {
+        cursor: query.cursor,
+        limit: query.limit,
+        direction: query.direction,
+      },
+    );
+  }
+
+  /**
+   * Resend invitation (generate new token)
+   */
+  @Post(':invitationId/resend')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend invitation',
+    description:
+      'Generate a new token for an existing invitation and extend expiration. Requires tenant admin permissions.',
+  })
+  @ApiParam({
+    name: 'invitationId',
+    description: 'Invitation UUID',
+    example: '660e8400-e29b-41d4-a716-446655440001',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitation resent successfully',
+    type: ResendInvitationResponseDto,
+  })
+  @ApiNotFoundError('Invitation not found')
+  @ApiForbiddenError('Requires tenant admin permissions')
+  @ApiAuthenticatedResponses()
+  async resendInvitation(
+    @Param('invitationId') invitationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ResendInvitationResponseDto> {
+    this.logger.log(
+      `Admin ${user.userId} resending invitation ${invitationId} for tenant ${user.tenantId}`,
+    );
+
+    const result = await this.invitationsService.resendInvitation(
+      invitationId,
+      user.tenantId,
+    );
+
+    // TODO: Send email with new token
+    this.logger.log(
+      `Invitation ${invitationId} resent. New token (for email): ${result.token}`,
+    );
+
+    return {
+      token: result.token,
+      message: 'Invitation resent successfully',
+    };
+  }
+
+  /**
+   * Revoke invitation
+   */
+  @Delete(':invitationId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Revoke invitation',
+    description:
+      'Revoke a pending invitation. Invitation cannot be used after revocation. Requires tenant admin permissions.',
+  })
+  @ApiParam({
+    name: 'invitationId',
+    description: 'Invitation UUID',
+    example: '660e8400-e29b-41d4-a716-446655440001',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitation revoked successfully',
+    type: MessageResponseDto,
+  })
+  @ApiNotFoundError('Invitation not found')
+  @ApiForbiddenError('Requires tenant admin permissions')
+  @ApiAuthenticatedResponses()
+  async revokeInvitation(
+    @Param('invitationId') invitationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MessageResponseDto> {
+    this.logger.log(
+      `Admin ${user.userId} revoking invitation ${invitationId} for tenant ${user.tenantId}`,
+    );
+
+    return this.invitationsService.revokeInvitation(
+      invitationId,
+      user.tenantId,
+      user.userId,
+    );
+  }
+}

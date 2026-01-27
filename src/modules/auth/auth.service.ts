@@ -28,12 +28,15 @@ import { EmailVerificationRepository } from '../../repositories/users/email-veri
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { UserRepository } from '../../repositories/users/user.repository';
+import { InvitationsService } from '../invitations/invitations.service';
 import { TenantService } from '../tenants/tenant.service';
 import { AdminLoginResponseDto } from './dto/admin-login-response.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { InvitationListResponseDto } from './dto/invitation-list-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResolveInvitationResponseDto } from './dto/resolve-invitation-response.dto';
 import { SignupDto } from './dto/signup.dto';
 import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -56,6 +59,7 @@ export class AuthService {
     private readonly userRepository: UserRepository,
     private readonly userTenantRepository: UserTenantRepository,
     private readonly databaseService: DatabaseService,
+    private readonly invitationsService: InvitationsService,
     @I18n() private readonly i18n: I18nService,
   ) {}
 
@@ -293,6 +297,10 @@ export class AuthService {
     // Generate temporary authentication token
     const tempAuthToken = this.generateTempAuthToken(user.id, user.email);
 
+    // Get pending invitations count
+    const pendingInvitationsCount =
+      await this.invitationsService.countUserInvitations(user.email);
+
     this.logger.log(`User ${user.email} logged in successfully`);
 
     // Return user info and available tenants
@@ -304,6 +312,7 @@ export class AuthService {
         lastName: user.last_name,
       },
       tenants: tenantsWithDetails,
+      pendingInvitationsCount,
       tempAuthToken,
     };
   }
@@ -766,5 +775,51 @@ export class AuthService {
         },
       };
     });
+  }
+
+  /**
+   * Resolve invitation token (delegates to InvitationsService)
+   */
+  async resolveInvitation(
+    token: string,
+  ): Promise<ResolveInvitationResponseDto> {
+    return this.invitationsService.resolveInvitation(token);
+  }
+
+  /**
+   * List user's pending invitations (delegates to InvitationsService)
+   */
+  async listUserInvitations(email: string): Promise<InvitationListResponseDto> {
+    return this.invitationsService.listUserInvitations(email);
+  }
+
+  /**
+   * Accept invitation (delegates to InvitationsService)
+   */
+  async acceptInvitation(
+    invitationId: string,
+    userId: string,
+    email: string,
+  ): Promise<MessageResponseDto> {
+    return this.invitationsService.acceptInvitation(
+      invitationId,
+      userId,
+      email,
+    );
+  }
+
+  /**
+   * Reject invitation (delegates to InvitationsService)
+   */
+  async rejectInvitation(
+    invitationId: string,
+    userId: string,
+    email: string,
+  ): Promise<MessageResponseDto> {
+    return this.invitationsService.rejectInvitation(
+      invitationId,
+      userId,
+      email,
+    );
   }
 }

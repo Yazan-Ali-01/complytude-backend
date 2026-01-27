@@ -103,6 +103,13 @@ export class LoginResponseDto {
   })
   tenants: LoginTenantDto[];
 
+  @ApiProperty({
+    description: 'Number of pending invitations for this user',
+    example: 2,
+    type: 'integer',
+  })
+  pendingInvitationsCount: number;
+
   constructor(data: LoginResponseDto) {
     Object.assign(this, data);
   }

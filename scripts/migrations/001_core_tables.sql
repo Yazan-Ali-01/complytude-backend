@@ -13,6 +13,7 @@ BEGIN;
 
 CREATE TYPE tenant_plan AS ENUM ('early_access', 'basic', 'pro', 'enterprise');
 CREATE TYPE tenant_role AS ENUM ('admin', 'member', 'viewer');
+CREATE TYPE invitation_status AS ENUM ('pending', 'accepted', 'rejected', 'revoked', 'expired');
 
 -- =========================
 -- Tenants
@@ -144,6 +145,54 @@ COMMENT ON TABLE public.password_resets IS 'Password reset tokens for forgot-pas
 COMMENT ON COLUMN public.password_resets.token IS 'Unique reset token sent via email';
 COMMENT ON COLUMN public.password_resets.used_at IS 'Timestamp when token was used to reset password (NULL if not yet used)';
 
+CREATE TABLE public.invitations (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email       VARCHAR(255) NOT NULL,
+    tenant_id   UUID NOT NULL,
+    token_hash  VARCHAR(255) UNIQUE NOT NULL,
+    invited_by  UUID NOT NULL,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    accepted_at TIMESTAMPTZ,
+    rejected_at TIMESTAMPTZ,
+    revoked_at  TIMESTAMPTZ,
+    revoked_by  UUID,
+    role        tenant_role NOT NULL DEFAULT 'member',
+    status      invitation_status NOT NULL DEFAULT 'pending',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_invitations_tenant
+        FOREIGN KEY (tenant_id)
+        REFERENCES public.tenants(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_invitations_invited_by
+        FOREIGN KEY (invited_by)
+        REFERENCES public.users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_invitations_revoked_by
+        FOREIGN KEY (revoked_by)
+        REFERENCES public.users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+COMMENT ON TABLE public.invitations IS 'Invitations to join a tenant';
+COMMENT ON COLUMN public.invitations.email IS 'Email address of the invited user';
+COMMENT ON COLUMN public.invitations.tenant_id IS 'Tenant ID the user is invited to';
+COMMENT ON COLUMN public.invitations.role IS 'Role of the user invited to the tenant: admin, member, or viewer (default: member)';
+COMMENT ON COLUMN public.invitations.token_hash IS 'Unique invitation token sent via email';
+COMMENT ON COLUMN public.invitations.invited_by IS 'User ID of the user who invited the user';
+COMMENT ON COLUMN public.invitations.expires_at IS 'Timestamp when invitation expires';
+COMMENT ON COLUMN public.invitations.accepted_at IS 'Timestamp when invitation was accepted';
+COMMENT ON COLUMN public.invitations.rejected_at IS 'Timestamp when invitation was rejected by the invitee';
+COMMENT ON COLUMN public.invitations.revoked_at IS 'Timestamp when invitation was revoked by the inviter/admin';
+COMMENT ON COLUMN public.invitations.status IS 'Status of the invitation: pending, accepted, revoked, or expired';
+COMMENT ON COLUMN public.invitations.revoked_by IS 'User ID of the user who revoked the invitation';
+
 -- =========================
 -- Indexes
 -- =========================
@@ -180,6 +229,19 @@ CREATE INDEX idx_password_resets_user_id ON public.password_resets(user_id);
 CREATE INDEX idx_password_resets_token ON public.password_resets(token);
 CREATE INDEX idx_password_resets_expires_at ON public.password_resets(expires_at);
 
+-- Invitations
+CREATE INDEX idx_invitations_token_hash ON public.invitations(token_hash);
+CREATE INDEX idx_invitations_email ON public.invitations(email);
+CREATE INDEX idx_invitations_tenant_id ON public.invitations(tenant_id);
+CREATE INDEX idx_invitations_invited_by ON public.invitations(invited_by);
+CREATE INDEX idx_invitations_expires_at ON public.invitations(expires_at);
+CREATE INDEX idx_invitations_accepted_at ON public.invitations(accepted_at);
+CREATE INDEX idx_invitations_status ON public.invitations(status);
+CREATE INDEX idx_invitations_email_status ON public.invitations(email, status);
+CREATE UNIQUE INDEX idx_invitations_email_tenant_pending 
+    ON public.invitations(email, tenant_id) 
+    WHERE status = 'pending';
+
 -- =========================
 -- Triggers
 -- =========================
@@ -213,6 +275,11 @@ CREATE TRIGGER update_user_tenants_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at_column();
 
+CREATE TRIGGER update_invitations_updated_at
+    BEFORE UPDATE ON public.invitations
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
+
 COMMIT;
 
 -- =========================
@@ -226,6 +293,7 @@ BEGIN;
 DROP TRIGGER IF EXISTS update_user_tenants_updated_at ON public.user_tenants;
 DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 DROP TRIGGER IF EXISTS update_tenants_updated_at ON public.tenants;
+DROP TRIGGER IF EXISTS update_invitations_updated_at ON public.invitations;
 
 -- Drop function
 DROP FUNCTION IF EXISTS public.update_updated_at_column();
@@ -251,7 +319,17 @@ DROP INDEX IF EXISTS public.idx_user_tenants_user_id;
 DROP INDEX IF EXISTS public.idx_tenants_is_active;
 DROP INDEX IF EXISTS public.idx_tenants_plan;
 
+DROP INDEX IF EXISTS public.idx_invitations_email;
+DROP INDEX IF EXISTS public.idx_invitations_tenant_id;
+DROP INDEX IF EXISTS public.idx_invitations_invited_by;
+DROP INDEX IF EXISTS public.idx_invitations_expires_at;
+DROP INDEX IF EXISTS public.idx_invitations_accepted_at;
+DROP INDEX IF EXISTS public.idx_invitations_status;
+DROP INDEX IF EXISTS public.idx_invitations_email_status;
+DROP INDEX IF EXISTS public.idx_invitations_email_tenant_pending;
+
 -- Drop tables (in reverse dependency order)
+DROP TABLE IF EXISTS public.invitations;
 DROP TABLE IF EXISTS public.password_resets;
 DROP TABLE IF EXISTS public.email_verifications;
 DROP TABLE IF EXISTS public.refresh_tokens;
@@ -262,6 +340,7 @@ DROP TABLE IF EXISTS public.tenants;
 -- Drop ENUMs
 DROP TYPE IF EXISTS tenant_role;
 DROP TYPE IF EXISTS tenant_plan;
+DROP TYPE IF EXISTS invitation_status;
 
 COMMIT;
 */

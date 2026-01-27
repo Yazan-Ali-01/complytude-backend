@@ -43,8 +43,8 @@ import { SignupDto } from './dto/signup.dto';
 import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { JwtBothTokensAuthGuard } from './guards/jwt-both-tokens-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
-import { JwtTenantSwitchAuthGuard } from './guards/jwt-tenant-switch-auth.guard';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -176,8 +176,10 @@ export class AuthController {
    * Select active tenant and receive full authentication
    */
   @Public()
-  @UseGuards(JwtTenantSwitchAuthGuard)
+  @UseGuards(JwtBothTokensAuthGuard)
   @Post('tenant-switch')
+  @SwaggerCookieAuth.tempAuthToken()
+  @SwaggerCookieAuth.accessToken()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Select active tenant',
@@ -378,30 +380,19 @@ export class AuthController {
   @ApiNotFoundError('Invitation not found or expired')
   @ApiPublicResponses()
   resolveInvitation(
-    @Query('token') _token: string,
-  ): ResolveInvitationResponseDto {
-    // Implementation will be added later
-    // Should hash token and lookup invitation
-    return {
-      invitationId: '550e8400-e29b-41d4-a716-446655440000',
-      email: 'invitee@example.com',
-      tenantId: '550e8400-e29b-41d4-a716-446655440000',
-      tenantName: 'Acme Corporation',
-      role: 'member',
-      invitedBy: {
-        email: 'admin@company.com',
-        name: 'Admin User',
-      },
-      expiresAt: '2026-02-21T10:00:00.000Z',
-      createdAt: '2026-01-21T10:00:00.000Z',
-    };
+    @Query('token') token: string,
+  ): Promise<ResolveInvitationResponseDto> {
+    return this.authService.resolveInvitation(token);
   }
 
   /**
    * 10. GET /auth/invitations
    * List user's pending invitations
    */
+  @Public()
+  @UseGuards(JwtBothTokensAuthGuard)
   @Get('invitations')
+  @SwaggerCookieAuth.tempAuthToken()
   @SwaggerCookieAuth.accessToken()
   @ApiOperation({
     summary: "List user's pending invitations",
@@ -415,19 +406,19 @@ export class AuthController {
   })
   @ApiAuthenticatedResponses()
   listInvitations(
-    @CurrentUser() _user: { userId: string; email: string },
-  ): InvitationListResponseDto {
-    // Implementation will be added later
-    return {
-      invitations: [],
-    };
+    @CurrentUser() user: { userId: string; email: string },
+  ): Promise<InvitationListResponseDto> {
+    return this.authService.listUserInvitations(user.email);
   }
 
   /**
    * 11. POST /auth/invitations/:invitationId/accept
    * Accept tenant invitation
    */
+  @Public()
+  @UseGuards(JwtBothTokensAuthGuard)
   @Post('invitations/:invitationId/accept')
+  @SwaggerCookieAuth.tempAuthToken()
   @SwaggerCookieAuth.accessToken()
   @ApiOperation({
     summary: 'Accept tenant invitation',
@@ -450,20 +441,24 @@ export class AuthController {
   @ApiConflictError('User already member of tenant')
   @ApiAuthenticatedResponses()
   acceptInvitation(
-    @Param() _params: InvitationIdParamDto,
-    @CurrentUser() _user: { userId: string; email: string },
-  ): MessageResponseDto {
-    // Implementation will be added later
-    // Should create user_tenants relationship
-    // Should delete invitation after acceptance
-    return { message: 'Invitation accepted successfully' };
+    @Param() params: InvitationIdParamDto,
+    @CurrentUser() user: { userId: string; email: string },
+  ): Promise<MessageResponseDto> {
+    return this.authService.acceptInvitation(
+      params.invitationId,
+      user.userId,
+      user.email,
+    );
   }
 
   /**
    * 12. POST /auth/invitations/:invitationId/reject
    * Reject tenant invitation
    */
+  @Public()
+  @UseGuards(JwtBothTokensAuthGuard)
   @Post('invitations/:invitationId/reject')
+  @SwaggerCookieAuth.tempAuthToken()
   @SwaggerCookieAuth.accessToken()
   @ApiOperation({
     summary: 'Reject tenant invitation',
@@ -485,11 +480,13 @@ export class AuthController {
   @ApiNotFoundError('Invitation')
   @ApiAuthenticatedResponses()
   rejectInvitation(
-    @Param() _params: InvitationIdParamDto,
-    @CurrentUser() _user: { userId: string; email: string },
-  ): MessageResponseDto {
-    // Implementation will be added later
-    // Should delete invitation record
-    return { message: 'Invitation rejected successfully' };
+    @Param() params: InvitationIdParamDto,
+    @CurrentUser() user: { userId: string; email: string },
+  ): Promise<MessageResponseDto> {
+    return this.authService.rejectInvitation(
+      params.invitationId,
+      user.userId,
+      user.email,
+    );
   }
 }
