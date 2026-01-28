@@ -33,6 +33,7 @@ export class UsageLimitGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const tenantId = String(request.tenantId || request.user?.tenantId);
+    const userId: string | undefined = request.user?.id;
     const i18n = I18nContext.current();
 
     if (!tenantId) {
@@ -41,9 +42,17 @@ export class UsageLimitGuard implements CanActivate {
       );
     }
 
-    const check = await this.usageService.checkUsageLimit(
+    // Use atomic check-and-increment with credits fallback
+    // This ensures no race conditions and handles credit consumption
+    const check = await this.usageService.checkAndIncrementWithCredits(
       tenantId,
       meta.feature,
+      userId,
+      {
+        endpoint: request.url,
+        method: request.method,
+        timestamp: new Date().toISOString(),
+      },
     );
 
     if (!check.allowed) {
@@ -54,10 +63,14 @@ export class UsageLimitGuard implements CanActivate {
         remaining: check.remaining,
         periodEnd: check.periodEnd,
         feature: meta.feature,
+        creditsRemaining: check.creditsRemaining ?? 0,
       });
     }
 
+    // Store the check result for downstream use
     request.usageCheck = check;
+    // Flag to prevent double-increment by UsageTrackingInterceptor
+    request.usageAlreadyIncremented = true;
 
     return true;
   }
