@@ -9,10 +9,9 @@ import { tap } from 'rxjs/operators';
 import { Reflector } from '@nestjs/core';
 import {
   USAGE_FEATURE_KEY,
-  USAGE_INCREMENT_KEY,
+  UsageQuotaMeta,
 } from '../decorators/usage-quota.decorator';
 import { UsageTrackingService } from '../../modules/tenants/usage-tracking.service';
-import { MeteredFeature } from '../../modules/tenants/entities/tenant-features.interface';
 
 @Injectable()
 export class UsageTrackingInterceptor implements NestInterceptor {
@@ -22,23 +21,14 @@ export class UsageTrackingInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const feature = this.reflector.get<MeteredFeature>(
+    const meta = this.reflector.get<UsageQuotaMeta>(
       USAGE_FEATURE_KEY,
       context.getHandler(),
     );
 
-    const incrementMeta = this.reflector.get<{
-      feature: MeteredFeature;
-      delta: number;
-    }>(USAGE_INCREMENT_KEY, context.getHandler());
-
-    if (!feature && !incrementMeta) {
+    if (!meta) {
       return next.handle();
     }
-
-    const featureToTrack = incrementMeta?.feature || feature;
-    // Note: delta from incrementMeta is available for future use when incrementUsage supports variable deltas
-    const _delta = incrementMeta?.delta || 1;
 
     const request = context.switchToHttp().getRequest();
     const tenantId = String(request.tenantId || request.user?.tenantId);
@@ -48,21 +38,21 @@ export class UsageTrackingInterceptor implements NestInterceptor {
       tap({
         next: () => {
           this.usageService
-            .incrementUsage(tenantId, featureToTrack, userId, {
+            .incrementUsage(tenantId, meta.feature, userId, {
               endpoint: request.url,
               method: request.method,
               timestamp: new Date().toISOString(),
             })
             .catch((error: Error) => {
               console.error(
-                `[UsageTracking] Failed to increment usage for tenant ${tenantId}, feature ${featureToTrack}:`,
+                `[UsageTracking] Failed to increment usage for tenant ${tenantId}, feature ${meta.feature}:`,
                 error,
               );
             });
         },
         error: (error: Error) => {
           console.error(
-            `[UsageTracking] Request failed for tenant ${tenantId}, feature ${featureToTrack}:`,
+            `[UsageTracking] Request failed for tenant ${tenantId}, feature ${meta.feature}:`,
             error.message,
           );
         },

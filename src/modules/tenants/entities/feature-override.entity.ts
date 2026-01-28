@@ -7,6 +7,8 @@ export interface FeatureOverride {
   grantedAt: Date;
   reason: string | null;
   expiresAt: Date | null;
+  revokedAt: Date | null;
+  revokedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +34,8 @@ export interface FeatureOverrideRow {
   granted_at: Date;
   reason: string | null;
   expires_at: Date | null;
+  revoked_at: Date | null;
+  revoked_by: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -46,6 +50,8 @@ export function mapOverrideRow(row: FeatureOverrideRow): FeatureOverride {
     grantedAt: row.granted_at,
     reason: row.reason,
     expiresAt: row.expires_at,
+    revokedAt: row.revoked_at,
+    revokedBy: row.revoked_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

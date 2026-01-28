@@ -135,10 +135,10 @@ export class TenantInfoResponseDto {
 
   @ApiProperty({
     description: 'Subscription plan tier',
-    enum: ['early_access', 'basic', 'pro', 'enterprise'],
-    example: 'pro',
+    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
+    example: 'general_counsel',
   })
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  plan: 'navigator' | 'shield' | 'general_counsel' | 'infrastructure';
 
   @ApiProperty({
     description: 'Tenant features and limits based on subscription plan',

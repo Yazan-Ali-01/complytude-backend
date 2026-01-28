@@ -1,7 +1,7 @@
 import {
   Controller,
   Get,
-  Delete,
+  Patch,
   Body,
   Param,
   Query,
@@ -202,7 +202,7 @@ export class TenantUsageAdminController {
     };
   }
 
-  @Delete(':featureKey')
+  @Patch(':featureKey/reset')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '[ADMIN] Reset usage for a feature',

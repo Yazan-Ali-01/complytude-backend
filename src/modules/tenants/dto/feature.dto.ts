@@ -11,6 +11,15 @@ import {
   IsNotEmpty,
 } from 'class-validator';
 
+export enum FeatureCategory {
+  DOCUMENTS = 'documents',
+  CONTRACTS = 'contracts',
+  REGULATORY = 'regulatory',
+  JURISDICTION = 'jurisdiction',
+  SEATS = 'seats',
+  ADVANCED = 'advanced',
+}
+
 export class FeatureResponseDto {
   @ApiProperty({ example: 'documents_per_month' })
   key: string;
@@ -97,11 +106,14 @@ export class CreateFeatureDto {
   @IsEnum(['boolean', 'number', 'enum', 'string'])
   dataType: 'boolean' | 'number' | 'enum' | 'string';
 
-  @ApiProperty({ example: 'documents', description: 'Feature category' })
-  @IsString()
+  @ApiProperty({
+    example: 'documents',
+    enum: FeatureCategory,
+    description: 'Feature category',
+  })
+  @IsEnum(FeatureCategory)
   @IsNotEmpty()
-  @MaxLength(50)
-  category: string;
+  category: FeatureCategory;
 
   @ApiProperty({ example: 'Custom Feature' })
   @IsString()
@@ -144,11 +156,12 @@ export class CreateFeatureDto {
 export class FeatureQueryDto {
   @ApiPropertyOptional({
     example: 'documents',
+    enum: FeatureCategory,
     description: 'Filter by category',
   })
-  @IsString()
+  @IsEnum(FeatureCategory)
   @IsOptional()
-  category?: string;
+  category?: FeatureCategory;
 
   @ApiPropertyOptional({
     example: false,

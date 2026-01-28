@@ -167,7 +167,7 @@ export class AuthService {
       this.logger.log(`Creating tenant for ${signupDto.email}`);
       const tenant: Tenant = await this.tenantService.createTenant(
         {
-          plan: 'early_access',
+          plan: 'navigator',
           features: new TenantFeaturesDto(),
         },
         { client },

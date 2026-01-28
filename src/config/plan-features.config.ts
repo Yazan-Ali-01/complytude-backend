@@ -1,10 +1,5 @@
 import { TenantFeatures } from 'src/modules/tenants/entities/tenant-features.interface';
-import {
-  PlanTier,
-  AnyPlanTier,
-  normalizePlan,
-  isLegacyPlan,
-} from 'src/common/types/plans';
+import { PlanTier } from 'src/common/types/plans';
 
 export const PLAN_FEATURES: Record<PlanTier, TenantFeatures> = {
   navigator: {
@@ -96,13 +91,12 @@ export const PLAN_FEATURES: Record<PlanTier, TenantFeatures> = {
   },
 };
 
-export function getDefaultPlanFeatures(plan: AnyPlanTier): TenantFeatures {
-  const normalizedPlan = normalizePlan(plan);
-  return { ...PLAN_FEATURES[normalizedPlan] };
+export function getDefaultPlanFeatures(plan: PlanTier): TenantFeatures {
+  return { ...PLAN_FEATURES[plan] };
 }
 
-export function isValidPlan(plan: string): plan is AnyPlanTier {
-  return plan in PLAN_FEATURES || isLegacyPlan(plan);
+export function isValidPlan(plan: string): plan is PlanTier {
+  return plan in PLAN_FEATURES;
 }
 
 export function getAllPlanTiers(): PlanTier[] {

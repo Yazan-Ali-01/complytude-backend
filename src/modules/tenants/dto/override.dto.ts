@@ -80,6 +80,13 @@ export class OverrideResponseDto {
   reason: string | null;
   @ApiProperty({ description: 'Override expiration date', nullable: true })
   expiresAt: Date | null;
+  @ApiProperty({ description: 'When the override was revoked', nullable: true })
+  revokedAt: Date | null;
+  @ApiProperty({
+    description: 'User who revoked this override',
+    nullable: true,
+  })
+  revokedBy: string | null;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

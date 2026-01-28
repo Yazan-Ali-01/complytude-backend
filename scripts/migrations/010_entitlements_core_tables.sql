@@ -36,11 +36,17 @@ CREATE TABLE public.tenant_feature_overrides (
     feature_key     VARCHAR(100) NOT NULL,
     value           JSONB NOT NULL,
 
+    -- Audit trail (UAE PDPL compliance)
     granted_by      UUID,
     granted_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     reason          TEXT,
 
+    -- Time-limited overrides
     expires_at      TIMESTAMPTZ,
+
+    -- Soft-delete for revocation (preserves audit trail)
+    revoked_at      TIMESTAMPTZ,
+    revoked_by      UUID,
 
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -51,8 +57,8 @@ CREATE TABLE public.tenant_feature_overrides (
         FOREIGN KEY (feature_key) REFERENCES public.features(key) ON DELETE RESTRICT,
     CONSTRAINT fk_override_granted_by
         FOREIGN KEY (granted_by) REFERENCES public.users(id) ON DELETE SET NULL,
-    CONSTRAINT uq_tenant_feature
-        UNIQUE (tenant_id, feature_key)
+    CONSTRAINT fk_override_revoked_by
+        FOREIGN KEY (revoked_by) REFERENCES public.users(id) ON DELETE SET NULL
 );
 
 COMMENT ON TABLE public.tenant_feature_overrides IS 'Per-tenant feature overrides with audit trail';
@@ -64,6 +70,12 @@ CREATE INDEX idx_overrides_tenant_id ON public.tenant_feature_overrides(tenant_i
 CREATE INDEX idx_overrides_expires_at ON public.tenant_feature_overrides(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX idx_overrides_granted_by ON public.tenant_feature_overrides(granted_by) WHERE granted_by IS NOT NULL;
 CREATE INDEX idx_overrides_feature_key ON public.tenant_feature_overrides(feature_key);
+CREATE INDEX idx_overrides_revoked_at ON public.tenant_feature_overrides(revoked_at) WHERE revoked_at IS NOT NULL;
+
+-- Only one active (non-revoked) override per tenant per feature
+CREATE UNIQUE INDEX uq_tenant_feature_active
+    ON public.tenant_feature_overrides(tenant_id, feature_key)
+    WHERE revoked_at IS NULL;
 
 -- =========================
 -- TRIGGERS

@@ -1,9 +1,9 @@
 import { TenantFeatures } from './tenant-features.interface';
-import { AnyPlanTier } from 'src/common/types/plans';
+import { PlanTier } from 'src/common/types/plans';
 
 export interface Tenant {
   id: string;
-  plan: AnyPlanTier;
+  plan: PlanTier;
   features: TenantFeatures;
   is_active: boolean;
   created_at: Date;

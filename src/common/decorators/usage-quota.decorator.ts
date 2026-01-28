@@ -3,11 +3,15 @@ import { MeteredFeature } from '../../modules/tenants/entities/tenant-features.i
 
 export const USAGE_FEATURE_KEY = 'usageFeature';
 
-export const RequireUsageQuota = (feature: MeteredFeature) =>
-  SetMetadata(USAGE_FEATURE_KEY, feature);
+export interface UsageQuotaMeta {
+  feature: MeteredFeature;
+  delta: number;
+}
 
-export const USAGE_INCREMENT_KEY = 'usageIncrement';
-export const RequireUsageIncrement = (
-  feature: MeteredFeature,
-  delta: number = 1,
-) => SetMetadata(USAGE_INCREMENT_KEY, { feature, delta });
+/**
+ * Decorator that enforces a usage quota check (guard) and auto-increments usage (interceptor) on success.
+ * @param feature - The metered feature key to check and track
+ * @param delta - Amount to increment on success (default: 1, must be >= 1)
+ */
+export const RequireUsageQuota = (feature: MeteredFeature, delta: number = 1) =>
+  SetMetadata(USAGE_FEATURE_KEY, { feature, delta } satisfies UsageQuotaMeta);

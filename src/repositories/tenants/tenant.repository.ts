@@ -3,6 +3,7 @@ import {
   Tenant,
   TenantFeatures,
 } from 'src/modules/tenants/entities/tenant.entity';
+import { PlanTier } from 'src/common/types/plans';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
@@ -18,7 +19,7 @@ import {
  */
 export type CreateTenantRow = {
   id?: string; // UUID, defaults to gen_random_uuid()
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  plan: PlanTier;
   features: string; // Stringified JSONB
   is_active?: boolean;
   created_at?: Date;
@@ -30,7 +31,7 @@ export type CreateTenantRow = {
  * JSON/JSONB fields must be pre-stringified.
  */
 export type UpdateTenantRow = {
-  plan?: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  plan?: PlanTier;
   features?: string; // Stringified JSONB
   is_active?: boolean;
   updated_at?: Date;
@@ -38,7 +39,7 @@ export type UpdateTenantRow = {
 
 type TenantRow = {
   id: string;
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
+  plan: PlanTier;
   features: unknown;
   is_active: boolean;
   created_at: Date;

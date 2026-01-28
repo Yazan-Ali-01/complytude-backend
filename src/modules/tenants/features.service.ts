@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -13,11 +14,19 @@ import {
   getDefaultPlanFeatures,
   isValidPlan,
 } from 'src/config/plan-features.config';
+import { PlanTier } from 'src/common/types/plans';
 import { getEntitlementsConfig } from 'src/config/entitlements.config';
 import {
   FeatureOverride,
   mapOverrideRow,
 } from './entities/feature-override.entity';
+import {
+  FeatureResponseDto,
+  FeatureListResponseDto,
+  CreateFeatureDto,
+  UpdateFeatureDto,
+  FeatureQueryDto,
+} from './dto/feature.dto';
 
 @Injectable()
 export class FeaturesService {
@@ -35,17 +44,7 @@ export class FeaturesService {
   /**
    * Get default features for a specific plan
    */
-  getDefaultFeatures(
-    plan:
-      | 'early_access'
-      | 'basic'
-      | 'pro'
-      | 'enterprise'
-      | 'navigator'
-      | 'shield'
-      | 'general_counsel'
-      | 'infrastructure',
-  ): TenantFeatures {
+  getDefaultFeatures(plan: PlanTier): TenantFeatures {
     return getDefaultPlanFeatures(plan);
   }
 
@@ -55,9 +54,10 @@ export class FeaturesService {
   async getActiveOverrides(tenantId: string): Promise<FeatureOverride[]> {
     try {
       const result = await this.databaseService.query(
-        `SELECT id, tenant_id, feature_key, value, granted_by, granted_at, reason, expires_at, created_at, updated_at
+        `SELECT id, tenant_id, feature_key, value, granted_by, granted_at, reason, expires_at, revoked_at, revoked_by, created_at, updated_at
          FROM public.tenant_feature_overrides
          WHERE tenant_id = $1
+           AND revoked_at IS NULL
            AND (expires_at IS NULL OR expires_at > NOW())`,
         [tenantId],
       );
@@ -233,5 +233,153 @@ export class FeaturesService {
       );
       throw error;
     }
+  }
+
+  // ========================
+  // Feature Registry (Admin)
+  // ========================
+
+  /**
+   * List all features from the registry with optional filtering
+   */
+  async listFeatures(query: FeatureQueryDto): Promise<FeatureListResponseDto> {
+    let sql = 'SELECT * FROM public.features WHERE 1=1';
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (query.category) {
+      sql += ` AND category = $${paramIndex++}`;
+      params.push(query.category);
+    }
+    if (query.isMetered !== undefined) {
+      sql += ` AND is_metered = $${paramIndex++}`;
+      params.push(query.isMetered);
+    }
+
+    sql += ' ORDER BY sort_order ASC';
+    sql += ` LIMIT $${paramIndex++}`;
+    params.push(query.limit || 100);
+
+    const result = await this.databaseService.query(sql, params);
+
+    return {
+      features: result.rows.map((f) => this.toFeatureResponseDto(f)),
+      total: result.rows.length,
+    };
+  }
+
+  /**
+   * Get a single feature by key from the registry
+   */
+  async getFeatureByKey(key: string): Promise<FeatureResponseDto> {
+    const result = await this.databaseService.query(
+      'SELECT * FROM public.features WHERE key = $1',
+      [key],
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`Feature '${key}' not found`);
+    }
+
+    return this.toFeatureResponseDto(result.rows[0]);
+  }
+
+  /**
+   * Create a new feature in the registry
+   */
+  async createFeature(dto: CreateFeatureDto): Promise<FeatureResponseDto> {
+    const existing = await this.databaseService.query(
+      'SELECT key FROM public.features WHERE key = $1',
+      [dto.key],
+    );
+
+    if (existing.rows.length > 0) {
+      throw new BadRequestException(`Feature '${dto.key}' already exists`);
+    }
+
+    const result = await this.databaseService.query(
+      `INSERT INTO public.features (key, data_type, category, display_name, description, enum_values, default_value, is_metered, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        dto.key,
+        dto.dataType,
+        dto.category,
+        dto.displayName,
+        dto.description || null,
+        dto.enumValues ? JSON.stringify(dto.enumValues) : null,
+        dto.defaultValue !== undefined
+          ? JSON.stringify(dto.defaultValue)
+          : null,
+        dto.isMetered ?? false,
+        dto.sortOrder ?? 0,
+      ],
+    );
+
+    return this.toFeatureResponseDto(result.rows[0]);
+  }
+
+  /**
+   * Update a feature's display metadata (displayName, description, sortOrder)
+   */
+  async updateFeature(
+    key: string,
+    dto: UpdateFeatureDto,
+  ): Promise<FeatureResponseDto> {
+    const existing = await this.databaseService.query(
+      'SELECT * FROM public.features WHERE key = $1',
+      [key],
+    );
+
+    if (existing.rows.length === 0) {
+      throw new NotFoundException(`Feature '${key}' not found`);
+    }
+
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (dto.displayName !== undefined) {
+      updates.push(`display_name = $${paramIndex++}`);
+      params.push(dto.displayName);
+    }
+    if (dto.description !== undefined) {
+      updates.push(`description = $${paramIndex++}`);
+      params.push(dto.description);
+    }
+    if (dto.sortOrder !== undefined) {
+      updates.push(`sort_order = $${paramIndex++}`);
+      params.push(dto.sortOrder);
+    }
+
+    if (updates.length === 0) {
+      return this.toFeatureResponseDto(existing.rows[0]);
+    }
+
+    params.push(key);
+    const result = await this.databaseService.query(
+      `UPDATE public.features SET ${updates.join(', ')} WHERE key = $${paramIndex} RETURNING *`,
+      params,
+    );
+
+    return this.toFeatureResponseDto(result.rows[0]);
+  }
+
+  /**
+   * Map a raw feature DB row to FeatureResponseDto.
+   * JSONB columns are already parsed by the pg driver -- no JSON.parse needed.
+   */
+  private toFeatureResponseDto(feature: any): FeatureResponseDto {
+    return {
+      key: feature.key,
+      dataType: feature.data_type,
+      category: feature.category,
+      displayName: feature.display_name,
+      description: feature.description,
+      enumValues: feature.enum_values ?? null,
+      defaultValue: feature.default_value ?? null,
+      isMetered: feature.is_metered,
+      sortOrder: feature.sort_order,
+    };
   }
 }

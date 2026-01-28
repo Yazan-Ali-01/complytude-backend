@@ -1,12 +1,12 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Logger,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -23,43 +23,13 @@ import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
 import { OverridesService } from './overrides.service';
 import { FeatureOverride } from './entities/feature-override.entity';
-
-class CreateOverrideDto {
-  featureKey: string;
-  value: unknown;
-  reason?: string;
-  expiresAt?: string;
-}
-
-class BulkCreateOverrideDto {
-  overrides: CreateOverrideDto[];
-  reason?: string;
-}
-
-class OverrideResponseDto {
-  id: string;
-  tenantId: string;
-  featureKey: string;
-  value: unknown;
-  grantedBy: string | null;
-  grantedAt: Date;
-  reason: string | null;
-  expiresAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-class OverrideListResponseDto {
-  overrides: OverrideResponseDto[];
-  total: number;
-}
-
-class RevokeOverrideResponseDto {
-  success: boolean;
-  tenantId: string;
-  featureKey: string;
-  message: string;
-}
+import {
+  CreateOverrideDto,
+  BulkCreateOverrideDto,
+  OverrideResponseDto,
+  OverrideListResponseDto,
+  RevokeOverrideResponseDto,
+} from './dto/override.dto';
 
 @ApiTags('System Admin - Tenant Overrides')
 @Controller('admin/tenants/:tenantId/overrides')
@@ -81,7 +51,7 @@ export class TenantOverridesAdminController {
   @ApiResponse({
     status: 201,
     description: 'Override granted successfully',
-    type: Object,
+    type: OverrideResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid feature key or value' })
   @ApiResponse({ status: 404, description: 'Tenant not found' })
@@ -112,13 +82,13 @@ export class TenantOverridesAdminController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '[ADMIN] Grant multiple feature overrides to tenant',
-    description: 'Creates multiple feature overrides in a single request.',
+    description: 'Creates multiple feature overrides in a single transaction.',
   })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
   @ApiResponse({
     status: 201,
     description: 'Overrides granted successfully',
-    type: Object,
+    type: OverrideListResponseDto,
   })
   async grantBulkOverrides(
     @Param('tenantId') tenantId: string,
@@ -129,21 +99,15 @@ export class TenantOverridesAdminController {
       `[ADMIN] Granting ${dto.overrides.length} bulk overrides for tenant ${tenantId}`,
     );
 
-    const overrides = await Promise.all(
-      dto.overrides.map((override) =>
-        this.overridesService.grantOverride(
-          tenantId,
-          {
-            featureKey: override.featureKey,
-            value: override.value,
-            reason: dto.reason || override.reason,
-            expiresAt: override.expiresAt
-              ? new Date(override.expiresAt)
-              : undefined,
-          },
-          user.id,
-        ),
-      ),
+    const overrides = await this.overridesService.grantBulkOverrides(
+      tenantId,
+      dto.overrides.map((o) => ({
+        featureKey: o.featureKey,
+        value: o.value,
+        reason: dto.reason || o.reason,
+        expiresAt: o.expiresAt ? new Date(o.expiresAt) : undefined,
+      })),
+      user.id,
     );
 
     return {
@@ -156,7 +120,7 @@ export class TenantOverridesAdminController {
   @ApiOperation({
     summary: '[ADMIN] List tenant overrides',
     description:
-      'Retrieves all feature overrides for a tenant. Use includeExpired=true to see expired overrides.',
+      'Retrieves all feature overrides for a tenant. Use includeExpired/includeRevoked to see historical overrides.',
   })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
   @ApiQuery({
@@ -165,22 +129,28 @@ export class TenantOverridesAdminController {
     type: Boolean,
     description: 'Include expired overrides (default: false)',
   })
+  @ApiQuery({
+    name: 'includeRevoked',
+    required: false,
+    type: Boolean,
+    description: 'Include revoked overrides (default: false)',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of overrides',
-    type: Object,
+    type: OverrideListResponseDto,
   })
   async getOverrides(
     @Param('tenantId') tenantId: string,
     @Query('includeExpired') includeExpired?: string,
+    @Query('includeRevoked') includeRevoked?: string,
   ): Promise<OverrideListResponseDto> {
-    this.logger.log(
-      `[ADMIN] Fetching overrides for tenant ${tenantId}, includeExpired: ${includeExpired}`,
-    );
+    this.logger.log(`[ADMIN] Fetching overrides for tenant ${tenantId}`);
 
     const overrides = await this.overridesService.getTenantOverrides(
       tenantId,
       includeExpired === 'true',
+      includeRevoked === 'true',
     );
 
     return {
@@ -192,14 +162,14 @@ export class TenantOverridesAdminController {
   @Get(':featureKey')
   @ApiOperation({
     summary: '[ADMIN] Get specific override',
-    description: 'Retrieves a specific feature override for a tenant.',
+    description: 'Retrieves a specific active feature override for a tenant.',
   })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
   @ApiParam({ name: 'featureKey', description: 'Feature key' })
   @ApiResponse({
     status: 200,
     description: 'Override details',
-    type: Object,
+    type: OverrideResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Override not found' })
   async getOverride(
@@ -222,30 +192,31 @@ export class TenantOverridesAdminController {
     return this.toResponseDto(override);
   }
 
-  @Delete(':featureKey')
+  @Patch(':featureKey/revoke')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '[ADMIN] Revoke feature override',
     description:
-      'Removes a feature override from a tenant. The tenant will revert to plan defaults.',
+      'Soft-revokes a feature override (preserved for audit trail). The tenant reverts to plan defaults.',
   })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
   @ApiParam({ name: 'featureKey', description: 'Feature key to revoke' })
   @ApiResponse({
     status: 200,
     description: 'Override revoked successfully',
-    type: Object,
+    type: RevokeOverrideResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Override not found' })
   async revokeOverride(
     @Param('tenantId') tenantId: string,
     @Param('featureKey') featureKey: string,
+    @CurrentUser() user: { id: string },
   ): Promise<RevokeOverrideResponseDto> {
     this.logger.log(
       `[ADMIN] Revoking override for tenant ${tenantId}, feature: ${featureKey}`,
     );
 
-    await this.overridesService.revokeOverride(tenantId, featureKey);
+    await this.overridesService.revokeOverride(tenantId, featureKey, user.id);
 
     return {
       success: true,
@@ -265,6 +236,8 @@ export class TenantOverridesAdminController {
       grantedAt: override.grantedAt,
       reason: override.reason,
       expiresAt: override.expiresAt,
+      revokedAt: override.revokedAt,
+      revokedBy: override.revokedBy,
       createdAt: override.createdAt,
       updatedAt: override.updatedAt,
     };
