@@ -28,6 +28,10 @@ export interface UsageCheckResult {
   periodStart: Date;
   periodEnd: Date;
   message: string;
+  /** True if a credit was consumed to allow this action */
+  usedCredit?: boolean;
+  /** Number of credits remaining after this action (if credits were checked) */
+  creditsRemaining?: number;
 }
 
 export interface UsageSummary {

@@ -31,6 +31,13 @@ export class UsageTrackingInterceptor implements NestInterceptor {
     }
 
     const request = context.switchToHttp().getRequest();
+
+    // Skip if UsageLimitGuard already handled the increment atomically
+    // This flag is set by the guard when using checkAndIncrementWithCredits
+    if (request.usageAlreadyIncremented) {
+      return next.handle();
+    }
+
     const tenantId = String(request.tenantId || request.user?.tenantId);
     const userId: string | undefined = request.user?.id;
 

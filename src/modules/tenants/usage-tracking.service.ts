@@ -3,10 +3,13 @@ import {
   Logger,
   NotFoundException,
   InternalServerErrorException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { TenantService } from './tenant.service';
 import { FeaturesService } from './features.service';
+import { CreditsService } from './credits.service';
 import {
   TenantUsage,
   UsageEvent,
@@ -30,6 +33,8 @@ export class UsageTrackingService {
     private readonly databaseService: DatabaseService,
     private readonly tenantService: TenantService,
     private readonly featuresService: FeaturesService,
+    @Inject(forwardRef(() => CreditsService))
+    private readonly creditsService: CreditsService,
   ) {}
 
   /**
@@ -300,6 +305,132 @@ export class UsageTrackingService {
       );
       throw new InternalServerErrorException(
         'Failed to check and increment usage',
+      );
+    }
+  }
+
+  /**
+   * Check usage limit with credits fallback.
+   * If plan quota is exceeded, attempts to consume a credit.
+   *
+   * Flow:
+   * 1. Check if within plan quota → allow and increment
+   * 2. If quota exceeded, check for available credits
+   * 3. If credits available → consume one and allow
+   * 4. If no credits → deny
+   *
+   * @returns UsageCheckResult with usedCredit and creditsRemaining fields
+   */
+  async checkAndIncrementWithCredits(
+    tenantId: string,
+    featureKey: MeteredFeature,
+    userId?: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<UsageCheckResult> {
+    try {
+      // First, try the normal check and increment
+      const result = await this.checkAndIncrementUsage(
+        tenantId,
+        featureKey,
+        userId,
+        metadata,
+      );
+
+      // If allowed within plan quota, return as-is
+      if (result.allowed) {
+        return {
+          ...result,
+          usedCredit: false,
+        };
+      }
+
+      // Plan quota exceeded - check for credits
+      this.logger.debug(
+        `Plan quota exceeded for tenant ${tenantId}, feature ${featureKey}. Checking credits...`,
+      );
+
+      const availableCredits = await this.creditsService.getAvailableCredits(
+        tenantId,
+        featureKey,
+      );
+
+      if (availableCredits <= 0) {
+        // No credits available - deny access
+        this.logger.debug(
+          `No credits available for tenant ${tenantId}, feature ${featureKey}`,
+        );
+        return {
+          ...result,
+          usedCredit: false,
+          creditsRemaining: 0,
+          message: `${result.message}. No credits available. Purchase credits to continue.`,
+        };
+      }
+
+      // Credits available - consume one
+      const consumed = await this.creditsService.consumeCredit(
+        tenantId,
+        featureKey,
+      );
+
+      if (!consumed) {
+        // Race condition - credits were consumed between check and consume
+        this.logger.warn(
+          `Failed to consume credit for tenant ${tenantId}, feature ${featureKey} (race condition)`,
+        );
+        return {
+          ...result,
+          usedCredit: false,
+          creditsRemaining: 0,
+          message: `${result.message}. Credits unavailable. Please try again.`,
+        };
+      }
+
+      const creditsRemaining = availableCredits - 1;
+
+      this.logger.log(
+        `Credit consumed for tenant ${tenantId}, feature ${featureKey}. Credits remaining: ${creditsRemaining}`,
+      );
+
+      // Record the credit usage in usage events
+      await this.databaseService.query(
+        `INSERT INTO public.tenant_usage_events
+          (tenant_id, feature_key, user_id, event_type, delta, metadata)
+         VALUES ($1, $2, $3, 'credit_consumed', $4, $5)`,
+        [
+          tenantId,
+          featureKey,
+          userId || null,
+          1,
+          JSON.stringify({
+            ...metadata,
+            credit_consumed: true,
+            credits_remaining: creditsRemaining,
+          }),
+        ],
+      );
+
+      return {
+        allowed: true,
+        limit: result.limit,
+        current: result.current,
+        remaining: 0, // Plan quota exhausted
+        periodStart: result.periodStart,
+        periodEnd: result.periodEnd,
+        message: `Plan quota exceeded. Used 1 credit. ${creditsRemaining} credits remaining.`,
+        usedCredit: true,
+        creditsRemaining,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to check usage with credits for tenant ${tenantId}, feature ${featureKey}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to check usage with credits fallback',
       );
     }
   }
