@@ -305,16 +305,45 @@ export class UsageTrackingService {
   }
 
   /**
-   * Get usage summary for all metered features
+   * Get usage summary for all metered features in a single query
    */
   async getTenantUsageSummary(tenantId: string): Promise<UsageSummary> {
     try {
+      const tenantFeatures =
+        await this.featuresService.getTenantFeatures(tenantId);
       const { periodStart, periodEnd } = this.getCurrentBillingPeriod();
 
-      const features: Record<string, UsageCheckResult> = {};
+      // Fetch all usage counts in one query
+      const result = await this.databaseService.query(
+        `SELECT feature_key, usage_count
+         FROM public.tenant_usage
+         WHERE tenant_id = $1 AND period_start = $2 AND period_end = $3
+           AND feature_key = ANY($4)`,
+        [tenantId, periodStart, periodEnd, [...METERED_FEATURES]],
+      );
 
+      const usageMap: Record<string, number> = {};
+      for (const row of result.rows) {
+        usageMap[row.feature_key] = row.usage_count as number;
+      }
+
+      const features: Record<string, UsageCheckResult> = {};
       for (const featureKey of METERED_FEATURES) {
-        features[featureKey] = await this.checkUsageLimit(tenantId, featureKey);
+        const limit = (tenantFeatures[featureKey] as number) ?? 0;
+        const current = usageMap[featureKey] ?? 0;
+        const isUnlimited = limit === -1;
+
+        features[featureKey] = {
+          allowed: isUnlimited || current < limit,
+          limit,
+          current,
+          remaining: isUnlimited ? -1 : Math.max(0, limit - current),
+          periodStart,
+          periodEnd,
+          message: isUnlimited
+            ? `${current}/${featureKey} used this month (unlimited)`
+            : `${current}/${limit} ${featureKey} used this month`,
+        };
       }
 
       return {
@@ -324,6 +353,9 @@ export class UsageTrackingService {
         features,
       };
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       this.logger.error(
         `Failed to get usage summary for tenant ${tenantId}`,
         error,
@@ -544,7 +576,7 @@ export class UsageTrackingService {
   /**
    * Reset usage for all metered features for a tenant
    */
-  async resetAllMeteredFeatures(tenantId: string): Promise<void> {
+  async resetTenantUsage(tenantId: string): Promise<void> {
     try {
       const { periodStart, periodEnd } = this.getCurrentBillingPeriod();
 

@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsDateString,
   IsArray,
+  ArrayMaxSize,
   ValidateNested,
   MaxLength,
 } from 'class-validator';
@@ -48,9 +49,10 @@ export class CreateOverrideDto {
 export class BulkCreateOverrideDto {
   @ApiProperty({
     type: [CreateOverrideDto],
-    description: 'Array of overrides to create',
+    description: 'Array of overrides to create (max 20)',
   })
   @IsArray()
+  @ArrayMaxSize(20)
   @ValidateNested({ each: true })
   @Type(() => CreateOverrideDto)
   overrides: CreateOverrideDto[];

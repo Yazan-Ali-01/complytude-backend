@@ -28,7 +28,7 @@ export class UsageResetJob {
 
       for (const tenantId of tenantIds) {
         try {
-          await this.usageTrackingService.resetAllMeteredFeatures(tenantId);
+          await this.usageTrackingService.resetTenantUsage(tenantId);
           processed++;
         } catch (error) {
           errors++;
