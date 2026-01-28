@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
+import { PiiMaskingService } from './services/pii-masking.service';
+import { RbacModule } from '../rbac/rbac.module';
+import { TenantModule } from '../tenants/tenant.module';
 
 /**
  * Documents Module
@@ -12,12 +15,14 @@ import { DocumentsService } from './documents.service';
  */
 @Module({
   imports: [
+    RbacModule,
+    TenantModule,
     // DatabaseModule will be added during implementation
     // StorageModule will be added during implementation
     // TemplatesModule will be added during implementation
   ],
   controllers: [DocumentsController],
-  providers: [DocumentsService],
+  providers: [DocumentsService, PiiMaskingService],
   exports: [DocumentsService],
 })
 export class DocumentsModule {}
