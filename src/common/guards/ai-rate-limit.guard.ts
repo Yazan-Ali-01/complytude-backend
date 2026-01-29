@@ -27,27 +27,27 @@ export class AiRateLimitGuard implements CanActivate {
       return true;
     }
 
-    const todayUsage = await this.aiUsageService.getDailyAiUsage(
-      user.userId,
-      user.tenantId,
-    );
-
     const dailyLimit = AiRateLimits.MEMBER_DAILY_LIMIT;
 
-    if (todayUsage >= dailyLimit) {
+    // Use atomic check-and-increment to prevent race conditions
+    const result = await this.aiUsageService.checkAndIncrementAiUsage(
+      user.userId as string,
+      user.tenantId as string,
+      dailyLimit,
+    );
+
+    if (!result.allowed) {
       throw new ForbiddenException(
         `Daily AI generation limit reached (${dailyLimit}/day for members). ` +
-          `You have used ${todayUsage} generations today.`,
+          `You have used ${result.current} generations today.`,
       );
     }
 
-    // Increment usage count
-    await this.aiUsageService.incrementAiGeneration(user.userId, user.tenantId);
-
     // Attach usage info to request for downstream use
     request.aiUsage = {
-      dailyCount: todayUsage + 1,
-      dailyLimit,
+      dailyCount: result.current,
+      dailyLimit: result.limit,
+      remaining: result.remaining,
     };
 
     return true;

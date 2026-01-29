@@ -12,6 +12,14 @@ export interface UserDailyUsage {
   usageCount: number;
 }
 
+export interface AiUsageCheckResult {
+  allowed: boolean;
+  current: number;
+  limit: number;
+  remaining: number;
+  message: string;
+}
+
 @Injectable()
 export class AiUsageTrackingService {
   private readonly logger = new Logger(AiUsageTrackingService.name);
@@ -64,6 +72,86 @@ export class AiUsageTrackingService {
         error,
       );
       throw new InternalServerErrorException('Failed to record AI usage');
+    }
+  }
+
+  /**
+   * Atomically check if user is within daily AI limit and increment if allowed.
+   * Uses row-level locking to prevent race conditions where concurrent requests
+   * could both pass the limit check.
+   */
+  async checkAndIncrementAiUsage(
+    userId: string,
+    tenantId: string,
+    dailyLimit: number,
+    metadata?: Record<string, unknown>,
+  ): Promise<AiUsageCheckResult> {
+    try {
+      const today = this.getTodayMidnightUtc();
+
+      const result = await this.databaseService.transaction(async (client) => {
+        // Upsert and lock the row atomically
+        const usageResult = await client.query(
+          `INSERT INTO public.user_ai_usage (user_id, tenant_id, date, usage_count, metadata)
+           VALUES ($1, $2, $3, 0, NULL)
+           ON CONFLICT (user_id, tenant_id, date)
+           DO UPDATE SET updated_at = now()
+           RETURNING usage_count FOR UPDATE`,
+          [userId, tenantId, today],
+        );
+
+        const currentUsage = parseInt(
+          String(usageResult.rows[0]?.usage_count ?? 0),
+          10,
+        );
+
+        // Check if increment would exceed limit
+        if (currentUsage >= dailyLimit) {
+          return {
+            allowed: false,
+            current: currentUsage,
+          };
+        }
+
+        // Increment atomically within the same transaction
+        await client.query(
+          `UPDATE public.user_ai_usage
+           SET usage_count = usage_count + 1, metadata = COALESCE($4, metadata), updated_at = now()
+           WHERE user_id = $1 AND tenant_id = $2 AND date = $3`,
+          [userId, tenantId, today, metadata ? JSON.stringify(metadata) : null],
+        );
+
+        return {
+          allowed: true,
+          current: currentUsage + 1,
+        };
+      });
+
+      const remaining = Math.max(0, dailyLimit - result.current);
+
+      if (result.allowed) {
+        this.logger.debug(
+          `AI usage atomically incremented for user ${userId}, tenant ${tenantId}. Now: ${result.current}/${dailyLimit}`,
+        );
+      }
+
+      return {
+        allowed: result.allowed,
+        current: result.current,
+        limit: dailyLimit,
+        remaining,
+        message: result.allowed
+          ? `${result.current}/${dailyLimit} AI generations used today`
+          : `Daily AI limit reached: ${result.current}/${dailyLimit}`,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to check and increment AI usage for user ${userId}, tenant ${tenantId}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to check and increment AI usage',
+      );
     }
   }
 
