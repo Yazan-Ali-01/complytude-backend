@@ -9,6 +9,7 @@ import {
   Query,
   StreamableFile,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import {
@@ -21,6 +22,9 @@ import {
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { RequirePermissions } from 'src/common/decorators/require-permissions.decorator';
+import { RequireUsageQuota } from 'src/common/decorators/usage-quota.decorator';
+import { UsageLimitGuard } from 'src/common/guards/usage-limit.guard';
+import { UsageTrackingInterceptor } from 'src/common/interceptors/usage-tracking.interceptor';
 import { Permissions } from 'src/modules/rbac/constants/permissions.constant';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -50,6 +54,9 @@ export class StorageController {
 
   @Post('upload')
   @RequirePermissions(Permissions.DOCUMENTS.CREATE)
+  @RequireUsageQuota('documents_per_month')
+  @UseGuards(UsageLimitGuard)
+  @UseInterceptors(UsageTrackingInterceptor)
   @ApiOperation({
     summary: 'Upload a file',
     description:
