@@ -1,4 +1,8 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../../database/database.service';
 
 export interface UserDailyUsage {
@@ -119,7 +123,9 @@ export class AiUsageTrackingService {
         `Failed to get AI usage history for user ${userId}, tenant ${tenantId}`,
         error,
       );
-      throw new InternalServerErrorException('Failed to retrieve AI usage history');
+      throw new InternalServerErrorException(
+        'Failed to retrieve AI usage history',
+      );
     }
   }
 
@@ -134,7 +140,9 @@ export class AiUsageTrackingService {
         [userId, tenantId, today],
       );
 
-      this.logger.debug(`AI usage reset for user ${userId}, tenant ${tenantId}`);
+      this.logger.debug(
+        `AI usage reset for user ${userId}, tenant ${tenantId}`,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to reset AI usage for user ${userId}, tenant ${tenantId}`,
@@ -161,19 +169,25 @@ export class AiUsageTrackingService {
         `Failed to get total monthly AI usage for tenant ${tenantId}`,
         error,
       );
-      throw new InternalServerErrorException('Failed to retrieve monthly AI usage');
+      throw new InternalServerErrorException(
+        'Failed to retrieve monthly AI usage',
+      );
     }
   }
 
   private getTodayMidnightUtc(): string {
     const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const today = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
     return today.toISOString().split('T')[0];
   }
 
   private getStartOfMonth(): string {
     const now = new Date();
-    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const startOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
     return startOfMonth.toISOString().split('T')[0];
   }
 }

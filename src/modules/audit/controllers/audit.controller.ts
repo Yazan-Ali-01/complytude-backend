@@ -1,5 +1,10 @@
 import { Controller, Get, Query, Param, Logger } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuditService } from '../../rbac/services/audit.service';
 import { AuditQueryDto } from '../dto/audit-query.dto';
 import { RequirePermissions } from 'src/common/decorators/require-permissions.decorator';
@@ -18,7 +23,10 @@ export class AuditController {
   @Get()
   @RequirePermissions(Permissions.SETTINGS.MANAGE)
   @ApiOperation({ summary: 'Get audit logs for the current tenant' })
-  @ApiResponse({ status: 200, description: 'Audit logs retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Audit logs retrieved successfully',
+  })
   @ApiResponse({ status: 403, description: 'Insufficient permissions' })
   async getAuditLogs(
     @Query() query: AuditQueryDto,
@@ -37,7 +45,10 @@ export class AuditController {
   @Get('user/:userId')
   @RequirePermissions(Permissions.SETTINGS.MANAGE)
   @ApiOperation({ summary: 'Get audit logs for a specific user' })
-  @ApiResponse({ status: 200, description: 'User audit logs retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'User audit logs retrieved successfully',
+  })
   async getUserAuditLogs(
     @Param('userId') userId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -52,12 +63,17 @@ export class AuditController {
   @Get('recent')
   @RequirePermissions(Permissions.SETTINGS.MANAGE)
   @ApiOperation({ summary: 'Get recent audit logs' })
-  @ApiResponse({ status: 200, description: 'Recent audit logs retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Recent audit logs retrieved successfully',
+  })
   async getRecentLogs(
     @Query('limit') limit = 10,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<unknown[]> {
-    this.logger.debug(`Fetching recent audit logs for tenant: ${user.tenantId}`);
+    this.logger.debug(
+      `Fetching recent audit logs for tenant: ${user.tenantId}`,
+    );
 
     return this.auditService.getRecentActions(user.tenantId, limit);
   }
@@ -74,6 +90,10 @@ export class AuditController {
       `Fetching activity summary for user: ${userId}, days: ${days}`,
     );
 
-    return this.auditService.getUserActivitySummary(userId, user.tenantId, days);
+    return this.auditService.getUserActivitySummary(
+      userId,
+      user.tenantId,
+      days,
+    );
   }
 }

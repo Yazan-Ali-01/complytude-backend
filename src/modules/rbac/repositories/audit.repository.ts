@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../../database/database.service';
-import { AuditLog, CreateAuditLogRow, AuditLogQueryOptions } from '../entities/audit-log.entity';
+import {
+  AuditLog,
+  CreateAuditLogRow,
+  AuditLogQueryOptions,
+} from '../entities/audit-log.entity';
 
 @Injectable()
 export class AuditRepository {
@@ -74,8 +78,18 @@ export class AuditRepository {
   }
 
   async findByTenant(options: AuditLogQueryOptions): Promise<AuditLog[]> {
-    this.logger.debug(`findByTenant: table=${this.tableName}, tenantId=${options.tenantId}`);
-    const { tenantId, startDate, endDate, action, userId, limit = 100, offset = 0 } = options;
+    this.logger.debug(
+      `findByTenant: table=${this.tableName}, tenantId=${options.tenantId}`,
+    );
+    const {
+      tenantId,
+      startDate,
+      endDate,
+      action,
+      userId,
+      limit = 100,
+      offset = 0,
+    } = options;
 
     const conditions: string[] = ['tenant_id = $1'];
     const params: unknown[] = [tenantId];
@@ -119,7 +133,9 @@ export class AuditRepository {
   }
 
   async findByUser(userId: string, tenantId: string): Promise<AuditLog[]> {
-    this.logger.debug(`findByUser: table=${this.tableName}, userId=${userId}, tenantId=${tenantId}`);
+    this.logger.debug(
+      `findByUser: table=${this.tableName}, userId=${userId}, tenantId=${tenantId}`,
+    );
     const result = await this.databaseService.query(
       `SELECT * FROM ${this.tableName}
        WHERE user_id = $1 AND tenant_id = $2
@@ -132,7 +148,9 @@ export class AuditRepository {
   }
 
   async countByTenant(options: AuditLogQueryOptions): Promise<number> {
-    this.logger.debug(`countByTenant: table=${this.tableName}, tenantId=${options.tenantId}`);
+    this.logger.debug(
+      `countByTenant: table=${this.tableName}, tenantId=${options.tenantId}`,
+    );
     const { tenantId, startDate, endDate, action, userId } = options;
 
     const conditions: string[] = ['tenant_id = $1'];
@@ -172,7 +190,9 @@ export class AuditRepository {
   }
 
   async deleteOldLogs(beforeDate: Date): Promise<number> {
-    this.logger.debug(`deleteOldLogs: table=${this.tableName}, before=${beforeDate.toISOString()}`);
+    this.logger.debug(
+      `deleteOldLogs: table=${this.tableName}, before=${beforeDate.toISOString()}`,
+    );
     const result = await this.databaseService.query(
       `DELETE FROM ${this.tableName} WHERE created_at < $1`,
       [beforeDate],

@@ -39,8 +39,10 @@ export class AuditLogInterceptor implements NestInterceptor {
     }
 
     const startTime = Date.now();
-    const resourceId = request.params?.id ?? request.params?.documentId ?? undefined;
-    const aiModelUsed = request.body?.model ?? request.query?.model ?? undefined;
+    const resourceId =
+      request.params?.id ?? request.params?.documentId ?? undefined;
+    const aiModelUsed =
+      request.body?.model ?? request.query?.model ?? undefined;
 
     this.logger.debug(
       `Audit logging enabled for action: ${auditAction}, user: ${user.userId}, resource: ${resourceId}`,
@@ -54,7 +56,12 @@ export class AuditLogInterceptor implements NestInterceptor {
             .logFromRequest(
               auditAction,
               this.extractResourceType(auditAction),
-              request as { user: { userId: string; tenantId: string; role: string }; body?: unknown; params?: unknown; query?: unknown },
+              request as {
+                user: { userId: string; tenantId: string; role: string };
+                body?: unknown;
+                params?: unknown;
+                query?: unknown;
+              },
               resourceId as string | undefined,
               aiModelUsed as string | undefined,
             )

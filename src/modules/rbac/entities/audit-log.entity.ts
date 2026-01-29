@@ -13,10 +13,7 @@ export interface AuditLog {
   created_at: Date;
 }
 
-export type CreateAuditLogRow = Omit<
-  AuditLog,
-  'id' | 'created_at'
->;
+export type CreateAuditLogRow = Omit<AuditLog, 'id' | 'created_at'>;
 
 export interface AuditLogQueryOptions {
   tenantId: string;

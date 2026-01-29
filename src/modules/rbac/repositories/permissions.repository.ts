@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../../database/database.service';
-import { Permission, CreatePermissionRow, UpdatePermissionRow } from '../entities/permission.entity';
+import {
+  Permission,
+  CreatePermissionRow,
+  UpdatePermissionRow,
+} from '../entities/permission.entity';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
 
 @Injectable()
@@ -26,7 +30,7 @@ export class PermissionsRepository {
     return 'id, name, resource, action, description, created_at, updated_at';
   }
 
-  async findAll(options?: QueryOptions): Promise<Permission[]> {
+  async findAll(__options?: QueryOptions): Promise<Permission[]> {
     this.logger.debug(`findAll: table=${this.tableName}`);
     const result = await this.databaseService.query(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ORDER BY resource, action`,
@@ -36,7 +40,10 @@ export class PermissionsRepository {
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  async findById(id: string, options?: QueryOptions): Promise<Permission | null> {
+  async findById(
+    id: string,
+    __options?: QueryOptions,
+  ): Promise<Permission | null> {
     this.logger.debug(`findById: table=${this.tableName}, id=${id}`);
     const result = await this.databaseService.query(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE id = $1`,
@@ -46,7 +53,10 @@ export class PermissionsRepository {
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
-  async findByName(name: string, options?: QueryOptions): Promise<Permission | null> {
+  async findByName(
+    name: string,
+    _options?: QueryOptions,
+  ): Promise<Permission | null> {
     this.logger.debug(`findByName: table=${this.tableName}, name=${name}`);
     const result = await this.databaseService.query(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE name = $1`,
@@ -56,8 +66,13 @@ export class PermissionsRepository {
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
-  async findByResource(resource: string, options?: QueryOptions): Promise<Permission[]> {
-    this.logger.debug(`findByResource: table=${this.tableName}, resource=${resource}`);
+  async findByResource(
+    resource: string,
+    _options?: QueryOptions,
+  ): Promise<Permission[]> {
+    this.logger.debug(
+      `findByResource: table=${this.tableName}, resource=${resource}`,
+    );
     const result = await this.databaseService.query(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE resource = $1 ORDER BY action`,
       [resource],
@@ -66,9 +81,14 @@ export class PermissionsRepository {
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  async findByNames(names: string[], options?: QueryOptions): Promise<Permission[]> {
+  async findByNames(
+    names: string[],
+    _options?: QueryOptions,
+  ): Promise<Permission[]> {
     if (names.length === 0) return [];
-    this.logger.debug(`findByNames: table=${this.tableName}, count=${names.length}`);
+    this.logger.debug(
+      `findByNames: table=${this.tableName}, count=${names.length}`,
+    );
     const placeholders = names.map((_, idx) => `$${idx + 1}`).join(', ');
     const result = await this.databaseService.query(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE name IN (${placeholders})`,
@@ -78,7 +98,10 @@ export class PermissionsRepository {
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  async create(data: CreatePermissionRow, options?: QueryOptions): Promise<Permission> {
+  async create(
+    data: CreatePermissionRow,
+    _options?: QueryOptions,
+  ): Promise<Permission> {
     this.logger.debug(`create: table=${this.tableName}, name=${data.name}`);
     const { name, resource, action, description } = data;
     const result = await this.databaseService.query(
@@ -94,13 +117,17 @@ export class PermissionsRepository {
   async update(
     id: string,
     data: UpdatePermissionRow,
-    options?: QueryOptions,
+    _options?: QueryOptions,
   ): Promise<Permission | null> {
     this.logger.debug(`update: table=${this.tableName}, id=${id}`);
-    const entries = Object.entries(data).filter(([, value]) => value !== undefined);
+    const entries = Object.entries(data).filter(
+      ([, value]) => value !== undefined,
+    );
     if (entries.length === 0) return this.findById(id);
 
-    const setClause = entries.map(([key], idx) => `${key} = $${idx + 2}`).join(', ');
+    const setClause = entries
+      .map(([key], idx) => `${key} = $${idx + 2}`)
+      .join(', ');
     const values = entries.map(([, value]) => value);
 
     const result = await this.databaseService.query(
@@ -114,7 +141,7 @@ export class PermissionsRepository {
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
-  async delete(id: string, options?: QueryOptions): Promise<boolean> {
+  async delete(id: string, _options?: QueryOptions): Promise<boolean> {
     this.logger.debug(`delete: table=${this.tableName}, id=${id}`);
     const result = await this.databaseService.query(
       `DELETE FROM ${this.tableName} WHERE id = $1`,

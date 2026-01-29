@@ -15,7 +15,9 @@ export class AuditQueryDto {
   @IsDate()
   endDate?: Date;
 
-  @ApiPropertyOptional({ description: 'Filter by action (e.g., documents:delete)' })
+  @ApiPropertyOptional({
+    description: 'Filter by action (e.g., documents:delete)',
+  })
   @IsOptional()
   @IsString()
   action?: string;

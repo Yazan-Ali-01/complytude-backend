@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../../database/database.service';
-import { RolePermission, PermissionWithDetails } from '../entities/role-permission.entity';
+import { RolePermission } from '../entities/role-permission.entity';
 import { Permission } from '../entities/permission.entity';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
 
@@ -32,7 +32,9 @@ export class RolePermissionsRepository {
   }
 
   async getPermissionsForRole(roleName: string): Promise<Permission[]> {
-    this.logger.debug(`getPermissionsForRole: table=${this.tableName}, role=${roleName}`);
+    this.logger.debug(
+      `getPermissionsForRole: table=${this.tableName}, role=${roleName}`,
+    );
     const result = await this.databaseService.query(
       `SELECT p.id, p.name, p.resource, p.action, p.description, p.created_at, p.updated_at
        FROM ${this.tableName} rp
@@ -46,7 +48,9 @@ export class RolePermissionsRepository {
   }
 
   async getRolesWithPermission(permissionName: string): Promise<string[]> {
-    this.logger.debug(`getRolesWithPermission: table=${this.tableName}, permission=${permissionName}`);
+    this.logger.debug(
+      `getRolesWithPermission: table=${this.tableName}, permission=${permissionName}`,
+    );
     const result = await this.databaseService.query(
       `SELECT rp.role_name
        FROM ${this.tableName} rp
@@ -76,7 +80,7 @@ export class RolePermissionsRepository {
   async assignPermission(
     roleName: string,
     permissionId: string,
-    options?: QueryOptions,
+    _options?: QueryOptions,
   ): Promise<RolePermission> {
     this.logger.debug(
       `assignPermission: table=${this.tableName}, role=${roleName}, permission=${permissionId}`,
@@ -92,7 +96,11 @@ export class RolePermissionsRepository {
     return this.mapRow(result.rows[0]);
   }
 
-  async removePermission(roleName: string, permissionId: string, options?: QueryOptions): Promise<boolean> {
+  async removePermission(
+    roleName: string,
+    permissionId: string,
+    _options?: QueryOptions,
+  ): Promise<boolean> {
     this.logger.debug(
       `removePermission: table=${this.tableName}, role=${roleName}, permission=${permissionId}`,
     );
@@ -104,8 +112,13 @@ export class RolePermissionsRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
-  async removeAllPermissionsForRole(roleName: string, options?: QueryOptions): Promise<number> {
-    this.logger.debug(`removeAllPermissionsForRole: table=${this.tableName}, role=${roleName}`);
+  async removeAllPermissionsForRole(
+    roleName: string,
+    _options?: QueryOptions,
+  ): Promise<number> {
+    this.logger.debug(
+      `removeAllPermissionsForRole: table=${this.tableName}, role=${roleName}`,
+    );
     const result = await this.databaseService.query(
       `DELETE FROM ${this.tableName} WHERE role_name = $1`,
       [roleName],
@@ -115,7 +128,9 @@ export class RolePermissionsRepository {
   }
 
   async getPermissionCountForRole(roleName: string): Promise<number> {
-    this.logger.debug(`getPermissionCountForRole: table=${this.tableName}, role=${roleName}`);
+    this.logger.debug(
+      `getPermissionCountForRole: table=${this.tableName}, role=${roleName}`,
+    );
     const result = await this.databaseService.query(
       `SELECT COUNT(*) as count FROM ${this.tableName} WHERE role_name = $1`,
       [roleName],

@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditRepository } from '../repositories/audit.repository';
-import { AuditLog, CreateAuditLogRow, AuditLogQueryOptions } from '../entities/audit-log.entity';
+import {
+  AuditLog,
+  CreateAuditLogRow,
+  AuditLogQueryOptions,
+} from '../entities/audit-log.entity';
 
 export interface CreateAuditEntryDto {
   userId: string;
@@ -31,7 +35,9 @@ export class AuditService {
   constructor(private readonly auditRepository: AuditRepository) {}
 
   async log(entry: CreateAuditEntryDto): Promise<AuditLog> {
-    this.logger.debug(`Logging audit entry: action=${entry.action}, user=${entry.userId}`);
+    this.logger.debug(
+      `Logging audit entry: action=${entry.action}, user=${entry.userId}`,
+    );
 
     const auditEntry: CreateAuditLogRow = {
       user_id: entry.userId,
@@ -52,7 +58,12 @@ export class AuditService {
   async logFromRequest(
     action: string,
     resourceType: string,
-    request: { user: { userId: string; tenantId: string; role: string }; body?: unknown; params?: unknown; query?: unknown },
+    request: {
+      user: { userId: string; tenantId: string; role: string };
+      body?: unknown;
+      params?: unknown;
+      query?: unknown;
+    },
     resourceId?: string,
     aiModelUsed?: string,
   ): Promise<AuditLog> {
@@ -82,7 +93,10 @@ export class AuditService {
     });
   }
 
-  async findByTenant(tenantId: string, options?: AuditQueryDto): Promise<AuditLog[]> {
+  async findByTenant(
+    tenantId: string,
+    options?: AuditQueryDto,
+  ): Promise<AuditLog[]> {
     this.logger.debug(`Finding audit logs for tenant: ${tenantId}`);
 
     const queryOptions: AuditLogQueryOptions = {
@@ -99,7 +113,9 @@ export class AuditService {
   }
 
   async findByUser(userId: string, tenantId: string): Promise<AuditLog[]> {
-    this.logger.debug(`Finding audit logs for user: ${userId}, tenant: ${tenantId}`);
+    this.logger.debug(
+      `Finding audit logs for user: ${userId}, tenant: ${tenantId}`,
+    );
     return this.auditRepository.findByUser(userId, tenantId);
   }
 
@@ -108,7 +124,10 @@ export class AuditService {
     return this.auditRepository.findById(id);
   }
 
-  async countByTenant(tenantId: string, options?: AuditQueryDto): Promise<number> {
+  async countByTenant(
+    tenantId: string,
+    options?: AuditQueryDto,
+  ): Promise<number> {
     this.logger.debug(`Counting audit logs for tenant: ${tenantId}`);
 
     const queryOptions: AuditLogQueryOptions = {
@@ -123,7 +142,9 @@ export class AuditService {
   }
 
   async deleteOldLogs(beforeDate: Date): Promise<number> {
-    this.logger.debug(`Deleting audit logs before: ${beforeDate.toISOString()}`);
+    this.logger.debug(
+      `Deleting audit logs before: ${beforeDate.toISOString()}`,
+    );
     return this.auditRepository.deleteOldLogs(beforeDate);
   }
 
@@ -131,11 +152,19 @@ export class AuditService {
     return this.findByTenant(tenantId, { limit });
   }
 
-  async getUserActivitySummary(userId: string, tenantId: string, days = 7): Promise<Record<string, number>> {
+  async getUserActivitySummary(
+    userId: string,
+    tenantId: string,
+    days = 7,
+  ): Promise<Record<string, number>> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const logs = await this.findByTenant(tenantId, { userId, startDate, limit: 1000 });
+    const logs = await this.findByTenant(tenantId, {
+      userId,
+      startDate,
+      limit: 1000,
+    });
 
     const summary: Record<string, number> = {};
     for (const log of logs) {

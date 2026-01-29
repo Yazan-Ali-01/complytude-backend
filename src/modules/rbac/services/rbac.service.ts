@@ -8,7 +8,10 @@ import { TenantRole } from '../constants/roles.constant';
 export class RbacService {
   private readonly logger = new Logger(RbacService.name);
 
-  private rolePermissionCache = new Map<TenantRole, { perms: Set<string>; expiry: number }>();
+  private rolePermissionCache = new Map<
+    TenantRole,
+    { perms: Set<string>; expiry: number }
+  >();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000;
 
   constructor(
@@ -24,7 +27,8 @@ export class RbacService {
       return cached.perms;
     }
 
-    const permissions = await this.rolePermissionsRepository.getPermissionsForRole(role);
+    const permissions =
+      await this.rolePermissionsRepository.getPermissionsForRole(role);
     const permSet = new Set(permissions.map((p) => p.name));
 
     this.rolePermissionCache.set(role, {
@@ -35,8 +39,14 @@ export class RbacService {
     return permSet;
   }
 
-  async getUserPermissions(userId: string, tenantId: string): Promise<Set<string>> {
-    const userTenant = await this.userTenantRepository.findByCompositeKey({ userId, tenantId });
+  async getUserPermissions(
+    userId: string,
+    tenantId: string,
+  ): Promise<Set<string>> {
+    const userTenant = await this.userTenantRepository.findByCompositeKey({
+      userId,
+      tenantId,
+    });
 
     if (!userTenant?.role) {
       return new Set();
@@ -54,7 +64,10 @@ export class RbacService {
     return perms.has(permission);
   }
 
-  async roleHasPermission(role: TenantRole, permission: string): Promise<boolean> {
+  async roleHasPermission(
+    role: TenantRole,
+    permission: string,
+  ): Promise<boolean> {
     const perms = await this.getPermissionsForRole(role);
     return perms.has(permission);
   }

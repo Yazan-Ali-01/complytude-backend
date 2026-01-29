@@ -5,7 +5,7 @@ export const TenantRoles = {
   VIEWER: 'viewer',
 } as const;
 
-export type TenantRole = typeof TenantRoles[keyof typeof TenantRoles];
+export type TenantRole = (typeof TenantRoles)[keyof typeof TenantRoles];
 
 export const RoleHierarchy: Record<TenantRole, number> = {
   tenant_admin: 4,

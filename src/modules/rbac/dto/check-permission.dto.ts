@@ -2,7 +2,10 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsString } from 'class-validator';
 
 export class CheckPermissionDto {
-  @ApiProperty({ description: 'Permission name to check', example: 'documents:create' })
+  @ApiProperty({
+    description: 'Permission name to check',
+    example: 'documents:create',
+  })
   @IsString()
   permission: string;
 }
@@ -31,6 +34,9 @@ export class PermissionResponseDto {
 }
 
 export class PermissionListResponseDto {
-  @ApiProperty({ type: [PermissionResponseDto], description: 'List of permissions' })
+  @ApiProperty({
+    type: [PermissionResponseDto],
+    description: 'List of permissions',
+  })
   permissions: PermissionResponseDto[];
 }

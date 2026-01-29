@@ -33,10 +33,18 @@ export class DocumentSummaryDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
   createdBy: string;
 
-  @ApiProperty({ example: '2026-01-21T10:30:00.000Z', type: 'string', format: 'date-time' })
+  @ApiProperty({
+    example: '2026-01-21T10:30:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
   createdAt: string;
 
-  @ApiProperty({ example: '2026-01-21T10:30:00.000Z', type: 'string', format: 'date-time' })
+  @ApiProperty({
+    example: '2026-01-21T10:30:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
   updatedAt: string;
 }
 
@@ -50,34 +58,61 @@ export class DocumentResponseDto {
   @ApiProperty({ example: 'Employment Contract - John Doe' })
   title: string;
 
-  @ApiPropertyOptional({ description: 'Document text content', example: null, nullable: true })
+  @ApiPropertyOptional({
+    description: 'Document text content',
+    example: null,
+    nullable: true,
+  })
   content: string | null;
 
-  @ApiProperty({ example: { originalFilename: 'employment-contract.docx', fileSize: 45678 } })
+  @ApiProperty({
+    example: { originalFilename: 'employment-contract.docx', fileSize: 45678 },
+  })
   metadata: Record<string, unknown>;
 
-  @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440000', nullable: true })
+  @ApiPropertyOptional({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
+  })
   templateId: string | null;
 
   @ApiProperty({ example: 'dmcc_employment_v1' })
   templateKey: string;
 
-  @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440000', nullable: true })
+  @ApiPropertyOptional({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
+  })
   templateVersionId: string | null;
 
   @ApiProperty({ example: '1.0.0' })
   templateVersion: string;
 
-  @ApiProperty({ example: { variables: { employee_name: 'John Doe', salary: '5000' }, generatedBy: '550e8400-e29b-41d4-a716-446655440000' } })
+  @ApiProperty({
+    example: {
+      variables: { employee_name: 'John Doe', salary: '5000' },
+      generatedBy: '550e8400-e29b-41d4-a716-446655440000',
+    },
+  })
   generationMetadata: Record<string, unknown>;
 
-  @ApiProperty({ example: { docx: 'https://s3.example.com/documents/doc.docx?expires=...', pdf: 'https://s3.example.com/documents/doc.pdf?expires=...' } })
+  @ApiProperty({
+    example: {
+      docx: 'https://s3.example.com/documents/doc.docx?expires=...',
+      pdf: 'https://s3.example.com/documents/doc.pdf?expires=...',
+    },
+  })
   downloadUrls: Record<string, string>;
 
   @ApiProperty({ example: false })
   isDeleted: boolean;
 
-  @ApiPropertyOptional({ example: null, nullable: true, type: 'string', format: 'date-time' })
+  @ApiPropertyOptional({
+    example: null,
+    nullable: true,
+    type: 'string',
+    format: 'date-time',
+  })
   deletedAt: string | null;
 
   @ApiPropertyOptional({ example: null, nullable: true })
@@ -89,13 +124,24 @@ export class DocumentResponseDto {
   @ApiProperty({ type: UserSummaryDto })
   createdByUser: UserSummaryDto;
 
-  @ApiProperty({ example: '2026-01-21T10:30:00.000Z', type: 'string', format: 'date-time' })
+  @ApiProperty({
+    example: '2026-01-21T10:30:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
   createdAt: string;
 
-  @ApiProperty({ example: '2026-01-21T10:30:00.000Z', type: 'string', format: 'date-time' })
+  @ApiProperty({
+    example: '2026-01-21T10:30:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
   updatedAt: string;
 
-  @ApiPropertyOptional({ description: 'Whether PII was masked in the content', example: false })
+  @ApiPropertyOptional({
+    description: 'Whether PII was masked in the content',
+    example: false,
+  })
   piiMasked?: boolean;
 }
 
@@ -106,6 +152,10 @@ export class DeleteDocumentResponseDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
   id: string;
 
-  @ApiProperty({ example: '2026-01-21T11:00:00.000Z', type: 'string', format: 'date-time' })
+  @ApiProperty({
+    example: '2026-01-21T11:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
   deletedAt: string;
 }

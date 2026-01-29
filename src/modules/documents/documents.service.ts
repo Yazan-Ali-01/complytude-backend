@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotImplementedException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotImplementedException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { RbacService } from '../rbac/services/rbac.service';
 import { Permissions } from '../rbac/constants/permissions.constant';
 import { TenantRole } from '../rbac/constants/roles.constant';
@@ -49,7 +54,10 @@ export class DocumentsService {
     throw new NotImplementedException('Document listing not yet implemented');
   }
 
-  async findOne(id: string, user: AuthenticatedUser): Promise<DocumentResponseDto> {
+  async findOne(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<DocumentResponseDto> {
     this.logger.debug(`Finding document: ${id} for user: ${user.userId}`);
 
     const doc = await this.getDocumentById(id);
@@ -60,7 +68,9 @@ export class DocumentsService {
     );
 
     if (!canViewPii) {
-      const maskedContent = doc.content ? this.piiMaskingService.mask(doc.content) : null;
+      const maskedContent = doc.content
+        ? this.piiMaskingService.mask(doc.content)
+        : null;
       return {
         ...doc,
         content: maskedContent,
@@ -71,8 +81,13 @@ export class DocumentsService {
     return { ...doc, piiMasked: false };
   }
 
-  async findOneUnmasked(id: string, user: AuthenticatedUser): Promise<DocumentResponseDto> {
-    this.logger.debug(`Finding document unmasked: ${id} for user: ${user.userId}`);
+  async findOneUnmasked(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<DocumentResponseDto> {
+    this.logger.debug(
+      `Finding document unmasked: ${id} for user: ${user.userId}`,
+    );
 
     const doc = await this.getDocumentById(id);
     const canViewPii = await this.rbacService.roleHasPermission(
@@ -102,19 +117,28 @@ export class DocumentsService {
       id,
       tenantId: 'tenant-123',
       title: 'Sample Document',
-      content: 'This is sample content with PII like john@example.com and SSN 123-45-6789.',
+      content:
+        'This is sample content with PII like john@example.com and SSN 123-45-6789.',
       metadata: { originalFilename: 'sample.docx', fileSize: 12345 },
       templateId: null,
       templateKey: 'sample_template',
       templateVersionId: null,
       templateVersion: '1.0.0',
       generationMetadata: { variables: {}, generatedBy: 'system' },
-      downloadUrls: { docx: 'https://example.com/doc.docx', pdf: 'https://example.com/doc.pdf' },
+      downloadUrls: {
+        docx: 'https://example.com/doc.docx',
+        pdf: 'https://example.com/doc.pdf',
+      },
       isDeleted: false,
       deletedAt: null,
       deletedBy: null,
       createdBy: 'user-123',
-      createdByUser: { id: 'user-123', email: 'user@example.com', firstName: 'John', lastName: 'Doe' },
+      createdByUser: {
+        id: 'user-123',
+        email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       piiMasked: false,

@@ -31,4 +31,5 @@ export const Permissions = {
   },
 } as const;
 
-export type PermissionName = typeof Permissions[keyof typeof Permissions][keyof typeof Permissions[keyof typeof Permissions]];
+export type PermissionName =
+  (typeof Permissions)[keyof typeof Permissions][keyof (typeof Permissions)[keyof typeof Permissions]];

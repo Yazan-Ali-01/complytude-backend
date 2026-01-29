@@ -13,6 +13,4 @@ export type CreatePermissionRow = Omit<
   'id' | 'created_at' | 'updated_at'
 >;
 
-export type UpdatePermissionRow = Partial<
-  Pick<Permission, 'description'>
->;
+export type UpdatePermissionRow = Partial<Pick<Permission, 'description'>>;

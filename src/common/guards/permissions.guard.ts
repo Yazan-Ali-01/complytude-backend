@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RbacService } from '../../modules/rbac/services/rbac.service';
-import { PERMISSIONS_KEY, PermissionRequirement } from '../decorators/require-permissions.decorator';
+import {
+  PERMISSIONS_KEY,
+  PermissionRequirement,
+} from '../decorators/require-permissions.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -16,10 +19,9 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.getAllAndOverride<PermissionRequirement[]>(
-      PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredPermissions = this.reflector.getAllAndOverride<
+      PermissionRequirement[]
+    >(PERMISSIONS_KEY, [context.getHandler(), context.getClass()]);
 
     if (!requiredPermissions || requiredPermissions.length === 0) {
       return true;
@@ -37,8 +39,13 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const role = user.role as string;
-    const userPermissions = await this.rbacService.getPermissionsForRole(role as any);
-    const hasPermission = this.checkPermissions(requiredPermissions, userPermissions);
+    const userPermissions = await this.rbacService.getPermissionsForRole(
+      role as any,
+    );
+    const hasPermission = this.checkPermissions(
+      requiredPermissions,
+      userPermissions,
+    );
 
     if (!hasPermission) {
       throw new ForbiddenException(

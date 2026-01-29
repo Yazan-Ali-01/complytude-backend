@@ -4,10 +4,7 @@ export interface RolePermission {
   granted_at: Date;
 }
 
-export type CreateRolePermissionRow = Omit<
-  RolePermission,
-  'granted_at'
->;
+export type CreateRolePermissionRow = Omit<RolePermission, 'granted_at'>;
 
 export interface PermissionWithDetails extends RolePermission {
   permission: {

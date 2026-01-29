@@ -338,49 +338,49 @@ export class UserTenantRepository extends BaseRepository<
     });
   }
 
-   /**
-    * Get user in tenant.
-    *
-    * @param userId - User ID
-    * @param tenantId - Tenant ID
-    * @param options - Query options (tenant context, client, etc.)
-    * @returns User in tenant
-    */
-   async getUserInTenant(
-     userId: string,
-     tenantId: string,
-     options?: QueryOptions,
-   ): Promise<UserTenantWithUserRow | null> {
-     const result = await this.executeQuery<UserTenantWithUserRow>(
-       `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at,
+  /**
+   * Get user in tenant.
+   *
+   * @param userId - User ID
+   * @param tenantId - Tenant ID
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns User in tenant
+   */
+  async getUserInTenant(
+    userId: string,
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<UserTenantWithUserRow | null> {
+    const result = await this.executeQuery<UserTenantWithUserRow>(
+      `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at,
                u.email, u.first_name, u.last_name, u.is_verified, u.is_system_admin
         FROM ${this.tableName} ut
         JOIN public.users u ON ut.user_id = u.id
         WHERE ut.user_id = $1 AND ut.tenant_id = $2
         LIMIT 1`,
-       [userId, tenantId],
-       options,
-     );
+      [userId, tenantId],
+      options,
+    );
 
-     const row = result.rows[0];
+    const row = result.rows[0];
 
-     return row || null;
-   }
+    return row || null;
+  }
 
-   /**
-    * Find user-tenant relationship by user and tenant IDs.
-    * Convenience method for RBAC permission lookups.
-    *
-    * @param userId - User ID
-    * @param tenantId - Tenant ID
-    * @param options - Query options (tenant context, client, etc.)
-    * @returns User-tenant relationship or null if not found
-    */
-   async findByUserAndTenant(
-     userId: string,
-     tenantId: string,
-     options?: QueryOptions,
-   ): Promise<UserTenant | null> {
-     return this.findByCompositeKey({ userId, tenantId }, options);
-   }
+  /**
+   * Find user-tenant relationship by user and tenant IDs.
+   * Convenience method for RBAC permission lookups.
+   *
+   * @param userId - User ID
+   * @param tenantId - Tenant ID
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns User-tenant relationship or null if not found
+   */
+  async findByUserAndTenant(
+    userId: string,
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<UserTenant | null> {
+    return this.findByCompositeKey({ userId, tenantId }, options);
+  }
 }
