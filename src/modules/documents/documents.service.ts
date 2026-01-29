@@ -29,29 +29,33 @@ export class DocumentsService {
     private readonly piiMaskingService: PiiMaskingService,
   ) {}
 
-  async preview(
+  preview(
     _dto: PreviewDocumentDto,
     _user: AuthenticatedUser,
   ): Promise<PreviewDocumentResponseDto> {
-    throw new NotImplementedException(
-      'Document preview generation not yet implemented',
+    return Promise.reject(
+      new NotImplementedException(
+        'Document preview generation not yet implemented',
+      ),
     );
   }
 
-  async generate(
+  generate(
     _dto: GenerateDocumentDto,
     _user: AuthenticatedUser,
   ): Promise<GenerateDocumentResponseDto> {
-    throw new NotImplementedException(
-      'Document generation not yet implemented',
+    return Promise.reject(
+      new NotImplementedException('Document generation not yet implemented'),
     );
   }
 
-  async findAll(
+  findAll(
     _query: ListDocumentsQueryDto,
     _user: AuthenticatedUser,
   ): Promise<DocumentListResponseDto> {
-    throw new NotImplementedException('Document listing not yet implemented');
+    return Promise.reject(
+      new NotImplementedException('Document listing not yet implemented'),
+    );
   }
 
   async findOne(
@@ -104,16 +108,18 @@ export class DocumentsService {
     return { ...doc, piiMasked: false };
   }
 
-  async remove(
+  remove(
     _id: string,
     _user: AuthenticatedUser,
   ): Promise<DeleteDocumentResponseDto> {
-    throw new NotImplementedException('Document deletion not yet implemented');
+    return Promise.reject(
+      new NotImplementedException('Document deletion not yet implemented'),
+    );
   }
 
-  private async getDocumentById(id: string): Promise<DocumentResponseDto> {
+  private getDocumentById(id: string): Promise<DocumentResponseDto> {
     this.logger.debug(`Fetching document from database: ${id}`);
-    return {
+    return Promise.resolve({
       id,
       tenantId: 'tenant-123',
       title: 'Sample Document',
@@ -142,6 +148,6 @@ export class DocumentsService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       piiMasked: false,
-    };
+    });
   }
 }

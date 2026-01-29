@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RbacService } from '../../modules/rbac/services/rbac.service';
+import { TenantRole } from '../../modules/rbac/constants/roles.constant';
 import {
   PERMISSIONS_KEY,
   PermissionRequirement,
@@ -38,10 +39,8 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const role = user.role as string;
-    const userPermissions = await this.rbacService.getPermissionsForRole(
-      role as any,
-    );
+    const role = user.role as TenantRole;
+    const userPermissions = await this.rbacService.getPermissionsForRole(role);
     const hasPermission = this.checkPermissions(
       requiredPermissions,
       userPermissions,

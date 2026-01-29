@@ -44,7 +44,9 @@ export class RolePermissionsRepository {
       [roleName],
       true,
     );
-    return result.rows.map((row) => this.mapPermissionRow(row));
+    return (result.rows as Record<string, unknown>[]).map((row) =>
+      this.mapPermissionRow(row),
+    );
   }
 
   async getRolesWithPermission(permissionName: string): Promise<string[]> {
@@ -74,7 +76,8 @@ export class RolePermissionsRepository {
       [roleName, permissionId],
       true,
     );
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : null;
   }
 
   async assignPermission(
@@ -93,7 +96,7 @@ export class RolePermissionsRepository {
       [roleName, permissionId],
       true,
     );
-    return this.mapRow(result.rows[0]);
+    return this.mapRow(result.rows[0] as Record<string, unknown>);
   }
 
   async removePermission(

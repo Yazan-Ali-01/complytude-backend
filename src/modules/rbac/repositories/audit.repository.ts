@@ -64,7 +64,7 @@ export class AuditRepository {
       ],
       true,
     );
-    return this.mapRow(result.rows[0]);
+    return this.mapRow(result.rows[0] as Record<string, unknown>);
   }
 
   async findById(id: string): Promise<AuditLog | null> {
@@ -74,7 +74,8 @@ export class AuditRepository {
       [id],
       true,
     );
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : null;
   }
 
   async findByTenant(options: AuditLogQueryOptions): Promise<AuditLog[]> {
@@ -129,7 +130,9 @@ export class AuditRepository {
       params,
       true,
     );
-    return result.rows.map((row) => this.mapRow(row));
+    return (result.rows as Record<string, unknown>[]).map((row) =>
+      this.mapRow(row),
+    );
   }
 
   async findByUser(userId: string, tenantId: string): Promise<AuditLog[]> {
@@ -144,7 +147,9 @@ export class AuditRepository {
       [userId, tenantId],
       true,
     );
-    return result.rows.map((row) => this.mapRow(row));
+    return (result.rows as Record<string, unknown>[]).map((row) =>
+      this.mapRow(row),
+    );
   }
 
   async countByTenant(options: AuditLogQueryOptions): Promise<number> {

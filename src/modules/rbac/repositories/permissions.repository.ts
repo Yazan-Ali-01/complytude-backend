@@ -37,7 +37,9 @@ export class PermissionsRepository {
       [],
       true,
     );
-    return result.rows.map((row) => this.mapRow(row));
+    return (result.rows as Record<string, unknown>[]).map((row) =>
+      this.mapRow(row),
+    );
   }
 
   async findById(
@@ -50,7 +52,8 @@ export class PermissionsRepository {
       [id],
       true,
     );
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : null;
   }
 
   async findByName(
@@ -63,7 +66,8 @@ export class PermissionsRepository {
       [name],
       true,
     );
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : null;
   }
 
   async findByResource(
@@ -78,7 +82,9 @@ export class PermissionsRepository {
       [resource],
       true,
     );
-    return result.rows.map((row) => this.mapRow(row));
+    return (result.rows as Record<string, unknown>[]).map((row) =>
+      this.mapRow(row),
+    );
   }
 
   async findByNames(
@@ -95,7 +101,9 @@ export class PermissionsRepository {
       names,
       true,
     );
-    return result.rows.map((row) => this.mapRow(row));
+    return (result.rows as Record<string, unknown>[]).map((row) =>
+      this.mapRow(row),
+    );
   }
 
   async create(
@@ -111,7 +119,7 @@ export class PermissionsRepository {
       [name, resource, action, description],
       true,
     );
-    return this.mapRow(result.rows[0]);
+    return this.mapRow(result.rows[0] as Record<string, unknown>);
   }
 
   async update(
@@ -138,7 +146,8 @@ export class PermissionsRepository {
       [id, ...values],
       true,
     );
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : null;
   }
 
   async delete(id: string, _options?: QueryOptions): Promise<boolean> {
