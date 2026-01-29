@@ -321,6 +321,92 @@ Table template_version_ruleset_versions {
 }
 
 // ============================================
+// RBAC & AUDIT TABLES
+// ============================================
+
+Table permissions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(100) [unique, not null, note: 'e.g., documents:create']
+  resource varchar(50) [not null, note: 'Resource type (documents, templates, etc.)']
+  action varchar(50) [not null, note: 'Action (create, read, update, delete)']
+  description text
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    name
+    (resource, action) [unique]
+  }
+
+  Note: 'Permission definitions for RBAC system'
+}
+
+Table role_permissions {
+  role_name varchar(50) [pk, not null, note: 'tenant_role enum value']
+  permission_id uuid [pk, not null, ref: > permissions.id]
+  granted_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    role_name
+    permission_id
+  }
+
+  Note: 'Maps roles to their permissions'
+}
+
+Table audit_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  role_name varchar(50) [not null, note: 'User role at time of action']
+  action varchar(100) [not null, note: 'e.g., documents:delete']
+  resource_type varchar(50) [not null, note: 'Type of resource affected']
+  resource_id uuid [null, note: 'ID of affected resource']
+  metadata jsonb [default: '{}']
+  ai_model_used varchar(50) [null, note: 'AI model if applicable']
+  ip_address inet [null]
+  user_agent text [null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (tenant_id, created_at) [note: 'DESC order for tenant queries']
+    user_id
+    action
+    (tenant_id, action, created_at)
+  }
+
+  Note: '''
+    Audit trail for all permission-gated actions (RLS-protected)
+    RLS Policies: tenant_id = current_tenant_id_or_null()
+  '''
+}
+
+// ============================================
+// USAGE TRACKING TABLES (With RLS)
+// ============================================
+
+Table user_ai_usage {
+  user_id uuid [pk, not null, ref: > users.id]
+  tenant_id uuid [pk, not null, ref: > tenants.id, note: 'RLS isolation key']
+  date date [pk, not null, note: 'Date of usage (UTC midnight)']
+  usage_count integer [not null, default: 0, note: 'Number of AI generations']
+  metadata jsonb [null, note: 'Model used, etc.']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (tenant_id, date) [note: 'DESC order']
+    (user_id, date) [note: 'DESC order']
+  }
+
+  Note: '''
+    Tracks daily AI generation usage per user for rate limiting (RLS-protected)
+    Used by AiRateLimitGuard with atomic check-and-increment
+    RLS Policies: tenant_id = current_tenant_id_or_null()
+  '''
+}
+
+// ============================================
 // TENANT-SCOPED TABLES (With RLS)
 // ============================================
 
@@ -383,6 +469,16 @@ TableGroup "Global Reference Data" {
 TableGroup "Junction Tables" {
   template_rulesets
   template_version_ruleset_versions
+}
+
+TableGroup "RBAC & Audit" {
+  permissions
+  role_permissions
+  audit_logs
+}
+
+TableGroup "Usage Tracking (RLS)" {
+  user_ai_usage
 }
 
 TableGroup "Tenant-Scoped Data (RLS)" {

@@ -14,6 +14,7 @@ Comprehensive architecture documentation for the Complytude platform.
 - [Storage Architecture](#storage-architecture)
 - [API Design](#api-design)
 - [Security Architecture](#security-architecture)
+- [Rate Limiting & Usage Tracking](#rate-limiting--usage-tracking)
 
 ---
 
@@ -125,6 +126,7 @@ backend/
 │   │       │   ├── auth/
 │   │       │   ├── tenants/
 │   │       │   ├── users/
+│   │       │   ├── rbac/         # Permission-based RBAC
 │   │       │   ├── templates/
 │   │       │   └── storage/
 │   │       ├── common/           # API-specific cross-cutting concerns
@@ -149,9 +151,10 @@ backend/
 │           ├── database/         # DatabaseService, DatabaseModule
 │           ├── repositories/     # All repository classes
 │           ├── dto/              # Shared DTOs
-│           ├── guards/           # Reusable guards
-│           ├── decorators/       # Reusable decorators
-│           ├── interceptors/     # Reusable interceptors
+│           ├── guards/           # Reusable guards (Permissions, UsageLimit, AiRateLimit)
+│           ├── decorators/       # Reusable decorators (@RequirePermissions, @RequireUsageQuota)
+│           ├── interceptors/     # Reusable interceptors (UsageTracking)
+│           ├── types/            # Shared interfaces (TenantFeatures, MeteredFeature)
 │           └── constants/        # i18n keys, error codes
 │
 ├── package.json                  # Workspace manager
@@ -180,10 +183,34 @@ export class TemplateService {
 }
 ```
 
+**Shared Library Injection Pattern:**
+
+For cross-app services, the shared library defines interfaces and injection tokens:
+
+```typescript
+// libs/shared/src/guards/permissions.guard.ts
+export const RBAC_SERVICE = Symbol('RBAC_SERVICE');
+
+export interface IRbacService {
+  hasPermission(role: string, permission: string): Promise<boolean>;
+}
+
+// apps/api/src/modules/rbac/rbac.module.ts
+@Module({
+  providers: [
+    RbacService,
+    { provide: RBAC_SERVICE, useExisting: RbacService },
+  ],
+  exports: [RBAC_SERVICE],
+})
+export class RbacModule {}
+```
+
 **Benefits:**
-- Loose coupling
-- Easy testing (mocking)
-- Clear dependencies
+- Loose coupling between apps and shared library
+- Easy testing (mocking via injection tokens)
+- Clear interface contracts
+- Apps can provide different implementations
 
 ### 3. Guard-Based Authorization
 
@@ -258,8 +285,9 @@ graph TD
 | **auth** | JWT authentication, signup, login, token refresh | users, database |
 | **users** | User management, profile updates | database |
 | **tenant** | Tenant creation, subscription management | users, database |
+| **rbac** | Permission management, role-permission mapping | database |
 | **templates** | Template CRUD, versioning | storage, database |
-| **storage** | File upload/download, S3 integration | tenant, database |
+| **storage** | File upload/download, S3 integration | tenant, rbac, database |
 | **health** | Health checks for services | database, storage |
 
 ---
@@ -289,10 +317,16 @@ The database uses a **multi-tenant architecture** with Row-Level Security (RLS) 
    - `templates`, `template_versions` - Templates with versioning
    - `rulesets`, `ruleset_versions` - Legal rulesets with versioning
 
-4. **Tenant-Scoped Tables** (1)
+4. **RBAC & Audit Tables** (4)
+   - `permissions` - Permission definitions (resource:action format)
+   - `role_permissions` - Maps tenant_role → permissions
+   - `audit_logs` - Audit trail for permission-gated actions (RLS enabled)
+   - `user_ai_usage` - Daily AI generation tracking per user (RLS enabled)
+
+5. **Tenant-Scoped Tables** (1)
    - `documents` - Generated documents (RLS enabled)
 
-5. **Junction Tables** (2)
+6. **Junction Tables** (2)
    - `template_rulesets` - Templates ↔ Rulesets
    - `template_version_ruleset_versions` - Version associations
 
@@ -414,8 +448,35 @@ Request → JWT Validation → Extract tenant_id → Set Session Context → Exe
 
 1. **Route-Level:** Guards check JWT validity
 2. **Tenant-Level:** Tenant context from JWT
-3. **Role-Level:** `@Roles()` decorator + `RoleGuard`
+3. **Permission-Level:** `@RequirePermissions()` decorator + `PermissionsGuard`
 4. **Data-Level:** RLS policies enforce tenant isolation
+
+### Permission-Based RBAC
+
+The system uses a fine-grained permission model with `resource:action` format:
+
+```typescript
+// Define required permissions on endpoints
+@RequirePermissions(Permissions.DOCUMENTS.CREATE)
+@Post()
+async createDocument() { ... }
+
+// Permissions are checked against role_permissions table
+// Example: 'documents:create', 'templates:read', 'users:delete'
+```
+
+**Permission Resolution Flow:**
+```
+Request → JWT → Extract role → Query role_permissions → Check permission → Allow/Deny
+```
+
+**Roles and Permissions:**
+
+| Role | Access Level | Example Permissions |
+|------|-------------|---------------------|
+| `viewer` | Read-only | `documents:read`, `templates:read` |
+| `member` | Standard user | `documents:*`, `templates:read` |
+| `admin` | Full access | All permissions for tenant resources |
 
 ---
 
@@ -531,6 +592,9 @@ Interactive API docs available at:
 - ✅ SQL injection prevention (parameterized queries)
 - ✅ XSS prevention (validation)
 - ✅ Row-Level Security for data isolation
+- ✅ Permission-based RBAC with audit logging
+- ✅ AI rate limiting per user
+- ✅ Usage quota enforcement per tenant
 - ✅ Helmet security headers (planned)
 
 ### Environment Variables
@@ -573,6 +637,134 @@ S3_SECRET_KEY=<secret>
 
 ---
 
+## Rate Limiting & Usage Tracking
+
+### Overview
+
+Complytude implements two complementary rate limiting systems:
+
+1. **AI Rate Limiting** - Per-user daily limits on AI generations
+2. **Usage Quota Enforcement** - Per-tenant feature usage limits based on subscription plan
+
+### Atomic Check-and-Increment Pattern
+
+Both systems use **atomic database operations** to prevent race conditions:
+
+```typescript
+// Atomic check-and-increment prevents concurrent requests from exceeding limits
+const result = await this.db.query(`
+  WITH current_usage AS (
+    SELECT usage_count FROM user_ai_usage
+    WHERE user_id = $1 AND tenant_id = $2 AND date = CURRENT_DATE
+    FOR UPDATE  -- Row-level lock prevents concurrent modifications
+  ),
+  updated AS (
+    INSERT INTO user_ai_usage (user_id, tenant_id, date, usage_count)
+    VALUES ($1, $2, CURRENT_DATE, 1)
+    ON CONFLICT (user_id, tenant_id, date) DO UPDATE
+    SET usage_count = user_ai_usage.usage_count + 1,
+        updated_at = NOW()
+    WHERE user_ai_usage.usage_count < $3  -- Only increment if under limit
+    RETURNING usage_count
+  )
+  SELECT
+    COALESCE((SELECT usage_count FROM updated),
+             (SELECT usage_count FROM current_usage)) as current,
+    EXISTS(SELECT 1 FROM updated) as incremented
+`);
+```
+
+**Why Atomic Operations Matter:**
+- ✅ Prevents race conditions when multiple requests arrive simultaneously
+- ✅ Ensures accurate counting even under high concurrency
+- ✅ Single database round-trip (efficient)
+- ✅ Row-level locking (`FOR UPDATE`) protects against concurrent modifications
+
+### AI Rate Limiting (`AiRateLimitGuard`)
+
+Limits AI generation requests per user per day:
+
+```typescript
+@UseGuards(AiRateLimitGuard)
+@Post('generate')
+async generateDocument() { ... }
+```
+
+**How It Works:**
+
+1. Guard extracts `userId` and `tenantId` from JWT
+2. Only `member` role is rate-limited (admins/owners are exempt)
+3. Atomic check-and-increment against `user_ai_usage` table
+4. Returns detailed error with current/limit if exceeded
+
+**Configuration:**
+```typescript
+export const AiRateLimits = {
+  MEMBER_DAILY_LIMIT: 50,  // 50 AI generations per day for members
+} as const;
+```
+
+### Usage Quota Enforcement (`UsageLimitGuard`)
+
+Enforces plan-based feature limits per tenant:
+
+```typescript
+@RequireUsageQuota('documents_per_month')
+@UseGuards(UsageLimitGuard)
+@Post('upload')
+async uploadFile() { ... }
+```
+
+**Metered Features:**
+
+| Feature | Basic Plan | Pro Plan | Enterprise |
+|---------|-----------|----------|------------|
+| `documents_per_month` | 100 | 500 | Unlimited |
+| `ai_generations_per_month` | 50 | 200 | Unlimited |
+| `storage_gb` | 5 | 25 | 100 |
+
+**Credit Fallback System:**
+
+When quota is exceeded, the system can consume pre-purchased credits:
+1. Check if feature quota allows operation
+2. If quota exhausted, check for available credits
+3. Deduct credit if available, otherwise reject request
+
+### Guard Execution Flow
+
+```
+Request
+   ↓
+┌─────────────────────┐
+│   JwtAuthGuard      │  ← Validates JWT, extracts user
+└─────────────────────┘
+   ↓
+┌─────────────────────┐
+│   PermissionsGuard  │  ← Checks permission (e.g., documents:create)
+└─────────────────────┘
+   ↓
+┌─────────────────────┐
+│   UsageLimitGuard   │  ← Checks tenant quota (atomic increment)
+└─────────────────────┘
+   ↓
+┌─────────────────────┐
+│   AiRateLimitGuard  │  ← Checks user daily limit (atomic increment)
+└─────────────────────┘
+   ↓
+Controller Handler
+```
+
+### Usage Tracking Tables
+
+Both guards write to RLS-protected tables:
+
+| Table | Purpose | RLS |
+|-------|---------|-----|
+| `user_ai_usage` | Daily AI generation counts per user | ✅ Yes |
+| `audit_logs` | Audit trail for permission-gated actions | ✅ Yes |
+
+---
+
 ## Related Documentation
 
 - [DATABASE.md](DATABASE.md) - Detailed database schema
@@ -582,4 +774,4 @@ S3_SECRET_KEY=<secret>
 
 ---
 
-**Last Updated:** January 25, 2026
+**Last Updated:** January 29, 2026

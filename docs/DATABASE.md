@@ -33,11 +33,12 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 
 | Metric | Count |
 |--------|-------|
-| Total Tables | 15 |
+| Total Tables | 22+ |
 | Core Tables | 3 |
 | Auth Tables | 3 |
 | Global Tables | 6 |
-| Tenant-Scoped Tables | 1 |
+| RBAC Tables | 2 |
+| Tenant-Scoped Tables | 5+ |
 | Junction Tables | 2 |
 | Enums | 4 |
 
@@ -346,6 +347,93 @@ Similar structure to `template_versions`.
 
 ---
 
+## RBAC Tables
+
+Tables for Role-Based Access Control.
+
+### permissions
+
+Permission definitions for the RBAC system.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `name` | VARCHAR(100) | Unique permission name (e.g., `documents:create`) |
+| `resource` | VARCHAR(50) | Resource type (documents, templates, etc.) |
+| `action` | VARCHAR(50) | Action (create, read, update, delete) |
+| `description` | TEXT | Human-readable description |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+
+**Unique Constraints:**
+- `name` (unique)
+- `(resource, action)` (unique)
+
+### role_permissions
+
+Maps tenant roles to their permissions.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `role_name` | VARCHAR(50) | Role from tenant_role enum |
+| `permission_id` | UUID | FK to permissions |
+| `granted_at` | TIMESTAMPTZ | When permission was granted |
+
+**Primary Key:** `(role_name, permission_id)`
+
+---
+
+## Audit & Usage Tracking Tables
+
+These tables track user actions and usage for rate limiting (RLS-protected).
+
+### audit_logs
+
+Audit trail for all permission-gated actions.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `user_id` | UUID | FK to users |
+| `tenant_id` | UUID | **RLS isolation key** |
+| `role_name` | VARCHAR(50) | User's role at time of action |
+| `action` | VARCHAR(100) | Action performed (e.g., `documents:delete`) |
+| `resource_type` | VARCHAR(50) | Type of resource affected |
+| `resource_id` | UUID | ID of affected resource (nullable) |
+| `metadata` | JSONB | Additional context |
+| `ai_model_used` | VARCHAR(50) | AI model if applicable |
+| `ip_address` | INET | Client IP address |
+| `user_agent` | TEXT | Client user agent |
+| `created_at` | TIMESTAMPTZ | When action occurred |
+
+**Indexes:**
+- `idx_audit_logs_tenant_created` - Tenant queries by date
+- `idx_audit_logs_tenant_action` - Tenant action filtering
+
+### user_ai_usage
+
+Tracks daily AI generation usage per user for rate limiting.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_id` | UUID | FK to users |
+| `tenant_id` | UUID | **RLS isolation key** |
+| `date` | DATE | Date of usage (UTC midnight) |
+| `usage_count` | INTEGER | Number of AI generations |
+| `metadata` | JSONB | Model used, etc. |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+
+**Primary Key:** `(user_id, tenant_id, date)`
+
+**Indexes:**
+- `idx_user_ai_usage_tenant_date` - Tenant usage queries
+- `idx_user_ai_usage_user_date` - User usage history
+
+**Used by:** `AiRateLimitGuard` with atomic check-and-increment to prevent race conditions.
+
+---
+
 ## Tenant-Scoped Tables
 
 These tables have **Row-Level Security (RLS) enabled** for tenant isolation.
@@ -395,6 +483,23 @@ FOR INSERT WITH CHECK (
 ---
 
 ## Row-Level Security (RLS)
+
+### RLS-Protected Tables
+
+The following tables have RLS enabled with policies based on `tenant_id`:
+
+| Table | SELECT | INSERT | UPDATE | DELETE | Notes |
+|-------|--------|--------|--------|--------|-------|
+| `documents` | ✅ | ✅ | ✅ | ✅ | Core tenant data |
+| `audit_logs` | ✅ | ✅ | — | — | Append-only audit trail |
+| `user_ai_usage` | ✅ | ✅ | ✅ | — | AI rate limiting |
+| `tenant_feature_overrides` | ✅ | Admin | Admin | — | Feature flags |
+| `tenant_usage` | ✅ | ✅ | ✅ | — | Usage tracking |
+| `tenant_usage_events` | ✅ | ✅ | — | — | Usage event log |
+| `tenant_credits` | ✅ | ✅ | ✅ | — | Credit balance |
+| `credit_transactions` | ✅ | ✅ | — | — | Credit history |
+
+**Policy Pattern:** All policies use `tenant_id = current_tenant_id_or_null()` to enforce isolation.
 
 ### How RLS Works
 
@@ -533,6 +638,12 @@ Database schema is managed through versioned migration files:
 | 006 | `global_tables.sql` | Authorities, categories, templates, rulesets |
 | 007 | `documents_table.sql` | Documents table with RLS |
 | 008 | `grants_global_tables.sql` | Permissions for global tables |
+| ... | ... | ... |
+| 016 | `rbac_permissions.sql` | RBAC permissions table |
+| 021 | `rbac_seed_role_permissions.sql` | Seed role-permission mappings |
+| 023 | `audit_logs.sql` | Audit logs table |
+| 024 | `user_ai_usage.sql` | AI usage tracking table |
+| 025 | `rls_entitlements_rbac.sql` | RLS for entitlements & RBAC tables |
 
 ### Running Migrations
 
@@ -623,4 +734,4 @@ psql -d complytude -c "
 
 ---
 
-**Last Updated:** January 20, 2026
+**Last Updated:** January 29, 2026
