@@ -18,18 +18,28 @@ import { MeteredFeature } from '../types/tenant-features.interface.js';
 // Service injection token for UsageTrackingService
 export const USAGE_TRACKING_SERVICE = Symbol('USAGE_TRACKING_SERVICE');
 
+export interface UsageCheckResult {
+  allowed: boolean;
+  message?: string;
+  limit?: number;
+  current?: number;
+  remaining?: number;
+  periodEnd?: Date;
+  creditsRemaining?: number;
+}
+
 export interface IUsageTrackingService {
   checkUsageLimit(
     tenantId: string,
     feature: MeteredFeature,
-  ): Promise<{
-    allowed: boolean;
-    message?: string;
-    limit?: number;
-    current?: number;
-    remaining?: number;
-    periodEnd?: Date;
-  }>;
+  ): Promise<UsageCheckResult>;
+
+  checkAndIncrementWithCredits(
+    tenantId: string,
+    feature: MeteredFeature,
+    userId?: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<UsageCheckResult>;
 }
 
 @Injectable()

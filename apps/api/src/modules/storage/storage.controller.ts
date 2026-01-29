@@ -21,12 +21,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
-  SwaggerCookieAuth,
   RequirePermissions,
   RequireUsageQuota,
   UsageLimitGuard,
   UsageTrackingInterceptor,
 } from '@complytude/shared';
+import { SwaggerCookieAuth } from '../../common/swagger/common';
 import { Permissions } from '../rbac/constants/permissions.constant';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';

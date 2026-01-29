@@ -11,9 +11,23 @@ export const AI_GENERATION_FEATURE = 'ai_generation';
 // Service injection token for AiUsageTrackingService
 export const AI_USAGE_TRACKING_SERVICE = Symbol('AI_USAGE_TRACKING_SERVICE');
 
+export interface AiUsageCheckResult {
+  allowed: boolean;
+  current: number;
+  limit: number;
+  remaining: number;
+  message: string;
+}
+
 export interface IAiUsageTrackingService {
   getDailyAiUsage(userId: string, tenantId: string): Promise<number>;
   incrementAiGeneration(userId: string, tenantId: string): Promise<void>;
+  checkAndIncrementAiUsage(
+    userId: string,
+    tenantId: string,
+    dailyLimit: number,
+    metadata?: Record<string, unknown>,
+  ): Promise<AiUsageCheckResult>;
 }
 
 // Constants that can be overridden via injection or config
@@ -57,8 +71,8 @@ export class AiRateLimitGuard implements CanActivate {
 
     // Use atomic check-and-increment to prevent race conditions
     const result = await this.aiUsageService.checkAndIncrementAiUsage(
-      user.userId as string,
-      user.tenantId as string,
+      user.userId,
+      user.tenantId,
       dailyLimit,
     );
 
