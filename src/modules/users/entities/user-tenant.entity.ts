@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { TenantRole } from 'src/common/types';
 
 export class UserTenant {
   @ApiProperty({ description: 'User ID' })
@@ -9,9 +10,10 @@ export class UserTenant {
 
   @ApiProperty({
     description: 'User role in the tenant',
-    enum: ['admin', 'member', 'viewer'],
+    enum: Object.values(TenantRole),
+    example: TenantRole.MEMBER,
   })
-  role: string;
+  role: TenantRole;
 
   @ApiProperty({ description: 'Whether user access is active' })
   is_active: boolean;

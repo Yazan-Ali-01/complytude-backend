@@ -1,12 +1,13 @@
+import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsString,
-  MinLength,
-  MaxLength,
-  IsOptional,
   IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { TenantRole } from 'src/common/types';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -48,10 +49,10 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'User role in the current tenant',
-    enum: ['admin', 'member', 'viewer'],
-    example: 'member',
+    enum: Object.values(TenantRole),
+    example: TenantRole.MEMBER,
   })
   @IsString()
-  @IsIn(['admin', 'member', 'viewer'])
-  role: string;
+  @IsIn(Object.values(TenantRole))
+  role: TenantRole;
 }

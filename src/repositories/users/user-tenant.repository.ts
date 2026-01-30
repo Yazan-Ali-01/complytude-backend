@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { TenantRole } from 'src/common/types';
 import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
@@ -62,7 +63,7 @@ export class UserTenantRepository extends BaseRepository<
     return {
       user_id: data.user_id,
       tenant_id: data.tenant_id,
-      role: data.role,
+      role: data.role as TenantRole,
       is_active: data.is_active,
       joined_at: data.joined_at,
       updated_at: data.updated_at,

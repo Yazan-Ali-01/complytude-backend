@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { TenantRole } from 'src/common/types';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
@@ -12,7 +13,6 @@ import {
   Invitation,
   InvitationStatus,
   RevokeInvitationInput,
-  TenantRole,
 } from './interfaces/invitation.interface';
 
 type InvitationRow = {
@@ -262,7 +262,7 @@ export class InvitationRepository extends BaseRepository<
   ): Promise<Invitation[]> {
     const result = await this.findByTenant(
       tenantId,
-      { status: 'pending' },
+      { status: InvitationStatus.PENDING },
       { limit: 1000 },
       options,
     );
@@ -281,7 +281,7 @@ export class InvitationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Invitation> {
     const payload: UpdateInvitationRow = {
-      status: 'accepted',
+      status: InvitationStatus.ACCEPTED,
       accepted_at: new Date(),
     };
 
@@ -300,7 +300,7 @@ export class InvitationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Invitation> {
     const payload: UpdateInvitationRow = {
-      status: 'rejected',
+      status: InvitationStatus.REJECTED,
       rejected_at: new Date(),
     };
 
@@ -321,7 +321,7 @@ export class InvitationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Invitation> {
     const payload: UpdateInvitationRow = {
-      status: 'revoked',
+      status: InvitationStatus.REVOKED,
       revoked_at: new Date(),
       revoked_by: input.revokedBy,
     };
@@ -339,8 +339,8 @@ export class InvitationRepository extends BaseRepository<
   async markExpiredInvitations(options?: QueryOptions): Promise<number> {
     const result = await this.executeQuery(
       `UPDATE ${this.tableName} 
-       SET status = 'expired' 
-       WHERE status = 'pending' AND expires_at <= NOW()`,
+       SET status = '${InvitationStatus.EXPIRED}' 
+       WHERE status = '${InvitationStatus.PENDING}' AND expires_at <= NOW()`,
       [],
       options,
     );

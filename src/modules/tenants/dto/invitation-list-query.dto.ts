@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { InvitationStatus } from 'src/repositories/invitations/interfaces/invitation.interface';
 
 /**
  * Query parameters for listing tenant invitations
@@ -7,13 +8,13 @@ import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 export class InvitationListQueryDto {
   @ApiProperty({
     description: 'Filter by invitation status',
-    enum: ['pending', 'accepted', 'rejected', 'revoked', 'expired'],
+    enum: Object.values(InvitationStatus),
     required: false,
-    example: 'pending',
+    example: InvitationStatus.PENDING,
   })
-  @IsEnum(['pending', 'accepted', 'rejected', 'revoked', 'expired'])
+  @IsEnum(Object.values(InvitationStatus))
   @IsOptional()
-  status?: 'pending' | 'accepted' | 'rejected' | 'revoked' | 'expired';
+  status?: InvitationStatus;
 
   @ApiProperty({
     description: 'Filter by email address (partial match)',

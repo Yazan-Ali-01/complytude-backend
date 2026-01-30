@@ -12,8 +12,8 @@ BEGIN;
 -- =========================
 
 CREATE TYPE tenant_plan AS ENUM ('early_access', 'basic', 'pro', 'enterprise');
-CREATE TYPE tenant_role AS ENUM ('admin', 'member', 'viewer');
-CREATE TYPE invitation_status AS ENUM ('pending', 'accepted', 'rejected', 'revoked', 'expired');
+CREATE TYPE tenant_role AS ENUM ('ADMIN', 'MEMBER', 'VIEWER');
+CREATE TYPE invitation_status AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'REVOKED', 'EXPIRED');
 
 -- =========================
 -- Tenants
@@ -82,7 +82,7 @@ CREATE TABLE public.user_tenants (
 );
 
 COMMENT ON TABLE public.user_tenants IS 'Many-to-many relationship: users can belong to multiple tenants with different roles';
-COMMENT ON COLUMN public.user_tenants.role IS 'User role within this tenant: admin, member, or viewer';
+COMMENT ON COLUMN public.user_tenants.role IS 'User role within this tenant: ADMIN, MEMBER, or VIEWER';
 COMMENT ON COLUMN public.user_tenants.is_active IS 'Whether this membership is active (soft delete for user removal)';
 
 -- =========================
@@ -156,8 +156,8 @@ CREATE TABLE public.invitations (
     rejected_at TIMESTAMPTZ,
     revoked_at  TIMESTAMPTZ,
     revoked_by  UUID,
-    role        tenant_role NOT NULL DEFAULT 'member',
-    status      invitation_status NOT NULL DEFAULT 'pending',
+    role        tenant_role NOT NULL DEFAULT 'MEMBER',
+    status      invitation_status NOT NULL DEFAULT 'PENDING',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -183,7 +183,7 @@ CREATE TABLE public.invitations (
 COMMENT ON TABLE public.invitations IS 'Invitations to join a tenant';
 COMMENT ON COLUMN public.invitations.email IS 'Email address of the invited user';
 COMMENT ON COLUMN public.invitations.tenant_id IS 'Tenant ID the user is invited to';
-COMMENT ON COLUMN public.invitations.role IS 'Role of the user invited to the tenant: admin, member, or viewer (default: member)';
+COMMENT ON COLUMN public.invitations.role IS 'Role of the user invited to the tenant: ADMIN, MEMBER, or VIEWER (default: MEMBER)';
 COMMENT ON COLUMN public.invitations.token_hash IS 'Unique invitation token sent via email';
 COMMENT ON COLUMN public.invitations.invited_by IS 'User ID of the user who invited the user';
 COMMENT ON COLUMN public.invitations.expires_at IS 'Timestamp when invitation expires';
@@ -240,7 +240,7 @@ CREATE INDEX idx_invitations_status ON public.invitations(status);
 CREATE INDEX idx_invitations_email_status ON public.invitations(email, status);
 CREATE UNIQUE INDEX idx_invitations_email_tenant_pending 
     ON public.invitations(email, tenant_id) 
-    WHERE status = 'pending';
+    WHERE status = 'PENDING';
 
 -- =========================
 -- Triggers

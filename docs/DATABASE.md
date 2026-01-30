@@ -106,9 +106,9 @@ Complytude implements **Row-Level Security (RLS)** for tenant isolation:
 Before executing queries, the application sets session variables:
 
 ```sql
-SELECT set_config('app.tenant_id', 'tenant-uuid', false);
-SELECT set_config('app.user_id', 'user-uuid', false);
-SELECT set_config('app.role', 'admin', false);
+SELECT set_config('app.tenant_id', 'tenant-uuid', true);
+SELECT set_config('app.user_id', 'user-uuid', true);
+SELECT set_config('app.role', 'admin', true);
 ```
 
 RLS policies use these to filter data automatically.

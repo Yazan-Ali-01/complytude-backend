@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DocumentsController } from './documents.controller';
+// import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 
 /**
@@ -16,7 +16,7 @@ import { DocumentsService } from './documents.service';
     // StorageModule will be added during implementation
     // TemplatesModule will be added during implementation
   ],
-  controllers: [DocumentsController],
+  controllers: [],
   providers: [DocumentsService],
   exports: [DocumentsService],
 })

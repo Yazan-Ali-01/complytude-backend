@@ -21,7 +21,7 @@ import {
   ApiValidationError,
   SwaggerCookieAuth,
 } from 'src/common/swagger';
-import { TenantRole } from 'src/repositories/invitations/interfaces/invitation.interface';
+import { TenantRole } from 'src/common/types';
 import {
   type AuthenticatedUser,
   CurrentUser,
@@ -45,7 +45,7 @@ import {
 @ApiTags('Tenant - Invitations')
 @Controller('tenants/admin/invitations')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(TenantRole.admin)
+@Roles(TenantRole.ADMIN)
 @SwaggerCookieAuth.accessToken()
 export class TenantInvitationsController {
   private readonly logger = new Logger(TenantInvitationsController.name);
@@ -82,7 +82,7 @@ export class TenantInvitationsController {
       tenantId: user.tenantId,
       invitedBy: user.userId,
       email: createInvitationDto.email,
-      role: createInvitationDto.role ?? TenantRole.member,
+      role: createInvitationDto.role ?? TenantRole.MEMBER,
     });
 
     // TODO: Send email with token

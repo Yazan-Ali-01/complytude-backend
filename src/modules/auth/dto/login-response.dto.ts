@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { TenantRole } from 'src/common/types';
 
 /**
  * User information returned in login response
@@ -49,10 +50,10 @@ export class LoginTenantDto {
 
   @ApiProperty({
     description: 'User role within the tenant',
-    enum: ['admin', 'member', 'viewer'],
-    example: 'member',
+    enum: Object.values(TenantRole),
+    example: TenantRole.MEMBER,
   })
-  role: 'admin' | 'member' | 'viewer';
+  role: TenantRole;
 
   @ApiProperty({
     description: 'Whether user access is active in this tenant',
@@ -88,14 +89,14 @@ export class LoginResponseDto {
       {
         tenantId: '550e8400-e29b-41d4-a716-446655440000',
         tenantName: 'Acme Corporation',
-        role: 'admin',
+        role: TenantRole.ADMIN,
         isActive: true,
         joinedAt: '2026-01-10T08:00:00.000Z',
       },
       {
         tenantId: '660e8400-e29b-41d4-a716-446655440001',
         tenantName: 'TechStart LLC',
-        role: 'member',
+        role: TenantRole.MEMBER,
         isActive: true,
         joinedAt: '2026-01-15T10:30:00.000Z',
       },

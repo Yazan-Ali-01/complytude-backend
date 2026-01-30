@@ -136,9 +136,9 @@ DECLARE
 BEGIN
     -- Update pending invitations that have passed their expiration date
     UPDATE public.invitations
-    SET status = 'expired',
+    SET status = 'EXPIRED',
         updated_at = NOW()
-    WHERE status = 'pending'
+    WHERE status = 'PENDING'
       AND expires_at < NOW();
     
     GET DIAGNOSTICS affected_rows = ROW_COUNT;

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PoolClient } from 'pg';
+import { TenantRole } from 'src/common/types';
 import { DatabaseService } from 'src/database/database.service';
 import {
   InvitationItemDto,
@@ -24,7 +25,6 @@ import {
 import {
   CreateInvitationInput,
   InvitationStatus,
-  TenantRole,
 } from 'src/repositories/invitations/interfaces/invitation.interface';
 import { InvitationRepository } from 'src/repositories/invitations/invitation.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
@@ -175,7 +175,7 @@ export class InvitationsService {
       }
 
       // Validate invitation status
-      if (invitation.status !== 'pending') {
+      if (invitation.status !== InvitationStatus.PENDING) {
         throw new BadRequestException(
           `Invitation is ${invitation.status} and cannot be accepted`,
         );
@@ -255,7 +255,7 @@ export class InvitationsService {
       }
 
       // Validate invitation status
-      if (invitation.status !== 'pending') {
+      if (invitation.status !== InvitationStatus.PENDING) {
         throw new BadRequestException(
           `Invitation is ${invitation.status} and cannot be rejected`,
         );
@@ -293,7 +293,7 @@ export class InvitationsService {
         id: string;
         tenant_id: string;
         tenant_name: string;
-        role: string;
+        role: TenantRole;
         inviter_email: string;
         inviter_first_name: string | null;
         inviter_last_name: string | null;
@@ -467,7 +467,7 @@ export class InvitationsService {
         );
       }
 
-      if (invitation.status !== 'pending') {
+      if (invitation.status !== InvitationStatus.PENDING) {
         throw new BadRequestException('Can only resend pending invitations');
       }
 

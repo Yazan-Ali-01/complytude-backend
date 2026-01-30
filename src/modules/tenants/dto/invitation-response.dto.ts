@@ -1,4 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { TenantRole } from 'src/common/types';
+import { InvitationStatus } from 'src/repositories/invitations/interfaces/invitation.interface';
 
 /**
  * Information about who sent the invitation
@@ -42,17 +44,17 @@ export class InvitationResponseDto {
 
   @ApiProperty({
     description: 'Role the user will have in the tenant',
-    enum: ['admin', 'member', 'viewer'],
-    example: 'member',
+    enum: Object.values(TenantRole),
+    example: TenantRole.MEMBER,
   })
-  role: string;
+  role: TenantRole;
 
   @ApiProperty({
     description: 'Invitation status',
-    enum: ['pending', 'accepted', 'rejected', 'revoked', 'expired'],
-    example: 'pending',
+    enum: Object.values(InvitationStatus),
+    example: InvitationStatus.PENDING,
   })
-  status: string;
+  status: InvitationStatus;
 
   @ApiProperty({
     description: 'Invitation expiration timestamp (ISO 8601)',

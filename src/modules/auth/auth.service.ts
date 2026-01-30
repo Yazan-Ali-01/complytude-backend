@@ -289,7 +289,7 @@ export class AuthService {
     const tenantsWithDetails = userTenants.map((ut) => ({
       tenantId: ut.tenant_id,
       tenantName: `Temp Tenant name ${ut.tenant_id.substring(0, 8)}`, // Temporary: using first 8 chars of UUID
-      role: ut.role as 'admin' | 'member' | 'viewer',
+      role: ut.role,
       isActive: ut.is_active,
       joinedAt: ut.joined_at.toISOString(),
     }));

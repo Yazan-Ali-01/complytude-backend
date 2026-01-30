@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { TenantRole } from 'src/repositories/invitations/interfaces/invitation.interface';
+import { TenantRole } from 'src/common/types/tenant.types';
 
 export interface AuthenticatedUser {
   userId: string;

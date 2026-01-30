@@ -81,7 +81,7 @@ DECLARE
     role_val TEXT;
 BEGIN
     role_val := current_setting('app.user_tenant_role', true);
-    RETURN role_val = 'admin';
+    RETURN role_val = 'ADMIN';
 END;
 $$;
 

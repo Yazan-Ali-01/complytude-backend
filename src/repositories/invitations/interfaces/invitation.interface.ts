@@ -1,14 +1,11 @@
-export type InvitationStatus =
-  | 'pending'
-  | 'accepted'
-  | 'rejected'
-  | 'revoked'
-  | 'expired';
+import { TenantRole } from 'src/common/types';
 
-export enum TenantRole {
-  admin = 'admin',
-  member = 'member',
-  viewer = 'viewer',
+export enum InvitationStatus {
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  REJECTED = 'REJECTED',
+  REVOKED = 'REVOKED',
+  EXPIRED = 'EXPIRED',
 }
 
 export interface Invitation {
