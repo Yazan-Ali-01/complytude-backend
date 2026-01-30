@@ -13,8 +13,8 @@ export const validationSchema = Joi.object({
   DB_HOST: Joi.string().default('localhost'),
   DB_PORT: Joi.number().default(5432),
   DB_NAME: Joi.string().required(),
-  DB_USER: Joi.string().required(),
-  DB_PASSWORD: Joi.string().required(),
+  DB_APP_USER: Joi.string().required(),
+  DB_APP_PASSWORD: Joi.string().required(),
   DB_MAX_CONNECTIONS: Joi.number().default(20),
   DB_IDLE_TIMEOUT: Joi.number().default(30000),
   DB_CONNECTION_TIMEOUT: Joi.number().default(2000),
@@ -31,6 +31,13 @@ export const validationSchema = Joi.object({
   S3_ACCESS_KEY: Joi.string().default('minioadmin'),
   S3_SECRET_KEY: Joi.string().default('minioadmin'),
   S3_FORCE_PATH_STYLE: Joi.boolean().default(true),
+
+  // Storage Buckets
+  COMPLYTUDE_FILES_BUCKET_NAME: Joi.string().default('complytude-files'),
+  TEMPLATES_BUCKET_NAME: Joi.string().default('complytude-templates'),
+
+  // File Upload Limits
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
+  TEMPLATE_MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
 });

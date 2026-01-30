@@ -181,10 +181,6 @@ export class DocumentGenerationService {
         uploadResult.key,
       );
 
-      // Fetch tenant schema
-      const tenant = await this.tenantService.findById(tenantId);
-      const schemaName = tenant.schema_name;
-
       // Prepare metadata
       const documentMetadata = {
         size: uploadResult.size,
@@ -198,11 +194,10 @@ export class DocumentGenerationService {
         templateId: template.id,
       };
 
-      // Store document metadata in tenant's documents table
+      // Store document metadata in public.documents table with RLS
       await this.databaseService.queryWithTenantContext(
         tenantId,
-        schemaName,
-        `INSERT INTO documents (
+        `INSERT INTO public.documents (
           id, tenant_id, title, content, metadata, 
           template_key, template_version, generation_metadata, created_by, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,

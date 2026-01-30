@@ -4,7 +4,7 @@ export class UserTenant {
   @ApiProperty({ description: 'User ID' })
   user_id: string;
 
-  @ApiProperty({ description: 'Tenant ID' })
+  @ApiProperty({ description: 'Tenant ID (UUID)' })
   tenant_id: string;
 
   @ApiProperty({
@@ -21,7 +21,4 @@ export class UserTenant {
 
   @ApiProperty({ description: 'Last update timestamp' })
   updated_at: Date;
-
-  @ApiProperty({ description: 'Schema name' })
-  schema_name: string;
 }

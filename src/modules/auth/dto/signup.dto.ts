@@ -44,12 +44,4 @@ export class SignupDto {
   @IsString()
   @MaxLength(255)
   lastName?: string;
-
-  @ApiProperty({
-    description: 'Tenant/company name for the new tenant',
-    example: 'Acme Corporation',
-  })
-  @IsString()
-  @MaxLength(255)
-  tenantName: string;
 }

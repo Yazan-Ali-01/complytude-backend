@@ -1,5 +1,5 @@
-import { IsEmail, IsString, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class LoginDto {
   @ApiProperty({
@@ -17,8 +17,8 @@ export class LoginDto {
   password: string;
 
   @ApiProperty({
-    description: 'Optional tenant ID to login to a specific tenant',
-    example: 'tenant_123e4567-e89b-12d3-a456-426614174000',
+    description: 'Optional tenant ID (UUID) to login to a specific tenant',
+    example: '123e4567-e89b-12d3-a456-426614174000',
     required: false,
   })
   @IsOptional()

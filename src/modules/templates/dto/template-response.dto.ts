@@ -1,113 +1,180 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Template } from 'src/modules/templates/entities/template.entity';
+import { TemplateFieldDto } from './template-field.dto';
 
-export class TemplateResponseDto {
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
+/**
+ * Template version response DTO
+ * Returns details of a specific template version
+ */
+export class TemplateVersionResponseDto {
+  @ApiProperty({
+    description: 'Version unique identifier',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   id: string;
 
-  @ApiProperty({ example: 'dmcc_employment_v1' })
+  @ApiProperty({
+    description: 'Parent template ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  templateId: string;
+
+  @ApiProperty({
+    description: 'Version number',
+    example: '1.0.0',
+  })
+  version: string;
+
+  @ApiProperty({
+    description: 'Array of template field definitions for this version',
+    type: [TemplateFieldDto],
+    isArray: true,
+  })
+  fields: TemplateFieldDto[];
+
+  @ApiProperty({
+    description: 'S3 URL for the template DOCX file',
+    example: 's3://complytude-templates/employment_contract_v1/1.0.0.docx',
+  })
+  fileUrl: string;
+
+  @ApiProperty({
+    description: 'Description of changes in this version',
+    example: 'Updated employment terms to comply with new regulations',
+    nullable: true,
+  })
+  changelog: string | null;
+
+  @ApiProperty({
+    description: 'Additional metadata for this version',
+    example: { tags: ['employment', 'legal'], reviewedBy: 'legal-team' },
+  })
+  metadata: Record<string, any>;
+
+  @ApiProperty({
+    description: 'Whether this version is active',
+    example: true,
+  })
+  isActive: boolean;
+
+  @ApiProperty({
+    description: 'ID of user who created this version',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
+  })
+  createdBy: string | null;
+
+  @ApiProperty({
+    description: 'Created timestamp',
+    example: '2026-01-21T10:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  createdAt: string;
+}
+
+/**
+ * Template response DTO
+ * Returns template details with current version data populated
+ */
+export class TemplateResponseDto {
+  @ApiProperty({
+    description: 'Template unique identifier',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  id: string;
+
+  @ApiProperty({
+    description: 'Unique template key',
+    example: 'employment_contract_v1',
+  })
   key: string;
 
-  @ApiProperty({ example: 'DMCC Employment Contract' })
+  @ApiProperty({
+    description: 'Template display name',
+    example: 'Employment Contract Template',
+  })
   name: string;
 
-  @ApiProperty({ example: 'Standard employment contract' })
-  description?: string;
+  @ApiProperty({
+    description: 'Template description',
+    example: 'Standard employment contract for UAE companies',
+    nullable: true,
+  })
+  description: string | null;
 
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
-  category_id?: string;
+  @ApiProperty({
+    description: 'Category ID this template belongs to',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    nullable: true,
+  })
+  categoryId: string | null;
 
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
-  authority_id?: string;
+  @ApiProperty({
+    description: 'Authority ID this template belongs to',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    nullable: true,
+  })
+  authorityId: string | null;
 
-  @ApiProperty({ example: ['en', 'ar'] })
+  @ApiProperty({
+    description: 'Supported languages',
+    example: ['en', 'ar'],
+    type: [String],
+  })
   languages: string[];
 
-  @ApiProperty({ example: '1.0.0' })
-  current_version: string;
+  @ApiProperty({
+    description: 'Current version number',
+    example: '1.0.0',
+  })
+  currentVersion: string;
 
-  @ApiProperty({ example: 'active' })
-  status: string;
+  @ApiProperty({
+    description: 'Current version data including fields',
+    type: TemplateVersionResponseDto,
+  })
+  currentVersionData: TemplateVersionResponseDto;
 
-  @ApiProperty({ example: 's3://complytude-templates/dmcc_employment_v1.docx' })
-  file_url?: string;
+  @ApiProperty({
+    description: 'Template status',
+    enum: ['active', 'inactive', 'draft', 'deprecated'],
+    example: 'active',
+  })
+  status: 'active' | 'inactive' | 'draft' | 'deprecated';
 
-  @ApiProperty({ example: {} })
+  @ApiProperty({
+    description: 'S3 URL for the current template file',
+    example: 's3://complytude-templates/employment_contract_v1/1.0.0.docx',
+    nullable: true,
+  })
+  fileUrl: string | null;
+
+  @ApiProperty({
+    description: 'Additional metadata',
+    example: { tags: ['employment', 'standard'] },
+  })
   metadata: Record<string, any>;
 
-  @ApiProperty({ example: '2025-01-01T00:00:00Z' })
-  created_at: Date;
-
-  @ApiProperty({ example: '2025-01-01T00:00:00Z' })
-  updated_at: Date;
-}
-
-export class TemplateListResponseDto {
-  @ApiProperty({ type: [TemplateResponseDto] })
-  templates: Template[];
-
-  @ApiProperty({ example: 10 })
-  total: number;
-
-  @ApiProperty({ example: 1 })
-  page: number;
-
-  @ApiProperty({ example: 10 })
-  limit: number;
-}
-
-export class TemplateVersionResponseDto {
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
-  id: string;
-
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
-  template_id: string;
-
-  @ApiProperty({ example: '1.0.0' })
-  version: string;
-
-  @ApiProperty({ example: [] })
-  fields: any[];
-
-  @ApiProperty({ example: 's3://complytude-templates/dmcc_employment_v1.docx' })
-  file_url: string;
-
-  @ApiProperty({ example: 'Initial version' })
-  changelog?: string;
-
-  @ApiProperty({ example: {} })
-  metadata: Record<string, any>;
-
-  @ApiProperty({ example: true })
-  is_active: boolean;
-
-  @ApiProperty({ example: '2025-01-01T00:00:00Z' })
-  created_at: Date;
-}
-
-export class TemplateDownloadResponseDto {
   @ApiProperty({
-    example:
-      'https://s3.amazonaws.com/complytude-templates/nda_v1/1.0.0/nda.docx?X-Amz-Signature=...',
-    description: 'Signed URL for downloading the template file',
+    description: 'ID of user who created this template',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
   })
-  downloadUrl: string;
-
-  @ApiProperty({ example: 900, description: 'URL expiry time in seconds' })
-  expiresIn: number;
+  createdBy: string | null;
 
   @ApiProperty({
-    example: '2024-01-15T10:15:00Z',
-    description: 'ISO timestamp when the URL expires',
+    description: 'Created timestamp',
+    example: '2026-01-21T10:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
   })
-  expiresAt: string;
+  createdAt: string;
 
   @ApiProperty({
-    example: 'nda_v1_1.0.0.docx',
-    description: 'Suggested filename for download',
+    description: 'Last updated timestamp',
+    example: '2026-01-21T12:30:00.000Z',
+    type: 'string',
+    format: 'date-time',
   })
-  fileName: string;
-
-  @ApiProperty({ example: '1.0.0', description: 'Version of the template' })
-  version: string;
+  updatedAt: string;
 }

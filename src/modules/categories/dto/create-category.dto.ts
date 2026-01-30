@@ -9,6 +9,10 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
+/**
+ * Create category DTO
+ * Defines required and optional fields for creating a new category
+ */
 export class CreateCategoryDto {
   @ApiProperty({
     example: 'employment',
@@ -41,9 +45,9 @@ export class CreateCategoryDto {
     example: '123e4567-e89b-12d3-a456-426614174000',
     description: 'Parent category ID (for hierarchical categories)',
   })
-  @IsUUID()
+  @IsUUID('4')
   @IsOptional()
-  parent_id?: string;
+  parentId?: string;
 
   @ApiPropertyOptional({
     example: true,
@@ -52,40 +56,5 @@ export class CreateCategoryDto {
   })
   @IsBoolean()
   @IsOptional()
-  is_active: boolean = true;
-}
-
-export class UpdateCategoryDto {
-  @ApiPropertyOptional({
-    example: 'Employment Contracts',
-    description: 'Category display name',
-  })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
-  name?: string;
-
-  @ApiPropertyOptional({
-    example: 'Updated description',
-    description: 'Category description',
-  })
-  @IsString()
-  @IsOptional()
-  description?: string;
-
-  @ApiPropertyOptional({
-    example: '123e4567-e89b-12d3-a456-426614174000',
-    description: 'Parent category ID',
-  })
-  @IsUUID()
-  @IsOptional()
-  parent_id?: string;
-
-  @ApiPropertyOptional({
-    example: true,
-    description: 'Whether category is active',
-  })
-  @IsBoolean()
-  @IsOptional()
-  is_active?: boolean;
+  isActive: boolean = true;
 }

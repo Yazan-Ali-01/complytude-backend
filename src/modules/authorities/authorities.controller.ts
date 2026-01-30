@@ -3,155 +3,137 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
-  ParseBoolPipe,
-  ParseIntPipe,
+  Patch,
   Post,
-  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiExtraModels,
   ApiOperation,
   ApiParam,
-  ApiQuery,
-  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { MessageResponseDto, PaginationMetaDto } from 'src/common/dto';
+import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { AuthoritiesService } from './authorities.service';
 import {
+  ApiConflictError,
+  ApiCreateResponses,
+  ApiDeleteResponses,
+  ApiGetResponses,
+  ApiListResponses,
+  ApiUpdateResponses,
+} from 'src/common/swagger/decorators';
+import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
+import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import {
+  AuthorityIdParamDto,
+  AuthorityListResponseDto,
+  AuthorityResponseDto,
   CreateAuthorityDto,
+  ListAuthoritiesQueryDto,
   UpdateAuthorityDto,
-} from './dto/create-authority.dto';
-import { Authority } from './entities/authority.entity';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
+} from './dto';
 
 @ApiTags('Authorities')
 @Controller('authorities')
 @SwaggerCookieAuth.accessToken()
+@ApiExtraModels(
+  AuthorityResponseDto,
+  AuthorityListResponseDto,
+  PaginationMetaDto,
+)
 export class AuthoritiesController {
-  constructor(private readonly authoritiesService: AuthoritiesService) {}
-
-  @Post()
-  @UseGuards(SystemAdminGuard)
-  @ApiOperation({
-    summary: 'Create new authority',
-    description: 'Create a new legal authority (system admin only)',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Authority created successfully',
-    type: Object,
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Authority with this code already exists',
-  })
-  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async create(
-    @Body() createAuthorityDto: CreateAuthorityDto,
-  ): Promise<Authority> {
-    return this.authoritiesService.create(createAuthorityDto);
-  }
+  constructor() {}
 
   @Get()
   @ApiOperation({
     summary: 'List all authorities',
     description:
-      'Get list of all legal authorities (optionally filter by active status)',
+      'Retrieve a paginated list of legal authorities with optional filtering by active status, search term, and country.',
   })
-  @ApiQuery({
-    name: 'active',
-    required: false,
-    type: Boolean,
-    description: 'Filter by active status',
-  })
-  @ApiQuery({
-    name: 'cursor',
-    required: false,
-    type: String,
-    description: 'Cursor for pagination',
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Limit for pagination',
-  })
-  @ApiQuery({
-    name: 'direction',
-    required: false,
-    type: String,
-    description: 'Direction for pagination',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of authorities',
-    type: [Object],
-  })
-  async findAll(
-    @Query('active', new ParseBoolPipe({ optional: true })) active?: boolean,
-    @Query('cursor') cursor?: string,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
-    @Query('direction')
-    direction?: 'forward' | 'backward',
-  ): Promise<CursorPaginationResult<Authority>> {
-    return this.authoritiesService.findAll(active, {
-      cursor,
-      limit,
-      direction,
-    });
+  @ApiListResponses(AuthorityListResponseDto, 'Authorities')
+  list(@Query() _query: ListAuthoritiesQueryDto): AuthorityListResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
   }
 
   @Get(':id')
   @ApiOperation({
     summary: 'Get authority by ID',
-    description: 'Get details of a specific authority',
+    description:
+      'Retrieve detailed information about a specific legal authority by its UUID.',
   })
-  @ApiParam({ name: 'id', description: 'Authority UUID' })
-  @ApiResponse({ status: 200, description: 'Authority details', type: Object })
-  @ApiResponse({ status: 404, description: 'Authority not found' })
-  async findById(@Param('id') id: string): Promise<Authority> {
-    return this.authoritiesService.findById(id);
+  @ApiParam({
+    name: 'id',
+    description: 'Authority UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiGetResponses(AuthorityResponseDto, 'Authority')
+  findOne(@Param() _params: AuthorityIdParamDto): AuthorityResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
   }
 
-  @Put(':id')
+  @Post()
+  @UseGuards(SystemAdminGuard)
+  @ApiOperation({
+    summary: 'Create authority',
+    description:
+      'Create a new legal authority. This endpoint is restricted to system administrators only. The authority code will be automatically converted to uppercase.',
+  })
+  @ApiCreateResponses(AuthorityResponseDto, 'Authority')
+  @ApiConflictError('Authority with this code already exists')
+  create(
+    @Body() _dto: CreateAuthorityDto,
+    @CurrentUser() _user: AuthenticatedUser,
+  ): AuthorityResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
+  }
+
+  @Patch(':id')
   @UseGuards(SystemAdminGuard)
   @ApiOperation({
     summary: 'Update authority',
-    description: 'Update an existing authority (system admin only)',
+    description:
+      'Update an existing legal authority. This endpoint is restricted to system administrators only. Only provided fields will be updated.',
   })
-  @ApiParam({ name: 'id', description: 'Authority UUID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Authority updated successfully',
-    type: Object,
+  @ApiParam({
+    name: 'id',
+    description: 'Authority UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @ApiResponse({ status: 404, description: 'Authority not found' })
-  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async update(
-    @Param('id') id: string,
-    @Body() updateAuthorityDto: UpdateAuthorityDto,
-  ): Promise<Authority> {
-    return this.authoritiesService.update(id, updateAuthorityDto);
+  @ApiUpdateResponses(AuthorityResponseDto, 'Authority')
+  update(
+    @Param() _params: AuthorityIdParamDto,
+    @Body() _dto: UpdateAuthorityDto,
+    @CurrentUser() _user: AuthenticatedUser,
+  ): AuthorityResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
   }
 
   @Delete(':id')
   @UseGuards(SystemAdminGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Delete authority',
-    description: 'Delete an authority (system admin only)',
+    summary: 'Deactivate authority',
+    description:
+      'Soft delete an authority by setting its isActive status to false. This endpoint is restricted to system administrators only. The authority will remain in the database but will be marked as inactive.',
   })
-  @ApiParam({ name: 'id', description: 'Authority UUID' })
-  @ApiResponse({ status: 204, description: 'Authority deleted successfully' })
-  @ApiResponse({ status: 404, description: 'Authority not found' })
-  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async delete(@Param('id') id: string): Promise<void> {
-    return this.authoritiesService.delete(id);
+  @ApiParam({
+    name: 'id',
+    description: 'Authority UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiDeleteResponses('Authority')
+  remove(
+    @Param() _params: AuthorityIdParamDto,
+    @CurrentUser() _user: AuthenticatedUser,
+  ): MessageResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
   }
 }

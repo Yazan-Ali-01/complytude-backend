@@ -1,32 +1,35 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsArray,
-  IsObject,
-  ValidateNested,
-  ArrayMinSize,
-  MaxLength,
-  Matches,
-  ValidateIf,
-} from 'class-validator';
-import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import {
   IsFileMaxSize,
   IsFileMimeType,
   IsFileUploaded,
   IsMulterLikeFile,
 } from 'src/common/decorators/file-validators.decorator';
+import { JsonField } from 'src/common/decorators/json-field.decorator';
+import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_MAX_FILE_SIZE,
 } from '../constants/template.constants';
-import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
 import { TemplateFieldDto } from './template-field.dto';
-import type { PlaceholderValidationResult } from '../services/docx-placeholder-extraction.service';
-import { JsonField } from 'src/common/decorators/json-field.decorator';
 
+/**
+ * Create template version request DTO
+ * Used to create a new version of an existing template with updated file and fields
+ */
 export class CreateTemplateVersionDto {
   @ApiProperty({
     example: '1.1.0',
@@ -80,7 +83,10 @@ export class CreateTemplateVersionDto {
   metadata?: Record<string, any>;
 
   @ApiProperty({
-    description: 'DOCX template file (required, max 5MB)',
+    description:
+      'DOCX template file (required, max 5MB, content type: application/vnd.openxmlformats-officedocument.wordprocessingml.document)',
+    type: 'string',
+    format: 'binary',
   })
   @IsFileUploaded()
   @IsMulterLikeFile()
@@ -89,43 +95,91 @@ export class CreateTemplateVersionDto {
   file: MulterLikeFile;
 }
 
+// todo: remove later
+/**
+ * Create template version response DTO
+ * Returns the newly created version with validation results
+ */
 export class CreateTemplateVersionResponseDto {
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiProperty({
+    description: 'Version unique identifier',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   id: string;
 
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
-  template_id: string;
-
-  @ApiProperty({ example: '1.1.0' })
-  version: string;
-
-  @ApiProperty({ example: 'https://s3.../templates/...' })
-  file_url: string;
-
-  @ApiProperty({ example: true })
-  is_active: boolean;
-
-  @ApiPropertyOptional({ example: 'Added remote work clause' })
-  changelog?: string;
-
-  @ApiProperty({ type: [TemplateFieldDto] })
-  fields: TemplateFieldDto[];
-
-  @ApiProperty({ example: {} })
-  metadata: Record<string, any>;
-
-  @ApiProperty()
-  created_at: Date;
+  @ApiProperty({
+    description: 'Parent template ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  templateId: string;
 
   @ApiProperty({
-    example: ['employee_name', 'salary', 'start_date'],
-    description: 'Placeholders extracted from the DOCX file',
+    description: 'Version number',
+    example: '1.1.0',
   })
-  placeholders_detected: string[];
+  version: string;
+
+  @ApiProperty({
+    description: 'S3 URL for the template DOCX file',
+    example: 's3://complytude-templates/employment_contract_v1/1.1.0.docx',
+  })
+  fileUrl: string;
+
+  @ApiProperty({
+    description: 'Whether this version is active',
+    example: true,
+  })
+  isActive: boolean;
+
+  @ApiProperty({
+    description: 'Description of changes in this version',
+    example: 'Added remote work clause',
+    nullable: true,
+  })
+  changelog: string | null;
+
+  @ApiProperty({
+    description: 'Array of template field definitions for this version',
+    type: [TemplateFieldDto],
+    isArray: true,
+  })
+  fields: TemplateFieldDto[];
+
+  @ApiProperty({
+    description: 'Additional metadata for this version',
+    example: { tags: ['employment', 'updated'] },
+  })
+  metadata: Record<string, any>;
+
+  @ApiProperty({
+    description: 'Created timestamp',
+    example: '2026-01-22T10:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  createdAt: string;
+
+  @ApiProperty({
+    description: 'Placeholders extracted from the uploaded DOCX file',
+    example: ['employee_name', 'salary', 'start_date'],
+    type: [String],
+  })
+  placeholdersDetected: string[];
 
   @ApiProperty({
     description:
-      'Validation result comparing placeholders to field definitions',
+      'Validation result comparing extracted placeholders to field definitions',
+    example: {
+      isValid: true,
+      missingInFields: [],
+      missingInTemplate: [],
+      matches: ['employee_name', 'salary', 'start_date'],
+    },
   })
-  validation: PlaceholderValidationResult;
+  validation: {
+    isValid: boolean;
+    missingInFields: string[];
+    missingInTemplate: string[];
+    matches: string[];
+  };
 }

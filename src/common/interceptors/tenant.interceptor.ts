@@ -11,7 +11,6 @@ import { IS_PUBLIC_KEY } from '../../modules/auth/decorators/public.decorator';
 
 export interface TenantContext {
   tenantId: string;
-  schemaName: string;
   userId?: string;
   role?: string;
 }
@@ -46,7 +45,6 @@ export class TenantInterceptor implements NestInterceptor {
     if (request.user.tenantId) {
       request.tenantContext = {
         tenantId: request.user.tenantId,
-        schemaName: `tenant_${request.user.tenantId.replace(/-/g, '_')}`,
         userId: request.user.userId,
         role: request.user.role,
       };

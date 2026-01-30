@@ -3,155 +3,133 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
-  ParseBoolPipe,
-  ParseIntPipe,
+  Patch,
   Post,
-  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiExtraModels,
   ApiOperation,
   ApiParam,
-  ApiQuery,
-  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { MessageResponseDto, PaginationMetaDto } from 'src/common/dto';
+import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
-import { CategoriesService } from './categories.service';
 import {
+  ApiConflictError,
+  ApiCreateResponses,
+  ApiDeleteResponses,
+  ApiGetResponses,
+  ApiListResponses,
+  ApiUpdateResponses,
+} from 'src/common/swagger/decorators';
+import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
+import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import {
+  CategoryIdParamDto,
+  CategoryListResponseDto,
+  CategoryResponseDto,
   CreateCategoryDto,
+  ListCategoriesQueryDto,
   UpdateCategoryDto,
-} from './dto/create-category.dto';
-import { Category } from './entities/category.entity';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
+} from './dto';
 
 @ApiTags('Categories')
 @Controller('categories')
 @SwaggerCookieAuth.accessToken()
+@ApiExtraModels(CategoryResponseDto, CategoryListResponseDto, PaginationMetaDto)
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
-
-  @Post()
-  @UseGuards(SystemAdminGuard)
-  @ApiOperation({
-    summary: 'Create new category',
-    description: 'Create a new template category (system admin only)',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Category created successfully',
-    type: Object,
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Category with this code already exists',
-  })
-  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async create(
-    @Body() createCategoryDto: CreateCategoryDto,
-  ): Promise<Category> {
-    return this.categoriesService.create(createCategoryDto);
-  }
+  constructor() {}
 
   @Get()
   @ApiOperation({
     summary: 'List all categories',
     description:
-      'Get list of all template categories (optionally filter by active status)',
+      'Retrieve a paginated list of template categories with optional filtering by active status and search term.',
   })
-  @ApiQuery({
-    name: 'active',
-    required: false,
-    type: Boolean,
-    description: 'Filter by active status',
-  })
-  @ApiQuery({
-    name: 'cursor',
-    required: false,
-    type: String,
-    description: 'Cursor for pagination',
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Number of items per page (default: 50)',
-  })
-  @ApiQuery({
-    name: 'direction',
-    required: false,
-    enum: ['forward', 'backward'],
-    description: 'Pagination direction (default: forward)',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of categories',
-    type: [Object],
-  })
-  async findAll(
-    @Query('active', new ParseBoolPipe({ optional: true })) active?: boolean,
-    @Query('cursor') cursor?: string,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
-    @Query('direction')
-    direction?: 'forward' | 'backward',
-  ): Promise<CursorPaginationResult<Category>> {
-    return this.categoriesService.findAll(active, {
-      cursor,
-      limit,
-      direction,
-    });
+  @ApiListResponses(CategoryListResponseDto, 'Categories')
+  list(@Query() _query: ListCategoriesQueryDto): CategoryListResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
   }
 
   @Get(':id')
   @ApiOperation({
     summary: 'Get category by ID',
-    description: 'Get details of a specific category',
+    description:
+      'Retrieve detailed information about a specific template category by its UUID.',
   })
-  @ApiParam({ name: 'id', description: 'Category UUID' })
-  @ApiResponse({ status: 200, description: 'Category details', type: Object })
-  @ApiResponse({ status: 404, description: 'Category not found' })
-  async findById(@Param('id') id: string): Promise<Category> {
-    return this.categoriesService.findById(id);
+  @ApiParam({
+    name: 'id',
+    description: 'Category UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiGetResponses(CategoryResponseDto, 'Category')
+  findOne(@Param() _params: CategoryIdParamDto): CategoryResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
   }
 
-  @Put(':id')
+  @Post()
+  @UseGuards(SystemAdminGuard)
+  @ApiOperation({
+    summary: 'Create category',
+    description:
+      'Create a new template category. This endpoint is restricted to system administrators only. The category code will be automatically converted to lowercase.',
+  })
+  @ApiCreateResponses(CategoryResponseDto, 'Category')
+  @ApiConflictError('Category with this code already exists')
+  create(
+    @Body() _dto: CreateCategoryDto,
+    @CurrentUser() _user: AuthenticatedUser,
+  ): CategoryResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
+  }
+
+  @Patch(':id')
   @UseGuards(SystemAdminGuard)
   @ApiOperation({
     summary: 'Update category',
-    description: 'Update an existing category (system admin only)',
+    description:
+      'Update an existing template category. This endpoint is restricted to system administrators only. Only provided fields will be updated.',
   })
-  @ApiParam({ name: 'id', description: 'Category UUID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Category updated successfully',
-    type: Object,
+  @ApiParam({
+    name: 'id',
+    description: 'Category UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @ApiResponse({ status: 404, description: 'Category not found' })
-  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async update(
-    @Param('id') id: string,
-    @Body() updateCategoryDto: UpdateCategoryDto,
-  ): Promise<Category> {
-    return this.categoriesService.update(id, updateCategoryDto);
+  @ApiUpdateResponses(CategoryResponseDto, 'Category')
+  update(
+    @Param() _params: CategoryIdParamDto,
+    @Body() _dto: UpdateCategoryDto,
+    @CurrentUser() _user: AuthenticatedUser,
+  ): CategoryResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
   }
 
   @Delete(':id')
   @UseGuards(SystemAdminGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Delete category',
-    description: 'Delete a category (system admin only)',
+    summary: 'Deactivate category',
+    description:
+      'Soft delete a category by setting its isActive status to false. This endpoint is restricted to system administrators only. The category will remain in the database but will be marked as inactive.',
   })
-  @ApiParam({ name: 'id', description: 'Category UUID' })
-  @ApiResponse({ status: 204, description: 'Category deleted successfully' })
-  @ApiResponse({ status: 404, description: 'Category not found' })
-  @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
-  async delete(@Param('id') id: string): Promise<void> {
-    return this.categoriesService.delete(id);
+  @ApiParam({
+    name: 'id',
+    description: 'Category UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiDeleteResponses('Category')
+  remove(
+    @Param() _params: CategoryIdParamDto,
+    @CurrentUser() _user: AuthenticatedUser,
+  ): MessageResponseDto {
+    // Implementation will be added by service layer
+    return null as any;
   }
 }
