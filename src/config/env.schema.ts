@@ -23,10 +23,12 @@ export const validationSchema = Joi.object({
   JWT_ACCESS_SECRET: Joi.string().required(),
   JWT_REFRESH_SECRET: Joi.string().required(),
   JWT_IDENTITY_SECRET: Joi.string().required(),
+  JWT_IDENTITY_REFRESH_SECRET: Joi.string().required(),
   JWT_REFRESH_HASH_SECRET: Joi.string().required(),
   JWT_ACCESS_EXPIRES_IN: Joi.string().default('30m'),
   JWT_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
   JWT_IDENTITY_EXPIRES_IN: Joi.string().default('10m'),
+  JWT_IDENTITY_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
 
   // S3/MinIO Storage

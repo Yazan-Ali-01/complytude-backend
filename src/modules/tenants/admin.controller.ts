@@ -22,18 +22,20 @@ import {
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
 import { TenantService } from './tenant.service';
 
 /**
  * System Administrator endpoints for tenant management
- * All endpoints require system admin privileges
+ * All endpoints require system admin privileges via identity token
  */
 @ApiTags('System Admin - Tenants')
 @Controller('admin/tenants')
+@AuthOptions({ identity: true })
 @UseGuards(SystemAdminGuard)
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.identityAccessToken()
 export class TenantAdminController {
   private readonly logger = new Logger(TenantAdminController.name);
 

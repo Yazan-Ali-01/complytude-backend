@@ -11,8 +11,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import {
-  ACCESS_TOKEN_COOKIE_NAME,
-  REFRESH_TOKEN_COOKIE_NAME,
+  TENANT_ACCESS_TOKEN_COOKIE_NAME,
+  TENANT_REFRESH_TOKEN_COOKIE_NAME,
 } from './common/swagger/common';
 
 async function bootstrap() {
@@ -84,19 +84,19 @@ async function bootstrap() {
       {
         type: 'apiKey',
         in: 'cookie',
-        name: ACCESS_TOKEN_COOKIE_NAME,
+        name: TENANT_ACCESS_TOKEN_COOKIE_NAME,
         description: 'JWT access token stored in http-only cookie',
       },
-      ACCESS_TOKEN_COOKIE_NAME,
+      TENANT_ACCESS_TOKEN_COOKIE_NAME,
     )
     .addApiKey(
       {
         type: 'apiKey',
         in: 'cookie',
-        name: REFRESH_TOKEN_COOKIE_NAME,
+        name: TENANT_REFRESH_TOKEN_COOKIE_NAME,
         description: 'JWT refresh token stored in http-only cookie',
       },
-      REFRESH_TOKEN_COOKIE_NAME,
+      TENANT_REFRESH_TOKEN_COOKIE_NAME,
     )
     .build();
 

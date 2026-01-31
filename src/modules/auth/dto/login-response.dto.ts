@@ -30,6 +30,12 @@ export class LoginUserDto {
     nullable: true,
   })
   lastName: string | null;
+
+  @ApiProperty({
+    description: 'Whether user is a system administrator',
+    example: false,
+  })
+  isSystemAdmin: boolean;
 }
 
 /**
@@ -72,7 +78,7 @@ export class LoginTenantDto {
 
 /**
  * Response returned after successful login
- * Contains temporary authentication and list of user's tenants
+ * Contains identity tokens (set as HTTP-only cookies) and list of user's tenants
  */
 export class LoginResponseDto {
   @ApiProperty({

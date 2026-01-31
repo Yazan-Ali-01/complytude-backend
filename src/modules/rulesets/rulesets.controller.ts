@@ -45,7 +45,7 @@ import {
 
 @ApiTags('Rulesets')
 @Controller('rulesets')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 @ApiExtraModels(
   RulesetResponseDto,
   RulesetListResponseDto,

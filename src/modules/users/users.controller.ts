@@ -22,7 +22,7 @@ import { UsersService } from './users.service';
 
 @ApiTags('Users')
 @Controller('users')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

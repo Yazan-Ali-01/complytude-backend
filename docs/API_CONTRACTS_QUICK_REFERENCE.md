@@ -2,11 +2,12 @@
 
 > **TL;DR:** Copy-paste examples for common API contract patterns
 
-**Authentication Note:** This API uses a multi-step authentication flow with three token types:
+**Authentication Note:** This API uses a dual-token authentication flow with four token types:
 
-- `identityToken` - Short-lived (10 min) token after login, used for tenant selection
-- `accessToken` - Standard API access token (30 min), issued after tenant selection
-- `refreshToken` - Long-lived token (14 days) for obtaining new access tokens
+- `identityAccessToken` - Short-lived (15 min) token for user identity verification and system admin operations
+- `identityRefreshToken` - Long-lived (14 days) token for renewing identity access tokens
+- `tenantAccessToken` - Short-lived (30 min) token for tenant-scoped API access
+- `tenantRefreshToken` - Long-lived (14 days) token for renewing tenant access tokens
 
 ---
 
@@ -58,7 +59,11 @@ import {
 } from 'src/common/swagger';
 
 // Auth decorators
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
+import {
+  CurrentUserTenant,
+  CurrentUserIdentity,
+} from 'src/modules/auth/decorators/current-user.decorator';
 import { Roles } from 'src/modules/auth/decorators/roles.decorator';
 import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 ```
@@ -70,7 +75,7 @@ import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 ```typescript
 @ApiTags('Resources')
 @Controller('resources')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class ResourcesController {
   constructor(private readonly service: ResourceService) {}
 
@@ -86,6 +91,7 @@ export class ResourcesController {
 
 ```typescript
 @Get()
+@AuthOptions({ tenant: true })
 @ApiOperation({
   summary: 'List all resources',
   description: 'Retrieve a paginated list of resources with optional filtering',
@@ -93,6 +99,7 @@ export class ResourcesController {
 @ApiListResponses(PaginatedResponseDto, 'Resources')
 async list(
   @Query() query: ListResourceQueryDto,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<PaginatedResponseDto<ResourceResponseDto>> {
   // Implementation
   return;
@@ -103,6 +110,7 @@ async list(
 
 ```typescript
 @Get(':id')
+@AuthOptions({ tenant: true })
 @ApiOperation({
   summary: 'Get resource by ID',
   description: 'Retrieve a single resource by its UUID',
@@ -115,6 +123,7 @@ async list(
 @ApiGetResponses(ResourceResponseDto, 'Resource')
 async findOne(
   @Param() params: ResourceIdParamDto,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<ResourceResponseDto> {
   // Implementation
   return;
@@ -125,6 +134,7 @@ async findOne(
 
 ```typescript
 @Post()
+@AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles('admin', 'member')
 @ApiOperation({
@@ -135,7 +145,7 @@ async findOne(
 @ApiConflictError('Resource already exists')
 async create(
   @Body() dto: CreateResourceDto,
-  @CurrentUser() user: AuthenticatedUser,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<ResourceResponseDto> {
   // Implementation
   return;
@@ -146,6 +156,7 @@ async create(
 
 ```typescript
 @Patch(':id')
+@AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles('admin', 'member')
 @ApiOperation({
@@ -161,7 +172,7 @@ async create(
 async update(
   @Param() params: ResourceIdParamDto,
   @Body() dto: UpdateResourceDto,
-  @CurrentUser() user: AuthenticatedUser,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<ResourceResponseDto> {
   // Implementation
   return;
@@ -172,6 +183,7 @@ async update(
 
 ```typescript
 @Delete(':id')
+@AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles('admin')
 @ApiOperation({
@@ -186,7 +198,7 @@ async update(
 @ApiDeleteResponses('Resource')
 async remove(
   @Param() params: ResourceIdParamDto,
-  @CurrentUser() user: AuthenticatedUser,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<MessageResponseDto> {
   // Implementation
   return { message: 'Resource deleted successfully' };
@@ -196,7 +208,6 @@ async remove(
 ### 6. Public Endpoint (No Auth)
 
 ```typescript
-@Public()
 @Get('public')
 @ApiOperation({
   summary: 'Public endpoint',
@@ -209,6 +220,25 @@ async remove(
 })
 @ApiStandardErrors()
 async publicEndpoint(): Promise<ResourceResponseDto> {
+  // Implementation
+  return;
+}
+```
+
+### 7. System Admin Endpoint (Identity Token)
+
+```typescript
+@Get('admin/system-stats')
+@AuthOptions({ identity: true })
+@UseGuards(SystemAdminGuard)
+@ApiOperation({
+  summary: 'Get system statistics',
+  description: 'Retrieve system-wide statistics. Requires system admin role.',
+})
+@ApiGetResponses(SystemStatsDto, 'System statistics')
+async getSystemStats(
+  @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+): Promise<SystemStatsDto> {
   // Implementation
   return;
 }

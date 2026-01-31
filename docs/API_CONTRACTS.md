@@ -43,78 +43,86 @@ This document defines the standards for API contract definition in the Complytud
 
 ### Cookie-Based JWT Authentication
 
-The application uses **HTTP-only cookies** for JWT token management:
+The application uses **HTTP-only cookies** for JWT token management with a **dual-token system**:
 
-| Cookie Name     | Purpose              | Lifetime   | Usage                                                |
-| --------------- | -------------------- | ---------- | ---------------------------------------------------- |
-| `identityToken` | Multi-step auth flow | 10 minutes | Temporary token for tenant selection after login     |
-| `accessToken`   | API access           | 30 minutes | Sent with every API request (after tenant selection) |
-| `refreshToken`  | Token renewal        | 14 days    | Used at `/auth/refresh` endpoint                     |
+| Cookie Name            | Purpose                    | Lifetime | Usage                                                  |
+| ---------------------- | -------------------------- | -------- | ------------------------------------------------------ |
+| `identityAccessToken`  | User identity verification | 15 min   | Identity-based operations, tenant selection, sys admin |
+| `identityRefreshToken` | Identity token renewal     | 14 days  | Used at `/auth/refresh/identity` endpoint              |
+| `tenantAccessToken`    | Tenant-scoped API access   | 30 min   | Sent with tenant-specific API requests                 |
+| `tenantRefreshToken`   | Tenant token renewal       | 14 days  | Used at `/auth/refresh/tenant` endpoint                |
 
 ### Authentication Flow
 
-**Multi-Step Authentication (Regular Users):**
+**Regular User Authentication:**
 
 ```
 1. Login (POST /auth/login)
    ↓
-2. Server sets identityToken cookie (short-lived, 10 minutes)
+2. Server sets identityAccessToken + identityRefreshToken cookies
    ↓
 3. User selects tenant (POST /auth/tenant-switch)
    ↓
-4. Server sets accessToken + refreshToken cookies
+4. Server sets tenantAccessToken + tenantRefreshToken cookies
    ↓
-5. identityToken is cleared
+5. Identity tokens remain valid (not cleared)
    ↓
-6. Browser automatically sends accessToken with requests
+6. Browser automatically sends appropriate tokens with requests
    ↓
-7. Access token expires after 30 minutes
+7. Tenant access token expires after 30 minutes
    ↓
-8. Client calls /auth/refresh
+8. Client calls /auth/refresh/tenant
    ↓
-9. Server issues new tokens in cookies
+9. Server issues new tenant tokens in cookies
 ```
 
-**Direct Authentication (System Admins):**
+**System Admin Authentication:**
 
 ```
-1. Admin Login (POST /auth/admin/login)
+1. Login (POST /auth/login)
    ↓
-2. Server sets accessToken + refreshToken cookies immediately
+2. Server sets identityAccessToken + identityRefreshToken cookies
    ↓
-3. No tenant selection needed
+3. System admin can access identity-based endpoints immediately
+   ↓
+4. Optional: Select tenant for tenant-specific operations
+   ↓
+5. Receives tenantAccessToken + tenantRefreshToken cookies
 ```
 
 ### Endpoint Authentication
 
-| Decorator                             | When to Use                                     | Status Codes                    |
-| ------------------------------------- | ----------------------------------------------- | ------------------------------- |
-| `@Public()`                           | Public endpoints (no auth required)             | -                               |
-| `@SwaggerCookieAuth.identityToken()`  | Multi-step auth (tenant selection, invitations) | 401 if unauthenticated          |
-| `@SwaggerCookieAuth.accessToken()`    | Protected endpoints (full auth required)        | 401 if unauthenticated          |
-| `@UseGuards(RolesGuard)` + `@Roles()` | Role-based access                               | 403 if insufficient permissions |
-
-**Note:** Some endpoints accept **both** `identityToken` and `accessToken` using `@UseGuards(JwtAccessAndIdentityGuard)`. This allows users to perform actions (like viewing/accepting invitations) either:
-
-- After login but before tenant selection (using identityToken)
-- After full authentication (using accessToken)
+| Decorator                                        | When to Use                                       | Status Codes                    |
+| ------------------------------------------------ | ------------------------------------------------- | ------------------------------- |
+| No decorator                                     | Public endpoints (no auth required)               | -                               |
+| `@AuthOptions({ identity: true })`               | Identity-based auth (tenant selection, sys admin) | 401 if unauthenticated          |
+| `@AuthOptions({ tenant: true })`                 | Tenant-scoped endpoints (full auth required)      | 401 if unauthenticated          |
+| `@AuthOptions({ identity: true, tenant: true })` | Requires both identity and tenant tokens          | 401 if unauthenticated          |
+| `@UseGuards(RolesGuard)` + `@Roles()`            | Role-based access (requires tenant token)         | 403 if insufficient permissions |
 
 ### Swagger Documentation
 
 ```typescript
 // Public endpoint
-@Public()
 @ApiPublicResponses()
 @Post('login')
 async login() { ... }
 
-// Authenticated endpoint
-@SwaggerCookieAuth.accessToken()
+// Identity-based endpoint
+@AuthOptions({ identity: true })
+@SwaggerCookieAuth.identityAccessToken()
 @ApiAuthenticatedResponses()
 @Get('profile')
-async getProfile() { ... }
+async getProfile(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) { ... }
+
+// Tenant-scoped endpoint
+@AuthOptions({ tenant: true })
+@ApiAuthenticatedResponses()
+@Get('documents')
+async listDocuments(@CurrentUserTenant() user: AuthenticatedTenantUser) { ... }
 
 // Role-protected endpoint
+@AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles('admin', 'member')
 @ApiProtectedResponses('Requires admin or member role')
@@ -416,11 +424,13 @@ async create(@Body() dto: CreateTemplateDto) { ... }
 ```typescript
 @ApiTags('Templates')
 @Controller('templates')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class TemplatesController {
   // Routes
 }
 ```
+
+**Note:** Authentication is now specified per-endpoint using `@AuthOptions()` decorator, not at controller level.
 
 ### Endpoint Level
 
@@ -494,19 +504,26 @@ export class CategoryResponseDto {
 // Controller
 @ApiTags('Categories')
 @Controller('categories')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.IdentityAccessToken()
 export class CategoriesController {
   @Get()
+  @AuthOptions({ identity: true })
   @ApiListResponses(PaginatedResponseDto, 'Categories')
-  async list(): Promise<PaginatedResponseDto<CategoryResponseDto>> {
+  async list(
+    @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+  ): Promise<PaginatedResponseDto<CategoryResponseDto>> {
     // Implementation
   }
 
   @Post()
+  @AuthOptions({ tenant: true })
   @UseGuards(RolesGuard)
   @Roles('admin', 'system')
   @ApiCreateResponses(CategoryResponseDto, 'Category')
-  async create(@Body() dto: CreateCategoryDto): Promise<CategoryResponseDto> {
+  async create(
+    @Body() dto: CreateCategoryDto,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<CategoryResponseDto> {
     // Implementation
   }
 }
@@ -548,8 +565,8 @@ Available decorators in `src/common/swagger/decorators.ts`:
 - [ ] `@ApiOperation()` with summary and description
 - [ ] Success response documented with `@ApiResponse()`
 - [ ] Error responses documented (400, 401, 403, 404, 409, 500)
-- [ ] Authentication decorator applied (`@SwaggerCookieAuth.accessToken()`)
-- [ ] Role guards applied if needed (`@Roles()`, `@UseGuards()`)
+- [ ] Authentication specified with `@AuthOptions()` decorator
+- [ ] Role guards applied if needed (`@Roles()`, `@UseGuards(RolesGuard)`)
 - [ ] Query parameters documented (`@ApiQuery()` or query DTO)
 - [ ] Path parameters documented (`@ApiParam()` or param DTO)
 - [ ] Request body documented (`@ApiBody()` if needed)

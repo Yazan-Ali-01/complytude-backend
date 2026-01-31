@@ -53,7 +53,7 @@ import {
 
 @ApiTags('Templates')
 @Controller('templates')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 @ApiExtraModels(
   TemplateResponseDto,
   TemplateListResponseDto,

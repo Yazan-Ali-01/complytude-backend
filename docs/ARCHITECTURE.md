@@ -152,16 +152,17 @@ export class TemplateService {
 - Easy testing (mocking)
 - Clear dependencies
 
-### 3. Guard-Based Authorization
+### 3. Decorator-Based Authorization
 
-Authorization is handled via guards at the route level:
+Authorization is handled via decorators and guards at the route level:
 
 ```typescript
-@UseGuards(JwtAccessGuard, TenantGuard, RoleGuard)
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
 @Roles('admin', 'member')
 @Get()
-async findAll(@TenantId() tenantId: string) {
-  return this.service.findAll(tenantId);
+async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+  return this.service.findAll(user.tenantId);
 }
 ```
 
@@ -350,7 +351,9 @@ Request → JWT Validation → Extract tenant_id → Set Session Context → Exe
 
 ### JWT-Based Authentication
 
-**Multi-Step Authentication Flow (Regular Users):**
+**Dual-Token Authentication System:**
+
+Complytude implements a sophisticated dual-token authentication system that separates identity verification from tenant-specific access:
 
 ```
 ┌────────────┐         ┌──────────────┐         ┌──────────────┐
@@ -362,46 +365,80 @@ Request → JWT Validation → Extract tenant_id → Set Session Context → Exe
       │                       │  2. Validate Credentials│
       │                       ├────────────────────────>│
       │                       │<────────────────────────│
-      │                       │  3. Generate TempToken  │
-      │  4. IdentityToken     │                         │
+      │  3. Identity Tokens   │                         │
+      │  (Access + Refresh)   │                         │
       │<──────────────────────│                         │
       │                       │                         │
-      │  5. Tenant Selection  │                         │
-      │     + IdentityToken   │                         │
+      │  4. Tenant Selection  │                         │
+      │  + Identity Token     │                         │
       ├──────────────────────>│                         │
-      │                       │  6. Validate TempToken  │
-      │                       │  7. Generate Full Tokens│
-      │  8. Access + Refresh  │                         │
+      │                       │  5. Validate Identity   │
+      │                       │  6. Generate Tenant Tokens│
+      │  7. Tenant Tokens     │                         │
+      │  (Access + Refresh)   │                         │
       │<──────────────────────│                         │
       │                       │                         │
-      │  9. API Request       │                         │
-      │     + Access Token    │                         │
+      │  8. API Request       │                         │
+      │  + Tenant Access Token│                         │
       ├──────────────────────>│                         │
-      │                       │  10. Validate JWT       │
-      │                       │  11. Set Tenant Context │
+      │                       │  9. Validate JWT        │
+      │                       │  10. Set Tenant Context │
       │                       ├────────────────────────>│
-      │                       │  12. Query (RLS applies)│
+      │                       │  11. Query (RLS applies)│
       │                       │<────────────────────────│
-      │  13. Response         │                         │
+      │  12. Response         │                         │
       │<──────────────────────│                         │
 ```
 
-**Direct Authentication (System Admins):**
+**System Admin Flow:**
 
-- System admins skip tenant selection and receive full tokens immediately
+- System admins receive identity tokens and can access system-wide endpoints
+- They can optionally select a tenant to receive tenant tokens for tenant-specific operations
 
 ### Token Strategy
 
-- **Temp Auth Token:** Very short-lived (10 minutes), issued after login for tenant selection
-- **Access Token:** Short-lived (30 minutes), contains user + tenant info, used for API access
-- **Refresh Token:** Long-lived (14 days), stored in database, used to get new access tokens
+The system uses **four distinct token types**:
+
+1. **Identity Access Token:** Short-lived (15 minutes), contains user identity and global roles, used for tenant selection and system admin operations
+2. **Identity Refresh Token:** Long-lived (14 days), used to obtain new identity access tokens
+3. **Tenant Access Token:** Short-lived (30 minutes), contains user + tenant info, used for tenant-scoped API access
+4. **Tenant Refresh Token:** Long-lived (14 days), tenant-specific, used to obtain new tenant access tokens
+
+All tokens are stored in HTTP-only cookies and refresh tokens are persisted in the database with type tracking (`identity` or `tenant`).
 
 ### Authorization Levels
 
-1. **Route-Level:** Guards check JWT validity
-2. **Tenant-Level:** Tenant context from JWT
-3. **Role-Level:** `@Roles()` decorator + `RoleGuard`
-4. **Data-Level:** RLS policies enforce tenant isolation
+1. **Route-Level:** `JwtAuthGuard` with `@AuthOptions()` decorator validates required tokens
+2. **Identity-Level:** Identity tokens for user verification and system admin access
+3. **Tenant-Level:** Tenant tokens provide tenant-scoped access
+4. **Role-Level:** `@Roles()` decorator + `RolesGuard` for RBAC
+5. **Data-Level:** RLS policies enforce tenant isolation at database level
+
+### Authentication Decorators
+
+```typescript
+// Public endpoint (no authentication)
+@Get('public')
+async publicEndpoint() { }
+
+// Requires identity token only
+@AuthOptions({ identity: true })
+@Get('profile')
+async getProfile(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) { }
+
+// Requires tenant token only
+@AuthOptions({ tenant: true })
+@Get('documents')
+async listDocuments(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
+
+// Requires both tokens
+@AuthOptions({ identity: true, tenant: true })
+@Get('admin/tenant-info')
+async getTenantInfo(
+  @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+  @CurrentUserTenant() tenant: AuthenticatedTenantUser,
+) { }
+```
 
 ---
 

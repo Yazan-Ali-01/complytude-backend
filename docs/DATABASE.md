@@ -129,16 +129,16 @@ Tables that define the multi-tenant structure:
 
 Tables for JWT-based authentication and user onboarding:
 
-- `refresh_tokens` - Session management (stores refresh tokens)
+- `refresh_tokens` - Session management (stores both identity and tenant refresh tokens)
 - `email_verifications` - Email verification flow
 - `password_resets` - Password reset flow
 - `invitations` - Tenant invitation management
 
-**Note:** The application uses a **multi-step authentication flow**:
+**Note:** The application uses a **dual-token authentication flow**:
 
-1. Login → `identityToken` cookie (10 minutes, for tenant selection)
-2. Tenant selection → `accessToken` + `refreshToken` cookies (full authentication)
-3. Refresh tokens are stored in the `refresh_tokens` table for session management
+1. Login → `identityAccessToken` + `identityRefreshToken` cookies (15 min / 14 days)
+2. Tenant selection → `tenantAccessToken` + `tenantRefreshToken` cookies (30 min / 14 days)
+3. All refresh tokens are stored in the `refresh_tokens` table with type tracking (`identity` or `tenant`)
 
 ### 3. Global Reference Data
 
@@ -233,22 +233,27 @@ Many-to-many relationship: users belong to tenants with roles.
 
 ### refresh_tokens
 
-JWT refresh tokens for session management.
+JWT refresh tokens for session management (both identity and tenant tokens).
 
-| Column       | Type         | Description                          |
-| ------------ | ------------ | ------------------------------------ |
-| `id`         | UUID         | Primary key                          |
-| `user_id`    | UUID         | FK to users                          |
-| `token_hash` | VARCHAR(255) | Hashed refresh token                 |
-| `expires_at` | TIMESTAMPTZ  | Token expiration                     |
-| `created_at` | TIMESTAMPTZ  | Creation timestamp                   |
-| `revoked_at` | TIMESTAMPTZ  | Revocation timestamp (NULL if valid) |
+| Column       | Type         | Description                                                   |
+| ------------ | ------------ | ------------------------------------------------------------- |
+| `id`         | UUID         | Primary key                                                   |
+| `user_id`    | UUID         | FK to users                                                   |
+| `token_hash` | VARCHAR(255) | Hashed refresh token                                          |
+| `token_type` | VARCHAR(20)  | Token type: `identity` or `tenant` (default: `tenant`)        |
+| `tenant_id`  | UUID         | FK to tenants (NULL for identity tokens, required for tenant) |
+| `expires_at` | TIMESTAMPTZ  | Token expiration                                              |
+| `created_at` | TIMESTAMPTZ  | Creation timestamp                                            |
+| `revoked_at` | TIMESTAMPTZ  | Revocation timestamp (NULL if valid)                          |
 
 **Indexes:**
 
-- `idx_refresh_tokens_user_id`
-- `idx_refresh_tokens_token_hash`
-- `idx_refresh_tokens_expires_at`
+- `idx_refresh_tokens_user_type_tenant` - Composite index on (user_id, token_type, tenant_id)
+
+**Token Types:**
+
+- **Identity tokens:** `token_type = 'identity'`, `tenant_id = NULL` - Used for user identity verification
+- **Tenant tokens:** `token_type = 'tenant'`, `tenant_id = <uuid>` - Used for tenant-scoped access
 
 ### email_verifications
 

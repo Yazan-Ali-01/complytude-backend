@@ -1,4 +1,3 @@
-export * from './admin-login-response.dto';
 export * from './forgot-password.dto';
 export * from './invitation-list-response.dto';
 export * from './login-response.dto';

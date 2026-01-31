@@ -1,15 +1,13 @@
 import { applyDecorators, Type } from '@nestjs/common';
-import { ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { ApiQuery, ApiResponse } from '@nestjs/swagger';
 import {
-  UnauthorizedErrorDto,
-  ForbiddenErrorDto,
-  NotFoundErrorDto,
-  ValidationErrorDto,
   ConflictErrorDto,
+  ForbiddenErrorDto,
   InternalServerErrorDto,
+  NotFoundErrorDto,
+  UnauthorizedErrorDto,
+  ValidationErrorDto,
 } from '../dto/error-response.dto';
-import { SwaggerCookieAuth } from './common';
-
 /**
  * Standard error responses that apply to most endpoints
  */
@@ -90,11 +88,7 @@ export const ApiConflictError = (description?: string) => {
  * Includes: 401 (Unauthorized), 500 (Internal Server Error)
  */
 export const ApiAuthenticatedResponses = () => {
-  return applyDecorators(
-    SwaggerCookieAuth.accessToken(),
-    ApiAuthErrors(),
-    ApiStandardErrors(),
-  );
+  return applyDecorators(ApiAuthErrors(), ApiStandardErrors());
 };
 
 /**
@@ -103,7 +97,6 @@ export const ApiAuthenticatedResponses = () => {
  */
 export const ApiProtectedResponses = (description?: string) => {
   return applyDecorators(
-    SwaggerCookieAuth.accessToken(),
     ApiAuthErrors(),
     ApiForbiddenError(description),
     ApiStandardErrors(),

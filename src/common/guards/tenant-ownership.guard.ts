@@ -12,10 +12,11 @@ import { I18nKeys } from '../constants/i18n-keys';
 /**
  * Guard to check if user belongs to the tenant they're trying to access
  * Ensures users can only access/modify their own tenant data
+ * Requires tenant token
  *
  * @example
  * ```typescript
- * @UseGuards(JwtAccessGuard, TenantOwnershipGuard)
+ * @UseGuards(TenantOwnershipGuard)
  * @Get('tenants/:tenantId')
  * async getTenant(@Param('tenantId') tenantId: string) {
  *   // Only users belonging to this tenant can access
@@ -26,19 +27,14 @@ import { I18nKeys } from '../constants/i18n-keys';
 export class TenantOwnershipGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const tenant = request.auth?.tenant;
     const i18n = I18nContext.current();
 
-    // Ensure user is authenticated
-    if (!user) {
+    // Ensure tenant token is present
+    if (!tenant) {
       throw new UnauthorizedException(
-        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Tenant token required',
       );
-    }
-
-    // System admins bypass tenant ownership checks
-    if (user.isSystemAdmin) {
-      return true;
     }
 
     // Get tenant ID from route params or body
@@ -49,20 +45,15 @@ export class TenantOwnershipGuard implements CanActivate {
     // If no tenant ID in request, this guard shouldn't be used
     if (!targetTenantId) {
       throw new BadRequestException(
-        i18n?.t(I18nKeys.BAD_REQUEST) ?? 'Bad Request',
+        i18n?.t(I18nKeys.BAD_REQUEST) ?? 'Tenant ID required',
       );
     }
 
-    // Check if user belongs to this tenant
-    const userTenantId = user.tenantId;
-
-    if (!userTenantId) {
-      throw new ForbiddenException(i18n?.t(I18nKeys.FORBIDDEN) ?? 'Forbidden');
-    }
-
     // Check if user's tenant matches the requested tenant
-    if (userTenantId !== targetTenantId) {
-      throw new ForbiddenException(i18n?.t(I18nKeys.FORBIDDEN) ?? 'Forbidden');
+    if (tenant.tenantId !== targetTenantId) {
+      throw new ForbiddenException(
+        i18n?.t(I18nKeys.FORBIDDEN) ?? 'Access denied to this tenant',
+      );
     }
 
     return true;

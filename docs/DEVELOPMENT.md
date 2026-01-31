@@ -86,9 +86,11 @@ export class YourModuleModule {}
 
 ### Security
 
-- ✅ **Add guards** for authentication and authorization
-- ✅ **Use `@UseGuards(JwtAccessGuard)`** for protected routes
-- ✅ **Use `@TenantId()` decorator** for tenant context
+- ✅ **Use `@AuthOptions()` decorator** to specify required authentication
+- ✅ **Use `@AuthOptions({ tenant: true })`** for tenant-scoped endpoints
+- ✅ **Use `@AuthOptions({ identity: true })`** for identity-based endpoints
+- ✅ **Use `@CurrentUserTenant()` or `@CurrentUserIdentity()`** to access authenticated user
+- ✅ **Add `@UseGuards(RolesGuard)` with `@Roles()`** for role-based access
 - ✅ **Never expose sensitive data** in responses
 
 ### Naming Conventions

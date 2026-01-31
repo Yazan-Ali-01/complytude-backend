@@ -3,7 +3,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,12 +14,14 @@ import { FastifyReply } from 'fastify';
 import { I18n, I18nService } from 'nestjs-i18n';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
-  ACCESS_TOKEN_COOKIE_NAME,
   COOKIE_PATH,
   COOKIE_SAME_SITE,
+  IDENTITY_REFRESH_TOKEN_COOKIE_NAME,
   IDENTITY_TOKEN_COOKIE_NAME,
-  REFRESH_TOKEN_COOKIE_NAME,
+  TENANT_ACCESS_TOKEN_COOKIE_NAME,
+  TENANT_REFRESH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
+import { TenantRole } from 'src/common/types';
 import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
 import { I18nKeys } from '../../common/constants/i18n-keys';
@@ -31,7 +32,6 @@ import { UserRepository } from '../../repositories/users/user.repository';
 import { InvitationsService } from '../invitations/invitations.service';
 import { TenantService } from '../tenants/tenant.service';
 import {
-  AdminLoginResponseDto,
   ForgotPasswordDto,
   InvitationListResponseDto,
   LoginDto,
@@ -42,7 +42,13 @@ import {
   TenantSwitchResponseDto,
   VerifyEmailDto,
 } from './dto';
-import { IdentityPayload, JwtPayload } from './strategies';
+import {
+  AuthenticatedIdentityUser,
+  IdentityPayload,
+  IdentityRefreshPayload,
+  TenantPayload,
+  TenantRefreshPayload,
+} from './strategies';
 
 @Injectable()
 export class AuthService {
@@ -65,61 +71,82 @@ export class AuthService {
   /**
    * Set HTTP-only auth cookies on the response
    */
-  setAuthCookies(
+  /**
+   * Set identity tokens (access + refresh)
+   * Used after login
+   */
+  setIdentityTokens(
     reply: FastifyReply,
-    accessToken: string,
-    refreshToken: string,
+    identityAccessToken: string,
+    identityRefreshToken: string,
+  ): void {
+    const isProduction =
+      this.configService.get<string>('app.environment') === 'production';
+
+    const identityExpiresIn =
+      this.configService.get<string>('jwt.identityExpiresIn') || '15m';
+    const refreshExpiresIn =
+      this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
+
+    // Set identity access token cookie
+    reply.setCookie(IDENTITY_TOKEN_COOKIE_NAME, identityAccessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+      maxAge: Math.floor(this.parseExpiresIn(identityExpiresIn) / 1000),
+    });
+
+    // Set identity refresh token cookie
+    reply.setCookie(IDENTITY_REFRESH_TOKEN_COOKIE_NAME, identityRefreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+      maxAge: Math.floor(this.parseExpiresIn(refreshExpiresIn) / 1000),
+    });
+  }
+
+  /**
+   * Set tenant tokens (access + refresh)
+   * Used after tenant selection
+   */
+  setTenantTokens(
+    reply: FastifyReply,
+    tenantAccessToken: string,
+    tenantRefreshToken: string,
   ): void {
     const isProduction =
       this.configService.get<string>('app.environment') === 'production';
 
     const accessExpiresIn =
-      this.configService.get<string>('jwt.accessExpiresIn') || '15m';
+      this.configService.get<string>('jwt.accessExpiresIn') || '30m';
     const refreshExpiresIn =
       this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
 
-    // Set access token cookie
-    reply.setCookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
+    // Set tenant access token cookie
+    reply.setCookie(TENANT_ACCESS_TOKEN_COOKIE_NAME, tenantAccessToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: COOKIE_SAME_SITE,
       path: COOKIE_PATH,
-      maxAge: Math.floor(this.parseExpiresIn(accessExpiresIn) / 1000), // Convert ms to seconds
+      maxAge: Math.floor(this.parseExpiresIn(accessExpiresIn) / 1000),
     });
 
-    // Set refresh token cookie
-    reply.setCookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
+    // Set tenant refresh token cookie
+    reply.setCookie(TENANT_REFRESH_TOKEN_COOKIE_NAME, tenantRefreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: COOKIE_SAME_SITE,
       path: COOKIE_PATH,
-      maxAge: Math.floor(this.parseExpiresIn(refreshExpiresIn) / 1000), // Convert ms to seconds
-    });
-  }
-
-  /**
-   * Set identity cookie (used after login, before tenant selection)
-   */
-  setIdentityCookie(reply: FastifyReply, identityToken: string): void {
-    const isProduction =
-      this.configService.get<string>('app.environment') === 'production';
-
-    const identityExpiresIn =
-      this.configService.get<string>('jwt.identityExpiresIn') || '10m';
-
-    reply.setCookie(IDENTITY_TOKEN_COOKIE_NAME, identityToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: COOKIE_SAME_SITE,
-      path: COOKIE_PATH,
-      maxAge: Math.floor(this.parseExpiresIn(identityExpiresIn) / 1000), // Convert ms to seconds
+      maxAge: Math.floor(this.parseExpiresIn(refreshExpiresIn) / 1000),
     });
   }
 
   /**
-   * Clear identity cookie
+   * Clear identity tokens (access + refresh)
    */
-  clearIdentityCookie(reply: FastifyReply): void {
+  clearIdentityTokens(reply: FastifyReply): void {
     const isProduction =
       this.configService.get<string>('app.environment') === 'production';
 
@@ -129,35 +156,43 @@ export class AuthService {
       sameSite: COOKIE_SAME_SITE,
       path: COOKIE_PATH,
     });
+
+    reply.clearCookie(IDENTITY_REFRESH_TOKEN_COOKIE_NAME, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      path: COOKIE_PATH,
+    });
   }
 
   /**
-   * Clear auth cookies on logout
+   * Clear tenant tokens (access + refresh)
    */
-  clearAuthCookies(reply: FastifyReply): void {
+  clearTenantTokens(reply: FastifyReply): void {
     const isProduction =
       this.configService.get<string>('app.environment') === 'production';
 
-    reply.clearCookie(ACCESS_TOKEN_COOKIE_NAME, {
+    reply.clearCookie(TENANT_ACCESS_TOKEN_COOKIE_NAME, {
       httpOnly: true,
       secure: isProduction,
       sameSite: COOKIE_SAME_SITE,
       path: COOKIE_PATH,
     });
 
-    reply.clearCookie(REFRESH_TOKEN_COOKIE_NAME, {
+    reply.clearCookie(TENANT_REFRESH_TOKEN_COOKIE_NAME, {
       httpOnly: true,
       secure: isProduction,
       sameSite: COOKIE_SAME_SITE,
       path: COOKIE_PATH,
     });
+  }
 
-    reply.clearCookie(IDENTITY_TOKEN_COOKIE_NAME, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: COOKIE_SAME_SITE,
-      path: COOKIE_PATH,
-    });
+  /**
+   * Clear all auth cookies (identity + tenant)
+   */
+  clearAllAuthCookies(reply: FastifyReply): void {
+    this.clearIdentityTokens(reply);
+    this.clearTenantTokens(reply);
   }
 
   /**
@@ -256,9 +291,12 @@ export class AuthService {
    * Returns user info and list of available tenants
    * Note: This is NOT for system admins
    */
-  async login(
-    loginDto: LoginDto,
-  ): Promise<LoginResponseDto & { identityToken: string }> {
+  async login(loginDto: LoginDto): Promise<
+    LoginResponseDto & {
+      identityAccessToken: string;
+      identityRefreshToken: string;
+    }
+  > {
     // Validate user credentials
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
@@ -267,13 +305,12 @@ export class AuthService {
       throw new UnauthorizedException(this.i18n.t(I18nKeys.EMAIL_NOT_VERIFIED));
     }
 
-    // System admins should not use this login flow
-    if (user.is_system_admin) {
-      this.logger.error(`System admin ${user.email} tried to login`);
-      throw new UnauthorizedException(
-        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
-      );
-    }
+    // Determine global roles
+    const globalRoles: string[] = user.is_system_admin ? ['SYSTEM_ADMIN'] : [];
+
+    // Generate identity tokens (access + refresh)
+    const { identityAccessToken, identityRefreshToken } =
+      await this.generateIdentityTokens(user.id, user.email, globalRoles);
 
     // Get user's active tenants
     const userTenants = await this.userTenantRepository.getActiveUserTenants(
@@ -282,19 +319,13 @@ export class AuthService {
     );
 
     // Map user tenants to response format
-    // Note: Tenant names are not stored in the database yet
-    // TODO: Add tenant names to the database
-    // Using tenant ID as display name for now
     const tenantsWithDetails = userTenants.map((ut) => ({
       tenantId: ut.tenant_id,
-      tenantName: `Temp Tenant name ${ut.tenant_id.substring(0, 8)}`, // Temporary: using first 8 chars of UUID
+      tenantName: `Temp Tenant name ${ut.tenant_id.substring(0, 8)}`,
       role: ut.role,
       isActive: ut.is_active,
       joinedAt: ut.joined_at.toISOString(),
     }));
-
-    // Generate identity token
-    const identityToken = this.generateIdentityToken(user.id, user.email);
 
     // Get pending invitations count
     const pendingInvitationsCount =
@@ -309,66 +340,12 @@ export class AuthService {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
+        isSystemAdmin: user.is_system_admin,
       },
       tenants: tenantsWithDetails,
       pendingInvitationsCount,
-      identityToken,
-    };
-  }
-
-  /**
-   * Admin login - generates full access and refresh tokens immediately
-   * No tenant selection required for system admins
-   */
-  async adminLogin(
-    loginDto: LoginDto,
-  ): Promise<
-    AdminLoginResponseDto & { accessToken: string; refreshToken: string }
-  > {
-    // Validate user credentials
-    const user = await this.validateUser(loginDto.email, loginDto.password);
-
-    // Check if user is verified
-    if (!user.is_verified) {
-      throw new UnauthorizedException(this.i18n.t(I18nKeys.EMAIL_NOT_VERIFIED));
-    }
-
-    // Only system admins can use this endpoint
-    if (!user.is_system_admin) {
-      this.logger.warn(
-        `Non-admin user ${user.email} attempted to use admin login`,
-      );
-      throw new UnauthorizedException(
-        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
-      );
-    }
-
-    // System admins don't have tenants, so we use a special tenant ID
-    // This allows them to access system-wide resources
-    const SYSTEM_ADMIN_TENANT_ID = '00000000-0000-0000-0000-000000000000';
-    const SYSTEM_ADMIN_ROLE = 'admin';
-
-    // Generate full access and refresh tokens
-    const tokens = await this.generateTokens(
-      user.id,
-      user.email,
-      SYSTEM_ADMIN_TENANT_ID,
-      SYSTEM_ADMIN_ROLE,
-      true, // isSystemAdmin
-    );
-
-    this.logger.log(`System admin ${user.email} logged in successfully`);
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        isSystemAdmin: true,
-      },
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
+      identityAccessToken,
+      identityRefreshToken,
     };
   }
 
@@ -411,53 +388,78 @@ export class AuthService {
    * Generate identity token (for post-login, pre-tenant-selection)
    * This token is NOT for system admins - only for regular users
    */
-  generateIdentityToken(userId: string, email: string): string {
-    const payload: IdentityPayload = {
+  /**
+   * Generate identity tokens (access + refresh)
+   * Used after login, before tenant selection
+   */
+  async generateIdentityTokens(
+    userId: string,
+    email: string,
+    globalRoles: string[],
+  ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
+    const accessPayload: IdentityPayload = {
       sub: userId,
       email,
+      globalRoles,
       type: 'identity',
     };
 
-    const identityToken = this.jwtService.sign(
-      payload as any,
+    const refreshPayload: IdentityRefreshPayload = {
+      sub: userId,
+      email,
+      type: 'identity-refresh',
+    };
+
+    const identityAccessToken = this.jwtService.sign(
+      accessPayload as any,
       {
         secret: this.configService.get<string>('jwt.identitySecret'),
         expiresIn: this.configService.get<string>('jwt.identityExpiresIn'),
       } as any,
     );
 
-    return identityToken;
+    const identityRefreshToken = this.jwtService.sign(
+      refreshPayload as any,
+      {
+        secret:
+          this.configService.get<string>('jwt.identityRefreshSecret') ||
+          this.configService.get<string>('jwt.refreshSecret'),
+        expiresIn: this.configService.get<string>('jwt.refreshExpiresIn'),
+      } as any,
+    );
+
+    // Store identity refresh token in database
+    await this.storeIdentityRefreshToken(userId, identityRefreshToken);
+
+    return { identityAccessToken, identityRefreshToken };
   }
 
   /**
-   * Generate access and refresh tokens
+   * Generate tenant tokens (access + refresh)
+   * Used after tenant selection
    */
-  async generateTokens(
+  async generateTenantTokens(
     userId: string,
     email: string,
     tenantId: string,
-    role: string,
-    isSystemAdmin: boolean = false,
-  ) {
-    const accessPayload: JwtPayload = {
+    role: TenantRole,
+  ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
+    const accessPayload: TenantPayload = {
       sub: userId,
       email,
       tenantId,
       role,
-      isSystemAdmin,
-      type: 'access',
+      type: 'tenant-access',
     };
 
-    const refreshPayload: JwtPayload = {
+    const refreshPayload: TenantRefreshPayload = {
       sub: userId,
       email,
       tenantId,
-      role,
-      isSystemAdmin,
-      type: 'refresh',
+      type: 'tenant-refresh',
     };
 
-    const accessToken = this.jwtService.sign(
+    const tenantAccessToken = this.jwtService.sign(
       accessPayload as any,
       {
         secret: this.configService.get<string>('jwt.accessSecret'),
@@ -465,7 +467,7 @@ export class AuthService {
       } as any,
     );
 
-    const refreshToken = this.jwtService.sign(
+    const tenantRefreshToken = this.jwtService.sign(
       refreshPayload as any,
       {
         secret: this.configService.get<string>('jwt.refreshSecret'),
@@ -473,16 +475,19 @@ export class AuthService {
       } as any,
     );
 
-    // Store refresh token in database
-    await this.storeRefreshToken(userId, refreshToken);
+    // Store tenant refresh token in database
+    await this.storeTenantRefreshToken(userId, tenantId, tenantRefreshToken);
 
-    return { accessToken, refreshToken };
+    return { tenantAccessToken, tenantRefreshToken };
   }
 
   /**
-   * Store refresh token in database
+   * Store identity refresh token in database
    */
-  private async storeRefreshToken(userId: string, refreshToken: string) {
+  private async storeIdentityRefreshToken(
+    userId: string,
+    refreshToken: string,
+  ) {
     const tokenHash = this.hashRefreshToken(refreshToken);
     const expiresIn =
       this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
@@ -491,6 +496,30 @@ export class AuthService {
     await this.refreshTokenRepository.create({
       user_id: userId,
       token_hash: tokenHash,
+      token_type: 'identity',
+      tenant_id: null,
+      expires_at: expiresAt,
+    });
+  }
+
+  /**
+   * Store tenant refresh token in database
+   */
+  private async storeTenantRefreshToken(
+    userId: string,
+    tenantId: string,
+    refreshToken: string,
+  ) {
+    const tokenHash = this.hashRefreshToken(refreshToken);
+    const expiresIn =
+      this.configService.get<string>('jwt.refreshExpiresIn') || '14d';
+    const expiresAt = new Date(Date.now() + this.parseExpiresIn(expiresIn));
+
+    await this.refreshTokenRepository.create({
+      user_id: userId,
+      token_hash: tokenHash,
+      token_type: 'tenant',
+      tenant_id: tenantId,
       expires_at: expiresAt,
     });
   }
@@ -529,10 +558,22 @@ export class AuthService {
   /**
    * Refresh access token
    */
-  async refreshTokens(userId: string, email: string, oldRefreshToken: string) {
+  /**
+   * Refresh identity tokens
+   * Generates new identity access and refresh tokens
+   */
+  async refreshIdentityTokens(
+    userId: string,
+    email: string,
+    oldRefreshToken: string,
+  ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     const oldTokenHash = this.hashRefreshToken(oldRefreshToken);
     const validToken =
-      await this.refreshTokenRepository.findByTokenHash(oldTokenHash);
+      await this.refreshTokenRepository.findIdentityRefreshToken(
+        userId,
+        oldTokenHash,
+      );
+
     if (!validToken) {
       throw new UnauthorizedException(
         this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
@@ -545,55 +586,128 @@ export class AuthService {
       throw new UnauthorizedException('Failed to revoke refresh token');
     }
 
-    // Get user's current tenant info and system admin status
-    const [user, activeTenants] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userTenantRepository.getActiveUserTenants(userId, {
-        isAuthflow: true,
-      }),
-    ]);
-
-    if (!user || activeTenants.length === 0) {
-      throw new UnauthorizedException(this.i18n.t(I18nKeys.NO_ACTIVE_TENANTS));
+    // Get user to check system admin status
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException(this.i18n.t(I18nKeys.NOT_FOUND));
     }
 
-    const { tenant_id: tenantId, role } = activeTenants[0];
+    // Determine global roles
+    const globalRoles: string[] = user.is_system_admin ? ['SYSTEM_ADMIN'] : [];
 
-    // Generate new tokens
-    const tokens = await this.generateTokens(
+    // Generate new identity tokens
+    const tokens = await this.generateIdentityTokens(
       userId,
       email,
-      tenantId,
-      role,
-      user.is_system_admin || false,
+      globalRoles,
     );
 
-    this.logger.log(`Tokens refreshed for user ${userId}`);
+    this.logger.log(`Identity tokens refreshed for user ${userId}`);
 
     return tokens;
   }
 
   /**
-   * Logout user (revoke refresh token)
+   * Refresh tenant tokens
+   * Generates new tenant access and refresh tokens for the same tenant
    */
-  async logout(userId: string, refreshToken: string) {
-    const oldTokenHash = this.hashRefreshToken(refreshToken);
-    const validToken =
-      await this.refreshTokenRepository.findByTokenHash(oldTokenHash);
+  async refreshTenantTokens(
+    userId: string,
+    email: string,
+    tenantId: string,
+    oldRefreshToken: string,
+  ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
+    const oldTokenHash = this.hashRefreshToken(oldRefreshToken);
+    const validToken = await this.refreshTokenRepository.findTenantRefreshToken(
+      userId,
+      tenantId,
+      oldTokenHash,
+    );
+
     if (!validToken) {
       throw new UnauthorizedException(
         this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
       );
     }
+
+    // Revoke old refresh token
     const revoked = await this.refreshTokenRepository.revokeById(validToken.id);
     if (!revoked) {
-      throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.INTERNAL_SERVER_ERROR),
+      throw new UnauthorizedException('Failed to revoke refresh token');
+    }
+
+    // Get user's tenant membership to verify they still have access
+    const userTenant = await this.databaseService.transaction(
+      async (client) => {
+        return this.userTenantRepository.findOne({
+          client,
+          filters: {
+            user_id: userId,
+            tenant_id: tenantId,
+            is_active: true,
+          },
+          isAuthflow: true,
+        });
+      },
+    );
+
+    if (!userTenant) {
+      throw new UnauthorizedException(
+        this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
       );
     }
 
-    this.logger.log(`User ${userId} logged out`);
+    // Generate new tenant tokens
+    const tokens = await this.generateTenantTokens(
+      userId,
+      email,
+      tenantId,
+      userTenant.role,
+    );
+
+    this.logger.log(
+      `Tenant tokens refreshed for user ${userId} in tenant ${tenantId}`,
+    );
+
+    return tokens;
+  }
+
+  /**
+   * Logout user (revoke all refresh tokens)
+   */
+  async logout(
+    userId: string,
+    identityRefreshToken: string,
+    tenantRefreshToken: string,
+  ) {
+    // Revoke all refresh tokens (both identity and tenant)
+    await this.revokeRefreshToken(userId, identityRefreshToken);
+    await this.revokeRefreshToken(userId, tenantRefreshToken);
+
+    this.logger.log(
+      `User ${userId} logged out (identity tokens revoked, tenant tokens revoked)`,
+    );
     return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
+  }
+
+  private async revokeRefreshToken(userId: string, refreshToken: string) {
+    const tokenHash = this.hashRefreshToken(refreshToken);
+    const validToken =
+      await this.refreshTokenRepository.findByTokenHash(tokenHash);
+
+    if (!validToken) {
+      this.logger.warn(`Refresh token not found for user ${userId}`);
+    }
+
+    if (!validToken) {
+      return null;
+    }
+
+    const revoked = await this.refreshTokenRepository.revokeById(validToken.id);
+    if (!revoked) {
+      this.logger.warn(`Failed to revoke refresh token for user ${userId}`);
+      return null;
+    }
   }
 
   /**
@@ -722,13 +836,16 @@ export class AuthService {
 
   /**
    * Switch to a different tenant
-   * User is already authenticated via JwtTenantSwitchAuthGuard (accepts either identityToken or accessToken)
+   * User must be authenticated with identity token
    */
   async tenantSwitch(
-    { userId, email }: { userId: string; email: string },
+    { email, userId }: AuthenticatedIdentityUser,
     tenantId: string,
   ): Promise<
-    TenantSwitchResponseDto & { accessToken: string; refreshToken: string }
+    TenantSwitchResponseDto & {
+      tenantAccessToken: string;
+      tenantRefreshToken: string;
+    }
   > {
     return this.databaseService.transaction(async (client) => {
       // Validate that user belongs to the specified tenant
@@ -748,21 +865,21 @@ export class AuthService {
         );
       }
 
-      // Generate full access and refresh tokens
-      const tokens = await this.generateTokens(
-        userId,
-        email,
-        tenantId,
-        userTenant.role,
-        false, // Regular users are not system admins
-      );
+      // Generate tenant tokens (access + refresh)
+      const { tenantAccessToken, tenantRefreshToken } =
+        await this.generateTenantTokens(
+          userId,
+          email,
+          tenantId,
+          userTenant.role,
+        );
 
       this.logger.log(`User ${email} switched to tenant ${tenantId}`);
 
       // Return user and tenant info along with tokens
       return {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        tenantAccessToken,
+        tenantRefreshToken,
         user: {
           id: userId,
           email,
@@ -770,7 +887,7 @@ export class AuthService {
         },
         tenant: {
           id: tenantId,
-          name: `Temp Tenant name ${tenantId.substring(0, 8)}`, // Temporary: using first 8 chars of UUID
+          name: `Temp Tenant name ${tenantId.substring(0, 8)}`,
         },
       };
     });

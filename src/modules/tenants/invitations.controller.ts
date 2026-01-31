@@ -22,13 +22,11 @@ import {
   SwaggerCookieAuth,
 } from 'src/common/swagger';
 import { TenantRole } from 'src/common/types';
-import {
-  type AuthenticatedUser,
-  CurrentUser,
-} from '../auth/decorators/current-user.decorator';
+import { AuthOptions } from '../auth/decorators/auth-options.decorator';
+import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
 import { InvitationsService } from '../invitations/invitations.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { InvitationListQueryDto } from './dto/invitation-list-query.dto';
@@ -44,9 +42,10 @@ import {
  */
 @ApiTags('Tenant - Invitations')
 @Controller('tenants/admin/invitations')
-@UseGuards(JwtAccessGuard, RolesGuard)
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
 @Roles(TenantRole.ADMIN)
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class TenantInvitationsController {
   private readonly logger = new Logger(TenantInvitationsController.name);
 
@@ -72,7 +71,7 @@ export class TenantInvitationsController {
   @ApiAuthenticatedResponses()
   async createInvitation(
     @Body() createInvitationDto: CreateInvitationDto,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<CreateInvitationResponseDto> {
     this.logger.log(
       `Admin ${user.userId} creating invitation for ${createInvitationDto.email} to tenant ${user.tenantId}`,
@@ -115,7 +114,7 @@ export class TenantInvitationsController {
   @ApiAuthenticatedResponses()
   async listInvitations(
     @Query() query: InvitationListQueryDto,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
   ) {
     this.logger.log(`Listing invitations for tenant ${user.tenantId}`);
 
@@ -158,7 +157,7 @@ export class TenantInvitationsController {
   @ApiAuthenticatedResponses()
   async resendInvitation(
     @Param('invitationId') invitationId: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<ResendInvitationResponseDto> {
     this.logger.log(
       `Admin ${user.userId} resending invitation ${invitationId} for tenant ${user.tenantId}`,
@@ -205,7 +204,7 @@ export class TenantInvitationsController {
   @ApiAuthenticatedResponses()
   async revokeInvitation(
     @Param('invitationId') invitationId: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<MessageResponseDto> {
     this.logger.log(
       `Admin ${user.userId} revoking invitation ${invitationId} for tenant ${user.tenantId}`,

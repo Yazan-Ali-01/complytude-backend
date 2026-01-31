@@ -16,7 +16,7 @@ import { I18nKeys } from '../constants/i18n-keys';
  * @example
  * ```typescript
  * @Post('upload')
- * @UseGuards(JwtAccessGuard, DocumentLimitGuard)
+ * @UseGuards(DocumentLimitGuard)
  * async uploadFile(@UploadedFile() file: Express.Multer.File) {
  *   // ... upload logic
  * }

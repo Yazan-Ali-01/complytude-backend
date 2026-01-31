@@ -92,6 +92,8 @@ CREATE TABLE public.refresh_tokens (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID NOT NULL,
     token_hash   VARCHAR(255) NOT NULL,
+    token_type   VARCHAR(20) NOT NULL DEFAULT 'tenant',
+    tenant_id    UUID,
     expires_at   TIMESTAMPTZ NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     revoked_at   TIMESTAMPTZ,
@@ -100,11 +102,22 @@ CREATE TABLE public.refresh_tokens (
         FOREIGN KEY (user_id)
         REFERENCES public.users(id)
         ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT fk_refresh_tokens_tenant
+        FOREIGN KEY (tenant_id)
+        REFERENCES public.tenants(id)
+        ON DELETE CASCADE
         ON UPDATE CASCADE
 );
 
+CREATE INDEX idx_refresh_tokens_user_type_tenant 
+    ON public.refresh_tokens(user_id, token_type, tenant_id);
+
 COMMENT ON TABLE public.refresh_tokens IS 'Refresh tokens for session management (JWT refresh flow)';
 COMMENT ON COLUMN public.refresh_tokens.token_hash IS 'Hashed refresh token value';
+COMMENT ON COLUMN public.refresh_tokens.token_type IS 'Token type: identity or tenant';
+COMMENT ON COLUMN public.refresh_tokens.tenant_id IS 'Tenant ID for tenant-scoped refresh tokens (NULL for identity tokens)';
 COMMENT ON COLUMN public.refresh_tokens.revoked_at IS 'Timestamp when token was revoked (NULL if still valid)';
 
 CREATE TABLE public.email_verifications (

@@ -11,18 +11,19 @@ import { InvitationsModule } from '../invitations/invitations.module';
 import { TenantModule } from '../tenants/tenant.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { JwtIdentityAccessStrategy } from './strategies/jwt-identity-access.strategy';
+import { JwtIdentityRefreshStrategy } from './strategies/jwt-identity-refresh.strategy';
 import {
-  JWT_ACCESS_STRATEGY,
-  JwtAccessStrategy,
-} from './strategies/jwt-access.strategy';
-import { JwtIdentityStrategy } from './strategies/jwt-identity.strategy';
-import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+  JWT_TENANT_ACCESS_STRATEGY,
+  JwtTenantAccessStrategy,
+} from './strategies/jwt-tenant-access.strategy';
+import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strategy';
 
 @Module({
   imports: [
     DatabaseModule,
     ConfigModule,
-    PassportModule.register({ defaultStrategy: JWT_ACCESS_STRATEGY }),
+    PassportModule.register({ defaultStrategy: JWT_TENANT_ACCESS_STRATEGY }),
     JwtModule.register({}), // Configuration done in strategies
     TenantModule,
     InvitationsModule,
@@ -30,9 +31,10 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
   controllers: [AuthController],
   providers: [
     AuthService,
-    JwtAccessStrategy,
-    JwtRefreshStrategy,
-    JwtIdentityStrategy,
+    JwtTenantAccessStrategy,
+    JwtTenantRefreshStrategy,
+    JwtIdentityAccessStrategy,
+    JwtIdentityRefreshStrategy,
     UserRepository,
     RefreshTokenRepository,
     EmailVerificationRepository,

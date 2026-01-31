@@ -38,7 +38,7 @@ declare module 'express' {
 /**
  * Middleware to extract tenant context from JWT token or request headers
  * Priority:
- * 1. JWT token payload (set by JwtAccessGuard)
+ * 1. JWT token payload (set by JwtAuthGuard)
  * 2. Request headers (fallback for backward compatibility)
  *
  * Expected headers (fallback):
@@ -74,13 +74,13 @@ export class TenantMiddleware implements NestMiddleware {
     }
 
     // Extract tenant context from JWT token (preferred method)
-    // req.user is set by JwtAccessGuard after successful authentication
-    if (req.user) {
+    // req.auth.tenant is set by JwtAuthGuard after successful authentication
+    if (req.auth.tenant) {
       req.tenantContext = {
-        tenantId: req.user.tenantId,
-        schemaName: `tenant_${req.user.tenantId.replace(/-/g, '_')}`,
-        userId: req.user.userId,
-        role: req.user.role,
+        tenantId: req.auth.tenant.tenantId,
+        schemaName: `tenant_${req.auth.tenant.tenantId.replace(/-/g, '_')}`,
+        userId: req.auth.tenant.userId,
+        role: req.auth.tenant.role,
       };
 
       this.logger.debug(

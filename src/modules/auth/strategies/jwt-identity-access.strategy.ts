@@ -3,19 +3,24 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { FastifyRequest } from 'fastify';
 import { Strategy } from 'passport-jwt';
-import { IdentityPayload } from './jwt-payload.interface';
+import { IDENTITY_TOKEN_COOKIE_NAME } from 'src/common/swagger/common';
+import {
+  AuthenticatedIdentityUser,
+  IDENTITY_PAYLOAD_TYPE,
+  IdentityPayload,
+} from './jwt-payload.interface';
 
 // Custom extractor to get identity token from HTTP-only cookie
 const cookieExtractor = (req: FastifyRequest): string | null => {
-  return req?.cookies?.identityToken || null;
+  return req?.cookies?.[IDENTITY_TOKEN_COOKIE_NAME] ?? null;
 };
 
-export const JWT_IDENTITY_STRATEGY = 'JWT_IDENTITY_STRATEGY';
+export const JWT_IDENTITY_ACCESS_STRATEGY = 'JWT_IDENTITY_ACCESS_STRATEGY';
 
 @Injectable()
-export class JwtIdentityStrategy extends PassportStrategy(
+export class JwtIdentityAccessStrategy extends PassportStrategy(
   Strategy,
-  JWT_IDENTITY_STRATEGY,
+  JWT_IDENTITY_ACCESS_STRATEGY,
 ) {
   constructor(private configService: ConfigService) {
     super({
@@ -26,16 +31,17 @@ export class JwtIdentityStrategy extends PassportStrategy(
     });
   }
 
-  validate(payload: IdentityPayload) {
-    // Ensure it's an access token
-    if (payload.type !== 'identity') {
+  validate(payload: IdentityPayload): AuthenticatedIdentityUser {
+    // Ensure it's an identity access token
+    if (payload.type !== IDENTITY_PAYLOAD_TYPE) {
       throw new UnauthorizedException('Invalid token type');
     }
 
-    // Return user information to be attached to request.user
+    // Return user information to be attached to request.auth.identity
     return {
       userId: payload.sub,
       email: payload.email,
+      globalRoles: payload.globalRoles || [],
     };
   }
 }

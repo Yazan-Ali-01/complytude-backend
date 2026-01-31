@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { TenantRole } from 'src/common/types';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { AuthenticatedTenantUser } from '../strategies';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -24,10 +25,11 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const tenant = context.switchToHttp().getRequest().auth
+      .tenant as AuthenticatedTenantUser;
 
     // Check if user has one of the required roles
-    const hasRole = requiredRoles.some((role) => user.role === role);
+    const hasRole = requiredRoles.some((role) => tenant.role === role);
 
     if (!hasRole) {
       throw new ForbiddenException(

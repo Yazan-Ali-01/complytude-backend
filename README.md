@@ -44,8 +44,8 @@
 
 ### Core Features
 
-- **JWT Authentication** - Multi-step auth flow with temporary tokens, secure signup, login, email verification, password reset
-- **Multi-Tenancy** - Complete data isolation per organization with schema-based separation + RLS
+- **JWT Authentication** - Dual-token authentication system with identity and tenant tokens, secure signup, login, email verification, password reset
+- **Multi-Tenancy** - Complete data isolation per organization with Row-Level Security (RLS)
 - **User Management** - Role-based access control (Admin, Member, Viewer)
 - **Tenant Invitations** - Secure invitation system with token-based acceptance flow
 - **Template Management** - CRUD operations for legal document templates
@@ -302,8 +302,13 @@ DB_CONNECTION_TIMEOUT=2000
 # JWT Authentication
 JWT_ACCESS_SECRET=your-super-secret-jwt-access-key-change-this-in-production
 JWT_REFRESH_SECRET=your-super-secret-jwt-refresh-key-change-this-in-production
+JWT_IDENTITY_SECRET=your-super-secret-jwt-identity-key-change-this-in-production
+JWT_IDENTITY_REFRESH_SECRET=your-super-secret-jwt-identity-refresh-key-change-this-in-production
+JWT_REFRESH_HASH_SECRET=your-super-secret-jwt-refresh-hash-key-change-this-in-production
 JWT_ACCESS_EXPIRES_IN=30m
 JWT_REFRESH_EXPIRES_IN=14d
+JWT_IDENTITY_EXPIRES_IN=15m
+JWT_IDENTITY_REFRESH_EXPIRES_IN=14d
 
 # S3/MinIO Storage
 S3_ENDPOINT=http://localhost:9000
@@ -408,22 +413,22 @@ Pre-configured Postman collection included:
 
 ## Multi-Tenancy
 
-Complytude uses **schema-based isolation** with **Row-Level Security (RLS)** for complete data separation between tenants.
+Complytude uses **Row-Level Security (RLS)** for complete data separation between tenants.
 
 **Key Features:**
 
-- Each tenant gets their own PostgreSQL schema
-- RLS policies for additional security
-- Automatic tenant context via `@TenantId()` decorator
+- Database-level tenant isolation with RLS policies
+- Dual-token authentication (identity + tenant tokens)
+- Automatic tenant context via `@AuthOptions()` decorator
 - Plan-based feature access control
 
 Example usage:
 
 ```typescript
 @Get()
-@UseGuards(JwtAccessGuard, TenantGuard)
-async findAll(@TenantId() tenantId: string) {
-  return this.service.findAll(tenantId);
+@AuthOptions({ tenant: true })
+async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+  return this.service.findAll(user.tenantId);
 }
 ```
 

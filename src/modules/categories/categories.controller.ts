@@ -39,7 +39,7 @@ import {
 
 @ApiTags('Categories')
 @Controller('categories')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 @ApiExtraModels(CategoryResponseDto, CategoryListResponseDto, PaginationMetaDto)
 export class CategoriesController {
   constructor() {}

@@ -1,7 +1,11 @@
+export type TokenType = 'identity' | 'tenant';
+
 export interface RefreshToken {
   id: string;
   userId: string;
   tokenHash: string;
+  tokenType: TokenType;
+  tenantId: string | null;
   expiresAt: Date;
   createdAt: Date;
   revokedAt: Date | null;
@@ -10,6 +14,8 @@ export interface RefreshToken {
 export interface CreateRefreshTokenInput {
   userId: string;
   tokenHash: string;
+  tokenType: TokenType;
+  tenantId?: string | null;
   expiresAt: Date;
 }
 

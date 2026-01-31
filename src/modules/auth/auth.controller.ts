@@ -29,9 +29,15 @@ import {
   SwaggerCookieAuth,
 } from 'src/common/swagger';
 import { AuthService } from './auth.service';
-import { CurrentUser } from './decorators/current-user.decorator';
-import { Public } from './decorators/public.decorator';
-import { AdminLoginResponseDto } from './dto/admin-login-response.dto';
+import {
+  AuthOptions,
+  AuthRefreshOptions,
+} from './decorators/auth-options.decorator';
+import {
+  CurrentUserIdentity,
+  CurrentUserIdentityRefresh,
+  CurrentUserTenantRefresh,
+} from './decorators/current-user.decorator';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { InvitationIdParamDto } from './dto/invitation-id-param.dto';
 import { InvitationListResponseDto } from './dto/invitation-list-response.dto';
@@ -43,7 +49,12 @@ import { SignupDto } from './dto/signup.dto';
 import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-import { JwtAccessAndIdentityGuard, JwtRefreshGuard } from './guards';
+import { JwtAuthRefreshGuard } from './guards';
+import type {
+  AuthenticatedIdentityRefreshUser,
+  AuthenticatedIdentityUser,
+  AuthenticatedTenantRefreshUser,
+} from './strategies';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -54,7 +65,6 @@ export class AuthController {
    * 1. POST /auth/signup
    * Register new user account without creating a tenant
    */
-  @Public()
   @Post('signup')
   @ApiOperation({
     summary: 'Register a new user account',
@@ -77,7 +87,6 @@ export class AuthController {
    * 2. POST /auth/verify-email
    * Verify email address using token
    */
-  @Public()
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -102,26 +111,24 @@ export class AuthController {
 
   /**
    * 3. POST /auth/login
-   * Login and receive identity token for tenant selection
+   * Login and receive identity tokens for tenant selection or system admin operations
    */
-  @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Login to user account',
     description:
-      'Authenticate user and return identity token. User must then select a tenant to receive full authentication. Not for system admins.',
+      'Authenticate user and return identity tokens (access + refresh). Regular users must then select a tenant. System admins can use identity token for platform operations.',
   })
   @ApiResponse({
     status: 200,
     description:
-      'Login successful. Identity token set. Returns user info and list of tenants.',
+      'Login successful. Identity tokens set. Returns user info and list of tenants.',
     type: LoginResponseDto,
   })
   @ApiResponse({
     status: 401,
-    description:
-      'Invalid credentials, email not verified, or system admin attempting to use this endpoint',
+    description: 'Invalid credentials or email not verified',
   })
   @ApiValidationError()
   @ApiPublicResponses()
@@ -129,92 +136,70 @@ export class AuthController {
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<LoginResponseDto> {
-    const { identityToken, ...loginResponse } =
+    const { identityAccessToken, identityRefreshToken, ...loginResponse } =
       await this.authService.login(loginDto);
-    this.authService.setIdentityCookie(reply, identityToken);
+
+    // Clear all auth cookies (in case the user somehow didn't logout before logging in again)
+    this.authService.clearAllAuthCookies(reply);
+
+    // Set identity tokens
+    this.authService.setIdentityTokens(
+      reply,
+      identityAccessToken,
+      identityRefreshToken,
+    );
     return new LoginResponseDto(loginResponse);
   }
 
   /**
-   * 3b. POST /auth/admin/login
-   * System admin login - receives full authentication immediately
-   */
-  @Public()
-  @Post('admin/login')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'System admin login',
-    description:
-      'Authenticate system administrator. Returns full access and refresh tokens immediately without tenant selection. Only for system admins.',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Admin login successful. Full authentication cookies set. Returns admin user info.',
-    type: AdminLoginResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description:
-      'Invalid credentials, email not verified, or non-admin attempting to use this endpoint',
-  })
-  @ApiValidationError()
-  @ApiPublicResponses()
-  async adminLogin(
-    @Body() loginDto: LoginDto,
-    @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<AdminLoginResponseDto> {
-    const { accessToken, refreshToken, ...adminLoginResponse } =
-      await this.authService.adminLogin(loginDto);
-    this.authService.setAuthCookies(reply, accessToken, refreshToken);
-    return new AdminLoginResponseDto(adminLoginResponse);
-  }
-
-  /**
    * 4. POST /auth/tenant-switch
-   * Select active tenant and receive full authentication
+   * Select active tenant and receive tenant tokens
    */
-  @Public()
-  @UseGuards(JwtAccessAndIdentityGuard)
+  @AuthOptions({ identity: true })
   @Post('tenant-switch')
-  @SwaggerCookieAuth.identityToken()
-  @SwaggerCookieAuth.accessToken()
+  @SwaggerCookieAuth.identityAccessToken()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Select active tenant',
     description:
-      'Switch to a specific tenant. Accepts either identityToken (from login) or accessToken (from existing session). Sets full authentication cookies.',
+      'Switch to a specific tenant using identity token. Sets tenant authentication cookies. Identity tokens are preserved.',
   })
   @ApiResponse({
     status: 200,
     description:
-      'Tenant switched successfully. Full authentication cookies set.',
+      'Tenant switched successfully. Tenant authentication cookies set.',
     type: TenantSwitchResponseDto,
   })
   @ApiValidationError()
   @ApiResponse({
     status: 401,
-    description: 'Unauthorized - No valid authentication token',
+    description: 'Unauthorized - Identity token required',
   })
   @ApiForbiddenError('User does not belong to specified tenant')
   @ApiNotFoundError('Tenant')
   @ApiPublicResponses()
   async tenantSwitch(
     @Body() tenantSwitchDto: TenantSwitchDto,
-    @CurrentUser() currentUser: { userId: string; email: string },
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<TenantSwitchResponseDto> {
-    const { accessToken, refreshToken, user, tenant } =
+    const { tenantAccessToken, tenantRefreshToken, user, tenant } =
       await this.authService.tenantSwitch(
-        currentUser,
+        identityUser,
         tenantSwitchDto.tenantId,
       );
 
-    // Set full authentication cookies
-    this.authService.setAuthCookies(reply, accessToken, refreshToken);
+    // Clear old tenant tokens if they exist
+    this.authService.clearTenantTokens(reply);
 
-    // Clear identity token if present
-    this.authService.clearIdentityCookie(reply);
+    // Set tenant authentication cookies
+    this.authService.setTenantTokens(
+      reply,
+      tenantAccessToken,
+      tenantRefreshToken,
+    );
+
+    // Keep identity tokens (don't clear them)
 
     return {
       tenant,
@@ -223,57 +208,108 @@ export class AuthController {
   }
 
   /**
-   * 5. POST /auth/refresh
-   * Refresh access token using refresh token
+   * 5a. POST /auth/refresh-identity
+   * Refresh identity access token using identity refresh token
    */
-  @Public()
-  @Post('refresh')
+  @Post('refresh-identity')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtRefreshGuard)
-  @SwaggerCookieAuth.refreshToken()
+  @UseGuards(JwtAuthRefreshGuard)
+  @AuthRefreshOptions({ identity: true })
+  @SwaggerCookieAuth.identityRefreshToken()
   @ApiOperation({
-    summary: 'Refresh access token',
+    summary: 'Refresh identity access token',
     description:
-      'Refresh access token using refresh token from HTTP-only cookie',
+      'Refresh identity access token using identity refresh token from HTTP-only cookie',
   })
   @ApiResponse({
     status: 200,
-    description: 'Tokens refreshed successfully. New cookies set.',
+    description: 'Identity tokens refreshed successfully. New cookies set.',
     type: MessageResponseDto,
   })
   @ApiResponse({
     status: 401,
-    description: 'Invalid or expired refresh token',
+    description: 'Invalid or expired identity refresh token',
   })
   @ApiPublicResponses()
-  async refresh(
-    @CurrentUser()
-    user: { userId: string; email: string; refreshToken: string },
+  async refreshIdentity(
+    @CurrentUserIdentityRefresh()
+    identityUser: AuthenticatedIdentityRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
-    const { accessToken, refreshToken } = await this.authService.refreshTokens(
-      user.userId,
-      user.email,
-      user.refreshToken,
-    );
+    const { identityAccessToken, identityRefreshToken } =
+      await this.authService.refreshIdentityTokens(
+        identityUser.userId,
+        identityUser.email,
+        identityUser.refreshToken,
+      );
 
-    this.authService.setAuthCookies(reply, accessToken, refreshToken);
-    return { message: 'Tokens refreshed successfully' };
+    this.authService.setIdentityTokens(
+      reply,
+      identityAccessToken,
+      identityRefreshToken,
+    );
+    return { message: 'Identity tokens refreshed successfully' };
+  }
+
+  /**
+   * 5b. POST /auth/refresh-tenant
+   * Refresh tenant access token using tenant refresh token
+   */
+  @Post('refresh-tenant')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthRefreshGuard)
+  @AuthRefreshOptions({ tenant: true })
+  @SwaggerCookieAuth.tenantRefreshToken()
+  @ApiOperation({
+    summary: 'Refresh tenant access token',
+    description:
+      'Refresh tenant access token using tenant refresh token from HTTP-only cookie. Does NOT allow switching tenants.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant tokens refreshed successfully. New cookies set.',
+    type: MessageResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or expired tenant refresh token',
+  })
+  @ApiPublicResponses()
+  async refreshTenant(
+    @CurrentUserTenantRefresh()
+    tenantUser: AuthenticatedTenantRefreshUser,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MessageResponseDto> {
+    const { tenantAccessToken, tenantRefreshToken } =
+      await this.authService.refreshTenantTokens(
+        tenantUser.userId,
+        tenantUser.email,
+        tenantUser.tenantId,
+        tenantUser.refreshToken,
+      );
+
+    this.authService.setTenantTokens(
+      reply,
+      tenantAccessToken,
+      tenantRefreshToken,
+    );
+    return { message: 'Tenant tokens refreshed successfully' };
   }
 
   /**
    * 6. POST /auth/logout
-   * Logout and invalidate refresh token
+   * Logout and invalidate all refresh tokens
    */
-  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtRefreshGuard)
-  @SwaggerCookieAuth.refreshToken()
+  @UseGuards(JwtAuthRefreshGuard)
+  @AuthRefreshOptions({ tenant: true, identity: true })
+  @SwaggerCookieAuth.identityRefreshToken()
+  @SwaggerCookieAuth.tenantRefreshToken()
   @ApiOperation({
-    summary: 'Logout from current session',
+    summary: 'Logout from all sessions',
     description:
-      'Invalidate refresh token and clear all authentication cookies',
+      'Invalidate all refresh tokens (identity + tenant) and clear all authentication cookies.',
   })
   @ApiResponse({
     status: 200,
@@ -282,18 +318,22 @@ export class AuthController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Invalid refresh token',
+    description: 'Invalid or missing identity or tenant refresh token',
   })
   @ApiPublicResponses()
   async logout(
-    @CurrentUser() user: { userId: string; refreshToken: string },
+    @CurrentUserIdentityRefresh()
+    identityRefreshUser: AuthenticatedIdentityRefreshUser,
+    @CurrentUserTenantRefresh()
+    tenantRefreshUser: AuthenticatedTenantRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
     const { message } = await this.authService.logout(
-      user.userId,
-      user.refreshToken,
+      identityRefreshUser.userId,
+      identityRefreshUser.refreshToken,
+      tenantRefreshUser.refreshToken,
     );
-    this.authService.clearAuthCookies(reply);
+    this.authService.clearAllAuthCookies(reply);
     return { message };
   }
 
@@ -301,7 +341,6 @@ export class AuthController {
    * 7. POST /auth/forgot-password
    * Send password reset email
    */
-  @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -326,7 +365,6 @@ export class AuthController {
    * 8. POST /auth/reset-password
    * Reset password using token
    */
-  @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -353,7 +391,6 @@ export class AuthController {
    * 9. GET /auth/invitations/resolve
    * Resolve invitation token to get invitation details
    */
-  @Public()
   @Get('invitations/resolve')
   @ApiOperation({
     summary: 'Resolve invitation token',
@@ -388,11 +425,10 @@ export class AuthController {
    * 10. GET /auth/invitations
    * List user's pending invitations
    */
-  @Public()
-  @UseGuards(JwtAccessAndIdentityGuard)
+  @AuthOptions({ identity: true })
   @Get('invitations')
-  @SwaggerCookieAuth.identityToken()
-  @SwaggerCookieAuth.accessToken()
+  @SwaggerCookieAuth.identityAccessToken()
+  @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
     summary: "List user's pending invitations",
     description:
@@ -405,20 +441,19 @@ export class AuthController {
   })
   @ApiAuthenticatedResponses()
   listInvitations(
-    @CurrentUser() user: { userId: string; email: string },
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
   ): Promise<InvitationListResponseDto> {
-    return this.authService.listUserInvitations(user.email);
+    return this.authService.listUserInvitations(identityUser.email);
   }
 
   /**
    * 11. POST /auth/invitations/:invitationId/accept
    * Accept tenant invitation
    */
-  @Public()
-  @UseGuards(JwtAccessAndIdentityGuard)
+  @AuthOptions({ identity: true })
   @Post('invitations/:invitationId/accept')
-  @SwaggerCookieAuth.identityToken()
-  @SwaggerCookieAuth.accessToken()
+  @SwaggerCookieAuth.identityAccessToken()
+  @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
     summary: 'Accept tenant invitation',
     description:
@@ -441,12 +476,12 @@ export class AuthController {
   @ApiAuthenticatedResponses()
   acceptInvitation(
     @Param() params: InvitationIdParamDto,
-    @CurrentUser() user: { userId: string; email: string },
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
   ): Promise<MessageResponseDto> {
     return this.authService.acceptInvitation(
       params.invitationId,
-      user.userId,
-      user.email,
+      identityUser.userId,
+      identityUser.email,
     );
   }
 
@@ -454,11 +489,10 @@ export class AuthController {
    * 12. POST /auth/invitations/:invitationId/reject
    * Reject tenant invitation
    */
-  @Public()
-  @UseGuards(JwtAccessAndIdentityGuard)
+  @AuthOptions({ identity: true })
   @Post('invitations/:invitationId/reject')
-  @SwaggerCookieAuth.identityToken()
-  @SwaggerCookieAuth.accessToken()
+  @SwaggerCookieAuth.identityAccessToken()
+  @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
     summary: 'Reject tenant invitation',
     description:
@@ -480,12 +514,12 @@ export class AuthController {
   @ApiAuthenticatedResponses()
   rejectInvitation(
     @Param() params: InvitationIdParamDto,
-    @CurrentUser() user: { userId: string; email: string },
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
   ): Promise<MessageResponseDto> {
     return this.authService.rejectInvitation(
       params.invitationId,
-      user.userId,
-      user.email,
+      identityUser.userId,
+      identityUser.email,
     );
   }
 }
