@@ -14,6 +14,7 @@ BEGIN;
 CREATE TYPE tenant_plan AS ENUM ('early_access', 'basic', 'pro', 'enterprise');
 CREATE TYPE tenant_role AS ENUM ('ADMIN', 'MEMBER', 'VIEWER');
 CREATE TYPE invitation_status AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'REVOKED', 'EXPIRED');
+CREATE TYPE refresh_token_type AS ENUM ('identity', 'tenant');
 
 -- =========================
 -- Tenants
@@ -92,7 +93,7 @@ CREATE TABLE public.refresh_tokens (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID NOT NULL,
     token_hash   VARCHAR(255) NOT NULL,
-    token_type   VARCHAR(20) NOT NULL DEFAULT 'tenant',
+    token_type   refresh_token_type NOT NULL DEFAULT 'tenant',
     tenant_id    UUID,
     expires_at   TIMESTAMPTZ NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -111,12 +112,9 @@ CREATE TABLE public.refresh_tokens (
         ON UPDATE CASCADE
 );
 
-CREATE INDEX idx_refresh_tokens_user_type_tenant 
-    ON public.refresh_tokens(user_id, token_type, tenant_id);
-
 COMMENT ON TABLE public.refresh_tokens IS 'Refresh tokens for session management (JWT refresh flow)';
 COMMENT ON COLUMN public.refresh_tokens.token_hash IS 'Hashed refresh token value';
-COMMENT ON COLUMN public.refresh_tokens.token_type IS 'Token type: identity or tenant';
+COMMENT ON COLUMN public.refresh_tokens.token_type IS 'Token type: identity, tenant';
 COMMENT ON COLUMN public.refresh_tokens.tenant_id IS 'Tenant ID for tenant-scoped refresh tokens (NULL for identity tokens)';
 COMMENT ON COLUMN public.refresh_tokens.revoked_at IS 'Timestamp when token was revoked (NULL if still valid)';
 
@@ -231,6 +229,7 @@ CREATE INDEX idx_refresh_tokens_user_id ON public.refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_token_hash ON public.refresh_tokens(token_hash);
 CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at);
 CREATE INDEX idx_refresh_tokens_revoked_at ON public.refresh_tokens(revoked_at) WHERE revoked_at IS NOT NULL;
+CREATE INDEX idx_refresh_tokens_user_type_tenant ON public.refresh_tokens(user_id, token_type, tenant_id);
 
 -- Email Verifications
 CREATE INDEX idx_email_verifications_user_id ON public.email_verifications(user_id);
@@ -320,6 +319,7 @@ DROP INDEX IF EXISTS public.idx_email_verifications_expires_at;
 DROP INDEX IF EXISTS public.idx_email_verifications_token;
 DROP INDEX IF EXISTS public.idx_email_verifications_user_id;
 
+DROP INDEX IF EXISTS public.idx_refresh_tokens_user_type_tenant;
 DROP INDEX IF EXISTS public.idx_refresh_tokens_revoked_at;
 DROP INDEX IF EXISTS public.idx_refresh_tokens_expires_at;
 DROP INDEX IF EXISTS public.idx_refresh_tokens_token_hash;
@@ -354,6 +354,7 @@ DROP TABLE IF EXISTS public.tenants;
 DROP TYPE IF EXISTS tenant_role;
 DROP TYPE IF EXISTS tenant_plan;
 DROP TYPE IF EXISTS invitation_status;
+DROP TYPE IF EXISTS refresh_token_type;
 
 COMMIT;
 */

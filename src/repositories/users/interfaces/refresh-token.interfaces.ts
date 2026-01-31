@@ -1,4 +1,7 @@
-export type TokenType = 'identity' | 'tenant';
+export enum TokenType {
+  IDENTITY = 'identity',
+  TENANT = 'tenant',
+}
 
 export interface RefreshToken {
   id: string;

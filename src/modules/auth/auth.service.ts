@@ -21,9 +21,10 @@ import {
   TENANT_ACCESS_TOKEN_COOKIE_NAME,
   TENANT_REFRESH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
-import { TenantRole } from 'src/common/types';
+import { GlobalRole, TenantRole } from 'src/common/types';
 import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
+import { TokenType } from 'src/repositories/users/interfaces/refresh-token.interfaces';
 import { I18nKeys } from '../../common/constants/i18n-keys';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
@@ -306,7 +307,9 @@ export class AuthService {
     }
 
     // Determine global roles
-    const globalRoles: string[] = user.is_system_admin ? ['SYSTEM_ADMIN'] : [];
+    const globalRoles: GlobalRole[] = user.is_system_admin
+      ? [GlobalRole.SYSTEM_ADMIN]
+      : [];
 
     // Generate identity tokens (access + refresh)
     const { identityAccessToken, identityRefreshToken } =
@@ -395,7 +398,7 @@ export class AuthService {
   async generateIdentityTokens(
     userId: string,
     email: string,
-    globalRoles: string[],
+    globalRoles: GlobalRole[],
   ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     const accessPayload: IdentityPayload = {
       sub: userId,
@@ -496,7 +499,7 @@ export class AuthService {
     await this.refreshTokenRepository.create({
       user_id: userId,
       token_hash: tokenHash,
-      token_type: 'identity',
+      token_type: TokenType.IDENTITY,
       tenant_id: null,
       expires_at: expiresAt,
     });
@@ -518,7 +521,7 @@ export class AuthService {
     await this.refreshTokenRepository.create({
       user_id: userId,
       token_hash: tokenHash,
-      token_type: 'tenant',
+      token_type: TokenType.TENANT,
       tenant_id: tenantId,
       expires_at: expiresAt,
     });
@@ -593,7 +596,9 @@ export class AuthService {
     }
 
     // Determine global roles
-    const globalRoles: string[] = user.is_system_admin ? ['SYSTEM_ADMIN'] : [];
+    const globalRoles: GlobalRole[] = user.is_system_admin
+      ? [GlobalRole.SYSTEM_ADMIN]
+      : [];
 
     // Generate new identity tokens
     const tokens = await this.generateIdentityTokens(

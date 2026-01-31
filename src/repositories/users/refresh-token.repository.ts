@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';
-import { RefreshToken } from './interfaces/refresh-token.interfaces';
+import { RefreshToken, TokenType } from './interfaces/refresh-token.interfaces';
 
 type RefreshTokenRow = {
   id: string;
   user_id: string;
   token_hash: string;
-  token_type: string;
+  token_type: TokenType;
   tenant_id: string | null;
   expires_at: Date;
   created_at: Date;
@@ -57,7 +57,7 @@ export class RefreshTokenRepository extends BaseRepository<
       id: data.id,
       userId: data.user_id,
       tokenHash: data.token_hash,
-      tokenType: data.token_type as 'identity' | 'tenant',
+      tokenType: data.token_type,
       tenantId: data.tenant_id,
       expiresAt: data.expires_at,
       createdAt: data.created_at,
