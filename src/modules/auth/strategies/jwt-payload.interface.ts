@@ -8,10 +8,10 @@ export interface JwtPayload {
 }
 
 /**
- * Payload for temporary authentication token (used after login, before tenant selection)
+ * Payload for identity token (used after login, before tenant selection)
  */
-export interface TempAuthPayload {
+export interface IdentityPayload {
   sub: string; // userId
   email: string;
-  type: 'temp-auth';
+  type: 'identity';
 }

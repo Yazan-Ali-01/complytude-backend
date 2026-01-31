@@ -27,7 +27,7 @@ import {
   CurrentUser,
 } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { InvitationsService } from '../invitations/invitations.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
@@ -44,7 +44,7 @@ import {
  */
 @ApiTags('Tenant - Invitations')
 @Controller('tenants/admin/invitations')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAccessGuard, RolesGuard)
 @Roles(TenantRole.ADMIN)
 @SwaggerCookieAuth.accessToken()
 export class TenantInvitationsController {

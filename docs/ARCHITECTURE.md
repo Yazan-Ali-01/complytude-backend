@@ -157,7 +157,7 @@ export class TemplateService {
 Authorization is handled via guards at the route level:
 
 ```typescript
-@UseGuards(JwtAuthGuard, TenantGuard, RoleGuard)
+@UseGuards(JwtAccessGuard, TenantGuard, RoleGuard)
 @Roles('admin', 'member')
 @Get()
 async findAll(@TenantId() tenantId: string) {
@@ -363,11 +363,11 @@ Request → JWT Validation → Extract tenant_id → Set Session Context → Exe
       │                       ├────────────────────────>│
       │                       │<────────────────────────│
       │                       │  3. Generate TempToken  │
-      │  4. TempAuthToken     │                         │
+      │  4. IdentityToken     │                         │
       │<──────────────────────│                         │
       │                       │                         │
       │  5. Tenant Selection  │                         │
-      │     + TempAuthToken   │                         │
+      │     + IdentityToken   │                         │
       ├──────────────────────>│                         │
       │                       │  6. Validate TempToken  │
       │                       │  7. Generate Full Tokens│

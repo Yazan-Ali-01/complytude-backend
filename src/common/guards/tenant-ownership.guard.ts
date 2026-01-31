@@ -1,10 +1,10 @@
 import {
-  Injectable,
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   UnauthorizedException,
-  BadRequestException,
 } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
 import { I18nKeys } from '../constants/i18n-keys';
@@ -15,7 +15,7 @@ import { I18nKeys } from '../constants/i18n-keys';
  *
  * @example
  * ```typescript
- * @UseGuards(JwtAuthGuard, TenantOwnershipGuard)
+ * @UseGuards(JwtAccessGuard, TenantOwnershipGuard)
  * @Get('tenants/:tenantId')
  * async getTenant(@Param('tenantId') tenantId: string) {
  *   // Only users belonging to this tenant can access

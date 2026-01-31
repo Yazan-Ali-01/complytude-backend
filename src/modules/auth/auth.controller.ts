@@ -43,8 +43,7 @@ import { SignupDto } from './dto/signup.dto';
 import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-import { JwtBothTokensAuthGuard } from './guards/jwt-both-tokens-auth.guard';
-import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { JwtAccessAndIdentityGuard, JwtRefreshGuard } from './guards';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -103,7 +102,7 @@ export class AuthController {
 
   /**
    * 3. POST /auth/login
-   * Login and receive temporary auth cookie for tenant selection
+   * Login and receive identity token for tenant selection
    */
   @Public()
   @Post('login')
@@ -111,12 +110,12 @@ export class AuthController {
   @ApiOperation({
     summary: 'Login to user account',
     description:
-      'Authenticate user and return temporary auth cookie. User must then select a tenant to receive full authentication. Not for system admins.',
+      'Authenticate user and return identity token. User must then select a tenant to receive full authentication. Not for system admins.',
   })
   @ApiResponse({
     status: 200,
     description:
-      'Login successful. Temporary auth cookie set. Returns user info and list of tenants.',
+      'Login successful. Identity token set. Returns user info and list of tenants.',
     type: LoginResponseDto,
   })
   @ApiResponse({
@@ -130,9 +129,9 @@ export class AuthController {
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<LoginResponseDto> {
-    const { tempAuthToken, ...loginResponse } =
+    const { identityToken, ...loginResponse } =
       await this.authService.login(loginDto);
-    this.authService.setTempAuthCookie(reply, tempAuthToken);
+    this.authService.setIdentityCookie(reply, identityToken);
     return new LoginResponseDto(loginResponse);
   }
 
@@ -176,15 +175,15 @@ export class AuthController {
    * Select active tenant and receive full authentication
    */
   @Public()
-  @UseGuards(JwtBothTokensAuthGuard)
+  @UseGuards(JwtAccessAndIdentityGuard)
   @Post('tenant-switch')
-  @SwaggerCookieAuth.tempAuthToken()
+  @SwaggerCookieAuth.identityToken()
   @SwaggerCookieAuth.accessToken()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Select active tenant',
     description:
-      'Switch to a specific tenant. Accepts either tempAuthToken (from login) or accessToken (from existing session). Sets full authentication cookies.',
+      'Switch to a specific tenant. Accepts either identityToken (from login) or accessToken (from existing session). Sets full authentication cookies.',
   })
   @ApiResponse({
     status: 200,
@@ -214,8 +213,8 @@ export class AuthController {
     // Set full authentication cookies
     this.authService.setAuthCookies(reply, accessToken, refreshToken);
 
-    // Clear temp auth token if present
-    this.authService.clearTempAuthCookie(reply);
+    // Clear identity token if present
+    this.authService.clearIdentityCookie(reply);
 
     return {
       tenant,
@@ -390,9 +389,9 @@ export class AuthController {
    * List user's pending invitations
    */
   @Public()
-  @UseGuards(JwtBothTokensAuthGuard)
+  @UseGuards(JwtAccessAndIdentityGuard)
   @Get('invitations')
-  @SwaggerCookieAuth.tempAuthToken()
+  @SwaggerCookieAuth.identityToken()
   @SwaggerCookieAuth.accessToken()
   @ApiOperation({
     summary: "List user's pending invitations",
@@ -416,9 +415,9 @@ export class AuthController {
    * Accept tenant invitation
    */
   @Public()
-  @UseGuards(JwtBothTokensAuthGuard)
+  @UseGuards(JwtAccessAndIdentityGuard)
   @Post('invitations/:invitationId/accept')
-  @SwaggerCookieAuth.tempAuthToken()
+  @SwaggerCookieAuth.identityToken()
   @SwaggerCookieAuth.accessToken()
   @ApiOperation({
     summary: 'Accept tenant invitation',
@@ -456,9 +455,9 @@ export class AuthController {
    * Reject tenant invitation
    */
   @Public()
-  @UseGuards(JwtBothTokensAuthGuard)
+  @UseGuards(JwtAccessAndIdentityGuard)
   @Post('invitations/:invitationId/reject')
-  @SwaggerCookieAuth.tempAuthToken()
+  @SwaggerCookieAuth.identityToken()
   @SwaggerCookieAuth.accessToken()
   @ApiOperation({
     summary: 'Reject tenant invitation',

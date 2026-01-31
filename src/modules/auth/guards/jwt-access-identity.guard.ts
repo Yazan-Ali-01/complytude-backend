@@ -1,10 +1,11 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { JWT_ACCESS_STRATEGY, JWT_IDENTITY_STRATEGY } from '../strategies';
 
 @Injectable()
-export class JwtBothTokensAuthGuard extends AuthGuard([
-  'jwt-temp-auth',
-  'jwt',
+export class JwtAccessAndIdentityGuard extends AuthGuard([
+  JWT_IDENTITY_STRATEGY,
+  JWT_ACCESS_STRATEGY,
 ]) {
   handleRequest(err: any, user: any, _info: any) {
     if (err || !user) {

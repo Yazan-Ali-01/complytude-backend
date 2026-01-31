@@ -10,8 +10,13 @@ const cookieExtractor = (req: FastifyRequest): string | null => {
   return req?.cookies?.accessToken || null;
 };
 
+export const JWT_ACCESS_STRATEGY = 'JWT_ACCESS_STRATEGY';
+
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+export class JwtAccessStrategy extends PassportStrategy(
+  Strategy,
+  JWT_ACCESS_STRATEGY,
+) {
   constructor(private configService: ConfigService) {
     super({
       jwtFromRequest: cookieExtractor,

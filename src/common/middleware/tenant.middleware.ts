@@ -1,10 +1,10 @@
 import {
   Injectable,
+  Logger,
   NestMiddleware,
   UnauthorizedException,
-  Logger,
 } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Response } from 'express';
 import { TenantFeatures } from 'src/modules/tenants/entities/tenant.entity';
 
 export interface TenantContext {
@@ -38,7 +38,7 @@ declare module 'express' {
 /**
  * Middleware to extract tenant context from JWT token or request headers
  * Priority:
- * 1. JWT token payload (set by JwtAuthGuard)
+ * 1. JWT token payload (set by JwtAccessGuard)
  * 2. Request headers (fallback for backward compatibility)
  *
  * Expected headers (fallback):
@@ -74,7 +74,7 @@ export class TenantMiddleware implements NestMiddleware {
     }
 
     // Extract tenant context from JWT token (preferred method)
-    // req.user is set by JwtAuthGuard after successful authentication
+    // req.user is set by JwtAccessGuard after successful authentication
     if (req.user) {
       req.tenantContext = {
         tenantId: req.user.tenantId,

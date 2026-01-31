@@ -4,7 +4,7 @@
 
 **Authentication Note:** This API uses a multi-step authentication flow with three token types:
 
-- `tempAuthToken` - Short-lived (10 min) token after login, used for tenant selection
+- `identityToken` - Short-lived (10 min) token after login, used for tenant selection
 - `accessToken` - Standard API access token (30 min), issued after tenant selection
 - `refreshToken` - Long-lived token (14 days) for obtaining new access tokens
 

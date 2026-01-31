@@ -18,8 +18,8 @@ import {
   ACCESS_TOKEN_COOKIE_NAME,
   COOKIE_PATH,
   COOKIE_SAME_SITE,
+  IDENTITY_TOKEN_COOKIE_NAME,
   REFRESH_TOKEN_COOKIE_NAME,
-  TEMP_AUTH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
 import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
@@ -30,20 +30,19 @@ import { UserTenantRepository } from '../../repositories/users/user-tenant.repos
 import { UserRepository } from '../../repositories/users/user.repository';
 import { InvitationsService } from '../invitations/invitations.service';
 import { TenantService } from '../tenants/tenant.service';
-import { AdminLoginResponseDto } from './dto/admin-login-response.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { InvitationListResponseDto } from './dto/invitation-list-response.dto';
-import { LoginResponseDto } from './dto/login-response.dto';
-import { LoginDto } from './dto/login.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { ResolveInvitationResponseDto } from './dto/resolve-invitation-response.dto';
-import { SignupDto } from './dto/signup.dto';
-import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
 import {
-  JwtPayload,
-  TempAuthPayload,
-} from './strategies/jwt-payload.interface';
+  AdminLoginResponseDto,
+  ForgotPasswordDto,
+  InvitationListResponseDto,
+  LoginDto,
+  LoginResponseDto,
+  ResetPasswordDto,
+  ResolveInvitationResponseDto,
+  SignupDto,
+  TenantSwitchResponseDto,
+  VerifyEmailDto,
+} from './dto';
+import { IdentityPayload, JwtPayload } from './strategies';
 
 @Injectable()
 export class AuthService {
@@ -99,32 +98,32 @@ export class AuthService {
   }
 
   /**
-   * Set temporary authentication cookie (used after login, before tenant selection)
+   * Set identity cookie (used after login, before tenant selection)
    */
-  setTempAuthCookie(reply: FastifyReply, tempAuthToken: string): void {
+  setIdentityCookie(reply: FastifyReply, identityToken: string): void {
     const isProduction =
       this.configService.get<string>('app.environment') === 'production';
 
-    const tempAuthExpiresIn =
-      this.configService.get<string>('jwt.tempAuthExpiresIn') || '10m';
+    const identityExpiresIn =
+      this.configService.get<string>('jwt.identityExpiresIn') || '10m';
 
-    reply.setCookie(TEMP_AUTH_TOKEN_COOKIE_NAME, tempAuthToken, {
+    reply.setCookie(IDENTITY_TOKEN_COOKIE_NAME, identityToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: COOKIE_SAME_SITE,
       path: COOKIE_PATH,
-      maxAge: Math.floor(this.parseExpiresIn(tempAuthExpiresIn) / 1000), // Convert ms to seconds
+      maxAge: Math.floor(this.parseExpiresIn(identityExpiresIn) / 1000), // Convert ms to seconds
     });
   }
 
   /**
-   * Clear temp auth cookie
+   * Clear identity cookie
    */
-  clearTempAuthCookie(reply: FastifyReply): void {
+  clearIdentityCookie(reply: FastifyReply): void {
     const isProduction =
       this.configService.get<string>('app.environment') === 'production';
 
-    reply.clearCookie(TEMP_AUTH_TOKEN_COOKIE_NAME, {
+    reply.clearCookie(IDENTITY_TOKEN_COOKIE_NAME, {
       httpOnly: true,
       secure: isProduction,
       sameSite: COOKIE_SAME_SITE,
@@ -153,7 +152,7 @@ export class AuthService {
       path: COOKIE_PATH,
     });
 
-    reply.clearCookie(TEMP_AUTH_TOKEN_COOKIE_NAME, {
+    reply.clearCookie(IDENTITY_TOKEN_COOKIE_NAME, {
       httpOnly: true,
       secure: isProduction,
       sameSite: COOKIE_SAME_SITE,
@@ -253,13 +252,13 @@ export class AuthService {
   }
 
   /**
-   * Login user and generate temporary authentication token
+   * Login user and generate identity token
    * Returns user info and list of available tenants
    * Note: This is NOT for system admins
    */
   async login(
     loginDto: LoginDto,
-  ): Promise<LoginResponseDto & { tempAuthToken: string }> {
+  ): Promise<LoginResponseDto & { identityToken: string }> {
     // Validate user credentials
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
@@ -294,8 +293,8 @@ export class AuthService {
       joinedAt: ut.joined_at.toISOString(),
     }));
 
-    // Generate temporary authentication token
-    const tempAuthToken = this.generateTempAuthToken(user.id, user.email);
+    // Generate identity token
+    const identityToken = this.generateIdentityToken(user.id, user.email);
 
     // Get pending invitations count
     const pendingInvitationsCount =
@@ -313,7 +312,7 @@ export class AuthService {
       },
       tenants: tenantsWithDetails,
       pendingInvitationsCount,
-      tempAuthToken,
+      identityToken,
     };
   }
 
@@ -409,25 +408,25 @@ export class AuthService {
   }
 
   /**
-   * Generate temporary authentication token (for post-login, pre-tenant-selection)
+   * Generate identity token (for post-login, pre-tenant-selection)
    * This token is NOT for system admins - only for regular users
    */
-  generateTempAuthToken(userId: string, email: string): string {
-    const payload: TempAuthPayload = {
+  generateIdentityToken(userId: string, email: string): string {
+    const payload: IdentityPayload = {
       sub: userId,
       email,
-      type: 'temp-auth',
+      type: 'identity',
     };
 
-    const tempAuthToken = this.jwtService.sign(
+    const identityToken = this.jwtService.sign(
       payload as any,
       {
-        secret: this.configService.get<string>('jwt.tempAuthSecret'),
-        expiresIn: this.configService.get<string>('jwt.tempAuthExpiresIn'),
+        secret: this.configService.get<string>('jwt.identitySecret'),
+        expiresIn: this.configService.get<string>('jwt.identityExpiresIn'),
       } as any,
     );
 
-    return tempAuthToken;
+    return identityToken;
   }
 
   /**
@@ -723,7 +722,7 @@ export class AuthService {
 
   /**
    * Switch to a different tenant
-   * User is already authenticated via JwtTenantSwitchAuthGuard (accepts either tempAuthToken or accessToken)
+   * User is already authenticated via JwtTenantSwitchAuthGuard (accepts either identityToken or accessToken)
    */
   async tenantSwitch(
     { userId, email }: { userId: string; email: string },

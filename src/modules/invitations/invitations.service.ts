@@ -314,7 +314,7 @@ export class InvitationsService {
         INNER JOIN public.tenants t ON i.tenant_id = t.id
         INNER JOIN public.users u ON i.invited_by = u.id
         WHERE i.email = $1 
-          AND i.status = 'pending' 
+          AND i.status = '${InvitationStatus.PENDING}' 
           AND i.expires_at > NOW()
         ORDER BY i.created_at DESC`,
         [email],
@@ -350,7 +350,7 @@ export class InvitationsService {
       const result = await client.query<{ count: string }>(
         `SELECT COUNT(*) as count 
         FROM public.invitations 
-        WHERE email = $1 AND status = 'pending' AND expires_at > NOW()`,
+        WHERE email = $1 AND status = '${InvitationStatus.PENDING}' AND expires_at > NOW()`,
         [email],
       );
 

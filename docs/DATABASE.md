@@ -136,7 +136,7 @@ Tables for JWT-based authentication and user onboarding:
 
 **Note:** The application uses a **multi-step authentication flow**:
 
-1. Login → `tempAuthToken` cookie (10 minutes, for tenant selection)
+1. Login → `identityToken` cookie (10 minutes, for tenant selection)
 2. Tenant selection → `accessToken` + `refreshToken` cookies (full authentication)
 3. Refresh tokens are stored in the `refresh_tokens` table for session management
 

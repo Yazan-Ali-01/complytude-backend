@@ -132,7 +132,7 @@ export class InvitationRepository extends BaseRepository<
   ): Promise<Invitation | null> {
     const result = await this.executeQuery<InvitationRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
-       WHERE token_hash = $1 AND expires_at > NOW() AND status = 'pending'`,
+       WHERE token_hash = $1 AND expires_at > NOW() AND status = '${InvitationStatus.PENDING}'`,
       [tokenHash],
       options,
     );
@@ -159,7 +159,7 @@ export class InvitationRepository extends BaseRepository<
   ): Promise<Invitation | null> {
     const result = await this.executeQuery<InvitationRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
-       WHERE email = $1 AND tenant_id = $2 AND status = 'pending'`,
+       WHERE email = $1 AND tenant_id = $2 AND status = '${InvitationStatus.PENDING}'`,
       [email, tenantId],
       options,
     );

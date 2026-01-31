@@ -87,7 +87,7 @@ export class YourModuleModule {}
 ### Security
 
 - ✅ **Add guards** for authentication and authorization
-- ✅ **Use `@UseGuards(JwtAuthGuard)`** for protected routes
+- ✅ **Use `@UseGuards(JwtAccessGuard)`** for protected routes
 - ✅ **Use `@TenantId()` decorator** for tenant context
 - ✅ **Never expose sensitive data** in responses
 
@@ -159,11 +159,13 @@ pnpm docker:reset    # ⚠️ Reset database (deletes all data)
 ```
 
 **When to seed:**
+
 - After initial setup for test data
 - When you need sample tenants, users, or documents
 - For development and testing environments
 
 **Seeded data includes:**
+
 - Global authorities and categories
 - Test tenants (3 different subscription plans)
 - Test users with various roles

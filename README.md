@@ -421,7 +421,7 @@ Example usage:
 
 ```typescript
 @Get()
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAccessGuard, TenantGuard)
 async findAll(@TenantId() tenantId: string) {
   return this.service.findAll(tenantId);
 }

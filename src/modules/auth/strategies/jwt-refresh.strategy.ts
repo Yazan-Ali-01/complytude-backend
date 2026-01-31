@@ -10,10 +10,12 @@ const cookieExtractor = (req: FastifyRequest): string | null => {
   return req?.cookies?.refreshToken || null;
 };
 
+export const JWT_REFRESH_STRATEGY = 'JWT_REFRESH_STRATEGY';
+
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
-  'jwt-refresh',
+  JWT_REFRESH_STRATEGY,
 ) {
   constructor(private configService: ConfigService) {
     super({

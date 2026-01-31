@@ -1,8 +1,8 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
@@ -16,7 +16,7 @@ import { I18nKeys } from '../constants/i18n-keys';
  * @example
  * ```typescript
  * @Post('upload')
- * @UseGuards(JwtAuthGuard, DocumentLimitGuard)
+ * @UseGuards(JwtAccessGuard, DocumentLimitGuard)
  * async uploadFile(@UploadedFile() file: Express.Multer.File) {
  *   // ... upload logic
  * }

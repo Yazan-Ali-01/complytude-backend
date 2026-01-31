@@ -1,8 +1,8 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
@@ -14,7 +14,7 @@ import { I18nKeys } from '../constants/i18n-keys';
  *
  * @example
  * ```typescript
- * @UseGuards(JwtAuthGuard, SystemAdminGuard)
+ * @UseGuards(JwtAccessGuard, SystemAdminGuard)
  * @Get('admin/tenants')
  * async listAllTenants() {
  *   // Only system admins can access

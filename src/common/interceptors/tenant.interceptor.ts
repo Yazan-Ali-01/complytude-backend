@@ -1,12 +1,12 @@
 import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
   CallHandler,
+  ExecutionContext,
+  Injectable,
   Logger,
+  NestInterceptor,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
 import { Reflector } from '@nestjs/core';
+import { Observable } from 'rxjs';
 import { IS_PUBLIC_KEY } from '../../modules/auth/decorators/public.decorator';
 
 export interface TenantContext {
@@ -17,7 +17,7 @@ export interface TenantContext {
 
 /**
  * Interceptor to extract tenant context from authenticated user (JWT payload)
- * Runs AFTER guards, so req.user is already populated by JwtAuthGuard
+ * Runs AFTER guards, so req.user is already populated by JwtAccessGuard
  *
  * This sets req.tenantContext for use in services/controllers
  */

@@ -1,14 +1,15 @@
 import {
-  Injectable,
   ExecutionContext,
+  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { JWT_ACCESS_STRATEGY } from '../strategies';
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
+export class JwtAccessGuard extends AuthGuard(JWT_ACCESS_STRATEGY) {
   constructor(private reflector: Reflector) {
     super();
   }

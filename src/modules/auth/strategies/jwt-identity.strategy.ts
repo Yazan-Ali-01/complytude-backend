@@ -3,30 +3,32 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { FastifyRequest } from 'fastify';
 import { Strategy } from 'passport-jwt';
-import { TempAuthPayload } from './jwt-payload.interface';
+import { IdentityPayload } from './jwt-payload.interface';
 
-// Custom extractor to get temp auth token from HTTP-only cookie
+// Custom extractor to get identity token from HTTP-only cookie
 const cookieExtractor = (req: FastifyRequest): string | null => {
-  return req?.cookies?.tempAuthToken || null;
+  return req?.cookies?.identityToken || null;
 };
 
+export const JWT_IDENTITY_STRATEGY = 'JWT_IDENTITY_STRATEGY';
+
 @Injectable()
-export class JwtTempAuthStrategy extends PassportStrategy(
+export class JwtIdentityStrategy extends PassportStrategy(
   Strategy,
-  'jwt-temp-auth',
+  JWT_IDENTITY_STRATEGY,
 ) {
   constructor(private configService: ConfigService) {
     super({
       jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
       secretOrKey:
-        configService.get<string>('jwt.tempAuthSecret') || 'fallback-secret',
+        configService.get<string>('jwt.identitySecret') || 'fallback-secret',
     });
   }
 
-  validate(payload: TempAuthPayload) {
+  validate(payload: IdentityPayload) {
     // Ensure it's an access token
-    if (payload.type !== 'temp-auth') {
+    if (payload.type !== 'identity') {
       throw new UnauthorizedException('Invalid token type');
     }
 

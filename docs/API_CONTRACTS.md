@@ -47,7 +47,7 @@ The application uses **HTTP-only cookies** for JWT token management:
 
 | Cookie Name     | Purpose              | Lifetime   | Usage                                                |
 | --------------- | -------------------- | ---------- | ---------------------------------------------------- |
-| `tempAuthToken` | Multi-step auth flow | 10 minutes | Temporary token for tenant selection after login     |
+| `identityToken` | Multi-step auth flow | 10 minutes | Temporary token for tenant selection after login     |
 | `accessToken`   | API access           | 30 minutes | Sent with every API request (after tenant selection) |
 | `refreshToken`  | Token renewal        | 14 days    | Used at `/auth/refresh` endpoint                     |
 
@@ -58,13 +58,13 @@ The application uses **HTTP-only cookies** for JWT token management:
 ```
 1. Login (POST /auth/login)
    ↓
-2. Server sets tempAuthToken cookie (short-lived, 10 minutes)
+2. Server sets identityToken cookie (short-lived, 10 minutes)
    ↓
 3. User selects tenant (POST /auth/tenant-switch)
    ↓
 4. Server sets accessToken + refreshToken cookies
    ↓
-5. tempAuthToken is cleared
+5. identityToken is cleared
    ↓
 6. Browser automatically sends accessToken with requests
    ↓
@@ -90,13 +90,13 @@ The application uses **HTTP-only cookies** for JWT token management:
 | Decorator                             | When to Use                                     | Status Codes                    |
 | ------------------------------------- | ----------------------------------------------- | ------------------------------- |
 | `@Public()`                           | Public endpoints (no auth required)             | -                               |
-| `@SwaggerCookieAuth.tempAuthToken()`  | Multi-step auth (tenant selection, invitations) | 401 if unauthenticated          |
+| `@SwaggerCookieAuth.identityToken()`  | Multi-step auth (tenant selection, invitations) | 401 if unauthenticated          |
 | `@SwaggerCookieAuth.accessToken()`    | Protected endpoints (full auth required)        | 401 if unauthenticated          |
 | `@UseGuards(RolesGuard)` + `@Roles()` | Role-based access                               | 403 if insufficient permissions |
 
-**Note:** Some endpoints accept **both** `tempAuthToken` and `accessToken` using `@UseGuards(JwtBothTokensAuthGuard)`. This allows users to perform actions (like viewing/accepting invitations) either:
+**Note:** Some endpoints accept **both** `identityToken` and `accessToken` using `@UseGuards(JwtAccessAndIdentityGuard)`. This allows users to perform actions (like viewing/accepting invitations) either:
 
-- After login but before tenant selection (using tempAuthToken)
+- After login but before tenant selection (using identityToken)
 - After full authentication (using accessToken)
 
 ### Swagger Documentation
