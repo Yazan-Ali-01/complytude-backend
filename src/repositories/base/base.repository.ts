@@ -128,6 +128,7 @@ export abstract class BaseRepository<
   ): Promise<QueryResult<T>> {
     const { client, tenant, isAuthflow = false } = options;
     const hasTenant = !!tenant;
+
     this.logger.debug(
       `runWithClient: table=${this.tableName}, tenant=${
         tenant?.tenantId ?? 'none'
@@ -136,10 +137,14 @@ export abstract class BaseRepository<
 
     try {
       if (hasTenant) {
-        await client.query(
-          `SET LOCAL app.current_tenant_id = '${tenant.tenantId}'`,
-        );
-        await client.query(`SET search_path TO ${tenant.schema}, public`);
+        await client.query('SELECT set_config($1, $2, true)', [
+          'app.current_tenant_id',
+          tenant.tenantId,
+        ]);
+        await client.query('SELECT set_config($1, $2, true)', [
+          'search_path',
+          `${tenant.schema}, public`,
+        ]);
       } else if (isAuthflow) {
         await client.query("SET LOCAL app.is_auth_flow = 'true'");
       }

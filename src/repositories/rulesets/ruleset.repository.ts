@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository } from '../base/base.repository';
-import { DatabaseService } from '../../database/database.service';
-import {
-  QueryOptions,
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from '../base/repository.interface';
 import {
   Ruleset,
   RulesetClause,
 } from 'src/modules/rulesets/entities/ruleset.entity';
+import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  QueryOptions,
+} from '../base/repository.interface';
 
 /**
  * Type for creating a new ruleset row in the database.
@@ -226,9 +226,13 @@ export class RulesetRepository extends BaseRepository<
   async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {
     if (!keys.length) return [];
 
+    // Build parameterized placeholders for IN clause: ($1, $2, ..., $N)
+    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
+    const statusParamIndex = keys.length + 1;
+
     const result = await this.executeQuery<RulesetRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE key IN ($1) AND status = $2 ORDER BY name`,
-      [keys, 'active'],
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE key IN (${placeholders}) AND status = $${statusParamIndex} ORDER BY name`,
+      [...keys, 'active'],
       options,
     );
 

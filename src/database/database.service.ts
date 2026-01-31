@@ -69,7 +69,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const client = await this.getClient();
     try {
       if (bypassRLS) {
-        await client.query("SET LOCAL app.bypass_rls = 'true'");
+        await client.query('SELECT set_config($1, $2, true)', [
+          'app.bypass_rls',
+          'true',
+        ]);
       }
       const result = await client.query<T>(text, params);
       const duration = Date.now() - start;
@@ -108,7 +111,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       await client.query('BEGIN');
       if (bypassRLS) {
-        await client.query("SET LOCAL app.bypass_rls = 'true'");
+        await client.query('SELECT set_config($1, $2, true)', [
+          'app.bypass_rls',
+          'true',
+        ]);
       }
       const result = await callback(client);
       await client.query('COMMIT');
