@@ -16,6 +16,7 @@
 - [Error Handling](#error-handling)
 - [Naming Conventions](#naming-conventions)
 - [Swagger Documentation](#swagger-documentation)
+- [Invitation System](#invitation-system)
 - [Examples](#examples)
 
 ---
@@ -42,53 +43,86 @@ This document defines the standards for API contract definition in the Complytud
 
 ### Cookie-Based JWT Authentication
 
-The application uses **HTTP-only cookies** for JWT token management:
+The application uses **HTTP-only cookies** for JWT token management with a **dual-token system**:
 
-| Cookie Name | Purpose | Lifetime | Usage |
-|-------------|---------|----------|-------|
-| `accessToken` | API access | 30 minutes | Sent with every API request |
-| `refreshToken` | Token renewal | 14 days | Used at `/auth/refresh` endpoint |
+| Cookie Name            | Purpose                    | Lifetime | Usage                                                  |
+| ---------------------- | -------------------------- | -------- | ------------------------------------------------------ |
+| `identityAccessToken`  | User identity verification | 15 min   | Identity-based operations, tenant selection, sys admin |
+| `identityRefreshToken` | Identity token renewal     | 14 days  | Used at `/auth/refresh/identity` endpoint              |
+| `tenantAccessToken`    | Tenant-scoped API access   | 30 min   | Sent with tenant-specific API requests                 |
+| `tenantRefreshToken`   | Tenant token renewal       | 14 days  | Used at `/auth/refresh/tenant` endpoint                |
 
 ### Authentication Flow
+
+**Regular User Authentication:**
 
 ```
 1. Login (POST /auth/login)
    ↓
-2. Server sets HTTP-only cookies
+2. Server sets identityAccessToken + identityRefreshToken cookies
    ↓
-3. Browser automatically sends cookies with requests
+3. User selects tenant (POST /auth/tenant-switch)
    ↓
-4. Access token expires after 30 minutes
+4. Server sets tenantAccessToken + tenantRefreshToken cookies
    ↓
-5. Client calls /auth/refresh
+5. Identity tokens remain valid (not cleared)
    ↓
-6. Server issues new tokens in cookies
+6. Browser automatically sends appropriate tokens with requests
+   ↓
+7. Tenant access token expires after 30 minutes
+   ↓
+8. Client calls /auth/refresh/tenant
+   ↓
+9. Server issues new tenant tokens in cookies
+```
+
+**System Admin Authentication:**
+
+```
+1. Login (POST /auth/login)
+   ↓
+2. Server sets identityAccessToken + identityRefreshToken cookies
+   ↓
+3. System admin can access identity-based endpoints immediately
+   ↓
+4. Optional: Select tenant for tenant-specific operations
+   ↓
+5. Receives tenantAccessToken + tenantRefreshToken cookies
 ```
 
 ### Endpoint Authentication
 
-| Decorator | When to Use | Status Codes |
-|-----------|-------------|--------------|
-| `@Public()` | Public endpoints (no auth required) | - |
-| `@SwaggerCookieAuth.accessToken()` | Protected endpoints (auth required) | 401 if unauthenticated |
-| `@UseGuards(RolesGuard)` + `@Roles()` | Role-based access | 403 if insufficient permissions |
+| Decorator                                        | When to Use                                       | Status Codes                    |
+| ------------------------------------------------ | ------------------------------------------------- | ------------------------------- |
+| No decorator                                     | Public endpoints (no auth required)               | -                               |
+| `@AuthOptions({ identity: true })`               | Identity-based auth (tenant selection, sys admin) | 401 if unauthenticated          |
+| `@AuthOptions({ tenant: true })`                 | Tenant-scoped endpoints (full auth required)      | 401 if unauthenticated          |
+| `@AuthOptions({ identity: true, tenant: true })` | Requires both identity and tenant tokens          | 401 if unauthenticated          |
+| `@UseGuards(RolesGuard)` + `@Roles()`            | Role-based access (requires tenant token)         | 403 if insufficient permissions |
 
 ### Swagger Documentation
 
 ```typescript
 // Public endpoint
-@Public()
 @ApiPublicResponses()
 @Post('login')
 async login() { ... }
 
-// Authenticated endpoint
-@SwaggerCookieAuth.accessToken()
+// Identity-based endpoint
+@AuthOptions({ identity: true })
+@SwaggerCookieAuth.identityAccessToken()
 @ApiAuthenticatedResponses()
 @Get('profile')
-async getProfile() { ... }
+async getProfile(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) { ... }
+
+// Tenant-scoped endpoint
+@AuthOptions({ tenant: true })
+@ApiAuthenticatedResponses()
+@Get('documents')
+async listDocuments(@CurrentUserTenant() user: AuthenticatedTenantUser) { ... }
 
 // Role-protected endpoint
+@AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles('admin', 'member')
 @ApiProtectedResponses('Requires admin or member role')
@@ -102,11 +136,11 @@ async create() { ... }
 
 ### DTO Types
 
-| Type | Naming Pattern | Purpose | Example |
-|------|---------------|---------|---------|
-| **Body DTO** | `Create{Resource}Dto`, `Update{Resource}Dto` | Request body validation | `CreateTemplateDto` |
-| **Query DTO** | `{Resource}QueryDto`, `List{Resource}QueryDto` | Query string parameters | `TemplateQueryDto` |
-| **Param DTO** | `{Resource}IdParamDto`, `UuidParamDto` | Path parameters | `TemplateIdParamDto` |
+| Type          | Naming Pattern                                 | Purpose                 | Example              |
+| ------------- | ---------------------------------------------- | ----------------------- | -------------------- |
+| **Body DTO**  | `Create{Resource}Dto`, `Update{Resource}Dto`   | Request body validation | `CreateTemplateDto`  |
+| **Query DTO** | `{Resource}QueryDto`, `List{Resource}QueryDto` | Query string parameters | `TemplateQueryDto`   |
+| **Param DTO** | `{Resource}IdParamDto`, `UuidParamDto`         | Path parameters         | `TemplateIdParamDto` |
 
 ### Body DTOs
 
@@ -243,12 +277,12 @@ export class TemplateResponseDto {
 
 ### Standard Response Types
 
-| Type | When to Use | Example |
-|------|-------------|---------|
-| **Resource DTO** | Returning single resource | `TemplateResponseDto` |
-| **List DTO** | Returning multiple resources | `PaginatedResponseDto<TemplateResponseDto>` |
-| **Message DTO** | Simple confirmation | `MessageResponseDto` |
-| **Nested DTO** | Resource with relations | `TemplateWithVersionsResponseDto` |
+| Type             | When to Use                  | Example                                     |
+| ---------------- | ---------------------------- | ------------------------------------------- |
+| **Resource DTO** | Returning single resource    | `TemplateResponseDto`                       |
+| **List DTO**     | Returning multiple resources | `PaginatedResponseDto<TemplateResponseDto>` |
+| **Message DTO**  | Simple confirmation          | `MessageResponseDto`                        |
+| **Nested DTO**   | Resource with relations      | `TemplateWithVersionsResponseDto`           |
 
 ### Paginated Responses
 
@@ -282,6 +316,7 @@ async list(@Query() query: ListTemplatesQueryDto): Promise<PaginatedResponseDto<
 ### Timestamp Fields
 
 All timestamps should be:
+
 - **Format:** ISO 8601 string (`YYYY-MM-DDTHH:mm:ss.sssZ`)
 - **Type:** `string` (not `Date` object)
 - **Example:** `2026-01-21T10:30:00.000Z`
@@ -316,16 +351,16 @@ All errors use `ErrorResponseDto`:
 
 ### HTTP Status Codes
 
-| Code | Type | When to Use | DTO |
-|------|------|-------------|-----|
-| **200** | Success | Successful GET, PUT, PATCH, DELETE | Resource DTO |
-| **201** | Created | Successful POST | Resource DTO |
-| **400** | Bad Request | Validation failed | `ValidationErrorDto` |
-| **401** | Unauthorized | Missing/invalid authentication | `UnauthorizedErrorDto` |
-| **403** | Forbidden | Insufficient permissions | `ForbiddenErrorDto` |
-| **404** | Not Found | Resource doesn't exist | `NotFoundErrorDto` |
-| **409** | Conflict | Resource already exists | `ConflictErrorDto` |
-| **500** | Server Error | Unexpected server error | `InternalServerErrorDto` |
+| Code    | Type         | When to Use                        | DTO                      |
+| ------- | ------------ | ---------------------------------- | ------------------------ |
+| **200** | Success      | Successful GET, PUT, PATCH, DELETE | Resource DTO             |
+| **201** | Created      | Successful POST                    | Resource DTO             |
+| **400** | Bad Request  | Validation failed                  | `ValidationErrorDto`     |
+| **401** | Unauthorized | Missing/invalid authentication     | `UnauthorizedErrorDto`   |
+| **403** | Forbidden    | Insufficient permissions           | `ForbiddenErrorDto`      |
+| **404** | Not Found    | Resource doesn't exist             | `NotFoundErrorDto`       |
+| **409** | Conflict     | Resource already exists            | `ConflictErrorDto`       |
+| **500** | Server Error | Unexpected server error            | `InternalServerErrorDto` |
 
 ### Documenting Errors
 
@@ -364,14 +399,14 @@ async create(@Body() dto: CreateTemplateDto) { ... }
 
 ### DTOs
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| Create | `Create{Resource}Dto` | `CreateTemplateDto` |
-| Update | `Update{Resource}Dto` | `UpdateTemplateDto` |
-| Response | `{Resource}ResponseDto` | `TemplateResponseDto` |
-| List Response | `{Resource}ListResponseDto` | `TemplateListResponseDto` |
-| Query | `{Resource}QueryDto` or `List{Resource}QueryDto` | `TemplateQueryDto` |
-| Param | `{Resource}IdParamDto` | `TemplateIdParamDto` |
+| Type          | Pattern                                          | Example                   |
+| ------------- | ------------------------------------------------ | ------------------------- |
+| Create        | `Create{Resource}Dto`                            | `CreateTemplateDto`       |
+| Update        | `Update{Resource}Dto`                            | `UpdateTemplateDto`       |
+| Response      | `{Resource}ResponseDto`                          | `TemplateResponseDto`     |
+| List Response | `{Resource}ListResponseDto`                      | `TemplateListResponseDto` |
+| Query         | `{Resource}QueryDto` or `List{Resource}QueryDto` | `TemplateQueryDto`        |
+| Param         | `{Resource}IdParamDto`                           | `TemplateIdParamDto`      |
 
 ### Properties
 
@@ -389,11 +424,13 @@ async create(@Body() dto: CreateTemplateDto) { ... }
 ```typescript
 @ApiTags('Templates')
 @Controller('templates')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class TemplatesController {
   // Routes
 }
 ```
+
+**Note:** Authentication is now specified per-endpoint using `@AuthOptions()` decorator, not at controller level.
 
 ### Endpoint Level
 
@@ -467,19 +504,26 @@ export class CategoryResponseDto {
 // Controller
 @ApiTags('Categories')
 @Controller('categories')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.IdentityAccessToken()
 export class CategoriesController {
   @Get()
+  @AuthOptions({ identity: true })
   @ApiListResponses(PaginatedResponseDto, 'Categories')
-  async list(): Promise<PaginatedResponseDto<CategoryResponseDto>> {
+  async list(
+    @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+  ): Promise<PaginatedResponseDto<CategoryResponseDto>> {
     // Implementation
   }
 
   @Post()
+  @AuthOptions({ tenant: true })
   @UseGuards(RolesGuard)
   @Roles('admin', 'system')
   @ApiCreateResponses(CategoryResponseDto, 'Category')
-  async create(@Body() dto: CreateCategoryDto): Promise<CategoryResponseDto> {
+  async create(
+    @Body() dto: CreateCategoryDto,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<CategoryResponseDto> {
     // Implementation
   }
 }
@@ -521,8 +565,8 @@ Available decorators in `src/common/swagger/decorators.ts`:
 - [ ] `@ApiOperation()` with summary and description
 - [ ] Success response documented with `@ApiResponse()`
 - [ ] Error responses documented (400, 401, 403, 404, 409, 500)
-- [ ] Authentication decorator applied (`@SwaggerCookieAuth.accessToken()`)
-- [ ] Role guards applied if needed (`@Roles()`, `@UseGuards()`)
+- [ ] Authentication specified with `@AuthOptions()` decorator
+- [ ] Role guards applied if needed (`@Roles()`, `@UseGuards(RolesGuard)`)
 - [ ] Query parameters documented (`@ApiQuery()` or query DTO)
 - [ ] Path parameters documented (`@ApiParam()` or param DTO)
 - [ ] Request body documented (`@ApiBody()` if needed)
@@ -539,6 +583,8 @@ Available decorators in `src/common/swagger/decorators.ts`:
 ---
 
 **For questions or clarifications, refer to existing examples in:**
+
 - `src/modules/auth/auth.controller.ts` - Authentication endpoints
+- `src/modules/tenants/invitations.controller.ts` - Invitation management
 - `src/modules/storage/storage.controller.ts` - File upload/download
 - `src/modules/templates/templates.controller.ts` - Complex CRUD operations

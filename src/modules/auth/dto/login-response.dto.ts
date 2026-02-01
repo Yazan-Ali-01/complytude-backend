@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { TenantRole } from 'src/common/types';
 
 /**
  * User information returned in login response
@@ -29,6 +30,12 @@ export class LoginUserDto {
     nullable: true,
   })
   lastName: string | null;
+
+  @ApiProperty({
+    description: 'Whether user is a system administrator',
+    example: false,
+  })
+  isSystemAdmin: boolean;
 }
 
 /**
@@ -49,10 +56,10 @@ export class LoginTenantDto {
 
   @ApiProperty({
     description: 'User role within the tenant',
-    enum: ['admin', 'member', 'viewer'],
-    example: 'member',
+    enum: Object.values(TenantRole),
+    example: TenantRole.MEMBER,
   })
-  role: 'admin' | 'member' | 'viewer';
+  role: TenantRole;
 
   @ApiProperty({
     description: 'Whether user access is active in this tenant',
@@ -71,15 +78,9 @@ export class LoginTenantDto {
 
 /**
  * Response returned after successful login
- * Contains temporary authentication and list of user's tenants
+ * Contains identity tokens (set as HTTP-only cookies) and list of user's tenants
  */
 export class LoginResponseDto {
-  @ApiProperty({
-    description: 'Success message',
-    example: 'Login successful. Please select a tenant.',
-  })
-  message: string;
-
   @ApiProperty({
     description: 'User information',
     type: LoginUserDto,
@@ -94,18 +95,29 @@ export class LoginResponseDto {
       {
         tenantId: '550e8400-e29b-41d4-a716-446655440000',
         tenantName: 'Acme Corporation',
-        role: 'admin',
+        role: TenantRole.ADMIN,
         isActive: true,
         joinedAt: '2026-01-10T08:00:00.000Z',
       },
       {
         tenantId: '660e8400-e29b-41d4-a716-446655440001',
         tenantName: 'TechStart LLC',
-        role: 'member',
+        role: TenantRole.MEMBER,
         isActive: true,
         joinedAt: '2026-01-15T10:30:00.000Z',
       },
     ],
   })
   tenants: LoginTenantDto[];
+
+  @ApiProperty({
+    description: 'Number of pending invitations for this user',
+    example: 2,
+    type: 'integer',
+  })
+  pendingInvitationsCount: number;
+
+  constructor(data: LoginResponseDto) {
+    Object.assign(this, data);
+  }
 }

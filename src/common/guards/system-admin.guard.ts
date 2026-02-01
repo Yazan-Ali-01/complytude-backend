@@ -1,16 +1,19 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
+import { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
 import { I18nKeys } from '../constants/i18n-keys';
+import { GlobalRole } from '../types';
 
 /**
  * Guard to check if user is a system administrator
  * System admins have platform-wide access (not tenant-specific)
+ * Requires identity token with SYSTEM_ADMIN role
  *
  * @example
  * ```typescript
@@ -25,19 +28,21 @@ import { I18nKeys } from '../constants/i18n-keys';
 export class SystemAdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const identity = request.auth?.identity as AuthenticatedIdentityUser;
     const i18n = I18nContext.current();
 
-    // Ensure user is authenticated
-    if (!user) {
+    // Ensure identity token is present
+    if (!identity) {
       throw new UnauthorizedException(
-        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Identity token required',
       );
     }
 
-    // Check if user is system admin
-    if (!user.isSystemAdmin) {
-      throw new ForbiddenException(i18n?.t(I18nKeys.FORBIDDEN) ?? 'Forbidden');
+    // Check if user has SYSTEM_ADMIN role
+    if (!identity.globalRoles?.includes(GlobalRole.SYSTEM_ADMIN)) {
+      throw new ForbiddenException(
+        i18n?.t(I18nKeys.FORBIDDEN) ?? 'System admin access required',
+      );
     }
 
     return true;

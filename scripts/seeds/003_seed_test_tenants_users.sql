@@ -13,9 +13,9 @@ BEGIN;
 -- =========================
 
 INSERT INTO public.tenants (id, plan, features, is_active) VALUES
-    ('11111111-1111-1111-1111-111111111111', 'pro', '{"api_access": true, "custom_templates": true, "advanced_analytics": true}', true),
-    ('22222222-2222-2222-2222-222222222222', 'basic', '{"api_access": false, "custom_templates": false}', true),
-    ('33333333-3333-3333-3333-333333333333', 'enterprise', '{"api_access": true, "custom_templates": true, "advanced_analytics": true, "dedicated_support": true, "white_label": true}', true)
+    ('11111111-1111-4111-8111-111111111111', 'pro', '{"api_access": true, "custom_templates": true, "advanced_analytics": true}', true),
+    ('22222222-2222-4222-8222-222222222222', 'basic', '{"api_access": false, "custom_templates": false}', true),
+    ('33333333-3333-3333-A333-333333333333', 'enterprise', '{"api_access": true, "custom_templates": true, "advanced_analytics": true, "dedicated_support": true, "white_label": true}', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- =========================
@@ -41,19 +41,19 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.user_tenants (user_id, tenant_id, role) VALUES
     -- Tenant 1 (Pro plan) - 3 users
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'admin'),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111', 'member'),
-    ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', 'viewer'),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'ADMIN'),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-4111-8111-111111111111', 'MEMBER'),
+    ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-4111-8111-111111111111', 'VIEWER'),
     
     -- Tenant 2 (Basic plan) - 2 users
-    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-2222-2222-222222222222', 'admin'),
-    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-2222-2222-222222222222', 'member'),
+    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-4222-8222-222222222222', 'ADMIN'),
+    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'MEMBER'),
     
     -- Tenant 3 (Enterprise plan) - 1 user
-    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-3333-3333-3333-333333333333', 'admin'),
+    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-3333-3333-A333-333333333333', 'ADMIN'),
     
     -- Multi-tenant user: Bob is also a viewer in Tenant 2
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'viewer')
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'VIEWER')
 ON CONFLICT (user_id, tenant_id) DO NOTHING;
 
 -- =========================

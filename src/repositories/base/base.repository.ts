@@ -86,16 +86,14 @@ export abstract class BaseRepository<
     this.logger.debug(
       `executeQuery: table=${this.tableName}, client=${
         options?.client ? 'yes' : 'no'
-      }, tenant=${options?.tenant?.tenantId ?? 'none'}, bypassRLS=${
-        options?.bypassRLS ?? false
-      }, sql=${query}, params=${JSON.stringify(params)}`,
+      }, tenant=${options?.tenant?.tenantId ?? 'none'}, ${options?.isAuthflow ? 'isAuthflow=true' : ''}, sql=${query}, params=${JSON.stringify(params)}`,
     );
-    const { client, tenant, bypassRLS = false } = options ?? {};
+    const { client, tenant, isAuthflow = false } = options ?? {};
     if (client) {
       return this.runWithClient<T>(query, params, {
         client,
         tenant,
-        bypassRLS,
+        isAuthflow,
       });
     }
 
@@ -107,7 +105,8 @@ export abstract class BaseRepository<
       );
     }
 
-    return this.databaseService.query<T>(query, params, bypassRLS);
+    // todo: check the query function inside the database service
+    return this.databaseService.query<T>(query, params, isAuthflow);
   }
 
   /**
@@ -127,13 +126,13 @@ export abstract class BaseRepository<
     params: unknown[],
     options: ClientQueryOptions,
   ): Promise<QueryResult<T>> {
-    const { client, tenant, bypassRLS = false } = options;
+    const { client, tenant, isAuthflow = false } = options;
     const hasTenant = !!tenant;
 
     this.logger.debug(
       `runWithClient: table=${this.tableName}, tenant=${
         tenant?.tenantId ?? 'none'
-      }, bypassRLS=${bypassRLS}, params=${JSON.stringify(params)}`,
+      }, ${isAuthflow ? 'isAuthflow=true' : ''}, params=${JSON.stringify(params)}`,
     );
 
     try {
@@ -146,21 +145,14 @@ export abstract class BaseRepository<
           'search_path',
           `${tenant.schema}, public`,
         ]);
-      } else if (bypassRLS) {
-        await client.query('SELECT set_config($1, $2, true)', [
-          'app.bypass_rls',
-          'true',
-        ]);
+      } else if (isAuthflow) {
+        await client.query("SET LOCAL app.is_auth_flow = 'true'");
       }
 
       return await client.query<T>(query, params);
-    } finally {
-      if (hasTenant) {
-        // await client.query('RESET search_path');
-        // await client.query('RESET app.current_tenant_id');
-      } else if (bypassRLS) {
-        // await client.query('RESET app.bypass_rls');
-      }
+    } catch (error) {
+      this.logger.error(`Error executing query: ${error}`);
+      throw error;
     }
   }
 

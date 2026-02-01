@@ -30,7 +30,7 @@ import { Category } from './entities/category.entity';
 
 @ApiTags('Categories')
 @Controller('categories')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 

@@ -1,10 +1,10 @@
 import {
   Injectable,
+  Logger,
   NestMiddleware,
   UnauthorizedException,
-  Logger,
 } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Response } from 'express';
 import { TenantFeatures } from 'src/modules/tenants/entities/tenant.entity';
 
 export interface TenantContext {
@@ -74,13 +74,13 @@ export class TenantMiddleware implements NestMiddleware {
     }
 
     // Extract tenant context from JWT token (preferred method)
-    // req.user is set by JwtAuthGuard after successful authentication
-    if (req.user) {
+    // req.auth.tenant is set by JwtAuthGuard after successful authentication
+    if (req.auth.tenant) {
       req.tenantContext = {
-        tenantId: req.user.tenantId,
-        schemaName: `tenant_${req.user.tenantId.replace(/-/g, '_')}`,
-        userId: req.user.userId,
-        role: req.user.role,
+        tenantId: req.auth.tenant.tenantId,
+        schemaName: `tenant_${req.auth.tenant.tenantId.replace(/-/g, '_')}`,
+        userId: req.auth.tenant.userId,
+        role: req.auth.tenant.role,
       };
 
       this.logger.debug(

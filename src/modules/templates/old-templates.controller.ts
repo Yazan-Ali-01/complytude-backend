@@ -53,7 +53,7 @@ import { TemplatesService } from './templates.service';
 
 @ApiTags('Templates')
 @Controller('templates')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class TemplatesController {
   constructor(
     private readonly templatesService: TemplatesService,

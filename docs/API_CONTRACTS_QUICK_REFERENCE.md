@@ -2,25 +2,49 @@
 
 > **TL;DR:** Copy-paste examples for common API contract patterns
 
+**Authentication Note:** This API uses a dual-token authentication flow with four token types:
+
+- `identityAccessToken` - Short-lived (15 min) token for user identity verification and system admin operations
+- `identityRefreshToken` - Long-lived (14 days) token for renewing identity access tokens
+- `tenantAccessToken` - Short-lived (30 min) token for tenant-scoped API access
+- `tenantRefreshToken` - Long-lived (14 days) token for renewing tenant access tokens
+
 ---
 
 ## Import Statements
 
 ```typescript
 // Controller imports
-import { Controller, Get, Post, Put, Patch, Delete, Body, Query, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Query,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 
 // Common DTOs
-import { 
-  PaginationQueryDto, 
+import {
+  PaginationQueryDto,
   PaginatedResponseDto,
   MessageResponseDto,
-  UuidParamDto 
+  UuidParamDto,
 } from 'src/common/dto';
 
 // Swagger helpers
-import { 
+import {
   SwaggerCookieAuth,
   ApiAuthenticatedResponses,
   ApiProtectedResponses,
@@ -35,7 +59,11 @@ import {
 } from 'src/common/swagger';
 
 // Auth decorators
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
+import {
+  CurrentUserTenant,
+  CurrentUserIdentity,
+} from 'src/modules/auth/decorators/current-user.decorator';
 import { Roles } from 'src/modules/auth/decorators/roles.decorator';
 import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 ```
@@ -47,7 +75,7 @@ import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 ```typescript
 @ApiTags('Resources')
 @Controller('resources')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class ResourcesController {
   constructor(private readonly service: ResourceService) {}
 
@@ -63,6 +91,7 @@ export class ResourcesController {
 
 ```typescript
 @Get()
+@AuthOptions({ tenant: true })
 @ApiOperation({
   summary: 'List all resources',
   description: 'Retrieve a paginated list of resources with optional filtering',
@@ -70,6 +99,7 @@ export class ResourcesController {
 @ApiListResponses(PaginatedResponseDto, 'Resources')
 async list(
   @Query() query: ListResourceQueryDto,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<PaginatedResponseDto<ResourceResponseDto>> {
   // Implementation
   return;
@@ -80,6 +110,7 @@ async list(
 
 ```typescript
 @Get(':id')
+@AuthOptions({ tenant: true })
 @ApiOperation({
   summary: 'Get resource by ID',
   description: 'Retrieve a single resource by its UUID',
@@ -92,6 +123,7 @@ async list(
 @ApiGetResponses(ResourceResponseDto, 'Resource')
 async findOne(
   @Param() params: ResourceIdParamDto,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<ResourceResponseDto> {
   // Implementation
   return;
@@ -102,6 +134,7 @@ async findOne(
 
 ```typescript
 @Post()
+@AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles('admin', 'member')
 @ApiOperation({
@@ -112,7 +145,7 @@ async findOne(
 @ApiConflictError('Resource already exists')
 async create(
   @Body() dto: CreateResourceDto,
-  @CurrentUser() user: AuthenticatedUser,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<ResourceResponseDto> {
   // Implementation
   return;
@@ -123,6 +156,7 @@ async create(
 
 ```typescript
 @Patch(':id')
+@AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles('admin', 'member')
 @ApiOperation({
@@ -138,7 +172,7 @@ async create(
 async update(
   @Param() params: ResourceIdParamDto,
   @Body() dto: UpdateResourceDto,
-  @CurrentUser() user: AuthenticatedUser,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<ResourceResponseDto> {
   // Implementation
   return;
@@ -149,6 +183,7 @@ async update(
 
 ```typescript
 @Delete(':id')
+@AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles('admin')
 @ApiOperation({
@@ -163,7 +198,7 @@ async update(
 @ApiDeleteResponses('Resource')
 async remove(
   @Param() params: ResourceIdParamDto,
-  @CurrentUser() user: AuthenticatedUser,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<MessageResponseDto> {
   // Implementation
   return { message: 'Resource deleted successfully' };
@@ -173,7 +208,6 @@ async remove(
 ### 6. Public Endpoint (No Auth)
 
 ```typescript
-@Public()
 @Get('public')
 @ApiOperation({
   summary: 'Public endpoint',
@@ -186,6 +220,25 @@ async remove(
 })
 @ApiStandardErrors()
 async publicEndpoint(): Promise<ResourceResponseDto> {
+  // Implementation
+  return;
+}
+```
+
+### 7. System Admin Endpoint (Identity Token)
+
+```typescript
+@Get('admin/system-stats')
+@AuthOptions({ identity: true })
+@UseGuards(SystemAdminGuard)
+@ApiOperation({
+  summary: 'Get system statistics',
+  description: 'Retrieve system-wide statistics. Requires system admin role.',
+})
+@ApiGetResponses(SystemStatsDto, 'System statistics')
+async getSystemStats(
+  @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+): Promise<SystemStatsDto> {
   // Implementation
   return;
 }
@@ -389,12 +442,12 @@ export class ResourceIdParamDto {
 
 ## Response Status Codes
 
-| Method | Success | Error Scenarios |
-|--------|---------|-----------------|
-| GET | 200 | 401, 403, 404, 500 |
-| POST | 201 | 400, 401, 403, 409, 500 |
-| PUT/PATCH | 200 | 400, 401, 403, 404, 500 |
-| DELETE | 200 | 401, 403, 404, 500 |
+| Method    | Success | Error Scenarios         |
+| --------- | ------- | ----------------------- |
+| GET       | 200     | 401, 403, 404, 500      |
+| POST      | 201     | 400, 401, 403, 409, 500 |
+| PUT/PATCH | 200     | 400, 401, 403, 404, 500 |
+| DELETE    | 200     | 401, 403, 404, 500      |
 
 ---
 
@@ -427,6 +480,7 @@ modules/resource/
 ## Common Pitfalls
 
 ❌ **Don't:**
+
 - Use `any` type
 - Forget `@ApiProperty()` decorators
 - Miss error response documentation
@@ -434,6 +488,7 @@ modules/resource/
 - Use implicit authentication
 
 ✅ **Do:**
+
 - Define explicit response DTOs
 - Document all status codes
 - Use type-safe enums

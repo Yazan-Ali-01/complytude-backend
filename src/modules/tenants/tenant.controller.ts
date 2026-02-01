@@ -22,7 +22,7 @@ export class TenantController {
   // ============================================================================
 
   @Get('me')
-  @SwaggerCookieAuth.accessToken()
+  @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
     summary: 'Get my tenant information',
     description:

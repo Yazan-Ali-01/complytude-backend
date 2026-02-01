@@ -1,16 +1,24 @@
+export enum TokenType {
+  IDENTITY = 'identity',
+  TENANT = 'tenant',
+}
+
 export interface RefreshToken {
   id: string;
   userId: string;
   tokenHash: string;
+  tokenType: TokenType;
+  tenantId: string | null;
   expiresAt: Date;
   createdAt: Date;
   revokedAt: Date | null;
 }
 
 export interface CreateRefreshTokenInput {
-  id: string;
   userId: string;
   tokenHash: string;
+  tokenType: TokenType;
+  tenantId?: string | null;
   expiresAt: Date;
 }
 

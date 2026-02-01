@@ -1,13 +1,13 @@
 import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
   CallHandler,
+  ExecutionContext,
+  Injectable,
   Logger,
+  NestInterceptor,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
 import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../../modules/auth/decorators/public.decorator';
+import { Observable } from 'rxjs';
+import { AUTH_OPTIONS_KEY } from 'src/modules/auth/decorators/auth-options.decorator';
 
 export interface TenantContext {
   tenantId: string;
@@ -17,7 +17,7 @@ export interface TenantContext {
 
 /**
  * Interceptor to extract tenant context from authenticated user (JWT payload)
- * Runs AFTER guards, so req.user is already populated by JwtAuthGuard
+ * Runs AFTER guards, so req.auth.tenant is already populated by JwtAuthGuard
  *
  * This sets req.tenantContext for use in services/controllers
  */
@@ -31,22 +31,22 @@ export class TenantInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest();
 
     // Check if route is public
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const authOptions = this.reflector.getAllAndOverride<{
+      tenant?: boolean;
+      identity?: boolean;
+    }>(AUTH_OPTIONS_KEY, [context.getHandler(), context.getClass()]);
 
     // If public route or no user, skip tenant context setup
-    if (isPublic || !request.user) {
+    if (!authOptions || authOptions.tenant === false || !request.auth.tenant) {
       return next.handle();
     }
 
     // Extract tenant context from JWT payload (req.user)
-    if (request.user.tenantId) {
+    if (request.auth.tenant.tenantId) {
       request.tenantContext = {
-        tenantId: request.user.tenantId,
-        userId: request.user.userId,
-        role: request.user.role,
+        tenantId: request.auth.tenant.tenantId,
+        userId: request.auth.tenant.userId,
+        role: request.auth.tenant.role,
       };
 
       this.logger.debug(

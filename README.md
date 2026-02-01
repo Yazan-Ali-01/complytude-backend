@@ -44,9 +44,10 @@
 
 ### Core Features
 
-- **JWT Authentication** - Secure signup, login, email verification, password reset
-- **Multi-Tenancy** - Complete data isolation per organization with schema-based separation + RLS
+- **JWT Authentication** - Dual-token authentication system with identity and tenant tokens, secure signup, login, email verification, password reset
+- **Multi-Tenancy** - Complete data isolation per organization with Row-Level Security (RLS)
 - **User Management** - Role-based access control (Admin, Member, Viewer)
+- **Tenant Invitations** - Secure invitation system with token-based acceptance flow
 - **Template Management** - CRUD operations for legal document templates
 - **S3-Compatible Storage** - Secure file upload/download with tenant isolation (AWS S3 or MinIO)
 - **Plan-Based Features** - Subscription tiers (Early Access, Basic, Pro, Enterprise) with document limits
@@ -246,7 +247,8 @@ complytude/
 │   ├── modules/              # Feature modules
 │   │   ├── auth/            # Authentication (JWT, signup, login)
 │   │   ├── users/           # User management & RBAC
-│   │   ├── tenant/          # Multi-tenancy & subscription plans
+│   │   ├── tenants/         # Multi-tenancy & subscription plans
+│   │   ├── invitations/     # Tenant invitations & membership
 │   │   ├── storage/         # File upload/download (S3/MinIO)
 │   │   ├── templates/       # Legal document templates
 │   │   └── health/          # Health check endpoints
@@ -262,14 +264,15 @@ complytude/
 
 ### Module Overview
 
-| Module        | Description                                       | Status      |
-| ------------- | ------------------------------------------------- | ----------- |
-| **auth**      | JWT authentication, signup, login, password reset | ✅ Complete |
-| **users**     | User management, roles, multi-tenant membership   | ✅ Complete |
-| **tenant**    | Organization management, subscription plans       | ✅ Complete |
-| **storage**   | File upload/download via S3/MinIO with isolation  | ✅ Complete |
-| **templates** | Legal document template CRUD & versioning         | 🟡 Partial  |
-| **health**    | Health checks for database, storage (MinIO/S3)    | ✅ Complete |
+| Module          | Description                                       | Status      |
+| --------------- | ------------------------------------------------- | ----------- |
+| **auth**        | JWT authentication, signup, login, password reset | ✅ Complete |
+| **users**       | User management, roles, multi-tenant membership   | ✅ Complete |
+| **tenant**      | Organization management, subscription plans       | ✅ Complete |
+| **invitations** | Tenant invitations, accept/reject flows           | ✅ Complete |
+| **storage**     | File upload/download via S3/MinIO with isolation  | ✅ Complete |
+| **templates**   | Legal document template CRUD & versioning         | 🟡 Partial  |
+| **health**      | Health checks for database, storage (MinIO/S3)    | ✅ Complete |
 
 ---
 
@@ -299,8 +302,13 @@ DB_CONNECTION_TIMEOUT=2000
 # JWT Authentication
 JWT_ACCESS_SECRET=your-super-secret-jwt-access-key-change-this-in-production
 JWT_REFRESH_SECRET=your-super-secret-jwt-refresh-key-change-this-in-production
+JWT_IDENTITY_SECRET=your-super-secret-jwt-identity-key-change-this-in-production
+JWT_IDENTITY_REFRESH_SECRET=your-super-secret-jwt-identity-refresh-key-change-this-in-production
+JWT_REFRESH_HASH_SECRET=your-super-secret-jwt-refresh-hash-key-change-this-in-production
 JWT_ACCESS_EXPIRES_IN=30m
 JWT_REFRESH_EXPIRES_IN=14d
+JWT_IDENTITY_EXPIRES_IN=15m
+JWT_IDENTITY_REFRESH_EXPIRES_IN=14d
 
 # S3/MinIO Storage
 S3_ENDPOINT=http://localhost:9000
@@ -383,14 +391,16 @@ Interactive API documentation available at: **http://localhost:3000/docs**
 
 ### Key Endpoints
 
-| Category  | Endpoints                                                |
-| --------- | -------------------------------------------------------- |
-| Auth      | `POST /api/auth/signup`, `/login`, `/refresh`, `/logout` |
-| Users     | `GET /api/users/me`, `PATCH /api/users/me`               |
-| Tenants   | `POST /api/tenants`, `GET /api/tenants/:id`              |
-| Storage   | `POST /api/storage/upload`, `GET /api/storage/list`      |
-| Templates | `GET /api/templates`, `POST /api/templates`              |
-| Health    | `GET /api/health`, `/health/db`, `/health/storage`       |
+| Category       | Endpoints                                                   |
+| -------------- | ----------------------------------------------------------- |
+| Auth           | `POST /api/auth/signup`, `/login`, `/refresh`, `/logout`    |
+| Invitations    | `POST /api/auth/invitations/:id/accept`, `/reject`          |
+| Tenant Invites | `POST /api/tenants/admin/invitations`, `GET`, `DELETE /:id` |
+| Users          | `GET /api/users/me`, `PATCH /api/users/me`                  |
+| Tenants        | `POST /api/tenants`, `GET /api/tenants/:id`                 |
+| Storage        | `POST /api/storage/upload`, `GET /api/storage/list`         |
+| Templates      | `GET /api/templates`, `POST /api/templates`                 |
+| Health         | `GET /api/health`, `/health/db`, `/health/storage`          |
 
 ### Postman Collection
 
@@ -403,22 +413,22 @@ Pre-configured Postman collection included:
 
 ## Multi-Tenancy
 
-Complytude uses **schema-based isolation** with **Row-Level Security (RLS)** for complete data separation between tenants.
+Complytude uses **Row-Level Security (RLS)** for complete data separation between tenants.
 
 **Key Features:**
 
-- Each tenant gets their own PostgreSQL schema
-- RLS policies for additional security
-- Automatic tenant context via `@TenantId()` decorator
+- Database-level tenant isolation with RLS policies
+- Dual-token authentication (identity + tenant tokens)
+- Automatic tenant context via `@AuthOptions()` decorator
 - Plan-based feature access control
 
 Example usage:
 
 ```typescript
 @Get()
-@UseGuards(JwtAuthGuard, TenantGuard)
-async findAll(@TenantId() tenantId: string) {
-  return this.service.findAll(tenantId);
+@AuthOptions({ tenant: true })
+async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+  return this.service.findAll(user.tenantId);
 }
 ```
 

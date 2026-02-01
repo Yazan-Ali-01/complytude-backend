@@ -126,6 +126,29 @@ $$;
 
 COMMENT ON FUNCTION public.cleanup_expired_tokens IS 'Cleanup expired auth tokens: refresh tokens (30+ days), email verifications (7+ days), password resets (7+ days). Run daily via scheduled job.';
 
+-- Function to mark expired invitations
+CREATE OR REPLACE FUNCTION public.mark_expired_invitations()
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    affected_rows INTEGER;
+BEGIN
+    -- Update pending invitations that have passed their expiration date
+    UPDATE public.invitations
+    SET status = 'EXPIRED',
+        updated_at = NOW()
+    WHERE status = 'PENDING'
+      AND expires_at < NOW();
+    
+    GET DIAGNOSTICS affected_rows = ROW_COUNT;
+    
+    RETURN affected_rows;
+END;
+$$;
+
+COMMENT ON FUNCTION public.mark_expired_invitations IS 'Mark pending invitations as expired if they have passed their expiration date. Returns count of expired invitations. Run periodically (e.g., hourly).';
+
 COMMIT;
 
 -- =========================
@@ -137,6 +160,7 @@ BEGIN;
 
 -- Drop cleanup function
 DROP FUNCTION IF EXISTS public.cleanup_expired_tokens();
+DROP FUNCTION IF EXISTS public.mark_expired_invitations();
 
 -- Drop all policies on user_tenants
 DROP POLICY IF EXISTS user_tenants_admin_delete ON public.user_tenants;

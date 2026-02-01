@@ -7,7 +7,6 @@ export interface EmailVerification {
 }
 
 export interface CreateEmailVerificationInput {
-  id: string;
   userId: string;
   token: string;
   expiresAt: Date;

@@ -271,8 +271,13 @@ DB_CONNECTION_TIMEOUT=2000
 # JWT Authentication
 JWT_ACCESS_SECRET=your-super-secret-jwt-access-key-change-this-in-production
 JWT_REFRESH_SECRET=your-super-secret-jwt-refresh-key-change-this-in-production
+JWT_IDENTITY_SECRET=your-super-secret-jwt-identity-key-change-this-in-production
+JWT_IDENTITY_REFRESH_SECRET=your-super-secret-jwt-identity-refresh-key-change-this-in-production
+JWT_REFRESH_HASH_SECRET=your-super-secret-jwt-refresh-hash-key-change-this-in-production
 JWT_ACCESS_EXPIRES_IN=30m
 JWT_REFRESH_EXPIRES_IN=14d
+JWT_IDENTITY_EXPIRES_IN=15m
+JWT_IDENTITY_REFRESH_EXPIRES_IN=14d
 
 # S3/MinIO Storage (use localhost for hybrid mode)
 S3_ENDPOINT=http://localhost:9000
@@ -479,8 +484,13 @@ DB_CONNECTION_TIMEOUT=5000
 # JWT - Use strong random secrets
 JWT_ACCESS_SECRET=<generate-with-openssl-rand-base64-64>
 JWT_REFRESH_SECRET=<generate-with-openssl-rand-base64-64>
+JWT_IDENTITY_SECRET=<generate-with-openssl-rand-base64-64>
+JWT_IDENTITY_REFRESH_SECRET=<generate-with-openssl-rand-base64-64>
+JWT_REFRESH_HASH_SECRET=<generate-with-openssl-rand-base64-64>
 JWT_ACCESS_EXPIRES_IN=30m
 JWT_REFRESH_EXPIRES_IN=14d
+JWT_IDENTITY_EXPIRES_IN=15m
+JWT_IDENTITY_REFRESH_EXPIRES_IN=14d
 
 # S3 Storage - Use AWS S3 in production
 S3_REGION=us-east-1
@@ -498,11 +508,12 @@ SIGNED_URL_EXPIRES_IN=900
 ### Generating Secrets
 
 ```bash
-# Generate JWT access secret
-openssl rand -base64 64
-
-# Generate JWT refresh secret (use different value)
-openssl rand -base64 64
+# Generate JWT secrets (use different values for each)
+openssl rand -base64 64  # JWT_ACCESS_SECRET
+openssl rand -base64 64  # JWT_REFRESH_SECRET
+openssl rand -base64 64  # JWT_IDENTITY_SECRET
+openssl rand -base64 64  # JWT_IDENTITY_REFRESH_SECRET
+openssl rand -base64 64  # JWT_REFRESH_HASH_SECRET
 
 # Generate database password
 openssl rand -base64 32

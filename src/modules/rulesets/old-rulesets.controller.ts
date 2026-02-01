@@ -20,17 +20,17 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
 import { Ruleset } from './entities/ruleset.entity';
 import { RulesetsService } from './rulesets.service';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Rulesets')
 @Controller('rulesets')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class RulesetsController {
   constructor(private readonly rulesetsService: RulesetsService) {}
 

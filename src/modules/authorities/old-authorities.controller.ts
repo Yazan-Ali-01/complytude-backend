@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { AuthoritiesService } from './authorities.service';
 import {
@@ -28,11 +29,10 @@ import {
   UpdateAuthorityDto,
 } from './dto/create-authority.dto';
 import { Authority } from './entities/authority.entity';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 
 @ApiTags('Authorities')
 @Controller('authorities')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 export class AuthoritiesController {
   constructor(private readonly authoritiesService: AuthoritiesService) {}
 

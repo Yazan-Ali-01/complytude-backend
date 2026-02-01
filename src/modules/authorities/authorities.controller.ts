@@ -26,8 +26,9 @@ import {
   ApiListResponses,
   ApiUpdateResponses,
 } from 'src/common/swagger/decorators';
-import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
+import { AuthOptions } from '../auth/decorators/auth-options.decorator';
+import type { AuthenticatedIdentityUser } from '../auth/strategies';
 import {
   AuthorityIdParamDto,
   AuthorityListResponseDto,
@@ -39,7 +40,7 @@ import {
 
 @ApiTags('Authorities')
 @Controller('authorities')
-@SwaggerCookieAuth.accessToken()
+@SwaggerCookieAuth.tenantAccessToken()
 @ApiExtraModels(
   AuthorityResponseDto,
   AuthorityListResponseDto,
@@ -78,6 +79,7 @@ export class AuthoritiesController {
   }
 
   @Post()
+  @AuthOptions({ identity: true })
   @UseGuards(SystemAdminGuard)
   @ApiOperation({
     summary: 'Create authority',
@@ -88,13 +90,14 @@ export class AuthoritiesController {
   @ApiConflictError('Authority with this code already exists')
   create(
     @Body() _dto: CreateAuthorityDto,
-    @CurrentUser() _user: AuthenticatedUser,
+    @CurrentUserIdentity() _identityUser: AuthenticatedIdentityUser,
   ): AuthorityResponseDto {
     // Implementation will be added by service layer
     return null as any;
   }
 
   @Patch(':id')
+  @AuthOptions({ identity: true })
   @UseGuards(SystemAdminGuard)
   @ApiOperation({
     summary: 'Update authority',
@@ -110,13 +113,14 @@ export class AuthoritiesController {
   update(
     @Param() _params: AuthorityIdParamDto,
     @Body() _dto: UpdateAuthorityDto,
-    @CurrentUser() _user: AuthenticatedUser,
+    @CurrentUserIdentity() _identityUser: AuthenticatedIdentityUser,
   ): AuthorityResponseDto {
     // Implementation will be added by service layer
     return null as any;
   }
 
   @Delete(':id')
+  @AuthOptions({ identity: true })
   @UseGuards(SystemAdminGuard)
   @ApiOperation({
     summary: 'Deactivate authority',
@@ -131,7 +135,7 @@ export class AuthoritiesController {
   @ApiDeleteResponses('Authority')
   remove(
     @Param() _params: AuthorityIdParamDto,
-    @CurrentUser() _user: AuthenticatedUser,
+    @CurrentUserIdentity() _identityUser: AuthenticatedIdentityUser,
   ): MessageResponseDto {
     // Implementation will be added by service layer
     return null as any;
