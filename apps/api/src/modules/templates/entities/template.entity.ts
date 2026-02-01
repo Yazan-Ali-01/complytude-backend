@@ -1,4 +1,4 @@
-import { TemplateVersion } from '../../templates/entities/template-version.entity';
+import { TemplateVersion } from './template-version.entity';
 
 export interface Template {
   id: string;

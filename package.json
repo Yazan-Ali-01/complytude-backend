@@ -14,10 +14,10 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/apps/api/main",
     "// === 🧪 Testing (Common) ===": "",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "jest --config ./apps/api/test/jest-e2e.json",
     "test:cov": "jest --coverage",
     "test:e2e:auth": "jest --config ./test/jest-e2e.json 01-authentication",
     "test:e2e:tenant": "jest --config ./test/jest-e2e.json 02-multi-tenancy",
@@ -47,7 +47,7 @@
     "db:verify": "psql -U postgres -h localhost -p 5432 -d complytude -f scripts/utilities/verify-multi-tenancy.sql",
     "// === 🎨 Code Quality ===": "",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "type-check": "tsc --noEmit",
     "// === 🔧 Git Hooks ===": "",
     "prepare": "husky || true",
@@ -141,7 +141,7 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
@@ -149,7 +149,14 @@
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/apps/",
+      "<rootDir>/libs/"
+    ],
+    "moduleNameMapper": {
+      "^@complytude/shared(|/.*)$": "<rootDir>/libs/shared/src/$1"
+    }
   }
 }
