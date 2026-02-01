@@ -286,19 +286,6 @@ CREATE UNIQUE INDEX idx_invitations_email_tenant_pending
     ON public.invitations(email, tenant_id) 
     WHERE status = 'PENDING';
 
--- Invitations
-CREATE INDEX idx_invitations_token_hash ON public.invitations(token_hash);
-CREATE INDEX idx_invitations_email ON public.invitations(email);
-CREATE INDEX idx_invitations_tenant_id ON public.invitations(tenant_id);
-CREATE INDEX idx_invitations_invited_by ON public.invitations(invited_by);
-CREATE INDEX idx_invitations_expires_at ON public.invitations(expires_at);
-CREATE INDEX idx_invitations_accepted_at ON public.invitations(accepted_at);
-CREATE INDEX idx_invitations_status ON public.invitations(status);
-CREATE INDEX idx_invitations_email_status ON public.invitations(email, status);
-CREATE UNIQUE INDEX idx_invitations_email_tenant_pending 
-    ON public.invitations(email, tenant_id) 
-    WHERE status = 'PENDING';
-
 -- =========================
 -- Triggers
 -- =========================
@@ -379,15 +366,6 @@ DROP INDEX IF EXISTS public.idx_invitations_tenant_id;
 DROP INDEX IF EXISTS public.idx_invitations_email_pending;
 DROP INDEX IF EXISTS public.idx_invitations_email_tenant_status;
 DROP INDEX IF EXISTS public.idx_invitations_token_pending;
-
-DROP INDEX IF EXISTS public.idx_invitations_email;
-DROP INDEX IF EXISTS public.idx_invitations_tenant_id;
-DROP INDEX IF EXISTS public.idx_invitations_invited_by;
-DROP INDEX IF EXISTS public.idx_invitations_expires_at;
-DROP INDEX IF EXISTS public.idx_invitations_accepted_at;
-DROP INDEX IF EXISTS public.idx_invitations_status;
-DROP INDEX IF EXISTS public.idx_invitations_email_status;
-DROP INDEX IF EXISTS public.idx_invitations_email_tenant_pending;
 
 -- Drop tables (in reverse dependency order)
 DROP TABLE IF EXISTS public.invitations;
