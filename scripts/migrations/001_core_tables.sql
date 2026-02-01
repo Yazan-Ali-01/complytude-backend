@@ -209,47 +209,79 @@ COMMENT ON COLUMN public.invitations.revoked_by IS 'User ID of the user who revo
 -- =========================
 
 -- Tenants
-CREATE INDEX idx_tenants_plan ON public.tenants(plan);
 CREATE INDEX idx_tenants_is_active ON public.tenants(is_active) WHERE is_active = true;
 
 -- Users
--- Note: idx_users_email is NOT created - UNIQUE constraint already creates an index
+-- Note: email has UNIQUE constraint which creates an index automatically
+-- Composite index for login queries (WHERE email = ? AND is_verified = ?)
+CREATE INDEX idx_users_email_verified ON public.users(email, is_verified) WHERE is_verified = true;
 
 -- User Tenants
-CREATE INDEX idx_user_tenants_user_id ON public.user_tenants(user_id);
-CREATE INDEX idx_user_tenants_tenant_id ON public.user_tenants(tenant_id);
-
--- Composite partial index for RLS policy optimization
--- This covers: WHERE tenant_id = ? AND is_active = true
-CREATE INDEX idx_user_tenants_tenant_active ON public.user_tenants(tenant_id, is_active) 
+-- Composite index for user's active tenants (WHERE user_id = ? AND is_active = true)
+CREATE INDEX idx_user_tenants_user_active ON public.user_tenants(user_id, is_active) 
 WHERE is_active = true;
 
+-- Composite index for tenant switch verification (WHERE user_id = ? AND tenant_id = ? AND is_active = true)
+CREATE INDEX idx_user_tenants_user_tenant_active ON public.user_tenants(user_id, tenant_id, is_active) 
+WHERE is_active = true;
+
+-- Index for tenant-based queries (WHERE tenant_id = ?)
+CREATE INDEX idx_user_tenants_tenant_id ON public.user_tenants(tenant_id);
+
 -- Refresh Tokens
-CREATE INDEX idx_refresh_tokens_user_id ON public.refresh_tokens(user_id);
-CREATE INDEX idx_refresh_tokens_token_hash ON public.refresh_tokens(token_hash);
-CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at);
-CREATE INDEX idx_refresh_tokens_revoked_at ON public.refresh_tokens(revoked_at) WHERE revoked_at IS NOT NULL;
-CREATE INDEX idx_refresh_tokens_user_type_tenant ON public.refresh_tokens(user_id, token_type, tenant_id);
+-- Composite partial index for identity token refresh
+-- Covers: WHERE user_id = ? AND token_hash = ? AND token_type = 'identity' AND revoked_at IS NULL
+CREATE INDEX idx_refresh_tokens_user_token_identity ON public.refresh_tokens(user_id, token_hash, token_type) 
+WHERE token_type = 'identity' AND revoked_at IS NULL;
+
+-- Composite partial index for tenant token refresh
+-- Covers: WHERE user_id = ? AND tenant_id = ? AND token_hash = ? AND token_type = 'tenant' AND revoked_at IS NULL
+CREATE INDEX idx_refresh_tokens_user_tenant_token ON public.refresh_tokens(user_id, tenant_id, token_hash, token_type) 
+WHERE token_type = 'tenant' AND revoked_at IS NULL;
+
+-- Index for revoking all user tokens (WHERE user_id = ? AND revoked_at IS NULL)
+CREATE INDEX idx_refresh_tokens_user_active ON public.refresh_tokens(user_id) 
+WHERE revoked_at IS NULL;
+
+-- Index for cleanup queries (WHERE expires_at < NOW())
+CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at) 
+WHERE revoked_at IS NULL;
 
 -- Email Verifications
-CREATE INDEX idx_email_verifications_user_id ON public.email_verifications(user_id);
-CREATE INDEX idx_email_verifications_token ON public.email_verifications(token);
-CREATE INDEX idx_email_verifications_expires_at ON public.email_verifications(expires_at);
+-- Composite partial index for verification lookup
+-- Covers: WHERE token = ? AND expires_at > NOW() AND verified_at IS NULL
+CREATE INDEX idx_email_verifications_token_active ON public.email_verifications(token, expires_at) 
+WHERE verified_at IS NULL;
 
 -- Password Resets
-CREATE INDEX idx_password_resets_user_id ON public.password_resets(user_id);
-CREATE INDEX idx_password_resets_token ON public.password_resets(token);
-CREATE INDEX idx_password_resets_expires_at ON public.password_resets(expires_at);
+-- Composite partial index for reset token lookup
+-- Covers: WHERE token = ? AND expires_at > NOW() AND used_at IS NULL
+CREATE INDEX idx_password_resets_token_active ON public.password_resets(token, expires_at) 
+WHERE used_at IS NULL;
 
 -- Invitations
-CREATE INDEX idx_invitations_token_hash ON public.invitations(token_hash);
-CREATE INDEX idx_invitations_email ON public.invitations(email);
+-- Composite partial index for token resolution
+-- Covers: WHERE token_hash = ? AND status = 'PENDING' AND expires_at > NOW()
+CREATE INDEX idx_invitations_token_pending ON public.invitations(token_hash, expires_at) 
+WHERE status = 'PENDING';
+
+-- Composite partial index for duplicate invitation check
+-- Covers: WHERE email = ? AND tenant_id = ? AND status = 'PENDING'
+CREATE INDEX idx_invitations_email_tenant_status ON public.invitations(email, tenant_id) 
+WHERE status = 'PENDING';
+
+-- Composite partial index for listing user's pending invitations
+-- Covers: WHERE email = ? AND status = 'PENDING' AND expires_at > NOW()
+CREATE INDEX idx_invitations_email_pending ON public.invitations(email, expires_at) 
+WHERE status = 'PENDING';
+
+-- Index for tenant admin listing invitations (WHERE tenant_id = ?)
 CREATE INDEX idx_invitations_tenant_id ON public.invitations(tenant_id);
+
+-- Index for tracking who invited (WHERE invited_by = ?)
 CREATE INDEX idx_invitations_invited_by ON public.invitations(invited_by);
-CREATE INDEX idx_invitations_expires_at ON public.invitations(expires_at);
-CREATE INDEX idx_invitations_accepted_at ON public.invitations(accepted_at);
-CREATE INDEX idx_invitations_status ON public.invitations(status);
-CREATE INDEX idx_invitations_email_status ON public.invitations(email, status);
+
+-- Unique constraint to prevent duplicate pending invitations
 CREATE UNIQUE INDEX idx_invitations_email_tenant_pending 
     ON public.invitations(email, tenant_id) 
     WHERE status = 'PENDING';
@@ -311,35 +343,29 @@ DROP TRIGGER IF EXISTS update_invitations_updated_at ON public.invitations;
 DROP FUNCTION IF EXISTS public.update_updated_at_column();
 
 -- Drop indexes
-DROP INDEX IF EXISTS public.idx_password_resets_expires_at;
-DROP INDEX IF EXISTS public.idx_password_resets_token;
-DROP INDEX IF EXISTS public.idx_password_resets_user_id;
+DROP INDEX IF EXISTS public.idx_password_resets_token_active;
 
-DROP INDEX IF EXISTS public.idx_email_verifications_expires_at;
-DROP INDEX IF EXISTS public.idx_email_verifications_token;
-DROP INDEX IF EXISTS public.idx_email_verifications_user_id;
+DROP INDEX IF EXISTS public.idx_email_verifications_token_active;
 
-DROP INDEX IF EXISTS public.idx_refresh_tokens_user_type_tenant;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_revoked_at;
 DROP INDEX IF EXISTS public.idx_refresh_tokens_expires_at;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_token_hash;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_user_id;
+DROP INDEX IF EXISTS public.idx_refresh_tokens_user_active;
+DROP INDEX IF EXISTS public.idx_refresh_tokens_user_tenant_token;
+DROP INDEX IF EXISTS public.idx_refresh_tokens_user_token_identity;
 
-DROP INDEX IF EXISTS public.idx_user_tenants_tenant_active;
 DROP INDEX IF EXISTS public.idx_user_tenants_tenant_id;
-DROP INDEX IF EXISTS public.idx_user_tenants_user_id;
+DROP INDEX IF EXISTS public.idx_user_tenants_user_tenant_active;
+DROP INDEX IF EXISTS public.idx_user_tenants_user_active;
+
+DROP INDEX IF EXISTS public.idx_users_email_verified;
 
 DROP INDEX IF EXISTS public.idx_tenants_is_active;
-DROP INDEX IF EXISTS public.idx_tenants_plan;
 
-DROP INDEX IF EXISTS public.idx_invitations_email;
-DROP INDEX IF EXISTS public.idx_invitations_tenant_id;
-DROP INDEX IF EXISTS public.idx_invitations_invited_by;
-DROP INDEX IF EXISTS public.idx_invitations_expires_at;
-DROP INDEX IF EXISTS public.idx_invitations_accepted_at;
-DROP INDEX IF EXISTS public.idx_invitations_status;
-DROP INDEX IF EXISTS public.idx_invitations_email_status;
 DROP INDEX IF EXISTS public.idx_invitations_email_tenant_pending;
+DROP INDEX IF EXISTS public.idx_invitations_invited_by;
+DROP INDEX IF EXISTS public.idx_invitations_tenant_id;
+DROP INDEX IF EXISTS public.idx_invitations_email_pending;
+DROP INDEX IF EXISTS public.idx_invitations_email_tenant_status;
+DROP INDEX IF EXISTS public.idx_invitations_token_pending;
 
 -- Drop tables (in reverse dependency order)
 DROP TABLE IF EXISTS public.invitations;

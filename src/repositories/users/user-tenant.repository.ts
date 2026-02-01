@@ -290,6 +290,56 @@ export class UserTenantRepository extends BaseRepository<
   }
 
   /**
+   * Upsert user-tenant relationship (insert or update if exists).
+   * This is useful for accepting invitations where race conditions might occur.
+   * Uses INSERT ... ON CONFLICT to handle concurrent requests atomically.
+   *
+   * @param input - User tenant data
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns Object containing the user-tenant relationship and whether it was newly created
+   */
+  async upsertUserTenant(
+    input: {
+      userId: string;
+      tenantId: string;
+      role: TenantRole;
+      isActive?: boolean;
+    },
+    options?: QueryOptions,
+  ): Promise<{ userTenant: UserTenant; wasCreated: boolean }> {
+    const isActive = input.isActive ?? true;
+
+    const result = await this.executeQuery<
+      UserTenantRow & { was_created: boolean }
+    >(
+      `WITH inserted AS (
+        INSERT INTO ${this.tableName} (user_id, tenant_id, role, is_active)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id, tenant_id) 
+        DO UPDATE SET 
+          is_active = EXCLUDED.is_active,
+          role = EXCLUDED.role,
+          updated_at = NOW()
+        RETURNING ${this.getSelectColumns()}, 
+                  (xmax = 0) AS was_created
+      )
+      SELECT * FROM inserted`,
+      [input.userId, input.tenantId, input.role, isActive],
+      options,
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      throw new Error('Failed to upsert user-tenant relationship');
+    }
+
+    return {
+      userTenant: this.mapRow(row),
+      wasCreated: row.was_created,
+    };
+  }
+
+  /**
    * Get user tenants.
    *
    * @param userId - User ID
