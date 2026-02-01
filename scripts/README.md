@@ -75,6 +75,7 @@ Sets up everything in one command:
 ```
 
 **What it does:**
+
 1. ✅ Runs all 8 migrations (schema, RLS, grants)
 2. ✅ Seeds authorities and categories
 3. ✅ Seeds test data (dev only)
@@ -91,6 +92,7 @@ Runs database migrations:
 ```
 
 **Features:**
+
 - Creates database if it doesn't exist
 - Tracks which migrations have run
 - Skips already-executed migrations
@@ -115,6 +117,7 @@ Populates database with initial data:
 ```
 
 **Seeds:**
+
 - 10 UAE authorities (DMCC, DIFC, etc.)
 - 10 template categories
 - 3 test tenants (dev/staging)
@@ -128,24 +131,24 @@ Populates database with initial data:
 
 ### Available Migrations
 
-| # | File | Description |
-|---|------|-------------|
-| 001 | `core_tables.sql` | Core schema: tenants, users, user_tenants, refresh_tokens |
-| 002 | `grants_to_app_user.sql` | Grant permissions to `complytude_app` user |
-| 003 | `session_context_contract.sql` | Session variables for RLS (tenant_id, user_id, role) |
-| 004 | `rls_enablement.sql` | Enable RLS on tenant-specific tables |
-| 005 | `rls_policies_core.sql` | RLS policies for multi-tenancy |
-| 006 | `global_tables.sql` | Authorities, categories, templates, rulesets |
-| 007 | `documents_table.sql` | Documents table with tenant isolation |
-| 008 | `grants_global_tables.sql` | Permissions for global tables |
+| #   | File                           | Description                                               |
+| --- | ------------------------------ | --------------------------------------------------------- |
+| 001 | `core_tables.sql`              | Core schema: tenants, users, user_tenants, refresh_tokens |
+| 002 | `grants_to_app_user.sql`       | Grant permissions to `app_user`                           |
+| 003 | `session_context_contract.sql` | Session variables for RLS (tenant_id, user_id, role)      |
+| 004 | `rls_enablement.sql`           | Enable RLS on tenant-specific tables                      |
+| 005 | `rls_policies_core.sql`        | RLS policies for multi-tenancy                            |
+| 006 | `global_tables.sql`            | Authorities, categories, templates, rulesets              |
+| 007 | `documents_table.sql`          | Documents table with tenant isolation                     |
+| 008 | `grants_global_tables.sql`     | Permissions for global tables                             |
 
 ### Migration Tracking
 
 Migrations are tracked in `public.schema_migrations`:
 
 ```sql
-SELECT migration_name, executed_at 
-FROM public.schema_migrations 
+SELECT migration_name, executed_at
+FROM public.schema_migrations
 ORDER BY executed_at DESC;
 ```
 
@@ -181,13 +184,13 @@ COMMIT;
 
 ### Available Seed Scripts
 
-| # | File | Description | Environment |
-|---|------|-------------|-------------|
-| 001 | `seed_authorities.sql` | UAE authorities (DMCC, DIFC, etc.) | All |
-| 002 | `seed_categories.sql` | Template categories | All |
-| 003 | `seed_test_tenants_users.sql` | Test tenants and users | Dev/Staging |
-| 004 | `seed_templates.sql` | Sample templates | Dev/Staging |
-| 005 | `seed_test_documents.sql` | Tenant-specific documents | Dev/Staging |
+| #   | File                          | Description                        | Environment |
+| --- | ----------------------------- | ---------------------------------- | ----------- |
+| 001 | `seed_authorities.sql`        | UAE authorities (DMCC, DIFC, etc.) | All         |
+| 002 | `seed_categories.sql`         | Template categories                | All         |
+| 003 | `seed_test_tenants_users.sql` | Test tenants and users             | Dev/Staging |
+| 004 | `seed_templates.sql`          | Sample templates                   | Dev/Staging |
+| 005 | `seed_test_documents.sql`     | Tenant-specific documents          | Dev/Staging |
 
 ### Test Credentials
 
@@ -202,7 +205,7 @@ See `scripts/seeds/README.md` for complete credential list.
 
 ```sql
 -- Connect as app user
-\c complytude complytude_app
+\c complytude app_login
 
 -- Set context for Tenant 1
 SELECT set_config('app.tenant_id', '11111111-1111-1111-1111-111111111111', false);
@@ -248,8 +251,9 @@ npm run docker:reset
 ```
 
 Creates database roles:
+
 - `complytude_admin` - Full access
-- `complytude_app` - Application user with RLS
+- `app_login` - Application user with RLS
 
 ### Wait for Database
 
@@ -270,7 +274,7 @@ Manage tenant features:
 SELECT id, plan, features FROM public.tenants;
 
 -- Grant custom feature
-UPDATE public.tenants 
+UPDATE public.tenants
 SET features = jsonb_set(features, '{custom_feature}', 'true')
 WHERE id = 'tenant-id';
 ```
@@ -303,18 +307,18 @@ psql -d complytude -c "\d+ documents"
 ### Verify RLS is Enabled
 
 ```sql
-SELECT 
-    tablename, 
-    rowsecurity 
-FROM pg_tables 
-WHERE schemaname = 'public' 
+SELECT
+    tablename,
+    rowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
 AND rowsecurity = true;
 ```
 
 ### View User-Tenant Relationships
 
 ```sql
-SELECT 
+SELECT
     u.email,
     t.plan,
     ut.role
@@ -346,16 +350,19 @@ sudo apt install postgresql-client
 ### "Cannot connect to database"
 
 1. Check Docker is running:
+
    ```bash
    docker ps
    ```
 
 2. Start database:
+
    ```bash
    npm run docker:start
    ```
 
 3. Wait for readiness:
+
    ```bash
    ./scripts/wait-for-db.sh
    ```
@@ -379,7 +386,7 @@ chmod +x scripts/*.sh
 2. Fix migration file
 3. Remove from tracking if needed:
    ```sql
-   DELETE FROM public.schema_migrations 
+   DELETE FROM public.schema_migrations
    WHERE migration_name = 'failed_migration.sql';
    ```
 4. Re-run: `./scripts/run-migrations.sh`
@@ -397,13 +404,15 @@ Production environment only seeds reference data, not test data.
 ### RLS Not Working
 
 1. Verify RLS is enabled:
+
    ```sql
-   SELECT tablename, rowsecurity 
-   FROM pg_tables 
+   SELECT tablename, rowsecurity
+   FROM pg_tables
    WHERE schemaname = 'public';
    ```
 
 2. Check policies exist:
+
    ```sql
    SELECT * FROM pg_policies WHERE schemaname = 'public';
    ```
@@ -422,6 +431,7 @@ Production environment only seeds reference data, not test data.
 ### Migrations
 
 ✅ **DO:**
+
 - Always make migrations idempotent
 - Use sequential numbering (001, 002, 003...)
 - Include clear descriptions
@@ -429,6 +439,7 @@ Production environment only seeds reference data, not test data.
 - Use transactions (BEGIN/COMMIT)
 
 ❌ **DON'T:**
+
 - Modify executed migrations (create new one instead)
 - Skip numbers in sequence
 - Use production data in migrations
@@ -437,12 +448,14 @@ Production environment only seeds reference data, not test data.
 ### Seeds
 
 ✅ **DO:**
+
 - Use `ON CONFLICT DO NOTHING` for idempotency
 - Include verification queries
 - Use realistic test data
 - Document test credentials
 
 ❌ **DON'T:**
+
 - Use real user passwords in seeds
 - Seed test data in production
 - Hardcode production values
@@ -450,12 +463,14 @@ Production environment only seeds reference data, not test data.
 ### RLS Testing
 
 ✅ **DO:**
+
 - Test tenant isolation thoroughly
 - Verify cross-tenant queries return nothing
 - Test different user roles
 - Use session context properly
 
 ❌ **DON'T:**
+
 - Bypass RLS in application code
 - Assume RLS works without testing
 - Use superuser role in production
@@ -561,6 +576,7 @@ VALUES ('user-id', 'tenant-id', 'admin');
 6. Check migration status: `SELECT * FROM schema_migrations;`
 
 **Still stuck?**
+
 - Ensure Docker is running
 - Verify database credentials
 - Check user permissions: `\du` in psql
@@ -572,15 +588,15 @@ VALUES ('user-id', 'tenant-id', 'admin');
 
 After full setup (development):
 
-| Entity | Count |
-|--------|-------|
-| Migrations | 8 |
-| Tenants | 3 |
-| Users | 7 |
-| Authorities | 10 |
-| Categories | 10 |
-| Templates | 5 |
-| Documents | 7 |
+| Entity      | Count |
+| ----------- | ----- |
+| Migrations  | 8     |
+| Tenants     | 3     |
+| Users       | 7     |
+| Authorities | 10    |
+| Categories  | 10    |
+| Templates   | 5     |
+| Documents   | 7     |
 
 **Database size:** ~2-5 MB with test data
 

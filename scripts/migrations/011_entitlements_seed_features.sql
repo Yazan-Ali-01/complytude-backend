@@ -1,7 +1,7 @@
 BEGIN;
 
 -- =========================
--- Migration 012: Seed Features Registry
+-- Migration 011: Seed Features Registry
 -- =========================
 -- Description: Populates the features table with all valid feature keys for the entitlements system
 -- =========================

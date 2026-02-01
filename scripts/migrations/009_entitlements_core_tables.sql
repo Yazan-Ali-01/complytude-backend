@@ -1,7 +1,7 @@
 BEGIN;
 
 -- =========================
--- Migration 010: Features Registry + Overrides Table
+-- Migration 009: Features Registry + Overrides Table
 -- =========================
 -- Description: Creates features registry and tenant-specific feature overrides with audit trail for UAE PDPL compliance
 -- =========================

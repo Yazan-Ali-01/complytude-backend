@@ -3,7 +3,7 @@
 BEGIN;
 
 -- =========================
--- Migration 015: Credit Packages & Top-up Model (Shell)
+-- Migration 013: Credit Packages & Top-up Model (Shell)
 -- =========================
 -- Description: Creates credit system tables for add-on purchases (contract reviews, document generation, surcharges)
 -- =========================
@@ -117,14 +117,10 @@ VALUES
 -- =========================
 -- GRANTS
 -- =========================
-GRANT SELECT ON public.credit_packages TO complytude_app;
-GRANT ALL ON public.credit_packages TO complytude_admin;
-
-GRANT SELECT, INSERT, UPDATE ON public.tenant_credits TO complytude_app;
-GRANT ALL ON public.tenant_credits TO complytude_admin;
-
-GRANT SELECT, INSERT ON public.credit_transactions TO complytude_app;
-GRANT ALL ON public.credit_transactions TO complytude_admin;
+-- Note: DELETE is not granted on credit_packages, tenant_credits, or credit_transactions
+GRANT SELECT, INSERT, UPDATE ON public.credit_packages TO app_user;
+GRANT SELECT, INSERT, UPDATE ON public.tenant_credits TO app_user;
+GRANT SELECT, INSERT, UPDATE ON public.credit_transactions TO app_user;
 
 COMMIT;
 

@@ -1,7 +1,7 @@
 BEGIN;
 
 -- =========================
--- Migration 011: Usage Tracking Tables
+-- Migration 010: Usage Tracking Tables
 -- =========================
 -- Description: Creates usage tracking tables for metered features per billing period with audit log
 -- =========================

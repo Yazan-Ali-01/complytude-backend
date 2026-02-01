@@ -27,6 +27,7 @@ Run everything in one command:
 ```
 
 This will:
+
 1. ✅ Run all 8 migrations (create schema, enable RLS, set up policies)
 2. ✅ Seed authorities and categories (reference data)
 3. ✅ Seed test tenants, users, templates, and documents (dev only)
@@ -40,10 +41,11 @@ This will:
 ```
 
 This creates your database schema with:
+
 - Core tables (tenants, users, user_tenants, refresh_tokens)
 - Global tables (authorities, categories, templates, etc.)
 - RLS policies for tenant isolation
-- Proper grants for `complytude_app` user
+- Proper grants for `app_login` user
 
 ### Step 2: Seed Data
 
@@ -52,6 +54,7 @@ This creates your database schema with:
 ```
 
 This populates your database with:
+
 - 10 UAE authorities (DMCC, DIFC, ADGM, etc.)
 - 10 template categories
 - 3 test tenants (Pro, Basic, Enterprise plans)
@@ -63,14 +66,14 @@ This populates your database with:
 
 After seeding, use these credentials to test your API:
 
-| Tenant | Email | Password | Role |
-|--------|-------|----------|------|
-| Tenant 1 (Pro) | admin@tenant1.test | Test123!@# | admin |
-| Tenant 1 (Pro) | member@tenant1.test | Test123!@# | member |
-| Tenant 1 (Pro) | viewer@tenant1.test | Test123!@# | viewer |
-| Tenant 2 (Basic) | admin@tenant2.test | Test123!@# | admin |
-| Tenant 2 (Basic) | member@tenant2.test | Test123!@# | member |
-| Tenant 3 (Enterprise) | admin@tenant3.test | Test123!@# | admin |
+| Tenant                | Email               | Password   | Role   |
+| --------------------- | ------------------- | ---------- | ------ |
+| Tenant 1 (Pro)        | admin@tenant1.test  | Test123!@# | admin  |
+| Tenant 1 (Pro)        | member@tenant1.test | Test123!@# | member |
+| Tenant 1 (Pro)        | viewer@tenant1.test | Test123!@# | viewer |
+| Tenant 2 (Basic)      | admin@tenant2.test  | Test123!@# | admin  |
+| Tenant 2 (Basic)      | member@tenant2.test | Test123!@# | member |
+| Tenant 3 (Enterprise) | admin@tenant3.test  | Test123!@# | admin  |
 
 ## Verifying Your Setup
 
@@ -87,6 +90,7 @@ psql -d complytude -c "\dt"
 ```
 
 You should see tables like:
+
 - tenants
 - users
 - user_tenants
@@ -112,6 +116,7 @@ psql -d complytude -c "
 ```
 
 Expected counts (development):
+
 - Tenants: 3
 - Users: 7
 - Templates: 5
@@ -121,7 +126,7 @@ Expected counts (development):
 
 ```sql
 -- Connect as app user
-\c complytude complytude_app
+\c complytude app_login
 
 -- Set context for Tenant 1
 SELECT set_config('app.tenant_id', '11111111-1111-1111-1111-111111111111', false);
@@ -165,6 +170,7 @@ curl -X POST http://localhost:3000/api/auth/login \
 ```
 
 You should receive:
+
 - `access_token` (JWT)
 - `refresh_token`
 - User information
@@ -210,7 +216,7 @@ sudo apt install postgresql-client
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=complytude
-DB_USER=complytude_app
+DB_USER=app_login
 DB_PASSWORD=your_password_here
 ```
 
@@ -243,8 +249,8 @@ chmod +x scripts/*.sh
 Or manually:
 
 ```sql
-CREATE ROLE complytude_app WITH LOGIN PASSWORD 'your_password';
-GRANT CONNECT ON DATABASE complytude TO complytude_app;
+CREATE ROLE app_login WITH LOGIN PASSWORD 'your_password';
+GRANT CONNECT ON DATABASE complytude TO app_login;
 ```
 
 ### Issue: "No test data showing up"
@@ -260,17 +266,20 @@ Check the environment parameter - production only seeds reference data, not test
 ## Environment-Specific Behavior
 
 ### Development
+
 - ✅ All reference data (authorities, categories)
 - ✅ Test tenants and users
 - ✅ Sample templates
 - ✅ Test documents for RLS verification
 
 ### Staging
+
 - ✅ Reference data
 - ✅ Limited test data
 - ⚠️ Consider using production-like data
 
 ### Production
+
 - ✅ Reference data only (authorities, categories)
 - ❌ NO test tenants/users
 - ❌ NO test documents
@@ -296,6 +305,7 @@ Check the environment parameter - production only seeds reference data, not test
 **Need Help?**
 
 If you encounter issues:
+
 1. Check PostgreSQL logs: `docker logs complytude-postgres`
 2. Review migration output for errors
 3. Verify `.env` configuration
