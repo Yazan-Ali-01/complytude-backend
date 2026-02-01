@@ -29,7 +29,7 @@ Complete reference for all major dependencies, versions, and best practices for 
 
 **Version Notes:**
 
-- NestJS 11 requires Node.js 18.x or higher
+- NestJS 11 requires Node.js 18.x or higher (project uses 22.16.0+)
 - Breaking changes from v10: Updated to support TypeScript 5.x strict mode
 - Enhanced support for Fastify v5
 
@@ -80,7 +80,7 @@ Complete reference for all major dependencies, versions, and best practices for 
 
 ### Node.js
 
-**Required Version:** 18.x or higher (recommended: 20.x LTS)
+**Required Version:** 22.16.0 or higher (LTS recommended)
 
 **Best Practices:**
 
@@ -593,20 +593,20 @@ Complete reference for all major dependencies, versions, and best practices for 
 
 ## Compatibility Matrix
 
-| Component      | Minimum Version | Recommended Version | Notes                       |
-| -------------- | --------------- | ------------------- | --------------------------- |
-| Node.js        | 18.0.0          | 20.x LTS            | Required for Fastify v5     |
-| PostgreSQL     | 12.0            | 15.x or 16.x        | Required for RLS features   |
-| TypeScript     | 5.0.0           | 5.7.3               | Required for NestJS 11      |
-| PNPM           | 8.0.0           | 9.x                 | For workspace features      |
-| Docker         | 20.10.0         | Latest              | For development environment |
-| Docker Compose | 2.0.0           | Latest              | For multi-container setup   |
+| Component      | Minimum Version | Recommended Version | Notes                                            |
+| -------------- | --------------- | ------------------- | ------------------------------------------------ |
+| Node.js        | 22.16.0         | 22.x LTS            | Required for Fastify v5 and project dependencies |
+| PostgreSQL     | 12.0            | 15.x or 16.x        | Required for RLS features                        |
+| TypeScript     | 5.0.0           | 5.7.3               | Required for NestJS 11                           |
+| PNPM           | 8.0.0           | 9.x                 | For workspace features                           |
+| Docker         | 20.10.0         | Latest              | For development environment                      |
+| Docker Compose | 2.0.0           | Latest              | For multi-container setup                        |
 
 ## Environment Requirements
 
 ### Development
 
-- Node.js 20.x LTS
+- Node.js 22.16.0 or higher (LTS recommended)
 - PNPM 9.x
 - PostgreSQL 15+ (via Docker)
 - Docker & Docker Compose
@@ -614,7 +614,7 @@ Complete reference for all major dependencies, versions, and best practices for 
 
 ### Production
 
-- Node.js 20.x LTS
+- Node.js 22.16.0 or higher (LTS recommended)
 - PostgreSQL 15+ (managed service recommended)
 - S3-compatible storage
 - Redis (for caching, if implemented)
@@ -730,6 +730,7 @@ Complete reference for all major dependencies, versions, and best practices for 
 - **Last Updated:** 2026-02-01
 - **Project:** Complytude Backend
 - **Stack Version:** 1.0
-- **Node Version:** 20.x LTS
+- **Node Version:** 22.16.0+
 - **NestJS Version:** 11.0.1
+- **Fastify Version:** 5.2.1
 - **TypeScript Version:** 5.7.3

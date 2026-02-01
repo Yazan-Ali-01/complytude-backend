@@ -11,6 +11,7 @@ alwaysApply: true
 Core patterns, conventions, and best practices for NestJS development in the Complytude project.
 
 **Related Rules:**
+
 - [project-structure.mdc](mdc:project-structure.mdc) - Complete project navigation guide
 - [technology-stack.mdc](mdc:technology-stack.mdc) - Dependencies, versions, and compatibility
 - [cursor-rules.mdc](mdc:cursor-rules.mdc) - How to maintain these rules
@@ -88,6 +89,7 @@ multi_tenancy: "Row-Level Security (RLS) via session context"
 The DatabaseService provides all database operations:
 
 **Key Methods:**
+
 - `query(text, params, bypassRLS)` - Execute parameterized queries
 - `transaction(callback, bypassRLS)` - Run operations in transaction
 - `queryWithTenantContext(tenantId, text, params)` - Query with tenant context
@@ -95,6 +97,7 @@ The DatabaseService provides all database operations:
 - `getClient()` - Get PoolClient for manual control
 
 **Features:**
+
 - Connection pooling (pg.Pool)
 - Parameterized queries (SQL injection prevention)
 - Transaction support with automatic rollback
@@ -105,10 +108,12 @@ The DatabaseService provides all database operations:
 All repositories extend `BaseRepository<TEntity, TCreate, TUpdate>`:
 
 **Required Implementations:**
+
 - `mapRow(row)` - Convert database row to typed entity
-- `getSelectColumns()` - Define explicit column selection (no SELECT *)
+- `getSelectColumns()` - Define explicit column selection (no SELECT \*)
 
 **Best Practices:**
+
 - Inject DatabaseService via constructor
 - Use `executeQuery()` for all database operations
 - Support tenant context and RLS bypass options
@@ -118,7 +123,11 @@ All repositories extend `BaseRepository<TEntity, TCreate, TUpdate>`:
 
 ```typescript
 @Injectable()
-export class UserRepository extends BaseRepository<User, CreateUserRow, UpdateUserRow> {
+export class UserRepository extends BaseRepository<
+  User,
+  CreateUserRow,
+  UpdateUserRow
+> {
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'users');
   }
@@ -142,7 +151,7 @@ export class UserRepository extends BaseRepository<User, CreateUserRow, UpdateUs
   async findByEmail(email: string): Promise<User | null> {
     const result = await this.executeQuery(
       `SELECT ${this.getSelectColumns()} FROM users WHERE email = $1`,
-      [email]
+      [email],
     );
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
@@ -152,6 +161,7 @@ export class UserRepository extends BaseRepository<User, CreateUserRow, UpdateUs
 # JSON/JSONB Columns
 
 **Handling JSON fields:**
+
 1. Services stringify JSON before passing to repositories
 2. Repositories receive JSON as strings in TCreate/TUpdate types
 3. `mapRow()` parses JSON strings back to objects for TEntity
@@ -159,10 +169,84 @@ export class UserRepository extends BaseRepository<User, CreateUserRow, UpdateUs
 # Multi-Tenancy with RLS
 
 **Row-Level Security Implementation:**
+
 - Set tenant context: `await db.query('SELECT set_config($1, $2, true)', ['app.current_tenant_id', tenantId])`
 - RLS policies automatically filter data by tenant_id
 - Use `bypassRLS: true` for system admin operations
 - Tenant context set via TenantContextInterceptor
+
+# ========================================
+
+# Authentication & Authorization
+
+# ========================================
+
+authentication:
+strategy: "Dual-token JWT authentication"
+tokens:
+identity:
+access: "15 minutes (identityAccessToken cookie)"
+refresh: "14 days (identityRefreshToken cookie)"
+usage: "User identity verification, tenant selection, system admin operations"
+tenant:
+access: "30 minutes (tenantAccessToken cookie)"
+refresh: "14 days (tenantRefreshToken cookie)"
+usage: "Tenant-scoped API access"
+
+# Authentication Flow
+
+**Regular User Flow:**
+
+1. Login → Receive identity tokens (access + refresh)
+2. Select tenant → Receive tenant tokens (access + refresh)
+3. Identity tokens remain valid (not cleared)
+4. Use tenant tokens for tenant-scoped operations
+
+**System Admin Flow:**
+
+1. Login → Receive identity tokens
+2. Access system-wide endpoints immediately
+3. Optionally select tenant for tenant-specific operations
+
+# Endpoint Authentication
+
+Use `@AuthOptions()` decorator to specify required authentication:
+
+```typescript
+// Public endpoint (no auth)
+@Get('public')
+async publicEndpoint() { }
+
+// Requires identity token only
+@AuthOptions({ identity: true })
+@Get('profile')
+async getProfile(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) { }
+
+// Requires tenant token only
+@AuthOptions({ tenant: true })
+@Get('documents')
+async listDocuments(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
+
+// Requires both tokens
+@AuthOptions({ identity: true, tenant: true })
+@Get('admin/tenant-info')
+async getTenantInfo(
+  @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+  @CurrentUserTenant() tenant: AuthenticatedTenantUser,
+) { }
+
+// Role-based access (requires tenant token)
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
+@Roles('admin', 'member')
+@Post('create')
+async create() { }
+```
+
+**For detailed authentication documentation, see:**
+
+- [docs/API_CONTRACTS.md](mdc:../docs/API_CONTRACTS.md) - Complete authentication strategy
+- [docs/ARCHITECTURE.md](mdc:../docs/ARCHITECTURE.md) - Authentication architecture
 
 # ========================================
 
@@ -184,7 +268,7 @@ export class UserRepository extends BaseRepository<User, CreateUserRow, UpdateUs
 - Repositories handle data access; services handle business logic
 - Set tenant context for RLS-protected queries
 - Use transactions for multi-step operations
-- Use explicit column selection (no SELECT *)
+- Use explicit column selection (no SELECT \*)
 
 # Architecture
 
@@ -328,9 +412,10 @@ export class CreateFeatureDto {
 
 metadata:
 project: "Complytude Backend"
-version: "2.0"
+version: "2.1"
 updated: "2026-02-01"
 note: >
-  Focused on core NestJS patterns and conventions.
-  See project-structure.mdc for project layout.
-  See technology-stack.mdc for dependencies and versions.
+Focused on core NestJS patterns and conventions.
+See project-structure.mdc for project layout.
+See technology-stack.mdc for dependencies and versions.
+See docs/API_CONTRACTS.md for detailed authentication flows.
