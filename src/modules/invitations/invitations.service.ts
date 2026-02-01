@@ -196,33 +196,29 @@ export class InvitationsService {
         );
       }
 
-      // Check if user is already a member
-      const existingMembership =
-        await this.userTenantRepository.findByCompositeKey(
-          {
-            userId,
-            tenantId: invitation.tenantId,
-          },
-          { client },
-        );
-
-      if (existingMembership) {
-        throw new ConflictException('You are already a member of this tenant');
-      }
-
-      // Mark invitation as accepted
+      // Mark invitation as accepted first
       await this.invitationRepository.markAccepted(invitationId, { client });
 
-      // Create user-tenant relationship
-      await this.userTenantRepository.create(
+      // Upsert user-tenant relationship (handles race conditions atomically)
+      const { wasCreated } = await this.userTenantRepository.upsertUserTenant(
         {
-          user_id: userId,
-          tenant_id: invitation.tenantId,
+          userId,
+          tenantId: invitation.tenantId,
           role: invitation.role,
-          is_active: true,
+          isActive: true,
         },
         { client },
       );
+
+      if (!wasCreated) {
+        this.logger.warn(
+          `User ${userId} was already a member of tenant ${invitation.tenantId}, reactivated membership`,
+        );
+        return {
+          message:
+            'You were already a member of this tenant. Your membership has been reactivated.',
+        };
+      }
 
       this.logger.log(
         `User ${userId} accepted invitation ${invitationId} to tenant ${invitation.tenantId}`,
