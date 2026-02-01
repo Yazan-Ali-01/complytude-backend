@@ -1,0 +1,574 @@
+---
+description: Comprehensive guide to the Complytude Backend project structure, directory organization, and important files
+alwaysApply: true
+---
+
+# Project Structure Guide
+
+Complete reference for navigating the Complytude Backend codebase.
+
+## Root Directory Structure
+
+```
+complytude-backend/
+├── .cursor/                    # Cursor IDE configuration
+│   └── rules/                  # AI assistant rules
+├── .husky/                     # Git hooks (commit-msg, pre-commit)
+├── docs/                       # Project documentation
+├── scripts/                    # Database and development scripts
+├── src/                        # Source code (main application)
+├── test/                       # E2E tests and test utilities
+├── docker-compose.yml          # Docker services configuration
+├── Dockerfile                  # Application container definition
+├── package.json                # Dependencies and scripts
+└── pnpm-workspace.yaml         # PNPM workspace configuration
+```
+
+## Documentation (`docs/`)
+
+Comprehensive project documentation:
+
+- **API_CONTRACTS.md** - Complete API endpoint specifications
+- **API_CONTRACTS_QUICK_REFERENCE.md** - Quick API reference
+- **ARCHITECTURE.md** - System architecture and design decisions
+- **DATABASE.md** - Database schema, RLS policies, multi-tenancy
+- **database-schema.dbml** - Visual database schema (DBML format)
+- **DEPLOYMENT.md** - Deployment instructions and configuration
+- **DEVELOPMENT.md** - Development setup and guidelines
+- **SCRIPTS.md** - Database scripts documentation
+- **README.md** - Documentation overview
+
+## Scripts (`scripts/`)
+
+Database management and development utilities:
+
+### Setup Scripts
+
+- **first-time-setup.sh** - Complete project initialization
+- **setup-database.sh** - Database creation and configuration
+- **setup-roles.sh** - PostgreSQL roles setup
+- **setup-app-user-role.sql** - Application user role configuration
+- **setup-test-db.sh** - Test database setup
+
+### Migration Scripts (`migrations/`)
+
+- **001_core_tables.sql** - Core database tables
+- **002_grants_to_app_user.sql** - Permission grants
+- **003_session_context_contract.sql** - Session context for RLS
+- **004_rls_enablement.sql** - Enable Row-Level Security
+- **005_rls_policies_core.sql** - RLS policies for multi-tenancy
+- **006_global_tables.sql** - Global (non-tenant) tables
+- **007_documents_table.sql** - Documents table schema
+- **008_grants_global_tables.sql** - Global table permissions
+
+### Seed Scripts (`seeds/`)
+
+- **001_seed_authorities.sql** - Regulatory authorities data
+- **002_seed_categories.sql** - Template categories
+- **003_seed_test_tenants_users.sql** - Test tenants and users
+- **004_seed_templates.sql** - Sample templates
+- **005_seed_test_documents.sql** - Test documents
+
+### Utility Scripts
+
+- **run-migrations.sh** - Execute all migrations
+- **run-seeds.sh** - Execute all seed scripts
+- **docker-start.sh** - Start Docker services
+- **start-dev.sh** - Start development server
+- **wait-for-db.sh** - Wait for database availability
+- **manage-custom-features.sql** - Custom feature management
+
+## Source Code (`src/`)
+
+### Entry Point
+
+- **main.ts** - Application bootstrap (Fastify, Swagger, CORS, validation)
+
+### Application Core
+
+- **app.module.ts** - Root module
+- **app.controller.ts** - Health check endpoint
+- **app.service.ts** - Application service
+
+### Configuration (`config/`)
+
+Environment-based configuration with Joi validation:
+
+- **env.schema.ts** - Environment variable validation schema
+- **app.config.ts** - Application settings (port, environment)
+- **database.config.ts** - Database connection configuration
+- **jwt.config.ts** - JWT authentication settings
+- **storage.config.ts** - S3 storage configuration
+- **plan-features.config.ts** - Feature limits per plan
+
+### Database Layer (`database/`)
+
+PostgreSQL integration using native `pg` driver:
+
+- **database.module.ts** - Global database module
+- **database.service.ts** - Connection pooling, queries, transactions, RLS context
+
+### Repository Layer (`repositories/`)
+
+Data access layer with repository pattern:
+
+#### Base Repository (`base/`)
+
+- **base.repository.ts** - Abstract base repository class
+- **repository.interface.ts** - Repository interface definitions
+- **cursor-pagination.helper.ts** - Cursor-based pagination utilities
+
+#### Feature Repositories
+
+- **authorities/** - Regulatory authorities repository
+- **categories/** - Template categories repository
+- **documents/** - Documents repository
+- **invitations/** - Tenant invitations repository
+- **rulesets/** - Compliance rulesets repository
+- **templates/** - Templates and versions repositories
+- **tenants/** - Tenant management repository
+- **users/** - User, email verification, refresh tokens, user-tenant repositories
+
+### Common Utilities (`common/`)
+
+#### Constants (`constants/`)
+
+- **i18n-keys.ts** - Internationalization key constants
+
+#### Decorators (`decorators/`)
+
+- **tenant.decorator.ts** - Extract tenant ID from request
+- **features.decorator.ts** - Feature flag decorator
+- **json-field.decorator.ts** - JSON field transformation
+- **file-validators.decorator.ts** - File validation decorators
+- **body-dto.decorator.ts** - Body DTO decorator
+
+#### DTOs (`dto/`)
+
+- **pagination.dto.ts** - Pagination query parameters
+- **id-param.dto.ts** - ID parameter validation
+- **error-response.dto.ts** - Error response structure
+- **message-response.dto.ts** - Success message response
+- **index.ts** - DTO exports
+
+#### Guards (`guards/`)
+
+- **system-admin.guard.ts** - System admin authorization
+- **tenant-ownership.guard.ts** - Tenant resource ownership
+- **features.guard.ts** - Feature flag enforcement
+- **document-limit.guard.ts** - Document limit enforcement
+
+#### Interceptors (`interceptors/`)
+
+- **tenant-context.interceptor.ts** - Set RLS tenant context
+- **tenant.interceptor.ts** - Tenant validation
+- **fastify-multipart.interceptor.ts** - File upload handling
+
+#### Middleware (`middleware/`)
+
+- **tenant.middleware.ts** - Tenant context middleware
+
+#### Pipes (`pipes/`)
+
+- **validation-exception.factory.ts** - Custom validation error factory
+
+#### Swagger Utilities (`swagger/`)
+
+- **common.ts** - Common Swagger configurations
+- **decorators.ts** - Swagger decorator utilities
+- **index.ts** - Swagger exports
+
+#### Types & Interfaces
+
+- **types/** - TypeScript type definitions
+- **interfaces/** - Interface definitions
+
+#### Utilities
+
+- **helper.ts** - Common utility functions
+
+### Feature Modules (`modules/`)
+
+#### Authentication (`auth/`)
+
+JWT-based authentication with Passport:
+
+- **auth.controller.ts** - Auth endpoints (login, signup, verify, reset password)
+- **auth.service.ts** - Authentication business logic
+- **auth.module.ts** - Auth module configuration
+- **decorators/** - Auth decorators (current-user, roles, auth-options)
+- **guards/** - JWT guards (access/refresh tokens)
+- **strategies/** - Passport JWT strategies (identity/tenant tokens)
+- **dto/** - Auth DTOs (login, signup, forgot-password, etc.)
+
+#### Authorities (`authorities/`)
+
+Regulatory authorities management:
+
+- **authorities.controller.ts** - CRUD endpoints for authorities
+- **authorities.service.ts** - Business logic
+- **authorities.module.ts** - Module configuration
+- **dto/** - Authority DTOs
+- **entities/** - Authority entity
+
+#### Categories (`categories/`)
+
+Template categories management:
+
+- **categories.controller.ts** - CRUD endpoints for categories
+- **categories.service.ts** - Business logic
+- **categories.module.ts** - Module configuration
+- **dto/** - Category DTOs
+- **entities/** - Category entity
+
+#### Documents (`documents/`)
+
+Document generation and management:
+
+- **documents.controller.ts** - Document endpoints
+- **documents.service.ts** - Document business logic
+- **documents.module.ts** - Module configuration
+- **dto/** - Document DTOs (generate, preview, list)
+- **REQUIREMENTS.md** - Document module requirements
+
+#### Health (`health/`)
+
+Health check endpoints:
+
+- **health.controller.ts** - Health check endpoints
+- **health.service.ts** - Health check logic
+- **health.module.ts** - Module configuration
+
+#### Invitations (`invitations/`)
+
+Tenant invitation system:
+
+- **invitations.service.ts** - Invitation business logic
+- **invitations.module.ts** - Module configuration
+
+#### Rulesets (`rulesets/`)
+
+Compliance rulesets with versioning:
+
+- **rulesets.controller.ts** - CRUD endpoints for rulesets
+- **rulesets.service.ts** - Business logic
+- **rulesets.module.ts** - Module configuration
+- **dto/** - Ruleset DTOs (create, update, versions, clauses)
+- **entities/** - Ruleset entity
+
+#### Storage (`storage/`)
+
+S3-based file storage:
+
+- **storage.controller.ts** - File upload/download endpoints
+- **storage.service.ts** - S3 integration
+- **storage.module.ts** - Module configuration
+- **dto/** - Storage DTOs
+- **interceptors/** - File upload interceptors
+- **pipes/** - File validation pipes
+
+#### Templates (`templates/`)
+
+Document templates with versioning and field extraction:
+
+- **templates.controller.ts** - Template CRUD endpoints
+- **templates.service.ts** - Template business logic
+- **template-versions.service.ts** - Version management
+- **templates.module.ts** - Module configuration
+- **constants/** - Template constants
+- **dto/** - Template DTOs (create, update, versions, fields)
+- **entities/** - Template and version entities
+- **services/**
+  - **document-generation.service.ts** - DOCX generation with docxtemplater
+  - **docx-placeholder-extraction.service.ts** - Extract placeholders from DOCX
+  - **template-validation.service.ts** - Template validation logic
+
+#### Tenants (`tenants/`)
+
+Multi-tenancy management:
+
+- **tenant.controller.ts** - Tenant CRUD endpoints
+- **admin.controller.ts** - System admin endpoints
+- **invitations.controller.ts** - Invitation endpoints
+- **tenant.service.ts** - Tenant business logic
+- **features.service.ts** - Feature flag management
+- **tenant.module.ts** - Module configuration
+- **dto/** - Tenant DTOs (create, update, invitations)
+- **entities/** - Tenant entity
+
+#### Users (`users/`)
+
+User management:
+
+- **users.controller.ts** - User CRUD endpoints
+- **users.service.ts** - User business logic
+- **users.module.ts** - Module configuration
+- **dto/** - User DTOs (create, update, change-password, profile)
+- **entities/** - User and user-tenant entities
+
+### Internationalization (`i18n/`)
+
+Multi-language support (English, Arabic):
+
+- **i18n.module.ts** - i18n module configuration
+- **i18n.types.ts** - Type definitions
+- **locales/ar/** - Arabic translations
+- **locales/en/** - English translations
+  - **auth.json** - Authentication messages
+  - **common.json** - Common messages
+  - **storage.json** - Storage messages
+  - **templates.json** - Template messages
+  - **tenant.json** - Tenant messages
+
+## Test Suite (`test/`)
+
+E2E testing infrastructure:
+
+### Test Configuration
+
+- **jest-e2e.json** - Jest E2E configuration
+- **test.env** - Test environment variables
+- **setup.ts** - Test setup (database, context)
+- **teardown.ts** - Test cleanup
+
+### Test Flows (`flows/`)
+
+Complete user journey tests:
+
+- **01-authentication.e2e-spec.ts** - Auth flow tests
+- **02-multi-tenancy.e2e-spec.ts** - Multi-tenancy tests
+- **03-storage.e2e-spec.ts** - File storage tests
+- **04-template-management.e2e-spec.ts** - Template tests
+- **05-plan-features.e2e-spec.ts** - Feature flag tests
+
+### Test Utilities (`utils/`)
+
+- **test-context.ts** - Test context management
+- **test-database.ts** - Test database utilities
+- **test-data-factory.ts** - Test data generation
+- **test-matchers.ts** - Custom Jest matchers
+- **assertions.ts** - Common assertions
+- **health-checks.ts** - Health check utilities
+- **swagger-validator.ts** - Swagger validation
+- **swagger-downloader.ts** - Download Swagger spec
+
+### Swagger Testing (`swagger/`)
+
+- **README.md** - Swagger testing guide
+- **.gitkeep** - Keep directory in git
+
+### Documentation
+
+- **README.md** - Test suite overview
+- **SYSTEM_ADMIN_TESTING.md** - System admin test guide
+
+## Configuration Files
+
+### TypeScript
+
+- **tsconfig.json** - TypeScript compiler configuration
+- **tsconfig.build.json** - Build-specific TypeScript config
+
+### NestJS
+
+- **nest-cli.json** - NestJS CLI configuration
+
+### Package Management
+
+- **package.json** - Dependencies and scripts
+- **pnpm-lock.yaml** - Dependency lock file
+- **pnpm-workspace.yaml** - PNPM workspace config
+- **.npmrc** - NPM/PNPM configuration
+
+### Code Quality
+
+- **eslint.config.mjs** - ESLint configuration
+- **.prettierrc** - Prettier formatting rules
+- **commitlint.config.js** - Commit message linting
+
+### Docker
+
+- **Dockerfile** - Application container
+- **docker-compose.yml** - Multi-container setup (PostgreSQL, app)
+- **.dockerignore** - Docker build exclusions
+
+### Git
+
+- **.gitignore** - Git exclusions
+- **.husky/** - Git hooks (pre-commit, commit-msg)
+
+### API Testing
+
+- **Complytude_API.postman_collection.json** - Postman collection
+- **Complytude_Development.postman_environment.json** - Postman environment
+
+### Documentation
+
+- **README.md** - Project overview and quick start
+- **CONTRIBUTING.md** - Contribution guidelines
+
+## Key File Patterns
+
+### Module Pattern
+
+Each feature module follows this structure:
+
+```
+module-name/
+├── module-name.controller.ts    # HTTP endpoints
+├── module-name.service.ts       # Business logic
+├── module-name.module.ts        # Module configuration
+├── dto/                         # Data Transfer Objects
+│   ├── create-*.dto.ts
+│   ├── update-*.dto.ts
+│   ├── *-response.dto.ts
+│   └── index.ts
+└── entities/                    # Entity definitions
+    └── *.entity.ts
+```
+
+### Repository Pattern
+
+```
+repositories/
+└── feature-name/
+    ├── feature.repository.ts    # Data access layer
+    └── interfaces/              # Repository interfaces
+        └── *.interface.ts
+```
+
+### Testing Pattern
+
+```
+test/
+├── flows/                       # E2E test flows
+│   └── *.e2e-spec.ts
+└── utils/                       # Test utilities
+    └── *.ts
+```
+
+## Important Files Reference
+
+### Critical Application Files
+
+1. **src/main.ts** - Application entry point
+2. **src/app.module.ts** - Root module
+3. **src/database/database.service.ts** - Database operations
+4. **src/repositories/base/base.repository.ts** - Base repository
+5. **src/config/env.schema.ts** - Environment validation
+
+### Critical Configuration Files
+
+1. **docker-compose.yml** - Development environment
+2. **package.json** - Dependencies and scripts
+3. **.env.example** - Environment variable template
+
+### Critical Documentation Files
+
+1. **docs/ARCHITECTURE.md** - System architecture
+2. **docs/DATABASE.md** - Database design
+3. **docs/API_CONTRACTS.md** - API specifications
+4. **docs/DEVELOPMENT.md** - Development guide
+
+### Critical Scripts
+
+1. **scripts/first-time-setup.sh** - Initial setup
+2. **scripts/setup-database.sh** - Database setup
+3. **scripts/run-migrations.sh** - Run migrations
+4. **scripts/run-seeds.sh** - Seed database
+
+## Navigation Tips
+
+### Finding Features
+
+- All feature modules: `src/modules/`
+- Feature controllers: `src/modules/*/*.controller.ts`
+- Feature services: `src/modules/*/*.service.ts`
+- Feature DTOs: `src/modules/*/dto/`
+
+### Finding Data Access
+
+- All repositories: `src/repositories/`
+- Base repository: `src/repositories/base/`
+- Feature repositories: `src/repositories/*/`
+
+### Finding Configuration
+
+- All configs: `src/config/`
+- Environment schema: `src/config/env.schema.ts`
+
+### Finding Common Utilities
+
+- Guards: `src/common/guards/`
+- Decorators: `src/common/decorators/`
+- Interceptors: `src/common/interceptors/`
+- DTOs: `src/common/dto/`
+- Types: `src/common/types/`
+
+### Finding Database Scripts
+
+- Migrations: `scripts/migrations/`
+- Seeds: `scripts/seeds/`
+- Setup scripts: `scripts/*.sh`
+
+### Finding Tests
+
+- E2E tests: `test/flows/`
+- Test utilities: `test/utils/`
+- Test setup: `test/setup.ts`
+
+### Finding Documentation
+
+- All docs: `docs/`
+- API docs: `docs/API_CONTRACTS.md`
+- Architecture: `docs/ARCHITECTURE.md`
+- Database: `docs/DATABASE.md`
+
+## Module Dependencies
+
+### Core Dependencies
+
+- **DatabaseModule** - Used by all repositories
+- **ConfigModule** - Used by all modules for configuration
+- **I18nModule** - Used for internationalization
+
+### Feature Dependencies
+
+- **AuthModule** - Required by most feature modules (JWT guards)
+- **TenantModule** - Required for multi-tenancy features
+- **StorageModule** - Used by templates and documents
+- **TemplatesModule** - Used by documents module
+
+## Best Practices
+
+### File Organization
+
+1. Keep related files together in feature modules
+2. Use consistent naming conventions
+3. Export public APIs through index.ts files
+4. Separate concerns: controllers, services, repositories
+
+### Module Organization
+
+1. Each feature has its own module
+2. Modules are self-contained with clear boundaries
+3. Use dependency injection for cross-module dependencies
+4. Keep circular dependencies minimal
+
+### Code Location
+
+1. Business logic → Services
+2. Data access → Repositories
+3. HTTP handling → Controllers
+4. Validation → DTOs with class-validator
+5. Cross-cutting concerns → Common utilities
+6. Configuration → Config directory
+7. Types/Interfaces → Common types or feature-specific
+
+### Documentation
+
+1. API documentation → Swagger decorators
+2. Architecture decisions → docs/ARCHITECTURE.md
+3. Database schema → docs/DATABASE.md
+4. Setup instructions → docs/DEVELOPMENT.md
+5. Code comments → For complex business logic only
