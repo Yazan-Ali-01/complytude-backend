@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import {
-  I18nModule as NestI18nModule,
-  HeaderResolver,
-  QueryResolver,
   AcceptLanguageResolver,
   CookieResolver,
+  HeaderResolver,
+  I18nModule as NestI18nModule,
+  QueryResolver,
 } from 'nestjs-i18n';
 import * as path from 'path';
 
@@ -13,7 +13,7 @@ import * as path from 'path';
     NestI18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {
-        path: path.join(__dirname, '../i18n/locales/'),
+        path: path.join(process.cwd(), 'apps/api/src/i18n/locales/'),
         watch: true,
       },
       resolvers: [

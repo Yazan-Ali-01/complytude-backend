@@ -4,12 +4,6 @@
   "sourceRoot": "apps/api/src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": [
-      {
-        "include": "i18n/locales/**/*",
-        "outDir": "dist"
-      }
-    ],
     "webpack": true,
     "tsConfigPath": "apps/api/tsconfig.app.json"
   },
@@ -22,7 +16,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/api/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/api/tsconfig.app.json"
+        "tsConfigPath": "apps/api/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "i18n/locales/**/*",
+            "outDir": "dist/apps/api"
+          }
+        ]
       }
     },
     "shared": {
@@ -40,7 +40,8 @@
       "entryFile": "main",
       "sourceRoot": "apps/worker-ai/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/worker-ai/tsconfig.app.json"
+        "tsConfigPath": "apps/worker-ai/tsconfig.app.json",
+        "assets": []
       }
     },
     "worker-ingestion": {
@@ -49,7 +50,8 @@
       "entryFile": "main",
       "sourceRoot": "apps/worker-ingestion/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/worker-ingestion/tsconfig.app.json"
+        "tsConfigPath": "apps/worker-ingestion/tsconfig.app.json",
+        "assets": []
       }
     }
   }

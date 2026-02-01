@@ -26,6 +26,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env.api',
       load: [databaseConfig, appConfig, jwtConfig, storageConfig],
       validationSchema: validationSchema,
       validationOptions: {
