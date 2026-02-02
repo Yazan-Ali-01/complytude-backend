@@ -13,8 +13,8 @@ import * as path from 'path';
     NestI18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {
-        path: path.join(process.cwd(), 'apps/api/src/i18n/locales/'),
-        watch: true,
+        path: path.join(__dirname, 'locales/'),
+        watch: process.env.NODE_ENV !== 'production',
       },
       resolvers: [
         { use: QueryResolver, options: ['lang'] },
