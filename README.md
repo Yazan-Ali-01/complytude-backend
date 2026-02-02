@@ -250,7 +250,7 @@ pnpm docker:prod:down
 | **Build Size**      | N/A            | ~800MB     | ~200MB        |
 | **Security**        | N/A            | Root user  | Non-root user |
 
-📚 **Full Docker Guide:** See [DOCKER.md](DOCKER.md) for detailed instructions
+📚 **Full Docker Guide:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed instructions
 
 ---
 
@@ -282,19 +282,28 @@ complytude/
 │   │   │   ├── common/     # Guards, decorators, interceptors
 │   │   │   ├── config/     # Configuration files
 │   │   │   ├── database/   # Database service & connection
+│   │   │   ├── repositories/ # Data access layer
+│   │   │   ├── i18n/       # Internationalization
 │   │   │   └── main.ts     # Application entry point
 │   │   ├── test/           # E2E test suites
-│   │   └── .env            # API environment variables
+│   │   ├── docs/           # API-specific documentation
+│   │   └── .env.example    # API environment variables template
 │   ├── worker-ai/          # AI processing worker
 │   │   ├── src/
+│   │   ├── docs/           # AI worker documentation (coming soon)
 │   │   └── .env.example
 │   └── worker-ingestion/   # Data ingestion worker
 │       ├── src/
+│       ├── docs/           # Ingestion worker documentation (coming soon)
 │       └── .env.example
 ├── libs/                    # Shared libraries
 │   └── shared/             # Shared utilities and types
 ├── scripts/                 # Database migrations and utility scripts
-├── docs/                    # Documentation
+├── docs/                    # Monorepo-wide documentation
+│   ├── ARCHITECTURE.md     # System architecture
+│   ├── DATABASE.md         # Database schema
+│   ├── DEPLOYMENT.md       # Deployment guide
+│   └── README.md           # Documentation hub
 └── docker-compose.yml       # Docker services
 ```
 
@@ -389,7 +398,6 @@ PGADMIN_PORT=5050
 - Worker services have separate env files (see `apps/worker-ai/.env.example` and `apps/worker-ingestion/.env.example`)
 - When using fully dockerized mode (`pnpm docker:up:full`), the `docker-compose.yml` automatically overrides `DB_HOST` → `postgres` and `S3_ENDPOINT` → `http://minio:9000`
 - Keep your `apps/api/.env` with `localhost` values for hybrid mode!
-- For detailed environment setup, see [ENV_SETUP.md](ENV_SETUP.md)
 - For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
@@ -459,7 +467,7 @@ pnpm format                 # Prettier formatting
 pnpm type-check             # TypeScript validation
 ```
 
-**📚 Complete Script Reference:** See [docs/SCRIPTS.md](docs/SCRIPTS.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
+**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
 
 ---
 
@@ -516,15 +524,25 @@ async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
 
 ## Documentation
 
+### Monorepo-Wide Documentation
+
 | Document                                     | Description                                     |
 | -------------------------------------------- | ----------------------------------------------- |
 | [docs/README.md](docs/README.md)             | Documentation hub and index                     |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design patterns         |
+| [docs/DATABASE.md](docs/DATABASE.md)         | Database schema, RLS, and data model            |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)     | Production deployment guide for all apps        |
 | [CONTRIBUTING.md](CONTRIBUTING.md)           | Git hooks, commit standards, contribution guide |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Development workflow, module creation           |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)     | Production deployment guide                     |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture (coming soon)               |
-| [test/README.md](test/README.md)             | E2E testing guide                               |
 | [scripts/README.md](scripts/README.md)       | Database migrations and utilities               |
+
+### API Application Documentation
+
+| Document                                                         | Description                               |
+| ---------------------------------------------------------------- | ----------------------------------------- |
+| [apps/api/docs/README.md](apps/api/docs/README.md)               | API documentation hub                     |
+| [apps/api/docs/API_CONTRACTS.md](apps/api/docs/API_CONTRACTS.md) | API contract standards, authentication    |
+| [apps/api/docs/DEVELOPMENT.md](apps/api/docs/DEVELOPMENT.md)     | API development workflow, module creation |
+| [apps/api/test/README.md](apps/api/test/README.md)               | E2E testing guide                         |
 
 ---
 
@@ -577,7 +595,7 @@ pnpm docker:reset      # ⚠️ Deletes all data
 pnpm db:migrate
 ```
 
-For detailed troubleshooting, see [docs/SCRIPTS.md](docs/SCRIPTS.md#troubleshooting)
+For detailed troubleshooting, see [scripts/README.md](scripts/README.md#troubleshooting)
 
 ---
 

@@ -1,6 +1,6 @@
-# Development Guide
+# API Development Guide
 
-This guide covers development workflow, module creation, best practices, and code quality standards for the Complytude project.
+This guide covers development workflow, module creation, best practices, and code quality standards for the Complytude API application.
 
 ## Table of Contents
 
@@ -17,12 +17,12 @@ This guide covers development workflow, module creation, best practices, and cod
 Use the NestJS CLI to generate new modules:
 
 ```bash
-# Generate a new module
-nest g module modules/your-module
+# Generate a new module (run from project root)
+nest g module modules/your-module --project api
 
 # Generate controller and service
-nest g controller modules/your-module
-nest g service modules/your-module
+nest g controller modules/your-module --project api
+nest g service modules/your-module --project api
 ```
 
 ---
@@ -32,7 +32,7 @@ nest g service modules/your-module
 Each module should follow this structure:
 
 ```
-modules/your-module/
+apps/api/src/modules/your-module/
 ├── your-module.module.ts        # Module definition
 ├── your-module.controller.ts    # HTTP endpoints
 ├── your-module.service.ts       # Business logic
@@ -173,7 +173,7 @@ pnpm docker:reset    # ⚠️ Reset database (deletes all data)
 - Test users with various roles
 - Sample templates and documents
 
-For detailed migration and seeding documentation, see [scripts/README.md](../scripts/README.md) and [scripts/seeds/README.md](../scripts/seeds/README.md).
+For detailed migration and seeding documentation, see [scripts/README.md](../../../scripts/README.md) and [scripts/seeds/README.md](../../../scripts/seeds/README.md).
 
 ---
 
@@ -250,13 +250,13 @@ This project uses Cursor AI rules to maintain consistency and enforce best pract
 
 ### Available Rules
 
-Cursor rules in `.cursor/rules/` provide:
+Cursor rules in `.cursor/rules/` (at project root) provide:
 
-- **[nest-js.mdc](../.cursor/rules/nest-js.mdc)** - Core NestJS patterns and database architecture
-- **[project-structure.mdc](../.cursor/rules/project-structure.mdc)** - Complete project navigation guide
-- **[technology-stack.mdc](../.cursor/rules/technology-stack.mdc)** - Dependencies, versions, and compatibility
-- **[cursor-rules.mdc](../.cursor/rules/cursor-rules.mdc)** - How to maintain these rules
-- **[self-improvement.mdc](../.cursor/rules/self-improvement.mdc)** - When to update rules
+- **[nest-js.mdc](../../../.cursor/rules/nest-js.mdc)** - Core NestJS patterns and database architecture
+- **[project-structure.mdc](../../../.cursor/rules/project-structure.mdc)** - Complete project navigation guide
+- **[technology-stack.mdc](../../../.cursor/rules/technology-stack.mdc)** - Dependencies, versions, and compatibility
+- **[cursor-rules.mdc](../../../.cursor/rules/cursor-rules.mdc)** - How to maintain these rules
+- **[self-improvement.mdc](../../../.cursor/rules/self-improvement.mdc)** - When to update rules
 
 ### Using AI for Development
 
@@ -341,7 +341,7 @@ and update the @project-structure.mdc rule to reflect any new modules, folders, 
 **From a NestJS service:**
 
 ```
-@cursor-rules.mdc @src/modules/templates/templates.service.ts
+@cursor-rules.mdc @apps/api/src/modules/templates/templates.service.ts
 /Generate Cursor Rules
 I want to generate a cursor rule for this NestJS service. Please analyze it carefully and outline all of the conventions found (dependency injection, error handling, business logic patterns, repository usage, transaction handling). Output as one rule file only.
 ```
@@ -349,7 +349,7 @@ I want to generate a cursor rule for this NestJS service. Please analyze it care
 **From a repository:**
 
 ```
-@cursor-rules.mdc @src/repositories/users/users.repository.ts
+@cursor-rules.mdc @apps/api/src/repositories/users/users.repository.ts
 /Generate Cursor Rules
 I want to generate a cursor rule for this repository. Please analyze it carefully and outline all of the conventions found (BaseRepository extension, mapRow implementation, query patterns, tenant context handling). Output as one rule file only.
 ```
@@ -357,7 +357,7 @@ I want to generate a cursor rule for this repository. Please analyze it carefull
 **From a utility function:**
 
 ```
-@cursor-rules.mdc @src/common/helper.ts
+@cursor-rules.mdc @apps/api/src/common/helper.ts
 /Generate Cursor Rules
 I want to generate a cursor rule for this utility function module. Analyze it carefully and outline all of the conventions found (function naming, parameter validation, error handling, type safety). Output as one rule file only.
 ```
@@ -365,12 +365,12 @@ I want to generate a cursor rule for this utility function module. Analyze it ca
 **From a DTO:**
 
 ```
-@cursor-rules.mdc @src/modules/templates/dto/create-template.dto.ts
+@cursor-rules.mdc @apps/api/src/modules/templates/dto/create-template.dto.ts
 /Generate Cursor Rules
 I want to generate a cursor rule for this DTO. Analyze it carefully and outline all of the conventions found (class-validator decorators, Swagger documentation, validation rules). Output as one rule file only.
 ```
 
-**Important:** Always review and refine AI-generated rules before committing them. See [cursor-rules.mdc](../.cursor/rules/cursor-rules.mdc) for complete examples and best practices.
+**Important:** Always review and refine AI-generated rules before committing them. See [cursor-rules.mdc](../../../.cursor/rules/cursor-rules.mdc) for complete examples and best practices.
 
 ### When to Create or Update a Rule
 
@@ -513,17 +513,19 @@ A: When in doubt, wait. Document the pattern in code comments first. If you find
 - ✅ Document breaking changes when they occur
 - ✅ Remove or deprecate outdated patterns
 
-For detailed information on rule maintenance, see [self-improvement.mdc](../.cursor/rules/self-improvement.mdc).
+For detailed information on rule maintenance, see [self-improvement.mdc](../../../.cursor/rules/self-improvement.mdc).
 
 ---
 
 ## Related Documentation
 
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - Git hooks, commit standards, Cursor rules
+- [CONTRIBUTING.md](../../../CONTRIBUTING.md) - Git hooks, commit standards, Cursor rules
 - [test/README.md](../test/README.md) - Testing documentation
-- [scripts/README.md](../scripts/README.md) - Database scripts
-- [Main README](../README.md) - Project overview
+- [scripts/README.md](../../../scripts/README.md) - Database scripts
+- [Main README](../../../README.md) - Project overview
+- [Architecture](../../../docs/ARCHITECTURE.md) - System architecture
+- [Database](../../../docs/DATABASE.md) - Database schema
 
 ---
 
-[Back to Documentation Index](README.md)
+[Back to API Documentation Index](README.md) | [Back to Main Documentation](../../../docs/README.md)

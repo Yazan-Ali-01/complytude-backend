@@ -41,7 +41,7 @@ import {
   PaginatedResponseDto,
   MessageResponseDto,
   UuidParamDto,
-} from 'src/common/dto';
+} from '../../../../common/dto';
 
 // Swagger helpers
 import {
