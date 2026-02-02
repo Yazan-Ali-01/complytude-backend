@@ -4,13 +4,13 @@
   "sourceRoot": "apps/api/src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": true,
+    "webpack": false,
     "tsConfigPath": "apps/api/tsconfig.app.json"
   },
   "monorepo": true,
   "root": "apps/api",
   "projects": {
-    "complytude": {
+    "api": {
       "type": "application",
       "root": "apps/api",
       "entryFile": "main",
@@ -19,8 +19,8 @@
         "tsConfigPath": "apps/api/tsconfig.app.json",
         "assets": [
           {
-            "include": "i18n/locales/**/*",
-            "outDir": "dist/apps/api"
+            "include": "i18n/**/*",
+            "watchAssets": true
           }
         ]
       }

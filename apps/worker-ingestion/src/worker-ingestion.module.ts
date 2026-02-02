@@ -15,7 +15,7 @@ import { WorkerIngestionService } from './worker-ingestion.service';
         allowUnknown: true,
         abortEarly: false,
       },
-      envFilePath: ['.env.worker-ingestion', '.env'],
+      envFilePath: ['apps/worker-ingestion/.env'],
     }),
   ],
   controllers: [WorkerIngestionController],

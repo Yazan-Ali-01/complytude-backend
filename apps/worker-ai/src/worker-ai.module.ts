@@ -15,7 +15,7 @@ import { WorkerAiService } from './worker-ai.service';
         allowUnknown: true,
         abortEarly: false,
       },
-      envFilePath: ['.env.worker-ai', '.env'],
+      envFilePath: ['apps/worker-ai/.env'],
     }),
   ],
   controllers: [WorkerAiController],

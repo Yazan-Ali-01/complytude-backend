@@ -56,6 +56,11 @@ lerna-debug.log*
 .env.production.local
 .env.local
 
+# App-specific env files (new structure)
+apps/*/.env
+apps/*/.env.local
+apps/*/.env.*.local
+
 # temp directory
 .temp
 .tmp

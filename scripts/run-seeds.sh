@@ -32,7 +32,17 @@ SEEDS_DIR="${SCRIPT_DIR}/seeds"
 # Load Environment Variables
 # ============================================================================
 
-if [ -f "${SCRIPT_DIR}/../.env" ]; then
+if [ -f "${SCRIPT_DIR}/../apps/api/.env" ]; then
+    echo -e "${BLUE}Loading environment variables from apps/api/.env...${NC}"
+    set -a
+    source "${SCRIPT_DIR}/../apps/api/.env"
+    set +a
+elif [ -f "${SCRIPT_DIR}/../.env.api" ]; then
+    echo -e "${BLUE}Loading environment variables from .env.api (legacy)...${NC}"
+    set -a
+    source "${SCRIPT_DIR}/../.env.api"
+    set +a
+elif [ -f "${SCRIPT_DIR}/../.env" ]; then
     echo -e "${BLUE}Loading environment variables from .env...${NC}"
     set -a
     source "${SCRIPT_DIR}/../.env"

@@ -1,13 +1,32 @@
 # Dependencies
 node_modules
+**/node_modules
+apps/*/node_modules
 npm-debug.log
 pnpm-debug.log
 yarn-error.log
+
+# Build outputs
+dist
+build
+*.tsbuildinfo
 
 # Testing
 coverage
 .nyc_output
 test-results
+
+# Environment files
+.env
+.env.*
+!.env.example
+apps/*/.env
+!apps/*/.env.example
+
+# Git
+.git
+.gitignore
+.gitattributes
 
 # IDE
 .vscode
@@ -15,27 +34,17 @@ test-results
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
-Thumbs.db
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# Git
-.git
-.gitignore
 
 # Documentation
 *.md
+!README.md
 docs
 
 # CI/CD
 .github
 .gitlab-ci.yml
+.travis.yml
 
 # Docker
 Dockerfile*
@@ -46,15 +55,17 @@ docker-compose*.yml
 logs
 *.log
 
-# Build artifacts (we build inside Docker)
-dist
+# Temporary files
+tmp
+temp
+*.tmp
 
-# Scripts (except migrations)
+# OS
+Thumbs.db
+.DS_Store
+
+# Misc
+.husky
+.cursor
 scripts
-!scripts/migrations
-
-# Test files
 test
-*.spec.ts
-*.e2e-spec.ts
-jest.config.js

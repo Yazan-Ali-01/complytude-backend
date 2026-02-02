@@ -43,6 +43,11 @@ fi
 echo ""
 echo "🔍 Checking database migrations..."
 
+# Load environment from apps/api/.env if it exists
+if [ -f apps/api/.env ]; then
+    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | xargs)
+fi
+
 # Check if migrations are needed
 DB_PASSWORD=${DB_PASSWORD:-postgres}
 needs_migration=false
@@ -74,14 +79,22 @@ if [ "$needs_migration" = true ]; then
 fi
 
 echo ""
-echo "🔥 Starting development server..."
-echo "=================================="
+echo "🔥 Starting API development server..."
+echo "====================================="
 echo ""
 echo "📚 Available at:"
 echo "  • API: http://localhost:3000/api"
 echo "  • Swagger: http://localhost:3000/docs"
+echo "  • Health: http://localhost:3000/api/health"
 echo "  • MinIO Console: http://localhost:9001"
 echo ""
+echo "💡 To start all apps (API + Workers):"
+echo "  pnpm dev:all"
+echo ""
+echo "💡 To start individual workers:"
+echo "  pnpm start:worker-ai"
+echo "  pnpm start:worker-ingestion"
+echo ""
 
-pnpm start:dev
+pnpm start:api
 
