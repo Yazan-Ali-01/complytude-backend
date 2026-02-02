@@ -95,7 +95,7 @@ export class LoginResponseDto {
       {
         tenantId: '550e8400-e29b-41d4-a716-446655440000',
         tenantName: 'Acme Corporation',
-        role: TenantRole.ADMIN,
+        role: TenantRole.TENANT_ADMIN,
         isActive: true,
         joinedAt: '2026-01-10T08:00:00.000Z',
       },

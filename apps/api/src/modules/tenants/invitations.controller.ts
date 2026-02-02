@@ -44,7 +44,7 @@ import {
 @Controller('tenants/admin/invitations')
 @AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
-@Roles(TenantRole.ADMIN)
+@Roles(TenantRole.TENANT_ADMIN)
 @SwaggerCookieAuth.tenantAccessToken()
 export class TenantInvitationsController {
   private readonly logger = new Logger(TenantInvitationsController.name);

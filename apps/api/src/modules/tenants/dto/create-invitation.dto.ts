@@ -17,11 +17,17 @@ export class CreateInvitationDto {
 
   @ApiProperty({
     description: 'Role the invited user will have in the tenant',
-    enum: Object.values(TenantRole).filter((role) => role !== TenantRole.ADMIN),
+    enum: Object.values(TenantRole).filter(
+      (role) => role !== TenantRole.TENANT_ADMIN,
+    ),
     example: TenantRole.MEMBER,
     default: TenantRole.MEMBER,
   })
-  @IsEnum(Object.values(TenantRole).filter((role) => role !== TenantRole.ADMIN))
+  @IsEnum(
+    Object.values(TenantRole).filter(
+      (role) => role !== TenantRole.TENANT_ADMIN,
+    ),
+  )
   @IsOptional()
   role?: TenantRole;
 }
