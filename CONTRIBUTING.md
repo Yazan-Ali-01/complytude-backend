@@ -1,6 +1,6 @@
 # Contributing to Complytude
 
-Thank you for your interest in contributing to Complytude! This guide will help you get started with our development workflow, commit standards, and contribution process.
+Thank you for your interest in contributing to Complytude! This guide will help you get started with our monorepo development workflow, commit standards, and contribution process.
 
 ## Table of Contents
 
@@ -36,12 +36,16 @@ See the [Quick Start](README.md#quick-start) section in the main README for deta
 git clone <repository-url>
 cd complytude
 pnpm install
-cp .env.example .env
+cp apps/api/.env.example apps/api/.env  # Configure API environment
 pnpm project:setup              # Starts PostgreSQL + MinIO, runs migrations
 pnpm db:seed                    # (Optional) Seed test data for development
 
 # Daily development
-pnpm dev                # Auto-starts services + development server
+pnpm dev                # Auto-starts services + API development server
+# Or start specific apps:
+pnpm start:api          # Start API only
+pnpm start:worker-ai    # Start AI worker
+pnpm start:worker-ingestion  # Start ingestion worker
 
 # Before committing
 pnpm lint
@@ -49,7 +53,7 @@ pnpm type-check
 pnpm test:e2e
 ```
 
-**📚 Complete Script Reference:** See [docs/SCRIPTS.md](docs/SCRIPTS.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
+**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
 
 ### Verify Your Setup
 
@@ -568,6 +572,18 @@ A: No. Only create rules for patterns that apply across multiple modules. If a p
 A: Ask yourself: "Can this rule apply to at least 3 different files or situations?" If not, it's probably too specific.
 
 For detailed information on rule maintenance, see [self-improvement.mdc](.cursor/rules/self-improvement.mdc).
+
+---
+
+## Related Documentation
+
+- [Main README](README.md) - Project overview and quick start
+- [docs/README.md](docs/README.md) - Documentation hub
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture
+- [apps/api/docs/DEVELOPMENT.md](apps/api/docs/DEVELOPMENT.md) - API development workflow
+- [apps/api/docs/API_CONTRACTS.md](apps/api/docs/API_CONTRACTS.md) - API contract standards
+- [scripts/README.md](scripts/README.md) - Complete script reference
+- [apps/api/test/README.md](apps/api/test/README.md) - Testing documentation
 
 ---
 

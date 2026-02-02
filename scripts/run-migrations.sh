@@ -19,12 +19,19 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Load environment variables
-if [ -f .env ]; then
+# Load environment variables (check new location first, then fallback)
+if [ -f apps/api/.env ]; then
+    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    echo "📝 Loaded environment from apps/api/.env"
+elif [ -f .env.api ]; then
+    export $(cat .env.api | grep -v '^#' | grep -v '^\s*$' | xargs)
+    echo "📝 Loaded environment from .env.api (legacy)"
+elif [ -f .env ]; then
     export $(cat .env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    echo "📝 Loaded environment from .env"
 else
-    echo -e "${RED}❌ .env file not found${NC}"
-    echo "Please create .env from .env.example"
+    echo -e "${RED}❌ No .env file found${NC}"
+    echo "Please create apps/api/.env from apps/api/.env.example"
     exit 1
 fi
 
@@ -41,7 +48,7 @@ if ! PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgre
     echo ""
     echo "Please check:"
     echo "  1. Docker is running: pnpm docker:start"
-    echo "  2. Database credentials in .env"
+    echo "  2. Database credentials in apps/api/.env"
     echo "  3. PostgreSQL is accessible on ${DB_HOST}:${DB_PORT}"
     exit 1
 fi

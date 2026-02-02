@@ -1,6 +1,21 @@
 name: complytude
 
+# ============================================
+# Base Docker Compose Configuration
+# ============================================
+# This file contains shared services (PostgreSQL, MinIO, pgAdmin)
+#
+# Usage:
+#   Development: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+#
+# Or use the npm scripts:
+#   pnpm docker:dev
+#   pnpm docker:prod
+# ============================================
+
 services:
+  # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
     container_name: complytude-postgres
@@ -14,7 +29,6 @@ services:
       - '${DB_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Note: init-db.sql removed - migrations handle all schema setup via pnpm db:migrate
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres}']
       interval: 10s
@@ -23,7 +37,7 @@ services:
     networks:
       - complytude-network
 
-  # Optional: pgAdmin for database management
+  # pgAdmin - Database Management Tool (Optional)
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: complytude-pgadmin
@@ -44,7 +58,7 @@ services:
     profiles:
       - tools
 
-  # MinIO for S3-compatible object storage
+  # MinIO - S3-Compatible Object Storage
   minio:
     image: minio/minio:latest
     container_name: complytude-minio
@@ -65,74 +79,6 @@ services:
       retries: 3
     networks:
       - complytude-network
-
-  # Complytude NestJS API
-  # Only starts with: docker-compose --profile full-stack up
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    image: complytude-api:latest
-    container_name: complytude-app
-    restart: unless-stopped
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-3000}
-      API_PREFIX: ${API_PREFIX:-api}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      # Database connection (use service name for inter-container communication)
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-complytude}
-      DB_MAX_CONNECTIONS: ${DB_MAX_CONNECTIONS:-20}
-      DB_IDLE_TIMEOUT: ${DB_IDLE_TIMEOUT:-30000}
-      DB_CONNECTION_TIMEOUT: ${DB_CONNECTION_TIMEOUT:-2000}
-      # JWT (match your app's actual variable names)
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-your-super-secret-jwt-access-key-change-this-in-production}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-jwt-refresh-key-change-this-in-production}
-      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-30m}
-      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-14d}
-      # S3/MinIO Storage (use service name for inter-container communication)
-      S3_REGION: ${S3_REGION:-us-east-1}
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      S3_BUCKET_PREFIX: ${S3_BUCKET_PREFIX:-complytude}
-      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
-      # File Upload Limits
-      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
-      SIGNED_URL_EXPIRES_IN: ${SIGNED_URL_EXPIRES_IN:-900}
-    ports:
-      - '${PORT:-3000}:3000'
-    # Note: Volume mounts are disabled for production builds
-    # Uncomment below for development hot-reload:
-    # volumes:
-    #   - ./src:/app/src
-    #   - ./node_modules:/app/node_modules
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
-        ]
-      interval: 30s
-      timeout: 10s
-      start_period: 40s
-      retries: 3
-    networks:
-      - complytude-network
-    profiles:
-      - full-stack
 
 volumes:
   postgres_data:

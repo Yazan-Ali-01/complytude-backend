@@ -1,0 +1,67 @@
+# ============================================
+# Development Docker Compose Configuration
+# ============================================
+# This file extends docker-compose.yml for development
+#
+# Features:
+#   - Hot-reload with mounted source code
+#   - Development build target
+#   - Uses apps/api/.env for configuration
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   Or: pnpm docker:dev
+# ============================================
+
+services:
+  # Complytude API - Development Mode
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: development
+    image: complytude-api:dev
+    container_name: complytude-api-dev
+    restart: unless-stopped
+    env_file:
+      - apps/api/.env
+    environment:
+      # Override for Docker networking
+      DB_HOST: postgres
+      DB_PORT: 5432
+      S3_ENDPOINT: http://minio:9000
+    ports:
+      - '${PORT:-3000}:3000'
+    volumes:
+      # Mount source code for hot-reload
+      - ./apps/api/src:/app/apps/api/src
+      - ./libs:/app/libs
+      # Mount configs
+      - ./nest-cli.json:/app/nest-cli.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./apps/api/tsconfig.app.json:/app/apps/api/tsconfig.app.json
+      # Prevent overwriting node_modules
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    networks:
+      - complytude-network
+
+networks:
+  complytude-network:
+    driver: bridge

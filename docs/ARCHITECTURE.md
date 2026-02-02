@@ -19,7 +19,7 @@ Comprehensive architecture documentation for the Complytude platform.
 
 ## System Overview
 
-Complytude is a **multi-tenant SaaS platform** for UAE legal document generation and compliance management, built with modern backend architecture principles.
+Complytude is a **multi-tenant SaaS platform** for UAE legal document generation and compliance management, built with modern backend architecture principles. The system is organized as a monorepo with multiple applications.
 
 ### High-Level Architecture
 
@@ -115,7 +115,7 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 Complytude follows clean architecture principles with clear separation of concerns:
 
 ```
-src/
+apps/api/src/
 ├── modules/              # Feature modules (business logic)
 │   ├── auth/            # Authentication & authorization
 │   ├── tenants/         # Multi-tenancy management
@@ -129,7 +129,9 @@ src/
 │   ├── decorators/     # Custom decorators
 │   └── pipes/          # Validation pipes
 ├── config/             # Configuration management
-└── database/           # Database connection & utilities
+├── database/           # Database connection & utilities
+├── repositories/       # Data access layer
+└── i18n/               # Internationalization
 ```
 
 ### 2. Dependency Injection
@@ -191,10 +193,10 @@ export class CreateTemplateDto {
 
 ### Module Structure
 
-Each module follows a consistent structure:
+Each module in the API application follows a consistent structure:
 
 ```
-modules/feature/
+apps/api/src/modules/feature/
 ├── feature.module.ts        # Module definition
 ├── feature.controller.ts    # HTTP endpoints
 ├── feature.service.ts       # Business logic
@@ -602,10 +604,11 @@ S3_SECRET_KEY=<secret>
 ## Related Documentation
 
 - [DATABASE.md](DATABASE.md) - Detailed database schema
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment guide
-- [DEVELOPMENT.md](DEVELOPMENT.md) - Development workflow
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment guide for all apps
+- [API Development Guide](../apps/api/docs/DEVELOPMENT.md) - API development workflow
+- [API Contracts](../apps/api/docs/API_CONTRACTS.md) - API specifications
 - [Main README](../README.md) - Project overview
 
 ---
 
-**Last Updated:** January 20, 2026
+**Last Updated:** February 2, 2026

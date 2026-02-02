@@ -20,6 +20,17 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@complytude/shared": [
+        "libs/shared/src"
+      ],
+      "@complytude/shared/*": [
+        "libs/shared/src/*"
+      ],
+      "src/*": [
+        "apps/api/src/*"
+      ]
+    }
   }
 }

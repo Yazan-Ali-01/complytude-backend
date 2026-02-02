@@ -1,42 +1,58 @@
 ---
-description: Comprehensive guide to the Complytude Backend project structure, directory organization, and important files
+description: Comprehensive guide to the Complytude monorepo project structure, directory organization, and important files
 alwaysApply: true
 ---
 
 # Project Structure Guide
 
-Complete reference for navigating the Complytude Backend codebase.
+Complete reference for navigating the Complytude monorepo codebase.
 
 ## Root Directory Structure
 
 ```
-complytude-backend/
+complytude/
 ├── .cursor/                    # Cursor IDE configuration
-│   └── rules/                  # AI assistant rules
+│   └── rules/                  # AI assistant rules (monorepo-wide)
 ├── .husky/                     # Git hooks (commit-msg, pre-commit)
-├── docs/                       # Project documentation
+├── apps/                       # Monorepo applications
+│   ├── api/                    # Main API application
+│   ├── worker-ai/              # AI processing worker
+│   └── worker-ingestion/       # Data ingestion worker
+├── libs/                       # Shared libraries
+│   └── shared/                 # Shared utilities and types
+├── docs/                       # Monorepo-wide documentation
 ├── scripts/                    # Database and development scripts
-├── src/                        # Source code (main application)
-├── test/                       # E2E tests and test utilities
 ├── docker-compose.yml          # Docker services configuration
-├── Dockerfile                  # Application container definition
-├── package.json                # Dependencies and scripts
-└── pnpm-workspace.yaml         # PNPM workspace configuration
+├── package.json                # Root package.json (workspace config)
+├── pnpm-workspace.yaml         # PNPM workspace configuration
+└── nest-cli.json               # NestJS CLI configuration (monorepo)
 ```
 
-## Documentation (`docs/`)
+## Documentation Structure
 
-Comprehensive project documentation:
+### Monorepo-Wide Documentation (`docs/`)
 
-- **API_CONTRACTS.md** - Complete API endpoint specifications
-- **API_CONTRACTS_QUICK_REFERENCE.md** - Quick API reference
+Documentation that applies to all applications:
+
+- **README.md** - Documentation hub and index
 - **ARCHITECTURE.md** - System architecture and design decisions
 - **DATABASE.md** - Database schema, RLS policies, multi-tenancy
 - **database-schema.dbml** - Visual database schema (DBML format)
-- **DEPLOYMENT.md** - Deployment instructions and configuration
-- **DEVELOPMENT.md** - Development setup and guidelines
-- **SCRIPTS.md** - Database scripts documentation
-- **README.md** - Documentation overview
+- **DEPLOYMENT.md** - Deployment instructions for all apps
+
+### API Application Documentation (`apps/api/docs/`)
+
+API-specific documentation:
+
+- **README.md** - API documentation hub
+- **API_CONTRACTS.md** - Complete API endpoint specifications
+- **API_CONTRACTS_QUICK_REFERENCE.md** - Quick API reference
+- **DEVELOPMENT.md** - API development setup and guidelines
+
+### Worker Documentation
+
+- **apps/worker-ai/docs/** - AI worker documentation (coming soon)
+- **apps/worker-ingestion/docs/** - Ingestion worker documentation (coming soon)
 
 ## Scripts (`scripts/`)
 
@@ -78,19 +94,31 @@ Database management and development utilities:
 - **wait-for-db.sh** - Wait for database availability
 - **manage-custom-features.sql** - Custom feature management
 
-## Source Code (`src/`)
+## Applications Structure
 
-### Entry Point
+### API Application (`apps/api/`)
 
-- **main.ts** - Application bootstrap (Fastify, Swagger, CORS, validation)
+Main API application structure:
 
-### Application Core
+```
+apps/api/
+├── src/                        # Source code
+│   ├── main.ts                # Application bootstrap
+│   ├── app.module.ts          # Root module
+│   ├── modules/               # Feature modules
+│   ├── common/                # Shared utilities
+│   ├── config/                # Configuration
+│   ├── database/              # Database service
+│   ├── repositories/          # Data access layer
+│   └── i18n/                  # Internationalization
+├── test/                      # E2E tests
+├── docs/                      # API documentation
+├── Dockerfile                 # API container definition
+├── .env.example               # Environment template
+└── package.json               # API dependencies
+```
 
-- **app.module.ts** - Root module
-- **app.controller.ts** - Health check endpoint
-- **app.service.ts** - Application service
-
-### Configuration (`config/`)
+### Configuration (`apps/api/src/config/`)
 
 Environment-based configuration with Joi validation:
 
@@ -101,14 +129,14 @@ Environment-based configuration with Joi validation:
 - **storage.config.ts** - S3 storage configuration
 - **plan-features.config.ts** - Feature limits per plan
 
-### Database Layer (`database/`)
+### Database Layer (`apps/api/src/database/`)
 
 PostgreSQL integration using native `pg` driver:
 
 - **database.module.ts** - Global database module
 - **database.service.ts** - Connection pooling, queries, transactions, RLS context
 
-### Repository Layer (`repositories/`)
+### Repository Layer (`apps/api/src/repositories/`)
 
 Data access layer with repository pattern:
 
@@ -187,7 +215,7 @@ Data access layer with repository pattern:
 
 - **helper.ts** - Common utility functions
 
-### Feature Modules (`modules/`)
+### Feature Modules (`apps/api/src/modules/`)
 
 #### Authentication (`auth/`)
 
@@ -306,7 +334,7 @@ User management:
 - **dto/** - User DTOs (create, update, change-password, profile)
 - **entities/** - User and user-tenant entities
 
-### Internationalization (`i18n/`)
+### Internationalization (`apps/api/src/i18n/`)
 
 Multi-language support (English, Arabic):
 
@@ -320,9 +348,9 @@ Multi-language support (English, Arabic):
   - **templates.json** - Template messages
   - **tenant.json** - Tenant messages
 
-## Test Suite (`test/`)
+## Test Suite (`apps/api/test/`)
 
-E2E testing infrastructure:
+E2E testing infrastructure for the API application:
 
 ### Test Configuration
 
@@ -359,8 +387,8 @@ Complete user journey tests:
 
 ### Documentation
 
-- **README.md** - Test suite overview
-- **SYSTEM_ADMIN_TESTING.md** - System admin test guide
+- **README.md** - Test suite overview (apps/api/test/README.md)
+- **SYSTEM_ADMIN_TESTING.md** - System admin test guide (apps/api/test/SYSTEM_ADMIN_TESTING.md)
 
 ## Configuration Files
 
@@ -409,12 +437,12 @@ Complete user journey tests:
 
 ## Key File Patterns
 
-### Module Pattern
+### Module Pattern (API Application)
 
-Each feature module follows this structure:
+Each feature module in `apps/api/src/modules/` follows this structure:
 
 ```
-module-name/
+apps/api/src/modules/module-name/
 ├── module-name.controller.ts    # HTTP endpoints
 ├── module-name.service.ts       # Business logic
 ├── module-name.module.ts        # Module configuration
@@ -430,7 +458,7 @@ module-name/
 ### Repository Pattern
 
 ```
-repositories/
+apps/api/src/repositories/
 └── feature-name/
     ├── feature.repository.ts    # Data access layer
     └── interfaces/              # Repository interfaces
@@ -440,7 +468,7 @@ repositories/
 ### Testing Pattern
 
 ```
-test/
+apps/api/test/
 ├── flows/                       # E2E test flows
 │   └── *.e2e-spec.ts
 └── utils/                       # Test utilities
@@ -451,24 +479,27 @@ test/
 
 ### Critical Application Files
 
-1. **src/main.ts** - Application entry point
-2. **src/app.module.ts** - Root module
-3. **src/database/database.service.ts** - Database operations
-4. **src/repositories/base/base.repository.ts** - Base repository
-5. **src/config/env.schema.ts** - Environment validation
+1. **apps/api/src/main.ts** - API application entry point
+2. **apps/api/src/app.module.ts** - API root module
+3. **apps/api/src/database/database.service.ts** - Database operations
+4. **apps/api/src/repositories/base/base.repository.ts** - Base repository
+5. **apps/api/src/config/env.schema.ts** - Environment validation
 
 ### Critical Configuration Files
 
 1. **docker-compose.yml** - Development environment
-2. **package.json** - Dependencies and scripts
-3. **.env.example** - Environment variable template
+2. **package.json** - Root workspace configuration
+3. **apps/api/.env.example** - API environment variable template
+4. **nest-cli.json** - NestJS monorepo configuration
+5. **pnpm-workspace.yaml** - PNPM workspace configuration
 
 ### Critical Documentation Files
 
-1. **docs/ARCHITECTURE.md** - System architecture
-2. **docs/DATABASE.md** - Database design
-3. **docs/API_CONTRACTS.md** - API specifications
-4. **docs/DEVELOPMENT.md** - Development guide
+1. **docs/README.md** - Documentation hub
+2. **docs/ARCHITECTURE.md** - System architecture
+3. **docs/DATABASE.md** - Database design
+4. **apps/api/docs/API_CONTRACTS.md** - API specifications
+5. **apps/api/docs/DEVELOPMENT.md** - API development guide
 
 ### Critical Scripts
 
@@ -479,31 +510,31 @@ test/
 
 ## Navigation Tips
 
-### Finding Features
+### Finding Features (API Application)
 
-- All feature modules: `src/modules/`
-- Feature controllers: `src/modules/*/*.controller.ts`
-- Feature services: `src/modules/*/*.service.ts`
-- Feature DTOs: `src/modules/*/dto/`
+- All feature modules: `apps/api/src/modules/`
+- Feature controllers: `apps/api/src/modules/*/*.controller.ts`
+- Feature services: `apps/api/src/modules/*/*.service.ts`
+- Feature DTOs: `apps/api/src/modules/*/dto/`
 
 ### Finding Data Access
 
-- All repositories: `src/repositories/`
-- Base repository: `src/repositories/base/`
-- Feature repositories: `src/repositories/*/`
+- All repositories: `apps/api/src/repositories/`
+- Base repository: `apps/api/src/repositories/base/`
+- Feature repositories: `apps/api/src/repositories/*/`
 
 ### Finding Configuration
 
-- All configs: `src/config/`
-- Environment schema: `src/config/env.schema.ts`
+- All configs: `apps/api/src/config/`
+- Environment schema: `apps/api/src/config/env.schema.ts`
 
 ### Finding Common Utilities
 
-- Guards: `src/common/guards/`
-- Decorators: `src/common/decorators/`
-- Interceptors: `src/common/interceptors/`
-- DTOs: `src/common/dto/`
-- Types: `src/common/types/`
+- Guards: `apps/api/src/common/guards/`
+- Decorators: `apps/api/src/common/decorators/`
+- Interceptors: `apps/api/src/common/interceptors/`
+- DTOs: `apps/api/src/common/dto/`
+- Types: `apps/api/src/common/types/`
 
 ### Finding Database Scripts
 
@@ -513,14 +544,15 @@ test/
 
 ### Finding Tests
 
-- E2E tests: `test/flows/`
-- Test utilities: `test/utils/`
-- Test setup: `test/setup.ts`
+- E2E tests: `apps/api/test/flows/`
+- Test utilities: `apps/api/test/utils/`
+- Test setup: `apps/api/test/setup.ts`
 
 ### Finding Documentation
 
-- All docs: `docs/`
-- API docs: `docs/API_CONTRACTS.md`
+- Monorepo docs: `docs/`
+- API docs: `apps/api/docs/`
+- API contracts: `apps/api/docs/API_CONTRACTS.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - Database: `docs/DATABASE.md`
 

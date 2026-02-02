@@ -1,7 +1,15 @@
 # compiled output
 /dist
-/node_modules
+node_modules
 /build
+
+# Prevent compiled files in source directories
+**/*.js
+**/*.js.map
+!*.config.js
+!eslint.config.js
+!/dist/**/*.js
+!/dist/**/*.js.map
 
 # Logs
 logs
@@ -40,10 +48,18 @@ lerna-debug.log*
 
 # dotenv environment variable files
 .env
+.env.api
+.env.worker-ai
+.env.worker-ingestion
 .env.development.local
 .env.test.local
 .env.production.local
 .env.local
+
+# App-specific env files (new structure)
+apps/*/.env
+apps/*/.env.local
+apps/*/.env.*.local
 
 # temp directory
 .temp

@@ -116,8 +116,9 @@ If you're using Windows, configure pnpm to use Git Bash:
 2. **Environment Configuration**
 
    ```bash
-   cp .env.example .env
-   # Edit .env with your configuration (see Environment Variables section)
+   # Copy API environment file
+   cp apps/api/.env.example apps/api/.env
+   # Edit apps/api/.env with your configuration (see Environment Variables section)
    ```
 
 3. **Start Services & Setup Database**
@@ -157,16 +158,22 @@ pnpm dev
 This will:
 
 - Check if Docker services are running (starts them if needed)
-- Start the development server with hot-reload
+- Start the API server with hot-reload
 
-**Or start services individually:**
+**Or start apps individually:**
 
 ```bash
-# Start backend services (PostgreSQL + MinIO)
-pnpm docker:start
+# Start API only (default)
+pnpm start:api
 
-# Start development server
-pnpm start:dev
+# Start AI worker
+pnpm start:worker-ai
+
+# Start ingestion worker
+pnpm start:worker-ingestion
+
+# Start all apps together
+pnpm dev:all
 ```
 
 **Available at:**
@@ -180,7 +187,7 @@ pnpm start:dev
 
 ### Docker Deployment Options
 
-Complytude supports two Docker deployment approaches:
+Complytude supports three Docker deployment approaches:
 
 #### Option 1: Hybrid Mode (Default - Recommended for Development)
 
@@ -192,33 +199,58 @@ pnpm dev  # Auto-starts services + local NestJS with hot-reload
 
 ✅ **Best for:** Active development, fast iteration, easy debugging
 
-#### Option 2: Fully Dockerized
+#### Option 2: Fully Dockerized - Development Mode
 
-**Everything in containers:** NestJS + PostgreSQL + MinIO all in Docker
+**Everything in containers with hot-reload:** API + PostgreSQL + MinIO all in Docker
 
 ```bash
-# Build the Docker image
-pnpm docker:build
+# Start everything with hot-reload
+pnpm docker:dev
 
-# Start everything
-pnpm docker:up:full
+# Or run in background
+pnpm docker:dev:up
 
 # View logs
-pnpm docker:logs:full
+pnpm docker:dev:logs
+
+# Stop
+pnpm docker:dev:down
+```
+
+✅ **Best for:** Testing Docker setup, team consistency, avoiding local Node.js issues
+
+#### Option 3: Fully Dockerized - Production Mode
+
+**Optimized production build:** Everything in containers with production optimizations
+
+```bash
+# Start production build
+pnpm docker:prod
+
+# Or run in background
+pnpm docker:prod:up
+
+# View logs
+pnpm docker:prod:logs
+
+# Stop
+pnpm docker:prod:down
 ```
 
 ✅ **Best for:** Testing deployments, CI/CD, production-like environment
 
 **Comparison:**
 
-| Aspect              | Hybrid     | Fully Dockerized    |
-| ------------------- | ---------- | ------------------- |
-| **Hot Reload**      | ✅ Fast    | ⚠️ Requires rebuild |
-| **Debugging**       | ✅ Native  | ⚠️ Remote           |
-| **Startup**         | ⚡ ~5s     | 🐌 ~30s             |
-| **Production-like** | ⚠️ Partial | ✅ Identical        |
+| Aspect              | Hybrid (Local) | Docker Dev | Docker Prod   |
+| ------------------- | -------------- | ---------- | ------------- |
+| **Hot Reload**      | ✅ Fast        | ✅ Fast    | ❌ No         |
+| **Debugging**       | ✅ Native      | ✅ Good    | ⚠️ Limited    |
+| **Startup**         | ⚡ ~5s         | 🐌 ~30s    | 🐌 ~30s       |
+| **Production-like** | ⚠️ Partial     | ⚠️ Partial | ✅ Identical  |
+| **Build Size**      | N/A            | ~800MB     | ~200MB        |
+| **Security**        | N/A            | Root user  | Non-root user |
 
-📚 **Full Docker Guide:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#docker-deployment) for detailed instructions
+📚 **Full Docker Guide:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed instructions
 
 ---
 
@@ -243,23 +275,36 @@ pnpm test:e2e:tenant    # Multi-tenancy
 
 ```
 complytude/
-├── src/
-│   ├── modules/              # Feature modules
-│   │   ├── auth/            # Authentication (JWT, signup, login)
-│   │   ├── users/           # User management & RBAC
-│   │   ├── tenants/         # Multi-tenancy & subscription plans
-│   │   ├── invitations/     # Tenant invitations & membership
-│   │   ├── storage/         # File upload/download (S3/MinIO)
-│   │   ├── templates/       # Legal document templates
-│   │   └── health/          # Health check endpoints
-│   ├── common/               # Guards, decorators, interceptors, middleware
-│   ├── config/               # Configuration files
-│   ├── database/             # Database service & connection
-│   └── main.ts               # Application entry point
-├── scripts/                  # Migrations and utility scripts
-├── test/                     # E2E test suites
-├── docs/                     # Documentation
-└── docker-compose.yml        # Docker services
+├── apps/                     # Monorepo applications
+│   ├── api/                 # Main API application
+│   │   ├── src/            # Source code
+│   │   │   ├── modules/    # Feature modules (auth, users, tenants, etc.)
+│   │   │   ├── common/     # Guards, decorators, interceptors
+│   │   │   ├── config/     # Configuration files
+│   │   │   ├── database/   # Database service & connection
+│   │   │   ├── repositories/ # Data access layer
+│   │   │   ├── i18n/       # Internationalization
+│   │   │   └── main.ts     # Application entry point
+│   │   ├── test/           # E2E test suites
+│   │   ├── docs/           # API-specific documentation
+│   │   └── .env.example    # API environment variables template
+│   ├── worker-ai/          # AI processing worker
+│   │   ├── src/
+│   │   ├── docs/           # AI worker documentation (coming soon)
+│   │   └── .env.example
+│   └── worker-ingestion/   # Data ingestion worker
+│       ├── src/
+│       ├── docs/           # Ingestion worker documentation (coming soon)
+│       └── .env.example
+├── libs/                    # Shared libraries
+│   └── shared/             # Shared utilities and types
+├── scripts/                 # Database migrations and utility scripts
+├── docs/                    # Monorepo-wide documentation
+│   ├── ARCHITECTURE.md     # System architecture
+│   ├── DATABASE.md         # Database schema
+│   ├── DEPLOYMENT.md       # Deployment guide
+│   └── README.md           # Documentation hub
+└── docker-compose.yml       # Docker services
 ```
 
 ### Module Overview
@@ -278,7 +323,20 @@ complytude/
 
 ## Environment Variables
 
-Create a `.env` file in the root directory:
+**📁 New Structure:** Each app has its own `.env` file in its directory.
+
+Create environment files from examples:
+
+```bash
+# API service (required)
+cp apps/api/.env.example apps/api/.env
+
+# Worker services (optional, if using workers)
+cp apps/worker-ai/.env.example apps/worker-ai/.env
+cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
+```
+
+**API Environment (`apps/api/.env`):**
 
 ```bash
 # Application
@@ -334,9 +392,13 @@ PGADMIN_PASSWORD=admin
 PGADMIN_PORT=5050
 ```
 
-**💡 Note:** When using fully dockerized mode (`pnpm docker:up:full`), the `docker-compose.yml` automatically overrides `DB_HOST` → `postgres` and `S3_ENDPOINT` → `http://minio:9000`. Keep your `.env` with `localhost` values for hybrid mode!
+**📝 Notes:**
 
-For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+- Each app has its own `.env` file in `apps/{app-name}/.env`
+- Worker services have separate env files (see `apps/worker-ai/.env.example` and `apps/worker-ingestion/.env.example`)
+- When using fully dockerized mode (`pnpm docker:up:full`), the `docker-compose.yml` automatically overrides `DB_HOST` → `postgres` and `S3_ENDPOINT` → `http://minio:9000`
+- Keep your `apps/api/.env` with `localhost` values for hybrid mode!
+- For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
 
@@ -349,37 +411,63 @@ For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 pnpm project:setup          # Start services, run migrations, verify setup
 
 # Daily development
-pnpm dev            # Start development (auto-starts services + hot-reload)
+pnpm dev                    # Start API (auto-starts services + hot-reload)
+pnpm dev:all                # Start all apps (API + workers)
 
-# Testing
-pnpm test:e2e       # Run all E2E tests
-pnpm test           # Run unit tests
+# Start individual apps
+pnpm start:api              # Start API only
+pnpm start:worker-ai        # Start AI worker
+pnpm start:worker-ingestion # Start ingestion worker
+
+# Build
+pnpm build:api              # Build API
+pnpm build:worker-ai        # Build AI worker
+pnpm build:worker-ingestion # Build ingestion worker
+pnpm build:all              # Build all apps
 
 # Production
-pnpm build          # Build for production
-pnpm start:prod     # Run production build
+pnpm start:api:prod         # Run API in production
+pnpm start:worker-ai:prod   # Run AI worker in production
+pnpm start:worker-ingestion:prod # Run ingestion worker in production
+pnpm start:all:prod         # Run all apps in production
 
-# Services (Hybrid Mode)
-pnpm docker:start   # Start PostgreSQL + MinIO
-pnpm docker:stop    # Stop services (keeps data)
+# Testing
+pnpm test:e2e               # Run all E2E tests (API)
+pnpm test                   # Run unit tests
+pnpm test:cov               # Run tests with coverage
+
+# Services Only (Hybrid Mode)
+pnpm docker:start           # Start PostgreSQL + MinIO
+pnpm docker:services        # Same as above
+pnpm docker:stop            # Stop services (keeps data)
+pnpm docker:down            # Stop and remove containers
 
 # Database
-pnpm db:migrate     # Run database migrations
-pnpm db:seed        # Seed database with initial/test data
-pnpm db:setup:full  # Run migrations + seeds (complete setup)
+pnpm db:migrate             # Run database migrations
+pnpm db:seed                # Seed database with initial/test data
+pnpm db:setup:full          # Run migrations + seeds (complete setup)
 
-# Docker - Full Stack
-pnpm docker:build   # Build NestJS Docker image
-pnpm docker:up:full # Start everything in Docker
-pnpm docker:logs:full # View all logs
+# Docker - Development Mode (API + Services)
+pnpm docker:dev             # Start everything with hot-reload
+pnpm docker:dev:up          # Start in background
+pnpm docker:dev:down        # Stop and remove containers
+pnpm docker:dev:logs        # View API logs
+pnpm docker:dev:build       # Rebuild development image
+
+# Docker - Production Mode (API + Services)
+pnpm docker:prod            # Start production build
+pnpm docker:prod:up         # Start in background
+pnpm docker:prod:down       # Stop and remove containers
+pnpm docker:prod:logs       # View API logs
+pnpm docker:prod:build      # Rebuild production image
 
 # Code quality
-pnpm lint           # ESLint with auto-fix
-pnpm format         # Prettier formatting
-pnpm type-check     # TypeScript validation
+pnpm lint                   # ESLint with auto-fix
+pnpm format                 # Prettier formatting
+pnpm type-check             # TypeScript validation
 ```
 
-**📚 Complete Script Reference:** See [docs/SCRIPTS.md](docs/SCRIPTS.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
+**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
 
 ---
 
@@ -436,15 +524,25 @@ async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
 
 ## Documentation
 
+### Monorepo-Wide Documentation
+
 | Document                                     | Description                                     |
 | -------------------------------------------- | ----------------------------------------------- |
 | [docs/README.md](docs/README.md)             | Documentation hub and index                     |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design patterns         |
+| [docs/DATABASE.md](docs/DATABASE.md)         | Database schema, RLS, and data model            |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)     | Production deployment guide for all apps        |
 | [CONTRIBUTING.md](CONTRIBUTING.md)           | Git hooks, commit standards, contribution guide |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Development workflow, module creation           |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)     | Production deployment guide                     |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture (coming soon)               |
-| [test/README.md](test/README.md)             | E2E testing guide                               |
 | [scripts/README.md](scripts/README.md)       | Database migrations and utilities               |
+
+### API Application Documentation
+
+| Document                                                         | Description                               |
+| ---------------------------------------------------------------- | ----------------------------------------- |
+| [apps/api/docs/README.md](apps/api/docs/README.md)               | API documentation hub                     |
+| [apps/api/docs/API_CONTRACTS.md](apps/api/docs/API_CONTRACTS.md) | API contract standards, authentication    |
+| [apps/api/docs/DEVELOPMENT.md](apps/api/docs/DEVELOPMENT.md)     | API development workflow, module creation |
+| [apps/api/test/README.md](apps/api/test/README.md)               | E2E testing guide                         |
 
 ---
 
@@ -497,7 +595,7 @@ pnpm docker:reset      # ⚠️ Deletes all data
 pnpm db:migrate
 ```
 
-For detailed troubleshooting, see [docs/SCRIPTS.md](docs/SCRIPTS.md#troubleshooting)
+For detailed troubleshooting, see [scripts/README.md](scripts/README.md#troubleshooting)
 
 ---
 
