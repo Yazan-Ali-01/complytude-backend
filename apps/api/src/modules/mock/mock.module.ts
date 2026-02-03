@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { RbacModule } from '../rbac/rbac.module';
 import { RbacMockController } from './rbac-mock.controller';
 
 /**
@@ -13,7 +12,6 @@ import { RbacMockController } from './rbac-mock.controller';
  * - Test audit logging
  */
 @Module({
-  imports: [RbacModule],
   controllers: [RbacMockController],
 })
 export class MockModule {}

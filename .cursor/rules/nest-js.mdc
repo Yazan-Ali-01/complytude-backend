@@ -332,6 +332,45 @@ Request → JWT Guard → Extract role from token
 - `src/modules/rbac/rbac.service.ts` - RBAC business logic
 - `src/repositories/rbac/` - RBAC repositories
 
+# Global Module Architecture
+
+**RbacModule is a Global Module** - marked with `@Global()` decorator.
+
+**Why Global?**
+
+- RBAC is a cross-cutting concern like authentication
+- `PermissionsGuard` is used across many feature modules
+- Eliminates the need to import `RbacModule` in every feature module
+- Follows NestJS best practices for authorization systems
+
+**How to Use:**
+
+1. **RbacModule is imported ONCE** in `AppModule`
+2. **No need to import** in feature modules - it's automatically available
+3. **Use `PermissionsGuard` directly** in any controller without importing `RbacModule`
+
+```typescript
+// ✅ CORRECT: No RbacModule import needed
+@Module({
+  controllers: [MyController], // Uses PermissionsGuard
+})
+export class MyModule {}
+
+// ❌ WRONG: Don't import RbacModule in feature modules
+@Module({
+  imports: [RbacModule], // ← Not needed! RbacModule is global
+  controllers: [MyController],
+})
+export class MyModule {}
+```
+
+**What's Available Globally:**
+
+- `RbacService` - Permission checking logic
+- `PermissionsGuard` - Permission-based authorization guard
+- `RolesRepository` - Role data access
+- `PermissionsRepository` - Permission data access
+
 **When to use which:**
 
 - **PermissionsGuard + @RequirePermissions()** - For fine-grained permission checks (e.g., `documents:create`, `templates:manage`)

@@ -570,6 +570,58 @@ async adminOnlyAction() { }
 | `PermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
 | `RolesGuard` | Simple role verification | Check if user is `tenant_admin` |
 
+### Global Module Architecture
+
+**RbacModule is a Global Module** - marked with `@Global()` decorator for application-wide availability.
+
+**Design Decision:**
+
+RBAC is a cross-cutting concern similar to authentication. Making `RbacModule` global eliminates the need to import it in every feature module that uses `PermissionsGuard`.
+
+**Implementation:**
+
+```typescript
+// src/modules/rbac/rbac.module.ts
+@Global()  // ← Makes module available everywhere
+@Module({
+  imports: [DatabaseModule],
+  providers: [RbacService, PermissionsGuard, ...],
+  exports: [RbacService, PermissionsGuard, ...],
+})
+export class RbacModule {}
+```
+
+**Usage in Feature Modules:**
+
+```typescript
+// ✅ CORRECT: No RbacModule import needed
+@Module({
+  controllers: [MyController], // Uses PermissionsGuard
+})
+export class MyModule {}
+
+// ❌ WRONG: Don't import RbacModule in feature modules
+@Module({
+  imports: [RbacModule], // ← Not needed! RbacModule is global
+  controllers: [MyController],
+})
+export class MyModule {}
+```
+
+**What's Available Globally:**
+
+- `RbacService` - Permission checking logic
+- `PermissionsGuard` - Permission-based authorization guard
+- `RolesRepository` - Role data access
+- `PermissionsRepository` - Permission data access
+
+**Benefits:**
+
+1. **Reduced Boilerplate:** No need to import `RbacModule` in 20+ feature modules
+2. **Cleaner Dependencies:** Feature modules don't need to know about RBAC implementation
+3. **Consistent with NestJS Patterns:** Similar to how `ConfigModule` and `AuthModule` work
+4. **Single Import:** `RbacModule` imported once in `AppModule`
+
 ### Custom Roles (MVP+)
 
 Custom tenant roles are stored in the database and can be created by tenant admins:
