@@ -2,65 +2,130 @@
  * Tenant-level RBAC permissions
  * These permissions are scoped to tenant operations and resources.
  * For platform-level permissions, see platform-permissions.constant.ts (future)
+ *
+ * Architecture:
+ * 1. ALL_TENANT_PERMISSIONS array is the single source of truth
+ * 2. TenantPermission type is derived from the array
+ * 3. TENANT_PERMISSIONS object provides nice autocomplete grouping
  */
-
-export const TENANT_PERMISSIONS = {
-  DOCUMENTS: {
-    CREATE: 'documents:create',
-    READ: 'documents:read',
-    DELETE: 'documents:delete',
-    ALL: 'documents:*', // Wildcard - all document permissions
-  },
-  CONTRACTS: {
-    ANALYZE: 'contracts:analyze',
-    REDLINE: 'contracts:redline',
-    ALL: 'contracts:*', // Wildcard - all contract permissions
-  },
-  TEMPLATES: {
-    MANAGE: 'templates:manage',
-    USE: 'templates:use',
-    ALL: 'templates:*', // Wildcard - all template permissions
-  },
-  REGULATORY: {
-    QUERY: 'regulatory:query',
-    ALL: 'regulatory:*', // Wildcard - all regulatory permissions
-  },
-  BILLING: {
-    MANAGE: 'billing:manage',
-    ALL: 'billing:*', // Wildcard - all billing permissions
-  },
-  TEAM: {
-    MANAGE: 'team:manage',
-    ALL: 'team:*', // Wildcard - all team permissions
-  },
-  SETTINGS: {
-    MANAGE: 'settings:manage',
-    CHANGE_JURISDICTION: 'settings:change_jurisdiction',
-    ALL: 'settings:*', // Wildcard - all settings permissions
-  },
-  // Cross-resource wildcards
-  WILDCARDS: {
-    READ_ALL: '*:read', // All read permissions across resources
-    MANAGE_ALL: '*:manage', // All manage permissions across resources
-    ALL: '*:*', // All permissions (tenant_admin)
-  },
-} as const;
 
 /**
- * All concrete tenant permissions (no wildcards)
- * Used for wildcard expansion and validation
+ * All tenant permissions including wildcards
+ * This is the single source of truth - used by sync service and type derivation
  */
 export const ALL_TENANT_PERMISSIONS = [
+  // ─────────────────────────────────────────────────────────────────
+  // Documents - Document repository operations
+  // ─────────────────────────────────────────────────────────────────
   'documents:create',
   'documents:read',
   'documents:delete',
+  'documents:*', // Wildcard: All document permissions
+
+  // ─────────────────────────────────────────────────────────────────
+  // Contracts - AI-powered contract operations
+  // ─────────────────────────────────────────────────────────────────
   'contracts:analyze',
   'contracts:redline',
+  'contracts:*', // Wildcard: All contract permissions
+
+  // ─────────────────────────────────────────────────────────────────
+  // Templates - Document template management
+  // ─────────────────────────────────────────────────────────────────
   'templates:manage',
   'templates:use',
+  'templates:*', // Wildcard: All template permissions
+
+  // ─────────────────────────────────────────────────────────────────
+  // Regulatory - Regulatory hub access
+  // ─────────────────────────────────────────────────────────────────
   'regulatory:query',
+  'regulatory:*', // Wildcard: All regulatory permissions
+
+  // ─────────────────────────────────────────────────────────────────
+  // Billing - Subscription and payment management
+  // ─────────────────────────────────────────────────────────────────
   'billing:manage',
+  'billing:*', // Wildcard: All billing permissions
+
+  // ─────────────────────────────────────────────────────────────────
+  // Team - Team member management
+  // ─────────────────────────────────────────────────────────────────
   'team:manage',
+  'team:*', // Wildcard: All team permissions
+
+  // ─────────────────────────────────────────────────────────────────
+  // Settings - Tenant configuration
+  // ─────────────────────────────────────────────────────────────────
   'settings:manage',
   'settings:change_jurisdiction',
+  'settings:*', // Wildcard: All settings permissions
+
+  // ─────────────────────────────────────────────────────────────────
+  // Cross-resource wildcards
+  // ─────────────────────────────────────────────────────────────────
+  '*:read', // All read permissions across resources
+  '*:manage', // All manage permissions across resources
+  '*:*', // Full access - all permissions (tenant_admin)
 ] as const;
+
+/**
+ * Tenant permission type derived from ALL_TENANT_PERMISSIONS array
+ * Supports both concrete permissions and wildcard patterns
+ *
+ * Permission format: `resource:action`
+ * - resource: The entity type (documents, contracts, templates, etc.)
+ * - action: The operation (create, read, delete, manage, etc.)
+ *
+ * Wildcards:
+ * - `resource:*` - All actions on a specific resource
+ * - `*:action` - Specific action on all resources
+ * - `*:*` - Full access (tenant_admin only)
+ */
+export type TenantPermission = (typeof ALL_TENANT_PERMISSIONS)[number];
+
+/**
+ * Grouped permission constants for nice autocomplete in code
+ * All values must be valid TenantPermission types
+ */
+export const TENANT_PERMISSIONS = {
+  DOCUMENTS: {
+    CREATE: 'documents:create' as const,
+    READ: 'documents:read' as const,
+    DELETE: 'documents:delete' as const,
+    ALL: 'documents:*' as const,
+  },
+  CONTRACTS: {
+    ANALYZE: 'contracts:analyze' as const,
+    REDLINE: 'contracts:redline' as const,
+    ALL: 'contracts:*' as const,
+  },
+  TEMPLATES: {
+    MANAGE: 'templates:manage' as const,
+    USE: 'templates:use' as const,
+    ALL: 'templates:*' as const,
+  },
+  REGULATORY: {
+    QUERY: 'regulatory:query' as const,
+    ALL: 'regulatory:*' as const,
+  },
+  BILLING: {
+    MANAGE: 'billing:manage' as const,
+    ALL: 'billing:*' as const,
+  },
+  TEAM: {
+    MANAGE: 'team:manage' as const,
+    ALL: 'team:*' as const,
+  },
+  SETTINGS: {
+    MANAGE: 'settings:manage' as const,
+    CHANGE_JURISDICTION: 'settings:change_jurisdiction' as const,
+    ALL: 'settings:*' as const,
+  },
+  // Cross-resource wildcards
+  WILDCARDS: {
+    READ_ALL: '*:read' as const,
+    MANAGE_ALL: '*:manage' as const,
+    ALL: '*:*' as const,
+  },
+} as const;

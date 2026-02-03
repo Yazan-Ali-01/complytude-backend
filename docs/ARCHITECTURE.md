@@ -476,7 +476,7 @@ Complytude implements a **permission-based RBAC system** for fine-grained access
 │                    Permission Check Flow                          │
 ├─────────────────────────────────────────────────────────────────┤
 │  Request → JWT Guard → Extract role from token                   │
-│         → PermissionsGuard → RbacService.getRolePermissions()    │
+│         → PermissionsGuard → RbacService.hasPermission()         │
 │         → System role: In-memory lookup (O(1))                   │
 │         → Custom role: Database query                            │
 │         → Permission matcher (wildcard support)                  │
@@ -484,16 +484,47 @@ Complytude implements a **permission-based RBAC system** for fine-grained access
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### RBAC Sync Service
+
+The `RbacSyncService` automatically synchronizes permissions and system roles from code to database on application startup:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    RBAC Sync Flow (OnModuleInit)                  │
+├─────────────────────────────────────────────────────────────────┤
+│  App Startup → RbacSyncService.onModuleInit()                    │
+│             → syncPermissions() - Sync ALL_TENANT_PERMISSIONS    │
+│             → syncSystemRoles() - Sync system role definitions   │
+│             → Sync role-permission mappings                      │
+│             → Database reflects code constants                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Sync Strategy:**
+
+- **Permissions:** Add new, update existing, delete removed (from `ALL_TENANT_PERMISSIONS` array)
+- **System Roles:** Add new, update existing, sync role-permission mappings
+- **Custom Roles:** Never touched (tenant_id IS NOT NULL)
+- **Idempotent:** Safe to run on every startup
+
+**Key Files:**
+
+- `src/common/constants/tenant-permissions.constant.ts` - Single source of truth for permissions
+- `src/common/constants/tenant-system-roles.constant.ts` - In-memory system role permission sets
+- `src/modules/rbac/rbac-sync.service.ts` - Database synchronization logic
+
 ### System Roles
 
 Four predefined system roles with in-memory permission sets for optimal performance:
 
-| Role              | Key             | Permissions   | Description                                  |
-| ----------------- | --------------- | ------------- | -------------------------------------------- |
-| **Tenant Admin**  | `tenant_admin`  | `*:*` (all)   | Full access to all tenant features           |
-| **Legal Counsel** | `legal_counsel` | 9 permissions | AI drafting, analysis, templates, regulatory |
-| **Member**        | `member`        | 4 permissions | Basic document creation and viewing          |
-| **Viewer**        | `viewer`        | 2 permissions | Read-only access                             |
+| Role              | Key             | Permissions                                      | Description                                  |
+| ----------------- | --------------- | ------------------------------------------------ | -------------------------------------------- |
+| **Tenant Admin**  | `tenant_admin`  | `*:*` (wildcard)                                 | Full access to all tenant features           |
+| **Legal Counsel** | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query` | AI drafting, analysis, templates, regulatory |
+| **Member**        | `member`        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation and viewing          |
+| **Viewer**        | `viewer`        | `documents:read`, `regulatory:query`             | Read-only access                             |
+
+**Note:** System roles use wildcards (e.g., `documents:*`) for cleaner permission sets. The permission matcher handles wildcard expansion at runtime.
 
 ### Permission Format
 
@@ -501,13 +532,13 @@ Permissions follow the pattern: `{resource}:{action}`
 
 **Available Resources:**
 
-- `documents` - Document management
-- `contracts` - Contract analysis
-- `templates` - Template management
-- `regulatory` - Regulatory queries
-- `billing` - Billing management
-- `team` - Team management
-- `settings` - Tenant settings
+- `documents` - Document management (create, read, delete)
+- `contracts` - Contract analysis (analyze, redline)
+- `templates` - Template management (manage, use)
+- `regulatory` - Regulatory queries (query)
+- `billing` - Billing management (manage)
+- `team` - Team management (manage)
+- `settings` - Tenant settings (manage, change_jurisdiction)
 
 **Available Actions:**
 
@@ -516,11 +547,13 @@ Permissions follow the pattern: `{resource}:{action}`
 - `use` - Use without management rights
 - `analyze`, `redline` - Specific operations
 - `query` - Query/search operations
+- `change_jurisdiction` - Critical setting change
 
 **Wildcard Support:**
 
 - `documents:*` - All document permissions
 - `*:read` - Read permission on all resources
+- `*:manage` - Manage permission on all resources
 - `*:*` - All permissions (tenant_admin only)
 
 ### Permission Decorators
@@ -622,31 +655,50 @@ export class MyModule {}
 3. **Consistent with NestJS Patterns:** Similar to how `ConfigModule` and `AuthModule` work
 4. **Single Import:** `RbacModule` imported once in `AppModule`
 
+### Permission Matching Logic
+
+The `matchTenantPermission()` function handles wildcard matching:
+
+```typescript
+// User permission expands to cover required permission
+matchTenantPermission('*:*', 'documents:read')      // true - covers everything
+matchTenantPermission('documents:*', 'documents:read') // true - covers all document actions
+matchTenantPermission('*:read', 'documents:read')   // true - covers read on all resources
+matchTenantPermission('documents:read', 'documents:read') // true - exact match
+
+// No match
+matchTenantPermission('documents:read', 'documents:create') // false - different actions
+matchTenantPermission('documents:create', 'documents:*')    // false - user doesn't have wildcard
+```
+
 ### Custom Roles (MVP+)
 
 Custom tenant roles are stored in the database and can be created by tenant admins:
 
-- Custom roles cannot use reserved system role keys
+- Custom roles cannot use reserved system role keys (`tenant_admin`, `legal_counsel`, `member`, `viewer`)
 - Permissions are queried from the database (single query per request)
 - Support for role-permission assignments via junction table
+- Custom roles have `tenant_id` set and `is_system = false`
 
 ### Database Tables
 
 | Table                   | Purpose                                  |
 | ----------------------- | ---------------------------------------- |
 | `roles`                 | Role definitions (system + custom)       |
-| `permissions`           | Permission definitions                   |
+| `permissions`           | Permission definitions (synced from code)|
 | `role_permissions`      | Many-to-many role-permission assignments |
 | `user_tenants.role_key` | User's role within a tenant              |
+
+**Note:** The `permissions` table is automatically populated by `RbacSyncService` from `ALL_TENANT_PERMISSIONS` constant on app startup.
 
 **For detailed database schema, see [DATABASE.md](DATABASE.md)**
 
 ### Performance Optimizations
 
-1. **System roles:** In-memory permission lookup (no database queries)
-2. **Custom roles:** Single database query per request
-3. **Wildcard matching:** Efficient in-memory pattern matching
-4. **Permission caching:** Role permissions cached for request duration
+1. **System roles:** In-memory permission lookup via `TENANT_SYSTEM_ROLE_PERMISSIONS` map (O(1), no database queries)
+2. **Custom roles:** Single database query per request via `RolesRepository.getPermissionsForRole()`
+3. **Wildcard matching:** Efficient in-memory pattern matching via `matchTenantPermission()`
+4. **Permission sync:** Database always reflects code constants (no manual SQL needed)
 
 ---
 

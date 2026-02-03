@@ -3,6 +3,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { DatabaseModule } from '../../database/database.module';
 import { PermissionsRepository } from '../../repositories/rbac/permissions.repository';
 import { RolesRepository } from '../../repositories/rbac/roles.repository';
+import { RbacSyncService } from './rbac-sync.service';
 import { RbacService } from './rbac.service';
 
 /**
@@ -22,12 +23,17 @@ import { RbacService } from './rbac.service';
  * - PermissionsGuard: Permission-based authorization guard
  * - RolesRepository: Role data access (for advanced use cases)
  * - PermissionsRepository: Permission data access (for advanced use cases)
+ *
+ * Sync Service:
+ * - RbacSyncService: Syncs permissions and system roles on app startup
+ * - Runs via OnModuleInit (not exported, internal only)
  */
 @Global()
 @Module({
   imports: [DatabaseModule],
   providers: [
     RbacService,
+    RbacSyncService,
     RolesRepository,
     PermissionsRepository,
     PermissionsGuard,

@@ -34,12 +34,13 @@ Seeds initial template categories:
 - Compliance Documents
 - Intellectual Property
 
-### 003_seed_rbac.sql
-Seeds RBAC (Role-Based Access Control) system:
-- **Roles**: admin, member, viewer, guest
-- **Permissions**: Granular permissions for resources (templates, documents, rulesets, etc.)
-- **Role-Permission Mappings**: Associates permissions with roles
-- Provides foundation for tenant-scoped authorization
+### ~~003_seed_rbac.sql~~ (REMOVED)
+
+**Note:** RBAC roles and permissions are now automatically synchronized from code constants by `RbacSyncService` on every application startup. No manual SQL seeding is required.
+
+**Source of Truth:**
+- `src/common/constants/tenant-permissions.constant.ts` - All permissions
+- `src/common/constants/tenant-system-roles.constant.ts` - System role permission sets
 
 ### 004_seed_test_tenants_users.sql
 Seeds test tenants, users, and relationships for development/testing:
@@ -94,7 +95,7 @@ The script will:
 ```bash
 psql -U <username> -d <database> -f scripts/seeds/001_seed_authorities.sql
 psql -U <username> -d <database> -f scripts/seeds/002_seed_categories.sql
-psql -U <username> -d <database> -f scripts/seeds/003_seed_rbac.sql
+# Note: RBAC is auto-synced by RbacSyncService on app startup - no SQL seed needed
 psql -U <username> -d <database> -f scripts/seeds/004_seed_test_tenants_users.sql
 psql -U <username> -d <database> -f scripts/seeds/005_seed_templates.sql
 psql -U <username> -d <database> -f scripts/seeds/006_seed_test_documents.sql
@@ -108,7 +109,7 @@ import { pool } from './database';
 const seedFiles = [
   '001_seed_authorities.sql',
   '002_seed_categories.sql',
-  '003_seed_rbac.sql',
+  // Note: RBAC is auto-synced by RbacSyncService on app startup - no SQL seed needed
   '004_seed_test_tenants_users.sql',
   '005_seed_templates.sql',
   '006_seed_test_documents.sql'
@@ -126,10 +127,11 @@ for (const file of seedFiles) {
 2. **Run seed scripts in order**:
    - 001_seed_authorities.sql (Global data)
    - 002_seed_categories.sql (Global data)
-   - 003_seed_rbac.sql (RBAC system)
+   - ~~003_seed_rbac.sql~~ (RBAC is auto-synced by `RbacSyncService` on app startup)
    - 004_seed_test_tenants_users.sql (Test tenants/users)
    - 005_seed_templates.sql (Sample templates)
    - 006_seed_test_documents.sql (Tenant-specific documents)
+3. **Start the application** - RBAC permissions and system roles are automatically synced
 
 ## Idempotency
 
@@ -138,14 +140,15 @@ All seed scripts use `ON CONFLICT (code) DO NOTHING` to ensure they can be run m
 ## Environment-Specific Seeds
 
 You may want different seed data for different environments:
-- **Development**: Full set of test data (all 6 seed scripts)
-- **Staging**: Subset of production-like data (001-005, skip 006)
-- **Production**: Essential reference data only (001-003)
+- **Development**: Full set of test data (001, 002, 004-006 seed scripts)
+- **Staging**: Subset of production-like data (001, 002, 004, 005)
+- **Production**: Essential reference data only (001, 002)
 
 For production, **only run**:
 - 001_seed_authorities.sql
 - 002_seed_categories.sql
-- 003_seed_rbac.sql
+
+**Note:** RBAC roles and permissions are automatically synced from code by `RbacSyncService` when the application starts. No manual seeding required.
 
 **Skip** test tenants, users, and documents (004-006) in production!
 

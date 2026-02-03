@@ -7,7 +7,6 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
   AuditAction,
   AuditResource,
@@ -16,508 +15,277 @@ import {
   RequireAllPermissions,
   RequireAnyPermission,
 } from 'src/common/decorators/permissions.decorator';
-import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
-import {
-  ApiAuthenticatedResponses,
-  ApiForbiddenError,
-  SwaggerCookieAuth,
-} from 'src/common/swagger';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
 
 /**
- * RBAC Mock Controller
+ * RBAC Mock Controller - Comprehensive Use Case Demonstrations
  *
- * This controller demonstrates different permission requirements for testing RBAC.
- * Each endpoint requires different permissions to test the permission system.
- * All requests are automatically logged by the AuditInterceptor.
+ * This controller demonstrates all permission check patterns with the new wildcard approach.
+ * Wildcards are now stored as real permissions in the database.
+ *
+ * System Roles:
+ * - tenant_admin: Has '*:*' (full wildcard)
+ * - legal_counsel: Has 'documents:*', 'contracts:*', 'templates:*', 'regulatory:query'
+ * - member: Has 'documents:create', 'documents:read', 'templates:use', 'regulatory:query'
+ * - viewer: Has 'documents:read', 'regulatory:query'
  */
-@ApiTags('Mock - RBAC Testing')
 @Controller('mock/rbac')
-@AuditResource('rbac_test')
 @AuthOptions({ tenant: true })
-@SwaggerCookieAuth.tenantAccessToken()
+@AuditResource('rbac_test')
 export class RbacMockController {
-  // =========================
-  // Documents Permissions
-  // =========================
-
+  // ============================================
+  // USE CASE 1: Single Concrete Permission (Most Common)
+  // ============================================
+  // Requires: User must have 'documents:read'
+  // Passes: tenant_admin (has *:*), legal_counsel (has documents:*), member (has documents:read), viewer (has documents:read)
+  // How it works: matchTenantPermission checks if user's permissions match 'documents:read'
+  //   - tenant_admin: '*:*' matches 'documents:read' ✓
+  //   - legal_counsel: 'documents:*' matches 'documents:read' ✓
+  //   - member: 'documents:read' matches 'documents:read' ✓
+  //   - viewer: 'documents:read' matches 'documents:read' ✓
   @Get('documents')
   @UseGuards(PermissionsGuard)
   @RequireAnyPermission('documents:read')
   @AuditAction({ action: 'read', resourceType: 'documents' })
-  @ApiOperation({
-    summary: 'Mock: List documents',
-    description:
-      'Requires documents:read permission. Available to: tenant_admin, legal_counsel, member, viewer',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Documents listed successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires documents:read permission')
-  @ApiAuthenticatedResponses()
-  listDocuments(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Documents list accessed by ${user.email} (role: ${user.role})`,
-    };
+  listDocuments(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return { message: `Documents listed by ${user.email} (${user.role})` };
   }
 
-  @Post('documents')
+  // ============================================
+  // USE CASE 2: Resource Wildcard Requirement
+  // ============================================
+  // Requires: User must have 'documents:*' (the wildcard itself as a permission)
+  // Passes: tenant_admin (has *:*), legal_counsel (has documents:*)
+  // Fails: member (only has documents:read, documents:create - not the wildcard), viewer
+  // How it works: Checks if user has the wildcard permission 'documents:*'
+  //   - tenant_admin: '*:*' matches 'documents:*' ✓
+  //   - legal_counsel: 'documents:*' matches 'documents:*' ✓
+  //   - member: 'documents:read' does NOT match 'documents:*' ✗
+  @Get('documents/wildcard-required')
   @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('documents:create')
-  @AuditAction({ action: 'create', resourceType: 'documents' })
-  @ApiOperation({
-    summary: 'Mock: Create document',
-    description:
-      'Requires documents:create permission. Available to: tenant_admin, legal_counsel, member',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Document created successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires documents:create permission')
-  @ApiAuthenticatedResponses()
-  createDocument(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
+  @RequireAnyPermission('documents:*')
+  @AuditAction({ action: 'wildcard_check', resourceType: 'documents' })
+  requireDocumentsWildcard(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
-      message: `Document created by ${user.email} (role: ${user.role})`,
+      message: `Wildcard permission verified for ${user.email} (${user.role})`,
     };
   }
 
+  // ============================================
+  // USE CASE 3: Multiple Concrete Permissions (OR Logic)
+  // ============================================
+  // Requires: User must have 'documents:read' OR 'templates:use' OR 'regulatory:query'
+  // Passes: All roles (all have at least one of these)
+  // How it works: RequireAnyPermission checks if user has ANY of the listed permissions
+  @Get('multi-or')
+  @UseGuards(PermissionsGuard)
+  @RequireAnyPermission('documents:read', 'templates:use', 'regulatory:query')
+  @AuditAction({ action: 'multi_or_check', resourceType: 'permissions' })
+  multiPermissionOr(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return { message: `Multi-OR accessed by ${user.email} (${user.role})` };
+  }
+
+  // ============================================
+  // USE CASE 4: Multiple Concrete Permissions (AND Logic)
+  // ============================================
+  // Requires: User must have 'documents:read' AND 'documents:delete'
+  // Passes: tenant_admin (has *:*), legal_counsel (has documents:*)
+  // Fails: member (only has documents:read), viewer (only has documents:read)
+  // How it works: RequireAllPermissions checks if user has ALL listed permissions
   @Delete('documents/:id')
   @UseGuards(PermissionsGuard)
   @RequireAllPermissions('documents:read', 'documents:delete')
   @AuditAction({ action: 'delete', resourceType: 'documents' })
-  @ApiOperation({
-    summary: 'Mock: Delete document (AND logic)',
-    description:
-      'Requires BOTH documents:read AND documents:delete permissions. User must have both to delete. Available to: tenant_admin, legal_counsel',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Document deleted successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires ALL of: documents:read, documents:delete')
-  @ApiAuthenticatedResponses()
   deleteDocument(
     @Param('id') id: string,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
+  ) {
     return {
-      message: `Document ${id} deleted by ${user.email} (role: ${user.role})`,
+      message: `Document ${id} deleted by ${user.email} (${user.role})`,
     };
   }
 
-  @Patch('documents/:id')
+  // ============================================
+  // USE CASE 5: Full Wildcard (Admin Only)
+  // ============================================
+  // Requires: User must have '*:*' (full wildcard)
+  // Passes: tenant_admin only
+  // Fails: All other roles
+  // How it works: Only tenant_admin has the '*:*' permission
+  @Post('admin-only')
   @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('documents:*')
-  @AuditAction({ action: 'update', resourceType: 'documents' })
-  @ApiOperation({
-    summary: 'Mock: Update document (Wildcard - ANY)',
-    description:
-      'Requires documents:* wildcard permission. Matches users with documents:*, documents:read, documents:create, etc. Available to: tenant_admin, legal_counsel, member, viewer',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Document updated successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires documents:* wildcard (any document permission)')
-  @ApiAuthenticatedResponses()
-  updateDocument(
-    @Param('id') id: string,
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
+  @RequireAnyPermission('*:*')
+  @AuditAction({ action: 'admin_action', resourceType: 'system' })
+  adminOnlyAction(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return { message: `Admin action by ${user.email} (${user.role})` };
+  }
+
+  // ============================================
+  // USE CASE 6: Cross-Resource Action Wildcard Requirement
+  // ============================================
+  // Requires: User must have '*:read' (the wildcard itself as a permission)
+  // Passes: tenant_admin (has *:*), anyone who has the '*:read' wildcard permission
+  // Fails: viewer (has documents:read, NOT the wildcard *:read), member
+  // How it works: Checks if user has the '*:read' wildcard permission
+  //   - tenant_admin: '*:*' covers '*:read' ✓
+  //   - viewer: 'documents:read' does NOT match '*:read' ✗
+  @Get('read-anything')
+  @UseGuards(PermissionsGuard)
+  @RequireAnyPermission('*:read')
+  @AuditAction({ action: 'read', resourceType: 'wildcard' })
+  readAnything(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
-      message: `Document ${id} updated by ${user.email} (role: ${user.role})`,
+      message: `Read-anything accessed by ${user.email} (${user.role})`,
     };
   }
 
-  // =========================
-  // Contracts Permissions
-  // =========================
+  // ============================================
+  // USE CASE 7: Mixed Wildcards and Concrete (OR Logic)
+  // ============================================
+  // Requires: User must have 'documents:*' OR 'templates:use'
+  // Passes: tenant_admin (has *:*), legal_counsel (has documents:*), member (has templates:use)
+  // Fails: viewer (only has documents:read, not the wildcard or templates:use)
+  // How it works: Checks if user has either the wildcard or the concrete permission
+  @Post('mixed-permissions')
+  @UseGuards(PermissionsGuard)
+  @RequireAnyPermission('documents:*', 'templates:use')
+  @AuditAction({ action: 'mixed_check', resourceType: 'permissions' })
+  mixedPermissions(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return {
+      message: `Mixed permissions accessed by ${user.email} (${user.role})`,
+    };
+  }
 
+  // ============================================
+  // USE CASE 8: Multiple Resource Wildcards (OR Logic)
+  // ============================================
+  // Requires: User must have 'documents:*' OR 'contracts:*' OR 'templates:*'
+  // Passes: tenant_admin (has *:*), legal_counsel (has all three wildcards)
+  // Fails: member, viewer (only have concrete permissions)
+  // How it works: Checks if user has any of the wildcard permissions
+  @Get('multi-wildcard-or')
+  @UseGuards(PermissionsGuard)
+  @RequireAnyPermission('documents:*', 'contracts:*', 'templates:*')
+  @AuditAction({ action: 'multi_wildcard_or', resourceType: 'permissions' })
+  multiWildcardOr(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return {
+      message: `Multi-wildcard-OR accessed by ${user.email} (${user.role})`,
+    };
+  }
+
+  // ============================================
+  // USE CASE 9: Multiple Resource Wildcards (AND Logic)
+  // ============================================
+  // Requires: User must have 'documents:*' AND 'contracts:*' AND 'templates:*'
+  // Passes: tenant_admin (has *:*), legal_counsel (has all three wildcards)
+  // Fails: member, viewer (don't have wildcards)
+  // How it works: Checks if user has ALL wildcard permissions
+  @Post('multi-wildcard-and')
+  @UseGuards(PermissionsGuard)
+  @RequireAllPermissions('documents:*', 'contracts:*', 'templates:*')
+  @AuditAction({ action: 'multi_wildcard_and', resourceType: 'permissions' })
+  multiWildcardAnd(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return {
+      message: `Multi-wildcard-AND accessed by ${user.email} (${user.role})`,
+    };
+  }
+
+  // ============================================
+  // USE CASE 10: Concrete Permission with Wildcard User
+  // ============================================
+  // Requires: User must have 'contracts:analyze'
+  // Passes: tenant_admin (has *:*), legal_counsel (has contracts:*)
+  // Fails: member, viewer (don't have contracts permissions)
+  // How it works: User's wildcard 'contracts:*' matches required 'contracts:analyze'
   @Post('contracts/analyze')
   @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('contracts:analyze', 'documents:read')
+  @RequireAnyPermission('contracts:analyze')
   @AuditAction({ action: 'analyze', resourceType: 'contracts' })
-  @ApiOperation({
-    summary: 'Mock: Analyze contract (OR logic)',
-    description:
-      'Requires contracts:analyze OR documents:read permission. User needs at least ONE of these.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Contract analyzed successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires ANY of: contracts:analyze, documents:read')
-  @ApiAuthenticatedResponses()
-  analyzeContract(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Contract analysis initiated by ${user.email} (role: ${user.role})`,
-    };
+  analyzeContract(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return { message: `Contract analyzed by ${user.email} (${user.role})` };
   }
 
+  // ============================================
+  // USE CASE 11: Complex AND Logic with Wildcards
+  // ============================================
+  // Requires: User must have 'contracts:analyze' AND 'documents:create'
+  // Passes: tenant_admin (has *:*), legal_counsel (has contracts:* and documents:*)
+  // Fails: member (only has documents:create, not contracts:analyze), viewer
+  // How it works: Checks if user has BOTH permissions (wildcards match concrete)
   @Post('contracts/redline')
   @UseGuards(PermissionsGuard)
   @RequireAllPermissions('contracts:analyze', 'documents:create')
   @AuditAction({ action: 'redline', resourceType: 'contracts' })
-  @ApiOperation({
-    summary: 'Mock: Redline contract (AND logic)',
-    description:
-      'Requires BOTH contracts:analyze AND documents:create permissions. User must have both to redline contracts.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Contract redlined successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires ALL of: contracts:analyze, documents:create')
-  @ApiAuthenticatedResponses()
-  redlineContract(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Contract redlining initiated by ${user.email} (role: ${user.role})`,
-    };
+  redlineContract(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return { message: `Contract redlined by ${user.email} (${user.role})` };
   }
 
-  // =========================
-  // Templates Permissions
-  // =========================
-
-  @Get('templates')
+  // ============================================
+  // USE CASE 12: Cross-Resource Manage Wildcard
+  // ============================================
+  // Requires: User must have '*:manage' (manage on any resource)
+  // Passes: tenant_admin (has *:*), anyone with settings:manage, billing:manage, team:manage, templates:manage
+  // How it works: matchTenantPermission checks if user has any permission ending with ':manage'
+  @Patch('manage-anything')
   @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('templates:use')
-  @AuditAction({ action: 'use', resourceType: 'templates' })
-  @ApiOperation({
-    summary: 'Mock: Use template',
-    description:
-      'Requires templates:use permission. Available to: tenant_admin, legal_counsel, member',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Template accessed successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires templates:use permission')
-  @ApiAuthenticatedResponses()
-  useTemplate(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
+  @RequireAnyPermission('*:manage')
+  @AuditAction({ action: 'manage', resourceType: 'wildcard' })
+  manageAnything(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
-      message: `Template used by ${user.email} (role: ${user.role})`,
+      message: `Manage-anything accessed by ${user.email} (${user.role})`,
     };
   }
 
-  @Post('templates')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('templates:manage', 'documents:create')
-  @AuditAction({ action: 'manage', resourceType: 'templates' })
-  @ApiOperation({
-    summary: 'Mock: Manage template (OR logic)',
-    description:
-      'Requires templates:manage OR documents:create permission. User needs at least ONE of these.',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Template managed successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires ANY of: templates:manage, documents:create')
-  @ApiAuthenticatedResponses()
-  manageTemplate(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
+  // ============================================
+  // USE CASE 13: No Permission Required (Authenticated Only)
+  // ============================================
+  // Requires: Only tenant authentication (no specific permission)
+  // Passes: All authenticated users with tenant token
+  // How it works: No PermissionsGuard, only AuthOptions({ tenant: true })
+  @Get('public')
+  @AuditAction({ action: 'public_access', resourceType: 'public' })
+  publicEndpoint(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
-      message: `Template management action by ${user.email} (role: ${user.role})`,
+      message: `Public endpoint accessed by ${user.email} (${user.role})`,
     };
   }
 
-  // =========================
-  // Regulatory Permissions
-  // =========================
-
-  @Get('regulatory')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('regulatory:query')
-  @AuditAction({ action: 'query', resourceType: 'regulatory' })
-  @ApiOperation({
-    summary: 'Mock: Query regulatory hub',
-    description:
-      'Requires regulatory:query permission. Available to: all roles',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Regulatory data queried successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires regulatory:query permission')
-  @ApiAuthenticatedResponses()
-  queryRegulatory(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Regulatory query by ${user.email} (role: ${user.role})`,
-    };
-  }
-
-  // =========================
-  // Billing Permissions
-  // =========================
-
-  @Get('billing')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('billing:manage', 'settings:manage')
-  @AuditAction({ action: 'manage', resourceType: 'billing' })
-  @ApiOperation({
-    summary: 'Mock: Manage billing (OR logic)',
-    description:
-      'Requires billing:manage OR settings:manage permission. User needs at least ONE of these.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Billing accessed successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires ANY of: billing:manage, settings:manage')
-  @ApiAuthenticatedResponses()
-  manageBilling(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Billing accessed by ${user.email} (role: ${user.role})`,
-    };
-  }
-
-  // =========================
-  // Team Permissions
-  // =========================
-
-  @Get('team')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('team:manage', 'settings:manage', 'billing:manage')
-  @AuditAction({ action: 'manage', resourceType: 'team' })
-  @ApiOperation({
-    summary: 'Mock: Manage team (OR logic)',
-    description:
-      'Requires team:manage OR settings:manage OR billing:manage permission. User needs at least ONE of these.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Team accessed successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError(
-    'Requires ANY of: team:manage, settings:manage, billing:manage',
-  )
-  @ApiAuthenticatedResponses()
-  manageTeam(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Team management accessed by ${user.email} (role: ${user.role})`,
-    };
-  }
-
-  // =========================
-  // Settings Permissions
-  // =========================
-
-  @Get('settings')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:manage')
-  @AuditAction({ action: 'manage', resourceType: 'settings' })
-  @ApiOperation({
-    summary: 'Mock: Manage settings',
-    description:
-      'Requires settings:manage permission. Available to: tenant_admin only',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Settings accessed successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires settings:manage permission')
-  @ApiAuthenticatedResponses()
-  manageSettings(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Settings accessed by ${user.email} (role: ${user.role})`,
-    };
-  }
-
+  // ============================================
+  // USE CASE 14: Specific Action on Specific Resource
+  // ============================================
+  // Requires: User must have 'settings:change_jurisdiction'
+  // Passes: tenant_admin (has *:*), no one else (critical permission)
+  // Fails: legal_counsel, member, viewer (don't have settings permissions)
+  // How it works: Checks for very specific permission
   @Patch('settings/jurisdiction')
   @UseGuards(PermissionsGuard)
-  @RequireAllPermissions('settings:change_jurisdiction', 'settings:manage')
+  @RequireAnyPermission('settings:change_jurisdiction')
   @AuditAction({
     action: 'change',
     subResource: 'jurisdiction',
     resourceType: 'settings',
   })
-  @ApiOperation({
-    summary: 'Mock: Change jurisdiction (AND logic - CRITICAL)',
-    description:
-      'Requires BOTH settings:change_jurisdiction AND settings:manage permissions. User must have both for this CRITICAL action that affects legal logic.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Jurisdiction changed successfully',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError(
-    'Requires ALL of: settings:change_jurisdiction, settings:manage',
-  )
-  @ApiAuthenticatedResponses()
-  changeJurisdiction(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
+  changeJurisdiction(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
-      message: `Jurisdiction change initiated by ${user.email} (role: ${user.role}) - CRITICAL ACTION`,
+      message: `Jurisdiction changed by ${user.email} (${user.role}) - CRITICAL`,
     };
   }
 
-  // =========================
-  // Advanced Permission Testing
-  // =========================
-
-  @Get('multi-permission-any')
+  // ============================================
+  // USE CASE 15: Billing and Settings (OR Logic)
+  // ============================================
+  // Requires: User must have 'billing:manage' OR 'settings:manage'
+  // Passes: tenant_admin (has *:*)
+  // Fails: legal_counsel, member, viewer (don't have billing or settings)
+  // How it works: Checks if user has either billing or settings management
+  @Get('billing')
   @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('documents:read', 'templates:use', 'regulatory:query')
-  @ApiOperation({
-    summary: 'Mock: Multiple permissions (OR logic)',
-    description:
-      'Requires documents:read OR templates:use OR regulatory:query permission. User needs at least ONE of these.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Access granted with at least one permission',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError(
-    'Requires ANY of: documents:read, templates:use, regulatory:query',
-  )
-  @ApiAuthenticatedResponses()
-  multiPermissionAny(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Multi-permission (ANY) endpoint accessed by ${user.email} (role: ${user.role})`,
-    };
-  }
-
-  @Post('multi-permission-all')
-  @UseGuards(PermissionsGuard)
-  @RequireAllPermissions('documents:read', 'documents:create', 'templates:use')
-  @ApiOperation({
-    summary: 'Mock: Multiple permissions (AND logic)',
-    description:
-      'Requires ALL of: documents:read AND documents:create AND templates:use. User must have all three permissions.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Access granted with all required permissions',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError(
-    'Requires ALL of: documents:read, documents:create, templates:use',
-  )
-  @ApiAuthenticatedResponses()
-  multiPermissionAll(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Multi-permission (ALL) endpoint accessed by ${user.email} (role: ${user.role})`,
-    };
-  }
-
-  // =========================
-  // Wildcard Permissions
-  // =========================
-
-  @Get('wildcard/read-all')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('*:read')
-  @AuditAction({ action: 'read', resourceType: 'wildcard' })
-  @ApiOperation({
-    summary: 'Mock: Read all resources (Action Wildcard)',
-    description:
-      'Requires *:read wildcard permission (read permission on any resource). Matches any permission ending with :read',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Access granted with read wildcard',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError('Requires *:read wildcard permission')
-  @ApiAuthenticatedResponses()
-  readAllResources(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Read-all wildcard endpoint accessed by ${user.email} (role: ${user.role})`,
-    };
-  }
-
-  @Post('wildcard/admin-action')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('*:*')
-  @AuditAction({ action: 'admin', resourceType: 'wildcard' })
-  @ApiOperation({
-    summary: 'Mock: Admin action (Full Wildcard)',
-    description:
-      'Requires *:* wildcard permission (all permissions). Only tenant_admin has this. Matches any permission.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Access granted with full wildcard',
-    type: MessageResponseDto,
-  })
-  @ApiForbiddenError(
-    'Requires *:* full wildcard permission (tenant_admin only)',
-  )
-  @ApiAuthenticatedResponses()
-  adminAction(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Admin wildcard endpoint accessed by ${user.email} (role: ${user.role})`,
-    };
-  }
-
-  // =========================
-  // Public Endpoint (No Permission)
-  // =========================
-
-  @Get('public')
-  @ApiOperation({
-    summary: 'Mock: Public endpoint',
-    description: 'No permission required. Only requires tenant authentication.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Public endpoint accessed',
-    type: MessageResponseDto,
-  })
-  @ApiAuthenticatedResponses()
-  publicEndpoint(
-    @CurrentUserTenant() user: AuthenticatedTenantUser,
-  ): MessageResponseDto {
-    return {
-      message: `Public endpoint accessed by ${user.email} (role: ${user.role})`,
-    };
+  @RequireAnyPermission('billing:manage', 'settings:manage')
+  @AuditAction({ action: 'manage', resourceType: 'billing' })
+  manageBilling(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    return { message: `Billing accessed by ${user.email} (${user.role})` };
   }
 }

@@ -81,10 +81,11 @@ Database management and development utilities:
 
 - **001_seed_authorities.sql** - Regulatory authorities data
 - **002_seed_categories.sql** - Template categories
-- **003_seed_rbac.sql** - RBAC roles and permissions
 - **004_seed_test_tenants_users.sql** - Test tenants and users
 - **005_seed_templates.sql** - Sample templates
 - **006_seed_test_documents.sql** - Test documents
+
+**Note:** RBAC roles and permissions are NOT seeded via SQL. They are automatically synced from code constants by `RbacSyncService` on every application startup.
 
 ### Utility Scripts
 
@@ -294,6 +295,7 @@ Tenant invitation system:
 Role-Based Access Control:
 
 - **rbac.service.ts** - RBAC business logic (permission checking, role management)
+- **rbac-sync.service.ts** - Syncs permissions and system roles from code to DB on startup
 - **rbac.module.ts** - RBAC module configuration (exports RbacService, PermissionsGuard)
 
 #### Rulesets (`rulesets/`)

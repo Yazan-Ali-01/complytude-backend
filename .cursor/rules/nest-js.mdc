@@ -258,6 +258,7 @@ rbac:
 strategy: "Permission-based RBAC with wildcard support"
 system_roles: "In-memory permission sets for performance"
 custom_roles: "Database-backed (MVP+)"
+sync: "RbacSyncService syncs permissions/roles from code to DB on startup"
 
 # Permission Format
 
@@ -268,18 +269,42 @@ Permissions follow the pattern: `{resource}:{action}`
 - `documents:create` - Create documents
 - `documents:read` - View documents
 - `templates:manage` - Full template control
-- `documents:*` - All document permissions
-- `*:read` - Read permission on all resources
+- `documents:*` - All document permissions (wildcard)
+- `*:read` - Read permission on all resources (wildcard)
 - `*:*` - All permissions (tenant_admin only)
 
 # System Roles
 
-| Role          | Key             | Permissions   | Description                      |
-| ------------- | --------------- | ------------- | -------------------------------- |
-| Tenant Admin  | `tenant_admin`  | `*:*`         | Full access                      |
-| Legal Counsel | `legal_counsel` | 9 permissions | AI drafting, analysis, templates |
-| Member        | `member`        | 4 permissions | Basic document creation          |
-| Viewer        | `viewer`        | 2 permissions | Read-only access                 |
+| Role          | Key             | Permissions (in-memory)                                           | Description                      |
+| ------------- | --------------- | ----------------------------------------------------------------- | -------------------------------- |
+| Tenant Admin  | `tenant_admin`  | `*:*`                                                             | Full access                      |
+| Legal Counsel | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`   | AI drafting, analysis, templates |
+| Member        | `member`        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation          |
+| Viewer        | `viewer`        | `documents:read`, `regulatory:query`                              | Read-only access                 |
+
+**Note:** System roles use wildcards for cleaner permission sets. Permission matching handles wildcard expansion at runtime.
+
+# RBAC Sync Service
+
+The `RbacSyncService` automatically syncs permissions and system roles from code to database on app startup:
+
+**Source of Truth:**
+
+- `ALL_TENANT_PERMISSIONS` array in `tenant-permissions.constant.ts`
+- `TENANT_SYSTEM_ROLE_PERMISSIONS` map in `tenant-system-roles.constant.ts`
+
+**Sync Behavior:**
+
+- Runs on every app startup via `OnModuleInit` (idempotent)
+- Permissions: Add new, update existing, delete removed
+- System Roles: Add new, update existing, sync role-permission mappings
+- Custom Roles: Never touched (tenant_id IS NOT NULL)
+
+**Adding New Permissions:**
+
+1. Add to `ALL_TENANT_PERMISSIONS` array in `tenant-permissions.constant.ts`
+2. Optionally add to `TENANT_PERMISSIONS` object for autocomplete
+3. Restart app - sync service handles database update
 
 # Permission Decorators
 
@@ -316,20 +341,38 @@ async createDocument() { }
 
 ```
 Request → JWT Guard → Extract role from token
-        → PermissionsGuard → RbacService.getRolePermissions()
+        → PermissionsGuard → RbacService.hasPermission()
         → System role: In-memory lookup (O(1))
         → Custom role: Database query
         → Permission matcher (wildcard support)
         → Allow/Deny
 ```
 
+# Permission Matching
+
+The `matchTenantPermission()` function handles wildcard matching:
+
+```typescript
+// User permission expands to cover required permission
+matchTenantPermission('*:*', 'documents:read')      // true - covers everything
+matchTenantPermission('documents:*', 'documents:read') // true - covers all document actions
+matchTenantPermission('*:read', 'documents:read')   // true - covers read on all resources
+
+// No match
+matchTenantPermission('documents:read', 'documents:create') // false - different actions
+matchTenantPermission('documents:create', 'documents:*')    // false - user doesn't have wildcard
+```
+
 # Key Files
 
 - `src/common/decorators/permissions.decorator.ts` - Permission decorators
 - `src/common/guards/permissions.guard.ts` - Permission guard
-- `src/common/constants/tenant-permissions.constant.ts` - Permission definitions
-- `src/common/constants/tenant-system-roles.constant.ts` - System role permissions
+- `src/common/constants/tenant-permissions.constant.ts` - Permission definitions (source of truth)
+- `src/common/constants/tenant-system-roles.constant.ts` - System role permissions (in-memory)
+- `src/common/utils/tenant-permission-matcher.util.ts` - Wildcard matching utilities
+- `src/common/types/tenant.types.ts` - SystemTenantRole enum and TenantPermission type
 - `src/modules/rbac/rbac.service.ts` - RBAC business logic
+- `src/modules/rbac/rbac-sync.service.ts` - Database synchronization on startup
 - `src/repositories/rbac/` - RBAC repositories
 
 # Global Module Architecture
@@ -367,6 +410,7 @@ export class MyModule {}
 **What's Available Globally:**
 
 - `RbacService` - Permission checking logic
+- `RbacSyncService` - Database sync (internal, runs on startup)
 - `PermissionsGuard` - Permission-based authorization guard
 - `RolesRepository` - Role data access
 - `PermissionsRepository` - Permission data access

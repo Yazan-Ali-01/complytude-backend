@@ -241,6 +241,21 @@ Many-to-many relationship: users belong to tenants with role assignments.
 
 Tables for Role-Based Access Control with permission-based authorization.
 
+### Automatic Synchronization
+
+**Important:** The `permissions` table and system role entries in `roles` are **automatically synchronized** from code constants on every application startup via `RbacSyncService`. You should never manually insert or update these records.
+
+**Source of Truth:**
+
+- `src/common/constants/tenant-permissions.constant.ts` - `ALL_TENANT_PERMISSIONS` array defines all permissions
+- `src/common/constants/tenant-system-roles.constant.ts` - `TENANT_SYSTEM_ROLE_PERMISSIONS` map defines system role permissions
+
+**Sync Behavior:**
+
+- **Permissions:** Add new, update existing, delete removed
+- **System Roles:** Add new, update existing, sync role-permission mappings
+- **Custom Roles:** Never touched (tenant_id IS NOT NULL)
+
 ### roles
 
 Tenant roles with support for custom roles (MVP+).
@@ -263,14 +278,16 @@ Tenant roles with support for custom roles (MVP+).
 - `idx_roles_tenant_id` - Filter by tenant
 - `idx_roles_is_system` - Filter system roles
 
-**System Roles:**
+**System Roles (synced from code):**
 
-| Key             | Name          | Permissions   | Description                                  |
-| --------------- | ------------- | ------------- | -------------------------------------------- |
-| `tenant_admin`  | Tenant Admin  | `*:*` (all)   | Full access to all tenant features           |
-| `legal_counsel` | Legal Counsel | 9 permissions | AI drafting, analysis, templates, regulatory |
-| `member`        | Member        | 4 permissions | Basic document creation and viewing          |
-| `viewer`        | Viewer        | 2 permissions | Read-only access                             |
+| Key             | Name          | Permissions (in-memory)                                           | Description                                  |
+| --------------- | ------------- | ----------------------------------------------------------------- | -------------------------------------------- |
+| `tenant_admin`  | Tenant Admin  | `*:*` (wildcard)                                                  | Full access to all tenant features           |
+| `legal_counsel` | Legal Counsel | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`   | AI drafting, analysis, templates, regulatory |
+| `member`        | Member        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation and viewing          |
+| `viewer`        | Viewer        | `documents:read`, `regulatory:query`                              | Read-only access                             |
+
+**Note:** System roles use wildcards (e.g., `documents:*`) for cleaner permission sets. Permission matching handles wildcard expansion at runtime.
 
 **Constraints:**
 
@@ -279,15 +296,15 @@ Tenant roles with support for custom roles (MVP+).
 
 ### permissions
 
-System permissions for RBAC.
+System permissions for RBAC. **Automatically synced from `ALL_TENANT_PERMISSIONS` constant.**
 
 | Column        | Type         | Description                               |
 | ------------- | ------------ | ----------------------------------------- |
 | `id`          | UUID         | Primary key                               |
 | `key`         | VARCHAR(100) | Permission key (e.g., `documents:create`) |
 | `name`        | VARCHAR(100) | Display name (e.g., `Create Documents`)   |
-| `resource`    | VARCHAR(50)  | Resource type (e.g., `documents`)         |
-| `action`      | VARCHAR(50)  | Action type (e.g., `create`)              |
+| `resource`    | VARCHAR(50)  | Resource type (e.g., `documents`, `*`)    |
+| `action`      | VARCHAR(50)  | Action type (e.g., `create`, `*`)         |
 | `description` | TEXT         | Permission description                    |
 | `created_at`  | TIMESTAMPTZ  | Creation timestamp                        |
 
@@ -297,22 +314,24 @@ System permissions for RBAC.
 - `idx_permissions_resource` - Filter by resource
 - `idx_permissions_resource_action` - Composite index
 
-**Available Permissions:**
+**Available Permissions (synced from code):**
 
-| Resource     | Permissions                                              |
-| ------------ | -------------------------------------------------------- |
-| `documents`  | `documents:create`, `documents:read`, `documents:delete` |
-| `contracts`  | `contracts:analyze`, `contracts:redline`                 |
-| `templates`  | `templates:manage`, `templates:use`                      |
-| `regulatory` | `regulatory:query`                                       |
-| `billing`    | `billing:manage`                                         |
-| `team`       | `team:manage`                                            |
-| `settings`   | `settings:manage`, `settings:change_jurisdiction`        |
+| Resource     | Permissions                                                        |
+| ------------ | ------------------------------------------------------------------ |
+| `documents`  | `documents:create`, `documents:read`, `documents:delete`, `documents:*` |
+| `contracts`  | `contracts:analyze`, `contracts:redline`, `contracts:*`            |
+| `templates`  | `templates:manage`, `templates:use`, `templates:*`                 |
+| `regulatory` | `regulatory:query`, `regulatory:*`                                 |
+| `billing`    | `billing:manage`, `billing:*`                                      |
+| `team`       | `team:manage`, `team:*`                                            |
+| `settings`   | `settings:manage`, `settings:change_jurisdiction`, `settings:*`    |
+| `*` (cross)  | `*:read`, `*:manage`, `*:*`                                        |
 
-**Wildcard Support:**
+**Wildcard Permissions:**
 
-- `documents:*` - All document permissions
-- `*:read` - Read permission on all resources
+- `documents:*` - All document permissions (stored as real permission)
+- `*:read` - Read permission on all resources (stored as real permission)
+- `*:manage` - Manage permission on all resources (stored as real permission)
 - `*:*` - All permissions (tenant_admin only)
 
 ### role_permissions
@@ -332,7 +351,10 @@ Many-to-many relationship between roles and permissions.
 - `idx_role_permissions_role_id` - Filter by role
 - `idx_role_permissions_permission_id` - Filter by permission
 
-**Note:** System roles use in-memory permission sets for performance. This table is primarily used for custom tenant roles.
+**Note:** System roles use in-memory permission sets (`TENANT_SYSTEM_ROLE_PERMISSIONS`) for performance - no database query needed. The database entries exist for:
+1. UI display (listing available roles)
+2. Custom tenant roles (MVP+ feature)
+3. Role-permission audit trail
 
 ---
 

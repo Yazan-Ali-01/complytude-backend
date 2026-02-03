@@ -23,9 +23,8 @@ GRANT SELECT, INSERT, UPDATE ON public.users TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_tenants TO app_user;
 
 -- RBAC tables
--- Note: DELETE is NOT granted on roles and permissions (soft-delete pattern via is_active flag)
-GRANT SELECT, INSERT, UPDATE ON public.roles TO app_user;
-GRANT SELECT, INSERT, UPDATE ON public.permissions TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.roles TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.permissions TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.role_permissions TO app_user;
 GRANT SELECT, INSERT ON public.audit_logs TO app_user;
 
