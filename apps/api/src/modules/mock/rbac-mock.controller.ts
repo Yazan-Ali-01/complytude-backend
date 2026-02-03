@@ -117,6 +117,31 @@ export class RbacMockController {
     };
   }
 
+  @Patch('documents/:id')
+  @UseGuards(PermissionsGuard)
+  @RequireAnyPermission('documents:*')
+  @AuditAction({ action: 'update', resourceType: 'documents' })
+  @ApiOperation({
+    summary: 'Mock: Update document (Wildcard - ANY)',
+    description:
+      'Requires documents:* wildcard permission. Matches users with documents:*, documents:read, documents:create, etc. Available to: tenant_admin, legal_counsel, member, viewer',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Document updated successfully',
+    type: MessageResponseDto,
+  })
+  @ApiForbiddenError('Requires documents:* wildcard (any document permission)')
+  @ApiAuthenticatedResponses()
+  updateDocument(
+    @Param('id') id: string,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): MessageResponseDto {
+    return {
+      message: `Document ${id} updated by ${user.email} (role: ${user.role})`,
+    };
+  }
+
   // =========================
   // Contracts Permissions
   // =========================
@@ -416,6 +441,60 @@ export class RbacMockController {
   ): MessageResponseDto {
     return {
       message: `Multi-permission (ALL) endpoint accessed by ${user.email} (role: ${user.role})`,
+    };
+  }
+
+  // =========================
+  // Wildcard Permissions
+  // =========================
+
+  @Get('wildcard/read-all')
+  @UseGuards(PermissionsGuard)
+  @RequireAnyPermission('*:read')
+  @AuditAction({ action: 'read', resourceType: 'wildcard' })
+  @ApiOperation({
+    summary: 'Mock: Read all resources (Action Wildcard)',
+    description:
+      'Requires *:read wildcard permission (read permission on any resource). Matches any permission ending with :read',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Access granted with read wildcard',
+    type: MessageResponseDto,
+  })
+  @ApiForbiddenError('Requires *:read wildcard permission')
+  @ApiAuthenticatedResponses()
+  readAllResources(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): MessageResponseDto {
+    return {
+      message: `Read-all wildcard endpoint accessed by ${user.email} (role: ${user.role})`,
+    };
+  }
+
+  @Post('wildcard/admin-action')
+  @UseGuards(PermissionsGuard)
+  @RequireAnyPermission('*:*')
+  @AuditAction({ action: 'admin', resourceType: 'wildcard' })
+  @ApiOperation({
+    summary: 'Mock: Admin action (Full Wildcard)',
+    description:
+      'Requires *:* wildcard permission (all permissions). Only tenant_admin has this. Matches any permission.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Access granted with full wildcard',
+    type: MessageResponseDto,
+  })
+  @ApiForbiddenError(
+    'Requires *:* full wildcard permission (tenant_admin only)',
+  )
+  @ApiAuthenticatedResponses()
+  adminAction(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): MessageResponseDto {
+    return {
+      message: `Admin wildcard endpoint accessed by ${user.email} (role: ${user.role})`,
     };
   }
 

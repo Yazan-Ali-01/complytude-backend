@@ -12,17 +12,18 @@ import {
   PERMISSIONS_KEY,
   PermissionMetadata,
 } from '../decorators/permissions.decorator';
-import { Permission } from '../types';
+import {
+  hasAllTenantPermissions,
+  hasAnyTenantPermission,
+} from '../utils/tenant-permission-matcher.util';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
-  // TODO: Implement caching for role-permission mappings (in-memory Map or Redis)
-  // This guard currently queries the database on every request.
-  // For better performance, cache the role-permission mappings:
-  // 1. Load all role-permission mappings on application startup
-  // 2. Store in a Map<roleKey, Set<permissionKey>> for O(1) lookups
-  // 3. Implement cache invalidation when permissions are updated (MVP+)
-  // 4. Consider using Redis for distributed caching in multi-instance deployments
+  // Optimized permission checking:
+  // 1. Fetch all role permissions once (single DB query or in-memory for system roles)
+  // 2. Normalize wildcards in required permissions
+  // 3. Check in-memory if user permissions satisfy requirements
+  // Performance: 1 DB query per request instead of N queries
 
   constructor(
     private reflector: Reflector,
@@ -61,16 +62,18 @@ export class PermissionsGuard implements CanActivate {
       throw new UnauthorizedException('Role not found in tenant token');
     }
 
-    // Check permissions based on requireAll flag
+    // OPTIMIZATION: Fetch all role permissions once (single query or in-memory)
+    // System roles: In-memory lookup (no DB query)
+    // Custom roles: Single DB query with tenant context
+    const userPermissions = await this.rbacService.getRolePermissions(
+      tenant.role,
+      tenant.tenantId,
+    );
+
+    // Check permissions based on requireAll flag (in-memory)
     const hasPermission = permissionMetadata.requireAll
-      ? await this.checkAllPermissions(
-          tenant.role,
-          permissionMetadata.permissions,
-        )
-      : await this.checkAnyPermission(
-          tenant.role,
-          permissionMetadata.permissions,
-        );
+      ? hasAllTenantPermissions(userPermissions, permissionMetadata.permissions)
+      : hasAnyTenantPermission(userPermissions, permissionMetadata.permissions);
 
     if (!hasPermission) {
       const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
@@ -80,55 +83,5 @@ export class PermissionsGuard implements CanActivate {
     }
 
     return true;
-  }
-
-  /**
-   * Check if a role has at least ONE of the required permissions (OR logic)
-   * @param roleKey - User's role key
-   * @param requiredPermissions - Array of required permissions
-   * @returns true if role has at least one permission, false otherwise
-   */
-  private async checkAnyPermission(
-    roleKey: string,
-    requiredPermissions: Permission[],
-  ): Promise<boolean> {
-    // Check each required permission
-    for (const permission of requiredPermissions) {
-      const hasPermission = await this.rbacService.hasPermission(
-        roleKey,
-        permission,
-      );
-
-      if (hasPermission) {
-        return true; // User has at least one required permission
-      }
-    }
-
-    return false; // User doesn't have any of the required permissions
-  }
-
-  /**
-   * Check if a role has ALL of the required permissions (AND logic)
-   * @param roleKey - User's role key
-   * @param requiredPermissions - Array of required permissions
-   * @returns true if role has all permissions, false otherwise
-   */
-  private async checkAllPermissions(
-    roleKey: string,
-    requiredPermissions: Permission[],
-  ): Promise<boolean> {
-    // Check each required permission
-    for (const permission of requiredPermissions) {
-      const hasPermission = await this.rbacService.hasPermission(
-        roleKey,
-        permission,
-      );
-
-      if (!hasPermission) {
-        return false; // User is missing at least one required permission
-      }
-    }
-
-    return true; // User has all required permissions
   }
 }

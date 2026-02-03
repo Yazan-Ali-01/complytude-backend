@@ -71,21 +71,35 @@ export class RolesRepository extends BaseRepository<
 
   /**
    * Get all permission keys for a role
-   * @param roleKey - Role key (e.g., 'tenant_admin')
+   * Supports both system roles and custom tenant roles
+   *
+   * NOTE: This method should only be called for custom roles (MVP+)
+   * System roles are handled in-memory via TENANT_SYSTEM_ROLE_PERMISSIONS
+   * and should never reach this database query.
+   *
+   * @param roleKey - Role key (e.g., 'custom_role_key')
+   * @param tenantId - Tenant ID for custom roles
+   * @returns Array of permission keys (concrete only, no wildcards from DB)
+   *
+   * Database only stores concrete permissions (e.g., 'documents:read')
+   * Wildcards (e.g., 'documents:*') exist only in code for system roles
    */
-  async getPermissionsForRole(roleKey: string): Promise<string[]> {
+  async getPermissionsForRole(
+    roleKey: string,
+    tenantId: string,
+  ): Promise<string[]> {
     const query = `
       SELECT p.key
       FROM permissions p
       INNER JOIN role_permissions rp ON p.id = rp.permission_id
       INNER JOIN roles r ON rp.role_id = r.id
       WHERE r.key = $1
-        AND r.is_system = true
         AND r.is_active = true
+        AND r.tenant_id = $2
       ORDER BY p.key
     `;
 
-    const result = await this.executeQuery(query, [roleKey]);
+    const result = await this.executeQuery(query, [roleKey, tenantId]);
     return result.rows.map((row) => row.key as string);
   }
 

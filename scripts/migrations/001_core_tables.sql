@@ -84,7 +84,18 @@ CREATE TABLE public.roles (
         ON UPDATE CASCADE,
 
     CONSTRAINT uq_roles_key_tenant
-        UNIQUE (key, tenant_id)
+        UNIQUE (key, tenant_id),
+
+    -- Prevent custom roles from using reserved system role keys
+    CONSTRAINT chk_roles_no_reserved_keys
+        CHECK (
+            -- If it's a custom role (tenant_id is NOT NULL)
+            -- Then the key must NOT be one of the reserved system role keys
+            (tenant_id IS NOT NULL AND key NOT IN ('tenant_admin', 'legal_counsel', 'member', 'viewer'))
+            OR
+            -- If it's a system role (tenant_id IS NULL), any key is allowed
+            (tenant_id IS NULL)
+        )
 );
 
 COMMENT ON TABLE public.roles IS 'Tenant roles with support for custom roles (MVP+)';
@@ -93,6 +104,7 @@ COMMENT ON COLUMN public.roles.name IS 'Display name for UI (e.g., Tenant Admin)
 COMMENT ON COLUMN public.roles.tenant_id IS 'NULL for system (base) roles, UUID for custom tenant roles (MVP+)';
 COMMENT ON COLUMN public.roles.is_system IS 'TRUE for base roles (tenant_admin, legal_counsel, member, viewer)';
 COMMENT ON COLUMN public.roles.is_active IS 'Whether this role is active (soft delete)';
+COMMENT ON CONSTRAINT chk_roles_no_reserved_keys ON public.roles IS 'Prevents custom tenant roles from using reserved system role keys';
 
 -- =========================
 -- RBAC: Permissions

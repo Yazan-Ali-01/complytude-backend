@@ -1,18 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { Permission as PermissionType } from '../../common/types';
+import { TENANT_SYSTEM_ROLE_PERMISSIONS } from '../../common/constants/tenant-system-roles.constant';
+import { isTenantSystemRole, TenantPermission } from '../../common/types';
+import { matchTenantPermission } from '../../common/utils/tenant-permission-matcher.util';
 import { PermissionsRepository } from '../../repositories/rbac/permissions.repository';
 import { RolesRepository } from '../../repositories/rbac/roles.repository';
 
 @Injectable()
 export class RbacService {
-  // TODO: Implement caching - load role-permission mappings on startup
-  // and cache in a Map<roleKey, Set<permissionKey>> for O(1) lookups
-  // Consider cache invalidation strategy for custom roles (MVP+)
-  // Example implementation:
-  // private rolePermissionsCache: Map<string, Set<string>> = new Map();
-  // async onModuleInit() {
-  //   await this.loadRolePermissionsCache();
-  // }
+  // System roles use in-memory permission sets (TENANT_SYSTEM_ROLE_PERMISSIONS)
+  // Custom tenant roles (MVP+) will query the database
+  // TODO: Implement caching for custom tenant roles - load role-permissions
+  // No caching needed for system roles - O(1) in-memory lookup
 
   constructor(
     private readonly permissionsRepository: PermissionsRepository,
@@ -21,19 +19,33 @@ export class RbacService {
 
   /**
    * Check if a role has a specific permission
+   * System roles: O(1) in-memory lookup with wildcard support
+   * Custom roles: Database query (MVP+ feature)
+   *
    * @param roleKey - Role key (e.g., 'tenant_admin', 'legal_counsel')
    * @param permissionKey - Permission key (e.g., 'documents:create')
    * @returns true if the role has the permission, false otherwise
    */
   async hasPermission(
     roleKey: string,
-    permissionKey: PermissionType,
+    permissionKey: TenantPermission,
   ): Promise<boolean> {
-    // TODO: Check cache first before querying database
-    // if (this.rolePermissionsCache.has(roleKey)) {
-    //   return this.rolePermissionsCache.get(roleKey)!.has(permissionKey);
-    // }
+    // 1. Check system roles first (in-memory, no DB query)
+    if (isTenantSystemRole(roleKey)) {
+      const permissions = TENANT_SYSTEM_ROLE_PERMISSIONS[roleKey];
 
+      // Check if any of the role's permissions match the required permission
+      // Supports wildcards: 'documents:*', '*:read', '*:*'
+      for (const userPerm of permissions) {
+        if (matchTenantPermission(userPerm, permissionKey)) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    // 2. Custom tenant roles: query database (MVP+ feature)
     return this.permissionsRepository.checkRoleHasPermission(
       roleKey,
       permissionKey,
@@ -42,16 +54,27 @@ export class RbacService {
 
   /**
    * Get all permissions for a role
-   * @param roleKey - Role key (e.g., 'tenant_admin')
-   * @returns Array of permission keys
+   * System roles: Returns in-memory permission set (may include wildcards)
+   * Custom roles: Queries database (concrete permissions only)
+   *
+   * @param roleKey - Role key (e.g., 'tenant_admin', 'custom_role_key')
+   * @param tenantId - Tenant ID (used for custom roles, ignored for system roles)
+   * @returns Array of permission keys (may include wildcards for system roles)
    */
-  async getRolePermissions(roleKey: string): Promise<string[]> {
-    // TODO: Check cache first before querying database
-    // if (this.rolePermissionsCache.has(roleKey)) {
-    //   return Array.from(this.rolePermissionsCache.get(roleKey)!);
-    // }
+  async getRolePermissions(
+    roleKey: string,
+    tenantId: string,
+  ): Promise<string[]> {
+    // 1. Check system roles first (in-memory, no DB query)
+    // System role keys are reserved and cannot be used by custom roles
+    if (isTenantSystemRole(roleKey)) {
+      const permissions = TENANT_SYSTEM_ROLE_PERMISSIONS[roleKey];
+      return Array.from(permissions);
+    }
 
-    return this.rolesRepository.getPermissionsForRole(roleKey);
+    // 2. Custom tenant roles: query database (MVP+ feature)
+    // Returns only concrete permissions from database
+    return this.rolesRepository.getPermissionsForRole(roleKey, tenantId);
   }
 
   /**
