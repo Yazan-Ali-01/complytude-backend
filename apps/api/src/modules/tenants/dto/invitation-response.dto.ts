@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { TenantRole } from 'src/common/types';
+import { SystemTenantRole } from 'src/common/types';
 import { InvitationStatus } from 'src/repositories/invitations/interfaces/invitation.interface';
 
 /**
@@ -43,11 +43,16 @@ export class InvitationResponseDto {
   email: string;
 
   @ApiProperty({
-    description: 'Role the user will have in the tenant',
-    enum: Object.values(TenantRole),
-    example: TenantRole.MEMBER,
+    description: 'Role key the user will have in the tenant',
+    example: SystemTenantRole.MEMBER,
   })
-  role: TenantRole;
+  role: string;
+
+  @ApiProperty({
+    description: 'Role display name',
+    example: 'Member',
+  })
+  roleName: string;
 
   @ApiProperty({
     description: 'Invitation status',

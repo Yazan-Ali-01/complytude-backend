@@ -1,4 +1,4 @@
-import { GlobalRole, TenantRole } from 'src/common/types';
+import { GlobalRole } from 'src/common/types';
 
 /**
  * Payload for identity access token (used after login, before tenant selection)
@@ -47,7 +47,7 @@ export interface TenantPayload {
   sub: string; // userId
   email: string;
   tenantId: string;
-  role: TenantRole;
+  role: string;
   type: typeof TENANT_PAYLOAD_TYPE;
 }
 
@@ -55,7 +55,7 @@ export interface AuthenticatedTenantUser {
   userId: string;
   email: string;
   tenantId: string;
-  role: TenantRole;
+  role: string;
 }
 
 /**

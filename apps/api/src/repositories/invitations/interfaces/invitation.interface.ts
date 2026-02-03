@@ -1,5 +1,3 @@
-import { TenantRole } from 'src/common/types';
-
 export enum InvitationStatus {
   PENDING = 'PENDING',
   ACCEPTED = 'ACCEPTED',
@@ -19,7 +17,9 @@ export interface Invitation {
   rejectedAt: Date | null;
   revokedAt: Date | null;
   revokedBy: string | null;
-  role: TenantRole;
+  roleId: string;
+  roleKey: string;
+  roleName: string;
   status: InvitationStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -31,7 +31,7 @@ export interface CreateInvitationInput {
   tokenHash: string;
   invitedBy: string;
   expiresAt: Date;
-  role?: TenantRole;
+  roleId: string;
 }
 
 export interface RevokeInvitationInput {

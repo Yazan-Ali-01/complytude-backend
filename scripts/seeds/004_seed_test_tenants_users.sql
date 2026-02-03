@@ -38,22 +38,25 @@ ON CONFLICT (id) DO NOTHING;
 -- =========================
 -- User-Tenant Relationships
 -- =========================
+-- Note: Directly assigns role keys (no lookup needed)
+-- System roles: tenant_admin, legal_counsel, member, viewer
+-- Custom roles can be added per tenant as needed
 
-INSERT INTO public.user_tenants (user_id, tenant_id, role) VALUES
+INSERT INTO public.user_tenants (user_id, tenant_id, role_key) VALUES
     -- Tenant 1 (Pro plan) - 3 users
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'ADMIN'),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-4111-8111-111111111111', 'MEMBER'),
-    ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-4111-8111-111111111111', 'VIEWER'),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'tenant_admin'),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-4111-8111-111111111111', 'member'),
+    ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-4111-8111-111111111111', 'viewer'),
     
     -- Tenant 2 (Basic plan) - 2 users
-    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-4222-8222-222222222222', 'ADMIN'),
-    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'MEMBER'),
+    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-4222-8222-222222222222', 'tenant_admin'),
+    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'member'),
     
     -- Tenant 3 (Enterprise plan) - 1 user
-    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-3333-3333-A333-333333333333', 'ADMIN'),
+    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-3333-3333-A333-333333333333', 'tenant_admin'),
     
     -- Multi-tenant user: Bob is also a viewer in Tenant 2
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'VIEWER')
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'viewer')
 ON CONFLICT (user_id, tenant_id) DO NOTHING;
 
 -- =========================

@@ -1,5 +1,4 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { TenantRole } from 'src/common/types/tenant.types';
 import {
   AuthenticatedIdentityRefreshUser,
   AuthenticatedIdentityUser,
@@ -11,7 +10,7 @@ export interface AuthenticatedUser {
   userId: string;
   email: string;
   tenantId: string;
-  role: TenantRole;
+  role: string;
 }
 
 /**

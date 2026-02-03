@@ -60,9 +60,11 @@ export class UsersService {
    */
   async getUserTenants(userId: string): Promise<any[]> {
     const result = await this.databaseService.query(
-      `SELECT ut.tenant_id, ut.role, ut.is_active, ut.joined_at
+      `SELECT ut.tenant_id, ut.role_key, r.name as role_name, ut.is_active, ut.joined_at
        FROM public.user_tenants ut
-       JOIN public.tenants t ON ut.tenant_id = t.tenant_id
+       INNER JOIN public.roles r ON r.key = ut.role_key 
+         AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
+       JOIN public.tenants t ON ut.tenant_id = t.id
        WHERE ut.user_id = $1
        ORDER BY ut.joined_at DESC`,
       [userId],
@@ -263,9 +265,9 @@ export class UsersService {
       );
     }
 
-    // Add user to tenant
+    // Add user to tenant with role key
     await this.databaseService.query(
-      `INSERT INTO public.user_tenants (user_id, tenant_id, role, is_active)
+      `INSERT INTO public.user_tenants (user_id, tenant_id, role_key, is_active)
        VALUES ($1, $2, $3, true)`,
       [userId, tenantId, createUserDto.role],
     );
@@ -277,7 +279,7 @@ export class UsersService {
     // Return user info
     const userResult = await this.databaseService.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
-              ut.role, ut.is_active, ut.joined_at
+              ut.role_key, ut.is_active, ut.joined_at
        FROM public.users u
        JOIN public.user_tenants ut ON u.id = ut.user_id
        WHERE u.id = $1 AND ut.tenant_id = $2`,
@@ -292,7 +294,7 @@ export class UsersService {
       lastName: user.last_name,
       isVerified: user.is_verified,
       createdAt: user.created_at,
-      role: user.role,
+      role: user.role_key,
       isActive: user.is_active,
       joinedAt: user.joined_at,
     };
@@ -327,7 +329,7 @@ export class UsersService {
     let paramIndex = 1;
 
     if (updateUserDto.role !== undefined) {
-      updateFields.push(`role = $${paramIndex++}`);
+      updateFields.push(`role_key = $${paramIndex++}`);
       values.push(updateUserDto.role);
     }
 
@@ -409,9 +411,11 @@ export class UsersService {
   ): Promise<any> {
     const result = await this.databaseService.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
-              ut.role, ut.is_active, ut.joined_at
+              ut.role_key, r.name as role_name, ut.is_active, ut.joined_at
        FROM public.users u
        JOIN public.user_tenants ut ON u.id = ut.user_id
+       INNER JOIN public.roles r ON r.key = ut.role_key 
+         AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
        WHERE u.id = $1 AND ut.tenant_id = $2`,
       [userId, tenantId],
     );
@@ -428,7 +432,8 @@ export class UsersService {
       lastName: user.last_name,
       isVerified: user.is_verified,
       createdAt: user.created_at,
-      role: user.role,
+      role: user.role_key,
+      roleName: user.role_name,
       isActive: user.is_active,
       joinedAt: user.joined_at,
     };

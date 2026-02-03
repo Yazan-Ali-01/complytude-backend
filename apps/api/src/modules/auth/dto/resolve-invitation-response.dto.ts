@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { TenantRole } from 'src/common/types';
+import { SystemTenantRole } from 'src/common/types';
 
 /**
  * Information about who sent the invitation
@@ -49,11 +49,16 @@ export class ResolveInvitationResponseDto {
   tenantName: string;
 
   @ApiProperty({
-    description: 'Role the user will have in the tenant',
-    enum: Object.values(TenantRole),
-    example: TenantRole.MEMBER,
+    description: 'Role key the user will have in the tenant',
+    example: SystemTenantRole.MEMBER,
   })
-  role: TenantRole;
+  role: string;
+
+  @ApiProperty({
+    description: 'Role display name',
+    example: 'Member',
+  })
+  roleName: string;
 
   @ApiProperty({
     description: 'Information about who sent the invitation',

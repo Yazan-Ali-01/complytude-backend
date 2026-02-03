@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { TenantRole } from 'src/common/types';
+import { SystemTenantRole } from 'src/common/types';
 /**
  * User profile response DTO
  * Returns current user profile with all details (excludes password)
@@ -78,11 +78,16 @@ export class UserTenantResponseDto {
   tenantName: string;
 
   @ApiProperty({
-    description: 'User role within the tenant',
-    enum: Object.values(TenantRole),
-    example: TenantRole.MEMBER,
+    description: 'User role key within the tenant',
+    example: SystemTenantRole.MEMBER,
   })
-  role: TenantRole;
+  role: string;
+
+  @ApiProperty({
+    description: 'User role display name',
+    example: 'Member',
+  })
+  roleName: string;
 
   @ApiProperty({
     description: 'Whether user access is active in this tenant',

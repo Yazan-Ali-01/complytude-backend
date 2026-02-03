@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { TenantRole } from 'src/common/types';
 import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
@@ -12,7 +11,8 @@ import {
 type UserTenantRow = {
   user_id: string;
   tenant_id: string;
-  role: string;
+  role_key: string;
+  role_name: string;
   is_active: boolean;
   joined_at: Date;
   updated_at: Date;
@@ -26,12 +26,12 @@ type UserTenantCompositeKey = {
 type UserTenantCreateInput = {
   user_id: string;
   tenant_id: string;
-  role: string;
+  role_key: string;
   is_active?: boolean;
 };
 
 type UserTenantUpdateInput = {
-  role?: string;
+  role_key?: string;
   is_active?: boolean;
 };
 
@@ -63,7 +63,8 @@ export class UserTenantRepository extends BaseRepository<
     return {
       user_id: data.user_id,
       tenant_id: data.tenant_id,
-      role: data.role as TenantRole,
+      role_key: data.role_key,
+      role_name: data.role_name || '', // Default to empty string if not included
       is_active: data.is_active,
       joined_at: data.joined_at,
       updated_at: data.updated_at,
@@ -72,9 +73,28 @@ export class UserTenantRepository extends BaseRepository<
 
   /**
    * Get the list of columns to select in queries.
+   * @param includeRoleName - Whether to include role_name from roles table JOIN
    */
-  protected getSelectColumns(): string {
-    return 'user_id, tenant_id, role, is_active, joined_at, updated_at';
+  protected getSelectColumns(includeRoleName: boolean = true): string {
+    const baseColumns =
+      'ut.user_id, ut.tenant_id, ut.role_key, ut.is_active, ut.joined_at, ut.updated_at';
+    if (includeRoleName) {
+      return `${baseColumns.replace('ut.role_key', 'ut.role_key, r.name as role_name')}`;
+    }
+    return baseColumns;
+  }
+
+  /**
+   * Get the base FROM clause with optional roles JOIN
+   * @param includeRoleName - Whether to include roles table JOIN
+   */
+  protected getFromClause(includeRoleName: boolean = true): string {
+    if (includeRoleName) {
+      return `${this.tableName} ut
+              INNER JOIN public.roles r ON r.key = ut.role_key 
+                AND (r.tenant_id = ut.tenant_id OR r.is_system = true)`;
+    }
+    return `${this.tableName} ut`;
   }
 
   /**
@@ -96,16 +116,18 @@ export class UserTenantRepository extends BaseRepository<
    *
    * @param key - Composite key containing userId and tenantId
    * @param options - Query options (tenant context, client, etc.)
+   * @param includeRoleName - Whether to include role display name (default: true)
    * @returns User-tenant relationship or null if not found
    */
   async findByCompositeKey(
     key: UserTenantCompositeKey,
     options?: QueryOptions,
+    includeRoleName: boolean = true,
   ): Promise<UserTenant | null> {
     const result = await this.executeQuery<UserTenantRow>(
-      `SELECT ${this.getSelectColumns()}
-       FROM ${this.tableName}
-       WHERE user_id = $1 AND tenant_id = $2
+      `SELECT ${this.getSelectColumns(includeRoleName)}
+       FROM ${this.getFromClause(includeRoleName)}
+       WHERE ut.user_id = $1 AND ut.tenant_id = $2
        LIMIT 1`,
       [key.userId, key.tenantId],
       options,
@@ -139,12 +161,14 @@ export class UserTenantRepository extends BaseRepository<
    * @param key - Composite key containing userId and tenantId
    * @param data - Fields to update (role, is_active)
    * @param options - Query options (tenant context, client, etc.)
+   * @param includeRoleName - Whether to include role display name in result (default: true)
    * @returns Updated user-tenant relationship or null if not found
    */
   async updateByCompositeKey(
     key: UserTenantCompositeKey,
     data: UserTenantUpdateInput,
     options?: QueryOptions,
+    includeRoleName: boolean = true,
   ): Promise<UserTenant | null> {
     const entries = Object.entries(data).filter(
       ([, value]) => value !== undefined,
@@ -159,20 +183,29 @@ export class UserTenantRepository extends BaseRepository<
       .join(', ');
     const values = entries.map(([, value]) => value);
 
-    const result = await this.executeQuery<UserTenantRow>(
+    // Update the record first
+    const updateResult = await this.executeQuery(
       `UPDATE ${this.tableName}
        SET ${setClause}, updated_at = NOW()
-       WHERE user_id = $1 AND tenant_id = $2
-       RETURNING ${this.getSelectColumns()}`,
+       WHERE user_id = $1 AND tenant_id = $2`,
       [key.userId, key.tenantId, ...values],
       options,
     );
 
-    if (result.rows.length === 0) {
+    if (updateResult.rowCount === 0) {
       return null;
     }
 
-    return this.mapRow(result.rows[0]);
+    // Then fetch with optional role name
+    const result = await this.executeQuery<UserTenantRow>(
+      `SELECT ${this.getSelectColumns(includeRoleName)}
+       FROM ${this.getFromClause(includeRoleName)}
+       WHERE ut.user_id = $1 AND ut.tenant_id = $2`,
+      [key.userId, key.tenantId],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
   /**
@@ -215,11 +248,13 @@ export class UserTenantRepository extends BaseRepository<
    *
    * @param filters - Optional filters for user_id, tenant_id, and is_active
    * @param options - Query options (tenant context, client, etc.)
+   * @param includeRoleName - Whether to include role display name (default: true)
    * @returns User tenants
    */
   async findMany(
     filters: { user_id?: string; tenant_id?: string; is_active?: boolean },
     options?: QueryOptions,
+    includeRoleName: boolean = true,
   ): Promise<{ data: UserTenant[] }> {
     // Build query with filters
     const conditions: string[] = [];
@@ -227,23 +262,23 @@ export class UserTenantRepository extends BaseRepository<
 
     if (filters.user_id) {
       params.push(filters.user_id);
-      conditions.push(`user_id = $${params.length}`);
+      conditions.push(`ut.user_id = $${params.length}`);
     }
     if (filters.tenant_id) {
       params.push(filters.tenant_id);
-      conditions.push(`tenant_id = $${params.length}`);
+      conditions.push(`ut.tenant_id = $${params.length}`);
     }
     if (filters.is_active !== undefined) {
       params.push(filters.is_active);
-      conditions.push(`is_active = $${params.length}`);
+      conditions.push(`ut.is_active = $${params.length}`);
     }
 
     // Execute query
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const query = `SELECT ${this.getSelectColumns()} 
-                   FROM ${this.tableName}
-                   ${whereClause} ORDER BY joined_at`.trim();
+    const query = `SELECT ${this.getSelectColumns(includeRoleName)} 
+                   FROM ${this.getFromClause(includeRoleName)}
+                   ${whereClause} ORDER BY ut.joined_at`.trim();
     const result = await this.executeQuery<UserTenantRow>(
       query,
       params,
@@ -259,10 +294,18 @@ export class UserTenantRepository extends BaseRepository<
    * Find all active user tenants.
    *
    * @param options - Query options (tenant context, client, etc.)
+   * @param includeRoleName - Whether to include role display name (default: true)
    * @returns Array of active user tenants
    */
-  async findActive(options?: QueryOptions): Promise<UserTenant[]> {
-    const result = await this.findMany({ is_active: true }, options);
+  async findActive(
+    options?: QueryOptions,
+    includeRoleName: boolean = true,
+  ): Promise<UserTenant[]> {
+    const result = await this.findMany(
+      { is_active: true },
+      options,
+      includeRoleName,
+    );
     return result.data;
   }
 
@@ -282,7 +325,7 @@ export class UserTenantRepository extends BaseRepository<
       {
         user_id: input.userId,
         tenant_id: input.tenantId,
-        role: input.role,
+        role_key: input.roleKey,
         is_active: input.isActive ?? true,
       },
       options,
@@ -296,35 +339,43 @@ export class UserTenantRepository extends BaseRepository<
    *
    * @param input - User tenant data
    * @param options - Query options (tenant context, client, etc.)
+   * @param includeRoleName - Whether to include role display name in result (default: true)
    * @returns Object containing the user-tenant relationship and whether it was newly created
    */
   async upsertUserTenant(
     input: {
       userId: string;
       tenantId: string;
-      role: TenantRole;
+      roleKey: string;
       isActive?: boolean;
     },
     options?: QueryOptions,
+    includeRoleName: boolean = true,
   ): Promise<{ userTenant: UserTenant; wasCreated: boolean }> {
     const isActive = input.isActive ?? true;
 
-    const result = await this.executeQuery<
-      UserTenantRow & { was_created: boolean }
-    >(
-      `WITH inserted AS (
-        INSERT INTO ${this.tableName} (user_id, tenant_id, role, is_active)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (user_id, tenant_id) 
-        DO UPDATE SET 
-          is_active = EXCLUDED.is_active,
-          role = EXCLUDED.role,
-          updated_at = NOW()
-        RETURNING ${this.getSelectColumns()}, 
-                  (xmax = 0) AS was_created
-      )
-      SELECT * FROM inserted`,
-      [input.userId, input.tenantId, input.role, isActive],
+    // First, upsert the record
+    const upsertResult = await this.executeQuery<{ was_created: boolean }>(
+      `INSERT INTO ${this.tableName} (user_id, tenant_id, role_key, is_active)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, tenant_id) 
+       DO UPDATE SET 
+         is_active = EXCLUDED.is_active,
+         role_key = EXCLUDED.role_key,
+         updated_at = NOW()
+       RETURNING (xmax = 0) AS was_created`,
+      [input.userId, input.tenantId, input.roleKey, isActive],
+      options,
+    );
+
+    const wasCreated = upsertResult.rows[0]?.was_created ?? false;
+
+    // Then fetch with optional role name
+    const result = await this.executeQuery<UserTenantRow>(
+      `SELECT ${this.getSelectColumns(includeRoleName)}
+       FROM ${this.getFromClause(includeRoleName)}
+       WHERE ut.user_id = $1 AND ut.tenant_id = $2`,
+      [input.userId, input.tenantId],
       options,
     );
 
@@ -335,7 +386,7 @@ export class UserTenantRepository extends BaseRepository<
 
     return {
       userTenant: this.mapRow(row),
-      wasCreated: row.was_created,
+      wasCreated,
     };
   }
 
@@ -344,17 +395,19 @@ export class UserTenantRepository extends BaseRepository<
    *
    * @param userId - User ID
    * @param options - Query options (tenant context, client, etc.)
+   * @param includeRoleName - Whether to include role display name (default: true)
    * @returns User tenants
    */
   async getUserTenants(
     userId: string,
     options?: QueryOptions,
+    includeRoleName: boolean = true,
   ): Promise<UserTenant[]> {
     const result = await this.executeQuery<UserTenantRow>(
-      `SELECT ${this.getSelectColumns()}
-       FROM ${this.tableName}
-       WHERE user_id = $1
-       ORDER BY joined_at DESC`,
+      `SELECT ${this.getSelectColumns(includeRoleName)}
+       FROM ${this.getFromClause(includeRoleName)}
+       WHERE ut.user_id = $1
+       ORDER BY ut.joined_at DESC`,
       [userId],
       options,
     );
@@ -367,18 +420,20 @@ export class UserTenantRepository extends BaseRepository<
    *
    * @param userId - User ID
    * @param options - Query options (tenant context, client, etc.)
+   * @param includeRoleName - Whether to include role display name (default: true)
    * @returns User tenants
    */
   async getActiveUserTenants(
     userId: string,
     options?: QueryOptions,
+    includeRoleName: boolean = true,
   ): Promise<UserTenant[]> {
     return this.databaseService.transaction<UserTenant[]>(async (client) => {
       return this.executeQuery<UserTenantRow>(
-        `SELECT ${this.getSelectColumns()}
-       FROM ${this.tableName}
-       WHERE user_id = $1 AND is_active = true
-       ORDER BY joined_at DESC`,
+        `SELECT ${this.getSelectColumns(includeRoleName)}
+       FROM ${this.getFromClause(includeRoleName)}
+       WHERE ut.user_id = $1 AND ut.is_active = true
+       ORDER BY ut.joined_at DESC`,
         [userId],
         { client, ...options },
       ).then((result) => result.rows.map((row) => this.mapRow(row)));
@@ -391,17 +446,27 @@ export class UserTenantRepository extends BaseRepository<
    * @param userId - User ID
    * @param tenantId - Tenant ID
    * @param options - Query options (tenant context, client, etc.)
+   * @param includeRoleName - Whether to include role display name (default: true)
    * @returns User in tenant
    */
   async getUserInTenant(
     userId: string,
     tenantId: string,
     options?: QueryOptions,
+    includeRoleName: boolean = true,
   ): Promise<UserTenantWithUserRow | null> {
+    const roleJoin = includeRoleName
+      ? `INNER JOIN public.roles r ON r.key = ut.role_key 
+         AND (r.tenant_id = ut.tenant_id OR r.is_system = true)`
+      : '';
+
+    const roleColumn = includeRoleName ? ', r.name as role_name' : '';
+
     const result = await this.executeQuery<UserTenantWithUserRow>(
-      `SELECT ut.user_id, ut.tenant_id, ut.role, ut.is_active, ut.joined_at, ut.updated_at,
+      `SELECT ut.user_id, ut.tenant_id, ut.role_key${roleColumn}, ut.is_active, ut.joined_at, ut.updated_at,
               u.email, u.first_name, u.last_name, u.is_verified, u.is_system_admin
        FROM ${this.tableName} ut
+       ${roleJoin}
        JOIN public.users u ON ut.user_id = u.id
        WHERE ut.user_id = $1 AND ut.tenant_id = $2
        LIMIT 1`,

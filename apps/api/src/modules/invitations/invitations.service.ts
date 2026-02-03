@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PoolClient } from 'pg';
-import { TenantRole } from 'src/common/types';
 import { DatabaseService } from 'src/database/database.service';
 import {
   InvitationItemDto,
@@ -34,7 +33,7 @@ export interface CreateInvitationServiceInput {
   tenantId: string;
   invitedBy: string;
   email: string;
-  role: TenantRole;
+  roleId: string;
   expiresInDays?: number;
 }
 
@@ -144,7 +143,8 @@ export class InvitationsService {
         email: invitation.email,
         tenantId: invitation.tenantId,
         tenantName: tenant.rows[0].name,
-        role: invitation.role,
+        role: invitation.roleKey,
+        roleName: invitation.roleName,
         invitedBy: inviterInfo,
         expiresAt: invitation.expiresAt.toISOString(),
         createdAt: invitation.createdAt.toISOString(),
@@ -204,7 +204,7 @@ export class InvitationsService {
         {
           userId,
           tenantId: invitation.tenantId,
-          role: invitation.role,
+          roleKey: invitation.roleKey,
           isActive: true,
         },
         { client },
@@ -289,7 +289,8 @@ export class InvitationsService {
         id: string;
         tenant_id: string;
         tenant_name: string;
-        role: TenantRole;
+        role_key: string;
+        role_name: string;
         inviter_email: string;
         inviter_first_name: string | null;
         inviter_last_name: string | null;
@@ -300,13 +301,15 @@ export class InvitationsService {
           i.id,
           i.tenant_id,
           'Tenant ' || substring(t.id::text, 1, 8) as tenant_name,
-          i.role,
+          r.key as role_key,
+          r.name as role_name,
           u.email as inviter_email,
           u.first_name as inviter_first_name,
           u.last_name as inviter_last_name,
           i.expires_at,
           i.created_at
         FROM public.invitations i
+        INNER JOIN public.roles r ON r.id = i.role_id
         INNER JOIN public.tenants t ON i.tenant_id = t.id
         INNER JOIN public.users u ON i.invited_by = u.id
         WHERE i.email = $1 
@@ -320,7 +323,8 @@ export class InvitationsService {
         id: row.id,
         tenantId: row.tenant_id,
         tenantName: row.tenant_name,
-        role: row.role,
+        role: row.role_key,
+        roleName: row.role_name,
         invitedBy: {
           email: row.inviter_email,
           name:
@@ -352,6 +356,28 @@ export class InvitationsService {
 
       return parseInt(result.rows[0]?.count || '0', 10);
     });
+  }
+
+  /**
+   * Get role ID by role key (for a specific tenant or system role)
+   */
+  async getRoleIdByKey(
+    roleKey: string,
+    tenantId: string,
+  ): Promise<{ id: string; name: string } | null> {
+    const result = await this.databaseService.query<{
+      id: string;
+      name: string;
+    }>(
+      `SELECT id, name 
+       FROM public.roles 
+       WHERE key = $1 AND (tenant_id = $2 OR is_system = true)
+       ORDER BY is_system DESC
+       LIMIT 1`,
+      [roleKey, tenantId],
+    );
+
+    return result.rows[0] || null;
   }
 
   /**
@@ -417,7 +443,7 @@ export class InvitationsService {
         tokenHash,
         invitedBy: input.invitedBy,
         expiresAt,
-        role: input.role,
+        roleId: input.roleId,
       };
 
       const invitation = await this.invitationRepository.createInvitation(

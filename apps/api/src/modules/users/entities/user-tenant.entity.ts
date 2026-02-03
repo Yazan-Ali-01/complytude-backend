@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { TenantRole } from 'src/common/types';
+import { SystemTenantRole } from 'src/common/types';
 
 export class UserTenant {
   @ApiProperty({ description: 'User ID' })
@@ -9,11 +9,16 @@ export class UserTenant {
   tenant_id: string;
 
   @ApiProperty({
-    description: 'User role in the tenant',
-    enum: Object.values(TenantRole),
-    example: TenantRole.MEMBER,
+    description: 'Role key within this tenant (system role or custom role)',
+    example: SystemTenantRole.MEMBER,
   })
-  role: TenantRole;
+  role_key: string;
+
+  @ApiProperty({
+    description: 'Role display name (from roles table)',
+    example: 'Member',
+  })
+  role_name: string;
 
   @ApiProperty({ description: 'Whether user access is active' })
   is_active: boolean;

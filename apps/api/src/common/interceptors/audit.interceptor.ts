@@ -4,6 +4,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { FastifyRequest } from 'fastify';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
@@ -12,10 +13,18 @@ import {
   AuthenticatedIdentityUser,
   AuthenticatedTenantUser,
 } from '../../modules/auth/strategies';
+import {
+  AUDIT_ACTION_KEY,
+  AUDIT_RESOURCE_KEY,
+  AuditActionConfig,
+} from '../decorators/audit.decorator';
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly auditService: AuditService,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<
@@ -39,9 +48,9 @@ export class AuditInterceptor implements NestInterceptor {
         next: (response) => {
           // Only log if we have a tenant context (authenticated requests)
           if (tenant) {
-            // Derive action from HTTP method and URL
-            const action = this.deriveAction(method, url);
-            const resourceType = this.deriveResourceType(url);
+            // Get audit metadata from decorators or derive from request
+            const resourceType = this.getResourceType(context, url);
+            const action = this.getAction(context, method, url, resourceType);
             const resourceId = this.deriveResourceId(response);
 
             // Log the audit entry asynchronously (fire and forget)
@@ -68,8 +77,8 @@ export class AuditInterceptor implements NestInterceptor {
         error: (error) => {
           // Log failed requests as well
           if (tenant) {
-            const action = this.deriveAction(method, url);
-            const resourceType = this.deriveResourceType(url);
+            const resourceType = this.getResourceType(context, url);
+            const action = this.getAction(context, method, url, resourceType);
 
             void this.auditService.log({
               tenantId: tenant.tenantId,
@@ -110,23 +119,92 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   /**
-   * Derive action from HTTP method and URL
-   * Examples:
-   * - POST /documents -> documents:create
-   * - GET /documents/123 -> documents:read
-   * - DELETE /documents/123 -> documents:delete
-   * - PATCH /settings/jurisdiction -> settings:change_jurisdiction
+   * Get resource type from decorator metadata or derive from URL
+   * Priority: @AuditAction resourceType override > @AuditResource > URL parsing
    */
-  private deriveAction(method: string, url: string): string {
-    const pathSegments = url.split('/').filter(Boolean);
-    const resource = pathSegments[0] || 'unknown';
-
-    // Special case for settings:change_jurisdiction
-    if (resource === 'settings' && url.includes('jurisdiction')) {
-      return 'settings:change_jurisdiction';
+  private getResourceType(
+    context: ExecutionContext,
+    url: string,
+  ): string | undefined {
+    // Check for method-level resource type override
+    const actionConfig = this.reflector.get<AuditActionConfig | undefined>(
+      AUDIT_ACTION_KEY,
+      context.getHandler(),
+    );
+    if (actionConfig?.resourceType) {
+      return actionConfig.resourceType;
     }
 
-    // Map HTTP methods to actions
+    // Check for controller-level resource type
+    const controllerResource = this.reflector.get<string | undefined>(
+      AUDIT_RESOURCE_KEY,
+      context.getClass(),
+    );
+    if (controllerResource) {
+      return controllerResource;
+    }
+
+    // Fallback: derive from URL (skip API prefix)
+    return this.deriveResourceTypeFromUrl(url);
+  }
+
+  /**
+   * Get action from decorator metadata or derive from HTTP method
+   * Priority: @AuditAction > HTTP method mapping
+   */
+  private getAction(
+    context: ExecutionContext,
+    method: string,
+    url: string,
+    resourceType: string | undefined,
+  ): string {
+    // Check for method-level action configuration
+    const actionConfig = this.reflector.get<AuditActionConfig | undefined>(
+      AUDIT_ACTION_KEY,
+      context.getHandler(),
+    );
+
+    if (actionConfig) {
+      const resource = actionConfig.resourceType || resourceType || 'unknown';
+      const action = actionConfig.subResource
+        ? `${actionConfig.action}_${actionConfig.subResource}`
+        : actionConfig.action;
+      return `${resource}:${action}`;
+    }
+
+    // Fallback: derive from HTTP method
+    return this.deriveActionFromMethod(method, resourceType || 'unknown');
+  }
+
+  /**
+   * Derive resource type from URL, accounting for API prefix
+   * Handles: /api/documents, /api/v1/documents, /documents
+   * Examples:
+   * - /api/documents/123 -> documents
+   * - /api/v1/templates -> templates
+   * - /settings/jurisdiction -> settings
+   */
+  private deriveResourceTypeFromUrl(url: string): string | undefined {
+    const pathSegments = url.split('/').filter(Boolean);
+
+    // Skip common API prefixes (api, v1, v2, etc.)
+    let startIndex = 0;
+    if (pathSegments[0] === 'api') {
+      startIndex = 1;
+      // Also skip version segment if present (v1, v2, etc.)
+      if (pathSegments[1]?.match(/^v\d+$/)) {
+        startIndex = 2;
+      }
+    }
+
+    return pathSegments[startIndex] || undefined;
+  }
+
+  /**
+   * Derive action from HTTP method
+   * Maps standard HTTP methods to CRUD actions
+   */
+  private deriveActionFromMethod(method: string, resource: string): string {
     const actionMap: Record<string, string> = {
       GET: 'read',
       POST: 'create',
@@ -137,18 +215,6 @@ export class AuditInterceptor implements NestInterceptor {
 
     const action = actionMap[method] || 'unknown';
     return `${resource}:${action}`;
-  }
-
-  /**
-   * Derive resource type from URL
-   * Examples:
-   * - /documents/123 -> documents
-   * - /templates -> templates
-   * - /settings/jurisdiction -> settings
-   */
-  private deriveResourceType(url: string): string | undefined {
-    const pathSegments = url.split('/').filter(Boolean);
-    return pathSegments[0] || undefined;
   }
 
   /**

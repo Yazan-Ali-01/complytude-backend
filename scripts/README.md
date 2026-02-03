@@ -32,9 +32,10 @@ scripts/
 ├── seeds/                   # Database seed data
 │   ├── 001_seed_authorities.sql
 │   ├── 002_seed_categories.sql
-│   ├── 003_seed_test_tenants_users.sql
-│   ├── 004_seed_templates.sql
-│   ├── 005_seed_test_documents.sql
+│   ├── 003_seed_rbac.sql
+│   ├── 004_seed_test_tenants_users.sql
+│   ├── 005_seed_templates.sql
+│   ├── 006_seed_test_documents.sql
 │   └── README.md
 │
 ├── utilities/               # Management and testing scripts
@@ -119,6 +120,7 @@ Populates database with initial data:
 
 - 10 UAE authorities (DMCC, DIFC, etc.)
 - 10 template categories
+- RBAC roles and permissions
 - 3 test tenants (dev/staging)
 - 7 test users (dev/staging)
 - 5 sample templates (dev/staging)
@@ -187,9 +189,10 @@ COMMIT;
 | --- | ----------------------------- | ---------------------------------- | ----------- |
 | 001 | `seed_authorities.sql`        | UAE authorities (DMCC, DIFC, etc.) | All         |
 | 002 | `seed_categories.sql`         | Template categories                | All         |
-| 003 | `seed_test_tenants_users.sql` | Test tenants and users             | Dev/Staging |
-| 004 | `seed_templates.sql`          | Sample templates                   | Dev/Staging |
-| 005 | `seed_test_documents.sql`     | Tenant-specific documents          | Dev/Staging |
+| 003 | `seed_rbac.sql`               | RBAC roles and permissions         | All         |
+| 004 | `seed_test_tenants_users.sql` | Test tenants and users             | Dev/Staging |
+| 005 | `seed_templates.sql`          | Sample templates                   | Dev/Staging |
+| 006 | `seed_test_documents.sql`     | Tenant-specific documents          | Dev/Staging |
 
 ### Test Credentials
 

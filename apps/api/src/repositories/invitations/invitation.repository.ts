@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { TenantRole } from 'src/common/types';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
@@ -27,7 +26,9 @@ type InvitationRow = {
   revoked_at: Date | null;
   revoked_by: string | null;
   status: InvitationStatus;
-  role: TenantRole;
+  role_id: string;
+  role_key: string;
+  role_name: string;
   created_at: Date;
   updated_at: Date;
 };
@@ -38,7 +39,7 @@ type CreateInvitationRow = {
   token_hash: string;
   invited_by: string;
   expires_at: Date;
-  role?: TenantRole;
+  role_id: string;
 };
 
 type UpdateInvitationRow = {
@@ -65,9 +66,37 @@ export class InvitationRepository extends BaseRepository<
 
   /**
    * Get the list of columns to select in queries.
+   * Note: This should be used with the roles JOIN to include role_key and role_name
    */
   protected getSelectColumns(): string {
-    return 'id, email, tenant_id, token_hash, invited_by, expires_at, accepted_at, rejected_at, revoked_at, revoked_by, status, role, created_at, updated_at';
+    return 'i.id, i.email, i.tenant_id, i.token_hash, i.invited_by, i.expires_at, i.accepted_at, i.rejected_at, i.revoked_at, i.revoked_by, i.status, i.role_id, r.key as role_key, r.name as role_name, i.created_at, i.updated_at';
+  }
+
+  /**
+   * Get the base FROM clause with roles JOIN
+   */
+  protected getFromClauseWithRoles(): string {
+    return `${this.tableName} i
+            INNER JOIN public.roles r ON r.id = i.role_id`;
+  }
+
+  /**
+   * Override findById to include role details
+   */
+  async findById(
+    id: string,
+    options?: QueryOptions,
+  ): Promise<Invitation | null> {
+    const result = await this.executeQuery<InvitationRow>(
+      `SELECT ${this.getSelectColumns()} 
+       FROM ${this.getFromClauseWithRoles()}
+       WHERE i.id = $1
+       LIMIT 1`,
+      [id],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
   /**
@@ -90,9 +119,11 @@ export class InvitationRepository extends BaseRepository<
       revokedAt: data.revoked_at,
       revokedBy: data.revoked_by,
       status: data.status,
+      roleId: data.role_id,
+      roleKey: data.role_key,
+      roleName: data.role_name,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
-      role: data.role,
     };
   }
 
@@ -113,10 +144,34 @@ export class InvitationRepository extends BaseRepository<
       token_hash: input.tokenHash,
       invited_by: input.invitedBy,
       expires_at: input.expiresAt,
-      role: input.role,
+      role_id: input.roleId,
     };
 
-    return this.create(payload, options);
+    // Create the invitation first
+    const result = await this.executeQuery<{ id: string }>(
+      `INSERT INTO ${this.tableName} (email, tenant_id, token_hash, invited_by, expires_at, role_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [
+        payload.email,
+        payload.tenant_id,
+        payload.token_hash,
+        payload.invited_by,
+        payload.expires_at,
+        payload.role_id,
+      ],
+      options,
+    );
+
+    const invitationId = result.rows[0].id;
+
+    // Then fetch with role details
+    const invitation = await this.findById(invitationId, options);
+    if (!invitation) {
+      throw new Error('Failed to create invitation');
+    }
+
+    return invitation;
   }
 
   /**
@@ -131,8 +186,9 @@ export class InvitationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Invitation | null> {
     const result = await this.executeQuery<InvitationRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
-       WHERE token_hash = $1 AND expires_at > NOW() AND status = '${InvitationStatus.PENDING}'`,
+      `SELECT ${this.getSelectColumns()} 
+       FROM ${this.getFromClauseWithRoles()}
+       WHERE i.token_hash = $1 AND i.expires_at > NOW() AND i.status = '${InvitationStatus.PENDING}'`,
       [tokenHash],
       options,
     );
@@ -158,8 +214,9 @@ export class InvitationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Invitation | null> {
     const result = await this.executeQuery<InvitationRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
-       WHERE email = $1 AND tenant_id = $2 AND status = '${InvitationStatus.PENDING}'`,
+      `SELECT ${this.getSelectColumns()} 
+       FROM ${this.getFromClauseWithRoles()}
+       WHERE i.email = $1 AND i.tenant_id = $2 AND i.status = '${InvitationStatus.PENDING}'`,
       [email, tenantId],
       options,
     );
@@ -194,16 +251,16 @@ export class InvitationRepository extends BaseRepository<
       CursorPaginationHelper.validateOptions(cursorOptions);
     const { cursor, limit, direction } = paginationOpts;
 
-    const conditions: string[] = ['tenant_id = $1'];
+    const conditions: string[] = ['i.tenant_id = $1'];
     const params: unknown[] = [tenantId];
 
     if (filters.email) {
       params.push(filters.email);
-      conditions.push(`email ILIKE $${params.length}`);
+      conditions.push(`i.email ILIKE $${params.length}`);
     }
     if (filters.status) {
       params.push(filters.status);
-      conditions.push(`status = $${params.length}`);
+      conditions.push(`i.status = $${params.length}`);
     }
 
     // Add cursor condition using helper
@@ -227,7 +284,7 @@ export class InvitationRepository extends BaseRepository<
     params.push(...limitClause.params);
 
     const query =
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
+      `SELECT ${this.getSelectColumns()} FROM ${this.getFromClauseWithRoles()} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
     const result = await this.executeQuery<InvitationRow>(
       query,
       params,

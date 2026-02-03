@@ -81,9 +81,10 @@ Database management and development utilities:
 
 - **001_seed_authorities.sql** - Regulatory authorities data
 - **002_seed_categories.sql** - Template categories
-- **003_seed_test_tenants_users.sql** - Test tenants and users
-- **004_seed_templates.sql** - Sample templates
-- **005_seed_test_documents.sql** - Test documents
+- **003_seed_rbac.sql** - RBAC roles and permissions
+- **004_seed_test_tenants_users.sql** - Test tenants and users
+- **005_seed_templates.sql** - Sample templates
+- **006_seed_test_documents.sql** - Test documents
 
 ### Utility Scripts
 

@@ -186,7 +186,7 @@ COMMENT ON COLUMN public.audit_logs.user_agent IS 'User agent of the request';
 CREATE TABLE public.user_tenants (
     user_id     UUID NOT NULL,
     tenant_id   UUID NOT NULL,
-    role_id     UUID NOT NULL,
+    role_key    VARCHAR(50) NOT NULL,
     is_active   BOOLEAN NOT NULL DEFAULT true,
     joined_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -205,16 +205,14 @@ CREATE TABLE public.user_tenants (
         ON DELETE CASCADE
         ON UPDATE CASCADE,
 
-    CONSTRAINT fk_user_tenants_role
-        FOREIGN KEY (role_id)
-        REFERENCES public.roles(id)
-        ON DELETE RESTRICT
-        ON UPDATE CASCADE
+    CONSTRAINT check_role_key_format
+        CHECK (role_key ~ '^[a-z_]+$')
 );
 
 COMMENT ON TABLE public.user_tenants IS 'Many-to-many relationship: users can belong to multiple tenants with different roles';
-COMMENT ON COLUMN public.user_tenants.role_id IS 'User role within this tenant (references roles table)';
+COMMENT ON COLUMN public.user_tenants.role_key IS 'User role key within this tenant (e.g., tenant_admin, member, or custom role key)';
 COMMENT ON COLUMN public.user_tenants.is_active IS 'Whether this membership is active (soft delete for user removal)';
+COMMENT ON CONSTRAINT check_role_key_format ON public.user_tenants IS 'Ensures role_key uses lowercase letters and underscores only';
 
 -- =========================
 -- Auth Artifacts

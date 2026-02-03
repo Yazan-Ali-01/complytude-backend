@@ -8,7 +8,10 @@ import {
 import { Reflector } from '@nestjs/core';
 import { AuthenticatedTenantUser } from '../../modules/auth/strategies';
 import { RbacService } from '../../modules/rbac/rbac.service';
-import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
+import {
+  PERMISSIONS_KEY,
+  PermissionMetadata,
+} from '../decorators/permissions.decorator';
 import { Permission } from '../types';
 
 @Injectable()
@@ -27,14 +30,19 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // Get required permissions from decorator
-    const requiredPermissions = this.reflector.getAllAndOverride<Permission[]>(
-      PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    // Get required permissions metadata from decorator
+    const permissionMetadata =
+      this.reflector.getAllAndOverride<PermissionMetadata>(PERMISSIONS_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
 
     // If no permissions are required, allow access
-    if (!requiredPermissions || requiredPermissions.length === 0) {
+    if (
+      !permissionMetadata ||
+      !permissionMetadata.permissions ||
+      permissionMetadata.permissions.length === 0
+    ) {
       return true;
     }
 
@@ -53,15 +61,21 @@ export class PermissionsGuard implements CanActivate {
       throw new UnauthorizedException('Role not found in tenant token');
     }
 
-    // Check if user's role has at least one of the required permissions
-    const hasPermission = await this.checkPermissions(
-      tenant.role,
-      requiredPermissions,
-    );
+    // Check permissions based on requireAll flag
+    const hasPermission = permissionMetadata.requireAll
+      ? await this.checkAllPermissions(
+          tenant.role,
+          permissionMetadata.permissions,
+        )
+      : await this.checkAnyPermission(
+          tenant.role,
+          permissionMetadata.permissions,
+        );
 
     if (!hasPermission) {
+      const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
       throw new ForbiddenException(
-        `Access denied. Required permissions: ${requiredPermissions.join(', ')}`,
+        `Access denied. Required ${logicType} of: ${permissionMetadata.permissions.join(', ')}`,
       );
     }
 
@@ -69,12 +83,12 @@ export class PermissionsGuard implements CanActivate {
   }
 
   /**
-   * Check if a role has at least one of the required permissions
+   * Check if a role has at least ONE of the required permissions (OR logic)
    * @param roleKey - User's role key
    * @param requiredPermissions - Array of required permissions
    * @returns true if role has at least one permission, false otherwise
    */
-  private async checkPermissions(
+  private async checkAnyPermission(
     roleKey: string,
     requiredPermissions: Permission[],
   ): Promise<boolean> {
@@ -91,5 +105,30 @@ export class PermissionsGuard implements CanActivate {
     }
 
     return false; // User doesn't have any of the required permissions
+  }
+
+  /**
+   * Check if a role has ALL of the required permissions (AND logic)
+   * @param roleKey - User's role key
+   * @param requiredPermissions - Array of required permissions
+   * @returns true if role has all permissions, false otherwise
+   */
+  private async checkAllPermissions(
+    roleKey: string,
+    requiredPermissions: Permission[],
+  ): Promise<boolean> {
+    // Check each required permission
+    for (const permission of requiredPermissions) {
+      const hasPermission = await this.rbacService.hasPermission(
+        roleKey,
+        permission,
+      );
+
+      if (!hasPermission) {
+        return false; // User is missing at least one required permission
+      }
+    }
+
+    return true; // User has all required permissions
   }
 }

@@ -34,7 +34,14 @@ Seeds initial template categories:
 - Compliance Documents
 - Intellectual Property
 
-### 003_seed_test_tenants_users.sql
+### 003_seed_rbac.sql
+Seeds RBAC (Role-Based Access Control) system:
+- **Roles**: admin, member, viewer, guest
+- **Permissions**: Granular permissions for resources (templates, documents, rulesets, etc.)
+- **Role-Permission Mappings**: Associates permissions with roles
+- Provides foundation for tenant-scoped authorization
+
+### 004_seed_test_tenants_users.sql
 Seeds test tenants, users, and relationships for development/testing:
 - **3 Test Tenants**: Pro, Basic, and Enterprise plans
 - **7 Test Users**: Including admins, members, viewers, and a super admin
@@ -44,14 +51,14 @@ Seeds test tenants, users, and relationships for development/testing:
 
 ⚠️ **WARNING**: Contains test data - DO NOT use in production!
 
-### 004_seed_templates.sql
+### 005_seed_templates.sql
 Seeds sample templates with versions:
 - 5 complete templates across different authorities and categories
 - Template versions with field definitions
 - Demonstrates versioning (ADGM Partnership has v1.0.0 and v2.0.0)
 - Includes realistic field schemas in JSONB format
 
-### 005_seed_test_documents.sql
+### 006_seed_test_documents.sql
 Seeds tenant-specific documents for RLS testing:
 - **Tenant 1 (Pro)**: 3 documents
 - **Tenant 2 (Basic)**: 2 documents
@@ -87,9 +94,10 @@ The script will:
 ```bash
 psql -U <username> -d <database> -f scripts/seeds/001_seed_authorities.sql
 psql -U <username> -d <database> -f scripts/seeds/002_seed_categories.sql
-psql -U <username> -d <database> -f scripts/seeds/003_seed_test_tenants_users.sql
-psql -U <username> -d <database> -f scripts/seeds/004_seed_templates.sql
-psql -U <username> -d <database> -f scripts/seeds/005_seed_test_documents.sql
+psql -U <username> -d <database> -f scripts/seeds/003_seed_rbac.sql
+psql -U <username> -d <database> -f scripts/seeds/004_seed_test_tenants_users.sql
+psql -U <username> -d <database> -f scripts/seeds/005_seed_templates.sql
+psql -U <username> -d <database> -f scripts/seeds/006_seed_test_documents.sql
 ```
 
 ### Option 3: Using Node.js/TypeScript
@@ -100,9 +108,10 @@ import { pool } from './database';
 const seedFiles = [
   '001_seed_authorities.sql',
   '002_seed_categories.sql',
-  '003_seed_test_tenants_users.sql',
-  '004_seed_templates.sql',
-  '005_seed_test_documents.sql'
+  '003_seed_rbac.sql',
+  '004_seed_test_tenants_users.sql',
+  '005_seed_templates.sql',
+  '006_seed_test_documents.sql'
 ];
 
 for (const file of seedFiles) {
@@ -117,9 +126,10 @@ for (const file of seedFiles) {
 2. **Run seed scripts in order**:
    - 001_seed_authorities.sql (Global data)
    - 002_seed_categories.sql (Global data)
-   - 003_seed_test_tenants_users.sql (Test tenants/users)
-   - 004_seed_templates.sql (Sample templates)
-   - 005_seed_test_documents.sql (Tenant-specific documents)
+   - 003_seed_rbac.sql (RBAC system)
+   - 004_seed_test_tenants_users.sql (Test tenants/users)
+   - 005_seed_templates.sql (Sample templates)
+   - 006_seed_test_documents.sql (Tenant-specific documents)
 
 ## Idempotency
 
@@ -128,15 +138,16 @@ All seed scripts use `ON CONFLICT (code) DO NOTHING` to ensure they can be run m
 ## Environment-Specific Seeds
 
 You may want different seed data for different environments:
-- **Development**: Full set of test data (all 5 seed scripts)
-- **Staging**: Subset of production-like data (001-004, skip 005)
-- **Production**: Minimal essential reference data only (001-002 only)
+- **Development**: Full set of test data (all 6 seed scripts)
+- **Staging**: Subset of production-like data (001-005, skip 006)
+- **Production**: Essential reference data only (001-003)
 
 For production, **only run**:
 - 001_seed_authorities.sql
 - 002_seed_categories.sql
+- 003_seed_rbac.sql
 
-**Skip** test tenants, users, and documents (003-005) in production!
+**Skip** test tenants, users, and documents (004-006) in production!
 
 ## Testing RLS Policies
 

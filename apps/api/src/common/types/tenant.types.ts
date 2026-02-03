@@ -1,8 +1,14 @@
-export enum TenantRole {
+// System tenant roles (for autocomplete and type safety)
+export enum SystemTenantRole {
   TENANT_ADMIN = 'tenant_admin',
   LEGAL_COUNSEL = 'legal_counsel',
   MEMBER = 'member',
   VIEWER = 'viewer',
+}
+
+// Helper to check if a role is a system role
+export function isTenantSystemRole(role: string): role is SystemTenantRole {
+  return Object.values(SystemTenantRole).includes(role as SystemTenantRole);
 }
 
 export type Permission =

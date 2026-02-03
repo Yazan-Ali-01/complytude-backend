@@ -21,6 +21,10 @@ import {
   PaginationMetaDto,
   PaginationQueryDto,
 } from 'src/common/dto';
+import {
+  AuditAction,
+  AuditResource,
+} from 'src/common/decorators/audit.decorator';
 import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
@@ -53,6 +57,7 @@ import {
 
 @ApiTags('Templates')
 @Controller('templates')
+@AuditResource('templates')
 @SwaggerCookieAuth.tenantAccessToken()
 @ApiExtraModels(
   TemplateResponseDto,
@@ -207,6 +212,7 @@ export class TemplatesController {
 
   @Post(':key/versions/:version/rollback')
   @UseGuards(SystemAdminGuard)
+  @AuditAction('rollback') // Example: Custom action name
   @ApiOperation({
     summary: 'Rollback to previous template version',
     description:
