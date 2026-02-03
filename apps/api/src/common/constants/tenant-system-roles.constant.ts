@@ -8,6 +8,10 @@ import { SystemTenantRole } from '../types';
  * Custom tenant roles (MVP+) will still query the database.
  *
  * Performance: O(1) lookup, no database query needed
+ *
+ * TODO: When tenants request their available roles, we also return system roles
+ * from the database. The DB entries for system roles exist solely for that purpose
+ * (UI display and role listing). Permission checks always use this in-memory map.
  */
 export const TENANT_SYSTEM_ROLE_PERMISSIONS: Record<
   SystemTenantRole,
@@ -21,12 +25,20 @@ export const TENANT_SYSTEM_ROLE_PERMISSIONS: Record<
 
   /**
    * Legal Counsel - Full AI drafting, risk analysis, redlining, and template management
-   * Has wildcard access to documents, contracts, and templates
+   * Concrete permissions listed for clarity (no wildcards to avoid matcher overhead)
    */
   [SystemTenantRole.LEGAL_COUNSEL]: new Set([
-    'documents:*', // All document permissions
-    'contracts:*', // All contract permissions
-    'templates:*', // All template permissions
+    // Documents
+    'documents:create',
+    'documents:read',
+    'documents:delete',
+    // Contracts
+    'contracts:analyze',
+    'contracts:redline',
+    // Templates
+    'templates:manage',
+    'templates:use',
+    // Regulatory
     'regulatory:query',
   ]),
 
