@@ -160,8 +160,8 @@ Authorization is handled via decorators and guards at the route level:
 
 ```typescript
 @AuthOptions({ tenant: true })
-@UseGuards(RolesGuard)
-@Roles('admin', 'member')
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:read')
 @Get()
 async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
   return this.service.findAll(user.tenantId);
@@ -248,24 +248,30 @@ The database uses a **multi-tenant architecture** with Row-Level Security (RLS) 
 1. **Core Tables** (3)
    - `tenants` - Organizations
    - `users` - User accounts
-   - `user_tenants` - Many-to-many with roles
+   - `user_tenants` - Many-to-many with role assignments
 
-2. **Authentication Tables** (3)
+2. **RBAC Tables** (3)
+   - `roles` - System and custom role definitions
+   - `permissions` - Permission definitions
+   - `role_permissions` - Role-permission assignments
+
+3. **Authentication Tables** (3)
    - `refresh_tokens` - JWT refresh tokens
    - `email_verifications` - Email verification tokens
    - `password_resets` - Password reset tokens
 
-3. **Global Reference Tables** (8)
+4. **Global Reference Tables** (8)
    - `authorities`, `categories` - Reference data
    - `templates`, `template_versions` - Templates with versioning
    - `rulesets`, `ruleset_versions` - Legal rulesets with versioning
 
-4. **Tenant-Scoped Tables** (1)
+5. **Tenant-Scoped Tables** (1)
    - `documents` - Generated documents (RLS enabled)
 
-5. **Junction Tables** (2)
+6. **Junction Tables** (3)
    - `template_rulesets` - Templates ↔ Rulesets
    - `template_version_ruleset_versions` - Version associations
+   - `role_permissions` - Roles ↔ Permissions
 
 ### ER Diagram
 
@@ -413,8 +419,9 @@ All tokens are stored in HTTP-only cookies and refresh tokens are persisted in t
 1. **Route-Level:** `JwtAuthGuard` with `@AuthOptions()` decorator validates required tokens
 2. **Identity-Level:** Identity tokens for user verification and system admin access
 3. **Tenant-Level:** Tenant tokens provide tenant-scoped access
-4. **Role-Level:** `@Roles()` decorator + `RolesGuard` for RBAC
-5. **Data-Level:** RLS policies enforce tenant isolation at database level
+4. **Role-Level:** `RolesGuard` with `@Roles()` for simple role checks (e.g., `tenant_admin`)
+5. **Permission-Level:** `PermissionsGuard` with `@RequirePermissions()` decorators for fine-grained RBAC
+6. **Data-Level:** RLS policies enforce tenant isolation at database level
 
 ### Authentication Decorators
 
@@ -440,7 +447,154 @@ async getTenantInfo(
   @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
   @CurrentUserTenant() tenant: AuthenticatedTenantUser,
 ) { }
+
+// Permission-based access (requires tenant token)
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:create')
+@Post('documents')
+async createDocument(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
+
+// Simple role check (e.g., tenant admin only)
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
+@Roles('tenant_admin')
+@Post('admin-settings')
+async updateAdminSettings(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
 ```
+
+---
+
+## RBAC (Role-Based Access Control)
+
+Complytude implements a **permission-based RBAC system** for fine-grained access control within tenants.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Permission Check Flow                          │
+├─────────────────────────────────────────────────────────────────┤
+│  Request → JWT Guard → Extract role from token                   │
+│         → PermissionsGuard → RbacService.getRolePermissions()    │
+│         → System role: In-memory lookup (O(1))                   │
+│         → Custom role: Database query                            │
+│         → Permission matcher (wildcard support)                  │
+│         → Allow/Deny                                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### System Roles
+
+Four predefined system roles with in-memory permission sets for optimal performance:
+
+| Role              | Key             | Permissions   | Description                                  |
+| ----------------- | --------------- | ------------- | -------------------------------------------- |
+| **Tenant Admin**  | `tenant_admin`  | `*:*` (all)   | Full access to all tenant features           |
+| **Legal Counsel** | `legal_counsel` | 9 permissions | AI drafting, analysis, templates, regulatory |
+| **Member**        | `member`        | 4 permissions | Basic document creation and viewing          |
+| **Viewer**        | `viewer`        | 2 permissions | Read-only access                             |
+
+### Permission Format
+
+Permissions follow the pattern: `{resource}:{action}`
+
+**Available Resources:**
+
+- `documents` - Document management
+- `contracts` - Contract analysis
+- `templates` - Template management
+- `regulatory` - Regulatory queries
+- `billing` - Billing management
+- `team` - Team management
+- `settings` - Tenant settings
+
+**Available Actions:**
+
+- `create`, `read`, `delete` - Standard CRUD
+- `manage` - Full control over resource
+- `use` - Use without management rights
+- `analyze`, `redline` - Specific operations
+- `query` - Query/search operations
+
+**Wildcard Support:**
+
+- `documents:*` - All document permissions
+- `*:read` - Read permission on all resources
+- `*:*` - All permissions (tenant_admin only)
+
+### Permission Decorators
+
+```typescript
+import {
+  RequireAllPermissions,
+  RequireAnyPermission,
+} from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Roles } from 'src/modules/auth/decorators/roles.decorator';
+import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
+
+// Require ANY of the specified permissions (OR logic)
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:read', 'templates:use')
+@Get()
+async listResources() { }
+
+// Require ALL specified permissions (AND logic)
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAllPermissions('documents:read', 'documents:delete')
+@Delete(':id')
+async deleteDocument() { }
+
+// Wildcard permission
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:*')
+@Post()
+async createDocument() { }
+
+// Simple role check (tenant admin only)
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
+@Roles('tenant_admin')
+@Post('admin-only')
+async adminOnlyAction() { }
+```
+
+### When to Use Which Guard
+
+| Guard | Use Case | Example |
+| ----- | -------- | ------- |
+| `PermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
+| `RolesGuard` | Simple role verification | Check if user is `tenant_admin` |
+
+### Custom Roles (MVP+)
+
+Custom tenant roles are stored in the database and can be created by tenant admins:
+
+- Custom roles cannot use reserved system role keys
+- Permissions are queried from the database (single query per request)
+- Support for role-permission assignments via junction table
+
+### Database Tables
+
+| Table                   | Purpose                                  |
+| ----------------------- | ---------------------------------------- |
+| `roles`                 | Role definitions (system + custom)       |
+| `permissions`           | Permission definitions                   |
+| `role_permissions`      | Many-to-many role-permission assignments |
+| `user_tenants.role_key` | User's role within a tenant              |
+
+**For detailed database schema, see [DATABASE.md](DATABASE.md)**
+
+### Performance Optimizations
+
+1. **System roles:** In-memory permission lookup (no database queries)
+2. **Custom roles:** Single database query per request
+3. **Wildcard matching:** Efficient in-memory pattern matching
+4. **Permission caching:** Role permissions cached for request duration
 
 ---
 
@@ -611,4 +765,4 @@ S3_SECRET_KEY=<secret>
 
 ---
 
-**Last Updated:** February 2, 2026
+**Last Updated:** February 3, 2026

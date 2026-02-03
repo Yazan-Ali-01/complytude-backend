@@ -64,6 +64,15 @@ import {
   CurrentUserTenant,
   CurrentUserIdentity,
 } from 'src/modules/auth/decorators/current-user.decorator';
+
+// Permission decorators (RBAC)
+import {
+  RequireAllPermissions,
+  RequireAnyPermission,
+} from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+
+// Role decorators (simple role checks)
 import { Roles } from 'src/modules/auth/decorators/roles.decorator';
 import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 ```
@@ -135,11 +144,11 @@ async findOne(
 ```typescript
 @Post()
 @AuthOptions({ tenant: true })
-@UseGuards(RolesGuard)
-@Roles('admin', 'member')
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:create')
 @ApiOperation({
   summary: 'Create a new resource',
-  description: 'Create a new resource. Requires admin or member role.',
+  description: 'Create a new resource. Requires documents:create permission.',
 })
 @ApiCreateResponses(ResourceResponseDto, 'Resource')
 @ApiConflictError('Resource already exists')
@@ -157,11 +166,11 @@ async create(
 ```typescript
 @Patch(':id')
 @AuthOptions({ tenant: true })
-@UseGuards(RolesGuard)
-@Roles('admin', 'member')
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:create')
 @ApiOperation({
   summary: 'Update resource',
-  description: 'Update an existing resource. Requires admin or member role.',
+  description: 'Update an existing resource. Requires documents:create permission.',
 })
 @ApiParam({
   name: 'id',
@@ -184,11 +193,11 @@ async update(
 ```typescript
 @Delete(':id')
 @AuthOptions({ tenant: true })
-@UseGuards(RolesGuard)
-@Roles('admin')
+@UseGuards(PermissionsGuard)
+@RequireAllPermissions('documents:read', 'documents:delete')
 @ApiOperation({
   summary: 'Delete resource',
-  description: 'Permanently delete a resource. Requires admin role.',
+  description: 'Permanently delete a resource. Requires documents:read and documents:delete permissions.',
 })
 @ApiParam({
   name: 'id',
@@ -239,6 +248,27 @@ async publicEndpoint(): Promise<ResourceResponseDto> {
 async getSystemStats(
   @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
 ): Promise<SystemStatsDto> {
+  // Implementation
+  return;
+}
+```
+
+### 8. Tenant Admin Only (Simple Role Check)
+
+```typescript
+@Post('admin-settings')
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
+@Roles('tenant_admin')
+@ApiOperation({
+  summary: 'Update admin settings',
+  description: 'Update tenant admin settings. Requires tenant_admin role.',
+})
+@ApiUpdateResponses(SettingsResponseDto, 'Settings')
+async updateAdminSettings(
+  @Body() dto: UpdateSettingsDto,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
+): Promise<SettingsResponseDto> {
   // Implementation
   return;
 }

@@ -33,12 +33,13 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 
 | Metric               | Count |
 | -------------------- | ----- |
-| Total Tables         | 16    |
+| Total Tables         | 19    |
 | Core Tables          | 3     |
+| RBAC Tables          | 3     |
 | Auth Tables          | 4     |
 | Global Tables        | 6     |
 | Tenant-Scoped Tables | 1     |
-| Junction Tables      | 2     |
+| Junction Tables      | 3     |
 | Enums                | 5     |
 
 ---
@@ -208,16 +209,16 @@ User accounts that can access multiple tenants.
 
 ### user_tenants
 
-Many-to-many relationship: users belong to tenants with roles.
+Many-to-many relationship: users belong to tenants with role assignments.
 
-| Column       | Type        | Description                       |
-| ------------ | ----------- | --------------------------------- |
-| `user_id`    | UUID        | FK to users                       |
-| `tenant_id`  | UUID        | FK to tenants                     |
-| `role`       | ENUM        | Role: `admin`, `member`, `viewer` |
-| `is_active`  | BOOLEAN     | Active membership flag            |
-| `joined_at`  | TIMESTAMPTZ | When user joined tenant           |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp             |
+| Column       | Type        | Description                                                |
+| ------------ | ----------- | ---------------------------------------------------------- |
+| `user_id`    | UUID        | FK to users                                                |
+| `tenant_id`  | UUID        | FK to tenants                                              |
+| `role_key`   | VARCHAR(50) | Role key (e.g., `tenant_admin`, `legal_counsel`, `member`) |
+| `is_active`  | BOOLEAN     | Active membership flag                                     |
+| `joined_at`  | TIMESTAMPTZ | When user joined tenant                                    |
+| `updated_at` | TIMESTAMPTZ | Last update timestamp                                      |
 
 **Primary Key:** `(user_id, tenant_id)`
 
@@ -226,6 +227,112 @@ Many-to-many relationship: users belong to tenants with roles.
 - `idx_user_tenants_user_id`
 - `idx_user_tenants_tenant_id`
 - `idx_user_tenants_tenant_active` - Optimizes RLS queries
+
+**System Roles:**
+
+- `tenant_admin` - Full access (`*:*`)
+- `legal_counsel` - AI drafting, analysis, templates, regulatory
+- `member` - Basic document creation and viewing
+- `viewer` - Read-only access
+
+---
+
+## RBAC Tables
+
+Tables for Role-Based Access Control with permission-based authorization.
+
+### roles
+
+Tenant roles with support for custom roles (MVP+).
+
+| Column        | Type         | Description                                             |
+| ------------- | ------------ | ------------------------------------------------------- |
+| `id`          | UUID         | Primary key                                             |
+| `key`         | VARCHAR(50)  | Role key (e.g., `tenant_admin`, `legal_counsel`)        |
+| `name`        | VARCHAR(100) | Display name (e.g., `Tenant Admin`)                     |
+| `description` | TEXT         | Role description                                        |
+| `tenant_id`   | UUID         | NULL for system roles, UUID for custom tenant roles     |
+| `is_system`   | BOOLEAN      | TRUE for base roles (tenant_admin, legal_counsel, etc.) |
+| `is_active`   | BOOLEAN      | Active status                                           |
+| `created_at`  | TIMESTAMPTZ  | Creation timestamp                                      |
+| `updated_at`  | TIMESTAMPTZ  | Last update timestamp                                   |
+
+**Indexes:**
+
+- `idx_roles_key_tenant` - Unique constraint on (key, tenant_id)
+- `idx_roles_tenant_id` - Filter by tenant
+- `idx_roles_is_system` - Filter system roles
+
+**System Roles:**
+
+| Key             | Name          | Permissions   | Description                                  |
+| --------------- | ------------- | ------------- | -------------------------------------------- |
+| `tenant_admin`  | Tenant Admin  | `*:*` (all)   | Full access to all tenant features           |
+| `legal_counsel` | Legal Counsel | 9 permissions | AI drafting, analysis, templates, regulatory |
+| `member`        | Member        | 4 permissions | Basic document creation and viewing          |
+| `viewer`        | Viewer        | 2 permissions | Read-only access                             |
+
+**Constraints:**
+
+- Custom roles cannot use reserved system role keys
+- System roles have `tenant_id = NULL` and `is_system = TRUE`
+
+### permissions
+
+System permissions for RBAC.
+
+| Column        | Type         | Description                               |
+| ------------- | ------------ | ----------------------------------------- |
+| `id`          | UUID         | Primary key                               |
+| `key`         | VARCHAR(100) | Permission key (e.g., `documents:create`) |
+| `name`        | VARCHAR(100) | Display name (e.g., `Create Documents`)   |
+| `resource`    | VARCHAR(50)  | Resource type (e.g., `documents`)         |
+| `action`      | VARCHAR(50)  | Action type (e.g., `create`)              |
+| `description` | TEXT         | Permission description                    |
+| `created_at`  | TIMESTAMPTZ  | Creation timestamp                        |
+
+**Indexes:**
+
+- Unique constraint on `key`
+- `idx_permissions_resource` - Filter by resource
+- `idx_permissions_resource_action` - Composite index
+
+**Available Permissions:**
+
+| Resource     | Permissions                                              |
+| ------------ | -------------------------------------------------------- |
+| `documents`  | `documents:create`, `documents:read`, `documents:delete` |
+| `contracts`  | `contracts:analyze`, `contracts:redline`                 |
+| `templates`  | `templates:manage`, `templates:use`                      |
+| `regulatory` | `regulatory:query`                                       |
+| `billing`    | `billing:manage`                                         |
+| `team`       | `team:manage`                                            |
+| `settings`   | `settings:manage`, `settings:change_jurisdiction`        |
+
+**Wildcard Support:**
+
+- `documents:*` - All document permissions
+- `*:read` - Read permission on all resources
+- `*:*` - All permissions (tenant_admin only)
+
+### role_permissions
+
+Many-to-many relationship between roles and permissions.
+
+| Column          | Type        | Description        |
+| --------------- | ----------- | ------------------ |
+| `role_id`       | UUID        | FK to roles        |
+| `permission_id` | UUID        | FK to permissions  |
+| `created_at`    | TIMESTAMPTZ | Creation timestamp |
+
+**Primary Key:** `(role_id, permission_id)`
+
+**Indexes:**
+
+- `idx_role_permissions_role_id` - Filter by role
+- `idx_role_permissions_permission_id` - Filter by permission
+
+**Note:** System roles use in-memory permission sets for performance. This table is primarily used for custom tenant roles.
 
 ---
 
@@ -297,7 +404,7 @@ Tenant invitations for inviting users to join organizations.
 | `rejected_at` | TIMESTAMPTZ  | When invitation was rejected (NULL if not rejected)             |
 | `revoked_at`  | TIMESTAMPTZ  | When invitation was revoked by admin (NULL if active)           |
 | `revoked_by`  | UUID         | FK to users (who revoked the invitation)                        |
-| `role`        | ENUM         | Role to assign: `admin`, `member`, `viewer` (default: `member`) |
+| `role`        | VARCHAR(50)  | Role key to assign (e.g., `member`, `legal_counsel`)            |
 | `status`      | ENUM         | Status: `pending`, `accepted`, `rejected`, `revoked`, `expired` |
 | `created_at`  | TIMESTAMPTZ  | Creation timestamp                                              |
 | `updated_at`  | TIMESTAMPTZ  | Last update timestamp                                           |
@@ -681,4 +788,4 @@ psql -d complytude -c "
 
 ---
 
-**Last Updated:** January 20, 2026
+**Last Updated:** February 3, 2026

@@ -235,10 +235,10 @@ async getTenantInfo(
   @CurrentUserTenant() tenant: AuthenticatedTenantUser,
 ) { }
 
-// Role-based access (requires tenant token)
+// Permission-based access (requires tenant token)
 @AuthOptions({ tenant: true })
-@UseGuards(RolesGuard)
-@Roles('admin', 'member')
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:create')
 @Post('create')
 async create() { }
 ```
@@ -247,6 +247,111 @@ async create() { }
 
 - [docs/API_CONTRACTS.md](mdc:../docs/API_CONTRACTS.md) - Complete authentication strategy
 - [docs/ARCHITECTURE.md](mdc:../docs/ARCHITECTURE.md) - Authentication architecture
+
+# ========================================
+
+# RBAC (Role-Based Access Control)
+
+# ========================================
+
+rbac:
+strategy: "Permission-based RBAC with wildcard support"
+system_roles: "In-memory permission sets for performance"
+custom_roles: "Database-backed (MVP+)"
+
+# Permission Format
+
+Permissions follow the pattern: `{resource}:{action}`
+
+**Examples:**
+
+- `documents:create` - Create documents
+- `documents:read` - View documents
+- `templates:manage` - Full template control
+- `documents:*` - All document permissions
+- `*:read` - Read permission on all resources
+- `*:*` - All permissions (tenant_admin only)
+
+# System Roles
+
+| Role          | Key             | Permissions   | Description                      |
+| ------------- | --------------- | ------------- | -------------------------------- |
+| Tenant Admin  | `tenant_admin`  | `*:*`         | Full access                      |
+| Legal Counsel | `legal_counsel` | 9 permissions | AI drafting, analysis, templates |
+| Member        | `member`        | 4 permissions | Basic document creation          |
+| Viewer        | `viewer`        | 2 permissions | Read-only access                 |
+
+# Permission Decorators
+
+```typescript
+import {
+  RequireAllPermissions,
+  RequireAnyPermission,
+} from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+
+// Require ANY of the specified permissions (OR logic)
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:read', 'templates:use')
+@Get()
+async listResources() { }
+
+// Require ALL specified permissions (AND logic)
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAllPermissions('documents:read', 'documents:delete')
+@Delete(':id')
+async deleteDocument() { }
+
+// Wildcard permission
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:*')
+@Post()
+async createDocument() { }
+```
+
+# Permission Check Flow
+
+```
+Request → JWT Guard → Extract role from token
+        → PermissionsGuard → RbacService.getRolePermissions()
+        → System role: In-memory lookup (O(1))
+        → Custom role: Database query
+        → Permission matcher (wildcard support)
+        → Allow/Deny
+```
+
+# Key Files
+
+- `src/common/decorators/permissions.decorator.ts` - Permission decorators
+- `src/common/guards/permissions.guard.ts` - Permission guard
+- `src/common/constants/tenant-permissions.constant.ts` - Permission definitions
+- `src/common/constants/tenant-system-roles.constant.ts` - System role permissions
+- `src/modules/rbac/rbac.service.ts` - RBAC business logic
+- `src/repositories/rbac/` - RBAC repositories
+
+**When to use which:**
+
+- **PermissionsGuard + @RequirePermissions()** - For fine-grained permission checks (e.g., `documents:create`, `templates:manage`)
+- **RolesGuard + @Roles()** - For simple role checks (e.g., checking if user is `tenant_admin`)
+
+```typescript
+// Simple role check - use RolesGuard
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
+@Roles('tenant_admin')
+@Post('admin-only')
+async adminOnlyAction() { }
+
+// Permission-based check - use PermissionsGuard
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:create')
+@Post('documents')
+async createDocument() { }
+```
 
 # ========================================
 
@@ -412,10 +517,11 @@ export class CreateFeatureDto {
 
 metadata:
 project: "Complytude Backend"
-version: "2.1"
-updated: "2026-02-01"
+version: "2.2"
+updated: "2026-02-03"
 note: >
 Focused on core NestJS patterns and conventions.
 See project-structure.mdc for project layout.
 See technology-stack.mdc for dependencies and versions.
 See docs/API_CONTRACTS.md for detailed authentication flows.
+See docs/ARCHITECTURE.md for RBAC architecture.

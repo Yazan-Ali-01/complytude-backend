@@ -2,7 +2,7 @@
 
 > **Purpose:** Define standards and conventions for API contract definition across all modules
 
-**Last Updated:** January 21, 2026  
+**Last Updated:** February 3, 2026  
 **Status:** Foundation Complete
 
 ---
@@ -92,13 +92,14 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
 
 ### Endpoint Authentication
 
-| Decorator                                        | When to Use                                       | Status Codes                    |
-| ------------------------------------------------ | ------------------------------------------------- | ------------------------------- |
-| No decorator                                     | Public endpoints (no auth required)               | -                               |
-| `@AuthOptions({ identity: true })`               | Identity-based auth (tenant selection, sys admin) | 401 if unauthenticated          |
-| `@AuthOptions({ tenant: true })`                 | Tenant-scoped endpoints (full auth required)      | 401 if unauthenticated          |
-| `@AuthOptions({ identity: true, tenant: true })` | Requires both identity and tenant tokens          | 401 if unauthenticated          |
-| `@UseGuards(RolesGuard)` + `@Roles()`            | Role-based access (requires tenant token)         | 403 if insufficient permissions |
+| Decorator                                                | When to Use                                       | Status Codes                    |
+| -------------------------------------------------------- | ------------------------------------------------- | ------------------------------- |
+| No decorator                                             | Public endpoints (no auth required)               | -                               |
+| `@AuthOptions({ identity: true })`                       | Identity-based auth (tenant selection, sys admin) | 401 if unauthenticated          |
+| `@AuthOptions({ tenant: true })`                         | Tenant-scoped endpoints (full auth required)      | 401 if unauthenticated          |
+| `@AuthOptions({ identity: true, tenant: true })`         | Requires both identity and tenant tokens          | 401 if unauthenticated          |
+| `@UseGuards(PermissionsGuard)` + `@RequirePermissions()` | Permission-based access (requires tenant token)   | 403 if insufficient permissions |
+| `@UseGuards(RolesGuard)` + `@Roles()`                    | Simple role check (e.g., `tenant_admin`)          | 403 if wrong role               |
 
 ### Swagger Documentation
 
@@ -121,13 +122,21 @@ async getProfile(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) { .
 @Get('documents')
 async listDocuments(@CurrentUserTenant() user: AuthenticatedTenantUser) { ... }
 
-// Role-protected endpoint
+// Permission-protected endpoint
 @AuthOptions({ tenant: true })
-@UseGuards(RolesGuard)
-@Roles('admin', 'member')
-@ApiProtectedResponses('Requires admin or member role')
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:create')
+@ApiProtectedResponses('Requires documents:create permission')
 @Post('create')
 async create() { ... }
+
+// Role-protected endpoint (simple role check)
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
+@Roles('tenant_admin')
+@ApiProtectedResponses('Requires tenant_admin role')
+@Post('admin-settings')
+async updateAdminSettings() { ... }
 ```
 
 ---
@@ -455,17 +464,18 @@ async findOne(@Param() params: TemplateIdParamDto): Promise<TemplateResponseDto>
 
 ```typescript
 @Post()
-@UseGuards(RolesGuard)
-@Roles('admin', 'system')
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('templates:manage')
 @ApiOperation({
   summary: 'Create a new template',
-  description: 'Create a new document template. Requires admin or system role.',
+  description: 'Create a new document template. Requires templates:manage permission.',
 })
 @ApiCreateResponses(TemplateResponseDto, 'Template')
 @ApiConflictError('Template with this key already exists')
 async create(
   @Body() dto: CreateTemplateDto,
-  @CurrentUser() user: AuthenticatedUser,
+  @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<TemplateResponseDto> {
   // Implementation
 }
@@ -517,8 +527,8 @@ export class CategoriesController {
 
   @Post()
   @AuthOptions({ tenant: true })
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'system')
+  @UseGuards(PermissionsGuard)
+  @RequireAnyPermission('templates:manage')
   @ApiCreateResponses(CategoryResponseDto, 'Category')
   async create(
     @Body() dto: CreateCategoryDto,
@@ -566,7 +576,7 @@ Available decorators in `src/common/swagger/decorators.ts`:
 - [ ] Success response documented with `@ApiResponse()`
 - [ ] Error responses documented (400, 401, 403, 404, 409, 500)
 - [ ] Authentication specified with `@AuthOptions()` decorator
-- [ ] Role guards applied if needed (`@Roles()`, `@UseGuards(RolesGuard)`)
+- [ ] Permission guards applied if needed (`@RequirePermissions()` + `PermissionsGuard` or `@Roles()` + `RolesGuard`)
 - [ ] Query parameters documented (`@ApiQuery()` or query DTO)
 - [ ] Path parameters documented (`@ApiParam()` or param DTO)
 - [ ] Request body documented (`@ApiBody()` if needed)

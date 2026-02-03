@@ -153,6 +153,10 @@ Data access layer with repository pattern:
 - **categories/** - Template categories repository
 - **documents/** - Documents repository
 - **invitations/** - Tenant invitations repository
+- **rbac/** - RBAC repositories (roles, permissions)
+  - **roles.repository.ts** - Role CRUD and permission lookups
+  - **permissions.repository.ts** - Permission queries
+  - **interfaces/** - RBAC interfaces (Role, Permission, CreateRoleInput, etc.)
 - **rulesets/** - Compliance rulesets repository
 - **templates/** - Templates and versions repositories
 - **tenants/** - Tenant management repository
@@ -163,6 +167,8 @@ Data access layer with repository pattern:
 #### Constants (`constants/`)
 
 - **i18n-keys.ts** - Internationalization key constants
+- **tenant-permissions.constant.ts** - RBAC permission definitions
+- **tenant-system-roles.constant.ts** - System role permission sets
 
 #### Decorators (`decorators/`)
 
@@ -171,6 +177,7 @@ Data access layer with repository pattern:
 - **json-field.decorator.ts** - JSON field transformation
 - **file-validators.decorator.ts** - File validation decorators
 - **body-dto.decorator.ts** - Body DTO decorator
+- **permissions.decorator.ts** - RBAC permission decorators (RequireAllPermissions, RequireAnyPermission)
 
 #### DTOs (`dto/`)
 
@@ -186,6 +193,7 @@ Data access layer with repository pattern:
 - **tenant-ownership.guard.ts** - Tenant resource ownership
 - **features.guard.ts** - Feature flag enforcement
 - **document-limit.guard.ts** - Document limit enforcement
+- **permissions.guard.ts** - RBAC permission-based authorization
 
 #### Interceptors (`interceptors/`)
 
@@ -210,11 +218,15 @@ Data access layer with repository pattern:
 #### Types & Interfaces
 
 - **types/** - TypeScript type definitions
+  - **tenant.types.ts** - Tenant types including SystemTenantRole enum and TenantPermission type
+  - **platform.types.ts** - Platform-wide types (GlobalRole enum)
+  - **validation.types.ts** - Validation-related types
 - **interfaces/** - Interface definitions
 
 #### Utilities
 
 - **helper.ts** - Common utility functions
+- **utils/tenant-permission-matcher.util.ts** - RBAC permission wildcard matching utilities
 
 ### Feature Modules (`apps/api/src/modules/`)
 
@@ -226,7 +238,9 @@ JWT-based authentication with Passport:
 - **auth.service.ts** - Authentication business logic
 - **auth.module.ts** - Auth module configuration
 - **decorators/** - Auth decorators (current-user, roles, auth-options)
+  - **roles.decorator.ts** - Simple role check decorator (`@Roles('tenant_admin')`)
 - **guards/** - JWT guards (access/refresh tokens)
+  - **roles.guard.ts** - Simple role verification guard (use with `@Roles()` decorator)
 - **strategies/** - Passport JWT strategies (identity/tenant tokens)
 - **dto/** - Auth DTOs (login, signup, forgot-password, etc.)
 
@@ -274,6 +288,13 @@ Tenant invitation system:
 
 - **invitations.service.ts** - Invitation business logic
 - **invitations.module.ts** - Module configuration
+
+#### RBAC (`rbac/`)
+
+Role-Based Access Control:
+
+- **rbac.service.ts** - RBAC business logic (permission checking, role management)
+- **rbac.module.ts** - RBAC module configuration (exports RbacService, PermissionsGuard)
 
 #### Rulesets (`rulesets/`)
 
@@ -568,6 +589,7 @@ apps/api/test/
 ### Feature Dependencies
 
 - **AuthModule** - Required by most feature modules (JWT guards)
+- **RbacModule** - Required for permission-based authorization (PermissionsGuard)
 - **TenantModule** - Required for multi-tenancy features
 - **StorageModule** - Used by templates and documents
 - **TemplatesModule** - Used by documents module
