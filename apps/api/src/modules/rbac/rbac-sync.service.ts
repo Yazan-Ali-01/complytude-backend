@@ -62,28 +62,30 @@ export class RbacSyncService implements OnModuleInit {
       // Delete permissions that exist in DB but not in code
       const permissionKeys = permissionsToSync.map((p) => p.key);
 
-      // Bug fix: Handle empty permissionKeys to avoid SQL syntax error
-      if (permissionKeys.length > 0) {
-        const deleteResult = await client.query(
-          `
+      // Safeguard: Never allow empty permissions array (likely a bug)
+      if (permissionKeys.length === 0) {
+        this.logger.error(
+          'CRITICAL: ALL_TENANT_PERMISSIONS is empty! This is likely a bug. Aborting sync to prevent data loss.',
+        );
+        throw new Error(
+          'Cannot sync permissions: ALL_TENANT_PERMISSIONS array is empty. This would delete all permissions from the database.',
+        );
+      }
+
+      // Delete permissions that exist in DB but not in code
+      const deleteResult = await client.query(
+        `
           DELETE FROM public.permissions
           WHERE key NOT IN (${permissionKeys.map((_, i) => `$${i + 1}`).join(', ')})
           RETURNING key
         `,
-          permissionKeys,
-        );
+        permissionKeys,
+      );
 
-        if (deleteResult.rowCount && deleteResult.rowCount > 0) {
-          this.logger.warn(
-            `Deleted ${deleteResult.rowCount} stale permissions: ${deleteResult.rows.map((r) => r.key).join(', ')}`,
-          );
-        }
-      } else {
-        // If no permissions in code, delete all permissions from DB
+      if (deleteResult.rowCount && deleteResult.rowCount > 0) {
         this.logger.warn(
-          'No permissions defined in code - deleting all permissions from database',
+          `Deleted ${deleteResult.rowCount} stale permissions: ${deleteResult.rows.map((r) => r.key).join(', ')}`,
         );
-        await client.query('DELETE FROM public.permissions');
       }
 
       this.logger.log('Permissions synced successfully');

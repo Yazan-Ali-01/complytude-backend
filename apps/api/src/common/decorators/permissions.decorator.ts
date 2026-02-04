@@ -10,38 +10,43 @@ export interface PermissionMetadata {
 
 /**
  * Decorator to require ALL specified permissions for a route (AND logic)
- * Supports wildcard patterns: 'documents:*', '*:read', '*:*'
  *
  * Usage: @RequireAllPermissions('documents:create', 'documents:delete')
  *
- * The user must have ALL of the specified permissions to access the route.
+ * The user must have permissions that COVER ALL of the required permissions.
  * Use with PermissionsGuard to enforce permission checks.
  *
- * **IMPORTANT: For wildcards, prefer @RequireAnyPermission instead!**
- * - `@RequireAllPermissions('documents:*')` checks if user has the literal wildcard permission
- * - `@RequireAnyPermission('documents:*')` checks if user has any document permission (more intuitive)
+ * **Permission Matching Model:**
+ * The system checks if the user's permissions COVER the required permissions.
+ * Wildcards work in USER permissions (not in required permissions):
+ * - User with `documents:*` covers any `documents:X` requirement
+ * - User with `*:*` covers any permission requirement
+ *
+ * **Best Practice:** Use CONCRETE permissions in decorators. Users with wildcard
+ * permissions (e.g., LEGAL_COUNSEL with `documents:*`) will automatically satisfy
+ * concrete requirements (e.g., `documents:read`).
  *
  * @example
  * ```typescript
- * // ✅ RECOMMENDED: Multiple concrete permissions (AND logic)
+ * // ✅ RECOMMENDED: Require multiple concrete permissions (AND logic)
  * @Delete(':id')
  * @UseGuards(PermissionsGuard)
  * @RequireAllPermissions('documents:read', 'documents:delete')
  * async deleteDocument() {
- *   // User must have BOTH documents:read AND documents:delete
- *   // LEGAL_COUNSEL: ✅ (has documents:*)
- *   // MEMBER: ❌ (only has documents:read)
+ *   // User must have permissions covering BOTH requirements
+ *   // TENANT_ADMIN: ✅ (has *:*)
+ *   // LEGAL_COUNSEL: ✅ (has documents:* which covers both)
+ *   // MEMBER: ❌ (has documents:read but not documents:delete)
  * }
  *
- * // ⚠️ CONFUSING: Single wildcard with RequireAll
+ * // ✅ Single concrete permission
  * @Post()
  * @UseGuards(PermissionsGuard)
- * @RequireAllPermissions('documents:*')
+ * @RequireAllPermissions('documents:create')
  * async createDocument() {
- *   // Checks if user has the literal 'documents:*' permission
- *   // LEGAL_COUNSEL: ✅ (has documents:*)
- *   // MEMBER: ❌ (has documents:read, not the wildcard itself)
- *   // Consider using @RequireAnyPermission('documents:*') instead!
+ *   // LEGAL_COUNSEL: ✅ (documents:* covers documents:create)
+ *   // MEMBER: ✅ (has documents:create)
+ *   // VIEWER: ❌ (only has documents:read)
  * }
  * ```
  */
@@ -50,48 +55,54 @@ export const RequireAllPermissions = (...permissions: TenantPermission[]) =>
 
 /**
  * Decorator to require ANY of the specified permissions for a route (OR logic)
- * Supports wildcard patterns: 'documents:*', '*:read', '*:*'
  *
  * Usage: @RequireAnyPermission('documents:create', 'documents:read')
  *
- * The user must have at least ONE of the specified permissions to access the route.
+ * The user must have at least ONE permission that COVERS any of the required permissions.
  * Use with PermissionsGuard to enforce permission checks.
  *
- * **RECOMMENDED: Use this decorator for wildcards!**
- * - `@RequireAnyPermission('documents:*')` matches any document permission (intuitive)
- * - Works with both wildcard permissions and concrete permissions
+ * **Permission Matching Model:**
+ * The system checks if the user's permissions COVER at least one required permission.
+ * Wildcards work in USER permissions (not in required permissions):
+ * - User with `documents:*` covers any `documents:X` requirement
+ * - User with `*:*` covers any permission requirement
+ *
+ * **Best Practice:** Use CONCRETE permissions in decorators. Users with wildcard
+ * permissions will automatically satisfy concrete requirements.
  *
  * @example
  * ```typescript
- * // ✅ RECOMMENDED: Multiple options (OR logic)
+ * // ✅ RECOMMENDED: Multiple concrete options (OR logic)
  * @Get()
  * @UseGuards(PermissionsGuard)
- * @RequireAnyPermission('documents:read', 'documents:list')
+ * @RequireAnyPermission('documents:read', 'documents:create')
  * async listDocuments() {
- *   // User needs EITHER documents:read OR documents:list
- *   // LEGAL_COUNSEL: ✅ (has documents:*)
+ *   // User needs permission covering EITHER requirement
+ *   // TENANT_ADMIN: ✅ (has *:*)
+ *   // LEGAL_COUNSEL: ✅ (documents:* covers documents:read)
  *   // MEMBER: ✅ (has documents:read)
  *   // VIEWER: ✅ (has documents:read)
  * }
  *
- * // ✅ RECOMMENDED: Wildcard with RequireAny (most intuitive)
+ * // ✅ Single concrete permission (simplest case)
  * @Get(':id')
  * @UseGuards(PermissionsGuard)
- * @RequireAnyPermission('documents:*')
+ * @RequireAnyPermission('documents:read')
  * async getDocument() {
- *   // Matches users with ANY document permission
- *   // LEGAL_COUNSEL: ✅ (has documents:*)
- *   // MEMBER: ✅ (has documents:read, which matches documents:*)
- *   // VIEWER: ✅ (has documents:read, which matches documents:*)
+ *   // LEGAL_COUNSEL: ✅ (documents:* covers documents:read)
+ *   // MEMBER: ✅ (has documents:read)
+ *   // VIEWER: ✅ (has documents:read)
  * }
  *
- * // ✅ Cross-resource wildcard
- * @Get('read-anything')
+ * // ✅ Requiring wildcard permission itself
+ * @Post('batch-operations')
  * @UseGuards(PermissionsGuard)
- * @RequireAnyPermission('*:read')
- * async readAnything() {
- *   // Matches users with any read permission on any resource
- *   // Anyone with documents:read, templates:read, etc. can access
+ * @RequireAnyPermission('documents:*')
+ * async batchOperations() {
+ *   // Only users with the literal wildcard permission
+ *   // TENANT_ADMIN: ✅ (has *:*)
+ *   // LEGAL_COUNSEL: ✅ (has documents:*)
+ *   // MEMBER: ❌ (has documents:read, not documents:*)
  * }
  * ```
  */

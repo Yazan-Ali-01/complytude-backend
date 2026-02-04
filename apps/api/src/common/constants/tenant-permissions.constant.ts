@@ -7,15 +7,29 @@
  * 1. ALL_TENANT_PERMISSIONS array is the single source of truth
  * 2. TenantPermission type is derived from the array
  * 3. TENANT_PERMISSIONS object provides nice autocomplete grouping
+ *
+ * Permission Taxonomy:
+ * - CRUD actions: create, read, update, delete (for data entities)
+ * - Specialized actions: manage (full control), use (consume/apply), query (read-only search)
+ * - Domain actions: analyze, redline (AI-powered operations)
+ *
+ * Note: Documents are immutable after generation (no update permission).
+ * To modify, users regenerate from template with new parameters.
  */
 
 /**
  * All tenant permissions including wildcards
  * This is the single source of truth - used by sync service and type derivation
+ *
+ * IMPORTANT: This array must NEVER be empty. The sync service has a safeguard
+ * that will throw an error if this array is empty to prevent accidental
+ * deletion of all permissions from the database.
  */
 export const ALL_TENANT_PERMISSIONS = [
   // ─────────────────────────────────────────────────────────────────
   // Documents - Document repository operations
+  // Note: Documents are immutable - no 'update' permission by design.
+  // Users regenerate documents from templates with new parameters.
   // ─────────────────────────────────────────────────────────────────
   'documents:create',
   'documents:read',
