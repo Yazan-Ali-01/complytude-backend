@@ -32,10 +32,11 @@ scripts/
 ├── seeds/                   # Database seed data
 │   ├── 001_seed_authorities.sql
 │   ├── 002_seed_categories.sql
-│   ├── 003_seed_test_tenants_users.sql
-│   ├── 004_seed_templates.sql
-│   ├── 005_seed_test_documents.sql
+│   ├── 004_seed_test_tenants_users.sql
+│   ├── 005_seed_templates.sql
+│   ├── 006_seed_test_documents.sql
 │   └── README.md
+│   # Note: RBAC is auto-synced by RbacSyncService on app startup
 │
 ├── utilities/               # Management and testing scripts
 │   └── manage-custom-features.sql
@@ -124,6 +125,8 @@ Populates database with initial data:
 - 5 sample templates (dev/staging)
 - 7 sample documents (dev/staging)
 
+**Note:** RBAC roles and permissions are auto-synced by `RbacSyncService` on app startup.
+
 ---
 
 ## 📋 Migrations
@@ -187,9 +190,11 @@ COMMIT;
 | --- | ----------------------------- | ---------------------------------- | ----------- |
 | 001 | `seed_authorities.sql`        | UAE authorities (DMCC, DIFC, etc.) | All         |
 | 002 | `seed_categories.sql`         | Template categories                | All         |
-| 003 | `seed_test_tenants_users.sql` | Test tenants and users             | Dev/Staging |
-| 004 | `seed_templates.sql`          | Sample templates                   | Dev/Staging |
-| 005 | `seed_test_documents.sql`     | Tenant-specific documents          | Dev/Staging |
+| 004 | `seed_test_tenants_users.sql` | Test tenants and users             | Dev/Staging |
+| 005 | `seed_templates.sql`          | Sample templates                   | Dev/Staging |
+| 006 | `seed_test_documents.sql`     | Tenant-specific documents          | Dev/Staging |
+
+**Note:** RBAC roles and permissions are automatically synced from code constants by `RbacSyncService` on every application startup. No SQL seed script is needed.
 
 ### Test Credentials
 

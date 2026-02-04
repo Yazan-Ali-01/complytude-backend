@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,6 +13,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  AuditAction,
+  AuditResource,
+} from 'src/common/decorators/audit.decorator';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
   ApiAuthenticatedResponses,
@@ -21,7 +26,7 @@ import {
   ApiValidationError,
   SwaggerCookieAuth,
 } from 'src/common/swagger';
-import { TenantRole } from 'src/common/types';
+import { SystemTenantRole } from 'src/common/types';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -42,9 +47,10 @@ import {
  */
 @ApiTags('Tenant - Invitations')
 @Controller('tenants/admin/invitations')
+@AuditResource('invitations')
 @AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
-@Roles(TenantRole.ADMIN)
+@Roles(SystemTenantRole.TENANT_ADMIN)
 @SwaggerCookieAuth.tenantAccessToken()
 export class TenantInvitationsController {
   private readonly logger = new Logger(TenantInvitationsController.name);
@@ -77,11 +83,22 @@ export class TenantInvitationsController {
       `Admin ${user.userId} creating invitation for ${createInvitationDto.email} to tenant ${user.tenantId}`,
     );
 
+    // Lookup role ID from role key
+    const roleKey = createInvitationDto.roleKey ?? SystemTenantRole.MEMBER;
+    const roleResult = await this.invitationsService.getRoleIdByKey(
+      roleKey,
+      user.tenantId,
+    );
+
+    if (!roleResult) {
+      throw new BadRequestException(`Invalid role: ${roleKey}`);
+    }
+
     const result = await this.invitationsService.createInvitation({
       tenantId: user.tenantId,
       invitedBy: user.userId,
       email: createInvitationDto.email,
-      role: createInvitationDto.role ?? TenantRole.MEMBER,
+      roleId: roleResult.id,
     });
 
     // TODO: Send email with token
@@ -137,6 +154,7 @@ export class TenantInvitationsController {
    */
   @Post(':invitationId/resend')
   @HttpCode(HttpStatus.OK)
+  @AuditAction('resend')
   @ApiOperation({
     summary: 'Resend invitation',
     description:
@@ -184,6 +202,7 @@ export class TenantInvitationsController {
    */
   @Delete(':invitationId')
   @HttpCode(HttpStatus.OK)
+  @AuditAction('revoke')
   @ApiOperation({
     summary: 'Revoke invitation',
     description:

@@ -1,4 +1,4 @@
-import { GlobalRole, TenantRole } from 'src/common/types';
+import { GlobalRole } from 'src/common/types';
 
 /**
  * Payload for identity access token (used after login, before tenant selection)
@@ -40,6 +40,13 @@ export interface AuthenticatedIdentityRefreshUser {
 /**
  * Payload for tenant access token (used after tenant selection)
  * Used for: tenant-scoped API operations
+ *
+ * TODO: Implement token revocation for role changes. Currently, if a user's role
+ * is changed (e.g., demoted from legal_counsel to member), the old token retains
+ * the elevated role until it expires (30-minute window). Consider:
+ * - Adding a role version/hash to the token and verifying on critical operations
+ * - Implementing a token blacklist for role changes
+ * - Using short-lived tokens with more frequent refresh
  */
 export const TENANT_PAYLOAD_TYPE = 'tenant-access';
 
@@ -47,7 +54,7 @@ export interface TenantPayload {
   sub: string; // userId
   email: string;
   tenantId: string;
-  role: TenantRole;
+  role: string;
   type: typeof TENANT_PAYLOAD_TYPE;
 }
 
@@ -55,7 +62,7 @@ export interface AuthenticatedTenantUser {
   userId: string;
   email: string;
   tenantId: string;
-  role: TenantRole;
+  role: string;
 }
 
 /**

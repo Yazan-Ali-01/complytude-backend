@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { TenantRole } from 'src/common/types';
+import { SystemTenantRole } from 'src/common/types';
 
 /**
  * Tenant information in tenant switch response
@@ -35,11 +35,16 @@ export class TenantSwitchUserDto {
   email: string;
 
   @ApiProperty({
-    description: 'User role within the selected tenant',
-    enum: Object.values(TenantRole),
-    example: TenantRole.MEMBER,
+    description: 'User role key within the selected tenant',
+    example: SystemTenantRole.MEMBER,
   })
-  role: TenantRole;
+  role: string;
+
+  @ApiProperty({
+    description: 'User role display name',
+    example: 'Member',
+  })
+  roleName: string;
 }
 
 /**

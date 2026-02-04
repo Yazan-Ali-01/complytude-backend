@@ -1,13 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsIn,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { TenantRole } from 'src/common/types';
+import { SystemTenantRole } from 'src/common/types';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -48,11 +48,14 @@ export class CreateUserDto {
   lastName?: string;
 
   @ApiProperty({
-    description: 'User role in the current tenant',
-    enum: Object.values(TenantRole),
-    example: TenantRole.MEMBER,
+    description:
+      'User role key in the current tenant (system role or custom role)',
+    enum: Object.values(SystemTenantRole),
+    example: SystemTenantRole.MEMBER,
   })
   @IsString()
-  @IsIn(Object.values(TenantRole))
-  role: TenantRole;
+  @Matches(/^[a-z_]+$/, {
+    message: 'Role key must contain only lowercase letters and underscores',
+  })
+  role: string;
 }

@@ -1,7 +1,8 @@
+import { BadRequestException } from '@nestjs/common';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsEnum, IsOptional } from 'class-validator';
-import { TenantRole } from 'src/common/types';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { SystemTenantRole } from 'src/common/types';
 
 /**
  * Request body for creating a new invitation
@@ -17,11 +18,16 @@ export class CreateInvitationDto {
 
   @ApiProperty({
     description: 'Role the invited user will have in the tenant',
-    enum: Object.values(TenantRole).filter((role) => role !== TenantRole.ADMIN),
-    example: TenantRole.MEMBER,
-    default: TenantRole.MEMBER,
+    example: SystemTenantRole.MEMBER,
+    default: SystemTenantRole.MEMBER,
   })
-  @IsEnum(Object.values(TenantRole).filter((role) => role !== TenantRole.ADMIN))
+  @Transform(({ value }) => {
+    if (value?.toLowerCase() !== SystemTenantRole.TENANT_ADMIN) {
+      return value?.toLowerCase();
+    }
+    throw new BadRequestException(`${value} role cannot be assigned`);
+  })
   @IsOptional()
-  role?: TenantRole;
+  @IsString()
+  roleKey?: string;
 }

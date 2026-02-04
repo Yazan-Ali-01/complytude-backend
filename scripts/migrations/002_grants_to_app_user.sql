@@ -22,6 +22,12 @@ GRANT SELECT, INSERT, UPDATE ON public.tenants TO app_user;
 GRANT SELECT, INSERT, UPDATE ON public.users TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_tenants TO app_user;
 
+-- RBAC tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.roles TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.permissions TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.role_permissions TO app_user;
+GRANT SELECT, INSERT ON public.audit_logs TO app_user;
+
 -- Auth artifact tables
 -- Note: DELETE is granted for cleanup_expired_tokens() function
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.refresh_tokens TO app_user;
@@ -68,6 +74,10 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON public.password_resets FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.email_verifications FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.refresh_tokens FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.user_tenants FROM app_user;
+REVOKE SELECT, INSERT ON public.audit_logs FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.role_permissions FROM app_user;
+REVOKE SELECT, INSERT, UPDATE ON public.permissions FROM app_user;
+REVOKE SELECT, INSERT, UPDATE ON public.roles FROM app_user;
 REVOKE SELECT, INSERT, UPDATE ON public.users FROM app_user;
 REVOKE SELECT, INSERT, UPDATE ON public.tenants FROM app_user;
 

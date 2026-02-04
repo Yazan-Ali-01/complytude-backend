@@ -160,8 +160,8 @@ Authorization is handled via decorators and guards at the route level:
 
 ```typescript
 @AuthOptions({ tenant: true })
-@UseGuards(RolesGuard)
-@Roles('admin', 'member')
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:read')
 @Get()
 async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
   return this.service.findAll(user.tenantId);
@@ -248,24 +248,30 @@ The database uses a **multi-tenant architecture** with Row-Level Security (RLS) 
 1. **Core Tables** (3)
    - `tenants` - Organizations
    - `users` - User accounts
-   - `user_tenants` - Many-to-many with roles
+   - `user_tenants` - Many-to-many with role assignments
 
-2. **Authentication Tables** (3)
+2. **RBAC Tables** (3)
+   - `roles` - System and custom role definitions
+   - `permissions` - Permission definitions
+   - `role_permissions` - Role-permission assignments
+
+3. **Authentication Tables** (3)
    - `refresh_tokens` - JWT refresh tokens
    - `email_verifications` - Email verification tokens
    - `password_resets` - Password reset tokens
 
-3. **Global Reference Tables** (8)
+4. **Global Reference Tables** (8)
    - `authorities`, `categories` - Reference data
    - `templates`, `template_versions` - Templates with versioning
    - `rulesets`, `ruleset_versions` - Legal rulesets with versioning
 
-4. **Tenant-Scoped Tables** (1)
+5. **Tenant-Scoped Tables** (1)
    - `documents` - Generated documents (RLS enabled)
 
-5. **Junction Tables** (2)
+6. **Junction Tables** (3)
    - `template_rulesets` - Templates ↔ Rulesets
    - `template_version_ruleset_versions` - Version associations
+   - `role_permissions` - Roles ↔ Permissions
 
 ### ER Diagram
 
@@ -413,8 +419,9 @@ All tokens are stored in HTTP-only cookies and refresh tokens are persisted in t
 1. **Route-Level:** `JwtAuthGuard` with `@AuthOptions()` decorator validates required tokens
 2. **Identity-Level:** Identity tokens for user verification and system admin access
 3. **Tenant-Level:** Tenant tokens provide tenant-scoped access
-4. **Role-Level:** `@Roles()` decorator + `RolesGuard` for RBAC
-5. **Data-Level:** RLS policies enforce tenant isolation at database level
+4. **Role-Level:** `RolesGuard` with `@Roles()` for simple role checks (e.g., `tenant_admin`)
+5. **Permission-Level:** `PermissionsGuard` with `@RequirePermissions()` decorators for fine-grained RBAC
+6. **Data-Level:** RLS policies enforce tenant isolation at database level
 
 ### Authentication Decorators
 
@@ -440,7 +447,258 @@ async getTenantInfo(
   @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
   @CurrentUserTenant() tenant: AuthenticatedTenantUser,
 ) { }
+
+// Permission-based access (requires tenant token)
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:create')
+@Post('documents')
+async createDocument(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
+
+// Simple role check (e.g., tenant admin only)
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
+@Roles('tenant_admin')
+@Post('admin-settings')
+async updateAdminSettings(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
 ```
+
+---
+
+## RBAC (Role-Based Access Control)
+
+Complytude implements a **permission-based RBAC system** for fine-grained access control within tenants.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Permission Check Flow                          │
+├─────────────────────────────────────────────────────────────────┤
+│  Request → JWT Guard → Extract role from token                   │
+│         → PermissionsGuard → RbacService.hasPermission()         │
+│         → System role: In-memory lookup (O(1))                   │
+│         → Custom role: Database query                            │
+│         → Permission matcher (wildcard support)                  │
+│         → Allow/Deny                                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### RBAC Sync Service
+
+The `RbacSyncService` automatically synchronizes permissions and system roles from code to database on application startup:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    RBAC Sync Flow (OnModuleInit)                  │
+├─────────────────────────────────────────────────────────────────┤
+│  App Startup → RbacSyncService.onModuleInit()                    │
+│             → syncPermissions() - Sync ALL_TENANT_PERMISSIONS    │
+│             → syncSystemRoles() - Sync system role definitions   │
+│             → Sync role-permission mappings                      │
+│             → Database reflects code constants                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Sync Strategy:**
+
+- **Permissions:** Add new, update existing, delete removed (from `ALL_TENANT_PERMISSIONS` array)
+- **System Roles:** Add new, update existing, sync role-permission mappings
+- **Custom Roles:** Never touched (tenant_id IS NOT NULL)
+- **Idempotent:** Safe to run on every startup
+
+**Key Files:**
+
+- `src/common/constants/tenant-permissions.constant.ts` - Single source of truth for permissions
+- `src/common/constants/tenant-system-roles.constant.ts` - In-memory system role permission sets
+- `src/modules/rbac/rbac-sync.service.ts` - Database synchronization logic
+
+### System Roles
+
+Four predefined system roles with in-memory permission sets for optimal performance:
+
+| Role              | Key             | Permissions                                      | Description                                  |
+| ----------------- | --------------- | ------------------------------------------------ | -------------------------------------------- |
+| **Tenant Admin**  | `tenant_admin`  | `*:*` (wildcard)                                 | Full access to all tenant features           |
+| **Legal Counsel** | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query` | AI drafting, analysis, templates, regulatory |
+| **Member**        | `member`        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation and viewing          |
+| **Viewer**        | `viewer`        | `documents:read`, `regulatory:query`             | Read-only access                             |
+
+**Note:** System roles use wildcards (e.g., `documents:*`) for cleaner permission sets. The permission matcher handles wildcard expansion at runtime.
+
+### Permission Format
+
+Permissions follow the pattern: `{resource}:{action}`
+
+**Available Resources:**
+
+- `documents` - Document management (create, read, delete)
+- `contracts` - Contract analysis (analyze, redline)
+- `templates` - Template management (manage, use)
+- `regulatory` - Regulatory queries (query)
+- `billing` - Billing management (manage)
+- `team` - Team management (manage)
+- `settings` - Tenant settings (manage, change_jurisdiction)
+
+**Available Actions:**
+
+- `create`, `read`, `delete` - Standard CRUD
+- `manage` - Full control over resource
+- `use` - Use without management rights
+- `analyze`, `redline` - Specific operations
+- `query` - Query/search operations
+- `change_jurisdiction` - Critical setting change
+
+**Wildcard Support:**
+
+- `documents:*` - All document permissions
+- `*:read` - Read permission on all resources
+- `*:manage` - Manage permission on all resources
+- `*:*` - All permissions (tenant_admin only)
+
+### Permission Decorators
+
+```typescript
+import {
+  RequireAllPermissions,
+  RequireAnyPermission,
+} from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Roles } from 'src/modules/auth/decorators/roles.decorator';
+import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
+
+// Require ANY of the specified permissions (OR logic)
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:read', 'templates:use')
+@Get()
+async listResources() { }
+
+// Require ALL specified permissions (AND logic)
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAllPermissions('documents:read', 'documents:delete')
+@Delete(':id')
+async deleteDocument() { }
+
+// Wildcard permission
+@AuthOptions({ tenant: true })
+@UseGuards(PermissionsGuard)
+@RequireAnyPermission('documents:*')
+@Post()
+async createDocument() { }
+
+// Simple role check (tenant admin only)
+@AuthOptions({ tenant: true })
+@UseGuards(RolesGuard)
+@Roles('tenant_admin')
+@Post('admin-only')
+async adminOnlyAction() { }
+```
+
+### When to Use Which Guard
+
+| Guard | Use Case | Example |
+| ----- | -------- | ------- |
+| `PermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
+| `RolesGuard` | Simple role verification | Check if user is `tenant_admin` |
+
+### Global Module Architecture
+
+**RbacModule is a Global Module** - marked with `@Global()` decorator for application-wide availability.
+
+**Design Decision:**
+
+RBAC is a cross-cutting concern similar to authentication. Making `RbacModule` global eliminates the need to import it in every feature module that uses `PermissionsGuard`.
+
+**Implementation:**
+
+```typescript
+// src/modules/rbac/rbac.module.ts
+@Global()  // ← Makes module available everywhere
+@Module({
+  imports: [DatabaseModule],
+  providers: [RbacService, PermissionsGuard, ...],
+  exports: [RbacService, PermissionsGuard, ...],
+})
+export class RbacModule {}
+```
+
+**Usage in Feature Modules:**
+
+```typescript
+// ✅ CORRECT: No RbacModule import needed
+@Module({
+  controllers: [MyController], // Uses PermissionsGuard
+})
+export class MyModule {}
+
+// ❌ WRONG: Don't import RbacModule in feature modules
+@Module({
+  imports: [RbacModule], // ← Not needed! RbacModule is global
+  controllers: [MyController],
+})
+export class MyModule {}
+```
+
+**What's Available Globally:**
+
+- `RbacService` - Permission checking logic
+- `PermissionsGuard` - Permission-based authorization guard
+- `RolesRepository` - Role data access
+- `PermissionsRepository` - Permission data access
+
+**Benefits:**
+
+1. **Reduced Boilerplate:** No need to import `RbacModule` in 20+ feature modules
+2. **Cleaner Dependencies:** Feature modules don't need to know about RBAC implementation
+3. **Consistent with NestJS Patterns:** Similar to how `ConfigModule` and `AuthModule` work
+4. **Single Import:** `RbacModule` imported once in `AppModule`
+
+### Permission Matching Logic
+
+The `matchTenantPermission()` function handles wildcard matching:
+
+```typescript
+// User permission expands to cover required permission
+matchTenantPermission('*:*', 'documents:read')      // true - covers everything
+matchTenantPermission('documents:*', 'documents:read') // true - covers all document actions
+matchTenantPermission('*:read', 'documents:read')   // true - covers read on all resources
+matchTenantPermission('documents:read', 'documents:read') // true - exact match
+
+// No match
+matchTenantPermission('documents:read', 'documents:create') // false - different actions
+matchTenantPermission('documents:create', 'documents:*')    // false - user doesn't have wildcard
+```
+
+### Custom Roles (MVP+)
+
+Custom tenant roles are stored in the database and can be created by tenant admins:
+
+- Custom roles cannot use reserved system role keys (`tenant_admin`, `legal_counsel`, `member`, `viewer`)
+- Permissions are queried from the database (single query per request)
+- Support for role-permission assignments via junction table
+- Custom roles have `tenant_id` set and `is_system = false`
+
+### Database Tables
+
+| Table                   | Purpose                                  |
+| ----------------------- | ---------------------------------------- |
+| `roles`                 | Role definitions (system + custom)       |
+| `permissions`           | Permission definitions (synced from code)|
+| `role_permissions`      | Many-to-many role-permission assignments |
+| `user_tenants.role_key` | User's role within a tenant              |
+
+**Note:** The `permissions` table is automatically populated by `RbacSyncService` from `ALL_TENANT_PERMISSIONS` constant on app startup.
+
+**For detailed database schema, see [DATABASE.md](DATABASE.md)**
+
+### Performance Optimizations
+
+1. **System roles:** In-memory permission lookup via `TENANT_SYSTEM_ROLE_PERMISSIONS` map (O(1), no database queries)
+2. **Custom roles:** Single database query per request via `RolesRepository.getPermissionsForRole()`
+3. **Wildcard matching:** Efficient in-memory pattern matching via `matchTenantPermission()`
+4. **Permission sync:** Database always reflects code constants (no manual SQL needed)
 
 ---
 
@@ -611,4 +869,4 @@ S3_SECRET_KEY=<secret>
 
 ---
 
-**Last Updated:** February 2, 2026
+**Last Updated:** February 3, 2026

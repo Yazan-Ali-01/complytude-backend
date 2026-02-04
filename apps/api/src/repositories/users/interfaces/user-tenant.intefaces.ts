@@ -3,7 +3,7 @@ import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 export interface LinkUserTenantInput {
   userId: string;
   tenantId: string;
-  role: string;
+  roleKey: string;
   isActive?: boolean;
 }
 

@@ -21,7 +21,7 @@ import {
   TENANT_ACCESS_TOKEN_COOKIE_NAME,
   TENANT_REFRESH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
-import { GlobalRole, TenantRole } from 'src/common/types';
+import { GlobalRole } from 'src/common/types';
 import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
 import { TokenType } from 'src/repositories/users/interfaces/refresh-token.interfaces';
@@ -325,7 +325,8 @@ export class AuthService {
     const tenantsWithDetails = userTenants.map((ut) => ({
       tenantId: ut.tenant_id,
       tenantName: `Temp Tenant name ${ut.tenant_id.substring(0, 8)}`,
-      role: ut.role,
+      role: ut.role_key,
+      roleName: ut.role_name,
       isActive: ut.is_active,
       joinedAt: ut.joined_at.toISOString(),
     }));
@@ -445,7 +446,7 @@ export class AuthService {
     userId: string,
     email: string,
     tenantId: string,
-    role: TenantRole,
+    role: string,
   ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
     const accessPayload: TenantPayload = {
       sub: userId,
@@ -644,19 +645,14 @@ export class AuthService {
     // Get user's tenant membership to verify they still have access
     const userTenant = await this.databaseService.transaction(
       async (client) => {
-        return this.userTenantRepository.findOne({
+        return this.userTenantRepository.getUserInTenant(userId, tenantId, {
           client,
-          filters: {
-            user_id: userId,
-            tenant_id: tenantId,
-            is_active: true,
-          },
           isAuthflow: true,
         });
       },
     );
 
-    if (!userTenant) {
+    if (!userTenant || !userTenant.is_active) {
       throw new UnauthorizedException(
         this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
       );
@@ -667,7 +663,7 @@ export class AuthService {
       userId,
       email,
       tenantId,
-      userTenant.role,
+      userTenant.role_key,
     );
 
     this.logger.log(
@@ -854,17 +850,13 @@ export class AuthService {
   > {
     return this.databaseService.transaction(async (client) => {
       // Validate that user belongs to the specified tenant
-      const userTenant = await this.userTenantRepository.findOne({
-        client,
-        filters: {
-          user_id: userId,
-          tenant_id: tenantId,
-          is_active: true,
-        },
-        isAuthflow: true,
-      });
+      const userTenant = await this.userTenantRepository.getUserInTenant(
+        userId,
+        tenantId,
+        { client, isAuthflow: true },
+      );
 
-      if (!userTenant) {
+      if (!userTenant || !userTenant.is_active) {
         throw new UnauthorizedException(
           this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
         );
@@ -876,7 +868,7 @@ export class AuthService {
           userId,
           email,
           tenantId,
-          userTenant.role,
+          userTenant.role_key,
         );
 
       this.logger.log(`User ${email} switched to tenant ${tenantId}`);
@@ -888,7 +880,8 @@ export class AuthService {
         user: {
           id: userId,
           email,
-          role: userTenant.role,
+          role: userTenant.role_key,
+          roleName: userTenant.role_name,
         },
         tenant: {
           id: tenantId,

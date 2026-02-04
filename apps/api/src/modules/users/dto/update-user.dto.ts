@@ -1,18 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
-import { TenantRole } from 'src/common/types';
+import { IsBoolean, IsOptional, IsString, Matches } from 'class-validator';
+import { SystemTenantRole } from 'src/common/types';
 
 export class UpdateUserDto {
   @ApiProperty({
-    description: 'User role in the tenant',
-    enum: Object.values(TenantRole),
-    example: TenantRole.MEMBER,
+    description: 'User role key in the tenant (system role or custom role)',
+    example: SystemTenantRole.MEMBER,
     required: false,
   })
   @IsOptional()
   @IsString()
-  @IsIn(Object.values(TenantRole))
-  role?: TenantRole;
+  @Matches(/^[a-z_]+$/, {
+    message: 'Role key must contain only lowercase letters and underscores',
+  })
+  role?: string;
 
   @ApiProperty({
     description: 'Whether user access is active',

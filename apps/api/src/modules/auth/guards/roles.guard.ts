@@ -5,7 +5,6 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { TenantRole } from 'src/common/types';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { AuthenticatedTenantUser } from '../strategies';
 
@@ -15,7 +14,7 @@ export class RolesGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     // Get required roles from decorator
-    const requiredRoles = this.reflector.getAllAndOverride<TenantRole[]>(
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
