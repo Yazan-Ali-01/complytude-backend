@@ -95,7 +95,11 @@ CREATE TABLE public.roles (
             OR
             -- If it's a system role (tenant_id IS NULL), any key is allowed
             (tenant_id IS NULL)
-        )
+        ),
+
+    -- Ensure system roles MUST have tenant_id = NULL (prevents data corruption)
+    CONSTRAINT chk_system_role_no_tenant
+        CHECK (NOT is_system OR tenant_id IS NULL)
 );
 
 COMMENT ON TABLE public.roles IS 'Tenant roles with support for custom roles (MVP+)';
@@ -105,6 +109,7 @@ COMMENT ON COLUMN public.roles.tenant_id IS 'NULL for system (base) roles, UUID 
 COMMENT ON COLUMN public.roles.is_system IS 'TRUE for base roles (tenant_admin, legal_counsel, member, viewer)';
 COMMENT ON COLUMN public.roles.is_active IS 'Whether this role is active (soft delete)';
 COMMENT ON CONSTRAINT chk_roles_no_reserved_keys ON public.roles IS 'Prevents custom tenant roles from using reserved system role keys';
+COMMENT ON CONSTRAINT chk_system_role_no_tenant ON public.roles IS 'Enforces that system roles cannot have a tenant_id (prevents data corruption)';
 
 -- =========================
 -- RBAC: Permissions
@@ -471,6 +476,58 @@ $$;
 
 COMMENT ON FUNCTION public.update_updated_at_column IS 'Trigger function to automatically update updated_at timestamp on row updates';
 
+-- =========================
+-- System Role Protection Functions
+-- =========================
+
+-- Function to prevent modifying system roles core attributes
+CREATE OR REPLACE FUNCTION public.prevent_system_role_modification()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- Prevent UPDATE on system roles critical attributes (key, is_system, tenant_id)
+    IF OLD.is_system = true AND (
+        OLD.key != NEW.key OR
+        OLD.is_system != NEW.is_system OR
+        OLD.tenant_id IS DISTINCT FROM NEW.tenant_id
+    ) THEN
+        RAISE EXCEPTION 'Cannot modify core attributes of system role: %', OLD.key
+            USING HINT = 'System roles (is_system=true) are immutable. Use RbacSyncService to update.';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.prevent_system_role_modification IS 'Prevents modification of critical system role attributes (key, is_system, tenant_id)';
+
+-- Function to prevent deleting system roles
+CREATE OR REPLACE FUNCTION public.prevent_system_role_deletion()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- Prevent DELETE on system roles
+    IF OLD.is_system = true THEN
+        RAISE EXCEPTION 'Cannot delete system role: %', OLD.key
+            USING HINT = 'System roles are protected from deletion.';
+    END IF;
+    
+    RETURN OLD;
+END;
+$$;
+
+COMMENT ON FUNCTION public.prevent_system_role_deletion IS 'Prevents deletion of system roles';
+
+-- =========================
+-- Triggers
+-- =========================
+
 -- Apply triggers to tables with updated_at
 CREATE TRIGGER update_tenants_updated_at
     BEFORE UPDATE ON public.tenants
@@ -486,6 +543,17 @@ CREATE TRIGGER update_roles_updated_at
     BEFORE UPDATE ON public.roles
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at_column();
+
+-- System role protection triggers
+CREATE TRIGGER trigger_prevent_system_role_modification
+    BEFORE UPDATE ON public.roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prevent_system_role_modification();
+
+CREATE TRIGGER trigger_prevent_system_role_deletion
+    BEFORE DELETE ON public.roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prevent_system_role_deletion();
 
 CREATE TRIGGER update_user_tenants_updated_at
     BEFORE UPDATE ON public.user_tenants
@@ -509,11 +577,15 @@ BEGIN;
 -- Drop triggers
 DROP TRIGGER IF EXISTS update_invitations_updated_at ON public.invitations;
 DROP TRIGGER IF EXISTS update_user_tenants_updated_at ON public.user_tenants;
+DROP TRIGGER IF EXISTS trigger_prevent_system_role_deletion ON public.roles;
+DROP TRIGGER IF EXISTS trigger_prevent_system_role_modification ON public.roles;
 DROP TRIGGER IF EXISTS update_roles_updated_at ON public.roles;
 DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 DROP TRIGGER IF EXISTS update_tenants_updated_at ON public.tenants;
 
--- Drop function
+-- Drop functions
+DROP FUNCTION IF EXISTS public.prevent_system_role_deletion();
+DROP FUNCTION IF EXISTS public.prevent_system_role_modification();
 DROP FUNCTION IF EXISTS public.update_updated_at_column();
 
 -- Drop indexes
