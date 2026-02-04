@@ -49,52 +49,6 @@ export class PermissionsRepository extends BaseRepository<
   }
 
   /**
-   * Get all permissions for a role by role key
-   * @param roleKey - Role key (e.g., 'tenant_admin')
-   */
-  async findByRoleKey(roleKey: string): Promise<Permission[]> {
-    const query = `
-      SELECT ${this.getSelectColumns()}
-      FROM ${this.tableName} p
-      INNER JOIN role_permissions rp ON p.id = rp.permission_id
-      INNER JOIN roles r ON rp.role_id = r.id
-      WHERE r.key = $1
-        AND r.is_system = true
-        AND r.is_active = true
-      ORDER BY p.key
-    `;
-
-    const result = await this.executeQuery(query, [roleKey]);
-    return result.rows.map((row) => this.mapRow(row));
-  }
-
-  /**
-   * Check if a role has a specific permission
-   * @param roleKey - Role key (e.g., 'tenant_admin')
-   * @param permissionKey - Permission key (e.g., 'documents:create')
-   */
-  async checkRoleHasPermission(
-    roleKey: string,
-    permissionKey: string,
-  ): Promise<boolean> {
-    const query = `
-      SELECT EXISTS (
-        SELECT 1
-        FROM permissions p
-        INNER JOIN role_permissions rp ON p.id = rp.permission_id
-        INNER JOIN roles r ON rp.role_id = r.id
-        WHERE r.key = $1
-          AND p.key = $2
-          AND r.is_system = true
-          AND r.is_active = true
-      ) as has_permission
-    `;
-
-    const result = await this.executeQuery(query, [roleKey, permissionKey]);
-    return result.rows[0]?.has_permission === true;
-  }
-
-  /**
    * Get all permissions grouped by resource
    */
   async findAllGroupedByResource(): Promise<Record<string, Permission[]>> {

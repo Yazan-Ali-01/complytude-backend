@@ -10,13 +10,6 @@ export enum SystemTenantRole {
 }
 
 /**
- * Helper to check if a role is a system role
- */
-export function isTenantSystemRole(role: string): role is SystemTenantRole {
-  return Object.values(SystemTenantRole).includes(role as SystemTenantRole);
-}
-
-/**
  * Re-export TenantPermission type from constants
  * This eliminates duplicate type definitions
  */

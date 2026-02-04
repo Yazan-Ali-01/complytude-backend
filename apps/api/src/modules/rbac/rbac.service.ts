@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TENANT_SYSTEM_ROLE_PERMISSIONS } from '../../common/constants/tenant-system-roles.constant';
-import { isTenantSystemRole, TenantPermission } from '../../common/types';
-import { matchTenantPermission } from '../../common/utils/tenant-permission-matcher.util';
-import { PermissionsRepository } from '../../repositories/rbac/permissions.repository';
+import { isTenantSystemRole } from '../../common/utils/tenant-type-guards.util';
 import { RolesRepository } from '../../repositories/rbac/roles.repository';
 
 @Injectable()
@@ -12,45 +10,7 @@ export class RbacService {
   // TODO: Implement caching for custom tenant roles - load role-permissions
   // No caching needed for system roles - O(1) in-memory lookup
 
-  constructor(
-    private readonly permissionsRepository: PermissionsRepository,
-    private readonly rolesRepository: RolesRepository,
-  ) {}
-
-  /**
-   * Check if a role has a specific permission
-   * System roles: O(1) in-memory lookup with wildcard support
-   * Custom roles: Database query (MVP+ feature)
-   *
-   * @param roleKey - Role key (e.g., 'tenant_admin', 'legal_counsel')
-   * @param permissionKey - Permission key (e.g., 'documents:create')
-   * @returns true if the role has the permission, false otherwise
-   */
-  async hasPermission(
-    roleKey: string,
-    permissionKey: TenantPermission,
-  ): Promise<boolean> {
-    // 1. Check system roles first (in-memory, no DB query)
-    if (isTenantSystemRole(roleKey)) {
-      const permissions = TENANT_SYSTEM_ROLE_PERMISSIONS[roleKey];
-
-      // Check if any of the role's permissions match the required permission
-      // Supports wildcards: 'documents:*', '*:read', '*:*'
-      for (const userPerm of permissions) {
-        if (matchTenantPermission(userPerm, permissionKey)) {
-          return true;
-        }
-      }
-
-      return false;
-    }
-
-    // 2. Custom tenant roles: query database (MVP+ feature)
-    return this.permissionsRepository.checkRoleHasPermission(
-      roleKey,
-      permissionKey,
-    );
-  }
+  constructor(private readonly rolesRepository: RolesRepository) {}
 
   /**
    * Get all permissions for a role
@@ -99,8 +59,5 @@ export class RbacService {
   // 1. Create a model-tier mapping (e.g., { 'claude-3.5-sonnet': 'premium', 'gpt-4': 'premium', 'gpt-3.5': 'standard' })
   // 2. Add permission: 'ai:use_premium_models' granted only to tenant_admin and legal_counsel
   // 3. Check permission before allowing model selection in AI generation endpoints
-  //
-  // async canUsePremiumModels(roleKey: string): Promise<boolean> {
-  //   return this.hasPermission(roleKey, 'ai:use_premium_models');
-  // }
+  // 4. Use getRolePermissions() + in-memory check (same pattern as PermissionsGuard)
 }
