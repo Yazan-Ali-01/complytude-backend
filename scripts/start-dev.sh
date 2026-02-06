@@ -17,6 +17,7 @@ echo ""
 
 # Check if services are running
 postgres_running=false
+redis_running=false
 minio_running=false
 
 if docker ps --format '{{.Names}}' | grep -q '^complytude-postgres$'; then
@@ -24,6 +25,13 @@ if docker ps --format '{{.Names}}' | grep -q '^complytude-postgres$'; then
     echo "✅ PostgreSQL is running"
 else
     echo "📦 PostgreSQL is not running"
+fi
+
+if docker ps --format '{{.Names}}' | grep -q '^complytude-redis$'; then
+    redis_running=true
+    echo "✅ Redis is running"
+else
+    echo "📦 Redis is not running"
 fi
 
 if docker ps --format '{{.Names}}' | grep -q '^complytude-minio$'; then
@@ -34,7 +42,7 @@ else
 fi
 
 # Start services if needed
-if [ "$postgres_running" = false ] || [ "$minio_running" = false ]; then
+if [ "$postgres_running" = false ] || [ "$redis_running" = false ] || [ "$minio_running" = false ]; then
     echo ""
     echo "🚀 Starting services..."
     pnpm docker:start || exit 1

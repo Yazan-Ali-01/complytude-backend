@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to start Docker services (PostgreSQL + MinIO)
+# Script to start Docker services (PostgreSQL + MinIO + Redis)
 # This checks if Docker is running before attempting to start services
 
 echo "🐳 Checking Docker status..."
@@ -22,8 +22,8 @@ echo "✅ Docker is running"
 echo ""
 
 # Start services
-echo "🚀 Starting PostgreSQL and MinIO..."
-docker-compose up -d postgres minio
+echo "🚀 Starting PostgreSQL, Redis, and MinIO..."
+docker-compose up -d postgres redis minio
 
 # Wait for services to be ready
 echo "⏳ Waiting for services to be ready..."
@@ -31,9 +31,16 @@ sleep 3
 
 # Check PostgreSQL health
 if docker exec complytude-postgres pg_isready -U postgres > /dev/null 2>&1; then
-    echo "✅ PostgreSQL is ready!"
+    echo "✅ PostgreSQL (with pgvector) is ready!"
 else
     echo "⚠️  PostgreSQL started but not ready yet"
+fi
+
+# Check Redis health
+if docker exec complytude-redis redis-cli ping > /dev/null 2>&1; then
+    echo "✅ Redis is ready!"
+else
+    echo "⚠️  Redis started but not ready yet"
 fi
 
 # Check MinIO health
@@ -43,20 +50,35 @@ else
     echo "⚠️  MinIO started but not ready yet"
 fi
 
+# Check if MinIO buckets were created
+echo "🪣 Checking MinIO buckets..."
+sleep 2
+if docker ps -a | grep -q complytude-minio-init; then
+    echo "✅ MinIO buckets (complytude-quarantine, complytude-clean) created!"
+else
+    echo "⚠️  MinIO init container not found"
+fi
+
 echo ""
 echo "📊 Service Connection Details:"
 echo ""
-echo "PostgreSQL:"
+echo "PostgreSQL (with pgvector):"
 echo "  Host: localhost"
 echo "  Port: 5432"
 echo "  Database: complytude"
 echo "  User: postgres"
+echo ""
+echo "Redis (for BullMQ):"
+echo "  Host: localhost"
+echo "  Port: 6379"
+echo "  DB: 0"
 echo ""
 echo "MinIO (S3-Compatible Storage):"
 echo "  API Endpoint: http://localhost:9000"
 echo "  Console: http://localhost:9001"
 echo "  Access Key: minioadmin"
 echo "  Secret Key: minioadmin"
+echo "  Buckets: complytude-quarantine, complytude-clean"
 echo ""
 echo "🚀 Next Steps:"
 echo "  pnpm db:migrate  - Run database migrations"

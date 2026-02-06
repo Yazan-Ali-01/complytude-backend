@@ -3,7 +3,7 @@ name: complytude
 # ============================================
 # Base Docker Compose Configuration
 # ============================================
-# This file contains shared services (PostgreSQL, MinIO, pgAdmin)
+# This file contains shared services (PostgreSQL, MinIO, Redis, pgAdmin)
 #
 # Usage:
 #   Development: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
@@ -15,9 +15,9 @@ name: complytude
 # ============================================
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database with pgvector extension
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: complytude-postgres
     restart: unless-stopped
     environment:
@@ -29,6 +29,7 @@ services:
       - '${DB_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/docker/postgres-init.sh:/docker-entrypoint-initdb.d/init-pgvector.sh
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres}']
       interval: 10s
@@ -58,6 +59,24 @@ services:
     profiles:
       - tools
 
+  # Redis - Message Queue for BullMQ
+  redis:
+    image: redis:7-alpine
+    container_name: complytude-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - complytude-network
+
   # MinIO - S3-Compatible Object Storage
   minio:
     image: minio/minio:latest
@@ -80,10 +99,30 @@ services:
     networks:
       - complytude-network
 
+  # MinIO Bucket Initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: complytude-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
+      /usr/bin/mc mb myminio/complytude-quarantine --ignore-existing;
+      /usr/bin/mc mb myminio/complytude-clean --ignore-existing;
+      echo 'Buckets created successfully';
+      exit 0;
+      "
+    networks:
+      - complytude-network
+
 volumes:
   postgres_data:
     driver: local
   pgadmin_data:
+    driver: local
+  redis_data:
     driver: local
   minio_data:
     driver: local
