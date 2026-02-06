@@ -49,7 +49,7 @@ export class JwtAuthRefreshGuard implements CanActivate {
       !req.auth.identity
     ) {
       throw new UnauthorizedException(
-        'Both tenant and identity refresh tokens are required',
+        'Tenant or Identity refresh token is required',
       );
     } else if (
       authOptions.tenant &&

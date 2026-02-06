@@ -329,9 +329,9 @@ export class AuthController {
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
     const { message } = await this.authService.logout(
-      identityRefreshUser.userId,
-      identityRefreshUser.refreshToken,
-      tenantRefreshUser.refreshToken,
+      identityRefreshUser?.userId ?? tenantRefreshUser?.userId,
+      identityRefreshUser?.refreshToken,
+      tenantRefreshUser?.refreshToken,
     );
     this.authService.clearAllAuthCookies(reply);
     return { message };
