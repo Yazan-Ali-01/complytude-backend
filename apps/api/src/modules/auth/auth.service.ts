@@ -678,12 +678,16 @@ export class AuthService {
    */
   async logout(
     userId: string,
-    identityRefreshToken: string,
-    tenantRefreshToken: string,
+    identityRefreshToken?: string,
+    tenantRefreshToken?: string,
   ) {
     // Revoke all refresh tokens (both identity and tenant)
-    await this.revokeRefreshToken(userId, identityRefreshToken);
-    await this.revokeRefreshToken(userId, tenantRefreshToken);
+    if (identityRefreshToken) {
+      await this.revokeRefreshToken(userId, identityRefreshToken);
+    }
+    if (tenantRefreshToken) {
+      await this.revokeRefreshToken(userId, tenantRefreshToken);
+    }
 
     this.logger.log(
       `User ${userId} logged out (identity tokens revoked, tenant tokens revoked)`,
