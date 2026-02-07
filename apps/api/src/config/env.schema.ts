@@ -46,4 +46,12 @@ export const validationSchema = Joi.object({
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
   TEMPLATE_MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
+
+  // Redis Configuration
+  REDIS_HOST: Joi.string().default('localhost'),
+  REDIS_PORT: Joi.number().default(6379),
+  REDIS_PASSWORD: Joi.string().optional().allow(''),
+  REDIS_DB: Joi.number().default(0),
+  REDIS_TLS: Joi.boolean().default(false),
+  REDIS_KEY_PREFIX: Joi.string().default('complytude:'),
 });
