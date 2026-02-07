@@ -9,6 +9,22 @@ export const validationSchema = Joi.object({
   API_PREFIX: Joi.string().default('api'),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000'),
 
+  // Logging
+  SERVICE_NAME: Joi.string().default('gateway'),
+  LOG_LEVEL: Joi.string()
+    .valid('trace', 'debug', 'info', 'warn', 'error', 'fatal')
+    .default(
+      Joi.ref('NODE_ENV', {
+        adjust: (value) => (value === 'production' ? 'info' : 'debug'),
+      }),
+    ),
+  LOG_PRETTY: Joi.boolean().default(
+    Joi.ref('NODE_ENV', {
+      adjust: (value) => value !== 'production',
+    }),
+  ),
+  LOG_AUTO_LOGGING: Joi.boolean().default(true),
+
   // Database
   DB_HOST: Joi.string().default('localhost'),
   DB_PORT: Joi.number().default(5432),

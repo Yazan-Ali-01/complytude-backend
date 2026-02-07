@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { LoggerModule } from '@complytude/shared/logger/logger.module';
 import appConfig from 'src/config/app.config';
 import databaseConfig from 'src/config/database.config';
 import { validationSchema } from 'src/config/env.schema';
 import jwtConfig from 'src/config/jwt.config';
+import loggerConfig from 'src/config/logger.config';
 import storageConfig from 'src/config/storage.config';
 import { DatabaseModule } from 'src/database/database.module';
 import { AuthModule } from 'src/modules/auth/auth.module';
@@ -31,12 +33,22 @@ import { TenantModule } from './modules/tenants/tenant.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['apps/api/.env'],
-      load: [databaseConfig, appConfig, jwtConfig, storageConfig],
+      load: [databaseConfig, appConfig, jwtConfig, storageConfig, loggerConfig],
       validationSchema: validationSchema,
       validationOptions: {
         allowUnknown: true,
         abortEarly: false,
       },
+    }),
+    LoggerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        serviceName: configService.get<string>('logger.serviceName', 'gateway'),
+        logLevel: configService.get<string>('logger.level', 'info'),
+        prettyPrint: configService.get<boolean>('logger.prettyPrint', false),
+        autoLogging: configService.get<boolean>('logger.autoLogging', true),
+      }),
     }),
     I18nModule,
     DatabaseModule,

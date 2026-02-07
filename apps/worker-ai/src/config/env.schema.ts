@@ -6,6 +6,22 @@ export const validationSchema = Joi.object({
     .valid('development', 'production', 'test')
     .default('development'),
 
+  // Logging
+  SERVICE_NAME: Joi.string().default('worker-ai'),
+  LOG_LEVEL: Joi.string()
+    .valid('trace', 'debug', 'info', 'warn', 'error', 'fatal')
+    .default(
+      Joi.ref('NODE_ENV', {
+        adjust: (value) => (value === 'production' ? 'info' : 'debug'),
+      }),
+    ),
+  LOG_PRETTY: Joi.boolean().default(
+    Joi.ref('NODE_ENV', {
+      adjust: (value) => value !== 'production',
+    }),
+  ),
+  LOG_AUTO_LOGGING: Joi.boolean().default(true),
+
   // Worker AI Port
   WORKER_AI_PORT: Joi.number().default(3001),
 

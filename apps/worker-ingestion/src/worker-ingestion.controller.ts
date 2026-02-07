@@ -3,7 +3,9 @@ import { WorkerIngestionService } from './worker-ingestion.service';
 
 @Controller()
 export class WorkerIngestionController {
-  constructor(private readonly workerIngestionService: WorkerIngestionService) {}
+  constructor(
+    private readonly workerIngestionService: WorkerIngestionService,
+  ) {}
 
   @Get()
   getHello(): string {

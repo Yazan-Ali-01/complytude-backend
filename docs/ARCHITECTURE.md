@@ -859,6 +859,231 @@ S3_SECRET_KEY=<secret>
 
 ---
 
+## Logging Architecture
+
+### Overview
+
+Complytude uses **structured logging** with Pino and nestjs-pino for high-performance, machine-readable logs across all services (API Gateway, Worker AI, Worker Ingestion).
+
+### Key Features
+
+- ✅ **Structured JSON Logging** - NDJSON format for log aggregation
+- ✅ **Request Correlation** - Unique `trace_id` for distributed tracing
+- ✅ **Tenant Context** - Automatic `tenant_id` injection from JWT
+- ✅ **Service Identification** - `service_name` field for multi-service architecture
+- ✅ **Auto HTTP Logging** - Request/response logging with intelligent filtering
+- ✅ **Environment-Based** - Pretty-print in dev, NDJSON in production
+
+### Logging Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Client Request                              │
+│                    x-request-id: abc-123                         │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                     API Gateway (Pino)                           │
+│  [INFO] Request received                                         │
+│  { trace_id: "abc-123", service_name: "gateway",                │
+│    tenant_id: "tenant-uuid", req: {...} }                       │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                     Worker AI (Pino)                             │
+│  [INFO] Job received                                             │
+│  { trace_id: "abc-123", service_name: "worker-ai",              │
+│    job_id: "job-uuid" }                                         │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                     Gateway Response (Pino)                      │
+│  [INFO] Request completed                                        │
+│  { trace_id: "abc-123", service_name: "gateway",                │
+│    res: { statusCode: 200, responseTime: 145 } }                │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+                          stdout (NDJSON)
+                              ↓
+                  Log Aggregator (Datadog/ELK)
+```
+
+### Log Structure
+
+**Required Fields (Always Present):**
+
+```json
+{
+  "level": "info",
+  "time": "2026-02-08T10:30:00.123Z",
+  "msg": "Request completed",
+  "trace_id": "abc-123-def-456",
+  "service_name": "gateway"
+}
+```
+
+**Conditional Fields (When Available):**
+
+```json
+{
+  "level": "info",
+  "time": "2026-02-08T10:30:00.123Z",
+  "msg": "Document created",
+  "trace_id": "abc-123-def-456",
+  "service_name": "gateway",
+  "tenant_id": "tenant-uuid",
+  "user_id": "user-uuid",
+  "document_id": "doc-uuid"
+}
+```
+
+### Distributed Tracing
+
+Every request gets a unique `trace_id` for correlation across services:
+
+1. **Client → Gateway**: Generates or receives `trace_id` via `x-request-id` header
+2. **Gateway → Worker**: Forwards `trace_id` in `x-request-id` header
+3. **All Services**: Log with same `trace_id` for correlation
+
+**Query Example:**
+```
+# In Datadog/ELK, find all logs for a request
+trace_id:"abc-123-def-456"
+```
+
+### Tenant Context
+
+Logs automatically include `tenant_id` from authenticated requests:
+
+```typescript
+// Extracted from JWT in pino.config.ts
+if (req.auth?.tenant?.tenantId) {
+  customProps.tenant_id = req.auth.tenant.tenantId;
+  customProps.user_id = req.auth.tenant.userId;
+}
+```
+
+### Service Identification
+
+Each service has a unique `service_name`:
+
+| Service | Service Name | Port |
+|---------|--------------|------|
+| API Gateway | `gateway` | 3000 |
+| Worker AI | `worker-ai` | 3001 |
+| Worker Ingestion | `worker-ingestion` | 3002 |
+
+### Log Levels
+
+| Level | Value | Production Usage |
+|-------|-------|------------------|
+| `fatal` | 60 | System crash |
+| `error` | 50 | Errors requiring investigation |
+| `warn` | 40 | Warnings |
+| **`info`** | **30** | **Production default** |
+| `debug` | 20 | Development default |
+| `trace` | 10 | Detailed debugging |
+
+### Environment Configuration
+
+**Development:**
+```bash
+LOG_LEVEL=debug
+LOG_PRETTY=true      # Human-readable output
+```
+
+**Production:**
+```bash
+LOG_LEVEL=info
+LOG_PRETTY=false     # NDJSON for log aggregators
+```
+
+### Auto HTTP Logging
+
+HTTP requests/responses are automatically logged with:
+
+- Request method, URL, headers
+- Response status code, response time
+- Automatic filtering of health check endpoints
+
+**Filtered Endpoints (No Logging):**
+- `/health`
+- `/api/health`
+- `/metrics`
+
+### Log Aggregation
+
+**Recommended Setup:**
+
+```
+Services → stdout → Docker/K8s Logs → Log Aggregator
+```
+
+**Supported Aggregators:**
+- **Datadog** (Recommended) - Best-in-class APM and logs
+- **ELK Stack** - Self-hosted alternative
+- **AWS CloudWatch** - AWS-native solution
+
+### Audit Logging vs System Logging
+
+**System Logging (Pino → stdout):**
+- Purpose: Operations, debugging, performance
+- Storage: Short-term (7-30 days)
+- Destination: Log aggregator
+
+**Audit Logging (Database):**
+- Purpose: Compliance, security, user actions
+- Storage: Long-term (years)
+- Destination: PostgreSQL `audit_logs` table
+
+### Performance
+
+**Benchmarks:**
+- Pino: ~66,000 ops/sec
+- Winston: ~14,000 ops/sec (4.7x slower)
+- Bunyan: ~31,000 ops/sec (2.1x slower)
+
+**Production Settings:**
+- Asynchronous writes (non-blocking)
+- Buffered output (4096 bytes)
+- Minimal serialization overhead
+
+### Usage Example
+
+```typescript
+import { Injectable, Logger } from '@nestjs/common';
+
+@Injectable()
+export class MyService {
+  private readonly logger = new Logger(MyService.name);
+
+  async createDocument(tenantId: string, data: any) {
+    this.logger.log('Creating document', { 
+      tenantId, 
+      documentType: data.type 
+    });
+
+    try {
+      const doc = await this.documentRepository.create(data);
+      this.logger.log('Document created', { 
+        documentId: doc.id 
+      });
+      return doc;
+    } catch (error) {
+      this.logger.error('Document creation failed', error.stack);
+      throw error;
+    }
+  }
+}
+```
+
+### Documentation
+
+- [Logger Module README](../libs/shared/src/logger/README.md) - Developer guide
+- [Infrastructure Logging Guide](../infra/logging-module/README.md) - Production setup
+
+---
+
 ## Related Documentation
 
 - [DATABASE.md](DATABASE.md) - Detailed database schema
