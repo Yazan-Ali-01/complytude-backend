@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  Tenant,
-  TenantFeatures,
-} from 'src/modules/tenants/entities/tenant.entity';
+import { Tenant } from 'src/modules/tenants/entities/tenant.entity';
+import { PlanKey } from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
@@ -14,33 +12,31 @@ import {
 
 /**
  * Type for creating a new tenant row in the database.
- * JSON/JSONB fields must be pre-stringified.
  */
 export type CreateTenantRow = {
   id?: string; // UUID, defaults to gen_random_uuid()
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
-  features: string; // Stringified JSONB
+  plan?: PlanKey;
   is_active?: boolean;
+  parent_tenant_id?: string;
   created_at?: Date;
   updated_at?: Date;
 };
 
 /**
  * Type for updating an existing tenant row in the database.
- * JSON/JSONB fields must be pre-stringified.
  */
 export type UpdateTenantRow = {
-  plan?: 'early_access' | 'basic' | 'pro' | 'enterprise';
-  features?: string; // Stringified JSONB
+  plan?: PlanKey;
   is_active?: boolean;
+  parent_tenant_id?: string;
   updated_at?: Date;
 };
 
 type TenantRow = {
   id: string;
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
-  features: unknown;
+  plan: PlanKey;
   is_active: boolean;
+  parent_tenant_id?: string;
   created_at: Date;
   updated_at: Date;
 };
@@ -148,7 +144,7 @@ export class TenantRepository extends BaseRepository<
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'id, plan, features, is_active, created_at, updated_at';
+    return 'id, plan, is_active, parent_tenant_id, created_at, updated_at';
   }
 
   /**
@@ -162,8 +158,8 @@ export class TenantRepository extends BaseRepository<
     return {
       id: data.id,
       plan: data.plan,
-      features: data.features as TenantFeatures,
       is_active: data.is_active,
+      parent_tenant_id: data.parent_tenant_id,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

@@ -25,6 +25,7 @@ import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { TenantModule } from './modules/tenants/tenant.module';
+import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     I18nModule,
     DatabaseModule,
     HealthModule,
+    EntitlementsModule,
     TenantModule,
     AuthModule,
     UsersModule,

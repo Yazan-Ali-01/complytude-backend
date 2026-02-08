@@ -12,10 +12,10 @@ BEGIN;
 -- Test Tenants
 -- =========================
 
-INSERT INTO public.tenants (id, plan, features, is_active) VALUES
-    ('11111111-1111-4111-8111-111111111111', 'pro', '{"api_access": true, "custom_templates": true, "advanced_analytics": true}', true),
-    ('22222222-2222-4222-8222-222222222222', 'basic', '{"api_access": false, "custom_templates": false}', true),
-    ('33333333-3333-3333-A333-333333333333', 'enterprise', '{"api_access": true, "custom_templates": true, "advanced_analytics": true, "dedicated_support": true, "white_label": true}', true)
+INSERT INTO public.tenants (id, plan, is_active) VALUES
+    ('11111111-1111-4111-8111-111111111111', 'general_counsel', true),
+    ('22222222-2222-4222-8222-222222222222', 'shield', true),
+    ('33333333-2222-4222-8222-333333333333', 'infrastructure', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- =========================
@@ -53,7 +53,7 @@ INSERT INTO public.user_tenants (user_id, tenant_id, role_key) VALUES
     ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'member'),
     
     -- Tenant 3 (Enterprise plan) - 1 user
-    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-3333-3333-A333-333333333333', 'tenant_admin'),
+    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-2222-4222-8222-333333333333', 'tenant_admin'),
     
     -- Multi-tenant user: Bob is also a viewer in Tenant 2
     ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'viewer')

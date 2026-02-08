@@ -162,7 +162,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
 SELECT 
     '20000000-0000-0000-0000-000000000006'::UUID,
-    '33333333-3333-3333-A333-333333333333'::UUID,
+    '33333333-2222-4222-8222-333333333333'::UUID,
     '10000000-0000-0000-0000-000000000004'::UUID,
     'Enterprise Global - Mega Corp Partnership',
     'Strategic partnership agreement for joint ventures in ADGM',
@@ -192,7 +192,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
 SELECT 
     '20000000-0000-0000-0000-000000000007'::UUID,
-    '33333333-3333-3333-A333-333333333333'::UUID,
+    '33333333-2222-4222-8222-333333333333'::UUID,
     '10000000-0000-0000-0000-000000000002'::UUID,
     'Confidential Project NDA - Project Phoenix',
     'High-security NDA for classified enterprise project development',
@@ -234,7 +234,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*) INTO doc_tenant1 FROM public.documents WHERE tenant_id = '11111111-1111-4111-8111-111111111111';
     SELECT COUNT(*) INTO doc_tenant2 FROM public.documents WHERE tenant_id = '22222222-2222-4222-8222-222222222222';
-    SELECT COUNT(*) INTO doc_tenant3 FROM public.documents WHERE tenant_id = '33333333-3333-3333-A333-333333333333';
+    SELECT COUNT(*) INTO doc_tenant3 FROM public.documents WHERE tenant_id = '33333333-2222-4222-8222-333333333333';
     SELECT COUNT(*) INTO total_docs FROM public.documents;
     
     RAISE NOTICE '=========================';

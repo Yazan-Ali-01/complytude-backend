@@ -98,10 +98,11 @@ export abstract class BaseRepository<
     }
 
     if (tenant) {
-      return this.databaseService.queryWithTenantContext<T>(
+      return this.databaseService.transactionWithTenantContext(
         tenant.tenantId,
-        query,
-        params,
+        async (client) => {
+          return await client.query<T>(query, params);
+        },
       );
     }
 
@@ -127,7 +128,6 @@ export abstract class BaseRepository<
     options: ClientQueryOptions,
   ): Promise<QueryResult<T>> {
     const { client, tenant, isAuthflow = false } = options;
-    const hasTenant = !!tenant;
 
     this.logger.debug(
       `runWithClient: table=${this.tableName}, tenant=${
@@ -136,16 +136,7 @@ export abstract class BaseRepository<
     );
 
     try {
-      if (hasTenant) {
-        await client.query('SELECT set_config($1, $2, true)', [
-          'app.current_tenant_id',
-          tenant.tenantId,
-        ]);
-        await client.query('SELECT set_config($1, $2, true)', [
-          'search_path',
-          `${tenant.schema}, public`,
-        ]);
-      } else if (isAuthflow) {
+      if (isAuthflow) {
         await client.query("SET LOCAL app.is_auth_flow = 'true'");
       }
 

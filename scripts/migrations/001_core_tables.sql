@@ -11,7 +11,7 @@ BEGIN;
 -- ENUMS
 -- =========================
 
-CREATE TYPE tenant_plan AS ENUM ('early_access', 'basic', 'pro', 'enterprise');
+CREATE TYPE tenant_plan AS ENUM ('navigator', 'shield', 'general_counsel', 'infrastructure');
 CREATE TYPE invitation_status AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'REVOKED', 'EXPIRED');
 CREATE TYPE refresh_token_type AS ENUM ('identity', 'tenant');
 
@@ -20,8 +20,7 @@ CREATE TYPE refresh_token_type AS ENUM ('identity', 'tenant');
 -- =========================
 CREATE TABLE public.tenants (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    plan             tenant_plan NOT NULL,
-    features         JSONB NOT NULL DEFAULT '{}',
+    plan             tenant_plan NOT NULL DEFAULT 'navigator',
     is_active        BOOLEAN NOT NULL DEFAULT true,
     parent_tenant_id UUID,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -36,8 +35,7 @@ CREATE TABLE public.tenants (
 
 COMMENT ON TABLE public.tenants IS 'Organizations/companies using the platform';
 COMMENT ON COLUMN public.tenants.id IS 'Unique tenant identifier (UUID)';
-COMMENT ON COLUMN public.tenants.plan IS 'Subscription plan: early_access, basic, pro, or enterprise';
-COMMENT ON COLUMN public.tenants.features IS 'JSON object of enabled feature flags for this tenant';
+COMMENT ON COLUMN public.tenants.plan IS 'Subscription plan: navigator, shield, general_counsel, or infrastructure';
 COMMENT ON COLUMN public.tenants.is_active IS 'Whether the tenant account is active (soft delete flag)';
 COMMENT ON COLUMN public.tenants.parent_tenant_id IS 'Parent tenant for Agency/Partner hierarchy (MVP+) - NULL for independent tenants';
 

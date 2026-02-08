@@ -3,7 +3,6 @@ import { DatabaseModule } from 'src/database/database.module';
 import { TenantAdminController } from 'src/modules/tenants/admin.controller';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { InvitationsModule } from '../invitations/invitations.module';
-import { FeaturesService } from './features.service';
 import { TenantInvitationsController } from './invitations.controller';
 import { TenantController } from './tenant.controller';
 import { TenantService } from './tenant.service';
@@ -15,7 +14,7 @@ import { TenantService } from './tenant.service';
     TenantAdminController,
     TenantInvitationsController,
   ],
-  providers: [TenantService, FeaturesService, TenantRepository],
-  exports: [TenantService, FeaturesService, TenantRepository],
+  providers: [TenantService, TenantRepository],
+  exports: [TenantService, TenantRepository],
 })
 export class TenantModule {}
