@@ -36,7 +36,7 @@ export class RedisModule {
               retryStrategy: (times) => {
                 if (times > 3) {
                   RedisModule.logger.error(
-                    '❌ Redis connection failed after 3 retries',
+                    'Redis connection failed after 3 retries',
                   );
                   return null; // Stop retrying
                 }
@@ -51,7 +51,7 @@ export class RedisModule {
             // Connection event handlers
             client.on('connect', () => {
               RedisModule.logger.log(
-                '✅ Redis connection established successfully',
+                'Redis connection established successfully',
               );
             });
 

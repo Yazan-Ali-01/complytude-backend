@@ -1,11 +1,11 @@
 /**
  * @complytude/shared library
- * 
+ *
  * This library contains shared modules and utilities for the Complytude monorepo.
- * 
+ *
  * Usage:
  * Import directly from specific modules for better tree-shaking:
- * 
+ *
  * @example
  * import { RedisModule } from '@complytude/shared/redis/redis.module';
  * import { RedisService } from '@complytude/shared/redis/redis.service';

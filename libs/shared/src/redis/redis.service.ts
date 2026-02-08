@@ -37,6 +37,20 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
+   * Get a raw string value from Redis without JSON parsing
+   * @param key Redis key
+   * @returns Raw string value or null if not found
+   */
+  async getRaw(key: string): Promise<string | null> {
+    try {
+      return await this.redis.get(key);
+    } catch (error) {
+      this.logger.error(`Error getting raw key ${key}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Set a value in Redis
    * @param key Redis key
    * @param value Value to store (will be JSON stringified)
@@ -45,7 +59,7 @@ export class RedisService implements OnModuleDestroy {
   async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
     try {
       const serialized = JSON.stringify(value);
-      if (ttlSeconds) {
+      if (ttlSeconds != null) {
         await this.redis.setex(key, ttlSeconds, serialized);
       } else {
         await this.redis.set(key, serialized);
@@ -57,15 +71,15 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
-   * Delete a key from Redis
-   * @param key Redis key
-   * @returns Number of keys deleted (0 or 1)
+   * Delete one or more keys from Redis
+   * @param keys Redis keys to delete
+   * @returns Number of keys deleted
    */
-  async del(key: string): Promise<number> {
+  async del(...keys: string[]): Promise<number> {
     try {
-      return await this.redis.del(key);
+      return await this.redis.del(...keys);
     } catch (error) {
-      this.logger.error(`Error deleting key ${key}:`, error);
+      this.logger.error(`Error deleting keys ${keys.join(', ')}:`, error);
       throw error;
     }
   }
@@ -81,6 +95,19 @@ export class RedisService implements OnModuleDestroy {
       return result === 1;
     } catch (error) {
       this.logger.error(`Error checking existence of key ${key}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ping Redis server to check connectivity
+   * @returns 'PONG' string response
+   */
+  async ping(): Promise<string> {
+    try {
+      return await this.redis.ping();
+    } catch (error) {
+      this.logger.error('Error pinging Redis server:', error);
       throw error;
     }
   }
@@ -253,6 +280,20 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
+   * Set multiple fields in a hash
+   * @param key Redis key
+   * @param data Object with field-value pairs
+   */
+  async hmset(key: string, data: Record<string, string>): Promise<void> {
+    try {
+      await this.redis.hset(key, data);
+    } catch (error) {
+      this.logger.error(`Error setting multiple hash fields in ${key}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get a field from a hash
    * @param key Redis key
    * @param field Hash field
@@ -307,6 +348,10 @@ export class RedisService implements OnModuleDestroy {
    * Scan for keys matching a pattern
    * @param pattern Key pattern (e.g., "user:*")
    * @returns Array of matching keys
+   * @warning Returned keys include the global keyPrefix configured in ioredis.
+   *          Do not pass these keys directly to other RedisService methods without
+   *          stripping the prefix, as it will be added again resulting in
+   *          double-prefixing (e.g., "complytude:complytude:key").
    */
   async scanKeys(pattern: string): Promise<string[]> {
     try {

@@ -1,4 +1,7 @@
-import { RedisHealthIndicator } from '@complytude/shared/redis/redis.health';
+import {
+  RedisHealthIndicator,
+  RedisHealthResult,
+} from '@complytude/shared/redis/redis.health';
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 
@@ -12,14 +15,6 @@ export interface DatabaseHealthResult {
   status: string;
   database: string;
   timestamp?: Date;
-  error?: string;
-}
-
-export interface RedisHealthResult {
-  status: string;
-  redis: string;
-  timestamp?: Date;
-  latency?: number;
   error?: string;
 }
 

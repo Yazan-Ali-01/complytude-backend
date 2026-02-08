@@ -24,12 +24,10 @@ export class RedisHealthIndicator {
 
     try {
       // Perform ping test
-      await this.redisService.set('health:ping', 'pong', 10);
-      const result = await this.redisService.get<string>('health:ping');
-
+      const result = await this.redisService.ping();
       const latency = Date.now() - start;
 
-      if (result === 'pong') {
+      if (result === 'PONG') {
         return {
           status: 'ok',
           redis: 'connected',
