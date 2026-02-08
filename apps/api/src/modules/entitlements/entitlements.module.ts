@@ -15,6 +15,8 @@ import { UsageLedgerRepository } from '../../repositories/usage/usage-ledger.rep
 import { EntitlementsController } from './entitlements.controller';
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
 import { EntitlementSyncService } from './services/entitlement-sync.service';
+import { UsageIngestionService } from './services/usage-ingestion.service';
+import { UsageProjectionService } from './services/usage-projection.service';
 
 /**
  * Entitlements Module
@@ -34,6 +36,8 @@ import { EntitlementSyncService } from './services/entitlement-sync.service';
     // Core services
     EntitlementResolverService,
     EntitlementSyncService,
+    UsageIngestionService, // Phase 3
+    UsageProjectionService, // Phase 3
 
     // Catalog repositories
     FeaturesRepository,
@@ -45,10 +49,12 @@ import { EntitlementSyncService } from './services/entitlement-sync.service';
     TenantOverridesRepository,
     SubscriptionsRepository,
 
-    // Stub repositories (for future phases)
+    // Usage repositories (Phase 3)
     UsageLedgerRepository,
-    CreditLedgerRepository,
     AggregatedUsageRepository,
+
+    // Stub repositories (for future phases)
+    CreditLedgerRepository,
     EntitlementSnapshotsRepository,
     DomainEventsRepository,
 
@@ -58,6 +64,8 @@ import { EntitlementSyncService } from './services/entitlement-sync.service';
   exports: [
     // Services
     EntitlementResolverService,
+    UsageIngestionService, // Phase 3
+    UsageProjectionService, // Phase 3
 
     // Repositories (for use in other modules)
     FeaturesRepository,

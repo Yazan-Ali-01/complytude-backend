@@ -125,6 +125,12 @@ export class EntitlementResolverService {
    *
    * @param tenantId - Tenant ID
    * @returns Map of feature keys to effective entitlements
+   *
+   * TODO: Phase 4 - Refactor to accept QueryOptions parameter
+   * This will allow callers to share a single transaction instead of creating nested transactions.
+   * Pattern: async resolveAllForTenant(tenantId: string, options?: QueryOptions)
+   * If no options.client provided, create transaction; otherwise use provided client.
+   * This is important for atomic operations in Phase 4 (usage + credit deduction).
    */
   async resolveAllForTenant(
     tenantId: string,

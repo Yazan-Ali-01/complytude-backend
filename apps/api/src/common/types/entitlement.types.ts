@@ -211,6 +211,7 @@ export interface CreditLedgerTransaction {
 export interface AggregatedUsage {
   id: string;
   tenant_id: string;
+  subscription_id: string;
   feature_id: string;
   billing_period: string;
   total_units: number;
@@ -471,6 +472,7 @@ export interface CreateCreditLedgerRow {
 export interface CreateAggregatedUsageRow {
   id?: string;
   tenant_id: string;
+  subscription_id: string;
   feature_id: string;
   billing_period: string;
   total_units?: number;

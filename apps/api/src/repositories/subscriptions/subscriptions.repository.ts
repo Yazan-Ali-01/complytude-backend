@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import {
+  CreateTenantSubscriptionRow,
+  Plan,
+  SubscriptionStatus,
+  TenantSubscription,
+  UpdateTenantSubscriptionRow,
+} from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';
-import {
-  TenantSubscription,
-  CreateTenantSubscriptionRow,
-  UpdateTenantSubscriptionRow,
-  SubscriptionStatus,
-  Plan,
-} from 'src/common/types/entitlement.types';
 
 type TenantSubscriptionRow = {
   id: string;

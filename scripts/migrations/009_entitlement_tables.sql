@@ -274,6 +274,7 @@ CREATE RULE credit_ledger_no_delete AS ON DELETE TO public.credit_ledger DO INST
 CREATE TABLE public.aggregated_usage (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    subscription_id UUID NOT NULL REFERENCES public.tenant_subscriptions(id) ON DELETE CASCADE,
     feature_id      UUID NOT NULL REFERENCES public.features(id),
     billing_period  VARCHAR(7) NOT NULL,
     total_units     INTEGER NOT NULL DEFAULT 0,
@@ -284,10 +285,12 @@ CREATE TABLE public.aggregated_usage (
     last_event_id   UUID,
     last_updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     
-    CONSTRAINT uq_aggregated_usage_tenant_feature_period UNIQUE (tenant_id, feature_id, billing_period)
+    CONSTRAINT uq_aggregated_usage_subscription_feature UNIQUE (subscription_id, feature_id)
 );
 
-COMMENT ON TABLE public.aggregated_usage IS 'Aggregated usage projection (rebuilt from usage_ledger)';
+COMMENT ON TABLE public.aggregated_usage IS 'Aggregated usage projection (rebuilt from usage_ledger) - one row per subscription per feature';
+COMMENT ON COLUMN public.aggregated_usage.subscription_id IS 'Subscription ID (source of truth for billing period boundaries)';
+COMMENT ON COLUMN public.aggregated_usage.billing_period IS 'Billing period in YYYY-MM format (derived from subscription start, for analytics convenience)';
 COMMENT ON COLUMN public.aggregated_usage.total_units IS 'Total usage across all sources';
 COMMENT ON COLUMN public.aggregated_usage.plan_units IS 'Usage from plan entitlement';
 COMMENT ON COLUMN public.aggregated_usage.addon_units IS 'Usage from add-ons';
@@ -377,6 +380,11 @@ CREATE INDEX idx_tenant_subscriptions_status ON public.tenant_subscriptions(stat
 CREATE INDEX idx_tenant_subscriptions_tenant_active ON public.tenant_subscriptions(tenant_id, status) 
     WHERE status = 'active';
 
+-- Unique constraint: only one active subscription per tenant (for upsert in SubscriptionsRepository)
+CREATE UNIQUE INDEX idx_tenant_subscriptions_tenant_active_unique 
+    ON public.tenant_subscriptions(tenant_id) 
+    WHERE status = 'active';
+
 -- Tenant Addons
 CREATE INDEX idx_tenant_addons_tenant_id ON public.tenant_addons(tenant_id);
 CREATE INDEX idx_tenant_addons_addon_id ON public.tenant_addons(addon_id);
@@ -409,6 +417,7 @@ CREATE UNIQUE INDEX idx_credit_ledger_idempotency_key ON public.credit_ledger(id
 
 -- Aggregated Usage
 CREATE INDEX idx_aggregated_usage_tenant_id ON public.aggregated_usage(tenant_id);
+CREATE INDEX idx_aggregated_usage_subscription_id ON public.aggregated_usage(subscription_id);
 CREATE INDEX idx_aggregated_usage_feature_id ON public.aggregated_usage(feature_id);
 CREATE INDEX idx_aggregated_usage_tenant_period ON public.aggregated_usage(tenant_id, billing_period);
 
@@ -499,6 +508,7 @@ DROP INDEX IF EXISTS public.idx_tenant_overrides_tenant_id;
 DROP INDEX IF EXISTS public.idx_tenant_addons_tenant_active;
 DROP INDEX IF EXISTS public.idx_tenant_addons_addon_id;
 DROP INDEX IF EXISTS public.idx_tenant_addons_tenant_id;
+DROP INDEX IF EXISTS public.idx_tenant_subscriptions_tenant_active_unique;
 DROP INDEX IF EXISTS public.idx_tenant_subscriptions_tenant_active;
 DROP INDEX IF EXISTS public.idx_tenant_subscriptions_status;
 DROP INDEX IF EXISTS public.idx_tenant_subscriptions_plan_id;
