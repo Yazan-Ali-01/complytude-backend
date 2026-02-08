@@ -22,4 +22,12 @@ export class HealthController {
   async checkDatabase() {
     return await this.healthService.checkDatabase();
   }
+
+  @Get('redis')
+  @ApiOperation({ summary: 'Redis health check' })
+  @ApiResponse({ status: 200, description: 'Redis is healthy' })
+  @ApiResponse({ status: 503, description: 'Redis is unhealthy' })
+  async checkRedis() {
+    return await this.healthService.checkRedis();
+  }
 }

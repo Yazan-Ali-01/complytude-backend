@@ -7,11 +7,11 @@ export const validationSchema = Joi.object({
     .default('development'),
   PORT: Joi.number().default(3000),
   API_PREFIX: Joi.string().default('api'),
-  CORS_ORIGINS: Joi.string().default('http://localhost:3000'),
+  CORS_ORIGINS: Joi.string().required(),
 
   // Database
-  DB_HOST: Joi.string().default('localhost'),
-  DB_PORT: Joi.number().default(5432),
+  DB_HOST: Joi.string().required(),
+  DB_PORT: Joi.number().required(),
   DB_NAME: Joi.string().required(),
   DB_APP_USER: Joi.string().required(),
   DB_APP_PASSWORD: Joi.string().required(),
@@ -32,10 +32,10 @@ export const validationSchema = Joi.object({
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
 
   // S3/MinIO Storage
-  S3_ENDPOINT: Joi.string().default('http://localhost:9000'),
+  S3_ENDPOINT: Joi.string().required(),
   S3_REGION: Joi.string().default('us-east-1'),
-  S3_ACCESS_KEY: Joi.string().default('minioadmin'),
-  S3_SECRET_KEY: Joi.string().default('minioadmin'),
+  S3_ACCESS_KEY: Joi.string().required(),
+  S3_SECRET_KEY: Joi.string().required(),
   S3_FORCE_PATH_STYLE: Joi.boolean().default(true),
 
   // Storage Buckets
@@ -46,4 +46,12 @@ export const validationSchema = Joi.object({
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
   TEMPLATE_MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
+
+  // Redis Configuration
+  REDIS_HOST: Joi.string().required(),
+  REDIS_PORT: Joi.number().required(),
+  REDIS_PASSWORD: Joi.string().optional().allow(''),
+  REDIS_DB: Joi.number().default(0),
+  REDIS_TLS: Joi.boolean().default(false),
+  REDIS_KEY_PREFIX: Joi.string().default('complytude:'),
 });

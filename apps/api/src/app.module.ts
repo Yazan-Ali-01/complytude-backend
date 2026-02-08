@@ -1,3 +1,4 @@
+import { RedisModule } from '@complytude/shared/redis/redis.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -13,6 +14,7 @@ import { UsersModule } from 'src/modules/users/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import redisConfig from './config/redis-config';
 import { I18nModule } from './i18n/i18n.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
@@ -32,13 +34,14 @@ import { EntitlementsModule } from './modules/entitlements/entitlements.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['apps/api/.env'],
-      load: [databaseConfig, appConfig, jwtConfig, storageConfig],
+      load: [databaseConfig, appConfig, jwtConfig, storageConfig, redisConfig],
       validationSchema: validationSchema,
       validationOptions: {
         allowUnknown: true,
         abortEarly: false,
       },
     }),
+    RedisModule.forRoot(),
     I18nModule,
     DatabaseModule,
     HealthModule,

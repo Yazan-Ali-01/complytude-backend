@@ -1,3 +1,7 @@
+import {
+  RedisHealthIndicator,
+  RedisHealthResult,
+} from '@complytude/shared/redis/redis.health';
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 
@@ -18,7 +22,10 @@ export interface DatabaseHealthResult {
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly redisHealthIndicator: RedisHealthIndicator,
+  ) {}
 
   check(): HealthCheckResult {
     return {
@@ -48,5 +55,9 @@ export class HealthService {
         error: errorMessage,
       };
     }
+  }
+
+  async checkRedis(): Promise<RedisHealthResult> {
+    return await this.redisHealthIndicator.isHealthy();
   }
 }
