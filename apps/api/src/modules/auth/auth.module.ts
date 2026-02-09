@@ -10,6 +10,7 @@ import { DatabaseModule } from '../../database/database.module';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { TenantModule } from '../tenants/tenant.module';
 import { AuthController } from './auth.controller';
+import { SessionsController } from './controllers/sessions.controller';
 import { AuthService } from './auth.service';
 import { JwtIdentityAccessStrategy } from './strategies/jwt-identity-access.strategy';
 import { JwtIdentityRefreshStrategy } from './strategies/jwt-identity-refresh.strategy';
@@ -19,6 +20,12 @@ import {
 } from './strategies/jwt-tenant-access.strategy';
 import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strategy';
 
+/**
+ * AuthModule - Authentication and authorization
+ *
+ * Note: Session services (SessionService, SessionInvalidationService, etc.)
+ * are provided by SessionModule which is @Global(). No need to import or provide them here.
+ */
 @Module({
   imports: [
     DatabaseModule,
@@ -27,8 +34,9 @@ import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strate
     JwtModule.register({}), // Configuration done in strategies
     TenantModule,
     InvitationsModule,
+    // Note: RedisModule and SessionModule are global - don't import here
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, SessionsController],
   providers: [
     AuthService,
     JwtTenantAccessStrategy,

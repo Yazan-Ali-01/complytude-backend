@@ -19,17 +19,35 @@ export const validationSchema = Joi.object({
   DB_IDLE_TIMEOUT: Joi.number().default(30000),
   DB_CONNECTION_TIMEOUT: Joi.number().default(2000),
 
+  // Redis
+  REDIS_HOST: Joi.string().default('localhost'),
+  REDIS_PORT: Joi.number().default(6379),
+  REDIS_PASSWORD: Joi.string().optional().allow(''),
+  REDIS_DB: Joi.number().default(0),
+  REDIS_KEY_PREFIX: Joi.string().default('complytude:'),
+
+  // Session Management
+  SESSION_MAX_TTL: Joi.string().default('14d'), // Absolute session timeout
+  SESSION_IDLE_TIMEOUT: Joi.string().default('72h'), // Idle timeout
+  SESSION_MAX_PER_USER: Joi.number().default(5), // Max identity sessions per user
+  SESSION_ACTIVITY_THROTTLE_SECONDS: Joi.number().default(120), // Activity update throttle (2 minutes)
+  SERVICE_NAME: Joi.string().default('api'), // Service identifier for sessions
+
   // JWT
   JWT_ACCESS_SECRET: Joi.string().required(),
   JWT_REFRESH_SECRET: Joi.string().required(),
   JWT_IDENTITY_SECRET: Joi.string().required(),
   JWT_IDENTITY_REFRESH_SECRET: Joi.string().required(),
-  JWT_REFRESH_HASH_SECRET: Joi.string().required(),
+  JWT_REFRESH_HASH_SECRET: Joi.string().required(), // Deprecated - will be removed after session migration
   JWT_ACCESS_EXPIRES_IN: Joi.string().default('30m'),
-  JWT_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
-  JWT_IDENTITY_EXPIRES_IN: Joi.string().default('10m'),
-  JWT_IDENTITY_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
+  JWT_REFRESH_EXPIRES_IN: Joi.string().default('14d'), // Deprecated - replaced by SESSION_MAX_TTL
+  JWT_IDENTITY_EXPIRES_IN: Joi.string().default('15m'),
+  JWT_IDENTITY_REFRESH_EXPIRES_IN: Joi.string().default('14d'), // Deprecated - replaced by SESSION_MAX_TTL
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
+
+  // MaxMind GeoIP (Optional - geo lookup disabled if not provided)
+  MAXMIND_LICENSE_KEY: Joi.string().optional().allow(''),
+  MAXMIND_DB_PATH: Joi.string().default('./data/GeoLite2-City.mmdb'),
 
   // S3/MinIO Storage
   S3_ENDPOINT: Joi.string().default('http://localhost:9000'),

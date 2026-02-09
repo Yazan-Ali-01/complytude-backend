@@ -10,6 +10,8 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from 'src/database/database.service';
+import { SessionInvalidationService } from '../auth/services/session-invalidation.service';
+import { AuditService } from '../audit/audit.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -21,7 +23,11 @@ export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private readonly BCRYPT_ROUNDS = 12;
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly sessionInvalidationService: SessionInvalidationService,
+    private readonly auditService: AuditService,
+  ) {}
 
   /**
    * Find user by ID
@@ -75,6 +81,7 @@ export class UsersService {
 
   /**
    * Update user's own profile
+   * Note: Email changes are not supported in profile updates (would require re-verification)
    */
   async updateProfile(
     userId: string,
@@ -117,6 +124,7 @@ export class UsersService {
 
   /**
    * Change user password
+   * Security event: Invalidates all user sessions immediately
    */
   async changePassword(
     userId: string,
@@ -157,14 +165,22 @@ export class UsersService {
         [newPasswordHash, userId],
       );
 
-      // Revoke all refresh tokens (force re-login on other devices)
+      // Revoke all refresh tokens (transitional - will be removed)
       await client.query(
         'UPDATE public.refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL',
         [userId],
       );
     });
 
-    this.logger.log(`Password changed for user ${userId}`);
+    // Security event: Password changed → Invalidate all user sessions
+    await this.sessionInvalidationService.invalidateAllUserSessions(
+      userId,
+      'password_changed',
+    );
+
+    this.logger.warn(
+      `Password changed for user ${userId}. All sessions invalidated for security.`,
+    );
   }
 
   /**
@@ -302,22 +318,26 @@ export class UsersService {
 
   /**
    * Update user in tenant (admin only)
+   * Security event: Role change invalidates all tenant sessions for the user
    */
   async updateUser(
     tenantId: string,
     targetUserId: string,
     updaterId: string,
+    updaterRole: string,
     updateUserDto: UpdateUserDto,
   ): Promise<any> {
     // Check if target user exists in tenant
     const existingAssociation = await this.databaseService.query(
-      'SELECT * FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
+      'SELECT role_key, user_id FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
       [targetUserId, tenantId],
     );
 
     if (existingAssociation.rows.length === 0) {
       throw new NotFoundException('User not found in this tenant');
     }
+
+    const oldRole = existingAssociation.rows[0].role_key;
 
     // Prevent users from modifying their own admin status
     if (targetUserId === updaterId && updateUserDto.role) {
@@ -327,10 +347,12 @@ export class UsersService {
     const updateFields: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
+    let roleChanged = false;
 
-    if (updateUserDto.role !== undefined) {
+    if (updateUserDto.role !== undefined && updateUserDto.role !== oldRole) {
       updateFields.push(`role_key = $${paramIndex++}`);
       values.push(updateUserDto.role);
+      roleChanged = true;
     }
 
     if (updateUserDto.isActive !== undefined) {
@@ -353,6 +375,47 @@ export class UsersService {
     `;
 
     await this.databaseService.query(query, values);
+
+    // Security event: Role changed → Invalidate tenant sessions
+    if (roleChanged) {
+      const sessionsInvalidated = await this.sessionInvalidationService.invalidateUserTenantSessions(
+        targetUserId,
+        tenantId,
+        'role_changed',
+      );
+
+      // Get target user email for audit log
+      const targetUserResult = await this.databaseService.query(
+        'SELECT email FROM public.users WHERE id = $1',
+        [targetUserId],
+      );
+      const targetEmail = targetUserResult.rows[0]?.email || 'unknown';
+
+      // Audit log role change
+      await this.auditService.log({
+        tenantId,
+        userId: updaterId,
+        userRole: updaterRole,
+        action: 'users:role_changed',
+        resourceType: 'user_tenant',
+        resourceId: targetUserId,
+        details: {
+          targetUserId,
+          targetEmail,
+          oldRole,
+          newRole: updateUserDto.role,
+          reason: 'manual_role_change',
+          sessionsInvalidated,
+        },
+        ipAddress: undefined,
+        userAgent: undefined,
+      });
+
+      this.logger.warn(
+        `Role changed for user ${targetUserId} in tenant ${tenantId}: ${oldRole} → ${updateUserDto.role}. ` +
+        `${sessionsInvalidated} tenant session(s) invalidated.`,
+      );
+    }
 
     this.logger.log(
       `User ${targetUserId} updated in tenant ${tenantId} by ${updaterId}`,

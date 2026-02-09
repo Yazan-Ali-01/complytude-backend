@@ -42,6 +42,7 @@ export class JwtIdentityAccessStrategy extends PassportStrategy(
       userId: payload.sub,
       email: payload.email,
       globalRoles: payload.globalRoles || [],
+      sessionId: payload.sessionId, // Extract sessionId from JWT
     };
   }
 }

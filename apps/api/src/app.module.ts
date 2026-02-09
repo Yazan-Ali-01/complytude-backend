@@ -1,13 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { RedisModule } from '@complytude/shared';
 import appConfig from 'src/config/app.config';
 import databaseConfig from 'src/config/database.config';
 import { validationSchema } from 'src/config/env.schema';
 import jwtConfig from 'src/config/jwt.config';
+import redisConfig from 'src/config/redis.config';
 import storageConfig from 'src/config/storage.config';
 import { DatabaseModule } from 'src/database/database.module';
 import { AuthModule } from 'src/modules/auth/auth.module';
+import { SessionModule } from 'src/modules/sessions/session.module';
 import { HealthModule } from 'src/modules/health/health.module';
 import { UsersModule } from 'src/modules/users/users.module';
 import { AppController } from './app.controller';
@@ -31,7 +34,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['apps/api/.env'],
-      load: [databaseConfig, appConfig, jwtConfig, storageConfig],
+      load: [databaseConfig, appConfig, jwtConfig, redisConfig, storageConfig],
       validationSchema: validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -39,6 +42,8 @@ import { TenantModule } from './modules/tenants/tenant.module';
       },
     }),
     I18nModule,
+    RedisModule, // Global - Redis client available everywhere
+    SessionModule, // Global - Session services available everywhere (MUST be before AuthModule)
     DatabaseModule,
     HealthModule,
     TenantModule,

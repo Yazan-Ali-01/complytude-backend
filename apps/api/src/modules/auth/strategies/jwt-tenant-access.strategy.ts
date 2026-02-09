@@ -43,6 +43,7 @@ export class JwtTenantAccessStrategy extends PassportStrategy(
       email: payload.email,
       tenantId: payload.tenantId,
       role: payload.role,
+      sessionId: payload.sessionId, // Extract sessionId from JWT
     };
   }
 }

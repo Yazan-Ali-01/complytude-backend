@@ -52,6 +52,7 @@ export class JwtIdentityRefreshStrategy extends PassportStrategy(
     return {
       userId: payload.sub,
       email: payload.email,
+      sessionId: payload.sessionId, // Extract sessionId from JWT
       refreshToken,
     };
   }

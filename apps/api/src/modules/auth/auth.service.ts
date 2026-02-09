@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { FastifyReply } from 'fastify';
+import { FastifyReply, FastifyRequest } from 'fastify';
 import { I18n, I18nService } from 'nestjs-i18n';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
@@ -50,6 +50,11 @@ import {
   TenantPayload,
   TenantRefreshPayload,
 } from './strategies';
+import { SessionService } from './services/session.service';
+import { SessionInvalidationService } from './services/session-invalidation.service';
+import { UserAgentParserService } from './services/user-agent-parser.service';
+import { GeoLocationService } from './services/geo-location.service';
+import { SERVICE_NAME } from './constants/session.constants';
 
 @Injectable()
 export class AuthService {
@@ -66,6 +71,10 @@ export class AuthService {
     private readonly userTenantRepository: UserTenantRepository,
     private readonly databaseService: DatabaseService,
     private readonly invitationsService: InvitationsService,
+    private readonly sessionService: SessionService,
+    private readonly sessionInvalidationService: SessionInvalidationService,
+    private readonly userAgentParser: UserAgentParserService,
+    private readonly geoLocationService: GeoLocationService,
     @I18n() private readonly i18n: I18nService,
   ) {}
 
@@ -292,7 +301,10 @@ export class AuthService {
    * Returns user info and list of available tenants
    * Note: This is NOT for system admins
    */
-  async login(loginDto: LoginDto): Promise<
+  async login(
+    loginDto: LoginDto,
+    request: FastifyRequest,
+  ): Promise<
     LoginResponseDto & {
       identityAccessToken: string;
       identityRefreshToken: string;
@@ -311,9 +323,36 @@ export class AuthService {
       ? [GlobalRole.SYSTEM_ADMIN]
       : [];
 
-    // Generate identity tokens (access + refresh)
+    // Create identity session with device/geo metadata
+    const identitySessionId = crypto.randomUUID();
+    
+    // Parse User-Agent for device info
+    const userAgentString = request.headers['user-agent'];
+    const deviceInfo = this.userAgentParser.parse(userAgentString);
+    
+    // Get IP address (handle proxy headers)
+    const ipAddress = (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+                      (request.headers['x-real-ip'] as string) ||
+                      request.ip ||
+                      '127.0.0.1';
+    
+    // Lookup geolocation
+    const geoLocation = this.geoLocationService.lookup(ipAddress);
+
+    // Create identity session in Redis
+    await this.sessionService.createIdentitySession(identitySessionId, {
+      userId: user.id,
+      email: user.email,
+      globalRoles,
+      deviceInfo,
+      ipAddress,
+      geoLocation,
+      serviceName: SERVICE_NAME,
+    });
+
+    // Generate identity tokens (access + refresh) with sessionId
     const { identityAccessToken, identityRefreshToken } =
-      await this.generateIdentityTokens(user.id, user.email, globalRoles);
+      await this.generateIdentityTokens(user.id, user.email, globalRoles, identitySessionId);
 
     // Get user's active tenants
     const userTenants = await this.userTenantRepository.getActiveUserTenants(
@@ -335,7 +374,11 @@ export class AuthService {
     const pendingInvitationsCount =
       await this.invitationsService.countUserInvitations(user.email);
 
-    this.logger.log(`User ${user.email} logged in successfully`);
+    this.logger.log(
+      `User ${user.email} logged in successfully (session: ${identitySessionId}, ` +
+      `device: ${deviceInfo.deviceType}, ${deviceInfo.browserName}, ` +
+      `location: ${geoLocation?.city || 'Unknown'}, ${geoLocation?.country || 'Unknown'})`,
+    );
 
     // Return user info and available tenants
     return {
@@ -400,17 +443,20 @@ export class AuthService {
     userId: string,
     email: string,
     globalRoles: GlobalRole[],
+    sessionId: string,
   ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     const accessPayload: IdentityPayload = {
       sub: userId,
       email,
       globalRoles,
+      sessionId, // Include session ID for Redis validation
       type: 'identity',
     };
 
     const refreshPayload: IdentityRefreshPayload = {
       sub: userId,
       email,
+      sessionId, // Include session ID for Redis validation
       type: 'identity-refresh',
     };
 
@@ -441,18 +487,21 @@ export class AuthService {
   /**
    * Generate tenant tokens (access + refresh)
    * Used after tenant selection
+   * Now includes sessionId for Redis session tracking
    */
   async generateTenantTokens(
     userId: string,
     email: string,
     tenantId: string,
     role: string,
+    sessionId: string,
   ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
     const accessPayload: TenantPayload = {
       sub: userId,
       email,
       tenantId,
       role,
+      sessionId, // NEW: Link token to Redis session
       type: 'tenant-access',
     };
 
@@ -460,6 +509,7 @@ export class AuthService {
       sub: userId,
       email,
       tenantId,
+      sessionId, // NEW: Link token to Redis session
       type: 'tenant-refresh',
     };
 
@@ -479,7 +529,7 @@ export class AuthService {
       } as any,
     );
 
-    // Store tenant refresh token in database
+    // Store tenant refresh token in database (transitional - will be removed)
     await this.storeTenantRefreshToken(userId, tenantId, tenantRefreshToken);
 
     return { tenantAccessToken, tenantRefreshToken };
@@ -565,10 +615,12 @@ export class AuthService {
   /**
    * Refresh identity tokens
    * Generates new identity access and refresh tokens
+   * Reuses the same sessionId from the refresh token
    */
   async refreshIdentityTokens(
     userId: string,
     email: string,
+    sessionId: string,
     oldRefreshToken: string,
   ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     const oldTokenHash = this.hashRefreshToken(oldRefreshToken);
@@ -601,14 +653,15 @@ export class AuthService {
       ? [GlobalRole.SYSTEM_ADMIN]
       : [];
 
-    // Generate new identity tokens
+    // Generate new identity tokens with same sessionId
     const tokens = await this.generateIdentityTokens(
       userId,
       email,
       globalRoles,
+      sessionId, // Reuse existing session ID
     );
 
-    this.logger.log(`Identity tokens refreshed for user ${userId}`);
+    this.logger.log(`Identity tokens refreshed for user ${userId} (session: ${sessionId})`);
 
     return tokens;
   }
@@ -616,11 +669,13 @@ export class AuthService {
   /**
    * Refresh tenant tokens
    * Generates new tenant access and refresh tokens for the same tenant
+   * Reuses the same sessionId from the refresh token
    */
   async refreshTenantTokens(
     userId: string,
     email: string,
     tenantId: string,
+    sessionId: string,
     oldRefreshToken: string,
   ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
     const oldTokenHash = this.hashRefreshToken(oldRefreshToken);
@@ -658,40 +713,46 @@ export class AuthService {
       );
     }
 
-    // Generate new tenant tokens
+    // Generate new tenant tokens with same sessionId
     const tokens = await this.generateTenantTokens(
       userId,
       email,
       tenantId,
       userTenant.role_key,
+      sessionId, // Reuse existing session ID
     );
 
     this.logger.log(
-      `Tenant tokens refreshed for user ${userId} in tenant ${tenantId}`,
+      `Tenant tokens refreshed for user ${userId} in tenant ${tenantId} (session: ${sessionId})`,
     );
 
     return tokens;
   }
 
   /**
-   * Logout user (revoke all refresh tokens)
+   * Logout user (delete sessions)
+   * Deletes both identity and tenant sessions, immediately invalidating all tokens
    */
   async logout(
     userId: string,
-    identityRefreshToken?: string,
-    tenantRefreshToken?: string,
+    identitySessionId?: string,
+    tenantSessionId?: string,
+    tenantId?: string,
   ) {
-    // Revoke all refresh tokens (both identity and tenant)
-    if (identityRefreshToken) {
-      await this.revokeRefreshToken(userId, identityRefreshToken);
+    // Delete sessions (immediate invalidation)
+    if (identitySessionId) {
+      await this.sessionService.deleteIdentitySession(identitySessionId, userId);
+      this.logger.log(`Identity session ${identitySessionId} deleted for user ${userId}`);
     }
-    if (tenantRefreshToken) {
-      await this.revokeRefreshToken(userId, tenantRefreshToken);
+    
+    if (tenantSessionId && tenantId) {
+      await this.sessionService.deleteTenantSession(tenantSessionId, userId, tenantId);
+      this.logger.log(
+        `Tenant session ${tenantSessionId} deleted for user ${userId} in tenant ${tenantId}`,
+      );
     }
 
-    this.logger.log(
-      `User ${userId} logged out (identity tokens revoked, tenant tokens revoked)`,
-    );
+    this.logger.log(`User ${userId} logged out successfully`);
     return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
   }
 
@@ -828,13 +889,21 @@ export class AuthService {
 
       await this.userRepository.markPasswordResetUsed(reset.id, { client });
 
-      // Revoke all refresh tokens for this user (force re-login)
+      // Revoke all refresh tokens for this user (transitional - will be removed)
       await this.refreshTokenRepository.revokeAllByUserId(reset.userId, {
         client,
       });
     });
 
-    this.logger.log(`Password reset for user ${reset.userId}`);
+    // Security event: Password reset → Invalidate all user sessions
+    await this.sessionInvalidationService.invalidateAllUserSessions(
+      reset.userId,
+      'password_reset',
+    );
+
+    this.logger.warn(
+      `Password reset for user ${reset.userId}. All sessions invalidated for security.`,
+    );
 
     return { message: this.i18n.t(I18nKeys.PASSWORD_RESET_SUCCESS) };
   }
@@ -842,9 +911,10 @@ export class AuthService {
   /**
    * Switch to a different tenant
    * User must be authenticated with identity token
+   * Creates a tenant session linked to the identity session
    */
   async tenantSwitch(
-    { email, userId }: AuthenticatedIdentityUser,
+    { email, userId, sessionId: identitySessionId }: AuthenticatedIdentityUser,
     tenantId: string,
   ): Promise<
     TenantSwitchResponseDto & {
@@ -866,16 +936,30 @@ export class AuthService {
         );
       }
 
-      // Generate tenant tokens (access + refresh)
+      // Create tenant session in Redis (linked to identity session)
+      const tenantSessionId = crypto.randomUUID();
+      
+      await this.sessionService.createTenantSession(tenantSessionId, {
+        userId,
+        tenantId,
+        role: userTenant.role_key,
+        identitySessionId,
+      });
+
+      // Generate tenant tokens (access + refresh) with sessionId
       const { tenantAccessToken, tenantRefreshToken } =
         await this.generateTenantTokens(
           userId,
           email,
           tenantId,
           userTenant.role_key,
+          tenantSessionId,
         );
 
-      this.logger.log(`User ${email} switched to tenant ${tenantId}`);
+      this.logger.log(
+        `User ${email} switched to tenant ${tenantId} ` +
+        `(identity session: ${identitySessionId}, tenant session: ${tenantSessionId})`,
+      );
 
       // Return user and tenant info along with tokens
       return {

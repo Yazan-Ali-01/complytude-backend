@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -17,7 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
   ApiAuthenticatedResponses,
@@ -134,10 +135,11 @@ export class AuthController {
   @ApiPublicResponses()
   async login(
     @Body() loginDto: LoginDto,
+    @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<LoginResponseDto> {
     const { identityAccessToken, identityRefreshToken, ...loginResponse } =
-      await this.authService.login(loginDto);
+      await this.authService.login(loginDto, request);
 
     // Clear all auth cookies (in case the user somehow didn't logout before logging in again)
     this.authService.clearAllAuthCookies(reply);
@@ -240,6 +242,7 @@ export class AuthController {
       await this.authService.refreshIdentityTokens(
         identityUser.userId,
         identityUser.email,
+        identityUser.sessionId, // Pass sessionId from refresh token
         identityUser.refreshToken,
       );
 
@@ -285,6 +288,7 @@ export class AuthController {
         tenantUser.userId,
         tenantUser.email,
         tenantUser.tenantId,
+        tenantUser.sessionId, // Pass sessionId from refresh token
         tenantUser.refreshToken,
       );
 
@@ -330,8 +334,9 @@ export class AuthController {
   ): Promise<MessageResponseDto> {
     const { message } = await this.authService.logout(
       identityRefreshUser?.userId ?? tenantRefreshUser?.userId,
-      identityRefreshUser?.refreshToken,
-      tenantRefreshUser?.refreshToken,
+      identityRefreshUser?.sessionId,
+      tenantRefreshUser?.sessionId,
+      tenantRefreshUser?.tenantId,
     );
     this.authService.clearAllAuthCookies(reply);
     return { message };

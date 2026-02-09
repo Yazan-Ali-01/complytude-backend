@@ -76,6 +76,12 @@ export const ALL_TENANT_PERMISSIONS = [
   'settings:*', // Wildcard: All settings permissions
 
   // ─────────────────────────────────────────────────────────────────
+  // Sessions - User session management
+  // ─────────────────────────────────────────────────────────────────
+  'sessions:manage', // View and manage user sessions (tenant admin)
+  'sessions:*', // Wildcard: All session permissions
+
+  // ─────────────────────────────────────────────────────────────────
   // Cross-resource wildcards
   // ─────────────────────────────────────────────────────────────────
   '*:read', // All read permissions across resources
@@ -135,6 +141,10 @@ export const TENANT_PERMISSIONS = {
     MANAGE: 'settings:manage' as const,
     CHANGE_JURISDICTION: 'settings:change_jurisdiction' as const,
     ALL: 'settings:*' as const,
+  },
+  SESSIONS: {
+    MANAGE: 'sessions:manage' as const,
+    ALL: 'sessions:*' as const,
   },
   // Cross-resource wildcards
   WILDCARDS: {

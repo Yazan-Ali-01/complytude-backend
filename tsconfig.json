@@ -22,15 +22,9 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@complytude/shared": [
-        "libs/shared/src"
-      ],
-      "@complytude/shared/*": [
-        "libs/shared/src/*"
-      ],
-      "src/*": [
-        "apps/api/src/*"
-      ]
+      "@complytude/shared": ["libs/shared/src"],
+      "@complytude/shared/*": ["libs/shared/src/*"],
+      "src/*": ["apps/api/src/*"]
     }
   }
 }
