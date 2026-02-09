@@ -115,6 +115,7 @@
     "docxtemplater": "^3.67.1",
     "fastify": "^5.2.1",
     "file-type": "^21.0.0",
+    "ioredis": "^5.9.2",
     "joi": "^18.0.1",
     "nestjs-i18n": "^10.6.0",
     "nestjs-pino": "^4.3.0",

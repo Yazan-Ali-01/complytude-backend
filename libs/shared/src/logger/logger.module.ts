@@ -1,4 +1,4 @@
-import { DynamicModule, Global, Module } from '@nestjs/common';
+import { DynamicModule, Global, Module, Type } from '@nestjs/common';
 import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
 import { LoggerModuleOptions } from './interfaces/logger-options.interface';
 import { createPinoConfig } from './pino.config';
@@ -85,11 +85,11 @@ export class LoggerModule {
    * })
    * ```
    */
-  static forRootAsync(options: {
-    imports?: any[];
-    inject?: any[];
+  static forRootAsync<T extends unknown[]>(options: {
+    imports?: Array<Type<unknown> | DynamicModule>;
+    inject?: Array<Type<unknown> | string | symbol>;
     useFactory: (
-      ...args: any[]
+      ...args: T
     ) => LoggerModuleOptions | Promise<LoggerModuleOptions>;
   }): DynamicModule {
     return {
@@ -98,7 +98,7 @@ export class LoggerModule {
         PinoLoggerModule.forRootAsync({
           imports: options.imports,
           inject: options.inject,
-          useFactory: async (...args: any[]) => {
+          useFactory: async (...args: T) => {
             const loggerOptions = await options.useFactory(...args);
             return createPinoConfig(loggerOptions);
           },

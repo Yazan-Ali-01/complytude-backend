@@ -29,6 +29,14 @@ export function createPinoConfig(options: LoggerModuleOptions): Params {
       // Base logger configuration
       level: logLevel,
 
+      // Base properties for all logs
+      // Remove pid and hostname - not useful in containerized environments
+      base: {
+        service_name: serviceName,
+        pid: undefined,
+        hostname: undefined,
+      },
+
       // Pretty print for development (human-readable)
       transport: prettyPrint
         ? {
@@ -55,15 +63,17 @@ export function createPinoConfig(options: LoggerModuleOptions): Params {
 
       // Generate unique request ID for distributed tracing
       genReqId: (req: any) => {
-        // Use existing x-request-id header if present, otherwise generate new UUID
-        return req.headers['x-request-id'] || uuidv4();
+        // Use existing x-request-id or x-trace-id header if present, otherwise generate new UUID
+        // Supports W3C Trace Context and OpenTelemetry compatibility
+        return (
+          req.headers['x-request-id'] || req.headers['x-trace-id'] || uuidv4()
+        );
       },
 
       // Custom properties injected into every log
       customProps: (req: any) => {
         const customProps: Record<string, any> = {
           trace_id: req.id, // Request correlation ID
-          service_name: serviceName,
         };
 
         // Extract tenant_id from JWT if authenticated
@@ -83,13 +93,29 @@ export function createPinoConfig(options: LoggerModuleOptions): Params {
         return customProps;
       },
 
-      // Auto-logging configuration
+      // Redact sensitive fields from logs (OWASP compliance)
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'req.body.password',
+          'req.body.currentPassword',
+          'req.body.newPassword',
+          'req.body.confirmPassword',
+          'req.body.token',
+          'req.query.token',
+          'req.query.password',
+        ],
+        censor: '[REDACTED]',
+      },
+
+      // Auto-logging configurationn
       autoLogging: autoLogging
         ? {
-            ignore: (req: any) => {
+            ignore: (req: { url?: string }) => {
               // Don't log health check endpoints (reduces noise)
               const ignoredPaths = ['/health', '/api/health', '/metrics', '/'];
-              return ignoredPaths.includes(req.url);
+              return ignoredPaths.includes(req.url ?? '');
             },
           }
         : false,
@@ -123,9 +149,13 @@ export function createPinoConfig(options: LoggerModuleOptions): Params {
           responseTime: res.responseTime,
         }),
         err: (err: any) => ({
-          type: err.type || err.constructor.name,
+          type: err.type || err.constructor?.name || 'Error',
           message: err.message,
           stack: err.stack,
+          // Include HTTP status code if available (NestJS HttpException)
+          statusCode: err.status || err.statusCode,
+          // Include validation errors if present
+          ...(err.response?.message && { details: err.response.message }),
         }),
       },
     },

@@ -4,7 +4,6 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService, I18n } from 'nestjs-i18n';
