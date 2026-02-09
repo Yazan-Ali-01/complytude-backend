@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   CreateTenantSubscriptionRow,
   Plan,
@@ -25,7 +25,7 @@ type TenantSubscriptionRow = {
   updated_at: Date;
 };
 
-interface TenantSubscriptionWithPlan extends TenantSubscription {
+export interface TenantSubscriptionWithPlan extends TenantSubscription {
   plan?: Plan;
 }
 
@@ -169,6 +169,99 @@ export class SubscriptionsRepository extends BaseRepository<
       ],
       options,
     );
+
+    return this.mapRow(result.rows[0]);
+  }
+
+  /**
+   * Find all subscriptions due for renewal (Phase 6)
+   * Returns subscriptions where current_period_end <= now() and status = 'active'
+   */
+  async findAllDueForRenewal(
+    options?: QueryOptions,
+  ): Promise<TenantSubscription[]> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `SELECT ${this.getSelectColumns()} 
+       FROM ${this.tableName} 
+       WHERE status = 'active' AND current_period_end <= now()
+       ORDER BY current_period_end ASC`,
+      [],
+      options,
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Update plan for a subscription (Phase 6)
+   */
+  async updatePlan(
+    id: string,
+    planId: string,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `UPDATE ${this.tableName} 
+       SET plan_id = $1, updated_at = now() 
+       WHERE id = $2 
+       RETURNING ${this.getSelectColumns()}`,
+      [planId, id],
+      options,
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`Subscription not found: ${id}`);
+    }
+
+    return this.mapRow(result.rows[0]);
+  }
+
+  /**
+   * Update subscription status (Phase 6)
+   */
+  async updateStatus(
+    id: string,
+    status: SubscriptionStatus,
+    cancelledAt?: Date,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `UPDATE ${this.tableName} 
+       SET status = $1, cancelled_at = $2, updated_at = now() 
+       WHERE id = $3 
+       RETURNING ${this.getSelectColumns()}`,
+      [status, cancelledAt ?? null, id],
+      options,
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`Subscription not found: ${id}`);
+    }
+
+    return this.mapRow(result.rows[0]);
+  }
+
+  /**
+   * Update billing period (Phase 6)
+   */
+  async updatePeriod(
+    id: string,
+    periodStart: Date,
+    periodEnd: Date,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `UPDATE ${this.tableName} 
+       SET current_period_start = $1, current_period_end = $2, updated_at = now() 
+       WHERE id = $3 
+       RETURNING ${this.getSelectColumns()}`,
+      [periodStart, periodEnd, id],
+      options,
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`Subscription not found: ${id}`);
+    }
 
     return this.mapRow(result.rows[0]);
   }

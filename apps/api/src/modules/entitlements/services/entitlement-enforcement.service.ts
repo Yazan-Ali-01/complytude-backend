@@ -251,6 +251,85 @@ export class EntitlementEnforcementService {
       };
     }
 
+    // TODO: DISCUSSION - Partial Credit Fallback Strategy
+    //
+    // Current Behavior: "All-or-Nothing" Credit Fallback
+    // ===================================================
+    // When plan quota is exceeded, the ENTIRE request is fulfilled using credits.
+    //
+    // Example:
+    //   - Plan remaining: 1 unit
+    //   - Request: 5 units
+    //   - Result: Deduct 5 credits, plan usage stays at current level
+    //   - Credits remaining: 20 - 5 = 15
+    //
+    // Pros:
+    //   ✅ Simpler implementation (single source per request)
+    //   ✅ Cleaner usage ledger (one entry per request)
+    //   ✅ Easier to reason about and audit
+    //   ✅ No mixed-source transactions
+    //
+    // Cons:
+    //   ❌ Doesn't maximize plan quota utilization
+    //   ❌ Less cost-effective for tenants (wastes remaining plan units)
+    //   ❌ May feel unfair to users who expect to use remaining quota first
+    //
+    // Alternative: "Partial Credit Fallback" (NOT IMPLEMENTED)
+    // =========================================================
+    // Use remaining plan quota first, then fill the gap with credits.
+    //
+    // Example:
+    //   - Plan remaining: 1 unit
+    //   - Request: 5 units
+    //   - Result: Use 1 from plan + deduct 4 credits
+    //   - Credits remaining: 20 - 4 = 16
+    //
+    // Pros:
+    //   ✅ Maximizes plan quota utilization
+    //   ✅ More cost-effective for tenants
+    //   ✅ Better user experience (feels fairer)
+    //   ✅ Reduces credit consumption
+    //
+    // Cons:
+    //   ❌ More complex implementation (split transactions)
+    //   ❌ Two usage ledger entries per request (plan + credit)
+    //   ❌ Harder to audit and reason about
+    //   ❌ Need to handle partial failures (what if credit deduction fails?)
+    //   ❌ Response source becomes ambiguous (plan? credit? both?)
+    //   ❌ Complicates usage analytics and reporting
+    //
+    // Implementation Considerations for Partial Fallback:
+    // ====================================================
+    // 1. Split the request into two parts:
+    //    - planUnits = Math.min(remaining, units)
+    //    - creditUnits = units - planUnits
+    //
+    // 2. Record two usage entries:
+    //    - First: recordUsage(planUnits, source='plan')
+    //    - Second: recordUsage(creditUnits, source='credit')
+    //
+    // 3. Handle edge cases:
+    //    - What if credit deduction fails after plan usage is recorded?
+    //    - Should we rollback the plan usage? (transaction handles this)
+    //    - What source do we return in the result? ('mixed'? 'plan+credit'?)
+    //
+    // 4. Update response structure:
+    //    - Add planUnitsUsed and creditUnitsUsed fields
+    //    - Or add a new source type: 'mixed' or 'plan+credit'
+    //
+    // 5. Update usage analytics queries:
+    //    - Aggregation logic needs to handle split requests
+    //    - Reporting becomes more complex
+    //
+    // Decision Required:
+    // ==================
+    // Choose based on business priorities:
+    // - If simplicity and auditability are paramount → Keep current approach
+    // - If tenant cost optimization is paramount → Implement partial fallback
+    //
+    // Recommendation: Keep current approach unless tenants explicitly request
+    // partial fallback. The complexity cost may outweigh the benefit.
+
     // Exceeded: check if feature is creditable
     const featureDef = getFeatureDefinition(featureKey);
     if (!featureDef?.creditable) {

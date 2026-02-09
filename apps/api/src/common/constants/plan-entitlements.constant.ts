@@ -53,7 +53,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     name: 'Contract Reviews Per Month',
     feature_type: 'quota',
     unit: 'reviews',
-    creditable: true,
+    creditable: false,
     description: 'Number of AI contract reviews per billing period',
   },
   {

@@ -26,6 +26,7 @@ import { MockModule } from './modules/mock/mock.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { TenantModule } from './modules/tenants/tenant.module';
 
@@ -46,6 +47,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     DatabaseModule,
     HealthModule,
     EntitlementsModule,
+    SubscriptionsModule,
     TenantModule,
     AuthModule,
     UsersModule,
