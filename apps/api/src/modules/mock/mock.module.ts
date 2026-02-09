@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { RbacMockController } from './rbac-mock.controller';
+import { CreditsMockController } from './credits-mock.controller';
 import { EntitlementsMockController } from './entitlements-mock.controller';
+import { RbacMockController } from './rbac-mock.controller';
 import { UsageMockController } from './usage-mock.controller';
 
 /**
@@ -11,6 +12,7 @@ import { UsageMockController } from './usage-mock.controller';
  * - Test RBAC permissions before implementing real features
  * - Test entitlement resolution and enforcement
  * - Test usage tracking and projection (Phase 3)
+ * - Test credit ledger and enforcement (Phase 4)
  * - Demonstrate API patterns to frontend developers
  * - Validate authentication and authorization flows
  * - Test audit logging
@@ -20,6 +22,7 @@ import { UsageMockController } from './usage-mock.controller';
     RbacMockController,
     EntitlementsMockController,
     UsageMockController,
+    CreditsMockController,
   ],
 })
 export class MockModule {}

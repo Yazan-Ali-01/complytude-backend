@@ -79,7 +79,7 @@ export class CreditLedgerRepository extends BaseRepository<
    * Phase 4 implementation
    */
   async getBalance(tenantId: string, options?: QueryOptions): Promise<number> {
-    const result = await this.executeQuery<{ balance: number }>(
+    const result = await this.executeQuery<{ balance: string | number }>(
       `SELECT COALESCE(SUM(amount), 0) as balance 
        FROM ${this.tableName} 
        WHERE tenant_id = $1 
@@ -88,7 +88,101 @@ export class CreditLedgerRepository extends BaseRepository<
       options,
     );
 
-    return result.rows[0]?.balance ?? 0;
+    // PostgreSQL returns numeric types as strings to preserve precision
+    // Convert to number for JavaScript arithmetic operations
+    const balance = result.rows[0]?.balance ?? 0;
+    return typeof balance === 'string' ? parseFloat(balance) : balance;
+  }
+
+  /**
+   * Get balance breakdown by transaction type
+   * Phase 4 implementation
+   */
+  async getBalanceBreakdown(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<Record<string, number>> {
+    const result = await this.executeQuery<{
+      transaction_type: string;
+      total: number;
+    }>(
+      `SELECT transaction_type, COALESCE(SUM(amount), 0) as total
+       FROM ${this.tableName}
+       WHERE tenant_id = $1
+       AND (expires_at IS NULL OR expires_at > now())
+       GROUP BY transaction_type`,
+      [tenantId],
+      options,
+    );
+
+    const breakdown: Record<string, number> = {
+      purchase: 0,
+      grant: 0,
+      deduction: 0,
+      refund: 0,
+      expiry: 0,
+    };
+
+    for (const row of result.rows) {
+      breakdown[row.transaction_type] =
+        typeof row.total === 'string' ? parseFloat(row.total) : row.total;
+    }
+
+    return breakdown;
+  }
+
+  /**
+   * Get transaction history with pagination
+   * Phase 4 implementation
+   */
+  async getTransactionHistory(
+    tenantId: string,
+    limit: number = 50,
+    cursor?: string,
+    options?: QueryOptions,
+  ): Promise<CreditLedgerTransaction[]> {
+    let query = `SELECT ${this.getSelectColumns()}
+                 FROM ${this.tableName}
+                 WHERE tenant_id = $1`;
+    const params: any[] = [tenantId];
+
+    if (cursor) {
+      query += ` AND recorded_at < $2`;
+      params.push(cursor);
+    }
+
+    query += ` ORDER BY recorded_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const result = await this.executeQuery(query, params, options);
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Find transaction by idempotency key
+   * Phase 4 implementation
+   *
+   * @param tenantId - Tenant ID (required for defense-in-depth)
+   * @param idempotencyKey - Idempotency key to search for
+   * @param options - Query options
+   * @returns Credit transaction or null if not found
+   */
+  async findByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+    options?: QueryOptions,
+  ): Promise<CreditLedgerTransaction | null> {
+    const result = await this.executeQuery(
+      `SELECT ${this.getSelectColumns()}
+       FROM ${this.tableName}
+       WHERE tenant_id = $1
+         AND idempotency_key = $2
+       LIMIT 1`,
+      [tenantId, idempotencyKey],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
   // Override update/delete to prevent usage (immutable ledger)

@@ -18,6 +18,7 @@ import { UsageLedgerRepository } from '../../repositories/usage/usage-ledger.rep
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
+import { EntitlementEnforcementService } from '../entitlements/services/entitlement-enforcement.service';
 import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { UsageIngestionService } from '../entitlements/services/usage-ingestion.service';
 import { UsageProjectionService } from '../entitlements/services/usage-projection.service';
@@ -54,6 +55,7 @@ export class UsageMockController {
     private readonly usageIngestionService: UsageIngestionService,
     private readonly usageProjectionService: UsageProjectionService,
     private readonly entitlementResolver: EntitlementResolverService,
+    private readonly enforcementService: EntitlementEnforcementService,
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly usageLedgerRepository: UsageLedgerRepository,
     private readonly featuresRepository: FeaturesRepository,
@@ -152,50 +154,60 @@ export class UsageMockController {
   }
 
   // ============================================
-  // USE CASE 3: Attempt Usage At Quota Limit
+  // USE CASE 3: Attempt Usage At Quota Limit (WITH ENFORCEMENT)
   // ============================================
-  // Demonstrates what happens when trying to use a feature at the limit
+  // Demonstrates runtime enforcement with EntitlementEnforcementService
   // Expected behavior:
-  // - Currently: Records usage even at limit (Phase 3 has no enforcement)
-  // - Phase 4: Will check quota and return 402 Payment Required
-  // - Phase 4: Will offer credit fallback if available
+  // - Phase 4: Checks quota before recording
+  // - If within quota: Records with source='plan'
+  // - If exceeded + creditable + credits available: Records with source='credit'
+  // - If exceeded + no credits: Returns {allowed: false}
   // What this demonstrates:
-  // - Phase 3 is write-only (no enforcement)
-  // - Phase 4 will add EntitlementEnforcementService with checkAndRecord()
+  // - Phase 4 enforcement is now active
+  // - EntitlementEnforcementService.checkAndRecord() handles all logic
   @Post('documents/generate-at-limit')
   @ApiOperation({
-    summary: 'Attempt usage at quota limit (demonstrates Phase 4 need)',
+    summary: 'Attempt usage with enforcement (Phase 4)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Usage recorded (no enforcement in Phase 3)',
+    description: 'Usage allowed (within quota or credits used)',
   })
   async recordAtLimit(@CurrentUserTenant() user: AuthenticatedTenantUser) {
-    // TODO: Phase 4 - Replace with EntitlementEnforcementService.checkAndRecord()
-    // which will:
-    // 1. Check current usage vs entitlement limit
-    // 2. If exceeded, check credit balance
-    // 3. If credits available, deduct and record with source='credit'
-    // 4. If no credits, return 402 Payment Required with upgrade prompt
-    //
-    // For now, we just record the usage without checking the limit
-    const usageEvent = await this.usageIngestionService.recordUsage({
-      tenant_id: user.tenantId,
-      feature_key: 'documents_per_month',
-      user_id: user.userId,
-      units: 1,
-      source: 'plan',
-      metadata: {
+    // Phase 4: Use EntitlementEnforcementService for quota enforcement
+    const result = await this.enforcementService.checkAndRecord(
+      user.tenantId,
+      'documents_per_month',
+      user.userId,
+      1,
+      {
         test_scenario: 'at_limit',
-        note: 'Phase 3 has no enforcement - Phase 4 will add quota checks',
+        note: 'Phase 4 enforcement is now active',
       },
-    });
+    );
+
+    if (!result.allowed) {
+      return {
+        message: 'Usage denied (quota exceeded, no credits available)',
+        tenantId: user.tenantId,
+        featureKey: 'documents_per_month',
+        result,
+        note: 'In a real endpoint with UsageEnforcementGuard, this would return 402 Payment Required',
+      };
+    }
 
     return {
-      message: 'Usage recorded (no quota enforcement in Phase 3 - see Phase 4)',
-      usageEventId: usageEvent.id,
-      warning:
-        'Phase 4 will add EntitlementEnforcementService to check quota before recording',
+      message:
+        result.source === 'credit'
+          ? 'Usage allowed via credit fallback'
+          : 'Usage allowed (within quota)',
+      tenantId: user.tenantId,
+      featureKey: 'documents_per_month',
+      result,
+      note:
+        result.source === 'credit'
+          ? 'Credits were automatically deducted'
+          : 'No credits were needed',
     };
   }
 
@@ -582,9 +594,7 @@ export class UsageMockController {
   })
   @ApiResponse({ status: 200, description: 'Full status for all features' })
   async getFullStatus(@CurrentUserTenant() user: AuthenticatedTenantUser) {
-    // TODO: Phase 4 - Refactor to use single transaction after EntitlementResolverService.resolveAllForTenant() accepts QueryOptions
-    // Currently uses separate transactions (one here, one in resolveAllForTenant).
-    // This is safe for Phase 3 (read-only operations) but should be optimized in Phase 4.
+    // Phase 4: Now uses single transaction with shared client
     return this.databaseService.transactionWithTenantContext(
       user.tenantId,
       async (client) => {
@@ -603,7 +613,9 @@ export class UsageMockController {
         );
 
         const { entitlements, plan } =
-          await this.entitlementResolver.resolveAllForTenant(user.tenantId);
+          await this.entitlementResolver.resolveAllForTenant(user.tenantId, {
+            client,
+          });
 
         // Get usage for all quota features
         const quotaFeatures: FeatureKey[] = [

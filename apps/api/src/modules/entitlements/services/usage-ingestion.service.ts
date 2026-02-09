@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { PoolClient } from 'pg';
 import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
 import {
   FeatureKey,
@@ -70,14 +71,17 @@ export class UsageIngestionService {
    * All operations run in a single transaction for atomicity.
    *
    * @param input - Usage record input
-   * @param options - Query options (not used, we create our own transaction)
+   * @param options - Query options (optional client for shared transactions)
    * @returns The recorded usage ledger event
    *
    * @throws NotFoundException - Feature not found or inactive
    * @throws NotFoundException - Tenant has no active subscription
    * @throws BadRequestException - Invalid input (e.g., negative units)
    */
-  async recordUsage(input: UsageRecordInput): Promise<UsageLedgerEvent> {
+  async recordUsage(
+    input: UsageRecordInput,
+    options?: QueryOptions,
+  ): Promise<UsageLedgerEvent> {
     const { tenant_id, feature_key, user_id, units, source, metadata } = input;
 
     // Validate units
@@ -89,92 +93,97 @@ export class UsageIngestionService {
       `Recording usage: tenant=${tenant_id}, feature=${feature_key}, units=${units}, source=${source}`,
     );
 
-    // Run entire flow in a transaction with tenant context
-    return this.databaseService.transactionWithTenantContext(
-      tenant_id,
-      async (client) => {
-        // Step 1: Resolve feature_id from feature_key
-        const feature = await this.featuresRepository.findByKey(feature_key, {
+    const execute = async (client: PoolClient) => {
+      // Step 1: Resolve feature_id from feature_key
+      const feature = await this.featuresRepository.findByKey(feature_key, {
+        client,
+      });
+
+      if (!feature) {
+        throw new NotFoundException(`Feature not found: ${feature_key}`);
+      }
+
+      if (!feature.is_active) {
+        throw new BadRequestException(`Feature is inactive: ${feature_key}`);
+      }
+
+      // Step 2: Get tenant's active subscription to derive billing_period
+      const subscription =
+        await this.subscriptionsRepository.findActiveByTenant(tenant_id, {
           client,
         });
 
-        if (!feature) {
-          throw new NotFoundException(`Feature not found: ${feature_key}`);
-        }
-
-        if (!feature.is_active) {
-          throw new BadRequestException(`Feature is inactive: ${feature_key}`);
-        }
-
-        // Step 2: Get tenant's active subscription to derive billing_period
-        const subscription =
-          await this.subscriptionsRepository.findActiveByTenant(tenant_id, {
-            client,
-          });
-
-        if (!subscription) {
-          throw new NotFoundException(
-            `No active subscription for tenant: ${tenant_id}`,
-          );
-        }
-
-        // Derive billing period (YYYY-MM format)
-        const billingPeriod = this.deriveBillingPeriod(
-          subscription.current_period_start,
+      if (!subscription) {
+        throw new NotFoundException(
+          `No active subscription for tenant: ${tenant_id}`,
         );
+      }
 
-        // Step 3: Record usage event to ledger (append-only)
-        const usageEvent = await this.usageLedgerRepository.record(
-          {
-            tenant_id,
-            feature_id: feature.id,
-            user_id,
-            units,
-            source,
-            billing_period: billingPeriod,
-            resource_type: input.resource_type,
-            resource_id: input.resource_id,
-            metadata: metadata ? JSON.stringify(metadata) : '{}',
-            idempotency_key: input.idempotency_key,
-          },
-          { client },
-        );
+      // Derive billing period (YYYY-MM format)
+      const billingPeriod = this.deriveBillingPeriod(
+        subscription.current_period_start,
+      );
 
-        // Step 4: Update aggregated_usage projection (synchronous for now)
-        // TODO: BullMQ - Instead of calling this synchronously, emit a
-        // usage.recorded event to a queue. A worker would consume the event
-        // and call usageProjectionService.incrementUsage() asynchronously.
-        // This keeps the write path fast and moves projection updates off
-        // the critical path.
-        await this.usageProjectionService.incrementUsage(
+      // Step 3: Record usage event to ledger (append-only)
+      const usageEvent = await this.usageLedgerRepository.record(
+        {
           tenant_id,
-          subscription.id, // Use subscription ID (unambiguous billing period)
-          feature.id,
-          billingPeriod,
+          feature_id: feature.id,
+          user_id,
           units,
           source,
-          usageEvent.id,
-          { client },
-        );
+          billing_period: billingPeriod,
+          resource_type: input.resource_type,
+          resource_id: input.resource_id,
+          metadata: metadata ? JSON.stringify(metadata) : '{}',
+          idempotency_key: input.idempotency_key,
+        },
+        { client },
+      );
 
-        // Step 5: Emit domain event for audit trail
-        // TODO: BullMQ - Domain event emission could also be moved to an
-        // async queue for non-critical events. Critical events (e.g., credit
-        // deduction) should remain synchronous.
-        await this.emitUsageRecordedEvent(
-          usageEvent,
-          feature_key,
-          feature.name,
-          user_id,
-          { client },
-        );
+      // Step 4: Update aggregated_usage projection (synchronous for now)
+      // TODO: BullMQ - Instead of calling this synchronously, emit a
+      // usage.recorded event to a queue. A worker would consume the event
+      // and call usageProjectionService.incrementUsage() asynchronously.
+      // This keeps the write path fast and moves projection updates off
+      // the critical path.
+      await this.usageProjectionService.incrementUsage(
+        tenant_id,
+        subscription.id, // Use subscription ID (unambiguous billing period)
+        feature.id,
+        billingPeriod,
+        units,
+        source,
+        usageEvent.id,
+        { client },
+      );
 
-        this.logger.log(
-          `Usage recorded: event_id=${usageEvent.id}, tenant=${tenant_id}, feature=${feature_key}, units=${units}`,
-        );
+      // Step 5: Emit domain event for audit trail
+      // TODO: BullMQ - Domain event emission could also be moved to an
+      // async queue for non-critical events. Critical events (e.g., credit
+      // deduction) should remain synchronous.
+      await this.emitUsageRecordedEvent(
+        usageEvent,
+        feature_key,
+        feature.name,
+        user_id,
+        { client },
+      );
 
-        return usageEvent;
-      },
+      this.logger.log(
+        `Usage recorded: event_id=${usageEvent.id}, tenant=${tenant_id}, feature=${feature_key}, units=${units}`,
+      );
+
+      return usageEvent;
+    };
+
+    if (options?.client) {
+      return execute(options.client);
+    }
+
+    return this.databaseService.transactionWithTenantContext(
+      tenant_id,
+      execute,
     );
   }
 

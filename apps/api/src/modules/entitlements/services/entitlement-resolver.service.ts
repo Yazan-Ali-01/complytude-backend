@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { PoolClient } from 'pg';
 import {
   getAllPlanEntitlements,
   getFeatureDefinition,
@@ -12,6 +13,7 @@ import {
   ResolvedEntitlements,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
+import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { TenantRepository } from '../../../repositories/tenants/tenant.repository';
@@ -74,162 +76,167 @@ export class EntitlementResolverService {
    *
    * @param tenantId - Tenant ID
    * @param featureKey - Feature key
+   * @param options - Query options (optional client for shared transactions)
    * @returns Effective entitlement or undefined if not found
    */
   async resolveForTenant(
     tenantId: string,
     featureKey: FeatureKey,
+    options?: QueryOptions,
   ): Promise<EffectiveEntitlement | undefined> {
-    return await this.databaseService.transactionWithTenantContext(
-      tenantId,
-      async (client) => {
-        const tenant = await this.tenantRepository.findById(tenantId, {
-          client,
-        });
-        if (!tenant) {
-          this.logger.warn(`Tenant not found: ${tenantId}`);
-          return undefined;
-        }
+    const execute = async (client: PoolClient) => {
+      const tenant = await this.tenantRepository.findById(tenantId, {
+        client,
+      });
+      if (!tenant) {
+        this.logger.warn(`Tenant not found: ${tenantId}`);
+        return undefined;
+      }
 
-        // Get plan entitlement (in-memory)
-        const planEntitlement = this.resolve(tenant.plan, featureKey);
-        if (!planEntitlement) {
-          this.logger.warn(`Feature not found in plan: ${featureKey}`);
-          return undefined;
-        }
+      // Get plan entitlement (in-memory)
+      const planEntitlement = this.resolve(tenant.plan, featureKey);
+      if (!planEntitlement) {
+        this.logger.warn(`Feature not found in plan: ${featureKey}`);
+        return undefined;
+      }
 
-        // Get add-on entitlements (database query with JOIN, RLS-protected)
-        const addons =
-          await this.tenantAddonsRepository.findActiveByTenantAndFeature(
-            tenantId,
-            featureKey,
-            { client },
-          );
+      // Get add-on entitlements (database query with JOIN, RLS-protected)
+      const addons =
+        await this.tenantAddonsRepository.findActiveByTenantAndFeature(
+          tenantId,
+          featureKey,
+          { client },
+        );
 
-        // Get override (database query with JOIN, RLS-protected)
-        const override =
-          await this.tenantOverridesRepository.findActiveByTenantAndFeature(
-            tenantId,
-            featureKey,
-            { client },
-          );
+      // Get override (database query with JOIN, RLS-protected)
+      const override =
+        await this.tenantOverridesRepository.findActiveByTenantAndFeature(
+          tenantId,
+          featureKey,
+          { client },
+        );
 
-        // Merge: plan + addons + override
-        return this.merge(planEntitlement, addons, override);
-      },
-    );
+      // Merge: plan + addons + override
+      return this.merge(planEntitlement, addons, override);
+    };
+
+    if (options?.client) {
+      return execute(options.client);
+    }
+
+    return this.databaseService.transactionWithTenantContext(tenantId, execute);
   }
 
   /**
    * Resolve all entitlements for a tenant
    *
    * @param tenantId - Tenant ID
+   * @param options - Query options (optional client for shared transactions)
    * @returns Map of feature keys to effective entitlements
-   *
-   * TODO: Phase 4 - Refactor to accept QueryOptions parameter
-   * This will allow callers to share a single transaction instead of creating nested transactions.
-   * Pattern: async resolveAllForTenant(tenantId: string, options?: QueryOptions)
-   * If no options.client provided, create transaction; otherwise use provided client.
-   * This is important for atomic operations in Phase 4 (usage + credit deduction).
    */
   async resolveAllForTenant(
     tenantId: string,
+    options?: QueryOptions,
   ): Promise<{ entitlements: ResolvedEntitlements; plan: PlanKey }> {
-    // Wrap RLS-protected queries in transaction with tenant context
-    return this.databaseService.transactionWithTenantContext(
-      tenantId,
-      async (client) => {
-        // Get tenant's plan (no RLS needed for tenants table)
-        const tenant = await this.tenantRepository.findById(tenantId, {
-          client,
-        });
-        if (!tenant) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
+    const execute = async (client: PoolClient) => {
+      // Get tenant's plan (no RLS needed for tenants table)
+      const tenant = await this.tenantRepository.findById(tenantId, {
+        client,
+      });
+      if (!tenant) {
+        throw new NotFoundException(`Tenant ${tenantId} not found`);
+      }
 
-        // Get all plan entitlements (in-memory)
-        const planEntitlements = getAllPlanEntitlements(tenant.plan);
-        const resolved: ResolvedEntitlements = {} as ResolvedEntitlements;
+      // Get all plan entitlements (in-memory)
+      const planEntitlements = getAllPlanEntitlements(tenant.plan);
+      const resolved: ResolvedEntitlements = {} as ResolvedEntitlements;
 
-        // Convert plan entitlements to EffectiveEntitlement format
-        for (const [featureKey, value] of Object.entries(planEntitlements)) {
-          const featureDef = getFeatureDefinition(featureKey as FeatureKey);
-          if (!featureDef) continue;
+      // Convert plan entitlements to EffectiveEntitlement format
+      for (const [featureKey, value] of Object.entries(planEntitlements)) {
+        const featureDef = getFeatureDefinition(featureKey as FeatureKey);
+        if (!featureDef) continue;
 
-          resolved[featureKey] = {
-            feature_key: featureKey,
-            feature_type: featureDef.feature_type,
-            value_bool: value.value_bool,
-            value_int: value.value_int,
-            value_text: value.value_text,
-            source: 'plan',
-          };
-        }
+        resolved[featureKey] = {
+          feature_key: featureKey,
+          feature_type: featureDef.feature_type,
+          value_bool: value.value_bool,
+          value_int: value.value_int,
+          value_text: value.value_text,
+          source: 'plan',
+        };
+      }
 
-        // Get all active add-ons with entitlements (single query with JOINs, RLS-protected)
-        const addons =
-          await this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
-            tenantId,
-            { client },
-          );
+      // Get all active add-ons with entitlements (single query with JOINs, RLS-protected)
+      const addons =
+        await this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
+          tenantId,
+          { client },
+        );
 
-        // Merge add-on entitlements
-        for (const addon of addons) {
-          for (const entitlement of addon.entitlements) {
-            const featureKey = entitlement.feature_key;
-            const featureDef = getFeatureDefinition(featureKey);
-            if (!featureDef) continue;
-
-            const existing = resolved[featureKey];
-
-            if (!existing) {
-              // Add-on grants a feature not in plan
-              resolved[featureKey] = {
-                feature_key: featureKey,
-                feature_type: featureDef.feature_type,
-                value_bool: entitlement.value_bool,
-                value_int: entitlement.value_int,
-                value_text: entitlement.value_text,
-                source: 'addon',
-              };
-            } else {
-              // Merge with existing plan entitlement
-              resolved[featureKey] = this.mergeValues(existing, {
-                feature_key: featureKey,
-                feature_type: featureDef.feature_type,
-                value_bool: entitlement.value_bool,
-                value_int: entitlement.value_int,
-                value_text: entitlement.value_text,
-                source: 'addon',
-              });
-            }
-          }
-        }
-
-        // Get all active overrides (RLS-protected)
-        const overrides =
-          await this.tenantOverridesRepository.findActiveByTenant(tenantId, {
-            client,
-          });
-
-        // Apply overrides (highest precedence)
-        for (const override of overrides) {
-          const featureKey = override.feature_key;
+      // Merge add-on entitlements
+      for (const addon of addons) {
+        for (const entitlement of addon.entitlements) {
+          const featureKey = entitlement.feature_key;
           const featureDef = getFeatureDefinition(featureKey);
           if (!featureDef) continue;
 
-          resolved[featureKey] = {
-            feature_key: featureKey,
-            feature_type: featureDef.feature_type,
-            value_bool: override.value_bool,
-            value_int: override.value_int,
-            value_text: override.value_text,
-            source: 'override',
-          };
+          const existing = resolved[featureKey];
+
+          if (!existing) {
+            // Add-on grants a feature not in plan
+            resolved[featureKey] = {
+              feature_key: featureKey,
+              feature_type: featureDef.feature_type,
+              value_bool: entitlement.value_bool,
+              value_int: entitlement.value_int,
+              value_text: entitlement.value_text,
+              source: 'addon',
+            };
+          } else {
+            // Merge with existing plan entitlement
+            resolved[featureKey] = this.mergeValues(existing, {
+              feature_key: featureKey,
+              feature_type: featureDef.feature_type,
+              value_bool: entitlement.value_bool,
+              value_int: entitlement.value_int,
+              value_text: entitlement.value_text,
+              source: 'addon',
+            });
+          }
         }
-        return { entitlements: resolved, plan: tenant.plan };
-      },
-    );
+      }
+
+      // Get all active overrides (RLS-protected)
+      const overrides = await this.tenantOverridesRepository.findActiveByTenant(
+        tenantId,
+        {
+          client,
+        },
+      );
+
+      // Apply overrides (highest precedence)
+      for (const override of overrides) {
+        const featureKey = override.feature_key;
+        const featureDef = getFeatureDefinition(featureKey);
+        if (!featureDef) continue;
+
+        resolved[featureKey] = {
+          feature_key: featureKey,
+          feature_type: featureDef.feature_type,
+          value_bool: override.value_bool,
+          value_int: override.value_int,
+          value_text: override.value_text,
+          source: 'override',
+        };
+      }
+      return { entitlements: resolved, plan: tenant.plan };
+    };
+
+    if (options?.client) {
+      return execute(options.client);
+    }
+
+    return this.databaseService.transactionWithTenantContext(tenantId, execute);
   }
 
   /**

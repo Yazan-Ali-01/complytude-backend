@@ -13,6 +13,9 @@ import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { AggregatedUsageRepository } from '../../repositories/usage/aggregated-usage.repository';
 import { UsageLedgerRepository } from '../../repositories/usage/usage-ledger.repository';
 import { EntitlementsController } from './entitlements.controller';
+import { CreditBalanceService } from './services/credit-balance.service';
+import { CreditLedgerService } from './services/credit-ledger.service';
+import { EntitlementEnforcementService } from './services/entitlement-enforcement.service';
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
 import { EntitlementSyncService } from './services/entitlement-sync.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
@@ -26,6 +29,9 @@ import { UsageProjectionService } from './services/usage-projection.service';
  *
  * Exports:
  * - EntitlementResolverService: Core entitlement resolution engine
+ * - EntitlementEnforcementService: Runtime enforcement with credit fallback (Phase 4)
+ * - CreditLedgerService: Credit transaction management (Phase 4)
+ * - CreditBalanceService: Credit balance queries (Phase 4)
  * - All repositories: For use in other modules
  */
 @Global()
@@ -38,6 +44,9 @@ import { UsageProjectionService } from './services/usage-projection.service';
     EntitlementSyncService,
     UsageIngestionService, // Phase 3
     UsageProjectionService, // Phase 3
+    EntitlementEnforcementService, // Phase 4
+    CreditLedgerService, // Phase 4
+    CreditBalanceService, // Phase 4
 
     // Catalog repositories
     FeaturesRepository,
@@ -53,7 +62,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     UsageLedgerRepository,
     AggregatedUsageRepository,
 
-    // Stub repositories (for future phases)
+    // Credit repositories (Phase 4)
     CreditLedgerRepository,
     EntitlementSnapshotsRepository,
     DomainEventsRepository,
@@ -66,6 +75,9 @@ import { UsageProjectionService } from './services/usage-projection.service';
     EntitlementResolverService,
     UsageIngestionService, // Phase 3
     UsageProjectionService, // Phase 3
+    EntitlementEnforcementService, // Phase 4
+    CreditLedgerService, // Phase 4
+    CreditBalanceService, // Phase 4
 
     // Repositories (for use in other modules)
     FeaturesRepository,
