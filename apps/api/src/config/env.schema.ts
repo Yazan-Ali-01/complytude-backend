@@ -9,6 +9,22 @@ export const validationSchema = Joi.object({
   API_PREFIX: Joi.string().default('api'),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000'),
 
+  // Logging
+  SERVICE_NAME: Joi.string().default('gateway'),
+  LOG_LEVEL: Joi.string()
+    .valid('trace', 'debug', 'info', 'warn', 'error', 'fatal')
+    .default(
+      Joi.ref('NODE_ENV', {
+        adjust: (value) => (value === 'production' ? 'info' : 'debug'),
+      }),
+    ),
+  LOG_PRETTY: Joi.boolean().default(
+    Joi.ref('NODE_ENV', {
+      adjust: (value) => value !== 'production',
+    }),
+  ),
+  LOG_AUTO_LOGGING: Joi.boolean().default(true),
+
   // Database
   DB_HOST: Joi.string().default('localhost'),
   DB_PORT: Joi.number().default(5432),
@@ -31,7 +47,6 @@ export const validationSchema = Joi.object({
   SESSION_IDLE_TIMEOUT: Joi.string().default('72h'), // Idle timeout
   SESSION_MAX_PER_USER: Joi.number().default(5), // Max identity sessions per user
   SESSION_ACTIVITY_THROTTLE_SECONDS: Joi.number().default(120), // Activity update throttle (2 minutes)
-  SERVICE_NAME: Joi.string().default('api'), // Service identifier for sessions
 
   // JWT
   JWT_ACCESS_SECRET: Joi.string().required(),

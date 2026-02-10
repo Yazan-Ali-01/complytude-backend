@@ -8,6 +8,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import {
@@ -16,19 +17,23 @@ import {
 } from './common/swagger/common';
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
-
   // Create Fastify adapter
   const fastifyAdapter = new FastifyAdapter();
 
-  // Create Fastify application
+  // Create Fastify application with Pino logger (bufferLogs to capture early logs)
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     fastifyAdapter,
     {
-      logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+      bufferLogs: true,
     },
   );
+
+  // Replace default logger with Pino logger
+  app.useLogger(app.get(PinoLogger));
+
+  // Get logger instance for bootstrap messages
+  const logger = new Logger('Bootstrap');
 
   // Get config service
   const configService = app.get(ConfigService);

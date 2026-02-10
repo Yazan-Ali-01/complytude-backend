@@ -13,15 +13,10 @@ import * as path from 'path';
     NestI18nModule.forRoot({
       fallbackLanguage: 'en',
       loaderOptions: {
-        path: path.join(
-          __dirname,
-          '..',
-          '..',
-          '..',
-          '..',
-          'i18n',
-          './locales/',
-        ),
+        // __dirname in compiled code: dist/apps/api/apps/api/src/i18n
+        // Locales copied by nest-cli.json to: dist/apps/api/i18n/locales
+        // So we need to go up 4 levels: ../../../.. to reach dist/apps/api/
+        path: path.join(__dirname, '..', '..', '..', '..', 'i18n', 'locales'),
         watch: process.env.NODE_ENV !== 'production',
       },
       resolvers: [
