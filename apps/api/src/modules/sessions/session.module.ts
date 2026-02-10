@@ -1,6 +1,5 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { RedisModule } from '@complytude/shared';
 import { SessionService } from '../auth/services/session.service';
 import { SessionInvalidationService } from '../auth/services/session-invalidation.service';
 import { UserAgentParserService } from '../auth/services/user-agent-parser.service';
@@ -34,7 +33,7 @@ import { GeoLocationService } from '../auth/services/geo-location.service';
  */
 @Global()
 @Module({
-  imports: [ConfigModule, RedisModule],
+  imports: [ConfigModule],
   providers: [
     SessionService,
     SessionInvalidationService,

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { RedisModule } from '@complytude/shared';
+import { RedisModule } from '@complytude/shared/redis/redis.module';
 import appConfig from 'src/config/app.config';
 import databaseConfig from 'src/config/database.config';
 import { validationSchema } from 'src/config/env.schema';
@@ -34,7 +34,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['apps/api/.env'],
-      load: [databaseConfig, appConfig, jwtConfig, redisConfig, storageConfig],
+      load: [databaseConfig, appConfig, jwtConfig, storageConfig, redisConfig],
       validationSchema: validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -42,7 +42,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
       },
     }),
     I18nModule,
-    RedisModule, // Global - Redis client available everywhere
+    RedisModule.forRoot(), // Global - Redis client available everywhere
     SessionModule, // Global - Session services available everywhere (MUST be before AuthModule)
     DatabaseModule,
     HealthModule,

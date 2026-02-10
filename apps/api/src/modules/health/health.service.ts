@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RedisService } from '@complytude/shared';
+import { RedisService } from '@complytude/shared/redis/redis.service';
 import { DatabaseService } from 'src/database/database.service';
 
 export interface HealthCheckResult {

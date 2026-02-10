@@ -27,12 +27,9 @@ export class HealthController {
   }
 
   @Get('redis')
-  @ApiOperation({
-    summary: 'Redis health check',
-    description: 'Check Redis connection and health for session management',
-  })
+  @ApiOperation({ summary: 'Redis health check' })
   @ApiResponse({ status: 200, description: 'Redis is healthy' })
-  @ApiResponse({ status: 503, description: 'Redis is unhealthy or disconnected' })
+  @ApiResponse({ status: 503, description: 'Redis is unhealthy' })
   async checkRedis() {
     return await this.healthService.checkRedis();
   }

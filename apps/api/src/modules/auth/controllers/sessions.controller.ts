@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -7,14 +8,8 @@ import {
   NotFoundException,
   Param,
   Patch,
-  Body,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
   ApiAuthenticatedResponses,
@@ -23,16 +18,22 @@ import {
   SwaggerCookieAuth,
 } from 'src/common/swagger';
 import { AuthOptions } from '../decorators/auth-options.decorator';
-import { CurrentUserIdentity, CurrentUserTenant } from '../decorators/current-user.decorator';
-import type { AuthenticatedIdentityUser, AuthenticatedTenantUser } from '../strategies';
-import { SessionService } from '../services/session.service';
-import { SessionInvalidationService } from '../services/session-invalidation.service';
 import {
-  SessionListResponseDto,
-  SessionListItemDto,
-} from '../dto/session-response.dto';
+  CurrentUserIdentity,
+  CurrentUserTenant,
+} from '../decorators/current-user.decorator';
 import { RenameSessionDto } from '../dto/rename-session.dto';
 import { SessionIdParamDto } from '../dto/session-id-param.dto';
+import {
+  SessionListItemDto,
+  SessionListResponseDto,
+} from '../dto/session-response.dto';
+import { SessionInvalidationService } from '../services/session-invalidation.service';
+import { SessionService } from '../services/session.service';
+import type {
+  AuthenticatedIdentityUser,
+  AuthenticatedTenantUser,
+} from '../strategies';
 
 /**
  * SessionsController - User session management endpoints
@@ -83,15 +84,17 @@ export class SessionsController {
     );
 
     // Get identity sessions to enrich with device info
-    const identitySessions = await this.sessionService.getUserIdentitySessions(user.userId);
+    const identitySessions = await this.sessionService.getUserIdentitySessions(
+      user.userId,
+    );
 
     const sessions: SessionListItemDto[] = [];
 
     // Map tenant sessions to response format
     for (const tenantSession of tenantSessions) {
       // Find parent identity session
-      const identitySession = identitySessions.find(
-        (is) => is.activeTenantSessionIds.includes(tenantSession.identitySessionId),
+      const identitySession = identitySessions.find((is) =>
+        is.activeTenantSessionIds.includes(tenantSession.identitySessionId),
       );
 
       if (identitySession) {
@@ -139,7 +142,9 @@ export class SessionsController {
   async listAllSessions(
     @CurrentUserIdentity() user: AuthenticatedIdentityUser,
   ): Promise<SessionListResponseDto> {
-    const identitySessions = await this.sessionService.getUserIdentitySessions(user.userId);
+    const identitySessions = await this.sessionService.getUserIdentitySessions(
+      user.userId,
+    );
 
     const sessions: SessionListItemDto[] = identitySessions.map((session) => ({
       sessionId: session.userId, // Identity session ID
@@ -200,7 +205,8 @@ export class SessionsController {
     }
 
     return {
-      message: 'Session deleted successfully. You have been logged out from that device.',
+      message:
+        'Session deleted successfully. You have been logged out from that device.',
     };
   }
 
@@ -227,14 +233,50 @@ export class SessionsController {
   async deleteAllCurrentTenantSessions(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<MessageResponseDto> {
-    const count = await this.sessionInvalidationService.invalidateUserTenantSessions(
-      user.userId,
-      user.tenantId,
-      'user_logout_all_current_tenant',
-    );
+    const count =
+      await this.sessionInvalidationService.invalidateUserTenantSessions(
+        user.userId,
+        user.tenantId,
+        'user_logout_all_current_tenant',
+      );
 
     return {
       message: `Logged out from ${count} session(s) in current tenant`,
+    };
+  }
+
+  /**
+   * DELETE /auth/sessions/all
+   * Logout from all devices (all tenants)
+   * Implemented as a POST for better HTTP semantics with identity token requirement
+   */
+  @Delete('all')
+  @AuthOptions({ identity: true })
+  @SwaggerCookieAuth.identityAccessToken()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Logout from all devices (all tenants)',
+    description:
+      'Delete all identity sessions (and all linked tenant sessions). ' +
+      'User must re-login on all devices to regain access.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All sessions deleted successfully',
+    type: MessageResponseDto,
+  })
+  @ApiAuthenticatedResponses()
+  async deleteAllSessions(
+    @CurrentUserIdentity() user: AuthenticatedIdentityUser,
+  ): Promise<MessageResponseDto> {
+    const count =
+      await this.sessionInvalidationService.invalidateAllUserSessions(
+        user.userId,
+        'user_logout_all_devices',
+      );
+
+    return {
+      message: `Logged out from ${count} device(s) across all tenants`,
     };
   }
 
@@ -271,7 +313,9 @@ export class SessionsController {
     @CurrentUserIdentity() user: AuthenticatedIdentityUser,
   ): Promise<MessageResponseDto> {
     // Verify session belongs to user
-    const session = await this.sessionService.getIdentitySession(params.sessionId);
+    const session = await this.sessionService.getIdentitySession(
+      params.sessionId,
+    );
 
     if (!session || session.userId !== user.userId) {
       throw new NotFoundException('Session not found');

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RedisService } from '@complytude/shared';
+import { RedisService } from '@complytude/shared/redis/redis.service';
 import { SessionService } from './session.service';
 import { REDIS_KEYS } from '../constants/session.constants';
 
