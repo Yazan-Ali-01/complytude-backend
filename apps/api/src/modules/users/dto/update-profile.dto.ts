@@ -1,4 +1,4 @@
-import { IsString, IsOptional, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MaxLength, IsEmail } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateProfileDto {
@@ -21,4 +21,13 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(255)
   lastName?: string;
+
+  @ApiProperty({
+    description: 'User email address',
+    example: 'john.doe@example.com',
+    required: false,
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 }

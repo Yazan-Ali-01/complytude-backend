@@ -282,23 +282,31 @@ export class SessionInvalidationService {
   }
 
   /**
-   * Get statistics about active sessions (for monitoring)
+   * Get comprehensive session statistics (for monitoring)
    *
-   * @returns Promise<{totalIdentity: number, totalTenant: number}>
+   * @returns Promise<SessionStats>
    */
-  async getSessionStats(): Promise<{ totalIdentity: number; totalTenant: number }> {
+  async getSessionStats(): Promise<{
+    totalIdentity: number;
+    totalTenant: number;
+    sessionsByTenant: Record<string, number>;
+    sessionsByDeviceType: Record<string, number>;
+    activeUsersLast24h: number;
+    activeUsersLast7d: number;
+  }> {
     try {
       const redis = this.redisService.getClient();
 
-      // Count identity sessions
-      let totalIdentity = 0;
+      // Scan all identity sessions
       const identityStream = redis.scanStream({
         match: 'complytude:identity-session:*',
         count: 100,
       });
 
+      const identitySessionKeys: string[] = [];
+
       identityStream.on('data', (keys: string[]) => {
-        totalIdentity += keys.length;
+        identitySessionKeys.push(...keys);
       });
 
       await new Promise<void>((resolve, reject) => {
@@ -306,15 +314,16 @@ export class SessionInvalidationService {
         identityStream.on('error', reject);
       });
 
-      // Count tenant sessions
-      let totalTenant = 0;
+      // Scan all tenant sessions
       const tenantStream = redis.scanStream({
         match: 'complytude:tenant-session:*',
         count: 100,
       });
 
+      const tenantSessionKeys: string[] = [];
+
       tenantStream.on('data', (keys: string[]) => {
-        totalTenant += keys.length;
+        tenantSessionKeys.push(...keys);
       });
 
       await new Promise<void>((resolve, reject) => {
@@ -322,7 +331,62 @@ export class SessionInvalidationService {
         tenantStream.on('error', reject);
       });
 
-      return { totalIdentity, totalTenant };
+      // Aggregate statistics
+      const sessionsByTenant: Record<string, number> = {};
+      const sessionsByDeviceType: Record<string, number> = {};
+      const uniqueUsersLast24h = new Set<string>();
+      const uniqueUsersLast7d = new Set<string>();
+      const now = Date.now();
+      const oneDayAgo = now - 24 * 60 * 60 * 1000;
+      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+      // Process identity sessions for device type and active users
+      for (const key of identitySessionKeys) {
+        const sessionData = await redis.hgetall(key);
+        
+        if (sessionData && sessionData.userId) {
+          // Parse device info for device type stats
+          if (sessionData.deviceInfo) {
+            try {
+              const deviceInfo = JSON.parse(sessionData.deviceInfo);
+              const deviceType = deviceInfo.deviceType || 'unknown';
+              sessionsByDeviceType[deviceType] = (sessionsByDeviceType[deviceType] || 0) + 1;
+            } catch {
+              // Ignore parsing errors
+            }
+          }
+
+          // Track active users
+          if (sessionData.lastActivityAt) {
+            const lastActivity = new Date(sessionData.lastActivityAt).getTime();
+            if (lastActivity >= sevenDaysAgo) {
+              uniqueUsersLast7d.add(sessionData.userId);
+            }
+            if (lastActivity >= oneDayAgo) {
+              uniqueUsersLast24h.add(sessionData.userId);
+            }
+          }
+        }
+      }
+
+      // Process tenant sessions for tenant stats
+      for (const key of tenantSessionKeys) {
+        const sessionData = await redis.hgetall(key);
+        
+        if (sessionData && sessionData.tenantId) {
+          const tenantId = sessionData.tenantId;
+          sessionsByTenant[tenantId] = (sessionsByTenant[tenantId] || 0) + 1;
+        }
+      }
+
+      return {
+        totalIdentity: identitySessionKeys.length,
+        totalTenant: tenantSessionKeys.length,
+        sessionsByTenant,
+        sessionsByDeviceType,
+        activeUsersLast24h: uniqueUsersLast24h.size,
+        activeUsersLast7d: uniqueUsersLast7d.size,
+      };
     } catch (error) {
       this.logger.error(`Failed to get session stats: ${error.message}`);
       throw error;

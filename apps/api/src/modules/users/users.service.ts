@@ -83,6 +83,10 @@ export class UsersService {
    * Update user's own profile
    * Note: Email changes are not supported in profile updates (would require re-verification)
    */
+  /**
+   * Update user profile
+   * Security event: Email change invalidates all user sessions
+   */
   async updateProfile(
     userId: string,
     updateProfileDto: UpdateProfileDto,
@@ -90,6 +94,7 @@ export class UsersService {
     const updateFields: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
+    let emailChanged = false;
 
     if (updateProfileDto.firstName !== undefined) {
       updateFields.push(`first_name = $${paramIndex++}`);
@@ -99,6 +104,30 @@ export class UsersService {
     if (updateProfileDto.lastName !== undefined) {
       updateFields.push(`last_name = $${paramIndex++}`);
       values.push(updateProfileDto.lastName);
+    }
+
+    if (updateProfileDto.email !== undefined) {
+      // Check if email is actually changing
+      const currentUser = await this.databaseService.query(
+        'SELECT email FROM public.users WHERE id = $1',
+        [userId],
+      );
+
+      if (currentUser.rows[0]?.email !== updateProfileDto.email) {
+        // Check if email is already taken
+        const existingUser = await this.databaseService.query(
+          'SELECT id FROM public.users WHERE email = $1 AND id != $2',
+          [updateProfileDto.email, userId],
+        );
+
+        if (existingUser.rows.length > 0) {
+          throw new ConflictException('Email address is already in use');
+        }
+
+        updateFields.push(`email = $${paramIndex++}`);
+        values.push(updateProfileDto.email);
+        emailChanged = true;
+      }
     }
 
     if (updateFields.length === 0) {
@@ -117,7 +146,19 @@ export class UsersService {
 
     const result = await this.databaseService.query(query, values);
 
-    this.logger.log(`User ${userId} profile updated`);
+    // Security event: Email changed → Invalidate all user sessions
+    if (emailChanged) {
+      await this.sessionInvalidationService.invalidateAllUserSessions(
+        userId,
+        'email_changed',
+      );
+
+      this.logger.warn(
+        `Email changed for user ${userId}. All sessions invalidated for security.`,
+      );
+    } else {
+      this.logger.log(`User ${userId} profile updated`);
+    }
 
     return new User(result.rows[0]);
   }

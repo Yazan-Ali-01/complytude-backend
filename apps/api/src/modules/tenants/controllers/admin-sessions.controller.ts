@@ -104,10 +104,10 @@ export class AdminSessionsController {
     return {
       totalIdentitySessions: stats.totalIdentity,
       totalTenantSessions: stats.totalTenant,
-      sessionsByTenant: {},
-      sessionsByDeviceType: {},
-      activeUsersLast24h: 0, // TODO: Implement
-      activeUsersLast7d: 0, // TODO: Implement
+      sessionsByTenant: stats.sessionsByTenant,
+      sessionsByDeviceType: stats.sessionsByDeviceType,
+      activeUsersLast24h: stats.activeUsersLast24h,
+      activeUsersLast7d: stats.activeUsersLast7d,
     };
   }
 
@@ -333,9 +333,54 @@ export class AdminSessionsController {
       `[ADMIN] User ${admin.userId} accessing sessions for tenant ${tenantId}`,
     );
 
-    // Get all tenant sessions for this tenant
-    // This requires scanning, which is expensive - implement if needed
-    // For now, return empty array with TODO comment
+    // Get all tenant sessions for this tenant using SCAN
+    const redis = this.sessionService['redisService'].getClient();
+    const stream = redis.scanStream({
+      match: 'complytude:tenant-session:*',
+      count: 100,
+    });
+
+    const tenantSessionIds: string[] = [];
+
+    stream.on('data', (keys: string[]) => {
+      tenantSessionIds.push(...keys);
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      stream.on('end', resolve);
+      stream.on('error', reject);
+    });
+
+    // Filter sessions by tenantId and enrich with identity session data
+    const sessions: SessionListItemDto[] = [];
+
+    for (const key of tenantSessionIds) {
+      const sessionData = await redis.hgetall(key);
+      
+      if (sessionData && sessionData.tenantId === tenantId) {
+        const sessionId = key.replace('complytude:tenant-session:', '');
+        
+        // Get parent identity session for device info
+        const identitySession = await this.sessionService.getIdentitySession(
+          sessionData.identitySessionId,
+        );
+
+        if (identitySession) {
+          sessions.push({
+            sessionId: sessionData.identitySessionId,
+            sessionType: 'tenant',
+            deviceInfo: identitySession.deviceInfo,
+            ipAddress: identitySession.ipAddress,
+            geoLocation: identitySession.geoLocation,
+            sessionName: identitySession.sessionName,
+            tenantId: sessionData.tenantId,
+            createdAt: sessionData.createdAt,
+            lastActivityAt: sessionData.lastActivityAt,
+            isCurrentSession: false,
+          });
+        }
+      }
+    }
 
     // Audit log - Break Glass
     await this.auditService.log({
@@ -349,16 +394,15 @@ export class AdminSessionsController {
         type: 'BREAK_GLASS',
         targetTenantId: tenantId,
         operationType: 'view',
+        sessionsViewed: sessions.length,
       },
       ipAddress: undefined,
       userAgent: undefined,
     });
 
-    // TODO: Implement tenant-wide session listing
-    // Requires Redis SCAN with pattern matching
     return {
-      sessions: [],
-      total: 0,
+      sessions,
+      total: sessions.length,
     };
   }
 }

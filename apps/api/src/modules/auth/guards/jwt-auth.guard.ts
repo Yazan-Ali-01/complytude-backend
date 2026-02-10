@@ -8,11 +8,15 @@ import {
 import { Reflector } from '@nestjs/core';
 import passport from 'passport';
 import { AUTH_OPTIONS_KEY } from '../decorators/auth-options.decorator';
+import { SessionService } from '../services/session.service';
 import {
   JWT_IDENTITY_ACCESS_STRATEGY,
   JWT_TENANT_ACCESS_STRATEGY,
 } from '../strategies';
-import { SessionService } from '../services/session.service';
+import {
+  AuthenticatedIdentityUser,
+  AuthenticatedTenantUser,
+} from '../strategies/jwt-payload.interface';
 
 /**
  * JwtAuthGuard with Session Validation
@@ -56,7 +60,10 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const req = context.switchToHttp().getRequest();
-    req.auth = {};
+    req.auth = {} as {
+      tenant?: AuthenticatedTenantUser;
+      identity?: AuthenticatedIdentityUser;
+    };
 
     // JWT validation via Passport
     if (authOptions.tenant) {
@@ -69,9 +76,9 @@ export class JwtAuthGuard implements CanActivate {
     // Session validation in Redis (with graceful degradation)
     if (req.auth.tenant?.sessionId) {
       const valid = await this.validateSession(
-        req.auth.tenant.sessionId,
+        req.auth.tenant.sessionId as string,
         'tenant',
-        req.auth.tenant.userId,
+        req.auth.tenant.userId as string,
       );
       if (!valid) {
         req.auth.tenant = undefined; // Invalidate tenant auth
@@ -79,9 +86,9 @@ export class JwtAuthGuard implements CanActivate {
     }
     if (req.auth.identity?.sessionId) {
       const valid = await this.validateSession(
-        req.auth.identity.sessionId,
+        req.auth.identity.sessionId as string,
         'identity',
-        req.auth.identity.userId,
+        req.auth.identity.userId as string,
       );
       if (!valid) {
         req.auth.identity = undefined; // Invalidate identity auth
@@ -90,9 +97,13 @@ export class JwtAuthGuard implements CanActivate {
 
     // Final authorization check
     if (authOptions?.tenant && !req.auth.tenant)
-      throw new UnauthorizedException('Tenant token required or session expired');
+      throw new UnauthorizedException(
+        'Tenant token required or session expired',
+      );
     if (authOptions?.identity && !req.auth.identity)
-      throw new UnauthorizedException('Identity token required or session expired');
+      throw new UnauthorizedException(
+        'Identity token required or session expired',
+      );
 
     return true;
   }
@@ -106,12 +117,16 @@ export class JwtAuthGuard implements CanActivate {
     const res = context.switchToHttp().getResponse();
 
     return new Promise<void>((resolve) => {
-      passport.authenticate(strategy, { session: false }, (err, user) => {
-        if (!err && user) {
-          req.auth[key] = user;
-        }
-        resolve();
-      })(req, res);
+      passport.authenticate(
+        strategy,
+        { session: false },
+        (err: Error | null, user: any) => {
+          if (!err && user) {
+            req.auth[key] = user;
+          }
+          resolve();
+        },
+      )(req, res);
     });
   }
 
@@ -133,7 +148,7 @@ export class JwtAuthGuard implements CanActivate {
     if (!sessionId) {
       this.logger.warn(
         `Legacy token detected for user ${userId} (no sessionId). ` +
-        `Transitional support active until session feature deployment + 28 days.`,
+          `Transitional support active until session feature deployment + 28 days.`,
       );
       return true; // Allow access during transition period
     }
@@ -148,7 +163,7 @@ export class JwtAuthGuard implements CanActivate {
       if (!exists) {
         this.logger.warn(
           `Session ${sessionId} (${type}) not found for user ${userId}. ` +
-          `Session may have been revoked or expired.`,
+            `Session may have been revoked or expired.`,
         );
         return false; // Session explicitly deleted or expired
       }
@@ -161,8 +176,8 @@ export class JwtAuthGuard implements CanActivate {
       // Redis failure - graceful degradation to JWT-only validation
       this.logger.warn(
         `Redis unavailable - falling back to JWT-only validation. ` +
-        `SessionId: ${sessionId}, Type: ${type}, User: ${userId}. ` +
-        `Error: ${error.message}`,
+          `SessionId: ${sessionId}, Type: ${type}, User: ${userId}. ` +
+          `Error: ${error.message}`,
         {
           context: 'JwtAuthGuard',
           degradedMode: true,

@@ -38,19 +38,20 @@ export const SERVICE_NAME = 'api';
 export const REDIS_KEYS = {
   // Identity session storage
   identitySession: (sessionId: string) => `identity-session:${sessionId}`,
-  
+
   // Tenant session storage
   tenantSession: (sessionId: string) => `tenant-session:${sessionId}`,
-  
+
   // Secondary index: all identity sessions for a user
   userIdentitySessions: (userId: string) => `user:identity-sessions:${userId}`,
-  
+
   // Secondary index: all tenant sessions for a user in a tenant
   userTenantSessions: (userId: string, tenantId: string) =>
     `user:tenant-sessions:${userId}:${tenantId}`,
-  
+
   // Activity throttle key (TTL-based)
-  sessionActivityThrottle: (sessionId: string) => `session-activity-throttle:${sessionId}`,
+  sessionActivityThrottle: (sessionId: string) =>
+    `session-activity-throttle:${sessionId}`,
 } as const;
 
 /**
@@ -77,15 +78,15 @@ local currentCount = redis.call('SCARD', userSessionsKey)
 if currentCount >= maxSessions then
   -- Get all session IDs
   local sessionIds = redis.call('SMEMBERS', userSessionsKey)
-  
+
   -- Find oldest session by reading createdAt timestamp
   local oldestSessionId = nil
   local oldestTimestamp = nil
-  
+
   for _, sessionId in ipairs(sessionIds) do
     local sessionKey = sessionKeyPrefix .. sessionId
     local createdAt = redis.call('HGET', sessionKey, 'createdAt')
-    
+
     if createdAt then
       if not oldestTimestamp or createdAt < oldestTimestamp then
         oldestTimestamp = createdAt
@@ -93,29 +94,62 @@ if currentCount >= maxSessions then
       end
     end
   end
-  
+
   -- Delete oldest session if found
   if oldestSessionId then
-    -- Remove from index
-    redis.call('SREM', userSessionsKey, oldestSessionId)
-    
-    -- Delete session data
+    -- Get session data before deletion (need userId for cleanup)
     local oldestSessionKey = sessionKeyPrefix .. oldestSessionId
     local sessionData = redis.call('HGETALL', oldestSessionKey)
-    redis.call('DEL', oldestSessionKey)
-    
-    -- Delete linked tenant sessions
+    local userId = nil
+
+    -- Extract userId from session data
+    for i = 1, #sessionData, 2 do
+      if sessionData[i] == 'userId' then
+        userId = sessionData[i + 1]
+        break
+      end
+    end
+
+    -- Delete linked tenant sessions AND their secondary indexes
     for i = 1, #sessionData, 2 do
       if sessionData[i] == 'activeTenantSessionIds' then
         local tenantSessionIds = cjson.decode(sessionData[i + 1])
         for _, tenantSessionId in ipairs(tenantSessionIds) do
-          redis.call('DEL', 'tenant-session:' .. tenantSessionId)
+          local tenantSessionKey = 'tenant-session:' .. tenantSessionId
+
+          -- Get tenant session data to find tenantId for index cleanup
+          local tenantData = redis.call('HGETALL', tenantSessionKey)
+          local tenantId = nil
+
+          for j = 1, #tenantData, 2 do
+            if tenantData[j] == 'tenantId' then
+              tenantId = tenantData[j + 1]
+              break
+            end
+          end
+
+          -- Delete tenant session
+          redis.call('DEL', tenantSessionKey)
+
+          -- Clean up secondary index: user:tenant-sessions:{userId}:{tenantId}
+          if userId and tenantId then
+            redis.call('SREM', 'user:tenant-sessions:' .. userId .. ':' .. tenantId, tenantSessionId)
+          end
+
+          -- Delete tenant session throttle key
+          redis.call('DEL', 'session-activity-throttle:' .. tenantSessionId)
         end
         break
       end
     end
-    
-    -- Delete throttle key
+
+    -- Delete identity session
+    redis.call('DEL', oldestSessionKey)
+
+    -- Remove from user identity sessions index
+    redis.call('SREM', userSessionsKey, oldestSessionId)
+
+    -- Delete identity session throttle key
     redis.call('DEL', 'session-activity-throttle:' .. oldestSessionId)
   end
 end

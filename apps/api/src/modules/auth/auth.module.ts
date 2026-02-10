@@ -3,15 +3,16 @@ import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { EmailVerificationRepository } from 'src/repositories/users/email-verification.repository';
-import { RefreshTokenRepository } from 'src/repositories/users/refresh-token.repository';
+// RefreshTokenRepository removed - Redis sessions replace refresh_tokens table
+// Refresh token validation is now: check if sessionId exists in Redis (O(1))
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
 import { DatabaseModule } from '../../database/database.module';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { TenantModule } from '../tenants/tenant.module';
 import { AuthController } from './auth.controller';
-import { SessionsController } from './controllers/sessions.controller';
 import { AuthService } from './auth.service';
+import { SessionsController } from './controllers/sessions.controller';
 import { JwtIdentityAccessStrategy } from './strategies/jwt-identity-access.strategy';
 import { JwtIdentityRefreshStrategy } from './strategies/jwt-identity-refresh.strategy';
 import {
@@ -44,7 +45,7 @@ import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strate
     JwtIdentityAccessStrategy,
     JwtIdentityRefreshStrategy,
     UserRepository,
-    RefreshTokenRepository,
+    // RefreshTokenRepository removed - no longer needed
     EmailVerificationRepository,
     UserTenantRepository,
   ],

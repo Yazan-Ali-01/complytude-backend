@@ -1,8 +1,8 @@
+import { Reader, ReaderModel } from '@maxmind/geoip2-node';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Reader, ReaderModel } from '@maxmind/geoip2-node';
-import { GeoLocation } from '../interfaces/session.interface';
 import * as fs from 'fs';
+import { GeoLocation } from '../interfaces/session.interface';
 
 /**
  * GeoLocationService - IP geolocation using MaxMind GeoLite2
@@ -45,17 +45,28 @@ export class GeoLocationService implements OnModuleInit {
   /**
    * Initialize MaxMind GeoIP2 reader
    * Gracefully handles missing license key or database file
+   *
+   * Note: MaxMind GeoIP is OPTIONAL. If not configured, sessions are created
+   * with geoLocation: null. This is expected behavior in development.
    */
   private async initializeReader(): Promise<void> {
     try {
       const licenseKey = this.configService.get<string>('MAXMIND_LICENSE_KEY');
       const dbPath = this.configService.get<string>('MAXMIND_DB_PATH');
 
-      // Check if MaxMind is configured
-      if (!licenseKey || !dbPath) {
+      // Check if MaxMind is configured (empty string = intentionally disabled)
+      if (!licenseKey || licenseKey.trim() === '') {
+        this.logger.log(
+          'MaxMind GeoIP is disabled (no license key configured). ' +
+            'This is optional - sessions will be created without geolocation data. ' +
+            'To enable: Set MAXMIND_LICENSE_KEY in .env and download GeoLite2-City.mmdb',
+        );
+        return;
+      }
+
+      if (!dbPath) {
         this.logger.warn(
-          'MaxMind GeoIP disabled: MAXMIND_LICENSE_KEY or MAXMIND_DB_PATH not configured. ' +
-          'Sessions will be created without geolocation data.',
+          'MaxMind GeoIP: License key provided but MAXMIND_DB_PATH not configured.',
         );
         return;
       }
@@ -64,8 +75,8 @@ export class GeoLocationService implements OnModuleInit {
       if (!fs.existsSync(dbPath)) {
         this.logger.error(
           `MaxMind GeoIP database not found at ${dbPath}. ` +
-          `Please download GeoLite2-City.mmdb and place it in the specified path. ` +
-          `Setup instructions: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data`,
+            `Please download GeoLite2-City.mmdb and place it in the specified path. ` +
+            `Setup instructions: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data`,
         );
         return;
       }
@@ -80,7 +91,7 @@ export class GeoLocationService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Failed to initialize MaxMind GeoIP: ${error.message}. ` +
-        `Geolocation lookups will be disabled.`,
+          `Geolocation lookups will be disabled.`,
         error.stack,
       );
       this.reader = null;
@@ -144,7 +155,11 @@ export class GeoLocationService implements OnModuleInit {
    */
   private isPrivateOrLocalhost(ipAddress: string): boolean {
     // Localhost
-    if (ipAddress === '127.0.0.1' || ipAddress === '::1' || ipAddress === 'localhost') {
+    if (
+      ipAddress === '127.0.0.1' ||
+      ipAddress === '::1' ||
+      ipAddress === 'localhost'
+    ) {
       return true;
     }
 

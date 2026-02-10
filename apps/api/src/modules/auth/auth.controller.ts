@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   Post,
   Query,
@@ -51,6 +52,7 @@ import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { JwtAuthRefreshGuard } from './guards';
+import { SessionService } from './services/session.service';
 import type {
   AuthenticatedIdentityRefreshUser,
   AuthenticatedIdentityUser,
@@ -60,7 +62,12 @@ import type {
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly logger = new Logger(AuthController.name);
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly sessionService: SessionService,
+  ) {}
 
   /**
    * 1. POST /auth/signup
@@ -242,8 +249,8 @@ export class AuthController {
       await this.authService.refreshIdentityTokens(
         identityUser.userId,
         identityUser.email,
-        identityUser.sessionId, // Pass sessionId from refresh token
-        identityUser.refreshToken,
+        identityUser.sessionId, // SessionId validated by JwtAuthRefreshGuard
+        // No oldRefreshToken parameter - session existence IS the validation
       );
 
     this.authService.setIdentityTokens(
@@ -288,8 +295,8 @@ export class AuthController {
         tenantUser.userId,
         tenantUser.email,
         tenantUser.tenantId,
-        tenantUser.sessionId, // Pass sessionId from refresh token
-        tenantUser.refreshToken,
+        tenantUser.sessionId, // SessionId validated by JwtAuthRefreshGuard
+        // No oldRefreshToken parameter - session existence IS the validation
       );
 
     this.authService.setTenantTokens(
@@ -340,6 +347,55 @@ export class AuthController {
     );
     this.authService.clearAllAuthCookies(reply);
     return { message };
+  }
+
+  /**
+   * 6b. POST /auth/logout/tenant
+   * Logout from current tenant only (keep identity session active)
+   */
+  @Post('logout/tenant')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthRefreshGuard)
+  @AuthRefreshOptions({ tenant: true })
+  @SwaggerCookieAuth.tenantRefreshToken()
+  @ApiOperation({
+    summary: 'Logout from current tenant',
+    description:
+      'Delete current tenant session only. Identity session remains active, ' +
+      'allowing user to switch to other tenants without re-login. ' +
+      'Only tenant cookies are cleared.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Logged out from current tenant successfully',
+    type: MessageResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or missing tenant refresh token',
+  })
+  @ApiPublicResponses()
+  async logoutTenant(
+    @CurrentUserTenantRefresh()
+    tenantRefreshUser: AuthenticatedTenantRefreshUser,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MessageResponseDto> {
+    // Delete only tenant session (identity session preserved)
+    await this.sessionService.deleteTenantSession(
+      tenantRefreshUser.sessionId,
+      tenantRefreshUser.userId,
+      tenantRefreshUser.tenantId,
+    );
+
+    // Clear only tenant cookies (identity cookies remain)
+    this.authService.clearTenantTokens(reply);
+
+    this.logger.log(
+      `User ${tenantRefreshUser.userId} logged out from tenant ${tenantRefreshUser.tenantId} ` +
+        `(identity session preserved)`,
+    );
+
+    return { message: 'Logged out from current tenant successfully' };
   }
 
   /**
