@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { DeviceInfo } from 'src/modules/auth/interfaces/session.interface';
 import { UAParser } from 'ua-parser-js';
-import { DeviceInfo } from '../interfaces/session.interface';
 
 /**
  * UserAgentParserService - Extract device information from User-Agent strings
@@ -43,7 +43,7 @@ export class UserAgentParserService {
         browserVersion: browserResult.version || 'Unknown',
         operatingSystem: this.formatOS(osResult.name, osResult.version),
       };
-    } catch (error) {
+    } catch {
       // Parsing failed - return default
       return this.getDefaultDeviceInfo();
     }
@@ -78,7 +78,10 @@ export class UserAgentParserService {
    * @param version - OS version
    * @returns Formatted string like "macOS 14.1" or "Windows 11"
    */
-  private formatOS(name: string | undefined, version: string | undefined): string {
+  private formatOS(
+    name: string | undefined,
+    version: string | undefined,
+  ): string {
     if (!name) {
       return 'Unknown';
     }

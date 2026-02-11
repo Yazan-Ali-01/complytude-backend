@@ -9,12 +9,7 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 import {
@@ -22,32 +17,55 @@ import {
   ApiNotFoundError,
   SwaggerCookieAuth,
 } from 'src/common/swagger';
-import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
-import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
-import { SessionListResponseDto, SessionStatsDto, SessionListItemDto } from 'src/modules/auth/dto/session-response.dto';
-import { SessionIdParamDto } from 'src/modules/auth/dto/session-id-param.dto';
-import { SessionService } from 'src/modules/auth/services/session.service';
-import { SessionInvalidationService } from 'src/modules/auth/services/session-invalidation.service';
-import type { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { AdminSessionService } from 'src/modules/sessions/services/admin-session.service';
+import { SessionInvalidationService } from 'src/modules/sessions/services/session-invalidation.service';
+import { SessionService } from 'src/modules/sessions/services/session.service';
+import { AuthOptions } from '../decorators/auth-options.decorator';
+import { CurrentUserIdentity } from '../decorators/current-user.decorator';
+import { SessionIdParamDto } from '../dto/session-id-param.dto';
+import {
+  SessionListItemDto,
+  SessionListResponseDto,
+  SessionStatsDto,
+} from '../dto/session-response.dto';
+import type { AuthenticatedIdentityUser } from '../strategies';
 
 /**
  * AdminSessionsController - System admin session management
  *
- * Allows system admins to:
- * - View global session statistics
- * - View sessions for any tenant (sanitized data)
- * - View sessions for any user (sanitized data, all tenants)
- * - Force-logout any user from any session
+ * Location: apps/api/src/modules/auth/controllers/admin-sessions.controller.ts
+ * Architecture: Part of AuthModule (session management belongs to authentication domain)
+ *
+ * Responsibilities:
+ * - View global session statistics across all tenants
+ * - View sessions for any tenant (sanitized data, Break Glass)
+ * - View sessions for any user (sanitized data, all tenants, Break Glass)
+ * - Force-logout any user from any session (Break Glass)
  *
  * Security:
  * - All actions are audited via AuditService (Break Glass logging)
  * - Sanitized data (no sensitive business info, only device/location/timestamps)
+ * - Requires identity token with SYSTEM_ADMIN role
  *
- * Authentication: Requires identity token with SYSTEM_ADMIN role
+ * REST API Design:
+ * - Base path: /admin/sessions (specific, follows RESTful conventions)
+ * - Consistent with other admin controllers (admin/tenants, etc.)
+ * - Clear separation from user session endpoints (/auth/sessions)
+ *
+ * Route Structure:
+ * - /admin/sessions/stats              - Global statistics
+ * - /admin/sessions/users/:userId      - User-specific sessions
+ * - /admin/sessions/tenants/:tenantId  - Tenant-specific sessions
+ * - /admin/sessions/:sessionId         - Session-specific operations
+ *
+ * Layered Architecture:
+ * - Controller: HTTP layer (thin, delegates to services)
+ * - AdminSessionService: Business logic (data aggregation, filtering)
+ * - SessionService: Data access (Redis CRUD operations)
  */
 @ApiTags('System Admin - Sessions')
-@Controller('admin')
+@Controller('admin/sessions')
 @AuthOptions({ identity: true })
 @UseGuards(SystemAdminGuard)
 @SwaggerCookieAuth.identityAccessToken()
@@ -57,6 +75,7 @@ export class AdminSessionsController {
   constructor(
     private readonly sessionService: SessionService,
     private readonly sessionInvalidationService: SessionInvalidationService,
+    private readonly adminSessionService: AdminSessionService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -64,7 +83,7 @@ export class AdminSessionsController {
    * GET /admin/sessions/stats
    * Get global session statistics
    */
-  @Get('sessions/stats')
+  @Get('stats')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '[ADMIN] Get global session statistics',
@@ -81,7 +100,9 @@ export class AdminSessionsController {
   async getSessionStats(
     @CurrentUserIdentity() admin: AuthenticatedIdentityUser,
   ): Promise<SessionStatsDto> {
-    this.logger.log(`[ADMIN] User ${admin.userId} accessing session statistics`);
+    this.logger.log(
+      `[ADMIN] User ${admin.userId} accessing session statistics`,
+    );
 
     const stats = await this.sessionInvalidationService.getSessionStats();
 
@@ -112,10 +133,10 @@ export class AdminSessionsController {
   }
 
   /**
-   * GET /admin/users/:userId/sessions
+   * GET /admin/sessions/users/:userId
    * View all sessions for a specific user (all tenants, sanitized)
    */
-  @Get('users/:userId/sessions')
+  @Get('users/:userId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '[ADMIN] View user sessions (all tenants)',
@@ -139,7 +160,8 @@ export class AdminSessionsController {
       `[ADMIN] User ${admin.userId} accessing sessions for user ${targetUserId}`,
     );
 
-    const identitySessions = await this.sessionService.getUserIdentitySessions(targetUserId);
+    const identitySessions =
+      await this.sessionService.getUserIdentitySessions(targetUserId);
 
     if (!identitySessions || identitySessions.length === 0) {
       // User exists but has no active sessions
@@ -148,7 +170,7 @@ export class AdminSessionsController {
 
     // Sanitized session data (no sensitive business info)
     const sessions: SessionListItemDto[] = identitySessions.map((session) => ({
-      sessionId: session.userId,
+      sessionId: session.sessionId,
       sessionType: 'identity',
       deviceInfo: session.deviceInfo,
       ipAddress: session.ipAddress,
@@ -184,10 +206,10 @@ export class AdminSessionsController {
   }
 
   /**
-   * DELETE /admin/users/:userId/sessions
+   * DELETE /admin/sessions/users/:userId
    * Force-logout user from all devices (all tenants)
    */
-  @Delete('users/:userId/sessions')
+  @Delete('users/:userId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '[ADMIN] Force-logout user globally',
@@ -210,10 +232,11 @@ export class AdminSessionsController {
       `[ADMIN] User ${admin.userId} force-logging out user ${targetUserId} globally`,
     );
 
-    const count = await this.sessionInvalidationService.invalidateAllUserSessions(
-      targetUserId,
-      'system_admin_force_logout',
-    );
+    const count =
+      await this.sessionInvalidationService.invalidateAllUserSessions(
+        targetUserId,
+        'system_admin_force_logout',
+      );
 
     // Audit log - Break Glass
     await this.auditService.log({
@@ -242,7 +265,7 @@ export class AdminSessionsController {
    * DELETE /admin/sessions/:sessionId
    * Force-logout specific session by ID
    */
-  @Delete('sessions/:sessionId')
+  @Delete(':sessionId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '[ADMIN] Force-logout specific session',
@@ -267,7 +290,9 @@ export class AdminSessionsController {
     );
 
     // Get session details before deletion (for audit log)
-    const session = await this.sessionService.getIdentitySession(params.sessionId);
+    const session = await this.sessionService.getIdentitySession(
+      params.sessionId,
+    );
 
     if (!session) {
       throw new NotFoundException('Session not found');
@@ -307,10 +332,10 @@ export class AdminSessionsController {
   }
 
   /**
-   * GET /admin/tenants/:tenantId/sessions
+   * GET /admin/sessions/tenants/:tenantId
    * View all sessions in a tenant (sanitized)
    */
-  @Get('tenants/:tenantId/sessions')
+  @Get('tenants/:tenantId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '[ADMIN] View tenant sessions (sanitized)',
@@ -333,54 +358,8 @@ export class AdminSessionsController {
       `[ADMIN] User ${admin.userId} accessing sessions for tenant ${tenantId}`,
     );
 
-    // Get all tenant sessions for this tenant using SCAN
-    const redis = this.sessionService['redisService'].getClient();
-    const stream = redis.scanStream({
-      match: 'complytude:tenant-session:*',
-      count: 100,
-    });
-
-    const tenantSessionIds: string[] = [];
-
-    stream.on('data', (keys: string[]) => {
-      tenantSessionIds.push(...keys);
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      stream.on('end', resolve);
-      stream.on('error', reject);
-    });
-
-    // Filter sessions by tenantId and enrich with identity session data
-    const sessions: SessionListItemDto[] = [];
-
-    for (const key of tenantSessionIds) {
-      const sessionData = await redis.hgetall(key);
-      
-      if (sessionData && sessionData.tenantId === tenantId) {
-        const sessionId = key.replace('complytude:tenant-session:', '');
-        
-        // Get parent identity session for device info
-        const identitySession = await this.sessionService.getIdentitySession(
-          sessionData.identitySessionId,
-        );
-
-        if (identitySession) {
-          sessions.push({
-            sessionId: sessionData.identitySessionId,
-            sessionType: 'tenant',
-            deviceInfo: identitySession.deviceInfo,
-            ipAddress: identitySession.ipAddress,
-            geoLocation: identitySession.geoLocation,
-            sessionName: identitySession.sessionName,
-            tenantId: sessionData.tenantId,
-            createdAt: sessionData.createdAt,
-            lastActivityAt: sessionData.lastActivityAt,
-            isCurrentSession: false,
-          });
-        }
-      }
-    }
+    // Delegate to service layer (business logic)
+    const sessions = await this.adminSessionService.getTenantSessions(tenantId);
 
     // Audit log - Break Glass
     await this.auditService.log({
@@ -401,7 +380,7 @@ export class AdminSessionsController {
     });
 
     return {
-      sessions,
+      sessions: sessions as SessionListItemDto[],
       total: sessions.length,
     };
   }

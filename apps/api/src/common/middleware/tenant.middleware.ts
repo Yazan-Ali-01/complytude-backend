@@ -54,7 +54,7 @@ declare module 'express' {
 export class TenantMiddleware implements NestMiddleware {
   private readonly logger = new Logger(TenantMiddleware.name);
 
-  use(req: any, res: Response, next: NextFunction) {
+  use(req: any, _: Response, next: NextFunction) {
     // Get the request path - use originalUrl for Fastify/NestJS
     // originalUrl contains the full path including API prefix
     const requestPath = req.originalUrl || req.url || req.path || '';

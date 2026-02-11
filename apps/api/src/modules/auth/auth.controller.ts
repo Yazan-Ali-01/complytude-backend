@@ -30,6 +30,7 @@ import {
   ApiValidationError,
   SwaggerCookieAuth,
 } from 'src/common/swagger';
+import { SessionService } from '../sessions/services/session.service';
 import { AuthService } from './auth.service';
 import {
   AuthOptions,
@@ -52,7 +53,6 @@ import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { JwtAuthRefreshGuard } from './guards';
-import { SessionService } from './services/session.service';
 import type {
   AuthenticatedIdentityRefreshUser,
   AuthenticatedIdentityUser,

@@ -1,8 +1,9 @@
 import { Controller, Get, Logger } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthOptions } from '../auth/decorators/auth-options.decorator';
+import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
 import { Tenant } from './entities/tenant.entity';
 import { FeaturesService } from './features.service';
 import { TenantService } from './tenant.service';
@@ -22,6 +23,7 @@ export class TenantController {
   // ============================================================================
 
   @Get('me')
+  @AuthOptions({ tenant: true })
   @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
     summary: 'Get my tenant information',
@@ -34,7 +36,9 @@ export class TenantController {
       'Your tenant details with effective features (plan defaults + custom overrides)',
     type: Object,
   })
-  async getMyTenant(@CurrentUser() user: AuthenticatedUser): Promise<Tenant> {
+  async getMyTenant(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<Tenant> {
     this.logger.log(`User ${user.userId} fetching their tenant info`);
 
     // Get tenant data

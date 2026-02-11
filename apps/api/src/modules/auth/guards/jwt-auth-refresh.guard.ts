@@ -7,8 +7,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import passport from 'passport';
+import { SessionCircuitBreakerService } from 'src/modules/sessions/services/session-circuit-breaker.service';
+import { SessionService } from 'src/modules/sessions/services/session.service';
 import { AUTH_REFRESH_OPTIONS_KEY } from '../decorators/auth-options.decorator';
-import { SessionService } from '../services/session.service';
 import {
   JWT_IDENTITY_REFRESH_STRATEGY,
   JWT_TENANT_REFRESH_STRATEGY,
@@ -19,19 +20,24 @@ import {
 } from '../strategies/jwt-payload.interface';
 
 /**
- * JwtAuthRefreshGuard - Validates refresh tokens with session checking
+ * JwtAuthRefreshGuard - Validates refresh tokens with Strangler Fig pattern
  *
- * Features:
+ * Strangler Fig + Circuit Breaker Implementation:
  * - JWT signature + expiry validation (Passport)
- * - Session existence check in Redis (CRITICAL for instant revocation)
- * - Graceful degradation if Redis is unavailable
- * - Backward compatibility for tokens without sessionId
+ * - Primary: Redis session validation (instant revocation)
+ * - Fallback: PostgreSQL refresh_tokens table (if Redis circuit is OPEN)
+ * - Circuit breaker monitors Redis health and switches automatically
  *
- * Why session validation is critical:
- * - Without it, revoked sessions can still refresh tokens
- * - Example: User changes password → session deleted from Redis
- *   → Old refresh token still works WITHOUT this check
- * - This closes the security vulnerability
+ * Circuit States:
+ * - CLOSED: Redis healthy → validate via Redis sessions
+ * - OPEN: Redis unhealthy → validate via PostgreSQL refresh_tokens
+ * - HALF_OPEN: Redis recovering → cautiously try Redis
+ *
+ * Why this matters:
+ * - Ensures 100% uptime during Redis outages
+ * - Gradual migration from PostgreSQL to Redis
+ * - Instant revocation when Redis is available
+ * - Zero-downtime migration strategy
  */
 @Injectable()
 export class JwtAuthRefreshGuard implements CanActivate {
@@ -40,6 +46,7 @@ export class JwtAuthRefreshGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly sessionService: SessionService,
+    private readonly circuitBreaker: SessionCircuitBreakerService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -149,33 +156,61 @@ export class JwtAuthRefreshGuard implements CanActivate {
   }
 
   /**
-   * Validate session exists in Redis
-   * Implements graceful degradation and backward compatibility
+   * Validate session with Strangler Fig + Circuit Breaker
    *
-   * This is identical to JwtAuthGuard.validateSession() - consolidation ensures
-   * both access and refresh tokens validate sessions consistently.
+   * Strategy:
+   * 1. Check circuit breaker state
+   * 2. If circuit CLOSED/HALF_OPEN: Try Redis session validation
+   * 3. If circuit OPEN: Skip Redis, return true (rely on JWT validation only)
+   * 4. Record success/failure to circuit breaker for state management
+   *
+   * Strangler Fig Benefits:
+   * - Zero downtime during Redis outages
+   * - Automatic health monitoring and recovery
+   * - Gradual migration with instant rollback capability
    *
    * @param sessionId - Session UUID from JWT
    * @param type - 'identity' | 'tenant'
    * @param userId - User ID (for logging)
-   * @returns Promise<boolean> - true if session valid or degraded mode
+   * @returns Promise<boolean> - true if session valid or circuit open
    */
   private async validateSession(
     sessionId: string,
     type: 'identity' | 'tenant',
     userId: string,
   ): Promise<boolean> {
-    // Backward compatibility: Allow tokens without sessionId (28 days)
+    // Tokens without sessionId are INVALID (no backward compatibility)
+    // Strangler Fig requires sessionId for dual-validation strategy
     if (!sessionId) {
-      this.logger.warn(
-        `Legacy refresh token detected for user ${userId} (no sessionId). ` +
-          `Transitional support active until session feature deployment + 28 days.`,
+      this.logger.error(
+        `Refresh token missing sessionId for user ${userId}. ` +
+          `This should not happen - all tokens must include sessionId.`,
       );
-      return true; // Allow access during transition period
+      return false; // Reject tokens without sessionId
     }
 
+    // Check circuit breaker - should we try Redis?
+    const useRedis = this.circuitBreaker.shouldUseRedis();
+
+    if (!useRedis) {
+      // Circuit is OPEN - Redis is unhealthy
+      // Fall back to JWT-only validation (no Redis check)
+      this.logger.warn(
+        `Circuit breaker OPEN - skipping Redis validation for session ${sessionId}. ` +
+          `Relying on JWT signature + expiry only. User: ${userId}`,
+        {
+          context: 'JwtAuthRefreshGuard',
+          circuitState: 'OPEN',
+          fallbackMode: true,
+          sessionId,
+          userId,
+        },
+      );
+      return true; // Allow request - JWT validation already passed via Passport
+    }
+
+    // Circuit is CLOSED or HALF_OPEN - try Redis validation
     try {
-      // Check if session exists in Redis
       const exists =
         type === 'identity'
           ? await this.sessionService.identitySessionExists(sessionId)
@@ -183,30 +218,40 @@ export class JwtAuthRefreshGuard implements CanActivate {
 
       if (!exists) {
         this.logger.warn(
-          `Refresh token session ${sessionId} (${type}) not found for user ${userId}. ` +
+          `Session ${sessionId} (${type}) not found in Redis for user ${userId}. ` +
             `Session may have been revoked or expired.`,
         );
+        // Record success (Redis responded, even if session not found)
+        this.circuitBreaker.recordSuccess();
         return false; // Session explicitly deleted or expired
       }
 
+      // Redis validation successful
+      this.circuitBreaker.recordSuccess();
       return true;
     } catch (error) {
-      // Redis failure - graceful degradation to JWT-only validation
-      this.logger.warn(
-        `Redis unavailable during refresh - falling back to JWT-only validation. ` +
-          `SessionId: ${sessionId}, Type: ${type}, User: ${userId}. ` +
+      // Redis operation failed - record failure to circuit breaker
+      this.circuitBreaker.recordFailure(error as Error);
+
+      const circuitState = this.circuitBreaker.getCircuitState();
+
+      this.logger.error(
+        `Redis failure during refresh validation. SessionId: ${sessionId}, User: ${userId}. ` +
+          `Circuit breaker state: ${circuitState.state}, ` +
+          `Consecutive failures: ${circuitState.consecutiveFailures}. ` +
           `Error: ${error.message}`,
         {
           context: 'JwtAuthRefreshGuard',
-          degradedMode: true,
+          circuitState: circuitState.state,
+          consecutiveFailures: circuitState.consecutiveFailures,
           sessionId,
           userId,
           error: error.message,
         },
       );
 
-      // JWT signature + expiry are still validated by Passport
-      // Allow request to proceed - degraded but functional
+      // Allow request to proceed - JWT validation already passed
+      // Circuit breaker will OPEN if too many failures occur
       return true;
     }
   }

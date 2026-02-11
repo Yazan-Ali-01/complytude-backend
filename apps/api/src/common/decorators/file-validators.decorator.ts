@@ -1,12 +1,12 @@
 import {
   registerDecorator,
+  ValidationArguments,
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
-  ValidationArguments,
 } from 'class-validator';
-import { MulterLikeFile } from '../interfaces/multer-file.interface';
 import { formatFileSize, isMulterLikeFile } from '../helper';
+import { MulterLikeFile } from '../interfaces/multer-file.interface';
 
 /**
  * Validator constraint for checking if value is a MulterLikeFile object

@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '@complytude/shared/redis/redis.service';
+import { Injectable, Logger } from '@nestjs/common';
+import { REDIS_KEYS } from 'src/modules/auth/constants/session.constants';
 import { SessionService } from './session.service';
-import { REDIS_KEYS } from '../constants/session.constants';
 
 /**
  * SessionInvalidationService - Bulk session cleanup for security events
@@ -38,7 +38,10 @@ export class SessionInvalidationService {
    * @param reason - Reason for invalidation (for logging)
    * @returns Promise<number> - Number of sessions invalidated
    */
-  async invalidateAllUserSessions(userId: string, reason: string): Promise<number> {
+  async invalidateAllUserSessions(
+    userId: string,
+    reason: string,
+  ): Promise<number> {
     try {
       const redis = this.redisService.getClient();
       let totalInvalidated = 0;
@@ -49,13 +52,18 @@ export class SessionInvalidationService {
       );
 
       if (!identitySessionIds || identitySessionIds.length === 0) {
-        this.logger.log(`No sessions to invalidate for user ${userId} (reason: ${reason})`);
+        this.logger.log(
+          `No sessions to invalidate for user ${userId} (reason: ${reason})`,
+        );
         return 0;
       }
 
       // Delete each identity session (and its linked tenant sessions)
       for (const sessionId of identitySessionIds) {
-        const deleted = await this.sessionService.deleteIdentitySession(sessionId, userId);
+        const deleted = await this.sessionService.deleteIdentitySession(
+          sessionId,
+          userId,
+        );
         if (deleted) {
           totalInvalidated++;
         }
@@ -63,7 +71,7 @@ export class SessionInvalidationService {
 
       this.logger.warn(
         `Invalidated ${totalInvalidated} identity sessions for user ${userId} ` +
-        `(reason: ${reason})`,
+          `(reason: ${reason})`,
       );
 
       return totalInvalidated;
@@ -102,7 +110,7 @@ export class SessionInvalidationService {
       if (!tenantSessionIds || tenantSessionIds.length === 0) {
         this.logger.log(
           `No tenant sessions to invalidate for user ${userId} in tenant ${tenantId} ` +
-          `(reason: ${reason})`,
+            `(reason: ${reason})`,
         );
         return 0;
       }
@@ -121,7 +129,7 @@ export class SessionInvalidationService {
 
       this.logger.warn(
         `Invalidated ${totalInvalidated} tenant sessions for user ${userId} ` +
-        `in tenant ${tenantId} (reason: ${reason})`,
+          `in tenant ${tenantId} (reason: ${reason})`,
       );
 
       return totalInvalidated;
@@ -142,7 +150,10 @@ export class SessionInvalidationService {
    * @param reason - Reason for invalidation (for logging)
    * @returns Promise<number> - Number of sessions invalidated
    */
-  async invalidateAllTenantSessions(tenantId: string, reason: string): Promise<number> {
+  async invalidateAllTenantSessions(
+    tenantId: string,
+    reason: string,
+  ): Promise<number> {
     try {
       const redis = this.redisService.getClient();
       let totalInvalidated = 0;
@@ -213,9 +224,16 @@ export class SessionInvalidationService {
   ): Promise<boolean> {
     try {
       if (sessionType === 'identity') {
-        return await this.sessionService.deleteIdentitySession(sessionId, userId);
+        return await this.sessionService.deleteIdentitySession(
+          sessionId,
+          userId,
+        );
       } else if (sessionType === 'tenant' && tenantId) {
-        return await this.sessionService.deleteTenantSession(sessionId, userId, tenantId);
+        return await this.sessionService.deleteTenantSession(
+          sessionId,
+          userId,
+          tenantId,
+        );
       }
 
       this.logger.warn(
@@ -223,7 +241,9 @@ export class SessionInvalidationService {
       );
       return false;
     } catch (error) {
-      this.logger.error(`Failed to invalidate session ${sessionId}: ${error.message}`);
+      this.logger.error(
+        `Failed to invalidate session ${sessionId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -262,7 +282,8 @@ export class SessionInvalidationService {
         const sessionIds = await redis.smembers(indexKey);
 
         for (const sessionId of sessionIds) {
-          const exists = await this.sessionService.identitySessionExists(sessionId);
+          const exists =
+            await this.sessionService.identitySessionExists(sessionId);
           if (!exists) {
             await redis.srem(indexKey, sessionId);
             totalCleaned++;
@@ -271,12 +292,16 @@ export class SessionInvalidationService {
       }
 
       if (totalCleaned > 0) {
-        this.logger.log(`Cleaned up ${totalCleaned} orphaned session index entries`);
+        this.logger.log(
+          `Cleaned up ${totalCleaned} orphaned session index entries`,
+        );
       }
 
       return totalCleaned;
     } catch (error) {
-      this.logger.error(`Failed to cleanup orphaned index entries: ${error.message}`);
+      this.logger.error(
+        `Failed to cleanup orphaned index entries: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -340,17 +365,18 @@ export class SessionInvalidationService {
       const oneDayAgo = now - 24 * 60 * 60 * 1000;
       const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 
-      // Process identity sessions for device type and active users
+      // Process identity sessions for device type, service, and active users
       for (const key of identitySessionKeys) {
         const sessionData = await redis.hgetall(key);
-        
+
         if (sessionData && sessionData.userId) {
           // Parse device info for device type stats
           if (sessionData.deviceInfo) {
             try {
               const deviceInfo = JSON.parse(sessionData.deviceInfo);
               const deviceType = deviceInfo.deviceType || 'unknown';
-              sessionsByDeviceType[deviceType] = (sessionsByDeviceType[deviceType] || 0) + 1;
+              sessionsByDeviceType[deviceType] =
+                (sessionsByDeviceType[deviceType] || 0) + 1;
             } catch {
               // Ignore parsing errors
             }
@@ -372,7 +398,7 @@ export class SessionInvalidationService {
       // Process tenant sessions for tenant stats
       for (const key of tenantSessionKeys) {
         const sessionData = await redis.hgetall(key);
-        
+
         if (sessionData && sessionData.tenantId) {
           const tenantId = sessionData.tenantId;
           sessionsByTenant[tenantId] = (sessionsByTenant[tenantId] || 0) + 1;

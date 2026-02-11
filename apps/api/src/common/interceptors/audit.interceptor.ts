@@ -18,6 +18,7 @@ import {
   AUDIT_RESOURCE_KEY,
   AuditActionConfig,
 } from '../decorators/audit.decorator';
+import { getClientIpAddress } from '../utils/request.util';
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -40,7 +41,7 @@ export class AuditInterceptor implements NestInterceptor {
     // Extract request metadata
     const method = request.method;
     const url = request.url;
-    const ipAddress = this.getIpAddress(request);
+    const ipAddress = getClientIpAddress(request, undefined);
     const userAgent = request.headers['user-agent'] || undefined;
 
     return next.handle().pipe(
@@ -99,23 +100,6 @@ export class AuditInterceptor implements NestInterceptor {
         },
       }),
     );
-  }
-
-  /**
-   * Extract IP address from request
-   */
-  private getIpAddress(request: FastifyRequest): string | undefined {
-    // Check X-Forwarded-For header first (for proxied requests)
-    const forwardedFor = request.headers['x-forwarded-for'];
-    if (forwardedFor) {
-      const ips = Array.isArray(forwardedFor)
-        ? forwardedFor[0]
-        : forwardedFor.split(',')[0];
-      return ips.trim();
-    }
-
-    // Fall back to direct IP
-    return request.ip || undefined;
   }
 
   /**

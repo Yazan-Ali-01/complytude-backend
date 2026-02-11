@@ -1,9 +1,9 @@
 import { BadRequestException, ValidationError } from '@nestjs/common';
-import { ValidationException } from '../exceptions/validation.exception';
 import {
   ValidationDetail,
   ValidationRuleContext,
 } from 'src/common/types/validation.types';
+import { ValidationException } from '../exceptions/validation.exception';
 import { formatFileSize } from '../helper';
 
 /**

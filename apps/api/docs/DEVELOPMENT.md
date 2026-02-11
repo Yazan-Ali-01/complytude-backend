@@ -133,10 +133,10 @@ async listDocuments() { }
 
 **When to use which:**
 
-| Guard | Use Case | Example |
-| ----- | -------- | ------- |
+| Guard              | Use Case                       | Example                                |
+| ------------------ | ------------------------------ | -------------------------------------- |
 | `PermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
-| `RolesGuard` | Simple role verification | Check if user is `tenant_admin` |
+| `RolesGuard`       | Simple role verification       | Check if user is `tenant_admin`        |
 
 ### Naming Conventions
 

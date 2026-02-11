@@ -24,7 +24,6 @@ export const validationSchema = Joi.object({
   SESSION_IDLE_TIMEOUT: Joi.string().default('72h'), // Idle timeout
   SESSION_MAX_PER_USER: Joi.number().default(5), // Max identity sessions per user
   SESSION_ACTIVITY_THROTTLE_SECONDS: Joi.number().default(120), // Activity update throttle (2 minutes)
-  SERVICE_NAME: Joi.string().default('api'), // Service identifier for sessions
 
   // JWT
   JWT_ACCESS_SECRET: Joi.string().required(),
@@ -38,8 +37,8 @@ export const validationSchema = Joi.object({
   JWT_IDENTITY_REFRESH_EXPIRES_IN: Joi.string().default('14d'), // Deprecated - replaced by SESSION_MAX_TTL
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
 
-  // MaxMind GeoIP (Optional - geo lookup disabled if not provided)
-  MAXMIND_LICENSE_KEY: Joi.string().optional().allow(''),
+  // MaxMind GeoIP (Optional - geo lookup disabled if database file not found)
+  // Note: License key only needed for downloading database, not for runtime usage
   MAXMIND_DB_PATH: Joi.string().default('./data/GeoLite2-City.mmdb'),
 
   // S3/MinIO Storage

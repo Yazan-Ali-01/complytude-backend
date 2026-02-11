@@ -27,10 +27,22 @@ export const SESSION_ABSOLUTE_TIMEOUT_SECONDS = 14 * 24 * 60 * 60; // 14 days
  */
 export const SESSION_ACTIVITY_THROTTLE_SECONDS = 120; // 2 minutes
 
-/**
- * Service name for session origin identification
- */
-export const SERVICE_NAME = 'api';
+// SERVICE_NAME constant removed - YAGNI principle applied
+//
+// Rationale: Only 'api' service creates user sessions currently
+// Workers (worker-ai, worker-ingestion) don't have authentication
+// Mobile apps don't exist yet
+//
+// When to add back:
+// - When mobile apps are actually in development (not speculation)
+// - When workers need to create user sessions (unlikely)
+// - When deploying multiple API instances need differentiation
+//
+// How to add back (when needed):
+// 1. Add serviceName: string field to IdentitySession interface
+// 2. Add SERVICE_NAME env variable to env.schema.ts
+// 3. Pass serviceName in createIdentitySession()
+// 4. Estimated time: 30 minutes
 
 /**
  * Redis Key Patterns
@@ -58,10 +70,13 @@ export const REDIS_KEYS = {
  * Lua script for atomic session limit enforcement
  * Ensures race-condition-free session creation with automatic cleanup
  *
- * KEYS[1]: user:identity-sessions:{userId} (SET)
+ * IMPORTANT: Redis keyPrefix (e.g., 'complytude:') is NOT automatically applied
+ * inside Lua scripts. We must manually include it in all key constructions.
+ *
+ * KEYS[1]: user:identity-sessions:{userId} (SET) - ioredis auto-prefixes this
  * ARGV[1]: new session ID
  * ARGV[2]: max sessions (5)
- * ARGV[3]: identity-session: prefix
+ * ARGV[3]: Redis keyPrefix (e.g., 'complytude:')
  *
  * Returns: "ok" if successful
  */
@@ -69,7 +84,13 @@ export const LUA_ENFORCE_SESSION_LIMIT = `
 local userSessionsKey = KEYS[1]
 local newSessionId = ARGV[1]
 local maxSessions = tonumber(ARGV[2])
-local sessionKeyPrefix = ARGV[3]
+local keyPrefix = ARGV[3]
+
+-- Construct key prefixes with Redis keyPrefix included
+local identitySessionPrefix = keyPrefix .. 'identity-session:'
+local tenantSessionPrefix = keyPrefix .. 'tenant-session:'
+local userTenantSessionsPrefix = keyPrefix .. 'user:tenant-sessions:'
+local activityThrottlePrefix = keyPrefix .. 'session-activity-throttle:'
 
 -- Get current session count
 local currentCount = redis.call('SCARD', userSessionsKey)
@@ -84,7 +105,7 @@ if currentCount >= maxSessions then
   local oldestTimestamp = nil
 
   for _, sessionId in ipairs(sessionIds) do
-    local sessionKey = sessionKeyPrefix .. sessionId
+    local sessionKey = identitySessionPrefix .. sessionId
     local createdAt = redis.call('HGET', sessionKey, 'createdAt')
 
     if createdAt then
@@ -98,7 +119,7 @@ if currentCount >= maxSessions then
   -- Delete oldest session if found
   if oldestSessionId then
     -- Get session data before deletion (need userId for cleanup)
-    local oldestSessionKey = sessionKeyPrefix .. oldestSessionId
+    local oldestSessionKey = identitySessionPrefix .. oldestSessionId
     local sessionData = redis.call('HGETALL', oldestSessionKey)
     local userId = nil
 
@@ -115,7 +136,7 @@ if currentCount >= maxSessions then
       if sessionData[i] == 'activeTenantSessionIds' then
         local tenantSessionIds = cjson.decode(sessionData[i + 1])
         for _, tenantSessionId in ipairs(tenantSessionIds) do
-          local tenantSessionKey = 'tenant-session:' .. tenantSessionId
+          local tenantSessionKey = tenantSessionPrefix .. tenantSessionId
 
           -- Get tenant session data to find tenantId for index cleanup
           local tenantData = redis.call('HGETALL', tenantSessionKey)
@@ -132,12 +153,13 @@ if currentCount >= maxSessions then
           redis.call('DEL', tenantSessionKey)
 
           -- Clean up secondary index: user:tenant-sessions:{userId}:{tenantId}
+          -- Note: KEYS passed to eval() are auto-prefixed, but keys we construct aren't
           if userId and tenantId then
-            redis.call('SREM', 'user:tenant-sessions:' .. userId .. ':' .. tenantId, tenantSessionId)
+            redis.call('SREM', userTenantSessionsPrefix .. userId .. ':' .. tenantId, tenantSessionId)
           end
 
           -- Delete tenant session throttle key
-          redis.call('DEL', 'session-activity-throttle:' .. tenantSessionId)
+          redis.call('DEL', activityThrottlePrefix .. tenantSessionId)
         end
         break
       end
@@ -150,7 +172,7 @@ if currentCount >= maxSessions then
     redis.call('SREM', userSessionsKey, oldestSessionId)
 
     -- Delete identity session throttle key
-    redis.call('DEL', 'session-activity-throttle:' .. oldestSessionId)
+    redis.call('DEL', activityThrottlePrefix .. oldestSessionId)
   end
 end
 
@@ -161,14 +183,18 @@ return "ok"
 `;
 
 /**
- * Backward compatibility period (days)
- * Support tokens without sessionId for this duration after deployment
+ * Circuit Breaker Configuration
+ * Used for Strangler Fig pattern migration from PostgreSQL to Redis
  */
-export const BACKWARD_COMPATIBILITY_DAYS = 28;
+export const CIRCUIT_BREAKER_CONFIG = {
+  FAILURE_THRESHOLD: 5, // Open circuit after 5 consecutive failures
+  SUCCESS_THRESHOLD: 3, // Close circuit after 3 consecutive successes
+  HEALTH_CHECK_INTERVAL_MS: 10000, // Check health every 10 seconds when open
+} as const;
 
 /**
- * Deployment date for backward compatibility tracking
- * Update this when deploying session management feature
+ * Migration deployment date
+ * Track when Strangler Fig pattern was activated
  * Format: YYYY-MM-DD
  */
-export const SESSION_FEATURE_DEPLOYMENT_DATE = '2026-02-09';
+export const STRANGLER_FIG_DEPLOYMENT_DATE = '2026-02-10';

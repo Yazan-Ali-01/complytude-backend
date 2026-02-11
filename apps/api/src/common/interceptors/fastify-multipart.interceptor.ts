@@ -1,17 +1,17 @@
 import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
   BadRequestException,
+  CallHandler,
+  ExecutionContext,
+  Injectable,
   mixin,
+  NestInterceptor,
   Type,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { FastifyRequest } from 'fastify';
-import { MulterLikeFile } from '../interfaces/multer-file.interface';
-import { JSON_FIELDS_KEY } from '../decorators/json-field.decorator';
 import { Reflector } from '@nestjs/core';
+import { FastifyRequest } from 'fastify';
+import { Observable } from 'rxjs';
+import { JSON_FIELDS_KEY } from '../decorators/json-field.decorator';
+import { MulterLikeFile } from '../interfaces/multer-file.interface';
 
 /**
  * Interceptor that parses multipart/form-data requests into request.body and request.file(s)

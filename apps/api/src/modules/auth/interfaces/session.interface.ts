@@ -27,13 +27,13 @@ export interface GeoLocation {
  * TTL: 14 days (absolute max)
  */
 export interface IdentitySession {
+  sessionId: string; // Identity session UUID (the Redis key)
   userId: string;
   email: string;
   globalRoles: GlobalRole[];
   deviceInfo: DeviceInfo;
   ipAddress: string;
   geoLocation: GeoLocation | null; // null if lookup failed
-  serviceName: string; // 'api' | 'mobile-ios' | 'mobile-android'
   sessionName: string | null; // User-customizable name (e.g., "My MacBook")
   activeTenantSessionIds: string[]; // Linked tenant sessions
   createdAt: string; // ISO 8601 timestamp
@@ -48,6 +48,7 @@ export interface IdentitySession {
  * TTL: 14 days (absolute max, same as identity session)
  */
 export interface TenantSession {
+  sessionId: string; // Tenant session UUID (the Redis key)
   userId: string;
   tenantId: string;
   role: string; // System role key (tenant_admin, legal_counsel, member, viewer)
@@ -66,7 +67,6 @@ export interface CreateIdentitySessionInput {
   deviceInfo: DeviceInfo;
   ipAddress: string;
   geoLocation: GeoLocation | null;
-  serviceName: string;
   sessionName?: string | null;
 }
 

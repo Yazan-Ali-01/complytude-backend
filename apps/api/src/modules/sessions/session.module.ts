@@ -1,20 +1,30 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { SessionService } from '../auth/services/session.service';
-import { SessionInvalidationService } from '../auth/services/session-invalidation.service';
-import { UserAgentParserService } from '../auth/services/user-agent-parser.service';
-import { GeoLocationService } from '../auth/services/geo-location.service';
+import { AdminSessionService } from './services/admin-session.service';
+import { GeoLocationService } from './services/geo-location.service';
+import { SessionCircuitBreakerService } from './services/session-circuit-breaker.service';
+import { SessionInvalidationService } from './services/session-invalidation.service';
+import { SessionService } from './services/session.service';
+import { UserAgentParserService } from './services/user-agent-parser.service';
 
 /**
- * SessionModule - Global module for session management
+ * SessionModule - Global module for session management with Strangler Fig pattern
  *
  * Marked as @Global() so session services are available across all modules
  * without explicit import. This prevents circular dependencies.
  *
+ * Exports:
+ * - SessionService: Core session CRUD operations
+ * - SessionInvalidationService: Bulk session cleanup for security events
+ * - AdminSessionService: System admin operations (tenant-wide, cross-user queries)
+ * - SessionCircuitBreakerService: Circuit breaker for Strangler Fig migration
+ * - GeoLocationService: IP geolocation using MaxMind
+ * - UserAgentParserService: User-Agent parsing with ua-parser-js
+ *
  * Architecture pattern:
  * - Session management is a cross-cutting concern (like RBAC, Audit)
- * - Makes SessionService and SessionInvalidationService available everywhere
- * - Eliminates need for AuthModule imports just to access session services
+ * - Circuit breaker enables zero-downtime migration from PostgreSQL to Redis
+ * - All session services available everywhere without explicit imports
  *
  * Import once in AppModule (before AuthModule):
  * ```typescript
@@ -27,7 +37,7 @@ import { GeoLocationService } from '../auth/services/geo-location.service';
  * Usage in any module (no import needed):
  * ```typescript
  * constructor(
- *   private readonly sessionInvalidationService: SessionInvalidationService,
+ *   private readonly sessionCircuitBreaker: SessionCircuitBreakerService,
  * ) {}
  * ```
  */
@@ -37,12 +47,16 @@ import { GeoLocationService } from '../auth/services/geo-location.service';
   providers: [
     SessionService,
     SessionInvalidationService,
+    AdminSessionService,
+    SessionCircuitBreakerService,
     UserAgentParserService,
     GeoLocationService,
   ],
   exports: [
     SessionService,
     SessionInvalidationService,
+    AdminSessionService,
+    SessionCircuitBreakerService,
     UserAgentParserService,
     GeoLocationService,
   ],

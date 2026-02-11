@@ -17,6 +17,8 @@ import {
   ApiValidationError,
   SwaggerCookieAuth,
 } from 'src/common/swagger';
+import { SessionInvalidationService } from 'src/modules/sessions/services/session-invalidation.service';
+import { SessionService } from 'src/modules/sessions/services/session.service';
 import { AuthOptions } from '../decorators/auth-options.decorator';
 import {
   CurrentUserIdentity,
@@ -28,8 +30,6 @@ import {
   SessionListItemDto,
   SessionListResponseDto,
 } from '../dto/session-response.dto';
-import { SessionInvalidationService } from '../services/session-invalidation.service';
-import { SessionService } from '../services/session.service';
 import type {
   AuthenticatedIdentityUser,
   AuthenticatedTenantUser,
@@ -92,14 +92,16 @@ export class SessionsController {
 
     // Map tenant sessions to response format
     for (const tenantSession of tenantSessions) {
-      // Find parent identity session
-      const identitySession = identitySessions.find((is) =>
-        is.activeTenantSessionIds.includes(tenantSession.identitySessionId),
+      // Find parent identity session by matching sessionId
+      // BUG FIX: tenantSession.identitySessionId is an identity session UUID,
+      // must compare with identitySession.sessionId (not activeTenantSessionIds array)
+      const identitySession = identitySessions.find(
+        (is) => is.sessionId === tenantSession.identitySessionId,
       );
 
       if (identitySession) {
         sessions.push({
-          sessionId: tenantSession.identitySessionId, // Return identity session ID for user-facing operations
+          sessionId: tenantSession.sessionId, // Tenant session ID (for logout operations)
           sessionType: 'tenant',
           deviceInfo: identitySession.deviceInfo,
           ipAddress: identitySession.ipAddress,
@@ -108,7 +110,7 @@ export class SessionsController {
           tenantId: tenantSession.tenantId,
           createdAt: tenantSession.createdAt,
           lastActivityAt: tenantSession.lastActivityAt,
-          isCurrentSession: user.sessionId === tenantSession.identitySessionId,
+          isCurrentSession: user.sessionId === tenantSession.sessionId,
         });
       }
     }
@@ -121,7 +123,7 @@ export class SessionsController {
 
   /**
    * GET /auth/sessions/all
-   * List user's active sessions across all tenants
+   * List user's active tenant sessions across all tenants
    */
   @Get('all')
   @AuthOptions({ identity: true })
@@ -130,8 +132,8 @@ export class SessionsController {
   @ApiOperation({
     summary: 'List my active sessions (all tenants)',
     description:
-      'Returns all active identity sessions for the authenticated user across all tenants. ' +
-      'Shows device info, location, and active tenants for each session.',
+      'Returns all active tenant sessions for the authenticated user across all tenants. ' +
+      'Shows which tenants you are logged into, from which devices.',
   })
   @ApiResponse({
     status: 200,
@@ -142,25 +144,41 @@ export class SessionsController {
   async listAllSessions(
     @CurrentUserIdentity() user: AuthenticatedIdentityUser,
   ): Promise<SessionListResponseDto> {
+    // Get all identity sessions (devices) to enrich with device info
     const identitySessions = await this.sessionService.getUserIdentitySessions(
       user.userId,
     );
 
-    const sessions: SessionListItemDto[] = identitySessions.map((session) => ({
-      sessionId: session.userId, // Identity session ID
-      sessionType: 'identity',
-      deviceInfo: session.deviceInfo,
-      ipAddress: session.ipAddress,
-      geoLocation: session.geoLocation,
-      sessionName: session.sessionName,
-      createdAt: session.createdAt,
-      lastActivityAt: session.lastActivityAt,
-      isCurrentSession: user.sessionId === session.userId,
-    }));
+    // Get all tenant sessions across ALL tenants
+    // We need to scan all tenant sessions for this user across all tenants
+    const allTenantSessions: SessionListItemDto[] = [];
+
+    // For each identity session, get all its tenant sessions
+    for (const identitySession of identitySessions) {
+      for (const tenantSessionId of identitySession.activeTenantSessionIds) {
+        const tenantSession =
+          await this.sessionService.getTenantSession(tenantSessionId);
+
+        if (tenantSession) {
+          allTenantSessions.push({
+            sessionId: tenantSession.sessionId,
+            sessionType: 'tenant',
+            deviceInfo: identitySession.deviceInfo,
+            ipAddress: identitySession.ipAddress,
+            geoLocation: identitySession.geoLocation,
+            sessionName: identitySession.sessionName,
+            tenantId: tenantSession.tenantId,
+            createdAt: tenantSession.createdAt,
+            lastActivityAt: tenantSession.lastActivityAt,
+            isCurrentSession: user.sessionId === identitySession.sessionId,
+          });
+        }
+      }
+    }
 
     return {
-      sessions,
-      total: sessions.length,
+      sessions: allTenantSessions,
+      total: allTenantSessions.length,
     };
   }
 

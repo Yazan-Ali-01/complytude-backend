@@ -1,15 +1,15 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
-import { FEATURES_KEY } from '../decorators/features.decorator';
 import { FeaturesService } from 'src/modules/tenants/features.service';
 import { I18nKeys } from '../constants/i18n-keys';
+import { FEATURES_KEY } from '../decorators/features.decorator';
 
 @Injectable()
 export class FeaturesGuard implements CanActivate {

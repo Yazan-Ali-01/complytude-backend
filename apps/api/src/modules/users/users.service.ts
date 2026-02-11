@@ -10,8 +10,8 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from 'src/database/database.service';
-import { SessionInvalidationService } from '../auth/services/session-invalidation.service';
 import { AuditService } from '../audit/audit.service';
+import { SessionInvalidationService } from '../sessions/services/session-invalidation.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -68,7 +68,7 @@ export class UsersService {
     const result = await this.databaseService.query(
       `SELECT ut.tenant_id, ut.role_key, r.name as role_name, ut.is_active, ut.joined_at
        FROM public.user_tenants ut
-       INNER JOIN public.roles r ON r.key = ut.role_key 
+       INNER JOIN public.roles r ON r.key = ut.role_key
          AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
        JOIN public.tenants t ON ut.tenant_id = t.id
        WHERE ut.user_id = $1
@@ -419,11 +419,12 @@ export class UsersService {
 
     // Security event: Role changed → Invalidate tenant sessions
     if (roleChanged) {
-      const sessionsInvalidated = await this.sessionInvalidationService.invalidateUserTenantSessions(
-        targetUserId,
-        tenantId,
-        'role_changed',
-      );
+      const sessionsInvalidated =
+        await this.sessionInvalidationService.invalidateUserTenantSessions(
+          targetUserId,
+          tenantId,
+          'role_changed',
+        );
 
       // Get target user email for audit log
       const targetUserResult = await this.databaseService.query(
@@ -454,7 +455,7 @@ export class UsersService {
 
       this.logger.warn(
         `Role changed for user ${targetUserId} in tenant ${tenantId}: ${oldRole} → ${updateUserDto.role}. ` +
-        `${sessionsInvalidated} tenant session(s) invalidated.`,
+          `${sessionsInvalidated} tenant session(s) invalidated.`,
       );
     }
 
@@ -518,7 +519,7 @@ export class UsersService {
               ut.role_key, r.name as role_name, ut.is_active, ut.joined_at
        FROM public.users u
        JOIN public.user_tenants ut ON u.id = ut.user_id
-       INNER JOIN public.roles r ON r.key = ut.role_key 
+       INNER JOIN public.roles r ON r.key = ut.role_key
          AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
        WHERE u.id = $1 AND ut.tenant_id = $2`,
       [userId, tenantId],

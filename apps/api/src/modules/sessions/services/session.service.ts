@@ -7,13 +7,13 @@ import {
   SESSION_ABSOLUTE_TIMEOUT_SECONDS,
   SESSION_ACTIVITY_THROTTLE_SECONDS,
   SESSION_IDLE_TIMEOUT_MS,
-} from '../constants/session.constants';
+} from 'src/modules/auth/constants/session.constants';
 import {
   CreateIdentitySessionInput,
   CreateTenantSessionInput,
   IdentitySession,
   TenantSession,
-} from '../interfaces/session.interface';
+} from 'src/modules/auth/interfaces/session.interface';
 
 /**
  * SessionService - Core session management operations
@@ -35,10 +35,15 @@ import {
 export class SessionService {
   private readonly logger = new Logger(SessionService.name);
   private sessionLimitScript: string;
+  private keyPrefix: string;
 
   constructor(private readonly redisService: RedisService) {
     // Load Lua script SHA for session limit enforcement
     this.sessionLimitScript = LUA_ENFORCE_SESSION_LIMIT;
+
+    // Get Redis key prefix for Lua script (ioredis doesn't auto-prefix inside scripts)
+    const redis = this.redisService.getClient();
+    this.keyPrefix = redis.options.keyPrefix || '';
   }
 
   // ============================================
@@ -60,8 +65,16 @@ export class SessionService {
     const redis = this.redisService.getClient();
     const now = new Date().toISOString();
 
+    // Explicit field assignment (matches codebase pattern)
+    // Benefits: Clear data flow, easy refactoring, no hidden dependencies
     const session: IdentitySession = {
-      ...input,
+      sessionId, // The Redis key UUID
+      userId: input.userId,
+      email: input.email,
+      globalRoles: input.globalRoles,
+      deviceInfo: input.deviceInfo,
+      ipAddress: input.ipAddress,
+      geoLocation: input.geoLocation,
       sessionName: input.sessionName || null,
       activeTenantSessionIds: [],
       createdAt: now,
@@ -70,13 +83,16 @@ export class SessionService {
 
     try {
       // Enforce session limit atomically using Lua script
+      // CRITICAL: Pass Redis keyPrefix (e.g., 'complytude:') separately
+      // ioredis auto-prefixes KEYS[1] but NOT keys constructed inside Lua
+      // The Lua script must manually add prefix to all constructed keys
       await redis.eval(
         this.sessionLimitScript,
         1,
         REDIS_KEYS.userIdentitySessions(input.userId),
         sessionId,
         MAX_IDENTITY_SESSIONS_PER_USER.toString(),
-        'identity-session:',
+        this.keyPrefix, // Pass 'complytude:' for manual key construction
       );
 
       // Store session data as hash
@@ -90,7 +106,6 @@ export class SessionService {
         geoLocation: session.geoLocation
           ? JSON.stringify(session.geoLocation)
           : '',
-        serviceName: session.serviceName,
         sessionName: session.sessionName || '',
         activeTenantSessionIds: JSON.stringify(session.activeTenantSessionIds),
         createdAt: session.createdAt,
@@ -146,13 +161,13 @@ export class SessionService {
       }
 
       return {
+        sessionId,
         userId: data.userId,
         email: data.email,
         globalRoles: JSON.parse(data.globalRoles),
         deviceInfo: JSON.parse(data.deviceInfo),
         ipAddress: data.ipAddress,
         geoLocation: data.geoLocation ? JSON.parse(data.geoLocation) : null,
-        serviceName: data.serviceName,
         sessionName: data.sessionName || null,
         activeTenantSessionIds: JSON.parse(data.activeTenantSessionIds),
         createdAt: data.createdAt,
@@ -207,23 +222,60 @@ export class SessionService {
         return false;
       }
 
-      // Delete all linked tenant sessions
+      // Delete all linked tenant sessions with complete cleanup
+      // ARCHITECTURE DECISION: We need to clean secondary indexes for tenant sessions
+      //
+      // Why not just pipeline.del()?
+      // - Would be faster but skips critical cleanup:
+      //   1. Secondary index: user:tenant-sessions:{userId}:{tenantId}
+      //   2. Throttle keys for each tenant session
+      //
+      // Solution: Batch cleanup operations efficiently
       if (session.activeTenantSessionIds.length > 0) {
+        // Fetch all tenant session data in parallel (for secondary index cleanup)
+        const tenantSessionsData = await Promise.all(
+          session.activeTenantSessionIds.map(async (tenantSessionId) => {
+            const tenantSession = await redis.hgetall(
+              REDIS_KEYS.tenantSession(tenantSessionId),
+            );
+            return {
+              sessionId: tenantSessionId,
+              userId: tenantSession.userId,
+              tenantId: tenantSession.tenantId,
+            };
+          }),
+        );
+
+        // Build a single pipeline for all deletions + index cleanups
         const pipeline = redis.pipeline();
-        for (const tenantSessionId of session.activeTenantSessionIds) {
-          pipeline.del(REDIS_KEYS.tenantSession(tenantSessionId));
-          pipeline.del(REDIS_KEYS.sessionActivityThrottle(tenantSessionId));
+
+        for (const data of tenantSessionsData) {
+          if (data.tenantId) {
+            // Delete tenant session
+            pipeline.del(REDIS_KEYS.tenantSession(data.sessionId));
+
+            // Clean secondary index: user:tenant-sessions:{userId}:{tenantId}
+            // This is what was missing before!
+            pipeline.srem(
+              REDIS_KEYS.userTenantSessions(data.userId, data.tenantId),
+              data.sessionId,
+            );
+
+            // Delete throttle key
+            pipeline.del(REDIS_KEYS.sessionActivityThrottle(data.sessionId));
+          }
         }
+
         await pipeline.exec();
       }
 
       // Delete identity session
       await redis.del(sessionKey);
 
-      // Remove from user index
+      // Remove from user identity sessions index
       await redis.srem(REDIS_KEYS.userIdentitySessions(userId), sessionId);
 
-      // Delete activity throttle key
+      // Delete identity session throttle key
       await redis.del(REDIS_KEYS.sessionActivityThrottle(sessionId));
 
       this.logger.log(
@@ -294,8 +346,14 @@ export class SessionService {
     const redis = this.redisService.getClient();
     const now = new Date().toISOString();
 
+    // Explicit field assignment (matches codebase pattern)
+    // Benefits: Clear data flow, easy refactoring, no hidden dependencies
     const session: TenantSession = {
-      ...input,
+      sessionId, // The Redis key UUID
+      userId: input.userId,
+      tenantId: input.tenantId,
+      role: input.role,
+      identitySessionId: input.identitySessionId,
       createdAt: now,
       lastActivityAt: now,
     };
@@ -385,6 +443,7 @@ export class SessionService {
       }
 
       return {
+        sessionId,
         userId: data.userId,
         tenantId: data.tenantId,
         role: data.role,
@@ -532,48 +591,6 @@ export class SessionService {
       this.logger.warn(
         `Failed to update activity for session ${sessionId}: ${error.message}`,
       );
-    }
-  }
-
-  /**
-   * Batch validate multiple sessions (performance optimization)
-   * Single Redis roundtrip for multiple session checks
-   *
-   * @param identitySessionId - Identity session UUID (optional)
-   * @param tenantSessionId - Tenant session UUID (optional)
-   * @returns Promise<{identity: boolean, tenant: boolean}>
-   */
-  async validateSessionsBatch(
-    identitySessionId?: string,
-    tenantSessionId?: string,
-  ): Promise<{ identity: boolean; tenant: boolean }> {
-    try {
-      const redis = this.redisService.getClient();
-      const pipeline = redis.pipeline();
-
-      if (identitySessionId) {
-        pipeline.exists(REDIS_KEYS.identitySession(identitySessionId));
-      }
-      if (tenantSessionId) {
-        pipeline.exists(REDIS_KEYS.tenantSession(tenantSessionId));
-      }
-
-      const results = await pipeline.exec();
-
-      if (!results) {
-        throw new Error('Pipeline execution failed');
-      }
-
-      const identityIndex = 0;
-      const tenantIndex = identitySessionId ? 1 : 0;
-
-      return {
-        identity: identitySessionId ? !!results[identityIndex]?.[1] : true,
-        tenant: tenantSessionId ? !!results[tenantIndex]?.[1] : true,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to batch validate sessions: ${error.message}`);
-      throw error;
     }
   }
 

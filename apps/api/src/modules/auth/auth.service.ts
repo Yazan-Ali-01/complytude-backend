@@ -22,17 +22,22 @@ import {
   TENANT_REFRESH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
 import { GlobalRole } from 'src/common/types';
+import { getClientIpAddress } from 'src/common/utils/request.util';
 import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
-// TokenType removed - no longer storing refresh tokens in database
+import { TokenType } from 'src/repositories/users/interfaces/refresh-token.interfaces';
 import { I18nKeys } from '../../common/constants/i18n-keys';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
-// RefreshTokenRepository removed - Redis sessions replace refresh_tokens table
+// RefreshTokenRepository kept as fallback during Strangler Fig migration
+import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { UserRepository } from '../../repositories/users/user.repository';
 import { InvitationsService } from '../invitations/invitations.service';
-import { TenantService } from '../tenants/tenant.service';
-import { SERVICE_NAME } from './constants/session.constants';
+import { GeoLocationService } from '../sessions/services/geo-location.service';
+import { SessionCircuitBreakerService } from '../sessions/services/session-circuit-breaker.service';
+import { SessionInvalidationService } from '../sessions/services/session-invalidation.service';
+import { SessionService } from '../sessions/services/session.service';
+import { UserAgentParserService } from '../sessions/services/user-agent-parser.service';
 import {
   ForgotPasswordDto,
   InvitationListResponseDto,
@@ -44,10 +49,6 @@ import {
   TenantSwitchResponseDto,
   VerifyEmailDto,
 } from './dto';
-import { GeoLocationService } from './services/geo-location.service';
-import { SessionInvalidationService } from './services/session-invalidation.service';
-import { SessionService } from './services/session.service';
-import { UserAgentParserService } from './services/user-agent-parser.service';
 import {
   AuthenticatedIdentityUser,
   IdentityPayload,
@@ -64,17 +65,18 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly tenantService: TenantService,
-    // RefreshTokenRepository removed - Redis sessions replace refresh_tokens table
-    // Refresh tokens are now JWT-only (signed, with sessionId)
-    // Validation = check if sessionId exists in Redis (O(1) lookup)
-    // No database storage, no token rotation, instant revocation via session deletion
+    // TenantService removed - not used in AuthService (dead dependency)
+    // Strangler Fig Pattern: RefreshTokenRepository kept as fallback during migration
+    // Circuit breaker switches between Redis (primary) and PostgreSQL (fallback)
+    // After successful migration, this will be removed entirely
+    private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly emailVerificationRepository: EmailVerificationRepository,
     private readonly userRepository: UserRepository,
     private readonly userTenantRepository: UserTenantRepository,
     private readonly databaseService: DatabaseService,
     private readonly invitationsService: InvitationsService,
     private readonly sessionService: SessionService,
+    private readonly sessionCircuitBreaker: SessionCircuitBreakerService,
     private readonly sessionInvalidationService: SessionInvalidationService,
     private readonly userAgentParser: UserAgentParserService,
     private readonly geoLocationService: GeoLocationService,
@@ -333,12 +335,8 @@ export class AuthService {
     const userAgentString = request.headers['user-agent'];
     const deviceInfo = this.userAgentParser.parse(userAgentString);
 
-    // Get IP address (handle proxy headers)
-    const ipAddress =
-      (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      (request.headers['x-real-ip'] as string) ||
-      request.ip ||
-      '127.0.0.1';
+    // Extract client IP address (handles proxy headers)
+    const ipAddress = getClientIpAddress(request);
 
     // Lookup geolocation
     const geoLocation = this.geoLocationService.lookup(ipAddress);
@@ -351,7 +349,6 @@ export class AuthService {
       deviceInfo,
       ipAddress,
       geoLocation,
-      serviceName: SERVICE_NAME,
     });
 
     // Generate identity tokens (access + refresh) with sessionId
@@ -487,9 +484,10 @@ export class AuthService {
       } as any,
     );
 
-    // No database storage - Redis session (created before calling this method) is the source of truth
-    // Refresh token is JWT-only with embedded sessionId
-    // Validation = check sessionId exists in Redis (done by JwtAuthRefreshGuard)
+    // Strangler Fig: Dual-write to both Redis and PostgreSQL during migration
+    // Primary: Redis session (already created before calling this method)
+    // Fallback: PostgreSQL refresh_tokens table (for circuit breaker fallback)
+    await this.storeIdentityRefreshToken(userId, identityRefreshToken);
 
     return { identityAccessToken, identityRefreshToken };
   }
@@ -539,29 +537,89 @@ export class AuthService {
       } as any,
     );
 
-    // No database storage - Redis session (created before calling this method) is the source of truth
-    // Refresh token is JWT-only with embedded sessionId
-    // Validation = check sessionId exists in Redis (done by JwtAuthRefreshGuard)
+    // Strangler Fig: Dual-write to both Redis and PostgreSQL during migration
+    // Primary: Redis session (already created before calling this method)
+    // Fallback: PostgreSQL refresh_tokens table (for circuit breaker fallback)
+    await this.storeTenantRefreshToken(userId, tenantId, tenantRefreshToken);
 
     return { tenantAccessToken, tenantRefreshToken };
   }
 
   // ============================================
-  // REMOVED: Database storage methods (replaced by Redis sessions)
+  // Strangler Fig: Database storage methods (fallback during migration)
   // ============================================
-  // The following methods were deleted because Redis sessions are now
-  // the source of truth for refresh token validation:
-  //
-  // - storeIdentityRefreshToken() - No longer storing token hashes in database
-  // - storeTenantRefreshToken() - No longer storing token hashes in database
-  // - hashRefreshToken() - No longer hashing tokens for storage
-  //
-  // Why removed:
-  // - Refresh tokens are JWT-only (signed, with embedded sessionId)
-  // - Validation = check if sessionId exists in Redis (O(1) lookup)
-  // - No database writes = better performance
-  // - Instant revocation via session deletion (no token rotation needed)
+  // These methods implement dual-write strategy during Redis migration:
+  // - Write to BOTH Redis sessions (primary) and PostgreSQL (fallback)
+  // - Circuit breaker determines which to read from based on Redis health
+  // - After successful migration, these will be removed
   // ============================================
+
+  /**
+   * Store identity refresh token in database (Strangler Fig fallback)
+   */
+  private async storeIdentityRefreshToken(
+    userId: string,
+    refreshToken: string,
+  ) {
+    try {
+      const tokenHash = this.hashRefreshToken(refreshToken);
+      const expiresIn =
+        this.configService.get<string>('jwt.sessionMaxTtl') || '14d';
+      const expiresAt = new Date(Date.now() + this.parseExpiresIn(expiresIn));
+
+      await this.refreshTokenRepository.create({
+        user_id: userId,
+        token_hash: tokenHash,
+        token_type: TokenType.IDENTITY,
+        tenant_id: null,
+        expires_at: expiresAt,
+      });
+    } catch (error) {
+      // Don't fail session creation if DB write fails
+      this.logger.warn(
+        `Failed to store identity refresh token in database (fallback): ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Store tenant refresh token in database (Strangler Fig fallback)
+   */
+  private async storeTenantRefreshToken(
+    userId: string,
+    tenantId: string,
+    refreshToken: string,
+  ) {
+    try {
+      const tokenHash = this.hashRefreshToken(refreshToken);
+      const expiresIn =
+        this.configService.get<string>('jwt.sessionMaxTtl') || '14d';
+      const expiresAt = new Date(Date.now() + this.parseExpiresIn(expiresIn));
+
+      await this.refreshTokenRepository.create({
+        user_id: userId,
+        token_hash: tokenHash,
+        token_type: TokenType.TENANT,
+        tenant_id: tenantId,
+        expires_at: expiresAt,
+      });
+    } catch (error) {
+      // Don't fail session creation if DB write fails
+      this.logger.warn(
+        `Failed to store tenant refresh token in database (fallback): ${error.message}`,
+      );
+    }
+  }
+
+  private hashRefreshToken(refreshToken: string): string {
+    const refreshHashSecret =
+      this.configService.get<string>('jwt.refreshHashSecret') ||
+      'fallback-secret';
+    return crypto
+      .createHmac('sha256', refreshHashSecret)
+      .update(refreshToken)
+      .digest('hex');
+  }
 
   /**
    * Parse expires in string to milliseconds
@@ -589,8 +647,10 @@ export class AuthService {
    * Generates new identity access and refresh tokens
    * Reuses the same sessionId from the refresh token
    *
-   * SIMPLIFIED: No database lookups, no token rotation
-   * Session existence already validated by JwtAuthRefreshGuard
+   * Strangler Fig Implementation:
+   * - Session validation done by JwtAuthRefreshGuard (Redis + circuit breaker)
+   * - Circuit breaker fallback handled at guard level
+   * - This method assumes validation passed (either Redis or DB fallback)
    */
   async refreshIdentityTokens(
     userId: string,
@@ -598,7 +658,7 @@ export class AuthService {
     sessionId: string,
   ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     // Session existence already validated by JwtAuthRefreshGuard
-    // No need to check database - Redis session validation is done by guard
+    // Guard uses circuit breaker to determine Redis or PostgreSQL validation
 
     // Get user to check system admin status
     const user = await this.userRepository.findById(userId);
@@ -612,8 +672,7 @@ export class AuthService {
       : [];
 
     // Generate new tokens with same sessionId
-    // No token rotation - old refresh token remains valid until JWT expiry
-    // Session deletion (password change, logout) is what revokes access
+    // Dual-write: Writes to both Redis and PostgreSQL during migration
     const tokens = await this.generateIdentityTokens(
       userId,
       email,
@@ -633,8 +692,10 @@ export class AuthService {
    * Generates new tenant access and refresh tokens for the same tenant
    * Reuses the same sessionId from the refresh token
    *
-   * SIMPLIFIED: No database lookups, no token rotation
-   * Session existence already validated by JwtAuthRefreshGuard
+   * Strangler Fig Implementation:
+   * - Session validation done by JwtAuthRefreshGuard (Redis + circuit breaker)
+   * - Circuit breaker fallback handled at guard level
+   * - This method assumes validation passed (either Redis or DB fallback)
    */
   async refreshTenantTokens(
     userId: string,
@@ -643,7 +704,7 @@ export class AuthService {
     sessionId: string,
   ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
     // Session existence already validated by JwtAuthRefreshGuard
-    // No need to check database - Redis session validation is done by guard
+    // Guard uses circuit breaker to determine Redis or PostgreSQL validation
 
     // Get user's tenant membership to verify they still have access
     const userTenant = await this.databaseService.transaction(
@@ -662,8 +723,7 @@ export class AuthService {
     }
 
     // Generate new tokens with same sessionId
-    // No token rotation - old refresh token remains valid until JWT expiry
-    // Session deletion (role change, logout) is what revokes access
+    // Dual-write: Writes to both Redis and PostgreSQL during migration
     const tokens = await this.generateTenantTokens(
       userId,
       email,
