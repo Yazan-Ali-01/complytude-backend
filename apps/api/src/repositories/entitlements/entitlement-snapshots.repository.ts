@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import {
+  CreateEntitlementSnapshotRow,
+  EntitlementSnapshot,
+  UpdateEntitlementSnapshotRow,
+} from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';
-import {
-  EntitlementSnapshot,
-  CreateEntitlementSnapshotRow,
-  UpdateEntitlementSnapshotRow,
-} from 'src/common/types/entitlement.types';
 
 type EntitlementSnapshotRow = {
   id: string;
@@ -81,5 +81,41 @@ export class EntitlementSnapshotsRepository extends BaseRepository<
       [tenantId],
       options,
     );
+  }
+
+  /**
+   * Find snapshot history for a tenant (active + invalidated)
+   * Phase 8 implementation
+   */
+  async findHistory(
+    tenantId: string,
+    limit: number = 10,
+    options?: QueryOptions,
+  ): Promise<EntitlementSnapshot[]> {
+    const result = await this.executeQuery<EntitlementSnapshotRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+       WHERE tenant_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [tenantId, limit],
+      options,
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Count active snapshots for a tenant (should always be 0 or 1)
+   * Phase 8 implementation
+   */
+  async countActive(tenantId: string, options?: QueryOptions): Promise<number> {
+    const result = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) as count FROM ${this.tableName} 
+       WHERE tenant_id = $1 AND invalidated_at IS NULL`,
+      [tenantId],
+      options,
+    );
+
+    return parseInt(result.rows[0]?.count ?? '0', 10);
   }
 }

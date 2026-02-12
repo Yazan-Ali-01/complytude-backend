@@ -11,7 +11,7 @@ import {
 } from 'src/common/types/entitlement.types';
 import { DatabaseService } from 'src/database/database.service';
 import { QueryOptions } from 'src/repositories/base/repository.interface';
-import { DomainEventsRepository } from 'src/repositories/domain-events/domain-events.repository';
+import { DomainEventsService } from '../entitlements/services/domain-events.service';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import {
@@ -48,7 +48,7 @@ export class SubscriptionsService {
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly plansRepository: PlansRepository,
     private readonly entitlementSnapshotsRepository: EntitlementSnapshotsRepository,
-    private readonly domainEventsRepository: DomainEventsRepository,
+    private readonly domainEventsService: DomainEventsService,
   ) {}
 
   /**
@@ -164,7 +164,7 @@ export class SubscriptionsService {
         });
 
         // Emit domain event
-        await this.domainEventsRepository.emit(
+        await this.domainEventsService.emit(
           {
             tenant_id: tenantId,
             event_type: 'subscription.plan_changed',
@@ -255,7 +255,7 @@ export class SubscriptionsService {
         );
 
       // Emit domain event
-      await this.domainEventsRepository.emit(
+      await this.domainEventsService.emit(
         {
           tenant_id: tenantId,
           event_type: 'subscription.cancelled',
@@ -370,7 +370,7 @@ export class SubscriptionsService {
         );
 
         // Emit domain event
-        await this.domainEventsRepository.emit(
+        await this.domainEventsService.emit(
           {
             tenant_id: tenantId,
             event_type: 'subscription.created',
@@ -453,7 +453,7 @@ export class SubscriptionsService {
         );
 
       // Emit domain event
-      await this.domainEventsRepository.emit(
+      await this.domainEventsService.emit(
         {
           tenant_id: tenantId,
           event_type: 'subscription.renewed',

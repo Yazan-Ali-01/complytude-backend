@@ -99,8 +99,11 @@ export class UsageEnforcementGuard implements CanActivate {
     // If allowed, attach result to request and proceed
     if (result.allowed) {
       request.usageResult = result;
+      const allocationInfo = result.allocations
+        ? JSON.stringify(result.allocations)
+        : result.source;
       this.logger.debug(
-        `Usage allowed: tenant=${tenantId}, feature=${featureKey}, source=${result.source}`,
+        `Usage allowed: tenant=${tenantId}, feature=${featureKey}, source=${result.source}, allocations=${allocationInfo}`,
       );
       return true;
     }

@@ -2,6 +2,19 @@
 
 Complete manual testing guide for the entitlement system foundation.
 
+## ⚠️ Multi-Source Allocations Architecture
+
+**Important:** The entitlement system now supports **multi-source funding allocations** for usage events.
+
+- Each `usage_ledger` event can have **multiple funding sources** (plan + credit, addon + credit, etc.)
+- Funding attribution is tracked in the `usage_allocations` table (1..N allocations per usage event)
+- **Partial credit fallback** is implemented: when quota is exceeded, remaining plan quota is used first, then credits fill the gap
+- API responses include both `source` (primary or 'mixed') and `allocations` array for detailed breakdown
+
+**Example:** If you have 1 unit remaining in your plan and request 5 units with credits available:
+- Old behavior: All 5 units charged to credits
+- New behavior: 1 unit from plan + 4 units from credits (more cost-effective)
+
 ---
 
 ## Prerequisites

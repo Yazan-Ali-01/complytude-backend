@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
-import { QueryOptions } from '../base/repository.interface';
 import {
   AggregatedUsage,
   CreateAggregatedUsageRow,
   UpdateAggregatedUsageRow,
 } from 'src/common/types/entitlement.types';
+import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
+import { QueryOptions } from '../base/repository.interface';
 
 type AggregatedUsageRow = {
   id: string;
@@ -131,8 +131,8 @@ export class AggregatedUsageRepository extends BaseRepository<
   }
 
   /**
-   * Atomically increment usage counters
-   * Phase 3 implementation (updated to use subscription_id)
+   * Atomically increment usage counters with multi-source allocations
+   * Phase 3 implementation (updated to use subscription_id and allocations)
    *
    * This method performs atomic increments to prevent race conditions
    * when multiple requests record usage simultaneously.
@@ -141,27 +141,53 @@ export class AggregatedUsageRepository extends BaseRepository<
    * - Each billing period gets its own projection (unambiguous)
    * - Quota enforcement checks the correct subscription
    * - Works for any billing cycle (monthly, yearly, custom)
+   *
+   * @param tenantId - Tenant ID
+   * @param subscriptionId - Subscription ID
+   * @param featureId - Feature UUID
+   * @param billingPeriod - Billing period (YYYY-MM format)
+   * @param allocations - Array of { source, units } allocations
+   * @param eventId - Usage ledger event ID
+   * @param options - Query options
+   * @returns Updated aggregated usage
    */
   async increment(
     tenantId: string,
     subscriptionId: string,
     featureId: string,
     billingPeriod: string,
-    units: number,
-    source: 'plan' | 'addon' | 'credit' | 'override',
+    allocations: Array<{
+      source: 'plan' | 'addon' | 'credit' | 'override';
+      units: number;
+    }>,
     eventId: string,
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
+    // Compute deltas from allocations
+    const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
+    const planUnits = allocations
+      .filter((a) => a.source === 'plan')
+      .reduce((sum, a) => sum + a.units, 0);
+    const addonUnits = allocations
+      .filter((a) => a.source === 'addon')
+      .reduce((sum, a) => sum + a.units, 0);
+    const creditUnits = allocations
+      .filter((a) => a.source === 'credit')
+      .reduce((sum, a) => sum + a.units, 0);
+    const overrideUnits = allocations
+      .filter((a) => a.source === 'override')
+      .reduce((sum, a) => sum + a.units, 0);
+
     const result = await this.executeQuery<AggregatedUsageRow>(
       `
       INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units, last_event_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (subscription_id, feature_id) DO UPDATE SET
         total_units = ${this.tableName}.total_units + $5,
-        plan_units = ${this.tableName}.plan_units + CASE WHEN $11 = 'plan' THEN $5 ELSE 0 END,
-        addon_units = ${this.tableName}.addon_units + CASE WHEN $11 = 'addon' THEN $5 ELSE 0 END,
-        credit_units = ${this.tableName}.credit_units + CASE WHEN $11 = 'credit' THEN $5 ELSE 0 END,
-        override_units = ${this.tableName}.override_units + CASE WHEN $11 = 'override' THEN $5 ELSE 0 END,
+        plan_units = ${this.tableName}.plan_units + $6,
+        addon_units = ${this.tableName}.addon_units + $7,
+        credit_units = ${this.tableName}.credit_units + $8,
+        override_units = ${this.tableName}.override_units + $9,
         last_event_id = $10,
         last_updated_at = now()
       RETURNING ${this.getSelectColumns()}
@@ -171,13 +197,12 @@ export class AggregatedUsageRepository extends BaseRepository<
         subscriptionId,
         featureId,
         billingPeriod,
-        units,
-        source === 'plan' ? units : 0, // plan_units initial
-        source === 'addon' ? units : 0, // addon_units initial
-        source === 'credit' ? units : 0, // credit_units initial
-        source === 'override' ? units : 0, // override_units initial
+        totalUnits,
+        planUnits,
+        addonUnits,
+        creditUnits,
+        overrideUnits,
         eventId,
-        source, // $11 for CASE statements
       ],
       options,
     );

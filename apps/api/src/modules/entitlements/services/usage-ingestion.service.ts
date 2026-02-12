@@ -13,10 +13,11 @@ import {
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
-import { DomainEventsRepository } from '../../../repositories/domain-events/domain-events.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
+import { UsageAllocationsRepository } from '../../../repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
+import { DomainEventsService } from './domain-events.service';
 import { UsageProjectionService } from './usage-projection.service';
 
 /**
@@ -52,9 +53,10 @@ export class UsageIngestionService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly usageLedgerRepository: UsageLedgerRepository,
+    private readonly usageAllocationsRepository: UsageAllocationsRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly subscriptionsRepository: SubscriptionsRepository,
-    private readonly domainEventsRepository: DomainEventsRepository,
+    private readonly domainEventsService: DomainEventsService,
     private readonly usageProjectionService: UsageProjectionService,
   ) {}
 
@@ -82,15 +84,34 @@ export class UsageIngestionService {
     input: UsageRecordInput,
     options?: QueryOptions,
   ): Promise<UsageLedgerEvent> {
-    const { tenant_id, feature_key, user_id, units, source, metadata } = input;
+    const { tenant_id, feature_key, user_id, units, allocations, metadata } =
+      input;
 
     // Validate units
     if (units <= 0) {
       throw new BadRequestException('Units must be greater than 0');
     }
 
+    // Validate allocations
+    if (!allocations || allocations.length === 0) {
+      throw new BadRequestException('At least one allocation is required');
+    }
+
+    const allocationSum = allocations.reduce((sum, a) => sum + a.units, 0);
+    if (allocationSum !== units) {
+      throw new BadRequestException(
+        `Allocation sum (${allocationSum}) must equal total units (${units})`,
+      );
+    }
+
+    for (const allocation of allocations) {
+      if (allocation.units <= 0) {
+        throw new BadRequestException('Each allocation must have units > 0');
+      }
+    }
+
     this.logger.debug(
-      `Recording usage: tenant=${tenant_id}, feature=${feature_key}, units=${units}, source=${source}`,
+      `Recording usage: tenant=${tenant_id}, feature=${feature_key}, units=${units}, allocations=${JSON.stringify(allocations)}`,
     );
 
     const execute = async (client: PoolClient) => {
@@ -131,13 +152,22 @@ export class UsageIngestionService {
           feature_id: feature.id,
           user_id,
           units,
-          source,
           billing_period: billingPeriod,
           resource_type: input.resource_type,
           resource_id: input.resource_id,
           metadata: metadata ? JSON.stringify(metadata) : '{}',
           idempotency_key: input.idempotency_key,
         },
+        { client },
+      );
+
+      // Step 3b: Record allocations (bulk insert)
+      await this.usageAllocationsRepository.recordAllocations(
+        allocations.map((a) => ({
+          usage_ledger_id: usageEvent.id,
+          source: a.source,
+          units: a.units,
+        })),
         { client },
       );
 
@@ -152,8 +182,7 @@ export class UsageIngestionService {
         subscription.id, // Use subscription ID (unambiguous billing period)
         feature.id,
         billingPeriod,
-        units,
-        source,
+        allocations,
         usageEvent.id,
         { client },
       );
@@ -164,6 +193,7 @@ export class UsageIngestionService {
       // deduction) should remain synchronous.
       await this.emitUsageRecordedEvent(
         usageEvent,
+        allocations,
         feature_key,
         feature.name,
         user_id,
@@ -171,7 +201,7 @@ export class UsageIngestionService {
       );
 
       this.logger.log(
-        `Usage recorded: event_id=${usageEvent.id}, tenant=${tenant_id}, feature=${feature_key}, units=${units}`,
+        `Usage recorded: event_id=${usageEvent.id}, tenant=${tenant_id}, feature=${feature_key}, units=${units}, allocations=${allocations.length}`,
       );
 
       return usageEvent;
@@ -210,6 +240,7 @@ export class UsageIngestionService {
    * renamed or modified later.
    *
    * @param usageEvent - The recorded usage ledger event
+   * @param allocations - Array of { source, units } allocations
    * @param featureKey - Feature key (snapshot)
    * @param featureName - Feature name (snapshot)
    * @param userId - User who triggered the usage (optional)
@@ -217,6 +248,7 @@ export class UsageIngestionService {
    */
   private async emitUsageRecordedEvent(
     usageEvent: UsageLedgerEvent,
+    allocations: Array<{ source: string; units: number }>,
     featureKey: FeatureKey,
     featureName: string,
     userId?: string,
@@ -224,7 +256,7 @@ export class UsageIngestionService {
   ): Promise<void> {
     const featureDef = getFeatureDefinition(featureKey);
 
-    await this.domainEventsRepository.emit(
+    await this.domainEventsService.emit(
       {
         tenant_id: usageEvent.tenant_id,
         event_type: 'usage.recorded',
@@ -239,7 +271,7 @@ export class UsageIngestionService {
           feature_name: featureName, // Snapshot for historical accuracy
           feature_type: featureDef?.feature_type,
           units: usageEvent.units,
-          source: usageEvent.source,
+          allocations, // Multi-source breakdown
           billing_period: usageEvent.billing_period,
           resource_type: usageEvent.resource_type,
           resource_id: usageEvent.resource_id,

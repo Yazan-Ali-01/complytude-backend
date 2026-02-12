@@ -7,7 +7,7 @@ import {
 import { DatabaseService } from '../../../database/database.service';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { CreditLedgerRepository } from '../../../repositories/credits/credit-ledger.repository';
-import { DomainEventsRepository } from '../../../repositories/domain-events/domain-events.repository';
+import { DomainEventsService } from './domain-events.service';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 
 /**
@@ -39,7 +39,7 @@ export class CreditLedgerService {
     private readonly databaseService: DatabaseService,
     private readonly creditLedgerRepository: CreditLedgerRepository,
     private readonly featuresRepository: FeaturesRepository,
-    private readonly domainEventsRepository: DomainEventsRepository,
+    private readonly domainEventsService: DomainEventsService,
   ) {}
 
   /**
@@ -376,7 +376,7 @@ export class CreditLedgerService {
       expiry: 'credit.expired',
     };
 
-    await this.domainEventsRepository.emit(
+    await this.domainEventsService.emit(
       {
         tenant_id: transaction.tenant_id,
         event_type: eventTypeMap[transactionType],

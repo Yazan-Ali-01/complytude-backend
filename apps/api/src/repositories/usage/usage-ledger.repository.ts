@@ -13,7 +13,6 @@ type UsageLedgerRow = {
   feature_id: string;
   user_id: string | null;
   units: number;
-  source: string;
   billing_period: string;
   resource_type: string | null;
   resource_id: string | null;
@@ -39,7 +38,7 @@ export class UsageLedgerRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, feature_id, user_id, units, source, billing_period, resource_type, resource_id, metadata, idempotency_key, recorded_at';
+    return 'id, tenant_id, feature_id, user_id, units, billing_period, resource_type, resource_id, metadata, idempotency_key, recorded_at';
   }
 
   protected mapRow(row: Record<string, unknown>): UsageLedgerEvent {
@@ -50,7 +49,6 @@ export class UsageLedgerRepository extends BaseRepository<
       feature_id: data.feature_id,
       user_id: data.user_id ?? undefined,
       units: data.units,
-      source: data.source as UsageLedgerEvent['source'],
       billing_period: data.billing_period,
       resource_type: data.resource_type ?? undefined,
       resource_id: data.resource_id ?? undefined,

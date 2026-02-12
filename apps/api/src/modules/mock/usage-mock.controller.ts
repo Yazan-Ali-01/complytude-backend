@@ -14,6 +14,7 @@ import type {
 import { DatabaseService } from 'src/database/database.service';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
+import { UsageAllocationsRepository } from '../../repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from '../../repositories/usage/usage-ledger.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
@@ -58,6 +59,7 @@ export class UsageMockController {
     private readonly enforcementService: EntitlementEnforcementService,
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly usageLedgerRepository: UsageLedgerRepository,
+    private readonly usageAllocationsRepository: UsageAllocationsRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly databaseService: DatabaseService,
   ) {}
@@ -88,8 +90,8 @@ export class UsageMockController {
       tenant_id: user.tenantId,
       feature_key: 'documents_per_month',
       user_id: user.userId,
-      units: 1,
-      source: 'plan',
+      units: 50,
+      allocations: [{ source: 'plan', units: 50 }],
       resource_type: 'document',
       metadata: {
         action: 'generate',
@@ -102,8 +104,8 @@ export class UsageMockController {
       usageEventId: usageEvent.id,
       tenantId: user.tenantId,
       featureKey: 'documents_per_month',
-      units: 1,
-      source: usageEvent.source,
+      units: 50,
+      allocations: [{ source: 'plan', units: 50 }],
       billingPeriod: usageEvent.billing_period,
       recordedAt: usageEvent.recorded_at,
     };
@@ -136,7 +138,7 @@ export class UsageMockController {
       feature_key: 'documents_per_month',
       user_id: user.userId,
       units: count,
-      source: 'plan',
+      allocations: [{ source: 'plan', units: count }],
       resource_type: 'document',
       metadata: {
         action: 'bulk_generate',
@@ -233,7 +235,7 @@ export class UsageMockController {
       feature_key: 'contract_reviews_per_month',
       user_id: user.userId,
       units: 1,
-      source: 'plan',
+      allocations: [{ source: 'plan', units: 1 }],
       resource_type: 'contract_review',
       metadata: {
         action: 'analyze_contract',
@@ -268,7 +270,7 @@ export class UsageMockController {
       feature_key: 'regulatory_queries_per_month',
       user_id: user.userId,
       units: 1,
-      source: 'plan',
+      allocations: [{ source: 'plan', units: 1 }],
       resource_type: 'regulatory_query',
       metadata: {
         action: 'chat_with_law',
@@ -312,7 +314,7 @@ export class UsageMockController {
       feature_key: 'documents_per_month',
       user_id: user.userId,
       units: 1,
-      source: 'plan',
+      allocations: [{ source: 'plan', units: 1 }],
       idempotency_key: idempotencyKey,
       metadata: {
         test_scenario: 'idempotency',
@@ -441,21 +443,35 @@ export class UsageMockController {
             { client },
           );
 
+        // Fetch allocations for each event
+        const eventsWithAllocations = await Promise.all(
+          events.map(async (e) => {
+            const allocations =
+              await this.usageAllocationsRepository.findByUsageLedgerId(e.id, {
+                client,
+              });
+            return {
+              id: e.id,
+              units: e.units,
+              allocations: allocations.map((a) => ({
+                source: a.source,
+                units: a.units,
+              })),
+              resourceType: e.resource_type,
+              resourceId: e.resource_id,
+              recordedAt: e.recorded_at,
+              metadata: e.metadata,
+            };
+          }),
+        );
+
         return {
           tenantId: user.tenantId,
           featureKey,
           billingPeriod,
           eventCount: events.length,
-          events: events.map((e) => ({
-            id: e.id,
-            units: e.units,
-            source: e.source,
-            resourceType: e.resource_type,
-            resourceId: e.resource_id,
-            recordedAt: e.recorded_at,
-            metadata: e.metadata,
-          })),
-          note: 'This is the source of truth (append-only ledger)',
+          events: eventsWithAllocations,
+          note: 'This is the source of truth (append-only ledger with multi-source allocations)',
         };
       },
     );
@@ -732,7 +748,7 @@ export class UsageMockController {
       feature_key: featureKey,
       user_id: user.userId,
       units,
-      source: 'plan',
+      allocations: [{ source: 'plan', units }],
       metadata: {
         test_scenario: 'simulate_exceed',
         wouldExceed,

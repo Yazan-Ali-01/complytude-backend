@@ -216,7 +216,6 @@ CREATE TABLE public.usage_ledger (
     feature_id      UUID NOT NULL REFERENCES public.features(id),
     user_id         UUID REFERENCES public.users(id),
     units           INTEGER NOT NULL DEFAULT 1,
-    source          usage_source NOT NULL,
     billing_period  VARCHAR(7) NOT NULL,
     resource_type   VARCHAR(50),
     resource_id     UUID,
@@ -228,15 +227,105 @@ CREATE TABLE public.usage_ledger (
 );
 
 COMMENT ON TABLE public.usage_ledger IS 'Append-only usage event ledger (immutable source of truth)';
-COMMENT ON COLUMN public.usage_ledger.source IS 'Usage source: plan, addon, credit, override';
 COMMENT ON COLUMN public.usage_ledger.billing_period IS 'Billing period in YYYY-MM format';
 COMMENT ON COLUMN public.usage_ledger.resource_type IS 'Type of resource created (e.g., document, contract_review)';
 COMMENT ON COLUMN public.usage_ledger.resource_id IS 'ID of the resource created';
 COMMENT ON COLUMN public.usage_ledger.idempotency_key IS 'Prevents duplicate event recording';
 
--- Immutability rules for usage_ledger
-CREATE RULE usage_ledger_no_update AS ON UPDATE TO public.usage_ledger DO INSTEAD NOTHING;
-CREATE RULE usage_ledger_no_delete AS ON DELETE TO public.usage_ledger DO INSTEAD NOTHING;
+-- Usage Allocations: Per-source funding breakdown for usage events
+CREATE TABLE public.usage_allocations (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usage_ledger_id UUID NOT NULL REFERENCES public.usage_ledger(id) ON DELETE CASCADE,
+    source          usage_source NOT NULL,
+    units           INTEGER NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    
+    CONSTRAINT chk_allocation_units CHECK (units > 0)
+);
+
+COMMENT ON TABLE public.usage_allocations IS 'Per-source funding breakdown for usage events (1..N allocations per usage_ledger row)';
+COMMENT ON COLUMN public.usage_allocations.usage_ledger_id IS 'Foreign key to usage_ledger event';
+COMMENT ON COLUMN public.usage_allocations.source IS 'Funding source: plan, addon, credit, override';
+COMMENT ON COLUMN public.usage_allocations.units IS 'Number of units allocated from this source (must be > 0)';
+
+-- Deferrable constraint trigger: SUM(usage_allocations.units) must equal usage_ledger.units
+CREATE OR REPLACE FUNCTION validate_usage_allocations_sum()
+RETURNS TRIGGER AS $$
+DECLARE
+    ledger_units INTEGER;
+    allocations_sum INTEGER;
+BEGIN
+    -- Get the total units from usage_ledger
+    SELECT units INTO ledger_units
+    FROM public.usage_ledger
+    WHERE id = COALESCE(NEW.usage_ledger_id, OLD.usage_ledger_id);
+    
+    -- Get the sum of all allocations for this usage event
+    SELECT COALESCE(SUM(units), 0) INTO allocations_sum
+    FROM public.usage_allocations
+    WHERE usage_ledger_id = COALESCE(NEW.usage_ledger_id, OLD.usage_ledger_id);
+    
+    -- Check if sum matches (only enforce at transaction commit via DEFERRABLE)
+    IF allocations_sum != ledger_units THEN
+        RAISE EXCEPTION 'Usage allocations sum (%) does not match usage_ledger units (%) for usage_ledger_id=%',
+            allocations_sum, ledger_units, COALESCE(NEW.usage_ledger_id, OLD.usage_ledger_id)
+            USING ERRCODE = '23514',  -- check_violation
+                  HINT = 'The sum of all usage_allocations.units must equal usage_ledger.units';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION validate_usage_allocations_sum() IS 'Validates that SUM(usage_allocations.units) equals usage_ledger.units';
+
+CREATE CONSTRAINT TRIGGER validate_usage_allocations_sum_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON public.usage_allocations
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_usage_allocations_sum();
+
+COMMENT ON TRIGGER validate_usage_allocations_sum_trigger ON public.usage_allocations IS 'Ensures allocations sum equals usage_ledger.units (deferred to transaction commit)';
+
+-- Immutability enforcement for usage_ledger (using triggers, not rules)
+-- Triggers enforce immutability AFTER permission checks and raise explicit errors
+CREATE OR REPLACE FUNCTION prevent_ledger_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Ledger tables are immutable. UPDATE and DELETE operations are not allowed.'
+        USING ERRCODE = '42501',  -- insufficient_privilege
+              HINT = 'Ledgers are append-only for audit integrity. Use INSERT only.';
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION prevent_ledger_modification() IS 'Enforces immutability of ledger tables (usage_ledger, credit_ledger) by blocking UPDATE and DELETE operations';
+
+CREATE TRIGGER prevent_usage_ledger_update
+    BEFORE UPDATE ON public.usage_ledger
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_ledger_modification();
+
+CREATE TRIGGER prevent_usage_ledger_delete
+    BEFORE DELETE ON public.usage_ledger
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_ledger_modification();
+
+COMMENT ON TRIGGER prevent_usage_ledger_update ON public.usage_ledger IS 'Blocks UPDATE operations to enforce immutability';
+COMMENT ON TRIGGER prevent_usage_ledger_delete ON public.usage_ledger IS 'Blocks DELETE operations to enforce immutability';
+
+-- Immutability enforcement for usage_allocations (using triggers)
+CREATE TRIGGER prevent_usage_allocations_update
+    BEFORE UPDATE ON public.usage_allocations
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_ledger_modification();
+
+CREATE TRIGGER prevent_usage_allocations_delete
+    BEFORE DELETE ON public.usage_allocations
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_ledger_modification();
+
+COMMENT ON TRIGGER prevent_usage_allocations_update ON public.usage_allocations IS 'Blocks UPDATE operations to enforce immutability';
+COMMENT ON TRIGGER prevent_usage_allocations_delete ON public.usage_allocations IS 'Blocks DELETE operations to enforce immutability';
 
 -- Credit Ledger: Append-only credit transaction store (SOURCE OF TRUTH)
 CREATE TABLE public.credit_ledger (
@@ -262,9 +351,19 @@ COMMENT ON COLUMN public.credit_ledger.feature_id IS 'Feature for which credits 
 COMMENT ON COLUMN public.credit_ledger.usage_ledger_id IS 'Link to usage event that triggered credit deduction';
 COMMENT ON COLUMN public.credit_ledger.expires_at IS 'Credit expiration date (NULL for non-expiring)';
 
--- Immutability rules for credit_ledger
-CREATE RULE credit_ledger_no_update AS ON UPDATE TO public.credit_ledger DO INSTEAD NOTHING;
-CREATE RULE credit_ledger_no_delete AS ON DELETE TO public.credit_ledger DO INSTEAD NOTHING;
+-- Immutability enforcement for credit_ledger (using triggers)
+CREATE TRIGGER prevent_credit_ledger_update
+    BEFORE UPDATE ON public.credit_ledger
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_ledger_modification();
+
+CREATE TRIGGER prevent_credit_ledger_delete
+    BEFORE DELETE ON public.credit_ledger
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_ledger_modification();
+
+COMMENT ON TRIGGER prevent_credit_ledger_update ON public.credit_ledger IS 'Blocks UPDATE operations to enforce immutability';
+COMMENT ON TRIGGER prevent_credit_ledger_delete ON public.credit_ledger IS 'Blocks DELETE operations to enforce immutability';
 
 -- =========================
 -- PROJECTIONS (Derived Data)
@@ -344,9 +443,30 @@ COMMENT ON COLUMN public.domain_events.aggregate_id IS 'ID of the related entity
 COMMENT ON COLUMN public.domain_events.actor_type IS 'Actor type: user, system, admin';
 COMMENT ON COLUMN public.domain_events.sequence_number IS 'Sequence number within aggregate for ordering';
 
--- Immutability rules for domain_events
-CREATE RULE domain_events_no_update AS ON UPDATE TO public.domain_events DO INSTEAD NOTHING;
-CREATE RULE domain_events_no_delete AS ON DELETE TO public.domain_events DO INSTEAD NOTHING;
+-- Immutability enforcement for domain_events (using triggers)
+CREATE OR REPLACE FUNCTION prevent_domain_event_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Domain events are immutable. UPDATE and DELETE operations are not allowed.'
+        USING ERRCODE = '42501',  -- insufficient_privilege
+              HINT = 'Domain events are append-only for audit integrity and replayability.';
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION prevent_domain_event_modification() IS 'Enforces immutability of domain_events table by blocking UPDATE and DELETE operations';
+
+CREATE TRIGGER prevent_domain_event_update
+    BEFORE UPDATE ON public.domain_events
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_domain_event_modification();
+
+CREATE TRIGGER prevent_domain_event_delete
+    BEFORE DELETE ON public.domain_events
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_domain_event_modification();
+
+COMMENT ON TRIGGER prevent_domain_event_update ON public.domain_events IS 'Blocks UPDATE operations to enforce immutability';
+COMMENT ON TRIGGER prevent_domain_event_delete ON public.domain_events IS 'Blocks DELETE operations to enforce immutability';
 
 -- =========================
 -- INDEXES
@@ -406,6 +526,11 @@ CREATE INDEX idx_usage_ledger_tenant_feature_period ON public.usage_ledger(tenan
 CREATE INDEX idx_usage_ledger_recorded_at ON public.usage_ledger(recorded_at DESC);
 CREATE UNIQUE INDEX idx_usage_ledger_idempotency_key ON public.usage_ledger(idempotency_key) 
     WHERE idempotency_key IS NOT NULL;
+
+-- Usage Allocations
+CREATE INDEX idx_usage_allocations_ledger_id ON public.usage_allocations(usage_ledger_id);
+CREATE INDEX idx_usage_allocations_source ON public.usage_allocations(source);
+CREATE INDEX idx_usage_allocations_ledger_source ON public.usage_allocations(usage_ledger_id, source);
 
 -- Credit Ledger
 CREATE INDEX idx_credit_ledger_tenant_id ON public.credit_ledger(tenant_id);
@@ -483,6 +608,11 @@ DROP TRIGGER IF EXISTS update_addons_updated_at ON public.addons;
 DROP TRIGGER IF EXISTS update_plans_updated_at ON public.plans;
 DROP TRIGGER IF EXISTS update_features_updated_at ON public.features;
 
+-- Drop usage_allocations triggers
+DROP TRIGGER IF EXISTS prevent_usage_allocations_delete ON public.usage_allocations;
+DROP TRIGGER IF EXISTS prevent_usage_allocations_update ON public.usage_allocations;
+DROP TRIGGER IF EXISTS validate_usage_allocations_sum_trigger ON public.usage_allocations;
+
 -- Drop indexes
 DROP INDEX IF EXISTS public.idx_domain_events_actor_id;
 DROP INDEX IF EXISTS public.idx_domain_events_aggregate;
@@ -498,6 +628,9 @@ DROP INDEX IF EXISTS public.idx_credit_ledger_usage_ledger_id;
 DROP INDEX IF EXISTS public.idx_credit_ledger_tenant_recorded;
 DROP INDEX IF EXISTS public.idx_credit_ledger_feature_id;
 DROP INDEX IF EXISTS public.idx_credit_ledger_tenant_id;
+DROP INDEX IF EXISTS public.idx_usage_allocations_ledger_source;
+DROP INDEX IF EXISTS public.idx_usage_allocations_source;
+DROP INDEX IF EXISTS public.idx_usage_allocations_ledger_id;
 DROP INDEX IF EXISTS public.idx_usage_ledger_recorded_at;
 DROP INDEX IF EXISTS public.idx_usage_ledger_tenant_feature_period;
 DROP INDEX IF EXISTS public.idx_usage_ledger_feature_id;
@@ -533,11 +666,15 @@ DROP RULE IF EXISTS credit_ledger_no_update ON public.credit_ledger;
 DROP RULE IF EXISTS usage_ledger_no_delete ON public.usage_ledger;
 DROP RULE IF EXISTS usage_ledger_no_update ON public.usage_ledger;
 
+-- Drop functions
+DROP FUNCTION IF EXISTS validate_usage_allocations_sum();
+
 -- Drop tables (in reverse dependency order)
 DROP TABLE IF EXISTS public.domain_events;
 DROP TABLE IF EXISTS public.entitlement_snapshots;
 DROP TABLE IF EXISTS public.aggregated_usage;
 DROP TABLE IF EXISTS public.credit_ledger;
+DROP TABLE IF EXISTS public.usage_allocations;
 DROP TABLE IF EXISTS public.usage_ledger;
 DROP TABLE IF EXISTS public.tenant_overrides;
 DROP TABLE IF EXISTS public.tenant_addons;

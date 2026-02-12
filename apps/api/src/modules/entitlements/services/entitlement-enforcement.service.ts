@@ -8,7 +8,7 @@ import {
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
-import { DomainEventsRepository } from '../../../repositories/domain-events/domain-events.repository';
+import { DomainEventsService } from './domain-events.service';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { CreditLedgerService } from './credit-ledger.service';
@@ -54,7 +54,7 @@ export class EntitlementEnforcementService {
     private readonly usageIngestionService: UsageIngestionService,
     private readonly creditLedgerService: CreditLedgerService,
     private readonly subscriptionsRepository: SubscriptionsRepository,
-    private readonly domainEventsRepository: DomainEventsRepository,
+    private readonly domainEventsService: DomainEventsService,
     private readonly featuresRepository: FeaturesRepository,
   ) {}
 
@@ -211,7 +211,7 @@ export class EntitlementEnforcementService {
           feature_key: featureKey,
           user_id: userId,
           units,
-          source: 'plan',
+          allocations: [{ source: 'plan', units }],
           metadata,
         },
         { client },
@@ -220,6 +220,7 @@ export class EntitlementEnforcementService {
       return {
         allowed: true,
         source: 'plan',
+        allocations: [{ source: 'plan', units }],
         remaining: -1,
         limit: -1,
         used,
@@ -236,7 +237,7 @@ export class EntitlementEnforcementService {
           feature_key: featureKey,
           user_id: userId,
           units,
-          source: 'plan',
+          allocations: [{ source: 'plan', units }],
           metadata,
         },
         { client },
@@ -245,90 +246,12 @@ export class EntitlementEnforcementService {
       return {
         allowed: true,
         source: 'plan',
+        allocations: [{ source: 'plan', units }],
         remaining: remaining - units,
         limit,
         used: used + units,
       };
     }
-
-    // TODO: DISCUSSION - Partial Credit Fallback Strategy
-    //
-    // Current Behavior: "All-or-Nothing" Credit Fallback
-    // ===================================================
-    // When plan quota is exceeded, the ENTIRE request is fulfilled using credits.
-    //
-    // Example:
-    //   - Plan remaining: 1 unit
-    //   - Request: 5 units
-    //   - Result: Deduct 5 credits, plan usage stays at current level
-    //   - Credits remaining: 20 - 5 = 15
-    //
-    // Pros:
-    //   ✅ Simpler implementation (single source per request)
-    //   ✅ Cleaner usage ledger (one entry per request)
-    //   ✅ Easier to reason about and audit
-    //   ✅ No mixed-source transactions
-    //
-    // Cons:
-    //   ❌ Doesn't maximize plan quota utilization
-    //   ❌ Less cost-effective for tenants (wastes remaining plan units)
-    //   ❌ May feel unfair to users who expect to use remaining quota first
-    //
-    // Alternative: "Partial Credit Fallback" (NOT IMPLEMENTED)
-    // =========================================================
-    // Use remaining plan quota first, then fill the gap with credits.
-    //
-    // Example:
-    //   - Plan remaining: 1 unit
-    //   - Request: 5 units
-    //   - Result: Use 1 from plan + deduct 4 credits
-    //   - Credits remaining: 20 - 4 = 16
-    //
-    // Pros:
-    //   ✅ Maximizes plan quota utilization
-    //   ✅ More cost-effective for tenants
-    //   ✅ Better user experience (feels fairer)
-    //   ✅ Reduces credit consumption
-    //
-    // Cons:
-    //   ❌ More complex implementation (split transactions)
-    //   ❌ Two usage ledger entries per request (plan + credit)
-    //   ❌ Harder to audit and reason about
-    //   ❌ Need to handle partial failures (what if credit deduction fails?)
-    //   ❌ Response source becomes ambiguous (plan? credit? both?)
-    //   ❌ Complicates usage analytics and reporting
-    //
-    // Implementation Considerations for Partial Fallback:
-    // ====================================================
-    // 1. Split the request into two parts:
-    //    - planUnits = Math.min(remaining, units)
-    //    - creditUnits = units - planUnits
-    //
-    // 2. Record two usage entries:
-    //    - First: recordUsage(planUnits, source='plan')
-    //    - Second: recordUsage(creditUnits, source='credit')
-    //
-    // 3. Handle edge cases:
-    //    - What if credit deduction fails after plan usage is recorded?
-    //    - Should we rollback the plan usage? (transaction handles this)
-    //    - What source do we return in the result? ('mixed'? 'plan+credit'?)
-    //
-    // 4. Update response structure:
-    //    - Add planUnitsUsed and creditUnitsUsed fields
-    //    - Or add a new source type: 'mixed' or 'plan+credit'
-    //
-    // 5. Update usage analytics queries:
-    //    - Aggregation logic needs to handle split requests
-    //    - Reporting becomes more complex
-    //
-    // Decision Required:
-    // ==================
-    // Choose based on business priorities:
-    // - If simplicity and auditability are paramount → Keep current approach
-    // - If tenant cost optimization is paramount → Implement partial fallback
-    //
-    // Recommendation: Keep current approach unless tenants explicitly request
-    // partial fallback. The complexity cost may outweigh the benefit.
 
     // Exceeded: check if feature is creditable
     const featureDef = getFeatureDefinition(featureKey);
@@ -353,11 +276,17 @@ export class EntitlementEnforcementService {
       };
     }
 
-    // Creditable: check credit balance
+    // Creditable: implement partial credit fallback
+    // Use remaining plan quota first, then fill the gap with credits
     const creditBalance = await this.creditLedgerService.getBalance(tenantId, {
       client,
     });
-    const creditCost = units * 1; // 1:1 ratio for now
+
+    // Calculate split: use plan remaining first, then credits
+    // Ensure planUnits is never negative (when quota is already exceeded)
+    const planUnits = Math.max(0, Math.min(remaining, units)); // Use what's left in plan (0 if already over)
+    const creditUnits = units - planUnits; // Fill the gap with credits
+    const creditCost = creditUnits * 1; // 1:1 ratio for now
 
     if (creditBalance < creditCost) {
       // Insufficient credits: deny
@@ -381,39 +310,61 @@ export class EntitlementEnforcementService {
       };
     }
 
-    // Deduct credits and record usage
+    // Build allocations array
+    const allocations: Array<{ source: 'plan' | 'credit'; units: number }> = [];
+    if (planUnits > 0) {
+      allocations.push({ source: 'plan', units: planUnits });
+    }
+    if (creditUnits > 0) {
+      allocations.push({ source: 'credit', units: creditUnits });
+    }
+
+    // Record usage with multi-source allocations
     const feature = await this.featuresRepository.findByKey(featureKey, {
       client,
     });
 
-    await this.creditLedgerService.deduct(
-      tenantId,
-      creditCost,
-      feature?.id,
-      undefined, // usage_ledger_id will be linked after recording
-      { ...metadata, credit_fallback: true },
-      { client },
-    );
-
-    await this.usageIngestionService.recordUsage(
+    const usageEvent = await this.usageIngestionService.recordUsage(
       {
         tenant_id: tenantId,
         feature_key: featureKey,
         user_id: userId,
         units,
-        source: 'credit',
-        metadata: { ...metadata, credit_cost: creditCost },
+        allocations,
+        metadata: {
+          ...metadata,
+          credit_cost: creditCost,
+          plan_units: planUnits,
+          credit_units: creditUnits,
+        },
       },
       { client },
     );
 
+    // Deduct only the credit portion
+    if (creditUnits > 0) {
+      await this.creditLedgerService.deduct(
+        tenantId,
+        creditCost,
+        feature?.id,
+        usageEvent.id,
+        { ...metadata, credit_fallback: true },
+        { client },
+      );
+    }
+
     this.logger.log(
-      `Credit fallback: tenant=${tenantId}, feature=${featureKey}, cost=${creditCost}, remaining=${creditBalance - creditCost}`,
+      `Partial credit fallback: tenant=${tenantId}, feature=${featureKey}, plan=${planUnits}, credits=${creditUnits}, remaining_credits=${creditBalance - creditCost}`,
     );
+
+    // Determine source for response (primary source or 'mixed')
+    const responseSource =
+      allocations.length === 1 ? allocations[0].source : 'mixed';
 
     return {
       allowed: true,
-      source: 'credit',
+      source: responseSource as any, // 'plan', 'credit', or 'mixed'
+      allocations,
       creditsRemaining: creditBalance - creditCost,
       limit,
       used: used + units,
@@ -442,7 +393,7 @@ export class EntitlementEnforcementService {
     reason: string,
     client: PoolClient,
   ): Promise<void> {
-    await this.domainEventsRepository.emit(
+    await this.domainEventsService.emit(
       {
         tenant_id: tenantId,
         event_type: 'entitlement.denied',

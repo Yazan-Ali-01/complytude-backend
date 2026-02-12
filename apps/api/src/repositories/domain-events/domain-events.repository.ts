@@ -101,12 +101,222 @@ export class DomainEventsRepository extends BaseRepository<
     const result = await this.executeQuery<DomainEventRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
        WHERE aggregate_type = $1 AND aggregate_id = $2
-       ORDER BY sequence_number ASC, recorded_at ASC`,
+       ORDER BY sequence_number ASC NULLS LAST, recorded_at ASC`,
       [aggregateType, aggregateId],
       options,
     );
 
     return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Find events by tenant with optional filters
+   * Phase 7 implementation
+   */
+  async findByTenant(
+    tenantId: string,
+    filters?: {
+      eventType?: string;
+      aggregateType?: string;
+      fromDate?: Date;
+      toDate?: Date;
+      limit?: number;
+      offset?: number;
+    },
+    options?: QueryOptions,
+  ): Promise<DomainEvent[]> {
+    const conditions: string[] = ['tenant_id = $1'];
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    // Build WHERE clause dynamically based on filters
+    if (filters?.eventType) {
+      conditions.push(`event_type = $${paramIndex}`);
+      params.push(filters.eventType);
+      paramIndex++;
+    }
+
+    if (filters?.aggregateType) {
+      conditions.push(`aggregate_type = $${paramIndex}`);
+      params.push(filters.aggregateType);
+      paramIndex++;
+    }
+
+    if (filters?.fromDate) {
+      conditions.push(`recorded_at >= $${paramIndex}`);
+      params.push(filters.fromDate);
+      paramIndex++;
+    }
+
+    if (filters?.toDate) {
+      conditions.push(`recorded_at <= $${paramIndex}`);
+      params.push(filters.toDate);
+      paramIndex++;
+    }
+
+    const limit = filters?.limit ?? 50;
+    const offset = filters?.offset ?? 0;
+
+    const query = `
+      SELECT ${this.getSelectColumns()} 
+      FROM ${this.tableName} 
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY recorded_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    params.push(limit, offset);
+
+    const result = await this.executeQuery<DomainEventRow>(
+      query,
+      params,
+      options,
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Find events by event type
+   * Phase 7 implementation
+   */
+  async findByEventType(
+    eventType: string,
+    tenantId?: string,
+    limit: number = 50,
+    options?: QueryOptions,
+  ): Promise<DomainEvent[]> {
+    const conditions: string[] = ['event_type = $1'];
+    const params: any[] = [eventType];
+
+    if (tenantId) {
+      conditions.push('tenant_id = $2');
+      params.push(tenantId);
+      params.push(limit);
+    } else {
+      params.push(limit);
+    }
+
+    const query = `
+      SELECT ${this.getSelectColumns()} 
+      FROM ${this.tableName} 
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY recorded_at DESC
+      LIMIT $${params.length}
+    `;
+
+    const result = await this.executeQuery<DomainEventRow>(
+      query,
+      params,
+      options,
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Count events by tenant with optional filters
+   * Phase 7 implementation
+   */
+  async countByTenant(
+    tenantId: string,
+    filters?: {
+      eventType?: string;
+      aggregateType?: string;
+      fromDate?: Date;
+      toDate?: Date;
+    },
+    options?: QueryOptions,
+  ): Promise<number> {
+    const conditions: string[] = ['tenant_id = $1'];
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
+    if (filters?.eventType) {
+      conditions.push(`event_type = $${paramIndex}`);
+      params.push(filters.eventType);
+      paramIndex++;
+    }
+
+    if (filters?.aggregateType) {
+      conditions.push(`aggregate_type = $${paramIndex}`);
+      params.push(filters.aggregateType);
+      paramIndex++;
+    }
+
+    if (filters?.fromDate) {
+      conditions.push(`recorded_at >= $${paramIndex}`);
+      params.push(filters.fromDate);
+      paramIndex++;
+    }
+
+    if (filters?.toDate) {
+      conditions.push(`recorded_at <= $${paramIndex}`);
+      params.push(filters.toDate);
+      paramIndex++;
+    }
+
+    const query = `
+      SELECT COUNT(*) as count
+      FROM ${this.tableName} 
+      WHERE ${conditions.join(' AND ')}
+    `;
+
+    const result = await this.executeQuery<{ count: string }>(
+      query,
+      params,
+      options,
+    );
+
+    return parseInt(result.rows[0]?.count ?? '0', 10);
+  }
+
+  /**
+   * Get latest event by aggregate
+   * Phase 7 implementation
+   */
+  async getLatestByAggregate(
+    aggregateType: string,
+    aggregateId: string,
+    options?: QueryOptions,
+  ): Promise<DomainEvent | null> {
+    const result = await this.executeQuery<DomainEventRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+       WHERE aggregate_type = $1 AND aggregate_id = $2
+       ORDER BY sequence_number DESC NULLS LAST, recorded_at DESC
+       LIMIT 1`,
+      [aggregateType, aggregateId],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
+   * Get event counts grouped by event_type for a tenant
+   * Phase 7 implementation
+   */
+  async getEventSummary(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<Array<{ event_type: string; count: number }>> {
+    const result = await this.executeQuery<{
+      event_type: string;
+      count: string;
+    }>(
+      `SELECT event_type, COUNT(*) as count
+       FROM ${this.tableName} 
+       WHERE tenant_id = $1
+       GROUP BY event_type
+       ORDER BY count DESC`,
+      [tenantId],
+      options,
+    );
+
+    return result.rows.map((row) => ({
+      event_type: row.event_type,
+      count: parseInt(row.count, 10),
+    }));
   }
 
   // Override update/delete to prevent usage (immutable event store)

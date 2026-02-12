@@ -17,16 +17,26 @@ import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { TenantRepository } from '../../../repositories/tenants/tenant.repository';
+import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
 /**
- * Entitlement Resolver Service
+ * Entitlement Resolver Service - Phase 8 Refactored
  *
- * Core engine for resolving effective entitlements from multiple sources:
- * - Plan entitlements (in-memory O(1) lookup)
- * - Add-on entitlements (database query)
- * - Admin overrides (database query)
+ * Core engine for resolving effective entitlements with snapshot-first strategy.
+ *
+ * Architecture (Phase 8):
+ * - Snapshot-first: Always check cache before computing
+ * - Hot path: Read from snapshot (fast, <10ms)
+ * - Cold path: Compute from plan + addons + overrides, then cache
+ * - Auto-invalidation: Stale snapshots trigger rebuild
  *
  * Merging precedence: override > plan + addons
+ *
+ * Circular Dependency Avoidance:
+ * - This service injects EntitlementSnapshotService
+ * - EntitlementSnapshotService does NOT inject this service
+ * - Snapshot service receives pre-computed entitlements from this service
+ * - This service calls snapshot service for caching, not the other way around
  */
 @Injectable()
 export class EntitlementResolverService {
@@ -37,6 +47,7 @@ export class EntitlementResolverService {
     private readonly tenantRepository: TenantRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
+    private readonly snapshotService: EntitlementSnapshotService,
   ) {}
 
   /**
@@ -71,8 +82,14 @@ export class EntitlementResolverService {
   }
 
   /**
-   * Resolve entitlement for a tenant and feature
-   * Includes plan + addons + overrides
+   * Resolve entitlement for a tenant and feature (snapshot-first strategy)
+   *
+   * Phase 8 Refactored: Always checks snapshot cache first.
+   *
+   * Flow:
+   * 1. Check snapshot cache via snapshotService.getOrNull()
+   * 2. If fresh snapshot exists, return feature from snapshot (fast path <10ms)
+   * 3. If no snapshot or stale, compute from scratch and cache
    *
    * @param tenantId - Tenant ID
    * @param featureKey - Feature key
@@ -85,39 +102,36 @@ export class EntitlementResolverService {
     options?: QueryOptions,
   ): Promise<EffectiveEntitlement | undefined> {
     const execute = async (client: PoolClient) => {
-      const tenant = await this.tenantRepository.findById(tenantId, {
+      // Step 1: Check snapshot cache (hot path)
+      const cached = await this.snapshotService.getOrNull(tenantId, { client });
+
+      if (cached) {
+        // Fast path: return from snapshot
+        const entitlement = cached.entitlements[featureKey];
+        if (entitlement) {
+          this.logger.debug(
+            `Resolved from snapshot: tenant=${tenantId}, feature=${featureKey}`,
+          );
+          return entitlement;
+        }
+
+        // Feature not in snapshot (shouldn't happen, but handle gracefully)
+        this.logger.warn(
+          `Feature ${featureKey} not found in snapshot for tenant ${tenantId}. Computing fresh.`,
+        );
+      }
+
+      // Step 2: Cold path - compute from scratch
+      const { entitlements, plan } = await this.computeForTenant(tenantId, {
         client,
       });
-      if (!tenant) {
-        this.logger.warn(`Tenant not found: ${tenantId}`);
-        return undefined;
-      }
 
-      // Get plan entitlement (in-memory)
-      const planEntitlement = this.resolve(tenant.plan, featureKey);
-      if (!planEntitlement) {
-        this.logger.warn(`Feature not found in plan: ${featureKey}`);
-        return undefined;
-      }
+      // Step 3: Cache the computed entitlements
+      await this.snapshotService.createSnapshot(tenantId, entitlements, plan, {
+        client,
+      });
 
-      // Get add-on entitlements (database query with JOIN, RLS-protected)
-      const addons =
-        await this.tenantAddonsRepository.findActiveByTenantAndFeature(
-          tenantId,
-          featureKey,
-          { client },
-        );
-
-      // Get override (database query with JOIN, RLS-protected)
-      const override =
-        await this.tenantOverridesRepository.findActiveByTenantAndFeature(
-          tenantId,
-          featureKey,
-          { client },
-        );
-
-      // Merge: plan + addons + override
-      return this.merge(planEntitlement, addons, override);
+      return entitlements[featureKey];
     };
 
     if (options?.client) {
@@ -128,18 +142,67 @@ export class EntitlementResolverService {
   }
 
   /**
-   * Resolve all entitlements for a tenant
+   * Resolve all entitlements for a tenant (snapshot-first strategy)
+   *
+   * Phase 8 Refactored: Always checks snapshot cache first.
    *
    * @param tenantId - Tenant ID
    * @param options - Query options (optional client for shared transactions)
-   * @returns Map of feature keys to effective entitlements
+   * @returns Map of feature keys to effective entitlements + plan key
    */
   async resolveAllForTenant(
     tenantId: string,
     options?: QueryOptions,
   ): Promise<{ entitlements: ResolvedEntitlements; plan: PlanKey }> {
     const execute = async (client: PoolClient) => {
-      // Get tenant's plan (no RLS needed for tenants table)
+      // Step 1: Check snapshot cache (hot path)
+      const cached = await this.snapshotService.getOrNull(tenantId, { client });
+
+      if (cached) {
+        this.logger.debug(`Resolved all from snapshot: tenant=${tenantId}`);
+        return cached;
+      }
+
+      // Step 2: Cold path - compute from scratch
+      const { entitlements, plan } = await this.computeForTenant(tenantId, {
+        client,
+      });
+
+      // Step 3: Cache the computed entitlements
+      await this.snapshotService.createSnapshot(tenantId, entitlements, plan, {
+        client,
+      });
+
+      return { entitlements, plan };
+    };
+
+    if (options?.client) {
+      return execute(options.client);
+    }
+
+    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+  }
+
+  /**
+   * Compute entitlements from plan + addons + overrides (no cache)
+   *
+   * This is the core computation logic extracted for use by the snapshot service.
+   * It computes effective entitlements from scratch without checking the cache.
+   *
+   * Called by:
+   * - resolveForTenant() when snapshot is missing or stale
+   * - resolveAllForTenant() when snapshot is missing or stale
+   * - EntitlementSnapshotService.createSnapshot() to build snapshots
+   *
+   * @param tenantId - Tenant ID
+   * @param options - Query options
+   * @returns Computed entitlements + plan key
+   */
+  async computeForTenant(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<{ entitlements: ResolvedEntitlements; plan: PlanKey }> {
+    const execute = async (client: PoolClient) => {
       const tenant = await this.tenantRepository.findById(tenantId, {
         client,
       });
@@ -229,6 +292,7 @@ export class EntitlementResolverService {
           source: 'override',
         };
       }
+
       return { entitlements: resolved, plan: tenant.plan };
     };
 

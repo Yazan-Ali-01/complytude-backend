@@ -6,6 +6,7 @@ import {
 } from '../../../common/types/entitlement.types';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
+import { UsageAllocationsRepository } from '../../../repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
 
 /**
@@ -36,10 +37,11 @@ export class UsageProjectionService {
   constructor(
     private readonly aggregatedUsageRepository: AggregatedUsageRepository,
     private readonly usageLedgerRepository: UsageLedgerRepository,
+    private readonly usageAllocationsRepository: UsageAllocationsRepository,
   ) {}
 
   /**
-   * Atomically increment usage counters for a feature
+   * Atomically increment usage counters for a feature with multi-source allocations
    *
    * This method is called synchronously after recording a usage event.
    * It updates the aggregated_usage projection with atomic SQL increments
@@ -60,8 +62,7 @@ export class UsageProjectionService {
    * @param subscriptionId - Subscription ID (source of truth for billing period)
    * @param featureId - Feature UUID
    * @param billingPeriod - Billing period (YYYY-MM format, for analytics)
-   * @param units - Number of units to increment
-   * @param source - Usage source (plan, addon, credit, override)
+   * @param allocations - Array of { source, units } allocations
    * @param eventId - Usage ledger event ID (for idempotency)
    * @param options - Query options (client for transactions)
    * @returns Updated aggregated usage
@@ -71,13 +72,16 @@ export class UsageProjectionService {
     subscriptionId: string,
     featureId: string,
     billingPeriod: string,
-    units: number,
-    source: UsageSource,
+    allocations: Array<{
+      source: Exclude<UsageSource, 'mixed'>;
+      units: number;
+    }>,
     eventId: string,
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
+    const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
     this.logger.debug(
-      `Incrementing usage: tenant=${tenantId}, subscription=${subscriptionId}, feature=${featureId}, period=${billingPeriod}, units=${units}, source=${source}`,
+      `Incrementing usage: tenant=${tenantId}, subscription=${subscriptionId}, feature=${featureId}, period=${billingPeriod}, units=${totalUnits}, allocations=${JSON.stringify(allocations)}`,
     );
 
     return this.aggregatedUsageRepository.increment(
@@ -85,8 +89,7 @@ export class UsageProjectionService {
       subscriptionId,
       featureId,
       billingPeriod,
-      units,
-      source,
+      allocations,
       eventId,
       options,
     );
@@ -122,19 +125,19 @@ export class UsageProjectionService {
   }
 
   /**
-   * Rebuild aggregated usage projection from usage ledger
+   * Rebuild aggregated usage projection from usage allocations
    *
    * This method recomputes the aggregated_usage row by summing all
-   * usage_ledger events for a tenant, feature, and billing period.
+   * usage_allocations for a tenant, feature, and billing period.
    *
    * Use cases:
-   * - Consistency verification (compare projection vs ledger)
+   * - Consistency verification (compare projection vs allocations)
    * - Recovery from projection corruption
    * - Auditing and reconciliation
    *
    * TODO: BullMQ - A scheduled cron job should periodically run this
    * for all active tenants to detect and fix projection drift. Alert
-   * if the projection doesn't match the ledger sum.
+   * if the projection doesn't match the allocations sum.
    *
    * @param tenantId - Tenant ID
    * @param subscriptionId - Subscription ID (identifies the billing period)
@@ -151,16 +154,17 @@ export class UsageProjectionService {
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
     this.logger.log(
-      `Rebuilding projection from ledger: tenant=${tenantId}, subscription=${subscriptionId}, feature=${featureId}, period=${billingPeriod}`,
+      `Rebuilding projection from allocations: tenant=${tenantId}, subscription=${subscriptionId}, feature=${featureId}, period=${billingPeriod}`,
     );
 
-    // Fetch all usage events from ledger
-    const events = await this.usageLedgerRepository.findByTenantFeaturePeriod(
-      tenantId,
-      featureId,
-      billingPeriod,
-      options,
-    );
+    // Fetch all usage allocations from ledger
+    const allocations =
+      await this.usageAllocationsRepository.findByTenantFeaturePeriod(
+        tenantId,
+        featureId,
+        billingPeriod,
+        options,
+      );
 
     // Aggregate by source
     let totalUnits = 0;
@@ -170,22 +174,22 @@ export class UsageProjectionService {
     let overrideUnits = 0;
     let lastEventId: string | undefined;
 
-    for (const event of events) {
-      totalUnits += event.units;
-      lastEventId = event.id;
+    for (const allocation of allocations) {
+      totalUnits += allocation.units;
+      lastEventId = allocation.usage_ledger_id; // Track last event processed
 
-      switch (event.source) {
+      switch (allocation.source) {
         case 'plan':
-          planUnits += event.units;
+          planUnits += allocation.units;
           break;
         case 'addon':
-          addonUnits += event.units;
+          addonUnits += allocation.units;
           break;
         case 'credit':
-          creditUnits += event.units;
+          creditUnits += allocation.units;
           break;
         case 'override':
-          overrideUnits += event.units;
+          overrideUnits += allocation.units;
           break;
       }
     }
@@ -208,7 +212,7 @@ export class UsageProjectionService {
     );
 
     this.logger.log(
-      `Projection rebuilt: ${events.length} events, ${totalUnits} total units`,
+      `Projection rebuilt: ${allocations.length} allocations, ${totalUnits} total units`,
     );
 
     return rebuilt;

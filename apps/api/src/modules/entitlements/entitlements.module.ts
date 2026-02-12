@@ -11,13 +11,18 @@ import { PlansRepository } from '../../repositories/plans/plans.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { AggregatedUsageRepository } from '../../repositories/usage/aggregated-usage.repository';
+import { UsageAllocationsRepository } from '../../repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from '../../repositories/usage/usage-ledger.repository';
 import { EntitlementsController } from './entitlements.controller';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
+import { DomainEventsService } from './services/domain-events.service';
 import { EntitlementEnforcementService } from './services/entitlement-enforcement.service';
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
+import { EntitlementSnapshotService } from './services/entitlement-snapshot.service';
 import { EntitlementSyncService } from './services/entitlement-sync.service';
+import { TenantAddonsService } from './services/tenant-addons.service';
+import { TenantOverridesService } from './services/tenant-overrides.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
 import { UsageProjectionService } from './services/usage-projection.service';
 
@@ -28,10 +33,12 @@ import { UsageProjectionService } from './services/usage-projection.service';
  * Marked as @Global() to make services available without explicit imports (like RbacModule).
  *
  * Exports:
- * - EntitlementResolverService: Core entitlement resolution engine
+ * - EntitlementResolverService: Core entitlement resolution engine (snapshot-first, Phase 8)
  * - EntitlementEnforcementService: Runtime enforcement with credit fallback (Phase 4)
  * - CreditLedgerService: Credit transaction management (Phase 4)
  * - CreditBalanceService: Credit balance queries (Phase 4)
+ * - DomainEventsService: Domain event queries and replay (Phase 7)
+ * - EntitlementSnapshotService: Snapshot lifecycle management (Phase 8)
  * - All repositories: For use in other modules
  */
 @Global()
@@ -47,6 +54,10 @@ import { UsageProjectionService } from './services/usage-projection.service';
     EntitlementEnforcementService, // Phase 4
     CreditLedgerService, // Phase 4
     CreditBalanceService, // Phase 4
+    DomainEventsService, // Phase 7
+    EntitlementSnapshotService, // Phase 8
+    TenantAddonsService, // Add-on mutations with snapshot invalidation
+    TenantOverridesService, // Override mutations with snapshot invalidation
 
     // Catalog repositories
     FeaturesRepository,
@@ -60,6 +71,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
 
     // Usage repositories (Phase 3)
     UsageLedgerRepository,
+    UsageAllocationsRepository,
     AggregatedUsageRepository,
 
     // Credit repositories (Phase 4)
@@ -78,6 +90,10 @@ import { UsageProjectionService } from './services/usage-projection.service';
     EntitlementEnforcementService, // Phase 4
     CreditLedgerService, // Phase 4
     CreditBalanceService, // Phase 4
+    DomainEventsService, // Phase 7
+    EntitlementSnapshotService, // Phase 8
+    TenantAddonsService,
+    TenantOverridesService,
 
     // Repositories (for use in other modules)
     FeaturesRepository,
@@ -87,6 +103,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     TenantOverridesRepository,
     SubscriptionsRepository,
     UsageLedgerRepository,
+    UsageAllocationsRepository,
     CreditLedgerRepository,
     AggregatedUsageRepository,
     EntitlementSnapshotsRepository,

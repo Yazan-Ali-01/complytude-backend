@@ -50,6 +50,9 @@ GRANT SELECT, INSERT, UPDATE ON public.tenant_overrides TO app_user;
 -- Usage Ledger
 GRANT SELECT, INSERT ON public.usage_ledger TO app_user;
 
+-- Usage Allocations
+GRANT SELECT, INSERT ON public.usage_allocations TO app_user;
+
 -- Credit Ledger
 GRANT SELECT, INSERT ON public.credit_ledger TO app_user;
 
@@ -88,6 +91,7 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON public.aggregated_usage FROM app_user;
 
 -- Revoke ledger grants
 REVOKE SELECT, INSERT ON public.credit_ledger FROM app_user;
+REVOKE SELECT, INSERT ON public.usage_allocations FROM app_user;
 REVOKE SELECT, INSERT ON public.usage_ledger FROM app_user;
 
 -- Revoke tenant-scoped table grants

@@ -38,7 +38,7 @@ export type PlanKey =
   | 'shield'
   | 'general_counsel'
   | 'infrastructure';
-export type UsageSource = 'plan' | 'addon' | 'credit' | 'override';
+export type UsageSource = 'plan' | 'addon' | 'credit' | 'override' | 'mixed';
 export type SubscriptionStatus =
   | 'active'
   | 'cancelled'
@@ -179,13 +179,20 @@ export interface UsageLedgerEvent {
   feature_id: string;
   user_id?: string;
   units: number;
-  source: UsageSource;
   billing_period: string;
   resource_type?: string;
   resource_id?: string;
   metadata: Record<string, any>;
   idempotency_key?: string;
   recorded_at: Date;
+}
+
+export interface UsageAllocation {
+  id: string;
+  usage_ledger_id: string;
+  source: UsageSource;
+  units: number;
+  created_at: Date;
 }
 
 export interface CreditLedgerTransaction {
@@ -267,7 +274,8 @@ export interface EffectiveEntitlement {
 
 export interface EntitlementCheckResult {
   allowed: boolean;
-  source?: UsageSource;
+  source?: UsageSource; // Derived: primary source or 'mixed' for multi-source
+  allocations?: Array<{ source: UsageSource; units: number }>; // Detailed breakdown
   remaining?: number;
   limit?: number;
   used?: number;
@@ -280,7 +288,7 @@ export interface UsageRecordInput {
   feature_key: FeatureKey;
   user_id?: string;
   units: number;
-  source: UsageSource;
+  allocations: Array<{ source: Exclude<UsageSource, 'mixed'>; units: number }>;
   resource_type?: string;
   resource_id?: string;
   metadata?: Record<string, any>;
@@ -444,12 +452,19 @@ export interface CreateUsageLedgerRow {
   feature_id: string;
   user_id?: string;
   units: number;
-  source: UsageSource;
   billing_period: string;
   resource_type?: string;
   resource_id?: string;
   metadata?: string; // Stringified JSON
   idempotency_key?: string;
+}
+
+// Usage Allocations (append-only)
+export interface CreateUsageAllocationRow {
+  id?: string;
+  usage_ledger_id: string;
+  source: UsageSource;
+  units: number;
 }
 
 // Credit Ledger (append-only)
@@ -532,3 +547,39 @@ export interface TenantAddonWithEntitlements extends TenantAddon {
 }
 
 export type ResolvedEntitlements = Record<FeatureKey, EffectiveEntitlement>;
+
+// =========================
+// DOMAIN EVENT FILTERS (Phase 7)
+// =========================
+
+export interface DomainEventFilters {
+  eventType?: string; // Filter by event_type (e.g., 'usage.recorded', 'credit.*')
+  aggregateType?: string; // Filter by aggregate_type (e.g., 'usage', 'credit', 'subscription')
+  fromDate?: Date; // Filter by recorded_at >= fromDate
+  toDate?: Date; // Filter by recorded_at <= toDate
+  limit?: number; // Pagination limit (default 50)
+  offset?: number; // Pagination offset (default 0)
+}
+
+export interface DomainEventSummary {
+  event_type: string;
+  count: number;
+}
+
+// =========================
+// SNAPSHOT TYPES (Phase 8)
+// =========================
+
+export interface SnapshotWithPlan {
+  snapshot: EntitlementSnapshot;
+  plan_key: PlanKey;
+  plan_name: string;
+}
+
+export interface SnapshotComparison {
+  fromSnapshot: ResolvedEntitlements;
+  fromCompute: ResolvedEntitlements;
+  snapshotTimeMs: number;
+  computeTimeMs: number;
+  speedup: string; // e.g., "3.2x faster"
+}
