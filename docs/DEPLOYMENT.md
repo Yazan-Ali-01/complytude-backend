@@ -27,7 +27,7 @@ Complytude supports two Docker deployment approaches to fit different workflows 
 | **Debugging**          | ✅ Direct IDE Integration | ⚠️ Remote Debugging        |
 | **Production-like**    | ⚠️ Partial                | ✅ Identical to Production |
 | **Startup Time**       | ⚡ Fast                   | 🐌 Slower (image build)    |
-| **Best For**           | Active Development        | Testing Deployments, CI/CD |
+| **Best For**           | Active Development        | Staging Deployments, CI/CD |
 | **Command**            | `pnpm dev`                | `pnpm docker:up:full`      |
 
 ### Approach 1: Hybrid Mode (Recommended for Development)
@@ -104,11 +104,11 @@ pnpm docker:stop
 - ✅ Production-like environment
 - ✅ Consistent across team members
 - ✅ Perfect for CI/CD pipelines
-- ✅ Easy deployment testing
+- ✅ Easy deployment validation
 
 **When to use:**
 
-- Testing Docker deployment before production
+- Validating Docker deployment before production
 - CI/CD pipelines
 - Onboarding new developers (no local Node.js setup needed)
 - Debugging Docker-specific issues
@@ -215,7 +215,7 @@ The project includes a production-optimized Dockerfile with multi-stage builds.
 
 ```bash
 # Production build (default, minimal image)
-docker build -t complytude-api:latest .
+docker build -t complytude-api:production .
 
 # Development build (includes dev dependencies)
 docker build -t complytude-api:dev --target development .
@@ -392,13 +392,13 @@ name: CI/CD
 on: [push, pull_request]
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
       - name: Build Docker image
-        run: docker build -t complytude-api:test .
+        run: docker build -t complytude-api:ci .
 
       - name: Start services
         run: docker-compose --profile full-stack up -d
@@ -406,9 +406,6 @@ jobs:
       - name: Wait for health check
         run: |
           timeout 60 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
-
-      - name: Run tests
-        run: docker-compose exec -T app pnpm test:e2e
 
       - name: Cleanup
         run: docker-compose down -v

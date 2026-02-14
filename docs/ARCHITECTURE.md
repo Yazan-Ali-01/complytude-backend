@@ -94,11 +94,9 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 - **MinIO** (Development) - S3-compatible object storage
 - **AWS S3** (Production) - Cloud object storage
 
-### Documentation & Testing
+### Documentation
 
 - **Swagger/OpenAPI** - API documentation
-- **Jest** - Unit testing framework
-- **Supertest** - E2E API testing
 
 ### DevOps
 
@@ -151,7 +149,7 @@ export class TemplateService {
 **Benefits:**
 
 - Loose coupling
-- Easy testing (mocking)
+- Easy mocking and modularity
 - Clear dependencies
 
 ### 3. Decorator-Based Authorization

@@ -17,7 +17,6 @@ Complete reference for all major dependencies, versions, and best practices for 
 - `@nestjs/common`: ^11.0.1
 - `@nestjs/cli`: ^11.0.0 (dev)
 - `@nestjs/schematics`: ^11.0.0 (dev)
-- `@nestjs/testing`: ^11.0.1 (dev)
 
 **Best Practices:**
 
@@ -86,7 +85,6 @@ Complete reference for all major dependencies, versions, and best practices for 
 
 - Use LTS versions for production
 - Leverage native fetch API (available in Node 18+)
-- Use native test runner for simple tests (or Jest for complex scenarios)
 
 ## Database
 
@@ -413,31 +411,6 @@ Complete reference for all major dependencies, versions, and best practices for 
 
 ## Development Tools
 
-### Testing
-
-**Components:**
-
-- `jest`: ^30.0.0
-- `ts-jest`: ^29.2.5
-- `@types/jest`: ^30.0.0 (dev)
-- `supertest`: ^7.0.0
-- `@types/supertest`: ^6.0.2 (dev)
-
-**Best Practices:**
-
-- Write unit tests for services and repositories
-- Write E2E tests for complete user flows
-- Use test factories for consistent test data
-- Mock external dependencies
-- Aim for 80%+ code coverage
-- Use descriptive test names
-
-**Version Notes:**
-
-- Jest v30 is the latest major version
-- Improved performance and TypeScript support
-- Better async/await handling
-
 ### Code Quality
 
 **Components:**
@@ -532,8 +505,8 @@ Complete reference for all major dependencies, versions, and best practices for 
 ### Update Strategy
 
 1. **Patch Updates:** Apply automatically (security fixes)
-2. **Minor Updates:** Review and test before applying
-3. **Major Updates:** Plan carefully, read migration guides
+2. **Minor Updates:** Review before applying
+3. **Major Updates:** Plan carefully, read migration guides, validate thoroughly
 4. **Security Updates:** Apply immediately regardless of version
 
 ## Notable Patterns

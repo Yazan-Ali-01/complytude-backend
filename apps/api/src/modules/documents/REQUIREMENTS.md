@@ -103,6 +103,7 @@ WITH CHECK (
 ### 1. List Queries (GET /documents)
 
 **Default behavior (non-admin users):**
+
 ```sql
 SELECT * FROM documents
 WHERE tenant_id = $1
@@ -111,6 +112,7 @@ ORDER BY created_at DESC;
 ```
 
 **Admin with `includeDeleted=true`:**
+
 ```sql
 SELECT * FROM documents
 WHERE tenant_id = $1
@@ -120,9 +122,10 @@ ORDER BY created_at DESC;
 ### 2. Soft-Delete Operation (DELETE /documents/:id)
 
 **Update query:**
+
 ```sql
 UPDATE documents
-SET 
+SET
     is_deleted = true,
     deleted_at = NOW(),
     deleted_by = $2,
@@ -134,14 +137,16 @@ RETURNING id, deleted_at;
 ```
 
 **Check for already deleted:**
+
 - If UPDATE returns 0 rows and document exists, return 409 Conflict
 - If document doesn't exist at all, return 404 Not Found
 
 ### 3. Document Retrieval (GET /documents/:id)
 
 **No filter on `is_deleted`:**
+
 ```sql
-SELECT 
+SELECT
     d.*,
     u.id as "createdByUser.id",
     u.email as "createdByUser.email",
@@ -168,12 +173,14 @@ Soft-deleted documents remain accessible by ID for audit purposes.
 **Important:** Soft-deleted documents should **NOT** delete files from S3 storage.
 
 **Reasons:**
+
 1. Legal compliance and audit trail requirements
 2. Potential document recovery needs
 3. Forensic analysis capabilities
 
 **Future Consideration:**
 Implement a separate cleanup job/cron that:
+
 - Runs periodically (e.g., monthly)
 - Permanently deletes files for documents soft-deleted > N days ago (configurable)
 - Requires explicit admin approval or automated policy
@@ -183,6 +190,7 @@ Implement a separate cleanup job/cron that:
 Preview files (POST /documents/preview) should be stored separately:
 
 **Recommended structure:**
+
 ```
 {bucket-name}/
 ├── documents/          # Permanent documents
@@ -194,6 +202,7 @@ Preview files (POST /documents/preview) should be stored separately:
 ```
 
 **S3 Lifecycle Policy for Previews:**
+
 ```json
 {
   "Rules": [
@@ -228,11 +237,7 @@ Update `documents.module.ts`:
 
 ```typescript
 @Module({
-  imports: [
-    DatabaseModule,
-    StorageModule,
-    TemplatesModule,
-  ],
+  imports: [DatabaseModule, StorageModule, TemplatesModule],
   controllers: [DocumentsController],
   providers: [DocumentsService],
   exports: [DocumentsService],
@@ -246,18 +251,17 @@ export class DocumentsModule {}
 
 ### Role Requirements
 
-| Endpoint | Allowed Roles | Notes |
-|----------|--------------|-------|
-| POST /preview | admin, member | Regular users can preview |
-| POST /generate | admin, member | Regular users can generate |
-| GET / | all authenticated | All users can list their docs |
-| GET /:id | all authenticated | All users can view their docs |
-| DELETE /:id | **admin only** | Only admins can delete |
+| Endpoint       | Allowed Roles     | Notes                         |
+| -------------- | ----------------- | ----------------------------- |
+| POST /preview  | admin, member     | Regular users can preview     |
+| POST /generate | admin, member     | Regular users can generate    |
+| GET /          | all authenticated | All users can list their docs |
+| GET /:id       | all authenticated | All users can view their docs |
+| DELETE /:id    | **admin only**    | Only admins can delete        |
 
 ### Additional Guards
 
 1. **DocumentLimitGuard** - Already exists for storage, may need updates for documents
-2. **TenantOwnershipGuard** - Verify document belongs to user's tenant (GET /:id)
 
 ---
 
@@ -328,6 +332,7 @@ export class DocumentLimitExceededException extends ForbiddenException {
 ## Migration File Naming
 
 Create migration file:
+
 ```
 scripts/migrations/008_documents_soft_delete.sql
 ```
@@ -343,7 +348,6 @@ After implementation, update:
 1. **README.md** - Add documents endpoints to API documentation
 2. **docs/DATABASE.md** - Document soft-delete columns
 3. **Swagger** - Should auto-update from controller annotations
-4. **Postman Collection** - Add documents endpoints
 
 ---
 
@@ -360,7 +364,6 @@ After implementation, update:
 - [ ] Add tenant ownership verification
 - [ ] Create E2E tests
 - [ ] Test with Swagger UI
-- [ ] Update Postman collection
 - [ ] Verify RLS policies work correctly
 - [ ] Test cross-tenant isolation
 - [ ] Performance test with large document lists

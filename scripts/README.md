@@ -38,8 +38,7 @@ scripts/
 │   └── README.md
 │   # Note: RBAC is auto-synced by RbacSyncService on app startup
 │
-├── utilities/               # Management and testing scripts
-│   └── manage-custom-features.sql
+├── utilities/               # Management scripts
 │
 ├── setup-database.sh        # 🔥 Complete setup (migrations + seeds)
 ├── run-migrations.sh        # Run all migrations
@@ -61,10 +60,10 @@ scripts/
 Sets up everything in one command:
 
 ```bash
-# Development (full test data)
+# Development (full sample data)
 ./scripts/setup-database.sh development
 
-# Staging (limited test data)
+# Staging (limited sample data)
 ./scripts/setup-database.sh staging
 
 # Production (reference data only)
@@ -78,7 +77,7 @@ Sets up everything in one command:
 
 1. ✅ Runs all 8 migrations (schema, RLS, grants)
 2. ✅ Seeds authorities and categories
-3. ✅ Seeds test data (dev only)
+3. ✅ Seeds sample data (dev only)
 4. ✅ Provides summary and next steps
 
 ### 2. Run Migrations Only
@@ -120,8 +119,8 @@ Populates database with initial data:
 
 - 10 UAE authorities (DMCC, DIFC, etc.)
 - 10 template categories
-- 3 test tenants (dev/staging)
-- 7 test users (dev/staging)
+- 3 sample tenants (dev/staging)
+- 7 sample users (dev/staging)
 - 5 sample templates (dev/staging)
 - 7 sample documents (dev/staging)
 
@@ -190,13 +189,13 @@ COMMIT;
 | --- | ----------------------------- | ---------------------------------- | ----------- |
 | 001 | `seed_authorities.sql`        | UAE authorities (DMCC, DIFC, etc.) | All         |
 | 002 | `seed_categories.sql`         | Template categories                | All         |
-| 004 | `seed_test_tenants_users.sql` | Test tenants and users             | Dev/Staging |
+| 004 | `seed_test_tenants_users.sql` | Sample tenants and users           | Dev/Staging |
 | 005 | `seed_templates.sql`          | Sample templates                   | Dev/Staging |
 | 006 | `seed_test_documents.sql`     | Tenant-specific documents          | Dev/Staging |
 
 **Note:** RBAC roles and permissions are automatically synced from code constants by `RbacSyncService` on every application startup. No SQL seed script is needed.
 
-### Test Credentials
+### Development Credentials
 
 After seeding development data:
 
@@ -205,7 +204,7 @@ After seeding development data:
 
 See `scripts/seeds/README.md` for complete credential list.
 
-### Testing RLS Isolation
+### Verifying RLS Isolation
 
 ```sql
 -- Connect as app user
@@ -266,22 +265,6 @@ Creates database roles:
 ```
 
 Waits for PostgreSQL to be ready (useful in CI/CD).
-
-### Custom Features Management
-
-**File:** `utilities/manage-custom-features.sql`
-
-Manage tenant features:
-
-```sql
--- View tenant features
-SELECT id, plan, features FROM public.tenants;
-
--- Grant custom feature
-UPDATE public.tenants
-SET features = jsonb_set(features, '{custom_feature}', 'true')
-WHERE id = 'tenant-id';
-```
 
 ---
 
@@ -395,7 +378,7 @@ chmod +x scripts/*.sh
    ```
 4. Re-run: `./scripts/run-migrations.sh`
 
-### No Test Data Showing
+### No Sample Data Showing
 
 Make sure you ran seeds for development:
 
@@ -403,7 +386,7 @@ Make sure you ran seeds for development:
 ./scripts/run-seeds.sh development
 ```
 
-Production environment only seeds reference data, not test data.
+Production environment only seeds reference data, not sample data.
 
 ### RLS Not Working
 
@@ -455,28 +438,28 @@ Production environment only seeds reference data, not test data.
 
 - Use `ON CONFLICT DO NOTHING` for idempotency
 - Include verification queries
-- Use realistic test data
-- Document test credentials
+- Use realistic sample data
+- Document development credentials
 
 ❌ **DON'T:**
 
 - Use real user passwords in seeds
-- Seed test data in production
+- Seed sample data in production
 - Hardcode production values
 
-### RLS Testing
+### RLS Verification
 
 ✅ **DO:**
 
-- Test tenant isolation thoroughly
+- Verify tenant isolation thoroughly
 - Verify cross-tenant queries return nothing
-- Test different user roles
+- Verify different user roles
 - Use session context properly
 
 ❌ **DON'T:**
 
 - Bypass RLS in application code
-- Assume RLS works without testing
+- Assume RLS works without verification
 - Use superuser role in production
 
 ---
@@ -540,7 +523,7 @@ VALUES ('new_category', 'New Category', 'Description here', NULL, true)
 ON CONFLICT (code) DO NOTHING;
 ```
 
-### Create Test Tenant Manually
+### Create Sample Tenant Manually
 
 ```sql
 -- Create tenant
@@ -550,7 +533,7 @@ RETURNING id;
 
 -- Create user (use the returned tenant ID)
 INSERT INTO public.users (email, password_hash, first_name, last_name, is_verified)
-VALUES ('test@example.com', '$2b$10$hash...', 'Test', 'User', true)
+VALUES ('sample@example.com', '$2b$10$hash...', 'Sample', 'User', true)
 RETURNING id;
 
 -- Link user to tenant (use both returned IDs)
@@ -602,7 +585,7 @@ After full setup (development):
 | Templates   | 5     |
 | Documents   | 7     |
 
-**Database size:** ~2-5 MB with test data
+**Database size:** ~2-5 MB with sample data
 
 ---
 

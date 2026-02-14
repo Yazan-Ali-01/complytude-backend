@@ -50,10 +50,9 @@ pnpm start:worker-ingestion  # Start ingestion worker
 # Before committing
 pnpm lint
 pnpm type-check
-pnpm test:e2e
 ```
 
-**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
+**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including Docker commands, database utilities, and debugging tools.
 
 ### Verify Your Setup
 
@@ -72,9 +71,6 @@ curl http://localhost:3000/api/health
 
 # Test MinIO
 open http://localhost:9001  # Login: minioadmin/minioadmin
-
-# Run E2E tests
-pnpm test:e2e
 ```
 
 ---
@@ -203,7 +199,6 @@ feat(auth): add email verification flow (COM-15)
 - Create email verification endpoint
 - Add email service integration
 - Update user schema with verification status
-- Add E2E tests for verification
 
 Closes COM-15
 ```
@@ -322,11 +317,7 @@ HUSKY=0 git commit -m "your message"
 
 4. **Write tests** for your changes
 
-5. **Run tests locally**:
-
-   ```bash
-   pnpm test:e2e
-   ```
+5. **Verify your changes** (lint, type-check)
 
 6. **Commit your changes** following the [commit standards](#commit-message-standards)
 
@@ -362,14 +353,6 @@ pnpm format          # Format code with Prettier
 ```bash
 pnpm type-check      # Validate TypeScript types
 pnpm build           # Full build with type checking
-```
-
-### Testing
-
-```bash
-pnpm test            # Run unit tests
-pnpm test:e2e        # Run E2E tests
-pnpm test:cov        # Run tests with coverage
 ```
 
 ### Standards

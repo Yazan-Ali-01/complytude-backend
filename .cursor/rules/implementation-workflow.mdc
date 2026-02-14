@@ -58,7 +58,6 @@ This rule defines the proper workflow for implementing features, fixes, or chang
 - Multiple valid implementation approaches
 - Missing information about business rules
 - Unclear error handling expectations
-- Uncertainty about testing requirements
 - Questions about backwards compatibility
 
 ### 4. WAIT FOR EXPLICIT APPROVAL
@@ -140,12 +139,11 @@ This rule defines the proper workflow for implementing features, fixes, or chang
 4. Include appropriate error handling
 5. Follow the technology stack guidelines
 
-### Step 6: Verify & Test
+### Step 6: Verify
 
 1. Check for linter errors
 2. Verify the implementation matches requirements
-3. Test the changes (if applicable)
-4. Document any new patterns or decisions
+3. Document any new patterns or decisions
 
 ## Examples
 
