@@ -105,29 +105,6 @@ export class UserTenantResponseDto {
 }
 
 /**
- * Tenant features nested object
- */
-export class TenantFeaturesDto {
-  @ApiProperty({
-    description: 'Maximum number of documents that can be created',
-    example: 100,
-  })
-  documentLimit: number;
-
-  @ApiProperty({
-    description: 'Access to compliance checklist feature',
-    example: true,
-  })
-  checklistAccess: boolean;
-
-  @ApiProperty({
-    description: 'Contract analyzer feature enabled',
-    example: false,
-  })
-  analyzerEnabled: boolean;
-}
-
-/**
  * Current tenant info response DTO
  * Returns tenant details resolved from JWT token
  */
@@ -140,16 +117,10 @@ export class TenantInfoResponseDto {
 
   @ApiProperty({
     description: 'Subscription plan tier',
-    enum: ['early_access', 'basic', 'pro', 'enterprise'],
-    example: 'pro',
+    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
+    example: 'general_counsel',
   })
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
-
-  @ApiProperty({
-    description: 'Tenant features and limits based on subscription plan',
-    type: TenantFeaturesDto,
-  })
-  features: TenantFeaturesDto;
+  plan: 'navigator' | 'shield' | 'general_counsel' | 'infrastructure';
 
   @ApiProperty({
     description: 'Whether tenant is active',

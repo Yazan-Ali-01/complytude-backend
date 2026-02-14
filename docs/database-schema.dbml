@@ -439,6 +439,272 @@ Table template_version_ruleset_versions {
 }
 
 // ============================================
+// ENTITLEMENT SYSTEM TABLES
+// ============================================
+
+// Catalog Tables (Global, No RLS)
+
+Table features {
+  id uuid [pk, default: `gen_random_uuid()`]
+  key varchar(100) [unique, not null, note: 'e.g., documents_per_month, redlining_enabled']
+  name varchar(255) [not null]
+  description text
+  feature_type varchar(50) [not null, note: 'boolean, quota, metered, capacity, rate_limit']
+  unit varchar(50) [note: 'e.g., documents, queries, seats']
+  creditable boolean [not null, default: false, note: 'Can fallback to credits when quota exceeded']
+  credit_cost integer [note: 'Cost in credits per unit (NULL for non-creditable features)']
+  is_active boolean [not null, default: true]
+  metadata jsonb [default: '{}']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    key
+    feature_type
+    is_active
+  }
+  
+  Note: '''
+    Feature catalog defining all available features.
+    Synced from code constants on app startup.
+    credit_cost: 5 credits for documents_per_month, 3 credits for regulatory_queries_per_month
+  '''
+}
+
+Table plans {
+  id uuid [pk, default: `gen_random_uuid()`]
+  key varchar(50) [unique, not null, note: 'navigator, shield, general_counsel, infrastructure']
+  name varchar(255) [not null]
+  description text
+  price_monthly decimal(10,2) [not null, default: 0]
+  price_currency varchar(3) [not null, default: 'AED']
+  billing_period varchar(20) [not null, default: 'monthly']
+  is_active boolean [not null, default: true]
+  sort_order integer [not null, default: 0]
+  metadata jsonb [default: '{}']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    key
+    is_active
+    sort_order
+  }
+  
+  Note: 'Subscription tier catalog (Navigator, Shield, General Counsel, Infrastructure)'
+}
+
+Table plan_entitlements {
+  id uuid [pk, default: `gen_random_uuid()`]
+  plan_id uuid [not null, ref: > plans.id]
+  feature_id uuid [not null, ref: > features.id]
+  value_bool boolean
+  value_int integer [note: '-1 for unlimited']
+  value_text varchar(255) [note: 'For tiered features like template_library: essential/full']
+  metadata jsonb [default: '{}']
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    plan_id
+    feature_id
+    (plan_id, feature_id) [unique]
+  }
+  
+  Note: 'Plan-feature matrix defining what each plan includes'
+}
+
+// Tenant-Scoped Tables (With RLS)
+
+Table tenant_subscriptions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  plan_id uuid [not null, ref: > plans.id]
+  status varchar(20) [not null, default: 'active', note: 'active, cancelled, past_due, trialing']
+  billing_period_start timestamptz [not null]
+  billing_period_end timestamptz [not null]
+  current_period_start timestamptz [not null]
+  current_period_end timestamptz [not null]
+  cancelled_at timestamptz
+  metadata jsonb [default: '{}']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    tenant_id
+    plan_id
+    status
+    current_period_end
+  }
+  
+  Note: 'Tenant subscription to a plan with billing period tracking'
+}
+
+Table tenant_overrides {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  feature_id uuid [not null, ref: > features.id]
+  value_bool boolean
+  value_int integer
+  value_text varchar(255)
+  reason text [not null]
+  applied_by varchar(255) [not null, note: 'Admin user ID who applied override']
+  starts_at timestamptz [not null, default: `now()`]
+  expires_at timestamptz
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    tenant_id
+    feature_id
+    is_active
+    expires_at
+  }
+  
+  Note: 'Admin overrides for tenant entitlements (highest precedence)'
+}
+
+Table usage_ledger {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  feature_id uuid [not null, ref: > features.id]
+  user_id uuid [ref: > users.id]
+  units integer [not null]
+  billing_period varchar(7) [not null, note: 'YYYY-MM format']
+  resource_type varchar(50)
+  resource_id uuid
+  metadata jsonb [default: '{}']
+  idempotency_key varchar(255)
+  recorded_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    tenant_id
+    feature_id
+    billing_period
+    (tenant_id, feature_id, billing_period)
+    idempotency_key [unique, where: 'idempotency_key IS NOT NULL']
+  }
+  
+  Note: 'Append-only usage event ledger (source of truth for usage tracking)'
+}
+
+Table usage_allocations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  usage_ledger_id uuid [not null, ref: > usage_ledger.id]
+  source varchar(20) [not null, note: 'plan, addon, credit, override']
+  units integer [not null]
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    usage_ledger_id
+    source
+  }
+  
+  Note: 'Source attribution for each usage event (which quota/credit was used)'
+}
+
+Table aggregated_usage {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  subscription_id uuid [not null, ref: > tenant_subscriptions.id]
+  feature_id uuid [not null, ref: > features.id]
+  billing_period varchar(7) [not null]
+  total_units integer [not null, default: 0]
+  plan_units integer [not null, default: 0]
+  addon_units integer [not null, default: 0]
+  credit_units integer [not null, default: 0]
+  override_units integer [not null, default: 0]
+  last_event_id uuid [ref: > usage_ledger.id]
+  last_updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    tenant_id
+    subscription_id
+    feature_id
+    billing_period
+    (tenant_id, subscription_id, feature_id, billing_period) [unique]
+  }
+  
+  Note: 'Derived projection of usage (for fast queries, rebuilt from ledger)'
+}
+
+Table credit_ledger {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  transaction_type varchar(20) [not null, note: 'purchase, grant, deduction, expiry, refund']
+  amount integer [not null, note: 'Positive for credit, negative for deduction']
+  balance_after integer [not null, note: 'Running balance after this transaction']
+  feature_id uuid [ref: > features.id, note: 'Feature ID if deduction']
+  usage_ledger_id uuid [ref: > usage_ledger.id, note: 'Link to usage event if deduction']
+  reason text
+  applied_by varchar(255)
+  expires_at timestamptz
+  metadata jsonb [default: '{}', note: 'Includes credit_cost_per_unit, units_consumed for deductions']
+  idempotency_key varchar(255)
+  recorded_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    tenant_id
+    transaction_type
+    recorded_at
+    idempotency_key [unique, where: 'idempotency_key IS NOT NULL']
+  }
+  
+  Note: '''
+    Append-only credit transaction ledger.
+    Metadata for deductions includes:
+    - credit_cost_per_unit: Cost per unit (e.g., 5 credits per document)
+    - units_consumed: Number of units consumed
+  '''
+}
+
+Table entitlement_snapshots {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  snapshot_data jsonb [not null, note: 'Cached effective entitlements']
+  subscription_id uuid [ref: > tenant_subscriptions.id]
+  valid_from timestamptz [not null, default: `now()`]
+  invalidated_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    tenant_id
+    valid_from
+    invalidated_at
+  }
+  
+  Note: 'Cached effective entitlements for performance (24h TTL)'
+}
+
+Table domain_events {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [ref: > tenants.id, note: 'NULL for system-wide events']
+  event_type varchar(100) [not null, note: 'usage.recorded, credit.deducted, etc.']
+  aggregate_type varchar(50) [not null, note: 'usage, credit, subscription, entitlement']
+  aggregate_id varchar(255) [not null]
+  actor_id varchar(255)
+  actor_type varchar(50) [not null, default: 'system']
+  payload jsonb [not null, note: 'Event data including credit_cost_per_unit for credit.deducted']
+  metadata jsonb [default: '{}']
+  sequence_number bigint
+  recorded_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    tenant_id
+    event_type
+    aggregate_type
+    aggregate_id
+    recorded_at
+    (tenant_id, event_type, recorded_at)
+  }
+  
+  Note: '''
+    Append-only domain event log for audit trail.
+    credit.deducted events include credit_cost_per_unit and units_consumed in payload.
+  '''
+}
+
+// ============================================
 // TENANT-SCOPED TABLES (With RLS)
 // ============================================
 
@@ -494,6 +760,23 @@ TableGroup "Authentication" {
   email_verifications
   password_resets
   invitations
+}
+
+TableGroup "Entitlements - Catalog (Global)" {
+  features
+  plans
+  plan_entitlements
+}
+
+TableGroup "Entitlements - Tenant (RLS)" {
+  tenant_subscriptions
+  tenant_overrides
+  usage_ledger
+  usage_allocations
+  aggregated_usage
+  credit_ledger
+  entitlement_snapshots
+  domain_events
 }
 
 TableGroup "Global Reference Data" {

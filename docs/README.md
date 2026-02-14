@@ -24,12 +24,13 @@ complytude/
 
 This directory contains documentation that applies across all applications:
 
-| Document                                     | Description                             |
-| -------------------------------------------- | --------------------------------------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md)           | System architecture and design patterns |
-| [DATABASE.md](DATABASE.md)                   | Database schema, RLS, and data model    |
-| [database-schema.dbml](database-schema.dbml) | Visual database schema (DBML format)    |
-| [DEPLOYMENT.md](DEPLOYMENT.md)               | Deployment instructions for all apps    |
+| Document                                     | Description                                          |
+| -------------------------------------------- | ---------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)           | System architecture and design patterns              |
+| [DATABASE.md](DATABASE.md)                   | Database schema, RLS, and data model                 |
+| [ENTITLEMENTS.md](ENTITLEMENTS.md)           | Entitlement system, plans, usage tracking, credits   |
+| [database-schema.dbml](database-schema.dbml) | Visual database schema (DBML format)                 |
+| [DEPLOYMENT.md](DEPLOYMENT.md)               | Deployment instructions for all apps                 |
 
 ---
 
@@ -89,6 +90,7 @@ Each application has its own documentation:
 - **Building APIs?** See [API Contracts](../apps/api/docs/API_CONTRACTS.md) for contract standards and [Quick Reference](../apps/api/docs/API_CONTRACTS_QUICK_REFERENCE.md) for templates.
 - **Running tests?** See [Testing Guide](../apps/api/test/README.md) for testing documentation.
 - **Working with the database?** See [Database Schema](DATABASE.md) and [Scripts Guide](../scripts/README.md) for migration guides.
+- **Implementing entitlements?** See [Entitlement System](ENTITLEMENTS.md) for plans, usage tracking, and credit system.
 - **Deploying?** Check [DEPLOYMENT.md](DEPLOYMENT.md) for deployment instructions.
 - **Understanding the architecture?** See [ARCHITECTURE.md](ARCHITECTURE.md) for system design.
 
@@ -125,6 +127,7 @@ When updating documentation:
 - ✅ Deployment strategies for all apps
 - ✅ Multi-tenancy design
 - ✅ Authentication strategy (system-wide)
+- ✅ Entitlement system (plans, usage, credits)
 
 **App-Specific `apps/{app}/docs/`:**
 

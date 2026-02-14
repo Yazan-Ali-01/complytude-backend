@@ -1,37 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsObject, ValidateNested } from 'class-validator';
-
-export class TenantFeaturesDto {
-  @ApiProperty({ example: 5, description: 'Maximum number of documents' })
-  @IsNotEmpty()
-  document_limit: number;
-
-  @ApiProperty({ example: true, description: 'Access to checklist feature' })
-  @IsNotEmpty()
-  checklist_access: boolean;
-
-  @ApiProperty({ example: true, description: 'Analyzer feature enabled' })
-  @IsNotEmpty()
-  analyzer_enabled: boolean;
-}
+import { IsEnum, IsOptional } from 'class-validator';
+import type { PlanKey } from 'src/common/types/entitlement.types';
 
 export class CreateTenantDto {
   @ApiProperty({
-    example: 'early_access',
-    enum: ['early_access', 'basic', 'pro', 'enterprise'],
+    example: 'navigator',
+    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
     description: 'Subscription plan',
+    default: 'navigator',
   })
-  @IsEnum(['early_access', 'basic', 'pro', 'enterprise'])
-  @IsNotEmpty()
-  plan: 'early_access' | 'basic' | 'pro' | 'enterprise';
-
-  @ApiProperty({
-    type: TenantFeaturesDto,
-    description: 'Feature configuration',
-  })
-  @IsObject()
-  @ValidateNested()
-  @Type(() => TenantFeaturesDto)
-  features: TenantFeaturesDto;
+  @IsEnum(['navigator', 'shield', 'general_counsel', 'infrastructure'])
+  @IsOptional()
+  plan?: PlanKey;
 }

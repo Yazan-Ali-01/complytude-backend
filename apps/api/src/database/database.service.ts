@@ -7,6 +7,42 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
+/**
+ * DatabaseService
+ *
+ * Core database service providing connection pooling, query execution, and RLS (Row-Level Security) support.
+ *
+ * RLS Pattern for Tenant Isolation:
+ * ================================
+ * All RLS-protected tables MUST use transactions with tenant context:
+ *
+ * RLS-Protected Tables:
+ * - tenant_subscriptions
+ * - tenant_addons
+ * - tenant_overrides
+ * - usage_ledger
+ * - credit_ledger
+ * - aggregated_usage
+ * - entitlement_snapshots
+ * - domain_events (tenant_id can be NULL for system events)
+ *
+ * Usage Pattern:
+ * ```typescript
+ * // In service layer
+ * await this.databaseService.transactionWithTenantContext(tenantId, async (client) => {
+ *   // All queries here automatically have tenant context set
+ *   const addons = await this.tenantAddonsRepository.findActiveByTenant(tenantId, { client });
+ *   const overrides = await this.tenantOverridesRepository.findActiveByTenant(tenantId, { client });
+ *   return { addons, overrides };
+ * });
+ * ```
+ *
+ * Key Points:
+ * - SET LOCAL app.current_tenant_id is transaction-scoped (clears on COMMIT/ROLLBACK)
+ * - Always pass { client } to repository methods within the transaction
+ * - Never use queryWithTenantContext for single queries - wrap in transaction instead
+ * - System operations (e.g., sync services) should use transaction(callback, true) to bypass RLS
+ */
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
@@ -142,35 +178,24 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Execute a query within a specific tenant context with RLS
+   * WARNING: This method is deprecated. Use transactionWithTenantContext instead.
+   * Single queries with RLS should be wrapped in a transaction to ensure proper context isolation.
+   *
    * @param tenantId Tenant identifier for RLS
    * @param text SQL query string
    * @param params Query parameters
    * @returns Query result
+   * @deprecated Use transactionWithTenantContext for proper RLS context isolation
    */
   async queryWithTenantContext<T extends QueryResultRow = any>(
     tenantId: string,
     text: string,
     params?: any[],
   ): Promise<QueryResult<T>> {
-    const client = await this.getClient();
-    try {
-      // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = $1`, [tenantId]);
-
-      // Execute query
-      const result = await client.query<T>(text, params);
-
-      this.logger.debug(`Executed query for tenant ${tenantId}`);
-
-      return result;
-    } catch (error) {
-      this.logger.error(`Query error in tenant context (${tenantId})`, error);
-      throw error;
-    } finally {
-      // Reset tenant context
-      // await client.query('RESET app.current_tenant_id');
-      client.release();
-    }
+    // Wrap in transaction to ensure proper RLS context
+    return this.transactionWithTenantContext(tenantId, async (client) => {
+      return await client.query<T>(text, params);
+    });
   }
 
   /**
@@ -187,8 +212,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       await client.query('BEGIN');
 
-      // Set tenant context for RLS
-      await client.query(`SET LOCAL app.current_tenant_id = $1`, [tenantId]);
+      // Set tenant context for RLS (transaction-scoped)
+      await this.setTenantContext(client, tenantId);
 
       // Execute transaction
       const result = await callback(client);
@@ -205,10 +230,31 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
       throw error;
     } finally {
-      // Reset tenant context
-      // await client.query('RESET app.current_tenant_id');
+      // Tenant context is automatically cleared on transaction end (SET LOCAL)
       client.release();
     }
+  }
+
+  /**
+   * Set tenant context for RLS within a transaction
+   * IMPORTANT: This must be called within an active transaction (after BEGIN)
+   * Uses SET LOCAL to ensure the setting is transaction-scoped and clears automatically on COMMIT/ROLLBACK
+   *
+   * @param client PoolClient with an active transaction
+   * @param tenantId Tenant identifier for RLS
+   * @private
+   */
+  private async setTenantContext(
+    client: PoolClient,
+    tenantId: string,
+  ): Promise<void> {
+    // SET LOCAL ensures the setting is transaction-scoped
+    // It will automatically be cleared when the transaction ends (COMMIT or ROLLBACK)
+    await client.query('SELECT set_config($1, $2, true)', [
+      'app.tenant_id',
+      tenantId,
+    ]);
+    this.logger.debug(`Set tenant context: ${tenantId} (transaction-scoped)`);
   }
 
   /**

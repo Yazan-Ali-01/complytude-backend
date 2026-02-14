@@ -4,7 +4,6 @@ import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Tenant } from './entities/tenant.entity';
-import { FeaturesService } from './features.service';
 import { TenantService } from './tenant.service';
 
 @ApiTags('Tenants')
@@ -12,10 +11,7 @@ import { TenantService } from './tenant.service';
 export class TenantController {
   private readonly logger = new Logger(TenantController.name);
 
-  constructor(
-    private readonly tenantService: TenantService,
-    private readonly featuresService: FeaturesService,
-  ) {}
+  constructor(private readonly tenantService: TenantService) {}
 
   // ============================================================================
   // SELF-MANAGEMENT ENDPOINTS (Read-only access to own tenant)
@@ -26,12 +22,11 @@ export class TenantController {
   @ApiOperation({
     summary: 'Get my tenant information',
     description:
-      'Get read-only information about your tenant including plan and active features. Use billing portal for plan upgrades.',
+      'Get read-only information about your tenant including plan. Use /entitlements/current for feature details.',
   })
   @ApiResponse({
     status: 200,
-    description:
-      'Your tenant details with effective features (plan defaults + custom overrides)',
+    description: 'Your tenant details',
     type: Object,
   })
   async getMyTenant(@CurrentUser() user: AuthenticatedUser): Promise<Tenant> {
@@ -40,15 +35,6 @@ export class TenantController {
     // Get tenant data
     const tenant = await this.tenantService.findById(user.tenantId);
 
-    // Get effective features (plan defaults + custom overrides)
-    const effectiveFeatures = await this.featuresService.getTenantFeatures(
-      user.tenantId,
-    );
-
-    // Return tenant with effective features instead of just DB custom overrides
-    return {
-      ...tenant,
-      features: effectiveFeatures,
-    };
+    return tenant;
   }
 }

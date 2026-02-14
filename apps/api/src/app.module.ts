@@ -1,4 +1,3 @@
-import { RedisModule } from '@complytude/shared/redis/redis.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -21,10 +20,12 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 import { MockModule } from './modules/mock/mock.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { TenantModule } from './modules/tenants/tenant.module';
 
@@ -40,10 +41,12 @@ import { TenantModule } from './modules/tenants/tenant.module';
         abortEarly: false,
       },
     }),
-    RedisModule.forRoot(),
+    // RedisModule.forRoot(),
     I18nModule,
     DatabaseModule,
     HealthModule,
+    EntitlementsModule,
+    SubscriptionsModule,
     TenantModule,
     AuthModule,
     UsersModule,

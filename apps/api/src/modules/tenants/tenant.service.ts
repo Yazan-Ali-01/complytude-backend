@@ -11,10 +11,10 @@ import {
   CursorPaginationResult,
 } from 'src/repositories/base/repository.interface';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { Tenant, TenantFeatures } from './entities/tenant.entity';
-import { FeaturesService } from './features.service';
+import { Tenant } from './entities/tenant.entity';
 
 @Injectable()
 export class TenantService {
@@ -23,12 +23,12 @@ export class TenantService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
-    private readonly featuresService: FeaturesService,
+    private readonly entitlementResolver: EntitlementResolverService,
   ) {}
 
   /**
    * Create a new tenant
-   * @param createTenantDto - Tenant configuration (plan, features)
+   * @param createTenantDto - Tenant configuration (plan)
    * @param options - Optional database client for transaction support
    * @returns Created Tenant entity
    */
@@ -39,14 +39,12 @@ export class TenantService {
     },
   ): Promise<Tenant> {
     const { client } = options ?? {};
-    const features: TenantFeatures = { ...createTenantDto.features };
 
     try {
       const tenantCreation = async (client: PoolClient) => {
         const tenant = await this.tenantRepository.create(
           {
-            plan: createTenantDto.plan,
-            features: JSON.stringify(features),
+            plan: createTenantDto.plan ?? 'navigator',
             is_active: true,
           },
           { client },
@@ -110,10 +108,6 @@ export class TenantService {
 
       const updated = await this.tenantRepository.update(tenantId, {
         ...updateTenantDto,
-        features:
-          updateTenantDto.features !== undefined
-            ? JSON.stringify(updateTenantDto.features)
-            : undefined,
       });
 
       if (!updated) {
@@ -168,47 +162,6 @@ export class TenantService {
       );
       throw new InternalServerErrorException(
         'Failed to retrieve document count',
-      );
-    }
-  }
-
-  /**
-   * Check if tenant can upload more documents based on their plan limit
-   */
-  async canUploadDocument(tenantId: string): Promise<{
-    allowed: boolean;
-    limit: number;
-    current: number;
-    message?: string;
-  }> {
-    try {
-      // Get current document count
-      const currentCount = await this.getDocumentCount(tenantId);
-
-      // Use FeaturesService to get the correct document limit (merges plan defaults with custom features)
-      const result = await this.featuresService.checkDocumentLimit(
-        tenantId,
-        currentCount,
-      );
-
-      // Add descriptive message
-      const message = result.allowed
-        ? result.limit === -1
-          ? 'Unlimited documents'
-          : `${result.current}/${result.limit} documents used`
-        : `Document limit reached (${result.limit}). Please upgrade your plan.`;
-
-      return {
-        ...result,
-        message,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to check document upload permission for tenant ${tenantId}`,
-        error,
-      );
-      throw new InternalServerErrorException(
-        'Failed to check document upload permission',
       );
     }
   }

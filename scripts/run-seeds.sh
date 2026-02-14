@@ -185,6 +185,8 @@ SEED_FILES=(
     "004_seed_test_tenants_users.sql"
     "005_seed_templates.sql"
     "006_seed_test_documents.sql"
+    "007_seed_features_plans.sql"
+    "008_seed_test_entitlements.sql"
 )
 
 FAILED_COUNT=0
