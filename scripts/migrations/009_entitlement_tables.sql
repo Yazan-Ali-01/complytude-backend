@@ -34,6 +34,7 @@ CREATE TABLE public.features (
     feature_type feature_type NOT NULL,
     unit        VARCHAR(50),
     creditable  BOOLEAN NOT NULL DEFAULT false,
+    credit_cost INTEGER, -- Cost in credits per unit (NULL for non-creditable features)
     is_active   BOOLEAN NOT NULL DEFAULT true,
     metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -45,6 +46,7 @@ COMMENT ON COLUMN public.features.key IS 'Unique feature key (e.g., documents_pe
 COMMENT ON COLUMN public.features.feature_type IS 'Type of feature: boolean, quota, metered, capacity, rate_limit';
 COMMENT ON COLUMN public.features.unit IS 'Unit of measurement for quota/metered features (e.g., documents, queries, seats)';
 COMMENT ON COLUMN public.features.creditable IS 'Whether this feature can fallback to credits when quota is exceeded';
+COMMENT ON COLUMN public.features.credit_cost IS 'Cost in credits per unit of usage (NULL for non-creditable features)';
 
 -- Plans: Subscription tier catalog
 CREATE TABLE public.plans (

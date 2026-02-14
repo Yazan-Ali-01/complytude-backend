@@ -2,10 +2,11 @@
 
 Complete manual testing guide for the entitlement system foundation.
 
-## ⚠️ Multi-Source Allocations Architecture
+## ⚠️ Multi-Source Allocations & Variable Credit Costs
 
-**Important:** The entitlement system now supports **multi-source funding allocations** for usage events.
+**Important:** The entitlement system now supports **multi-source funding allocations** and **variable credit costs per feature**.
 
+### Multi-Source Allocations
 - Each `usage_ledger` event can have **multiple funding sources** (plan + credit, addon + credit, etc.)
 - Funding attribution is tracked in the `usage_allocations` table (1..N allocations per usage event)
 - **Partial credit fallback** is implemented: when quota is exceeded, remaining plan quota is used first, then credits fill the gap
@@ -14,6 +15,13 @@ Complete manual testing guide for the entitlement system foundation.
 **Example:** If you have 1 unit remaining in your plan and request 5 units with credits available:
 - Old behavior: All 5 units charged to credits
 - New behavior: 1 unit from plan + 4 units from credits (more cost-effective)
+
+### Variable Credit Costs
+- Different features have different credit costs per unit
+- **Documents:** 5 credits per document
+- **Regulatory Queries:** 3 credits per query
+- API responses include `creditsDeducted` and `creditCostPerUnit` when credits are used
+- Credit ledger and domain events include cost information for audit trail
 
 ---
 

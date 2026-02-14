@@ -223,15 +223,16 @@ graph TD
 
 ### Core Modules
 
-| Module          | Responsibility                                                          | Dependencies                 |
-| --------------- | ----------------------------------------------------------------------- | ---------------------------- |
-| **auth**        | JWT authentication, signup, login, token refresh, user invitation flows | users, invitations, database |
-| **users**       | User management, profile updates                                        | database                     |
-| **tenants**     | Tenant creation, subscription management                                | users, database              |
-| **invitations** | Tenant invitations, accept/reject, admin management                     | users, tenants, database     |
-| **templates**   | Template CRUD, versioning                                               | storage, database            |
-| **storage**     | File upload/download, S3 integration                                    | tenants, database            |
-| **health**      | Health checks for services                                              | database, storage            |
+| Module           | Responsibility                                                          | Dependencies                 |
+| ---------------- | ----------------------------------------------------------------------- | ---------------------------- |
+| **auth**         | JWT authentication, signup, login, token refresh, user invitation flows | users, invitations, database |
+| **users**        | User management, profile updates                                        | database                     |
+| **tenants**      | Tenant creation, subscription management                                | users, database              |
+| **invitations**  | Tenant invitations, accept/reject, admin management                     | users, tenants, database     |
+| **entitlements** | Plan-based feature access, usage tracking, credit system (Global)       | database, subscriptions      |
+| **templates**    | Template CRUD, versioning                                               | storage, database            |
+| **storage**      | File upload/download, S3 integration                                    | tenants, database            |
+| **health**       | Health checks for services                                              | database, storage            |
 
 ---
 
@@ -859,9 +860,94 @@ S3_SECRET_KEY=<secret>
 
 ---
 
+## Entitlement System Architecture
+
+Complytude implements a production-grade entitlement engine that manages feature access, usage tracking, and credit fallback.
+
+### System Overview
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                      Entitlement Resolution                          │
+│                                                                      │
+│  effective_entitlements =                                            │
+│      plan_entitlements                                               │
+│    + addon_entitlements                                              │
+│    + promotional_grants (future)                                     │
+│    + internal_overrides (rare, admin-only)                           │
+└──────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    Runtime Enforcement Flow                           │
+│                                                                      │
+│  1. Resolve effective entitlement for feature                        │
+│  2. Fetch aggregated usage (from projection)                         │
+│  3. Compare requested units to remaining quota                       │
+│  4. If exceeded → check credit balance → deduct if allowed           │
+│  5. Record usage event (append-only ledger)                          │
+│  6. Update aggregated projection (sync)                              │
+│  7. Emit domain audit event                                         │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Services
+
+| Service | Responsibility |
+|---------|----------------|
+| **EntitlementResolverService** | Compute effective entitlements (plan + addons + overrides) |
+| **EntitlementEnforcementService** | Runtime checks: can tenant use feature? Record usage + credit fallback |
+| **EntitlementSnapshotService** | Cache computed entitlements for fast reads (24h TTL) |
+| **UsageIngestionService** | Record usage events to append-only ledger |
+| **UsageProjectionService** | Maintain aggregated usage counts (derived from ledger) |
+| **CreditLedgerService** | Manage credit transactions (purchase, grant, deduct, refund) |
+| **SubscriptionsService** | Manage tenant subscriptions (create, change plan, cancel, renew) |
+| **DomainEventsService** | Emit and query domain events (audit trail) |
+
+### Feature Types
+
+The system supports typed features:
+
+- **boolean** - On/off access (e.g., `redlining_enabled`)
+- **quota** - Units per billing period (e.g., `documents_per_month: 25`)
+- **capacity** - Max concurrent resources (e.g., `user_seats: 10`)
+- **metered** - Per-usage tracking (future: API calls)
+- **rate_limit** - Time-based limit (future: requests/min)
+
+### Plan Tiers
+
+| Plan | Target | Price | Key Features |
+|------|--------|-------|--------------|
+| **Navigator** (Free) | Founders | AED 0/mo | 3 docs/mo, basic regulatory |
+| **Shield** | Solo entrepreneurs | AED 249/mo | 25 docs/mo, essential templates |
+| **General Counsel** | Active SMEs | AED 599/mo | 100 docs/mo, full library, AI redlining |
+| **Infrastructure** | Agencies, enterprises | AED 2,499+/mo | Unlimited docs, custom playbooks, white-label |
+
+### Global Module Architecture
+
+**EntitlementsModule is a Global Module** - marked with `@Global()` decorator for application-wide availability.
+
+**Why Global?**
+- Entitlements are a cross-cutting concern like authentication and RBAC
+- `EntitlementGuard` and `UsageEnforcementGuard` are used across many feature modules
+- Eliminates the need to import `EntitlementsModule` in every feature module
+
+**What's Available Globally:**
+- `EntitlementResolverService` - Entitlement resolution
+- `EntitlementEnforcementService` - Usage enforcement + credit fallback
+- `EntitlementSnapshotService` - Snapshot management
+- `UsageIngestionService` - Usage recording
+- `CreditLedgerService` - Credit management
+- `DomainEventsService` - Event auditing
+
+**For detailed entitlement documentation, see [ENTITLEMENTS.md](./ENTITLEMENTS.md)**
+
+---
+
 ## Related Documentation
 
 - [DATABASE.md](DATABASE.md) - Detailed database schema
+- [ENTITLEMENTS.md](ENTITLEMENTS.md) - Entitlement system documentation
 - [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment guide for all apps
 - [API Development Guide](../apps/api/docs/DEVELOPMENT.md) - API development workflow
 - [API Contracts](../apps/api/docs/API_CONTRACTS.md) - API specifications

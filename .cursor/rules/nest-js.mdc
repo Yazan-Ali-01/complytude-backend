@@ -260,6 +260,17 @@ system_roles: "In-memory permission sets for performance"
 custom_roles: "Database-backed (MVP+)"
 sync: "RbacSyncService syncs permissions/roles from code to DB on startup"
 
+# ========================================
+
+# Entitlement System
+
+# ========================================
+
+entitlements:
+strategy: "Plan-based feature access with usage tracking and credit fallback"
+architecture: "Event-sourced with append-only ledgers and derived projections"
+sync: "EntitlementSyncService syncs features/plans from constants to DB on startup"
+
 # Permission Format
 
 Permissions follow the pattern: `{resource}:{action}`

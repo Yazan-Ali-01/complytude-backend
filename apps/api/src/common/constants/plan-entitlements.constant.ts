@@ -19,6 +19,7 @@ export interface FeatureDefinition {
   feature_type: FeatureType;
   unit?: string;
   creditable?: boolean;
+  credit_cost?: number | null; // Cost in credits per unit (null for non-creditable features)
   description?: string;
 }
 
@@ -33,6 +34,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     feature_type: 'quota',
     unit: 'documents',
     creditable: true,
+    credit_cost: 5, // 5 credits per document
     description: 'Number of documents that can be generated per billing period',
   },
   {
@@ -86,6 +88,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     feature_type: 'quota',
     unit: 'queries',
     creditable: true,
+    credit_cost: 3, // 3 credits per query
     description: 'Chat-with-Law queries per billing period',
   },
   {
@@ -93,6 +96,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     name: 'License Verifier Lookups',
     feature_type: 'quota',
     unit: 'lookups',
+    creditable: false,
     description: 'DED API lookups per billing period',
   },
   {

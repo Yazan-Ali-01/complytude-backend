@@ -8,10 +8,10 @@ import {
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
-import { DomainEventsService } from './domain-events.service';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { CreditLedgerService } from './credit-ledger.service';
+import { DomainEventsService } from './domain-events.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
@@ -282,11 +282,20 @@ export class EntitlementEnforcementService {
       client,
     });
 
+    // Get feature credit cost from database
+    const feature = await this.featuresRepository.findByKey(featureKey, {
+      client,
+    });
+    const creditCostPerUnit =
+      feature?.credit_cost != null && feature.credit_cost > 0
+        ? feature.credit_cost
+        : 1; // Default to 1 if not specified
+
     // Calculate split: use plan remaining first, then credits
     // Ensure planUnits is never negative (when quota is already exceeded)
     const planUnits = Math.max(0, Math.min(remaining, units)); // Use what's left in plan (0 if already over)
     const creditUnits = units - planUnits; // Fill the gap with credits
-    const creditCost = creditUnits * 1; // 1:1 ratio for now
+    const creditCost = creditUnits * creditCostPerUnit; // Use feature-specific credit cost
 
     if (creditBalance < creditCost) {
       // Insufficient credits: deny
@@ -320,10 +329,6 @@ export class EntitlementEnforcementService {
     }
 
     // Record usage with multi-source allocations
-    const feature = await this.featuresRepository.findByKey(featureKey, {
-      client,
-    });
-
     const usageEvent = await this.usageIngestionService.recordUsage(
       {
         tenant_id: tenantId,
@@ -333,7 +338,8 @@ export class EntitlementEnforcementService {
         allocations,
         metadata: {
           ...metadata,
-          credit_cost: creditCost,
+          credit_cost_per_unit: creditCostPerUnit,
+          total_credits_deducted: creditCost,
           plan_units: planUnits,
           credit_units: creditUnits,
         },
@@ -348,13 +354,18 @@ export class EntitlementEnforcementService {
         creditCost,
         feature?.id,
         usageEvent.id,
-        { ...metadata, credit_fallback: true },
+        {
+          ...metadata,
+          credit_fallback: true,
+          credit_cost_per_unit: creditCostPerUnit,
+          units_consumed: creditUnits,
+        },
         { client },
       );
     }
 
     this.logger.log(
-      `Partial credit fallback: tenant=${tenantId}, feature=${featureKey}, plan=${planUnits}, credits=${creditUnits}, remaining_credits=${creditBalance - creditCost}`,
+      `Partial credit fallback: tenant=${tenantId}, feature=${featureKey}, plan=${planUnits}, credits=${creditUnits}, cost=${creditCost}, remaining_credits=${creditBalance - creditCost}`,
     );
 
     // Determine source for response (primary source or 'mixed')
@@ -366,6 +377,8 @@ export class EntitlementEnforcementService {
       source: responseSource as any, // 'plan', 'credit', or 'mixed'
       allocations,
       creditsRemaining: creditBalance - creditCost,
+      creditsDeducted: creditUnits > 0 ? creditCost : undefined, // Only include if credits were used
+      creditCostPerUnit: creditUnits > 0 ? creditCostPerUnit : undefined, // Only include if credits were used
       limit,
       used: used + units,
     };

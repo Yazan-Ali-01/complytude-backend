@@ -117,13 +117,20 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 **How It Works:**
 1. Tenant exceeds quota (e.g., 25 docs used, tries to create 26th)
 2. System checks if feature is creditable
-3. If yes, deducts credits (1:1 ratio by default)
+3. If yes, deducts credits based on feature's `credit_cost` (e.g., 5 credits per document)
 4. Usage is recorded with `source: "credit"`
+
+**Credit Cost Per Feature:**
+- Each creditable feature has a `credit_cost` field defining credits per unit
+- Example: `documents_per_month` costs 5 credits per document
+- Example: `regulatory_queries_per_month` costs 3 credits per query
+- Non-creditable features have `credit_cost: null`
 
 **Credit Ledger:**
 - Append-only transaction log
 - Tracks purchases, grants, deductions, refunds
 - Running balance computed from ledger
+- Deduction events include `credit_cost_per_unit` and `units_consumed` for audit trail
 
 ---
 
@@ -199,23 +206,23 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ### Complete Feature List
 
-| Feature Key | Type | Unit | Creditable | Description |
-|-------------|------|------|------------|-------------|
-| `documents_per_month` | quota | documents | ✅ Yes | Documents that can be generated per billing period |
-| `template_library` | boolean | - | ❌ No | Access to template library (essential/full) |
-| `bilingual_quality` | boolean | - | ❌ No | Bilingual quality (standard/jais_native) |
-| `contract_reviews_per_month` | quota | reviews | ❌ No | AI contract reviews per billing period |
-| `risk_analysis_level` | boolean | - | ❌ No | Risk analysis level (none/critical_only/full) |
-| `redlining_enabled` | boolean | - | ❌ No | AI suggests alternative compliant wording |
-| `localizer_check` | boolean | - | ❌ No | Flags governing law/jurisdiction mismatches |
-| `regulatory_hub_access` | boolean | - | ❌ No | Access to compliance dashboard |
-| `regulatory_queries_per_month` | quota | queries | ✅ Yes | Chat-with-Law queries per billing period |
-| `license_verifier_lookups` | quota | lookups | ❌ No | DED API lookups per billing period |
-| `jurisdictions` | boolean | - | ❌ No | Access to jurisdictions (single/all) |
-| `user_seats` | capacity | seats | ❌ No | Maximum number of users in tenant |
-| `data_isolation` | boolean | - | ❌ No | Data isolation level (shared/row_level/silo) |
-| `custom_playbooks` | boolean | - | ❌ No | Upload company-specific negotiating positions |
-| `white_label_exports` | boolean | - | ❌ No | Export reports with tenant branding |
+| Feature Key | Type | Unit | Creditable | Credit Cost | Description |
+|-------------|------|------|------------|-------------|-------------|
+| `documents_per_month` | quota | documents | ✅ Yes | 5 credits | Documents that can be generated per billing period |
+| `template_library` | boolean | - | ❌ No | - | Access to template library (essential/full) |
+| `bilingual_quality` | boolean | - | ❌ No | - | Bilingual quality (standard/jais_native) |
+| `contract_reviews_per_month` | quota | reviews | ❌ No | - | AI contract reviews per billing period |
+| `risk_analysis_level` | boolean | - | ❌ No | - | Risk analysis level (none/critical_only/full) |
+| `redlining_enabled` | boolean | - | ❌ No | - | AI suggests alternative compliant wording |
+| `localizer_check` | boolean | - | ❌ No | - | Flags governing law/jurisdiction mismatches |
+| `regulatory_hub_access` | boolean | - | ❌ No | - | Access to compliance dashboard |
+| `regulatory_queries_per_month` | quota | queries | ✅ Yes | 3 credits | Chat-with-Law queries per billing period |
+| `license_verifier_lookups` | quota | lookups | ❌ No | - | DED API lookups per billing period |
+| `jurisdictions` | boolean | - | ❌ No | - | Access to jurisdictions (single/all) |
+| `user_seats` | capacity | seats | ❌ No | - | Maximum number of users in tenant |
+| `data_isolation` | boolean | - | ❌ No | - | Data isolation level (shared/row_level/silo) |
+| `custom_playbooks` | boolean | - | ❌ No | - | Upload company-specific negotiating positions |
+| `white_label_exports` | boolean | - | ❌ No | - | Export reports with tenant branding |
 
 ---
 
@@ -396,27 +403,30 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 5. Get credit balance → 50 credits available
 
-6. Calculate cost: 1 unit × 1 credit/unit = 1 credit
+6. Calculate cost: 1 unit × 5 credits/unit = 5 credits (feature-specific cost)
 
 7. Deduct credits:
-   - Record credit transaction: -1 credit
-   - balance_after: 49
+   - Record credit transaction: -5 credits
+   - balance_after: 45
 
 8. Record usage event:
    - allocations: [{ source: 'credit', units: 1 }]
+   - metadata: { credit_cost_per_unit: 5, total_credits_deducted: 5 }
 
 9. Update aggregated_usage:
    - total_units: 25 → 26
    - credit_units: 0 → 1
 
 10. Emit domain events:
-    - 'usage.recorded'
-    - 'credit.deducted'
+    - 'usage.recorded' (includes credit cost in metadata)
+    - 'credit.deducted' (includes credit_cost_per_unit: 5, units_consumed: 1)
 
 11. Return: {
       allowed: true,
       source: 'credit',
-      creditsRemaining: 49
+      creditsRemaining: 45,
+      creditsDeducted: 5,
+      creditCostPerUnit: 5
     }
 ```
 
@@ -424,25 +434,35 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ```typescript
 // Scenario: Tenant has 2 units left in plan, requests 5 units
+// Feature: documents_per_month (5 credits per document)
 1. Resolve entitlement → value_int: 25
 2. Current usage → 23 units used
 3. Remaining: 25 - 23 = 2 units
 4. Request: 5 units → exceeds by 3 units
-5. Check credits → 10 credits available
-6. Split allocation:
+5. Check credits → 20 credits available
+6. Calculate credit cost: 3 units × 5 credits/unit = 15 credits
+7. Split allocation:
    - Plan: 2 units (use what's left)
-   - Credit: 3 units (fill the gap)
-7. Deduct 3 credits
-8. Record usage with allocations:
+   - Credit: 3 units (fill the gap, costs 15 credits)
+8. Deduct 15 credits
+9. Record usage with allocations:
    [
      { source: 'plan', units: 2 },
      { source: 'credit', units: 3 }
    ]
-9. Return: {
+   metadata: {
+     credit_cost_per_unit: 5,
+     total_credits_deducted: 15,
+     plan_units: 2,
+     credit_units: 3
+   }
+10. Return: {
      allowed: true,
      source: 'mixed',
      allocations: [...],
-     creditsRemaining: 7
+     creditsRemaining: 5,
+     creditsDeducted: 15,
+     creditCostPerUnit: 5
    }
 ```
 
@@ -539,19 +559,21 @@ async listAllTemplates() {
 1. User clicks "Generate Document" (26th this month)
 2. Frontend calls: POST /api/documents/generate
 3. EntitlementEnforcementService.checkAndRecord():
-   - Resolve entitlement: 25 docs/month, creditable: true
+   - Resolve entitlement: 25 docs/month, creditable: true, credit_cost: 5
    - Check usage: 25 used
    - Remaining: 0 → EXCEEDED
    - Check credits: 100 available
-   - Deduct 1 credit: 100 → 99
+   - Deduct 5 credits: 100 → 95 (5 credits per document)
    - Record usage with source: 'credit'
    - Update projection: credit_units: 0 → 1
 4. Document is generated
 5. Response: {
      documentId,
      source: 'credit',
-     creditsRemaining: 99,
-     message: "Used 1 credit (quota exceeded)"
+     creditsRemaining: 95,
+     creditsDeducted: 5,
+     creditCostPerUnit: 5,
+     message: "Used 5 credits (quota exceeded)"
    }
 ```
 
@@ -1024,13 +1046,20 @@ export class AuditService {
   "payload": {
     "transaction_id": "uuid",
     "transaction_type": "deduction",
-    "amount": -1,
-    "balance_after": 49,
+    "amount": -5,
+    "balance_after": 45,
     "feature_id": "uuid",
     "usage_ledger_id": "uuid",
-    "reason": null
+    "reason": null,
+    "credit_cost_per_unit": 5,
+    "units_consumed": 1
   },
-  "recorded_at": "2026-02-07T10:30:01Z"
+  "metadata": {
+    "recorded_at": "2026-02-07T10:30:01Z",
+    "credit_fallback": true,
+    "credit_cost_per_unit": 5,
+    "units_consumed": 1
+  }
 }
 ```
 
@@ -1093,18 +1122,20 @@ await usageProjectionService.rebuildFromLedger(
 
 **Symptom:** Tenant exceeded quota, has credits, but request was denied.
 
-**Cause:** Feature is not marked as `creditable`.
+**Cause:** Feature is not marked as `creditable` or `credit_cost` is not set.
 
 **Solution:**
 ```typescript
 // Check feature definition
 const feature = getFeatureDefinition('feature_key');
 console.log(feature.creditable); // Should be true
+console.log(feature.credit_cost); // Should be a positive number
 
-// If false, update in plan-entitlements.constant.ts:
+// If false or missing, update in plan-entitlements.constant.ts:
 {
   key: 'feature_key',
   creditable: true, // ← Add this
+  credit_cost: 5, // ← Add this (credits per unit)
 }
 ```
 

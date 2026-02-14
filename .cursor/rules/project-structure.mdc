@@ -37,6 +37,7 @@ Documentation that applies to all applications:
 - **README.md** - Documentation hub and index
 - **ARCHITECTURE.md** - System architecture and design decisions
 - **DATABASE.md** - Database schema, RLS policies, multi-tenancy
+- **ENTITLEMENTS.md** - Entitlement system, plans, usage tracking, credits
 - **database-schema.dbml** - Visual database schema (DBML format)
 - **DEPLOYMENT.md** - Deployment instructions for all apps
 
@@ -129,7 +130,6 @@ Environment-based configuration with Joi validation:
 - **database.config.ts** - Database connection configuration
 - **jwt.config.ts** - JWT authentication settings
 - **storage.config.ts** - S3 storage configuration
-- **plan-features.config.ts** - Feature limits per plan
 
 ### Database Layer (`apps/api/src/database/`)
 
@@ -155,13 +155,35 @@ Data access layer with repository pattern:
 - **documents/** - Documents repository
 - **invitations/** - Tenant invitations repository
 - **rbac/** - RBAC repositories (roles, permissions)
-  - **roles.repository.ts** - Role CRUD and permission lookups
-  - **permissions.repository.ts** - Permission queries
-  - **interfaces/** - RBAC interfaces (Role, Permission, CreateRoleInput, etc.)
+- **roles.repository.ts** - Role CRUD and permission lookups
+- **permissions.repository.ts** - Permission queries
+- **interfaces/** - RBAC interfaces (Role, Permission, CreateRoleInput, etc.)
 - **rulesets/** - Compliance rulesets repository
 - **templates/** - Templates and versions repositories
 - **tenants/** - Tenant management repository
 - **users/** - User, email verification, refresh tokens, user-tenant repositories
+
+#### Entitlement Repositories
+
+- **entitlements/** - Entitlement-specific repositories
+- **entitlement-snapshots.repository.ts** - Snapshot CRUD
+- **plan-entitlements.repository.ts** - Plan-feature matrix
+- **tenant-addons.repository.ts** - Tenant add-on bindings
+- **tenant-overrides.repository.ts** - Admin overrides
+- **plans/** - Plan catalog repository
+- **plans.repository.ts** - Plan CRUD
+- **features/** - Feature catalog repository
+- **features.repository.ts** - Feature CRUD
+- **subscriptions/** - Subscription management
+- **subscriptions.repository.ts** - Tenant subscription CRUD
+- **usage/** - Usage tracking repositories
+- **usage-ledger.repository.ts** - Append-only usage events
+- **usage-allocations.repository.ts** - Source attribution per usage event
+- **aggregated-usage.repository.ts** - Derived usage projections
+- **credits/** - Credit system repository
+- **credit-ledger.repository.ts** - Append-only credit transactions
+- **domain-events/** - Domain event repository
+- **domain-events.repository.ts** - Append-only event log
 
 ### Common Utilities (`common/`)
 
@@ -170,11 +192,13 @@ Data access layer with repository pattern:
 - **i18n-keys.ts** - Internationalization key constants
 - **tenant-permissions.constant.ts** - RBAC permission definitions
 - **tenant-system-roles.constant.ts** - System role permission sets
+- **plan-entitlements.constant.ts** - Entitlement feature catalog and plan matrix (source of truth)
 
 #### Decorators (`decorators/`)
 
 - **tenant.decorator.ts** - Extract tenant ID from request
-- **features.decorator.ts** - Feature flag decorator
+- **require-entitlement.decorator.ts** - Entitlement-based feature access
+- **track-usage.decorator.ts** - Usage tracking decorator
 - **json-field.decorator.ts** - JSON field transformation
 - **file-validators.decorator.ts** - File validation decorators
 - **body-dto.decorator.ts** - Body DTO decorator
@@ -192,8 +216,10 @@ Data access layer with repository pattern:
 
 - **system-admin.guard.ts** - System admin authorization
 - **tenant-ownership.guard.ts** - Tenant resource ownership
-- **features.guard.ts** - Feature flag enforcement
-- **document-limit.guard.ts** - Document limit enforcement
+- **features.guard.ts** - Feature flag enforcement (deprecated, use entitlement.guard.ts)
+- **document-limit.guard.ts** - Document limit enforcement (deprecated, use usage-enforcement.guard.ts)
+- **entitlement.guard.ts** - Entitlement-based feature access
+- **usage-enforcement.guard.ts** - Quota enforcement with credit fallback
 - **permissions.guard.ts** - RBAC permission-based authorization
 
 #### Interceptors (`interceptors/`)
@@ -219,9 +245,10 @@ Data access layer with repository pattern:
 #### Types & Interfaces
 
 - **types/** - TypeScript type definitions
-  - **tenant.types.ts** - Tenant types including SystemTenantRole enum and TenantPermission type
-  - **platform.types.ts** - Platform-wide types (GlobalRole enum)
-  - **validation.types.ts** - Validation-related types
+- **tenant.types.ts** - Tenant types including SystemTenantRole enum and TenantPermission type
+- **platform.types.ts** - Platform-wide types (GlobalRole enum)
+- **entitlement.types.ts** - Entitlement types (FeatureKey, PlanKey, FeatureType, UsageSource, EffectiveEntitlement)
+- **validation.types.ts** - Validation-related types
 - **interfaces/** - Interface definitions
 
 #### Utilities
@@ -239,11 +266,32 @@ JWT-based authentication with Passport:
 - **auth.service.ts** - Authentication business logic
 - **auth.module.ts** - Auth module configuration
 - **decorators/** - Auth decorators (current-user, roles, auth-options)
-  - **roles.decorator.ts** - Simple role check decorator (`@Roles('tenant_admin')`)
+- **roles.decorator.ts** - Simple role check decorator (`@Roles('tenant_admin')`)
 - **guards/** - JWT guards (access/refresh tokens)
-  - **roles.guard.ts** - Simple role verification guard (use with `@Roles()` decorator)
+- **roles.guard.ts** - Simple role verification guard (use with `@Roles()` decorator)
 - **strategies/** - Passport JWT strategies (identity/tenant tokens)
 - **dto/** - Auth DTOs (login, signup, forgot-password, etc.)
+
+#### Entitlements (`entitlements/`)
+
+Production-grade entitlement engine with usage tracking and credit system:
+
+- **entitlements.controller.ts** - Entitlement query endpoints (admin + tenant)
+- **entitlements.module.ts** - Global module configuration (exports all services)
+- **services/** - Core entitlement services
+- **entitlement-resolver.service.ts** - Resolve effective entitlements (plan + addons + overrides)
+- **entitlement-enforcement.service.ts** - Runtime checks + usage recording + credit fallback
+- **entitlement-snapshot.service.ts** - Snapshot lifecycle (cache + invalidation)
+- **entitlement-sync.service.ts** - Sync features/plans from constants to DB (on startup)
+- **usage-ingestion.service.ts** - Record usage events to append-only ledger
+- **usage-projection.service.ts** - Maintain aggregated usage counts
+- **credit-ledger.service.ts** - Credit transactions (purchase, grant, deduct, refund)
+- **credit-balance.service.ts** - Credit balance queries
+- **tenant-addons.service.ts** - Add-on management
+- **tenant-overrides.service.ts** - Admin override management
+- **domain-events.service.ts** - Domain event queries/replay
+- **dto/** - Entitlement DTOs
+- **entitlement-response.dto.ts** - EffectiveEntitlementDto, CurrentEntitlementsResponseDto, PlanResponseDto
 
 #### Authorities (`authorities/`)
 

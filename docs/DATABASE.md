@@ -33,14 +33,15 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 
 | Metric               | Count |
 | -------------------- | ----- |
-| Total Tables         | 19    |
+| Total Tables         | 38    |
 | Core Tables          | 3     |
 | RBAC Tables          | 3     |
 | Auth Tables          | 4     |
+| Entitlement Tables   | 16    |
 | Global Tables        | 6     |
-| Tenant-Scoped Tables | 1     |
+| Tenant-Scoped Tables | 2     |
 | Junction Tables      | 3     |
-| Enums                | 5     |
+| Enums                | 7     |
 
 ---
 
@@ -126,7 +127,42 @@ Tables that define the multi-tenant structure:
 - `users` - User accounts (can belong to multiple tenants)
 - `user_tenants` - Many-to-many relationship with roles
 
-### 2. Authentication
+### 2. Entitlement System (NEW)
+
+Production-grade entitlement engine with usage tracking and credit system:
+
+**Catalog Tables (Global, No RLS):**
+- `features` - Feature catalog with typed definitions (boolean, quota, capacity, etc.) and credit costs
+  - `credit_cost` column: Cost in credits per unit (e.g., 5 credits for documents, 3 credits for queries)
+  - NULL for non-creditable features
+- `plans` - Subscription plan definitions (Navigator, Shield, General Counsel, Infrastructure)
+- `plan_entitlements` - Feature limits per plan
+- `addons` - Purchasable add-ons
+- `addon_entitlements` - Feature limits per add-on
+
+**Tenant-Scoped Tables (RLS Enabled):**
+- `tenant_subscriptions` - Active subscription binding with billing periods
+- `tenant_addons` - Active add-on bindings
+- `tenant_overrides` - Admin-applied entitlement overrides
+
+**Event Ledgers (Append-Only, RLS Enabled):**
+- `usage_ledger` - Usage event store (source of truth)
+  - Metadata includes `credit_cost_per_unit` and `total_credits_deducted` when credits are used
+- `usage_allocations` - Source attribution for each usage event (plan/addon/credit/override)
+- `credit_ledger` - Credit transaction ledger (purchase, grant, deduction, refund)
+  - Metadata includes `credit_cost_per_unit` and `units_consumed` for deduction transactions
+
+**Projections & Snapshots (Performance Cache):**
+- `aggregated_usage` - Derived usage counts per billing period
+- `entitlement_snapshots` - Cached effective entitlements (24h TTL)
+
+**Domain Events (Audit Trail):**
+- `domain_events` - Immutable event log for domain-level auditing
+  - `credit.deducted` events include `credit_cost_per_unit` and `units_consumed` in payload
+
+**See [ENTITLEMENTS.md](./ENTITLEMENTS.md) for complete documentation.**
+
+### 3. Authentication
 
 Tables for JWT-based authentication and user onboarding:
 
@@ -141,7 +177,7 @@ Tables for JWT-based authentication and user onboarding:
 2. Tenant selection → `tenantAccessToken` + `tenantRefreshToken` cookies (30 min / 14 days)
 3. All refresh tokens are stored in the `refresh_tokens` table with type tracking (`identity` or `tenant`)
 
-### 3. Global Reference Data
+### 4. Global Reference Data
 
 Shared tables (no RLS):
 
@@ -152,14 +188,14 @@ Shared tables (no RLS):
 - `templates` - Template metadata
 - `template_versions` - Template version history
 
-### 4. Junction Tables
+### 5. Junction Tables
 
 Many-to-many relationships:
 
 - `template_rulesets` - Templates ↔ Rulesets
 - `template_version_ruleset_versions` - Version-level associations
 
-### 5. Tenant-Scoped Data (RLS)
+### 6. Tenant-Scoped Data (RLS)
 
 Tables with tenant isolation:
 
@@ -710,16 +746,20 @@ Database schema is managed through versioned migration files:
 
 **Location:** `scripts/migrations/`
 
-| #   | File                           | Description                                  |
-| --- | ------------------------------ | -------------------------------------------- |
-| 001 | `core_tables.sql`              | Tenants, users, user_tenants, auth tables    |
-| 002 | `grants_to_app_user.sql`       | Grant permissions to app user                |
-| 003 | `session_context_contract.sql` | RLS helper functions                         |
-| 004 | `rls_enablement.sql`           | Enable RLS on tables                         |
-| 005 | `rls_policies_core.sql`        | Create RLS policies                          |
-| 006 | `global_tables.sql`            | Authorities, categories, templates, rulesets |
-| 007 | `documents_table.sql`          | Documents table with RLS                     |
-| 008 | `grants_global_tables.sql`     | Permissions for global tables                |
+| #   | File                                              | Description                                  |
+| --- | ------------------------------------------------- | -------------------------------------------- |
+| 001 | `core_tables.sql`                                 | Tenants, users, user_tenants, auth tables    |
+| 002 | `grants_to_app_user.sql`                          | Grant permissions to app user                |
+| 003 | `session_context_contract.sql`                    | RLS helper functions                         |
+| 004 | `rls_enablement.sql`                              | Enable RLS on tables                         |
+| 005 | `rls_policies_core.sql`                           | Create RLS policies                          |
+| 006 | `global_tables.sql`                               | Authorities, categories, templates, rulesets |
+| 007 | `documents_table.sql`                             | Documents table with RLS                     |
+| 008 | `grants_global_tables.sql`                        | Permissions for global tables                |
+| 009 | `entitlement_tables.sql`                          | Entitlement system tables (features, plans, usage, credits) |
+| 010 | `entitlement_tables_grants_to_app_user.sql`       | Grants for entitlement tables                |
+| 011 | `entitlement_tables_rls_enablement.sql`           | RLS on tenant-scoped entitlement tables      |
+| 012 | `entitlement_tables_rls_policies.sql`             | RLS policies for entitlement tables          |
 
 ### Running Migrations
 
@@ -770,6 +810,7 @@ COMMIT;
 - [QUICK_START.md](../scripts/QUICK_START.md) - Database setup guide
 - [scripts/README.md](../scripts/README.md) - Migration and seed documentation
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture overview
+- [ENTITLEMENTS.md](ENTITLEMENTS.md) - Entitlement system documentation
 - [DEVELOPMENT.md](DEVELOPMENT.md) - Development workflow
 
 ---

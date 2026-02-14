@@ -63,6 +63,7 @@ export interface Feature {
   feature_type: FeatureType;
   unit?: string;
   creditable: boolean;
+  credit_cost?: number | null; // Cost in credits per unit (NULL for non-creditable features)
   is_active: boolean;
   metadata: Record<string, any>;
   created_at: Date;
@@ -281,6 +282,8 @@ export interface EntitlementCheckResult {
   used?: number;
   reason?: string;
   creditsRemaining?: number;
+  creditsDeducted?: number; // Total credits consumed (if credits were used)
+  creditCostPerUnit?: number; // Cost per unit (for transparency)
 }
 
 export interface UsageRecordInput {
@@ -321,6 +324,7 @@ export interface CreateFeatureRow {
   feature_type: FeatureType;
   unit?: string;
   creditable?: boolean;
+  credit_cost?: number | null; // Cost in credits per unit
   is_active?: boolean;
   metadata?: string; // Stringified JSON
 }
@@ -331,6 +335,7 @@ export interface UpdateFeatureRow {
   feature_type?: FeatureType;
   unit?: string;
   creditable?: boolean;
+  credit_cost?: number | null; // Cost in credits per unit
   is_active?: boolean;
   metadata?: string; // Stringified JSON
 }

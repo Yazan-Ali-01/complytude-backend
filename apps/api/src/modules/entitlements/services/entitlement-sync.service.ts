@@ -62,6 +62,7 @@ export class EntitlementSyncService implements OnModuleInit {
             feature_type: feature.feature_type,
             unit: feature.unit,
             creditable: feature.creditable ?? false,
+            credit_cost: feature.credit_cost ?? null,
             is_active: true,
             metadata: '{}',
           },

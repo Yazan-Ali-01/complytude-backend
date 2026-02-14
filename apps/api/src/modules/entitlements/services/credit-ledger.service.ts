@@ -144,7 +144,7 @@ export class CreditLedgerService {
    * @param amount - Number of credits to deduct (must be > 0, will be stored as negative)
    * @param featureId - Feature ID (optional, for feature-specific credits)
    * @param usageLedgerId - Usage ledger event ID that triggered the deduction
-   * @param metadata - Additional metadata
+   * @param metadata - Additional metadata (should include credit_cost_per_unit, units_consumed)
    * @param options - Query options (optional client for shared transactions)
    * @returns The recorded credit transaction
    *
@@ -163,7 +163,7 @@ export class CreditLedgerService {
     }
 
     this.logger.debug(
-      `Deducting credits: tenant=${tenantId}, amount=${amount}`,
+      `Deducting credits: tenant=${tenantId}, amount=${amount}, metadata=${JSON.stringify(metadata)}`,
     );
 
     return this.recordTransaction(
@@ -376,6 +376,12 @@ export class CreditLedgerService {
       expiry: 'credit.expired',
     };
 
+    // Parse transaction metadata to include in event payload
+    const transactionMetadata =
+      typeof transaction.metadata === 'string'
+        ? JSON.parse(transaction.metadata)
+        : transaction.metadata;
+
     await this.domainEventsService.emit(
       {
         tenant_id: transaction.tenant_id,
@@ -393,10 +399,14 @@ export class CreditLedgerService {
           usage_ledger_id: transaction.usage_ledger_id,
           reason: transaction.reason,
           expires_at: transaction.expires_at,
+          // Include credit cost information from metadata (for deductions)
+          credit_cost_per_unit: transactionMetadata?.credit_cost_per_unit,
+          units_consumed: transactionMetadata?.units_consumed,
         }),
         metadata: JSON.stringify({
           recorded_at: transaction.recorded_at,
           idempotency_key: transaction.idempotency_key,
+          ...transactionMetadata, // Include all metadata for audit trail
         }),
       },
       options,
