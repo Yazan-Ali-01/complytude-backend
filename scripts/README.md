@@ -2,6 +2,8 @@
 
 This directory contains database migrations, seeding, and utility scripts for Complytude.
 
+> **⚠️ PRE-PRODUCTION:** This project is in pre-production. You can **edit existing migration files** for most changes. See [Creating/Editing Migrations](#creatingediting-migrations) below.
+
 ## 🚀 Quick Start
 
 **New to the project? Start here:**
@@ -153,7 +155,41 @@ FROM public.schema_migrations
 ORDER BY executed_at DESC;
 ```
 
-### Creating New Migrations
+### Creating/Editing Migrations
+
+**⚠️ PRE-PRODUCTION APPROACH:**
+
+Since we're in pre-production, you have two options:
+
+#### Option 1: Edit Existing Migration (PREFERRED)
+
+For most schema changes, **edit the existing migration file**:
+
+1. Locate the relevant migration in `scripts/migrations/`
+2. Edit the SQL directly (add/remove columns, change types, etc.)
+3. Drop and recreate database:
+   ```bash
+   docker-compose down -v
+   docker-compose up -d postgres
+   ./scripts/run-migrations.sh
+   ./scripts/run-seeds.sh
+   ```
+
+**When to edit existing migrations:**
+- Adding/removing columns to existing tables
+- Changing column types or constraints
+- Renaming columns or tables
+- Modifying RLS policies
+- Small to medium-sized changes
+
+#### Option 2: Create New Migration (Only for Large Features)
+
+Only create a new migration when:
+- Adding multiple new tables for a new feature
+- The change is very large and complex
+- It would make existing migrations unreadable
+
+**Steps:**
 
 1. Create file: `scripts/migrations/009_description.sql`
 2. Use next sequential number
@@ -369,9 +405,22 @@ chmod +x scripts/*.sh
 
 ### Migration Fails
 
+**Pre-Production Approach (Easiest):**
+
 1. Check error message
 2. Fix migration file
-3. Remove from tracking if needed:
+3. Drop and recreate database:
+   ```bash
+   docker-compose down -v
+   docker-compose up -d postgres
+   ./scripts/run-migrations.sh
+   ```
+
+**Alternative (Keep Data):**
+
+1. Check error message
+2. Fix migration file
+3. Remove from tracking:
    ```sql
    DELETE FROM public.schema_migrations
    WHERE migration_name = 'failed_migration.sql';
@@ -427,10 +476,11 @@ Production environment only seeds reference data, not sample data.
 
 ❌ **DON'T:**
 
-- Modify executed migrations (create new one instead)
 - Skip numbers in sequence
 - Use production data in migrations
 - Forget to grant permissions to app user
+
+**Note:** Once in production, we'll switch to immutable migrations (never edit, only add new ones).
 
 ### Seeds
 

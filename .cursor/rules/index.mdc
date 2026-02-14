@@ -14,6 +14,7 @@ Quick reference guide to help AI assistants locate and apply the right rules for
 | Rule File                       | Purpose                                                                 | When to Use                                                          | Always Applied |
 | ------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------- |
 | **implementation-workflow.mdc** | Mandatory workflow: research → clarify → propose → approve → implement  | **CRITICAL**: Start here for ANY implementation task                 | ✅ Yes         |
+| **pre-production.mdc**          | Pre-production guidelines: update migrations, no backward compatibility | **IMPORTANT**: Database changes, breaking changes, refactoring       | ✅ Yes         |
 | **nest-js.mdc**                 | NestJS patterns, architecture, database, repositories, RBAC, entitlements | Working with modules, controllers, services, repositories, DTOs, entitlements | ✅ Yes         |
 | **project-structure.mdc**       | Complete project navigation and file organization                       | Finding files, understanding directory structure, locating modules   | ✅ Yes         |
 | **technology-stack.mdc**        | Dependencies, versions, compatibility, best practices                   | Adding dependencies, checking versions, understanding tech decisions | ✅ Yes         |
@@ -27,6 +28,8 @@ Quick reference guide to help AI assistants locate and apply the right rules for
 | Task Type                     | Primary Rules                                                           | Action                                                        |
 | ----------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------- |
 | **Any Implementation**        | `implementation-workflow.mdc` → then others                             | ALWAYS start here - defines mandatory workflow                |
+| **Database Changes**          | `pre-production.mdc` + `nest-js.mdc`                                    | Update existing migrations, no backward compatibility needed  |
+| **Breaking Changes**          | `pre-production.mdc` + `implementation-workflow.mdc`                    | Make changes freely, update docs and tests                    |
 | **Adding Feature/Module**     | `implementation-workflow.mdc` + `nest-js.mdc` + `project-structure.mdc` | Research patterns, follow NestJS conventions, check structure |
 | **Implementing Entitlements** | `implementation-workflow.mdc` + `nest-js.mdc` (Entitlement section)     | Check entitlement patterns, use EntitlementGuard, sync service |
 | **Fixing Bugs**               | `implementation-workflow.mdc` + `project-structure.mdc` + `nest-js.mdc` | Research first, locate files, understand patterns             |
@@ -40,6 +43,7 @@ Quick reference guide to help AI assistants locate and apply the right rules for
 
 ```
 implementation-workflow.mdc (START HERE - ALWAYS)
+    ├── pre-production.mdc (pre-prod guidelines - migrations, breaking changes)
     ├── nest-js.mdc (patterns & conventions)
     ├── project-structure.mdc (navigation)
     └── technology-stack.mdc (dependencies)
@@ -52,9 +56,10 @@ cursor-rules.mdc ←→ self-improvement.mdc (meta rules)
 ## Critical Notes
 
 1. **ALWAYS start with `implementation-workflow.mdc`** for any implementation task
-2. Rules marked ✅ are automatically loaded
-3. Follow the workflow: Research → Clarify → Propose → Get Approval → Implement
-4. Cross-reference rules as needed
+2. **Project is PRE-PRODUCTION** - see `pre-production.mdc` for migration and compatibility guidelines
+3. Rules marked ✅ are automatically loaded
+4. Follow the workflow: Research → Clarify → Propose → Get Approval → Implement
+5. Cross-reference rules as needed
 
 ---
 
@@ -69,4 +74,4 @@ cursor-rules.mdc ←→ self-improvement.mdc (meta rules)
 
 ---
 
-**Last Updated:** 2026-02-07 | **Total Rules:** 6 (5 always applied, 1 requestable)
+**Last Updated:** 2026-02-14 | **Total Rules:** 7 (6 always applied, 1 requestable) | **Status:** PRE-PRODUCTION

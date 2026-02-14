@@ -2,13 +2,73 @@
 
 Thank you for your interest in contributing to Complytude! This guide will help you get started with our monorepo development workflow, commit standards, and contribution process.
 
+> **⚠️ PRE-PRODUCTION STATUS:** This project is currently in pre-production. We prioritize rapid iteration over backward compatibility. See [Pre-Production Guidelines](#pre-production-guidelines) for details on migrations and breaking changes.
+
 ## Table of Contents
 
+- [Pre-Production Guidelines](#pre-production-guidelines)
 - [Development Setup](#development-setup)
 - [Git Hooks](#git-hooks)
 - [Commit Message Standards](#commit-message-standards)
 - [Pull Request Process](#pull-request-process)
 - [Code Quality Requirements](#code-quality-requirements)
+
+---
+
+## Pre-Production Guidelines
+
+**Project Status:** PRE-PRODUCTION
+
+This project is in active development and has not yet been deployed to production. This means:
+
+### Database Migrations
+
+**✅ PREFERRED: Update Existing Migrations**
+
+When making database schema changes:
+
+1. **Edit existing migration files** in `scripts/migrations/` for most changes
+2. **Only create new migrations** for large, independent features
+3. **Drop and recreate the database** after editing migrations:
+
+```bash
+docker-compose down -v
+docker-compose up -d postgres
+pnpm db:migrate
+pnpm db:seed
+```
+
+**Examples of changes to make in existing migrations:**
+- Adding/removing/renaming columns
+- Changing column types or constraints
+- Adding/removing indexes
+- Modifying RLS policies
+- Updating foreign key relationships
+
+### Breaking Changes
+
+**No backward compatibility required:**
+
+- Make breaking API changes freely
+- Refactor code aggressively without deprecation periods
+- Remove old code immediately
+- Update documentation to reflect current state only
+
+**When making breaking changes:**
+
+1. Make the change directly
+2. Update all references in one go
+3. Update documentation and tests
+4. Communicate changes to team members
+
+### Code Refactoring
+
+- Rename things for clarity without keeping old names
+- Change interfaces without maintaining old versions
+- Remove dead code immediately
+- No need for compatibility layers or deprecation warnings
+
+**📚 For complete pre-production guidelines, see:** [.cursor/rules/pre-production.mdc](.cursor/rules/pre-production.mdc)
 
 ---
 

@@ -83,6 +83,7 @@ database:
 driver: "pg (native PostgreSQL driver)"
 architecture: "Repository pattern with BaseRepository"
 multi_tenancy: "Row-Level Security (RLS) via session context"
+status: "PRE-PRODUCTION - see pre-production.mdc for migration guidelines"
 
 # DatabaseService (Global Module)
 
@@ -173,6 +174,17 @@ export class UserRepository extends BaseRepository<
 - Set tenant context: `await db.query('SELECT set_config($1, $2, true)', ['app.current_tenant_id', tenantId])`
 - RLS policies automatically filter data by tenant_id
 - Use `bypassRLS: true` for system admin operations
+
+# Database Migrations (Pre-Production)
+
+**IMPORTANT:** Project is in pre-production. See [pre-production.mdc](mdc:.cursor/rules/pre-production.mdc) for migration guidelines.
+
+**Quick Summary:**
+
+- ✅ **PREFERRED:** Update existing migration files in `scripts/migrations/` for most changes
+- ⚠️ **EXCEPTION:** Only create new migrations for large, independent features
+- ❌ **NO backward compatibility needed** - make breaking changes freely
+- 🔄 **Re-run migrations:** Drop/recreate database after editing migrations
 
 # ========================================
 
