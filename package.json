@@ -30,23 +30,6 @@
     "start:worker-ingestion:debug": "nest start worker-ingestion --debug --watch",
     "start:worker-ingestion:prod": "node dist/apps/worker-ingestion/main",
     "start:all:prod": "concurrently -n api,worker-ai,worker-ingestion \"pnpm start:api:prod\" \"pnpm start:worker-ai:prod\" \"pnpm start:worker-ingestion:prod\"",
-    "// === 🧪 Testing ===": "",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./apps/api/test/jest-e2e.json",
-    "test:e2e:watch": "jest --config ./apps/api/test/jest-e2e.json --watch",
-    "test:e2e:coverage": "jest --config ./apps/api/test/jest-e2e.json --coverage",
-    "test:e2e:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --config ./apps/api/test/jest-e2e.json --runInBand",
-    "test:e2e:auth": "jest --config ./apps/api/test/jest-e2e.json 01-authentication",
-    "test:e2e:tenant": "jest --config ./apps/api/test/jest-e2e.json 02-multi-tenancy",
-    "test:e2e:storage": "jest --config ./apps/api/test/jest-e2e.json 03-storage",
-    "test:e2e:templates": "jest --config ./apps/api/test/jest-e2e.json 04-template-management",
-    "test:e2e:features": "jest --config ./apps/api/test/jest-e2e.json 05-plan-features",
-    "test:swagger": "ts-node apps/api/test/utils/swagger-downloader.ts",
-    "test:db:setup": "bash scripts/setup-test-db.sh",
-    "test:db:reset": "dropdb -h localhost -U postgres complytude_test --if-exists && pnpm test:db:setup",
     "// === 🐳 Docker Services (PostgreSQL, MinIO) ===": "",
     "docker:start": "bash scripts/docker-start.sh",
     "docker:services": "docker-compose up -d",
@@ -133,52 +116,22 @@
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@nestjs/testing": "^11.0.1",
     "@types/express": "^5.0.0",
-    "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
-    "@types/supertest": "^6.0.2",
     "concurrently": "^9.2.1",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
     "husky": "^9.1.7",
-    "jest": "^30.0.0",
     "lint-staged": "^16.2.7",
     "madge": "^8.0.0",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
-    "supertest": "^7.0.0",
-    "ts-jest": "^29.2.5",
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": ".",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "./coverage",
-    "testEnvironment": "node",
-    "roots": [
-      "<rootDir>/apps/",
-      "<rootDir>/libs/"
-    ],
-    "moduleNameMapper": {
-      "^@complytude/shared(|/.*)$": "<rootDir>/libs/shared/src/$1"
-    }
   }
 }

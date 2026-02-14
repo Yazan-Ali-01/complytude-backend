@@ -2,13 +2,73 @@
 
 Thank you for your interest in contributing to Complytude! This guide will help you get started with our monorepo development workflow, commit standards, and contribution process.
 
+> **⚠️ PRE-PRODUCTION STATUS:** This project is currently in pre-production. We prioritize rapid iteration over backward compatibility. See [Pre-Production Guidelines](#pre-production-guidelines) for details on migrations and breaking changes.
+
 ## Table of Contents
 
+- [Pre-Production Guidelines](#pre-production-guidelines)
 - [Development Setup](#development-setup)
 - [Git Hooks](#git-hooks)
 - [Commit Message Standards](#commit-message-standards)
 - [Pull Request Process](#pull-request-process)
 - [Code Quality Requirements](#code-quality-requirements)
+
+---
+
+## Pre-Production Guidelines
+
+**Project Status:** PRE-PRODUCTION
+
+This project is in active development and has not yet been deployed to production. This means:
+
+### Database Migrations
+
+**✅ PREFERRED: Update Existing Migrations**
+
+When making database schema changes:
+
+1. **Edit existing migration files** in `scripts/migrations/` for most changes
+2. **Only create new migrations** for large, independent features
+3. **Drop and recreate the database** after editing migrations:
+
+```bash
+docker-compose down -v
+docker-compose up -d postgres
+pnpm db:migrate
+pnpm db:seed
+```
+
+**Examples of changes to make in existing migrations:**
+- Adding/removing/renaming columns
+- Changing column types or constraints
+- Adding/removing indexes
+- Modifying RLS policies
+- Updating foreign key relationships
+
+### Breaking Changes
+
+**No backward compatibility required:**
+
+- Make breaking API changes freely
+- Refactor code aggressively without deprecation periods
+- Remove old code immediately
+- Update documentation to reflect current state only
+
+**When making breaking changes:**
+
+1. Make the change directly
+2. Update all references in one go
+3. Update documentation and tests
+4. Communicate changes to team members
+
+### Code Refactoring
+
+- Rename things for clarity without keeping old names
+- Change interfaces without maintaining old versions
+- Remove dead code immediately
+- No need for compatibility layers or deprecation warnings
+
+**📚 For complete pre-production guidelines, see:** [.cursor/rules/pre-production.mdc](.cursor/rules/pre-production.mdc)
 
 ---
 
@@ -50,10 +110,9 @@ pnpm start:worker-ingestion  # Start ingestion worker
 # Before committing
 pnpm lint
 pnpm type-check
-pnpm test:e2e
 ```
 
-**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
+**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including Docker commands, database utilities, and debugging tools.
 
 ### Verify Your Setup
 
@@ -72,9 +131,6 @@ curl http://localhost:3000/api/health
 
 # Test MinIO
 open http://localhost:9001  # Login: minioadmin/minioadmin
-
-# Run E2E tests
-pnpm test:e2e
 ```
 
 ---
@@ -203,7 +259,6 @@ feat(auth): add email verification flow (COM-15)
 - Create email verification endpoint
 - Add email service integration
 - Update user schema with verification status
-- Add E2E tests for verification
 
 Closes COM-15
 ```
@@ -322,11 +377,7 @@ HUSKY=0 git commit -m "your message"
 
 4. **Write tests** for your changes
 
-5. **Run tests locally**:
-
-   ```bash
-   pnpm test:e2e
-   ```
+5. **Verify your changes** (lint, type-check)
 
 6. **Commit your changes** following the [commit standards](#commit-message-standards)
 
@@ -362,14 +413,6 @@ pnpm format          # Format code with Prettier
 ```bash
 pnpm type-check      # Validate TypeScript types
 pnpm build           # Full build with type checking
-```
-
-### Testing
-
-```bash
-pnpm test            # Run unit tests
-pnpm test:e2e        # Run E2E tests
-pnpm test:cov        # Run tests with coverage
 ```
 
 ### Standards

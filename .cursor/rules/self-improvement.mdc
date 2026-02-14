@@ -18,7 +18,6 @@ alwaysApply: true
 - Identify patterns that should be standardized
 - Look for references to external documentation
 - Check for consistent error handling patterns
-- Monitor test patterns and coverage
 
 # Rule Updates:
 

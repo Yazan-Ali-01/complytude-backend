@@ -281,7 +281,7 @@ Check the environment parameter - production only seeds reference data, not test
 1. ✅ **Verify RLS works** - Test tenant isolation via psql
 2. ✅ **Test authentication** - Login with test credentials
 3. ✅ **Create test endpoint** - Build a `/api/test/rls` endpoint to verify policies
-4. ✅ **Write integration tests** - Use Jest to test multi-tenancy
+4. ✅ **Verify multi-tenancy** - Ensure proper tenant isolation
 5. ✅ **Document your API** - Update Swagger docs with examples
 
 ## Additional Resources

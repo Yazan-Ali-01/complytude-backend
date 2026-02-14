@@ -674,7 +674,7 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 ```
 
-### Testing RLS
+### Verifying RLS
 
 To verify tenant isolation:
 

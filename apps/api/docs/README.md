@@ -10,20 +10,12 @@ Welcome to the Complytude API documentation. This directory contains all documen
 | [API_CONTRACTS_QUICK_REFERENCE.md](API_CONTRACTS_QUICK_REFERENCE.md) | Quick reference for API patterns and examples         |
 | [DEVELOPMENT.md](DEVELOPMENT.md)                                     | Development workflow, module creation, best practices |
 
-## Testing Documentation
-
-| Document                                                        | Description                       |
-| --------------------------------------------------------------- | --------------------------------- |
-| [test/README.md](../test/README.md)                             | E2E testing guide, test utilities |
-| [test/SYSTEM_ADMIN_TESTING.md](../test/SYSTEM_ADMIN_TESTING.md) | System admin test guide           |
-
 ## Quick Links
 
 ### For API Developers
 
 - **Building APIs?** See [API_CONTRACTS.md](API_CONTRACTS.md) for contract standards and [API_CONTRACTS_QUICK_REFERENCE.md](API_CONTRACTS_QUICK_REFERENCE.md) for templates.
 - **Creating modules?** Check [DEVELOPMENT.md](DEVELOPMENT.md) for module creation patterns.
-- **Running tests?** See [test/README.md](../test/README.md) for testing documentation.
 - **API Documentation**: Available at `http://localhost:3000/docs` when running the server
 
 ### Monorepo-Wide Documentation
@@ -66,7 +58,6 @@ apps/api/
 │   ├── database/            # Database service
 │   ├── repositories/        # Data access layer
 │   └── i18n/                # Internationalization
-├── test/                    # E2E tests
 └── docs/                    # This directory
 ```
 
@@ -82,21 +73,6 @@ pnpm start:api
 
 # Or use the smart dev command that auto-starts services
 pnpm dev
-```
-
-### Testing
-
-```bash
-# Run all E2E tests
-pnpm test:e2e
-
-# Run unit tests
-pnpm test
-
-# Run specific test suites
-pnpm test:e2e:auth
-pnpm test:e2e:storage
-pnpm test:e2e:tenant
 ```
 
 ### Code Quality

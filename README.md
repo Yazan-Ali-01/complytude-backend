@@ -60,7 +60,6 @@
 - **Type Safety** - Strict TypeScript with comprehensive validation using `class-validator`
 - **Dependency Injection** - Clean architecture with NestJS DI container
 - **Docker Support** - Containerized PostgreSQL, MinIO, and optional pgAdmin
-- **E2E Testing** - Comprehensive test suite with Swagger contract validation
 
 ---
 
@@ -76,7 +75,6 @@
 | Documentation    | Swagger/OpenAPI                     |
 | Storage          | MinIO (dev) / AWS S3 (production)   |
 | Containerization | Docker + Docker Compose             |
-| Testing          | Jest + Supertest                    |
 
 ---
 
@@ -133,11 +131,6 @@ If you're using Windows, configure pnpm to use Git Bash:
    - ✅ Wait for services to be healthy
    - ✅ Run all database migrations
    - ✅ Verify the setup
-
-4. **Verify Installation**
-   ```bash
-   pnpm test:e2e
-   ```
 
 **Services Available:**
 
@@ -217,7 +210,7 @@ pnpm docker:dev:logs
 pnpm docker:dev:down
 ```
 
-✅ **Best for:** Testing Docker setup, team consistency, avoiding local Node.js issues
+✅ **Best for:** Development with Docker, team consistency, avoiding local Node.js issues
 
 #### Option 3: Fully Dockerized - Production Mode
 
@@ -237,7 +230,7 @@ pnpm docker:prod:logs
 pnpm docker:prod:down
 ```
 
-✅ **Best for:** Testing deployments, CI/CD, production-like environment
+✅ **Best for:** Staging deployments, CI/CD, production-like environment
 
 **Comparison:**
 
@@ -251,23 +244,6 @@ pnpm docker:prod:down
 | **Security**        | N/A            | Root user  | Non-root user |
 
 📚 **Full Docker Guide:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed instructions
-
----
-
-### Testing Your Changes
-
-```bash
-# Run all E2E tests
-pnpm test:e2e
-
-# Run unit tests
-pnpm test
-
-# Run specific feature tests
-pnpm test:e2e:auth      # Authentication
-pnpm test:e2e:storage   # File storage (uses MinIO)
-pnpm test:e2e:tenant    # Multi-tenancy
-```
 
 ---
 
@@ -285,7 +261,6 @@ complytude/
 │   │   │   ├── repositories/ # Data access layer
 │   │   │   ├── i18n/       # Internationalization
 │   │   │   └── main.ts     # Application entry point
-│   │   ├── test/           # E2E test suites
 │   │   ├── docs/           # API-specific documentation
 │   │   └── .env.example    # API environment variables template
 │   ├── worker-ai/          # AI processing worker
@@ -431,11 +406,6 @@ pnpm start:worker-ai:prod   # Run AI worker in production
 pnpm start:worker-ingestion:prod # Run ingestion worker in production
 pnpm start:all:prod         # Run all apps in production
 
-# Testing
-pnpm test:e2e               # Run all E2E tests (API)
-pnpm test                   # Run unit tests
-pnpm test:cov               # Run tests with coverage
-
 # Services Only (Hybrid Mode)
 pnpm docker:start           # Start PostgreSQL + MinIO
 pnpm docker:services        # Same as above
@@ -444,7 +414,7 @@ pnpm docker:down            # Stop and remove containers
 
 # Database
 pnpm db:migrate             # Run database migrations
-pnpm db:seed                # Seed database with initial/test data
+pnpm db:seed                # Seed database with initial data
 pnpm db:setup:full          # Run migrations + seeds (complete setup)
 
 # Docker - Development Mode (API + Services)
@@ -467,7 +437,7 @@ pnpm format                 # Prettier formatting
 pnpm type-check             # TypeScript validation
 ```
 
-**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including testing variants, Docker commands, database utilities, and debugging tools.
+**📚 Complete Script Reference:** See [scripts/README.md](scripts/README.md) for detailed documentation of all available scripts, including Docker commands, database utilities, and debugging tools.
 
 ---
 
@@ -489,13 +459,6 @@ Interactive API documentation available at: **http://localhost:3000/docs**
 | Storage        | `POST /api/storage/upload`, `GET /api/storage/list`         |
 | Templates      | `GET /api/templates`, `POST /api/templates`                 |
 | Health         | `GET /api/health`, `/health/db`, `/health/storage`          |
-
-### Postman Collection
-
-Pre-configured Postman collection included:
-
-- `Complytude_API.postman_collection.json`
-- `Complytude_Development.postman_environment.json`
 
 ---
 
@@ -542,7 +505,6 @@ async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
 | [apps/api/docs/README.md](apps/api/docs/README.md)               | API documentation hub                     |
 | [apps/api/docs/API_CONTRACTS.md](apps/api/docs/API_CONTRACTS.md) | API contract standards, authentication    |
 | [apps/api/docs/DEVELOPMENT.md](apps/api/docs/DEVELOPMENT.md)     | API development workflow, module creation |
-| [apps/api/test/README.md](apps/api/test/README.md)               | E2E testing guide                         |
 
 ---
 

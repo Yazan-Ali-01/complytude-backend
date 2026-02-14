@@ -1,0 +1,276 @@
+---
+description: Pre-production development guidelines - migration updates, no backward compatibility concerns
+alwaysApply: true
+---
+
+# Pre-Production Development Guidelines
+
+**Project Status:** PRE-PRODUCTION
+
+This project is currently in pre-production phase. This means we prioritize rapid iteration and flexibility over backward compatibility and migration immutability.
+
+## Core Principles
+
+### 1. PROJECT IS PRE-PRODUCTION
+
+**What this means:**
+
+- No production users or data to protect
+- We can make breaking changes freely
+- We can modify existing migrations
+- We don't need to maintain backward compatibility
+- We prioritize speed and iteration over stability
+
+### 2. DATABASE MIGRATIONS
+
+**Pre-Production Migration Strategy:**
+
+#### ✅ PREFERRED: Update Existing Migrations
+
+When making database changes, **UPDATE EXISTING MIGRATION FILES** if:
+
+- The change is small to medium-sized
+- The change refines or corrects existing schema
+- The change affects tables/columns already in the migration
+- It's easier to understand as a modification than a new migration
+
+**Examples of changes to make in existing migrations:**
+
+- Adding/removing columns to existing tables
+- Changing column types or constraints
+- Renaming columns or tables
+- Adding/removing indexes
+- Modifying RLS policies
+- Updating foreign key relationships
+- Changing default values
+
+**How to update migrations:**
+
+1. Locate the relevant migration file in `scripts/migrations/`
+2. Edit the SQL directly
+3. Re-run migrations: `pnpm db:migrate` (or drop/recreate database)
+4. Update seed data if needed
+
+#### ⚠️ EXCEPTION: Create New Migration
+
+Only create a NEW migration file when:
+
+- The change is very large (e.g., adding multiple new tables)
+- The change is a completely new feature (e.g., new module with its own tables)
+- The change adds entirely new functionality not related to existing migrations
+- It would make the existing migration file too complex or unreadable
+
+**When creating new migrations:**
+
+- Follow the naming convention: `NNN_descriptive_name.sql`
+- Use the next sequential number
+- Document what the migration does in a comment at the top
+- Update `scripts/run-migrations.sh` if needed
+
+### 3. BACKWARD COMPATIBILITY
+
+**Pre-Production Backward Compatibility Policy:**
+
+#### ❌ DO NOT worry about backward compatibility
+
+Since we're in pre-production:
+
+- **API Changes:** Make breaking changes freely
+  - Change endpoint paths
+  - Modify request/response structures
+  - Remove deprecated endpoints
+  - Change authentication requirements
+
+- **Database Changes:** No compatibility layers needed
+  - Drop columns without migration paths
+  - Rename tables directly
+  - Change data types without conversions
+  - Remove tables that are no longer needed
+
+- **Code Changes:** Refactor aggressively
+  - Change function signatures
+  - Modify class interfaces
+  - Restructure modules
+  - Remove deprecated code immediately
+
+#### ✅ DO focus on
+
+- Clean, maintainable code
+- Clear documentation of current state
+- Consistent patterns and conventions
+- Testing the current implementation
+
+### 4. BREAKING CHANGES
+
+**How to handle breaking changes in pre-production:**
+
+1. **Make the change directly** - no deprecation period needed
+2. **Update documentation** to reflect the new behavior
+3. **Update tests** to match new implementation
+4. **Update seed data** if database schema changed
+5. **Communicate changes** to team members (if working in a team)
+
+**Examples:**
+
+```typescript
+// ❌ Production approach (don't do this in pre-production):
+// Keep old endpoint for backward compatibility
+@Get('old-path')
+@Deprecated('Use /new-path instead')
+async oldEndpoint() { ... }
+
+@Get('new-path')
+async newEndpoint() { ... }
+
+// ✅ Pre-production approach (do this):
+// Just change the endpoint, remove the old one
+@Get('new-path')
+async endpoint() { ... }
+```
+
+### 5. MIGRATION WORKFLOW
+
+**Pre-Production Migration Workflow:**
+
+```bash
+# When you need to change the database schema:
+
+# Option 1: Update existing migration (PREFERRED)
+1. Edit scripts/migrations/XXX_relevant_migration.sql
+2. Drop and recreate database:
+   docker-compose down -v
+   docker-compose up -d postgres
+   pnpm db:migrate
+   pnpm db:seed
+
+# Option 2: Create new migration (only if change is large)
+1. Create scripts/migrations/XXX_new_feature.sql
+2. Update scripts/run-migrations.sh (if needed)
+3. Run migrations:
+   pnpm db:migrate
+```
+
+**When to drop/recreate vs. run migrations:**
+
+- **Small changes to existing migrations:** Drop/recreate is fastest
+- **New migrations added:** Can just run migrations
+- **Complex changes:** Drop/recreate ensures clean state
+
+### 6. CODE REFACTORING
+
+**Pre-Production Refactoring Guidelines:**
+
+Since we don't need backward compatibility:
+
+#### ✅ DO refactor aggressively
+
+- **Rename things** for clarity without keeping old names
+- **Change interfaces** without maintaining old versions
+- **Restructure code** without compatibility layers
+- **Remove dead code** immediately
+- **Consolidate duplicated code** without deprecation periods
+
+#### ✅ DO update all references
+
+When refactoring:
+
+1. Change the code
+2. Update all references in one go
+3. Update documentation
+4. Update tests
+5. Verify everything works
+
+#### ❌ DON'T create compatibility layers
+
+- No "old" and "new" versions of the same function
+- No deprecated decorators or classes
+- No migration paths for old code
+- No version checks or feature flags for old behavior
+
+### 7. DOCUMENTATION
+
+**Pre-Production Documentation Guidelines:**
+
+#### ✅ DO keep documentation current
+
+- Update docs immediately when making changes
+- Document the current state, not historical versions
+- Remove outdated information
+- Keep examples up-to-date
+
+#### ❌ DON'T maintain historical documentation
+
+- No "deprecated" sections
+- No "old way" vs "new way" comparisons
+- No version-specific documentation
+- No migration guides (yet)
+
+### 8. TESTING
+
+**Pre-Production Testing Guidelines:**
+
+#### ✅ DO update tests immediately
+
+- Change tests to match new implementation
+- Remove tests for removed features
+- Update test data to match new schema
+- Ensure tests pass after changes
+
+#### ❌ DON'T maintain tests for old behavior
+
+- No tests for deprecated features
+- No tests for backward compatibility
+- No tests for migration paths
+
+## When Does This Change?
+
+**Transition to Production:**
+
+When the project moves to production, we will need to:
+
+1. **Freeze migrations** - no more editing existing migrations
+2. **Add backward compatibility** - maintain old APIs during deprecation
+3. **Create migration paths** - help users upgrade
+4. **Version the API** - support multiple versions if needed
+5. **Write upgrade guides** - document breaking changes
+6. **Implement feature flags** - gradual rollout of changes
+
+**Signs it's time to transition:**
+
+- First production deployment
+- Real users with real data
+- External integrations depending on the API
+- Need for stability and reliability
+- Multiple environments (staging, production)
+
+## Summary
+
+**Pre-Production Mindset:**
+
+- ✅ Update existing migrations freely
+- ✅ Make breaking changes without hesitation
+- ✅ Refactor aggressively
+- ✅ Remove old code immediately
+- ✅ Keep documentation current
+- ❌ Don't worry about backward compatibility
+- ❌ Don't create compatibility layers
+- ❌ Don't maintain deprecated code
+
+**Remember:** We're optimizing for speed and clean code, not stability and compatibility. When we move to production, we'll shift our approach.
+
+## Related Rules
+
+- [implementation-workflow.mdc](mdc:.cursor/rules/implementation-workflow.mdc) - Still follow research → clarify → implement workflow
+- [nest-js.mdc](mdc:.cursor/rules/nest-js.mdc) - NestJS patterns still apply
+- [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc) - Project organization unchanged
+
+## Related Documentation
+
+- [scripts/README.md](mdc:../scripts/README.md) - Migration and seed scripts
+- [CONTRIBUTING.md](mdc:../CONTRIBUTING.md) - Development workflow
+
+---
+
+**Last Updated:** 2026-02-14
+**Status:** PRE-PRODUCTION
+**Next Review:** When preparing for first production deployment

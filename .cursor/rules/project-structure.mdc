@@ -65,7 +65,6 @@ Database management and development utilities:
 - **setup-database.sh** - Database creation and configuration
 - **setup-roles.sh** - PostgreSQL roles setup
 - **setup-app-user-role.sql** - Application user role configuration
-- **setup-test-db.sh** - Test database setup
 
 ### Migration Scripts (`migrations/`)
 
@@ -82,9 +81,9 @@ Database management and development utilities:
 
 - **001_seed_authorities.sql** - Regulatory authorities data
 - **002_seed_categories.sql** - Template categories
-- **004_seed_test_tenants_users.sql** - Test tenants and users
+- **004_seed_test_tenants_users.sql** - Sample tenants and users
 - **005_seed_templates.sql** - Sample templates
-- **006_seed_test_documents.sql** - Test documents
+- **006_seed_test_documents.sql** - Sample documents
 
 **Note:** RBAC roles and permissions are NOT seeded via SQL. They are automatically synced from code constants by `RbacSyncService` on every application startup.
 
@@ -95,7 +94,6 @@ Database management and development utilities:
 - **docker-start.sh** - Start Docker services
 - **start-dev.sh** - Start development server
 - **wait-for-db.sh** - Wait for database availability
-- **manage-custom-features.sql** - Custom feature management
 
 ## Applications Structure
 
@@ -114,7 +112,6 @@ apps/api/
 │   ├── database/              # Database service
 │   ├── repositories/          # Data access layer
 │   └── i18n/                  # Internationalization
-├── test/                      # E2E tests
 ├── docs/                      # API documentation
 ├── Dockerfile                 # API container definition
 ├── .env.example               # Environment template
@@ -196,12 +193,10 @@ Data access layer with repository pattern:
 
 #### Decorators (`decorators/`)
 
-- **tenant.decorator.ts** - Extract tenant ID from request
 - **require-entitlement.decorator.ts** - Entitlement-based feature access
 - **track-usage.decorator.ts** - Usage tracking decorator
 - **json-field.decorator.ts** - JSON field transformation
 - **file-validators.decorator.ts** - File validation decorators
-- **body-dto.decorator.ts** - Body DTO decorator
 - **permissions.decorator.ts** - RBAC permission decorators (RequireAllPermissions, RequireAnyPermission)
 
 #### DTOs (`dto/`)
@@ -215,7 +210,6 @@ Data access layer with repository pattern:
 #### Guards (`guards/`)
 
 - **system-admin.guard.ts** - System admin authorization
-- **tenant-ownership.guard.ts** - Tenant resource ownership
 - **features.guard.ts** - Feature flag enforcement (deprecated, use entitlement.guard.ts)
 - **document-limit.guard.ts** - Document limit enforcement (deprecated, use usage-enforcement.guard.ts)
 - **entitlement.guard.ts** - Entitlement-based feature access
@@ -224,7 +218,6 @@ Data access layer with repository pattern:
 
 #### Interceptors (`interceptors/`)
 
-- **tenant-context.interceptor.ts** - Set RLS tenant context
 - **tenant.interceptor.ts** - Tenant validation
 - **fastify-multipart.interceptor.ts** - File upload handling
 
@@ -420,48 +413,6 @@ Multi-language support (English, Arabic):
   - **templates.json** - Template messages
   - **tenant.json** - Tenant messages
 
-## Test Suite (`apps/api/test/`)
-
-E2E testing infrastructure for the API application:
-
-### Test Configuration
-
-- **jest-e2e.json** - Jest E2E configuration
-- **test.env** - Test environment variables
-- **setup.ts** - Test setup (database, context)
-- **teardown.ts** - Test cleanup
-
-### Test Flows (`flows/`)
-
-Complete user journey tests:
-
-- **01-authentication.e2e-spec.ts** - Auth flow tests
-- **02-multi-tenancy.e2e-spec.ts** - Multi-tenancy tests
-- **03-storage.e2e-spec.ts** - File storage tests
-- **04-template-management.e2e-spec.ts** - Template tests
-- **05-plan-features.e2e-spec.ts** - Feature flag tests
-
-### Test Utilities (`utils/`)
-
-- **test-context.ts** - Test context management
-- **test-database.ts** - Test database utilities
-- **test-data-factory.ts** - Test data generation
-- **test-matchers.ts** - Custom Jest matchers
-- **assertions.ts** - Common assertions
-- **health-checks.ts** - Health check utilities
-- **swagger-validator.ts** - Swagger validation
-- **swagger-downloader.ts** - Download Swagger spec
-
-### Swagger Testing (`swagger/`)
-
-- **README.md** - Swagger testing guide
-- **.gitkeep** - Keep directory in git
-
-### Documentation
-
-- **README.md** - Test suite overview (apps/api/test/README.md)
-- **SYSTEM_ADMIN_TESTING.md** - System admin test guide (apps/api/test/SYSTEM_ADMIN_TESTING.md)
-
 ## Configuration Files
 
 ### TypeScript
@@ -497,11 +448,6 @@ Complete user journey tests:
 - **.gitignore** - Git exclusions
 - **.husky/** - Git hooks (pre-commit, commit-msg)
 
-### API Testing
-
-- **Complytude_API.postman_collection.json** - Postman collection
-- **Complytude_Development.postman_environment.json** - Postman environment
-
 ### Documentation
 
 - **README.md** - Project overview and quick start
@@ -535,16 +481,6 @@ apps/api/src/repositories/
     ├── feature.repository.ts    # Data access layer
     └── interfaces/              # Repository interfaces
         └── *.interface.ts
-```
-
-### Testing Pattern
-
-```
-apps/api/test/
-├── flows/                       # E2E test flows
-│   └── *.e2e-spec.ts
-└── utils/                       # Test utilities
-    └── *.ts
 ```
 
 ## Important Files Reference
@@ -613,12 +549,6 @@ apps/api/test/
 - Migrations: `scripts/migrations/`
 - Seeds: `scripts/seeds/`
 - Setup scripts: `scripts/*.sh`
-
-### Finding Tests
-
-- E2E tests: `apps/api/test/flows/`
-- Test utilities: `apps/api/test/utils/`
-- Test setup: `apps/api/test/setup.ts`
 
 ### Finding Documentation
 
