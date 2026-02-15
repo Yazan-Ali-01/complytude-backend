@@ -26,13 +26,13 @@
         ]
       }
     },
-    "shared": {
+    "redis": {
       "type": "library",
-      "root": "libs/shared",
+      "root": "libs/redis",
       "entryFile": "index",
-      "sourceRoot": "libs/shared/src",
+      "sourceRoot": "libs/redis/src",
       "compilerOptions": {
-        "tsConfigPath": "libs/shared/tsconfig.lib.json"
+        "tsConfigPath": "libs/redis/tsconfig.lib.json"
       }
     },
     "worker-ai": {

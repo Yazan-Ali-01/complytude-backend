@@ -22,11 +22,11 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@complytude/shared": [
-        "libs/shared/src"
+      "@lib/redis": [
+        "libs/redis/src"
       ],
-      "@complytude/shared/*": [
-        "libs/shared/src/*"
+      "@lib/redis/*": [
+        "libs/redis/src/*"
       ],
       "src/*": [
         "apps/api/src/*"
