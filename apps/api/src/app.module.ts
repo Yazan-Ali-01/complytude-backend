@@ -1,3 +1,4 @@
+import { RedisModule } from '@lib/redis';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -41,7 +42,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
         abortEarly: false,
       },
     }),
-    // RedisModule.forRoot(),
+    RedisModule.forRoot(),
     I18nModule,
     DatabaseModule,
     HealthModule,
