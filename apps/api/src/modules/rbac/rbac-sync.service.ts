@@ -111,7 +111,7 @@ export class RbacSyncService implements OnModuleInit {
           `
           INSERT INTO public.roles (key, name, description, tenant_id, is_system, is_active)
           VALUES ($1, $2, $3, NULL, true, true)
-          ON CONFLICT (key, tenant_id) DO UPDATE SET
+          ON CONFLICT (key) WHERE tenant_id IS NULL DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
             is_active = EXCLUDED.is_active

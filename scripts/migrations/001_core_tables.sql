@@ -81,9 +81,6 @@ CREATE TABLE public.roles (
         ON DELETE CASCADE
         ON UPDATE CASCADE,
 
-    CONSTRAINT uq_roles_key_tenant
-        UNIQUE (key, tenant_id),
-
     -- Prevent custom roles from using reserved system role keys
     CONSTRAINT chk_roles_no_reserved_keys
         CHECK (
@@ -457,6 +454,10 @@ CREATE UNIQUE INDEX idx_invitations_email_tenant_pending
     ON public.invitations(email, tenant_id) 
     WHERE status = 'PENDING';
 
+-- Unique constraint to prevent duplicate system roles
+CREATE UNIQUE INDEX idx_roles_key_system ON public.roles (key) WHERE tenant_id IS NULL;
+CREATE UNIQUE INDEX idx_roles_key_tenant ON public.roles (key, tenant_id) WHERE tenant_id IS NOT NULL;
+
 -- =========================
 -- Triggers
 -- =========================
@@ -587,6 +588,9 @@ DROP FUNCTION IF EXISTS public.prevent_system_role_modification();
 DROP FUNCTION IF EXISTS public.update_updated_at_column();
 
 -- Drop indexes
+DROP INDEX IF EXISTS public.idx_roles_key_tenant;
+DROP INDEX IF EXISTS public.idx_roles_key_system;
+
 DROP INDEX IF EXISTS public.idx_password_resets_token_active;
 DROP INDEX IF EXISTS public.idx_email_verifications_token_active;
 
