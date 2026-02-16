@@ -1,15 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { PaginatedResponseDto } from 'src/common/dto';
-import { TemplateVersionResponseDto } from './template-response.dto';
+import { GetTemplateVersionResponseDto } from './template-response.dto';
 
 /**
  * Paginated response DTO for template versions list
  * Returns list of template versions with pagination metadata
  */
-export class TemplateVersionsListResponseDto extends PaginatedResponseDto<TemplateVersionResponseDto> {
+export class TemplateVersionsListResponseDto extends PaginatedResponseDto<GetTemplateVersionResponseDto> {
   @ApiProperty({
     description: 'Array of template versions',
-    type: [TemplateVersionResponseDto],
+    type: [GetTemplateVersionResponseDto],
   })
-  declare data: TemplateVersionResponseDto[];
+  declare data: GetTemplateVersionResponseDto[];
 }

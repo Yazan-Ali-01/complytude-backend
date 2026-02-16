@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ClauseDto } from './clause.dto';
+import { ClauseItemDto } from './clause.dto';
 
 /**
  * Ruleset version response DTO
@@ -26,7 +26,7 @@ export class RulesetVersionResponseDto {
 
   @ApiProperty({
     description: 'Array of legal clauses for this version',
-    type: [ClauseDto],
+    type: [ClauseItemDto],
     isArray: true,
     example: [
       {
@@ -39,7 +39,7 @@ export class RulesetVersionResponseDto {
       },
     ],
   })
-  clauses: ClauseDto[];
+  clauses: ClauseItemDto[];
 
   @ApiProperty({
     description: 'Description of changes in this version',

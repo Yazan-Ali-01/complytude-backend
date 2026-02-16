@@ -1,11 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { TemplateFieldDto } from './template-field.dto';
+import { TemplateFieldItemDto } from './template-field.dto';
 
 /**
  * Template version response DTO
  * Returns details of a specific template version
  */
-export class TemplateVersionResponseDto {
+export class GetTemplateVersionResponseDto {
   @ApiProperty({
     description: 'Version unique identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
@@ -26,10 +26,10 @@ export class TemplateVersionResponseDto {
 
   @ApiProperty({
     description: 'Array of template field definitions for this version',
-    type: [TemplateFieldDto],
+    type: [TemplateFieldItemDto],
     isArray: true,
   })
-  fields: TemplateFieldDto[];
+  fields: TemplateFieldItemDto[];
 
   @ApiProperty({
     description: 'S3 URL for the template DOCX file',
@@ -76,7 +76,7 @@ export class TemplateVersionResponseDto {
  * Template response DTO
  * Returns template details with current version data populated
  */
-export class TemplateResponseDto {
+export class GetTemplateResponseDto {
   @ApiProperty({
     description: 'Template unique identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
@@ -131,9 +131,9 @@ export class TemplateResponseDto {
 
   @ApiProperty({
     description: 'Current version data including fields',
-    type: TemplateVersionResponseDto,
+    type: GetTemplateVersionResponseDto,
   })
-  currentVersionData: TemplateVersionResponseDto;
+  currentVersionData: GetTemplateVersionResponseDto;
 
   @ApiProperty({
     description: 'Template status',

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class FileResponseDto {
+export class UploadFileResponseDto {
   @ApiProperty({
     description: 'Signed URL for accessing the uploaded file',
     example:
@@ -62,7 +62,7 @@ export class FileListItemDto {
   url?: string;
 }
 
-export class FileListResponseDto {
+export class ListFilesResponseDto {
   @ApiProperty({
     description: 'List of files',
     type: [FileListItemDto],
@@ -89,7 +89,7 @@ export class FileListResponseDto {
   hasMore: boolean;
 }
 
-export class SignedUrlResponseDto {
+export class GetSignedUrlResponseDto {
   @ApiProperty({
     description: 'File key/identifier',
     example: 'tenants/abc123/1698765432000-document.pdf',

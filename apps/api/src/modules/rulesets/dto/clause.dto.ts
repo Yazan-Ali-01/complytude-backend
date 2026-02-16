@@ -1,14 +1,14 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsString,
-  IsNotEmpty,
   IsBoolean,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
+  IsString,
   MaxLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class ClauseDto {
+export class ClauseItemDto {
   @ApiProperty({
     example: 'clause_1',
     description: 'Unique clause identifier',

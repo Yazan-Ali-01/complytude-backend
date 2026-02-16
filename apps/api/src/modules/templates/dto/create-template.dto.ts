@@ -22,7 +22,7 @@ import {
 } from 'src/common/decorators/file-validators.decorator';
 import { JsonField } from 'src/common/decorators/json-field.decorator';
 import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
-import { TemplateFieldDto } from 'src/modules/templates/dto/template-field.dto';
+import { TemplateFieldItemDto } from 'src/modules/templates/dto/template-field.dto';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_MAX_FILE_SIZE,
@@ -99,14 +99,14 @@ export class CreateTemplateDto {
       },
     ],
     description: 'Template field definitions',
-    type: [TemplateFieldDto],
+    type: [TemplateFieldItemDto],
   })
   @JsonField()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => TemplateFieldDto)
+  @Type(() => TemplateFieldItemDto)
   @ArrayMinSize(1)
-  fields: TemplateFieldDto[];
+  fields: TemplateFieldItemDto[];
 
   @ApiPropertyOptional({
     example: ['dmcc_employment_rules_v1'],

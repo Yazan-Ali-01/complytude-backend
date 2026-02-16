@@ -1,17 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsArray,
-  IsObject,
-  ValidateNested,
   ArrayMinSize,
+  IsArray,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
   Matches,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
-import { ClauseDto } from './clause.dto';
+import { ClauseItemDto } from './clause.dto';
 
 /**
  * Create new ruleset version DTO
@@ -33,7 +33,7 @@ export class CreateRulesetVersionDto {
 
   @ApiProperty({
     description: 'Array of legal clauses for this version',
-    type: [ClauseDto],
+    type: [ClauseItemDto],
     example: [
       {
         id: 'clause_1',
@@ -47,9 +47,9 @@ export class CreateRulesetVersionDto {
   })
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ClauseDto)
+  @Type(() => ClauseItemDto)
   @ArrayMinSize(1)
-  clauses: ClauseDto[];
+  clauses: ClauseItemDto[];
 
   @ApiPropertyOptional({
     description: 'Description of changes in this version',
