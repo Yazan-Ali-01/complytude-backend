@@ -1,18 +1,18 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsBoolean,
-  IsOptional,
-  IsEnum,
-  IsObject,
-  IsArray,
-  IsNumber,
-  MaxLength,
-  Matches,
-} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
-export class TemplateFieldDto {
+export class TemplateFieldItemDto {
   @ApiProperty({
     example: 'employee_name',
     description: 'Unique field key (alphanumeric + underscores)',

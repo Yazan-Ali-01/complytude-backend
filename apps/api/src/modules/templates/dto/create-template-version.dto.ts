@@ -24,7 +24,7 @@ import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_MAX_FILE_SIZE,
 } from '../constants/template.constants';
-import { TemplateFieldDto } from './template-field.dto';
+import { TemplateFieldItemDto } from './template-field.dto';
 
 /**
  * Create template version request DTO
@@ -64,14 +64,14 @@ export class CreateTemplateVersionDto {
       },
     ],
     description: 'Template field definitions for this version',
-    type: [TemplateFieldDto],
+    type: [TemplateFieldItemDto],
   })
   @JsonField()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => TemplateFieldDto)
+  @Type(() => TemplateFieldItemDto)
   @ArrayMinSize(1)
-  fields: TemplateFieldDto[];
+  fields: TemplateFieldItemDto[];
 
   @ApiPropertyOptional({
     example: { tags: ['employment', 'updated'] },
@@ -140,10 +140,10 @@ export class CreateTemplateVersionResponseDto {
 
   @ApiProperty({
     description: 'Array of template field definitions for this version',
-    type: [TemplateFieldDto],
+    type: [TemplateFieldItemDto],
     isArray: true,
   })
-  fields: TemplateFieldDto[];
+  fields: TemplateFieldItemDto[];
 
   @ApiProperty({
     description: 'Additional metadata for this version',

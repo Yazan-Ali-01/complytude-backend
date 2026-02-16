@@ -11,7 +11,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { ClauseDto } from 'src/modules/rulesets/dto/clause.dto';
+import { ClauseItemDto } from 'src/modules/rulesets/dto/clause.dto';
 
 export class CreateRulesetDto {
   @ApiProperty({
@@ -60,13 +60,13 @@ export class CreateRulesetDto {
       },
     ],
     description: 'Array of legal clauses',
-    type: [ClauseDto],
+    type: [ClauseItemDto],
   })
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ClauseDto)
+  @Type(() => ClauseItemDto)
   @ArrayMinSize(1)
-  clauses: ClauseDto[];
+  clauses: ClauseItemDto[];
 
   @ApiPropertyOptional({
     example: { tags: ['employment', 'standard'] },
@@ -107,13 +107,13 @@ export class UpdateRulesetDto {
   @ApiPropertyOptional({
     example: [],
     description: 'Array of legal clauses',
-    type: [ClauseDto],
+    type: [ClauseItemDto],
   })
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ClauseDto)
+  @Type(() => ClauseItemDto)
   @IsOptional()
-  clauses?: ClauseDto[];
+  clauses?: ClauseItemDto[];
 
   @ApiPropertyOptional({
     example: {},

@@ -1,8 +1,8 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import PizZip from 'pizzip';
-import { TemplateFieldDto } from '../dto/template-field.dto';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import Docxtemplater from 'docxtemplater';
+import PizZip from 'pizzip';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from '../constants/template.constants';
+import { TemplateFieldItemDto } from '../dto/template-field.dto';
 
 /**
  * Result of validating placeholders against field definitions.
@@ -155,7 +155,7 @@ export class DocxPlaceholderExtractionService {
    */
   validateFieldsMatchPlaceholders(
     placeholders: string[],
-    fields: TemplateFieldDto[],
+    fields: TemplateFieldItemDto[],
   ): PlaceholderValidationResult {
     // Extract field keys from field definitions
     const fieldKeys = fields.map((field) => field.key);

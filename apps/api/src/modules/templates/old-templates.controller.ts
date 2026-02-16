@@ -31,8 +31,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   CreateTemplateVersionDto,
   CreateTemplateVersionResponseDto,
+  ListTemplatesResponseDto,
   TemplateDownloadResponseDto,
-  TemplateListResponseDto,
 } from './dto';
 import {
   CreateTemplateDto,
@@ -43,8 +43,8 @@ import {
   GenerateDocumentResponseDto,
 } from './dto/generate-document.dto';
 import {
-  TemplateResponseDto,
-  TemplateVersionResponseDto,
+  GetTemplateResponseDto,
+  GetTemplateVersionResponseDto,
 } from './dto/template-response.dto';
 import { TemplateVersion } from './entities/template-version.entity';
 import { Template, TemplateWithDetails } from './entities/template.entity';
@@ -118,7 +118,7 @@ export class TemplatesController {
       'Template created successfully with placeholder extraction results',
     schema: {
       allOf: [
-        { $ref: '#/components/schemas/TemplateResponseDto' },
+        { $ref: '#/components/schemas/GetTemplateResponseDto' },
         {
           type: 'object',
           properties: {
@@ -219,7 +219,7 @@ export class TemplatesController {
   @ApiResponse({
     status: 200,
     description: 'List of templates',
-    type: TemplateListResponseDto,
+    type: ListTemplatesResponseDto,
   })
   async findAll(
     @Query('status') status?: string,
@@ -252,7 +252,7 @@ export class TemplatesController {
   @ApiResponse({
     status: 200,
     description: 'List of active templates',
-    type: [TemplateResponseDto],
+    type: [GetTemplateResponseDto],
   })
   async findActive(): Promise<Template[]> {
     return this.templatesService.findActiveTemplates();
@@ -268,7 +268,7 @@ export class TemplatesController {
   @ApiResponse({
     status: 200,
     description: 'Template details',
-    type: TemplateResponseDto,
+    type: GetTemplateResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
   async findByKey(@Param('key') key: string): Promise<TemplateWithDetails> {
@@ -329,7 +329,7 @@ export class TemplatesController {
   @ApiResponse({
     status: 200,
     description: 'Template version history',
-    type: [TemplateVersionResponseDto],
+    type: [GetTemplateVersionResponseDto],
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
   async getVersionHistory(
@@ -437,7 +437,7 @@ export class TemplatesController {
   @ApiResponse({
     status: 200,
     description: 'Template version details',
-    type: TemplateVersionResponseDto,
+    type: GetTemplateVersionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Template or version not found' })
   async getVersion(
@@ -461,7 +461,7 @@ export class TemplatesController {
   @ApiResponse({
     status: 200,
     description: 'Template rolled back successfully',
-    type: TemplateVersionResponseDto,
+    type: GetTemplateVersionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Template or version not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
@@ -484,7 +484,7 @@ export class TemplatesController {
   @ApiResponse({
     status: 200,
     description: 'Template updated successfully',
-    type: TemplateResponseDto,
+    type: GetTemplateResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })
@@ -524,7 +524,7 @@ export class TemplatesController {
   @ApiResponse({
     status: 200,
     description: 'Template deactivated successfully',
-    type: TemplateResponseDto,
+    type: GetTemplateResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Template not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - System admin only' })

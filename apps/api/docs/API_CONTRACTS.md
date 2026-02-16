@@ -2,7 +2,7 @@
 
 > **Purpose:** Define standards and conventions for API contract definition across all modules
 
-**Last Updated:** February 3, 2026  
+**Last Updated:** February 3, 2026
 **Status:** Foundation Complete
 
 ---
@@ -257,7 +257,7 @@ status?: string = 'draft';
 Every endpoint must have an explicit response DTO:
 
 ```typescript
-export class TemplateResponseDto {
+export class GetTemplateResponseDto {
   @ApiProperty({
     description: 'Template unique identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
@@ -286,12 +286,12 @@ export class TemplateResponseDto {
 
 ### Standard Response Types
 
-| Type             | When to Use                  | Example                                     |
-| ---------------- | ---------------------------- | ------------------------------------------- |
-| **Resource DTO** | Returning single resource    | `TemplateResponseDto`                       |
-| **List DTO**     | Returning multiple resources | `PaginatedResponseDto<TemplateResponseDto>` |
-| **Message DTO**  | Simple confirmation          | `MessageResponseDto`                        |
-| **Nested DTO**   | Resource with relations      | `TemplateWithVersionsResponseDto`           |
+| Type             | When to Use                  | Example                                        |
+| ---------------- | ---------------------------- | ---------------------------------------------- |
+| **Resource DTO** | Returning single resource    | `GetTemplateResponseDto`                       |
+| **List DTO**     | Returning multiple resources | `PaginatedResponseDto<GetTemplateResponseDto>` |
+| **Message DTO**  | Simple confirmation          | `MessageResponseDto`                           |
+| **Nested DTO**   | Resource with relations      | `TemplateWithVersionsResponseDto`              |
 
 ### Paginated Responses
 
@@ -309,7 +309,7 @@ Use `PaginatedResponseDto` for list endpoints:
         properties: {
           data: {
             type: 'array',
-            items: { $ref: getSchemaPath(TemplateResponseDto) },
+            items: { $ref: getSchemaPath(GetTemplateResponseDto) },
           },
           meta: { $ref: getSchemaPath(PaginationMetaDto) },
         },
@@ -317,7 +317,7 @@ Use `PaginatedResponseDto` for list endpoints:
     ],
   },
 })
-async list(@Query() query: ListTemplatesQueryDto): Promise<PaginatedResponseDto<TemplateResponseDto>> {
+async list(@Query() query: ListTemplatesQueryDto): Promise<PaginatedResponseDto<GetTemplateResponseDto>> {
   // Implementation
 }
 ```
@@ -379,7 +379,7 @@ All errors use `ErrorResponseDto`:
 @ApiResponse({
   status: 201,
   description: 'Template created successfully',
-  type: TemplateResponseDto,
+  type: GetTemplateResponseDto,
 })
 @ApiValidationError() // 400
 @ApiConflictError('Template with this key already exists') // 409
@@ -408,14 +408,14 @@ async create(@Body() dto: CreateTemplateDto) { ... }
 
 ### DTOs
 
-| Type          | Pattern                                          | Example                   |
-| ------------- | ------------------------------------------------ | ------------------------- |
-| Create        | `Create{Resource}Dto`                            | `CreateTemplateDto`       |
-| Update        | `Update{Resource}Dto`                            | `UpdateTemplateDto`       |
-| Response      | `{Resource}ResponseDto`                          | `TemplateResponseDto`     |
-| List Response | `{Resource}ListResponseDto`                      | `TemplateListResponseDto` |
-| Query         | `{Resource}QueryDto` or `List{Resource}QueryDto` | `TemplateQueryDto`        |
-| Param         | `{Resource}IdParamDto`                           | `TemplateIdParamDto`      |
+| Type          | Pattern                                          | Example                    |
+| ------------- | ------------------------------------------------ | -------------------------- |
+| Create        | `Create{Resource}Dto`                            | `CreateTemplateDto`        |
+| Update        | `Update{Resource}Dto`                            | `UpdateTemplateDto`        |
+| Response      | `{Resource}ResponseDto`                          | `GetTemplateResponseDto`   |
+| List Response | `{Resource}ListResponseDto`                      | `ListTemplatesResponseDto` |
+| Query         | `{Resource}QueryDto` or `List{Resource}QueryDto` | `TemplateQueryDto`         |
+| Param         | `{Resource}IdParamDto`                           | `TemplateIdParamDto`       |
 
 ### Properties
 
@@ -454,8 +454,8 @@ export class TemplatesController {
   description: 'Template UUID',
   example: '550e8400-e29b-41d4-a716-446655440000',
 })
-@ApiGetResponses(TemplateResponseDto, 'Template')
-async findOne(@Param() params: TemplateIdParamDto): Promise<TemplateResponseDto> {
+@ApiGetResponses(GetTemplateResponseDto, 'Template')
+async findOne(@Param() params: TemplateIdParamDto): Promise<GetTemplateResponseDto> {
   // Implementation
 }
 ```
@@ -471,12 +471,12 @@ async findOne(@Param() params: TemplateIdParamDto): Promise<TemplateResponseDto>
   summary: 'Create a new template',
   description: 'Create a new document template. Requires templates:manage permission.',
 })
-@ApiCreateResponses(TemplateResponseDto, 'Template')
+@ApiCreateResponses(GetTemplateResponseDto, 'Template')
 @ApiConflictError('Template with this key already exists')
 async create(
   @Body() dto: CreateTemplateDto,
   @CurrentUserTenant() user: AuthenticatedTenantUser,
-): Promise<TemplateResponseDto> {
+): Promise<GetTemplateResponseDto> {
   // Implementation
 }
 ```

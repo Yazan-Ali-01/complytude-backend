@@ -28,9 +28,9 @@
 // import { RolesGuard } from '../auth/guards/roles.guard';
 // import {
 //   DeleteFileResponseDto,
-//   FileListResponseDto,
-//   FileResponseDto,
-//   SignedUrlResponseDto,
+//   ListFilesResponseDto,
+//   UploadFileResponseDto,
+//   GetSignedUrlResponseDto,
 // } from './dto/list-files-response.dto';
 // import { FastifyFileInterceptor } from './interceptors/fastify-file.interceptor';
 // import type { ValidatedFile } from './pipes/file-validation.pipe';
@@ -74,7 +74,7 @@
 //   @ApiResponse({
 //     status: 201,
 //     description: 'File uploaded successfully',
-//     type: FileResponseDto,
+//     type: UploadFileResponseDto,
 //   })
 //   @ApiResponse({
 //     status: 400,
@@ -90,7 +90,7 @@
 //   async uploadFile(
 //     @UploadedFile(FileValidationPipe) file: ValidatedFile,
 //     @CurrentUser() user: AuthenticatedUser,
-//   ): Promise<FileResponseDto> {
+//   ): Promise<UploadFileResponseDto> {
 //     if (!file) {
 //       throw new BadRequestException('No file provided');
 //     }
@@ -145,7 +145,7 @@
 //   @ApiResponse({
 //     status: 200,
 //     description: 'Files retrieved successfully',
-//     type: FileListResponseDto,
+//     type: ListFilesResponseDto,
 //   })
 //   @ApiResponse({ status: 400, description: 'Invalid parameters' })
 //   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -158,7 +158,7 @@
 //     @Query('prefix') prefix?: string,
 //     @Query('limit') limit?: number,
 //     @Query('continuationToken') continuationToken?: string,
-//   ): Promise<FileListResponseDto> {
+//   ): Promise<ListFilesResponseDto> {
 //     const validatedLimit = this.validatePaginationLimit(limit);
 
 //     const result = await this.storageService.listFiles(
@@ -196,7 +196,7 @@
 //     files: any[];
 //     nextToken?: string;
 //     hasMore: boolean;
-//   }): FileListResponseDto {
+//   }): ListFilesResponseDto {
 //     return {
 //       files: result.files,
 //       total: result.files.length,
@@ -222,7 +222,7 @@
 //   @ApiResponse({
 //     status: 200,
 //     description: 'Signed URL generated successfully',
-//     type: SignedUrlResponseDto,
+//     type: GetSignedUrlResponseDto,
 //   })
 //   @ApiResponse({ status: 401, description: 'Unauthorized' })
 //   @ApiResponse({
@@ -234,7 +234,7 @@
 //     @Param('fileKey') fileKey: string,
 //     @CurrentUser() user: AuthenticatedUser,
 //     @Query('expiresIn') expiresIn?: number,
-//   ): Promise<SignedUrlResponseDto> {
+//   ): Promise<GetSignedUrlResponseDto> {
 //     const url = await this.storageService.generateSignedUrl(
 //       user.tenantId,
 //       fileKey,

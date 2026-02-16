@@ -17,14 +17,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  AuditAction,
+  AuditResource,
+} from 'src/common/decorators/audit.decorator';
+import {
   MessageResponseDto,
   PaginationMetaDto,
   PaginationQueryDto,
 } from 'src/common/dto';
-import {
-  AuditAction,
-  AuditResource,
-} from 'src/common/decorators/audit.decorator';
 import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
@@ -41,17 +41,17 @@ import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator'
 import {
   CreateTemplateDto,
   CreateTemplateVersionDto,
+  GetTemplateResponseDto,
+  GetTemplateVersionResponseDto,
   LinkRulesetsDto,
   LinkRulesetsResponseDto,
   ListTemplatesQueryDto,
+  ListTemplatesResponseDto,
   RollbackVersionDto,
   TemplateDownloadQueryDto,
   TemplateDownloadResponseDto,
   TemplateKeyParamDto,
-  TemplateListResponseDto,
-  TemplateResponseDto,
   TemplateVersionParamDto,
-  TemplateVersionResponseDto,
   TemplateVersionsListResponseDto,
 } from './dto';
 
@@ -60,9 +60,9 @@ import {
 @AuditResource('templates')
 @SwaggerCookieAuth.tenantAccessToken()
 @ApiExtraModels(
-  TemplateResponseDto,
-  TemplateListResponseDto,
-  TemplateVersionResponseDto,
+  GetTemplateResponseDto,
+  ListTemplatesResponseDto,
+  GetTemplateVersionResponseDto,
   TemplateVersionsListResponseDto,
   TemplateDownloadResponseDto,
   LinkRulesetsResponseDto,
@@ -77,10 +77,10 @@ export class TemplatesController {
     description:
       'Retrieve a paginated list of document templates with optional filtering by status, category, authority, and search term.',
   })
-  @ApiListResponses(TemplateListResponseDto, 'Templates')
+  @ApiListResponses(ListTemplatesResponseDto, 'Templates')
   list(
     @Query() _query: ListTemplatesQueryDto,
-  ): Promise<TemplateListResponseDto> {
+  ): Promise<ListTemplatesResponseDto> {
     // Implementation will be added by service layer
     return null as any;
   }
@@ -96,8 +96,10 @@ export class TemplatesController {
     description: 'Template unique key',
     example: 'employment_contract_v1',
   })
-  @ApiGetResponses(TemplateResponseDto, 'Template')
-  findOne(@Param() _params: TemplateKeyParamDto): Promise<TemplateResponseDto> {
+  @ApiGetResponses(GetTemplateResponseDto, 'Template')
+  findOne(
+    @Param() _params: TemplateKeyParamDto,
+  ): Promise<GetTemplateResponseDto> {
     // Implementation will be added by service layer
     return null as any;
   }
@@ -110,12 +112,12 @@ export class TemplatesController {
       'Create a new document template with DOCX file upload. This endpoint is restricted to system administrators only. The template will be created with an initial version (1.0.0) based on the provided file and field definitions.',
   })
   @ApiConsumes('multipart/form-data')
-  @ApiCreateResponses(TemplateResponseDto, 'Template')
+  @ApiCreateResponses(GetTemplateResponseDto, 'Template')
   @ApiConflictError('Template with this key already exists')
   create(
     @Body() _dto: CreateTemplateDto,
     @CurrentUser() _user: AuthenticatedUser,
-  ): Promise<TemplateResponseDto> {
+  ): Promise<GetTemplateResponseDto> {
     // Implementation will be added by service layer
     // Note: This will use multipart/form-data in actual implementation
     return null as any;
@@ -175,13 +177,13 @@ export class TemplatesController {
     description: 'Template unique key',
     example: 'employment_contract_v1',
   })
-  @ApiCreateResponses(TemplateVersionResponseDto, 'Template version')
+  @ApiCreateResponses(GetTemplateVersionResponseDto, 'Template version')
   @ApiConflictError('Version already exists for this template')
   createVersion(
     @Param() _params: TemplateKeyParamDto,
     @Body() _dto: CreateTemplateVersionDto,
     @CurrentUser() _user: AuthenticatedUser,
-  ): Promise<TemplateVersionResponseDto> {
+  ): Promise<GetTemplateVersionResponseDto> {
     // Implementation will be added by service layer
     return null as any;
   }
@@ -202,10 +204,10 @@ export class TemplatesController {
     description: 'Version number (semantic versioning)',
     example: '1.0.0',
   })
-  @ApiGetResponses(TemplateVersionResponseDto, 'Template version')
+  @ApiGetResponses(GetTemplateVersionResponseDto, 'Template version')
   findVersion(
     @Param() _params: TemplateVersionParamDto,
-  ): Promise<TemplateVersionResponseDto> {
+  ): Promise<GetTemplateVersionResponseDto> {
     // Implementation will be added by service layer
     return null as any;
   }
@@ -229,7 +231,7 @@ export class TemplatesController {
     example: '1.0.0',
   })
   @ApiCreateResponses(
-    TemplateVersionResponseDto,
+    GetTemplateVersionResponseDto,
     'New template version created from rollback',
   )
   @ApiConflictError('New version number already exists')
@@ -237,7 +239,7 @@ export class TemplatesController {
     @Param() _params: TemplateVersionParamDto,
     @Body() _dto: RollbackVersionDto,
     @CurrentUser() _user: AuthenticatedUser,
-  ): Promise<TemplateVersionResponseDto> {
+  ): Promise<GetTemplateVersionResponseDto> {
     // Implementation will be added by service layer
     return null as any;
   }
