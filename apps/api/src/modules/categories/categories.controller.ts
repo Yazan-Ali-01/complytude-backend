@@ -16,7 +16,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { MessageResponseDto, PaginationMetaDto } from 'src/common/dto';
-import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
+import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiConflictError,
@@ -74,7 +76,9 @@ export class CategoriesController {
   }
 
   @Post()
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
     summary: 'Create category',
     description:
@@ -91,7 +95,9 @@ export class CategoriesController {
   }
 
   @Patch(':id')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
     summary: 'Update category',
     description:
@@ -113,7 +119,9 @@ export class CategoriesController {
   }
 
   @Delete(':id')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
     summary: 'Deactivate category',
     description:

@@ -235,7 +235,7 @@ User accounts that can access multiple tenants.
 | `first_name`      | VARCHAR(255) | First name                           |
 | `last_name`       | VARCHAR(255) | Last name                            |
 | `is_verified`     | BOOLEAN      | Email verification status            |
-| `is_system_admin` | BOOLEAN      | Platform admin (not tenant-specific) |
+| `platform_role_key` | VARCHAR(50) | Platform role key (e.g., `system_admin`, `support`, `auditor`). NULL for tenant-only users |
 | `created_at`      | TIMESTAMPTZ  | Creation timestamp                   |
 | `updated_at`      | TIMESTAMPTZ  | Last update timestamp                |
 

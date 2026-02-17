@@ -11,163 +11,163 @@ BEGIN;
 -- tenant_subscriptions
 -- =========================
 
--- Users can see subscriptions for their current tenant
+-- Users can see subscriptions for their current tenant; platform admins see all
 CREATE POLICY tenant_subscriptions_select
 ON public.tenant_subscriptions
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- Only system/admin can create subscriptions (via app layer)
+-- System/admin or platform admin can create subscriptions (for any tenant when platform admin)
 CREATE POLICY tenant_subscriptions_insert
 ON public.tenant_subscriptions
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- Only system/admin can update subscriptions
+-- System/admin or platform admin can update subscriptions
 CREATE POLICY tenant_subscriptions_update
 ON public.tenant_subscriptions
 FOR UPDATE
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 )
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- =========================
 -- tenant_addons
 -- =========================
 
--- Users can see add-ons for their current tenant
+-- Users can see add-ons for their current tenant; platform admins see all
 CREATE POLICY tenant_addons_select
 ON public.tenant_addons
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- Only system/admin can add add-ons
+-- System/admin or platform admin can add add-ons
 CREATE POLICY tenant_addons_insert
 ON public.tenant_addons
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- Only system/admin can update add-ons
+-- System/admin or platform admin can update add-ons
 CREATE POLICY tenant_addons_update
 ON public.tenant_addons
 FOR UPDATE
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 )
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- =========================
 -- tenant_overrides
 -- =========================
 
--- Users can see overrides for their current tenant
+-- Users can see overrides for their current tenant; platform admins see all
 CREATE POLICY tenant_overrides_select
 ON public.tenant_overrides
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- Only system admins can create overrides (via app layer)
+-- Platform admins can create overrides for any tenant
 CREATE POLICY tenant_overrides_insert
 ON public.tenant_overrides
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- Only system admins can update overrides
+-- Platform admins can update overrides for any tenant
 CREATE POLICY tenant_overrides_update
 ON public.tenant_overrides
 FOR UPDATE
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 )
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- =========================
 -- usage_ledger
 -- =========================
 
--- Users can see usage for their current tenant
+-- Users can see usage for their current tenant; platform admins see all
 CREATE POLICY usage_ledger_select
 ON public.usage_ledger
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- App can record usage for current tenant
+-- App can record usage for current tenant; platform admins for any tenant
 CREATE POLICY usage_ledger_insert
 ON public.usage_ledger
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- =========================
 -- credit_ledger
 -- =========================
 
--- Users can see credits for their current tenant
+-- Users can see credits for their current tenant; platform admins see all
 CREATE POLICY credit_ledger_select
 ON public.credit_ledger
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- App can record credit transactions for current tenant
+-- App can record credit transactions; platform admins can grant for any tenant
 CREATE POLICY credit_ledger_insert
 ON public.credit_ledger
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- =========================
 -- aggregated_usage
 -- =========================
 
--- Users can see aggregated usage for their current tenant
+-- Users can see aggregated usage for their current tenant; platform admins see all
 CREATE POLICY aggregated_usage_select
 ON public.aggregated_usage
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- App can create/update aggregated usage for current tenant
+-- App can create/update aggregated usage; platform admin for system jobs
 CREATE POLICY aggregated_usage_insert
 ON public.aggregated_usage
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 CREATE POLICY aggregated_usage_update
 ON public.aggregated_usage
 FOR UPDATE
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 )
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- App can delete stale aggregated usage
@@ -175,27 +175,27 @@ CREATE POLICY aggregated_usage_delete
 ON public.aggregated_usage
 FOR DELETE
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- =========================
 -- entitlement_snapshots
 -- =========================
 
--- Users can see snapshots for their current tenant
+-- Users can see snapshots for their current tenant; platform admins see all
 CREATE POLICY entitlement_snapshots_select
 ON public.entitlement_snapshots
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- App can create snapshots for current tenant
+-- App can create snapshots; platform admin for system operations
 CREATE POLICY entitlement_snapshots_insert
 ON public.entitlement_snapshots
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- App can update/invalidate snapshots
@@ -203,10 +203,10 @@ CREATE POLICY entitlement_snapshots_update
 ON public.entitlement_snapshots
 FOR UPDATE
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 )
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- App can delete old snapshots
@@ -214,20 +214,20 @@ CREATE POLICY entitlement_snapshots_delete
 ON public.entitlement_snapshots
 FOR DELETE
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- =========================
 -- domain_events
 -- =========================
 
--- Users can see events for their current tenant
+-- Users can see events for their current tenant; platform admins see all
 -- System events (tenant_id IS NULL) are visible to all
 CREATE POLICY domain_events_select
 ON public.domain_events
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null() OR tenant_id IS NULL
+    tenant_id = current_tenant_id_or_null() OR tenant_id IS NULL OR is_platform_admin()
 );
 
 -- App can record events for current tenant or system events
@@ -235,7 +235,7 @@ CREATE POLICY domain_events_insert
 ON public.domain_events
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null() OR tenant_id IS NULL
+    tenant_id = current_tenant_id_or_null() OR tenant_id IS NULL OR is_platform_admin()
 );
 
 COMMIT;

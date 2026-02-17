@@ -24,7 +24,8 @@ import {
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { DocumentGenerationService } from 'src/modules/templates/services/document-generation.service';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import { FastifyMultipartInterceptor } from '../../common/interceptors/fastify-multipart.interceptor';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -62,7 +63,8 @@ export class TemplatesController {
   ) {}
 
   @Post()
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @UseInterceptors(FastifyMultipartInterceptor(CreateTemplateDto))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -276,7 +278,8 @@ export class TemplatesController {
   }
 
   @Get(':key/download')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @ApiOperation({
     summary: 'Download template file',
     description:
@@ -348,7 +351,8 @@ export class TemplatesController {
   }
 
   @Post(':key/versions')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @UseInterceptors(FastifyMultipartInterceptor(CreateTemplateDto))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -449,7 +453,8 @@ export class TemplatesController {
   }
 
   @Post(':key/versions/:version/rollback')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Rollback template to specific version',
@@ -474,7 +479,8 @@ export class TemplatesController {
   }
 
   @Put(':key')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @ApiOperation({
     summary: 'Update template',
     description:
@@ -497,7 +503,8 @@ export class TemplatesController {
   }
 
   @Delete(':key')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete template',
@@ -513,7 +520,8 @@ export class TemplatesController {
   }
 
   @Post(':key/deactivate')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Deactivate template',

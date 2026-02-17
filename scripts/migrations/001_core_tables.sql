@@ -48,10 +48,13 @@ CREATE TABLE public.users (
     password_hash    VARCHAR(255) NOT NULL,
     first_name       VARCHAR(255),
     last_name        VARCHAR(255),
-    is_verified      BOOLEAN NOT NULL DEFAULT false,
-    is_system_admin  BOOLEAN NOT NULL DEFAULT false,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    is_verified       BOOLEAN NOT NULL DEFAULT false,
+    platform_role_key VARCHAR(50) NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT check_platform_role_key_format
+        CHECK (platform_role_key IS NULL OR platform_role_key ~ '^[a-z_]+$')
 );
 
 COMMENT ON TABLE public.users IS 'User accounts that can access multiple tenants';
@@ -59,7 +62,7 @@ COMMENT ON COLUMN public.users.id IS 'Unique user identifier (UUID)';
 COMMENT ON COLUMN public.users.email IS 'User email address (unique across platform)';
 COMMENT ON COLUMN public.users.password_hash IS 'Bcrypt hashed password';
 COMMENT ON COLUMN public.users.is_verified IS 'Whether user has verified their email address';
-COMMENT ON COLUMN public.users.is_system_admin IS 'System-level admin flag for platform administration (not tenant-specific)';
+COMMENT ON COLUMN public.users.platform_role_key IS 'Platform-level role key (e.g., system_admin, support, auditor). NULL for regular tenant-only users.';
 
 -- =========================
 -- RBAC: Roles
@@ -149,6 +152,72 @@ CREATE TABLE public.role_permissions (
 );
 
 COMMENT ON TABLE public.role_permissions IS 'Many-to-many relationship between roles and permissions';
+
+-- =========================
+-- Platform RBAC: Roles
+-- =========================
+CREATE TABLE public.platform_roles (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key         VARCHAR(50) UNIQUE NOT NULL,
+    name        VARCHAR(100) NOT NULL,
+    description TEXT,
+    is_system   BOOLEAN NOT NULL DEFAULT false,
+    is_active   BOOLEAN NOT NULL DEFAULT true,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_platform_roles_no_reserved_keys
+        CHECK (
+            (is_system = false AND key NOT IN ('system_admin', 'support', 'auditor'))
+            OR
+            (is_system = true)
+        )
+);
+
+COMMENT ON TABLE public.platform_roles IS 'Platform-level roles for system-wide access control';
+COMMENT ON COLUMN public.platform_roles.key IS 'Role key (e.g., system_admin, support, auditor)';
+COMMENT ON COLUMN public.platform_roles.is_system IS 'TRUE for built-in roles, FALSE for custom platform roles (future)';
+
+-- =========================
+-- Platform RBAC: Permissions
+-- =========================
+CREATE TABLE public.platform_permissions (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key         VARCHAR(100) UNIQUE NOT NULL,
+    name        VARCHAR(100) NOT NULL,
+    resource    VARCHAR(50) NOT NULL,
+    action      VARCHAR(50) NOT NULL,
+    description TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE public.platform_permissions IS 'Platform-level permissions for system-wide RBAC';
+COMMENT ON COLUMN public.platform_permissions.key IS 'Permission key (e.g., tenants:read, users:manage_roles)';
+
+-- =========================
+-- Platform RBAC: Role Permissions (Many-to-Many)
+-- =========================
+CREATE TABLE public.platform_role_permissions (
+    role_id       UUID NOT NULL,
+    permission_id UUID NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (role_id, permission_id),
+
+    CONSTRAINT fk_platform_role_permissions_role
+        FOREIGN KEY (role_id)
+        REFERENCES public.platform_roles(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_platform_role_permissions_permission
+        FOREIGN KEY (permission_id)
+        REFERENCES public.platform_permissions(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+COMMENT ON TABLE public.platform_role_permissions IS 'Many-to-many: platform roles to platform permissions';
 
 -- =========================
 -- Audit Logs
@@ -362,6 +431,7 @@ CREATE INDEX idx_tenants_parent_tenant_id ON public.tenants(parent_tenant_id) WH
 -- Note: email has UNIQUE constraint which creates an index automatically
 -- Composite index for login queries (WHERE email = ? AND is_verified = ?)
 CREATE INDEX idx_users_email_verified ON public.users(email, is_verified) WHERE is_verified = true;
+CREATE INDEX idx_users_platform_role ON public.users(platform_role_key) WHERE platform_role_key IS NOT NULL;
 
 -- Roles
 CREATE INDEX idx_roles_key ON public.roles(key);
@@ -376,6 +446,18 @@ CREATE INDEX idx_permissions_resource ON public.permissions(resource);
 -- Role Permissions
 CREATE INDEX idx_role_permissions_role_id ON public.role_permissions(role_id);
 CREATE INDEX idx_role_permissions_permission_id ON public.role_permissions(permission_id);
+
+-- Platform Roles
+CREATE INDEX idx_platform_roles_key ON public.platform_roles(key);
+CREATE INDEX idx_platform_roles_is_system ON public.platform_roles(is_system) WHERE is_system = true;
+CREATE INDEX idx_platform_roles_is_active ON public.platform_roles(is_active) WHERE is_active = true;
+
+-- Platform Permissions
+CREATE INDEX idx_platform_permissions_resource ON public.platform_permissions(resource);
+
+-- Platform Role Permissions
+CREATE INDEX idx_platform_role_permissions_role_id ON public.platform_role_permissions(role_id);
+CREATE INDEX idx_platform_role_permissions_permission_id ON public.platform_role_permissions(permission_id);
 
 -- Audit Logs
 CREATE INDEX idx_audit_logs_tenant_id ON public.audit_logs(tenant_id);
@@ -523,6 +605,40 @@ $$;
 
 COMMENT ON FUNCTION public.prevent_system_role_deletion IS 'Prevents deletion of system roles';
 
+-- Platform system role protection (platform_roles has no tenant_id)
+CREATE OR REPLACE FUNCTION public.prevent_platform_system_role_modification()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF OLD.is_system = true AND (
+        OLD.key != NEW.key OR
+        OLD.is_system != NEW.is_system
+    ) THEN
+        RAISE EXCEPTION 'Cannot modify core attributes of platform system role: %', OLD.key
+            USING HINT = 'Platform system roles (is_system=true) are immutable. Use PlatformRbacSyncService to update.';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.prevent_platform_system_role_deletion()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF OLD.is_system = true THEN
+        RAISE EXCEPTION 'Cannot delete platform system role: %', OLD.key
+            USING HINT = 'Platform system roles are protected from deletion.';
+    END IF;
+    RETURN OLD;
+END;
+$$;
+
 -- =========================
 -- Triggers
 -- =========================
@@ -553,6 +669,22 @@ CREATE TRIGGER trigger_prevent_system_role_deletion
     BEFORE DELETE ON public.roles
     FOR EACH ROW
     EXECUTE FUNCTION public.prevent_system_role_deletion();
+
+-- Platform role triggers
+CREATE TRIGGER update_platform_roles_updated_at
+    BEFORE UPDATE ON public.platform_roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER trigger_prevent_platform_system_role_modification
+    BEFORE UPDATE ON public.platform_roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prevent_platform_system_role_modification();
+
+CREATE TRIGGER trigger_prevent_platform_system_role_deletion
+    BEFORE DELETE ON public.platform_roles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prevent_platform_system_role_deletion();
 
 CREATE TRIGGER update_user_tenants_updated_at
     BEFORE UPDATE ON public.user_tenants

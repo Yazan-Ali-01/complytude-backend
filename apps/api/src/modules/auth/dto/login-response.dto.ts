@@ -32,10 +32,11 @@ export class LoginUserDto {
   lastName: string | null;
 
   @ApiProperty({
-    description: 'Whether user is a system administrator',
-    example: false,
+    description: 'Platform role key (null for tenant-only users)',
+    example: 'system_admin',
+    nullable: true,
   })
-  isSystemAdmin: boolean;
+  platformRole: string | null;
 }
 
 /**

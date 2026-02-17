@@ -499,21 +499,25 @@ export class SubscriptionsService {
     return this.databaseService.transactionWithTenantContext(tenantId, execute);
   }
 
-  // TODO: this needs a proper way to bypass RLS
   /**
    * Batch renewal for all subscriptions due for renewal
    *
    * Finds all subscriptions where current_period_end <= now() and status = 'active',
    * then calls renewPeriod() for each.
+   * Uses platform admin context to see all subscriptions (batch job runs without tenant context).
    *
    * @returns Count of renewed subscriptions
    */
   async renewAllDuePeriods(): Promise<number> {
     this.logger.log('Starting batch renewal for all due subscriptions');
 
-    // Find all due subscriptions
+    // Find all due subscriptions (platform admin context - batch job sees all tenants)
     const dueSubscriptions =
-      await this.subscriptionsRepository.findAllDueForRenewal();
+      await this.databaseService.transactionWithPlatformAdminContext(
+        'system_admin',
+        async (client) =>
+          this.subscriptionsRepository.findAllDueForRenewal({ client }),
+      );
 
     this.logger.log(
       `Found ${dueSubscriptions.length} subscriptions due for renewal`,

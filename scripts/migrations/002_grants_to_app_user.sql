@@ -26,6 +26,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_tenants TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.roles TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.permissions TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.role_permissions TO app_user;
+
+-- Platform RBAC tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.platform_roles TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.platform_permissions TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.platform_role_permissions TO app_user;
 GRANT SELECT, INSERT ON public.audit_logs TO app_user;
 
 -- Auth artifact tables

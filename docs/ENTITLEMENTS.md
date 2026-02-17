@@ -909,7 +909,8 @@ async getTransactions(
 ```typescript
 @Post('purchase')
 @AuthOptions({ identity: true })
-@UseGuards(SystemAdminGuard)
+@UseGuards(PlatformPermissionsGuard)
+@RequireAnyPlatformPermission('entitlements:manage')
 async purchaseCredits(
   @Body() dto: PurchaseCreditsDto,
 ) {
@@ -931,7 +932,8 @@ async purchaseCredits(
 ```typescript
 @Post('grant')
 @AuthOptions({ identity: true })
-@UseGuards(SystemAdminGuard)
+@UseGuards(PlatformPermissionsGuard)
+@RequireAnyPlatformPermission('entitlements:manage')
 async grantCredits(
   @Body() dto: GrantCreditsDto,
   @CurrentUserIdentity() admin,

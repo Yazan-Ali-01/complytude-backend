@@ -464,7 +464,7 @@ export class UserTenantRepository extends BaseRepository<
 
     const result = await this.executeQuery<UserTenantWithUserRow>(
       `SELECT ut.user_id, ut.tenant_id, ut.role_key${roleColumn}, ut.is_active, ut.joined_at, ut.updated_at,
-              u.email, u.first_name, u.last_name, u.is_verified, u.is_system_admin
+              u.email, u.first_name, u.last_name, u.is_verified, u.platform_role_key
        FROM ${this.tableName} ut
        ${roleJoin}
        JOIN public.users u ON ut.user_id = u.id

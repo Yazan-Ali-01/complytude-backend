@@ -41,7 +41,7 @@ export class JwtIdentityAccessStrategy extends PassportStrategy(
     return {
       userId: payload.sub,
       email: payload.email,
-      globalRoles: payload.globalRoles || [],
+      platformRole: payload.platformRole ?? null,
     };
   }
 }

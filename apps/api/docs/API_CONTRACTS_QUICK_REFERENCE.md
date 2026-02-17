@@ -234,12 +234,13 @@ async publicEndpoint(): Promise<ResourceResponseDto> {
 }
 ```
 
-### 7. System Admin Endpoint (Identity Token)
+### 7. Platform Admin Endpoint (Identity Token)
 
 ```typescript
 @Get('admin/system-stats')
 @AuthOptions({ identity: true })
-@UseGuards(SystemAdminGuard)
+@UseGuards(PlatformPermissionsGuard)
+@RequireAnyPlatformPermission('audit:read')
 @ApiOperation({
   summary: 'Get system statistics',
   description: 'Retrieve system-wide statistics. Requires system admin role.',

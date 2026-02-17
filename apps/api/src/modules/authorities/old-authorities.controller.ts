@@ -22,7 +22,8 @@ import {
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import { AuthoritiesService } from './authorities.service';
 import {
   CreateAuthorityDto,
@@ -37,7 +38,8 @@ export class AuthoritiesController {
   constructor(private readonly authoritiesService: AuthoritiesService) {}
 
   @Post()
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
     summary: 'Create new authority',
     description: 'Create a new legal authority (system admin only)',
@@ -120,7 +122,8 @@ export class AuthoritiesController {
   }
 
   @Put(':id')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
     summary: 'Update authority',
     description: 'Update an existing authority (system admin only)',
@@ -141,7 +144,8 @@ export class AuthoritiesController {
   }
 
   @Delete(':id')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('authorities:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete authority',

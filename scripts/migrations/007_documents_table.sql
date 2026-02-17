@@ -90,27 +90,27 @@ CREATE TRIGGER update_documents_updated_at
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.documents FORCE ROW LEVEL SECURITY;
 
--- SELECT Policy: Users can only see documents belonging to their tenant
+-- SELECT Policy: Users see their tenant's documents; platform admins see all
 CREATE POLICY documents_select
 ON public.documents
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 COMMENT ON POLICY documents_select ON public.documents IS 
-    'Tenant isolation for SELECT - users can only see their tenant''s documents';
+    'Tenant isolation for SELECT - users can only see their tenant''s documents; platform admins see all';
 
--- INSERT Policy: Users can only create documents for their tenant
+-- INSERT Policy: Users create for their tenant; platform admins for any tenant
 CREATE POLICY documents_insert
 ON public.documents
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 COMMENT ON POLICY documents_insert ON public.documents IS 
-    'Tenant isolation for INSERT - users can only create documents for their own tenant';
+    'Tenant isolation for INSERT - users can only create documents for their own tenant; platform admins for any';
 
 -- =========================
 -- VALIDATION FUNCTION

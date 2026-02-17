@@ -23,7 +23,7 @@ export type CreateUserRow = {
   first_name?: string | null;
   last_name?: string | null;
   is_verified?: boolean;
-  is_system_admin?: boolean;
+  platform_role_key?: string | null;
   created_at?: Date;
   updated_at?: Date;
 };
@@ -37,7 +37,7 @@ export type UpdateUserRow = {
   first_name?: string | null;
   last_name?: string | null;
   is_verified?: boolean;
-  is_system_admin?: boolean;
+  platform_role_key?: string | null;
   updated_at?: Date;
 };
 
@@ -48,7 +48,7 @@ type UserRow = {
   first_name: string | null;
   last_name: string | null;
   is_verified: boolean;
-  is_system_admin: boolean;
+  platform_role_key: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -77,9 +77,9 @@ export class UserRepository extends BaseRepository<
 
   /**
    * Find users with cursor-based pagination.
-   * Supports filtering by email, is_verified, and is_system_admin.
+   * Supports filtering by email, is_verified, and platform_role_key.
    *
-   * @param filters - Optional filters for email, is_verified, and is_system_admin
+   * @param filters - Optional filters for email, is_verified, and platform_role_key
    * @param cursorOptions - Cursor, limit, and direction for pagination
    * @param options - Query options (tenant context, client, etc.)
    * @returns Cursor-paginated results with navigation metadata
@@ -88,7 +88,7 @@ export class UserRepository extends BaseRepository<
     filters: {
       email?: string;
       is_verified?: boolean;
-      is_system_admin?: boolean;
+      platform_role_key?: string | null;
     } = {},
     cursorOptions?: CursorPaginationOptions,
     options?: QueryOptions,
@@ -109,9 +109,11 @@ export class UserRepository extends BaseRepository<
       params.push(filters.is_verified);
       conditions.push(`is_verified = $${params.length}`);
     }
-    if (filters.is_system_admin !== undefined) {
-      params.push(filters.is_system_admin);
-      conditions.push(`is_system_admin = $${params.length}`);
+    if (filters.platform_role_key !== undefined) {
+      params.push(filters.platform_role_key);
+      conditions.push(
+        `platform_role_key IS NOT DISTINCT FROM $${params.length}`,
+      );
     }
 
     // Add cursor condition using helper
@@ -171,7 +173,7 @@ export class UserRepository extends BaseRepository<
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'id, email, password_hash, first_name, last_name, is_verified, is_system_admin, created_at, updated_at';
+    return 'id, email, password_hash, first_name, last_name, is_verified, platform_role_key, created_at, updated_at';
   }
 
   /**
@@ -189,7 +191,7 @@ export class UserRepository extends BaseRepository<
       first_name: data.first_name,
       last_name: data.last_name,
       is_verified: data.is_verified,
-      is_system_admin: data.is_system_admin,
+      platform_role_key: data.platform_role_key,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
