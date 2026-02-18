@@ -13,9 +13,9 @@ import {
   PermissionMetadata,
 } from '../decorators/permissions.decorator';
 import {
-  hasAllTenantPermissions,
-  hasAnyTenantPermission,
-} from '../utils/tenant-permission-matcher.util';
+  hasAllPermissions,
+  hasAnyPermission,
+} from '../utils/permission-matcher.util';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -72,8 +72,8 @@ export class PermissionsGuard implements CanActivate {
 
     // Check permissions based on requireAll flag (in-memory)
     const hasPermission = permissionMetadata.requireAll
-      ? hasAllTenantPermissions(userPermissions, permissionMetadata.permissions)
-      : hasAnyTenantPermission(userPermissions, permissionMetadata.permissions);
+      ? hasAllPermissions(userPermissions, permissionMetadata.permissions)
+      : hasAnyPermission(userPermissions, permissionMetadata.permissions);
 
     if (!hasPermission) {
       const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
