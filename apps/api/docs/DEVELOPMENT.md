@@ -90,7 +90,7 @@ export class YourModuleModule {}
 - ✅ **Use `@AuthOptions({ tenant: true })`** for tenant-scoped endpoints
 - ✅ **Use `@AuthOptions({ identity: true })`** for identity-based endpoints
 - ✅ **Use `@CurrentUserTenant()` or `@CurrentUserIdentity()`** to access authenticated user
-- ✅ **Add `@UseGuards(PermissionsGuard)` with `@RequirePermissions()`** for permission-based access
+- ✅ **Add `@UseGuards(TenantPermissionsGuard)` with `@RequirePermissions()`** for permission-based access
 - ✅ **Add `@UseGuards(RolesGuard)` with `@Roles()`** for simple role checks (e.g., `tenant_admin`)
 - ✅ **Never expose sensitive data** in responses
 
@@ -100,29 +100,29 @@ The project uses permission-based RBAC instead of simple role checks:
 
 ```typescript
 import {
-  RequireAllPermissions,
-  RequireAnyPermission,
+  RequireAllTenantPermissions,
+  RequireAnyTenantPermission,
 } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { TenantPermissionsGuard } from 'src/common/guards/permissions.guard';
 
 // Require ANY of the specified permissions (OR logic)
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:create')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:create')
 @Post()
 async createDocument() { }
 
 // Require ALL specified permissions (AND logic)
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAllPermissions('documents:read', 'documents:delete')
+@UseGuards(TenantPermissionsGuard)
+@RequireAllTenantPermissions('documents:read', 'documents:delete')
 @Delete(':id')
 async deleteDocument() { }
 
 // Wildcard permission
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:*')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:*')
 @Get()
 async listDocuments() { }
 ```
@@ -133,10 +133,10 @@ async listDocuments() { }
 
 **When to use which:**
 
-| Guard | Use Case | Example |
-| ----- | -------- | ------- |
-| `PermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
-| `RolesGuard` | Simple role verification | Check if user is `tenant_admin` |
+| Guard                    | Use Case                       | Example                                |
+| ------------------------ | ------------------------------ | -------------------------------------- |
+| `TenantPermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
+| `RolesGuard`             | Simple role verification       | Check if user is `tenant_admin`        |
 
 ### Naming Conventions
 

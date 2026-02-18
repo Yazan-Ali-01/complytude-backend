@@ -23,7 +23,7 @@ import { PlansRepository } from '../../../repositories/plans/plans.repository';
  *
  * Runs on every app startup via OnModuleInit (idempotent).
  *
- * Pattern follows RbacSyncService.
+ * Pattern follows TenantRbacSyncService.
  */
 @Injectable()
 export class EntitlementSyncService implements OnModuleInit {

@@ -18,16 +18,16 @@ import { DatabaseService } from '../../database/database.service';
  * Runs on every app startup via OnModuleInit (idempotent).
  */
 @Injectable()
-export class RbacSyncService implements OnModuleInit {
-  private readonly logger = new Logger(RbacSyncService.name);
+export class TenantRbacSyncService implements OnModuleInit {
+  private readonly logger = new Logger(TenantRbacSyncService.name);
 
   constructor(private readonly databaseService: DatabaseService) {}
 
   async onModuleInit() {
-    this.logger.log('Starting RBAC sync...');
+    this.logger.log('Starting Tenant RBAC sync...');
     await this.syncPermissions();
     await this.syncSystemRoles();
-    this.logger.log('RBAC sync completed successfully');
+    this.logger.log('Tenant RBAC sync completed successfully');
   }
 
   /**

@@ -92,14 +92,14 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
 
 ### Endpoint Authentication
 
-| Decorator                                                | When to Use                                       | Status Codes                    |
-| -------------------------------------------------------- | ------------------------------------------------- | ------------------------------- |
-| No decorator                                             | Public endpoints (no auth required)               | -                               |
-| `@AuthOptions({ identity: true })`                       | Identity-based auth (tenant selection, sys admin) | 401 if unauthenticated          |
-| `@AuthOptions({ tenant: true })`                         | Tenant-scoped endpoints (full auth required)      | 401 if unauthenticated          |
-| `@AuthOptions({ identity: true, tenant: true })`         | Requires both identity and tenant tokens          | 401 if unauthenticated          |
-| `@UseGuards(PermissionsGuard)` + `@RequirePermissions()` | Permission-based access (requires tenant token)   | 403 if insufficient permissions |
-| `@UseGuards(RolesGuard)` + `@Roles()`                    | Simple role check (e.g., `tenant_admin`)          | 403 if wrong role               |
+| Decorator                                                      | When to Use                                       | Status Codes                    |
+| -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------- |
+| No decorator                                                   | Public endpoints (no auth required)               | -                               |
+| `@AuthOptions({ identity: true })`                             | Identity-based auth (tenant selection, sys admin) | 401 if unauthenticated          |
+| `@AuthOptions({ tenant: true })`                               | Tenant-scoped endpoints (full auth required)      | 401 if unauthenticated          |
+| `@AuthOptions({ identity: true, tenant: true })`               | Requires both identity and tenant tokens          | 401 if unauthenticated          |
+| `@UseGuards(TenantPermissionsGuard)` + `@RequirePermissions()` | Permission-based access (requires tenant token)   | 403 if insufficient permissions |
+| `@UseGuards(RolesGuard)` + `@Roles()`                          | Simple role check (e.g., `tenant_admin`)          | 403 if wrong role               |
 
 ### Swagger Documentation
 
@@ -124,8 +124,8 @@ async listDocuments(@CurrentUserTenant() user: AuthenticatedTenantUser) { ... }
 
 // Permission-protected endpoint
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:create')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:create')
 @ApiProtectedResponses('Requires documents:create permission')
 @Post('create')
 async create() { ... }
@@ -465,8 +465,8 @@ async findOne(@Param() params: TemplateIdParamDto): Promise<GetTemplateResponseD
 ```typescript
 @Post()
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('templates:manage')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('templates:manage')
 @ApiOperation({
   summary: 'Create a new template',
   description: 'Create a new document template. Requires templates:manage permission.',
@@ -527,8 +527,8 @@ export class CategoriesController {
 
   @Post()
   @AuthOptions({ tenant: true })
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('templates:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('templates:manage')
   @ApiCreateResponses(CategoryResponseDto, 'Category')
   async create(
     @Body() dto: CreateCategoryDto,
@@ -576,7 +576,7 @@ Available decorators in `src/common/swagger/decorators.ts`:
 - [ ] Success response documented with `@ApiResponse()`
 - [ ] Error responses documented (400, 401, 403, 404, 409, 500)
 - [ ] Authentication specified with `@AuthOptions()` decorator
-- [ ] Permission guards applied if needed (`@RequirePermissions()` + `PermissionsGuard` or `@Roles()` + `RolesGuard`)
+- [ ] Permission guards applied if needed (`@RequirePermissions()` + `TenantPermissionsGuard` or `@Roles()` + `RolesGuard`)
 - [ ] Query parameters documented (`@ApiQuery()` or query DTO)
 - [ ] Path parameters documented (`@ApiParam()` or param DTO)
 - [ ] Request body documented (`@ApiBody()` if needed)

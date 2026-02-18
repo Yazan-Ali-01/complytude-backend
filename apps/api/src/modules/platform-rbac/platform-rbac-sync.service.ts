@@ -8,7 +8,7 @@ import { DatabaseService } from '../../database/database.service';
  * Platform RBAC Sync Service
  *
  * Syncs platform permissions and system roles from code constants to the database on app startup.
- * Mirrors RbacSyncService pattern for platform-level RBAC.
+ * Mirrors TenantRbacSyncService pattern for platform-level RBAC.
  *
  * Sync Strategy:
  * - Permissions: Add new, update existing, delete removed

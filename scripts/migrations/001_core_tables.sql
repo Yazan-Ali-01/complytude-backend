@@ -576,7 +576,7 @@ BEGIN
         OLD.tenant_id IS DISTINCT FROM NEW.tenant_id
     ) THEN
         RAISE EXCEPTION 'Cannot modify core attributes of system role: %', OLD.key
-            USING HINT = 'System roles (is_system=true) are immutable. Use RbacSyncService to update.';
+            USING HINT = 'System roles (is_system=true) are immutable. Use TenantRbacSyncService to update.';
     END IF;
     
     RETURN NEW;

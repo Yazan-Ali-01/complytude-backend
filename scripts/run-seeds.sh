@@ -178,7 +178,7 @@ echo -e "${BLUE}Seeds Directory: ${SEEDS_DIR}${NC}"
 echo ""
 
 # Array of seed files in execution order
-# Note: RBAC (roles/permissions) is auto-synced by RbacSyncService on app startup
+# Note: RBAC (roles/permissions) is auto-synced by TenantRbacSyncService on app startup
 SEED_FILES=(
     "001_seed_authorities.sql"
     "002_seed_categories.sql"

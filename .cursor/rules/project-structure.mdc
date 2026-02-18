@@ -85,7 +85,7 @@ Database management and development utilities:
 - **005_seed_templates.sql** - Sample templates
 - **006_seed_test_documents.sql** - Sample documents
 
-**Note:** RBAC roles and permissions are NOT seeded via SQL. They are automatically synced from code constants by `RbacSyncService` on every application startup.
+**Note:** RBAC roles and permissions are NOT seeded via SQL. They are automatically synced from code constants by `TenantRbacSyncService` on every application startup.
 
 ### Utility Scripts
 
@@ -197,7 +197,7 @@ Data access layer with repository pattern:
 - **track-usage.decorator.ts** - Usage tracking decorator
 - **json-field.decorator.ts** - JSON field transformation
 - **file-validators.decorator.ts** - File validation decorators
-- **permissions.decorator.ts** - RBAC permission decorators (RequireAllPermissions, RequireAnyPermission)
+- **permissions.decorator.ts** - RBAC permission decorators (RequireAllTenantPermissions, RequireAnyTenantPermission)
 
 #### DTOs (`dto/`)
 
@@ -337,7 +337,7 @@ Role-Based Access Control:
 
 - **rbac.service.ts** - RBAC business logic (permission checking, role management)
 - **rbac-sync.service.ts** - Syncs permissions and system roles from code to DB on startup
-- **rbac.module.ts** - RBAC module configuration (exports RbacService, PermissionsGuard)
+- **rbac.module.ts** - RBAC module configuration (exports TenantRbacService, TenantPermissionsGuard)
 
 #### Rulesets (`rulesets/`)
 
@@ -569,7 +569,7 @@ apps/api/src/repositories/
 ### Feature Dependencies
 
 - **AuthModule** - Required by most feature modules (JWT guards)
-- **RbacModule** - Required for permission-based authorization (PermissionsGuard)
+- **TenantRbacModule** - Required for permission-based authorization (TenantPermissionsGuard)
 - **TenantModule** - Required for multi-tenancy features
 - **StorageModule** - Used by templates and documents
 - **TemplatesModule** - Used by documents module

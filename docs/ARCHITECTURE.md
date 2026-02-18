@@ -158,8 +158,8 @@ Authorization is handled via decorators and guards at the route level:
 
 ```typescript
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:read')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:read')
 @Get()
 async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
   return this.service.findAll(user.tenantId);
@@ -419,7 +419,7 @@ All tokens are stored in HTTP-only cookies and refresh tokens are persisted in t
 2. **Identity-Level:** Identity tokens for user verification and system admin access
 3. **Tenant-Level:** Tenant tokens provide tenant-scoped access
 4. **Role-Level:** `RolesGuard` with `@Roles()` for simple role checks (e.g., `tenant_admin`)
-5. **Permission-Level:** `PermissionsGuard` with `@RequirePermissions()` decorators for fine-grained RBAC
+5. **Permission-Level:** `TenantPermissionsGuard` with `@RequirePermissions()` decorators for fine-grained RBAC
 6. **Data-Level:** RLS policies enforce tenant isolation at database level
 
 ### Authentication Decorators
@@ -449,8 +449,8 @@ async getTenantInfo(
 
 // Permission-based access (requires tenant token)
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:create')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:create')
 @Post('documents')
 async createDocument(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
 
@@ -475,7 +475,7 @@ Complytude implements a **permission-based RBAC system** for fine-grained access
 │                    Permission Check Flow                          │
 ├─────────────────────────────────────────────────────────────────┤
 │  Request → JWT Guard → Extract role from token                   │
-│         → PermissionsGuard → RbacService.hasPermission()         │
+│         → TenantPermissionsGuard → RbacService.hasPermission()         │
 │         → System role: In-memory lookup (O(1))                   │
 │         → Custom role: Database query                            │
 │         → Permission matcher (wildcard support)                  │
@@ -485,13 +485,13 @@ Complytude implements a **permission-based RBAC system** for fine-grained access
 
 ### RBAC Sync Service
 
-The `RbacSyncService` automatically synchronizes permissions and system roles from code to database on application startup:
+The `TenantRbacSyncService` automatically synchronizes permissions and system roles from code to database on application startup:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    RBAC Sync Flow (OnModuleInit)                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  App Startup → RbacSyncService.onModuleInit()                    │
+│  App Startup → TenantRbacSyncService.onModuleInit()                    │
 │             → syncPermissions() - Sync ALL_TENANT_PERMISSIONS    │
 │             → syncSystemRoles() - Sync system role definitions   │
 │             → Sync role-permission mappings                      │
@@ -516,12 +516,12 @@ The `RbacSyncService` automatically synchronizes permissions and system roles fr
 
 Four predefined system roles with in-memory permission sets for optimal performance:
 
-| Role              | Key             | Permissions                                      | Description                                  |
-| ----------------- | --------------- | ------------------------------------------------ | -------------------------------------------- |
-| **Tenant Admin**  | `tenant_admin`  | `*:*` (wildcard)                                 | Full access to all tenant features           |
-| **Legal Counsel** | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query` | AI drafting, analysis, templates, regulatory |
+| Role              | Key             | Permissions                                                               | Description                                  |
+| ----------------- | --------------- | ------------------------------------------------------------------------- | -------------------------------------------- |
+| **Tenant Admin**  | `tenant_admin`  | `*:*` (wildcard)                                                          | Full access to all tenant features           |
+| **Legal Counsel** | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`           | AI drafting, analysis, templates, regulatory |
 | **Member**        | `member`        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation and viewing          |
-| **Viewer**        | `viewer`        | `documents:read`, `regulatory:query`             | Read-only access                             |
+| **Viewer**        | `viewer`        | `documents:read`, `regulatory:query`                                      | Read-only access                             |
 
 **Note:** System roles use wildcards (e.g., `documents:*`) for cleaner permission sets. The permission matcher handles wildcard expansion at runtime.
 
@@ -559,31 +559,31 @@ Permissions follow the pattern: `{resource}:{action}`
 
 ```typescript
 import {
-  RequireAllPermissions,
-  RequireAnyPermission,
+  RequireAllTenantPermissions,
+  RequireAnyTenantPermission,
 } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { TenantPermissionsGuard } from 'src/common/guards/permissions.guard';
 import { Roles } from 'src/modules/auth/decorators/roles.decorator';
 import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 
 // Require ANY of the specified permissions (OR logic)
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:read', 'templates:use')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:read', 'templates:use')
 @Get()
 async listResources() { }
 
 // Require ALL specified permissions (AND logic)
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAllPermissions('documents:read', 'documents:delete')
+@UseGuards(TenantPermissionsGuard)
+@RequireAllTenantPermissions('documents:read', 'documents:delete')
 @Delete(':id')
 async deleteDocument() { }
 
 // Wildcard permission
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:*')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:*')
 @Post()
 async createDocument() { }
 
@@ -597,18 +597,18 @@ async adminOnlyAction() { }
 
 ### When to Use Which Guard
 
-| Guard | Use Case | Example |
-| ----- | -------- | ------- |
-| `PermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
-| `RolesGuard` | Simple role verification | Check if user is `tenant_admin` |
+| Guard                    | Use Case                       | Example                                |
+| ------------------------ | ------------------------------ | -------------------------------------- |
+| `TenantPermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
+| `RolesGuard`             | Simple role verification       | Check if user is `tenant_admin`        |
 
 ### Global Module Architecture
 
-**RbacModule is a Global Module** - marked with `@Global()` decorator for application-wide availability.
+**TenantRbacModule is a Global Module** - marked with `@Global()` decorator for application-wide availability.
 
 **Design Decision:**
 
-RBAC is a cross-cutting concern similar to authentication. Making `RbacModule` global eliminates the need to import it in every feature module that uses `PermissionsGuard`.
+RBAC is a cross-cutting concern similar to authentication. Making `TenantRbacModule` global eliminates the need to import it in every feature module that uses `TenantPermissionsGuard`.
 
 **Implementation:**
 
@@ -617,24 +617,24 @@ RBAC is a cross-cutting concern similar to authentication. Making `RbacModule` g
 @Global()  // ← Makes module available everywhere
 @Module({
   imports: [DatabaseModule],
-  providers: [RbacService, PermissionsGuard, ...],
-  exports: [RbacService, PermissionsGuard, ...],
+  providers: [TenantRbacService, TenantPermissionsGuard, ...],
+  exports: [TenantRbacService, TenantPermissionsGuard, ...],
 })
-export class RbacModule {}
+export class TenantRbacModule {}
 ```
 
 **Usage in Feature Modules:**
 
 ```typescript
-// ✅ CORRECT: No RbacModule import needed
+// ✅ CORRECT: No TenantRbacModule import needed
 @Module({
-  controllers: [MyController], // Uses PermissionsGuard
+  controllers: [MyController], // Uses TenantPermissionsGuard
 })
 export class MyModule {}
 
-// ❌ WRONG: Don't import RbacModule in feature modules
+// ❌ WRONG: Don't import TenantRbacModule in feature modules
 @Module({
-  imports: [RbacModule], // ← Not needed! RbacModule is global
+  imports: [TenantRbacModule], // ← Not needed! TenantRbacModule is global
   controllers: [MyController],
 })
 export class MyModule {}
@@ -643,16 +643,16 @@ export class MyModule {}
 **What's Available Globally:**
 
 - `RbacService` - Permission checking logic
-- `PermissionsGuard` - Permission-based authorization guard
+- `TenantPermissionsGuard` - Permission-based authorization guard
 - `RolesRepository` - Role data access
 - `PermissionsRepository` - Permission data access
 
 **Benefits:**
 
-1. **Reduced Boilerplate:** No need to import `RbacModule` in 20+ feature modules
+1. **Reduced Boilerplate:** No need to import `TenantRbacModule` in 20+ feature modules
 2. **Cleaner Dependencies:** Feature modules don't need to know about RBAC implementation
 3. **Consistent with NestJS Patterns:** Similar to how `ConfigModule` and `AuthModule` work
-4. **Single Import:** `RbacModule` imported once in `AppModule`
+4. **Single Import:** `TenantRbacModule` imported once in `AppModule`
 
 ### Permission Matching Logic
 
@@ -660,14 +660,14 @@ The `matchTenantPermission()` function handles wildcard matching:
 
 ```typescript
 // User permission expands to cover required permission
-matchTenantPermission('*:*', 'documents:read')      // true - covers everything
-matchTenantPermission('documents:*', 'documents:read') // true - covers all document actions
-matchTenantPermission('*:read', 'documents:read')   // true - covers read on all resources
-matchTenantPermission('documents:read', 'documents:read') // true - exact match
+matchTenantPermission('*:*', 'documents:read'); // true - covers everything
+matchTenantPermission('documents:*', 'documents:read'); // true - covers all document actions
+matchTenantPermission('*:read', 'documents:read'); // true - covers read on all resources
+matchTenantPermission('documents:read', 'documents:read'); // true - exact match
 
 // No match
-matchTenantPermission('documents:read', 'documents:create') // false - different actions
-matchTenantPermission('documents:create', 'documents:*')    // false - user doesn't have wildcard
+matchTenantPermission('documents:read', 'documents:create'); // false - different actions
+matchTenantPermission('documents:create', 'documents:*'); // false - user doesn't have wildcard
 ```
 
 ### Custom Roles (MVP+)
@@ -681,14 +681,14 @@ Custom tenant roles are stored in the database and can be created by tenant admi
 
 ### Database Tables
 
-| Table                   | Purpose                                  |
-| ----------------------- | ---------------------------------------- |
-| `roles`                 | Role definitions (system + custom)       |
-| `permissions`           | Permission definitions (synced from code)|
-| `role_permissions`      | Many-to-many role-permission assignments |
-| `user_tenants.role_key` | User's role within a tenant              |
+| Table                   | Purpose                                   |
+| ----------------------- | ----------------------------------------- |
+| `roles`                 | Role definitions (system + custom)        |
+| `permissions`           | Permission definitions (synced from code) |
+| `role_permissions`      | Many-to-many role-permission assignments  |
+| `user_tenants.role_key` | User's role within a tenant               |
 
-**Note:** The `permissions` table is automatically populated by `RbacSyncService` from `ALL_TENANT_PERMISSIONS` constant on app startup.
+**Note:** The `permissions` table is automatically populated by `TenantRbacSyncService` from `ALL_TENANT_PERMISSIONS` constant on app startup.
 
 **For detailed database schema, see [DATABASE.md](DATABASE.md)**
 
@@ -891,16 +891,16 @@ Complytude implements a production-grade entitlement engine that manages feature
 
 ### Key Services
 
-| Service | Responsibility |
-|---------|----------------|
-| **EntitlementResolverService** | Compute effective entitlements (plan + addons + overrides) |
+| Service                           | Responsibility                                                         |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| **EntitlementResolverService**    | Compute effective entitlements (plan + addons + overrides)             |
 | **EntitlementEnforcementService** | Runtime checks: can tenant use feature? Record usage + credit fallback |
-| **EntitlementSnapshotService** | Cache computed entitlements for fast reads (24h TTL) |
-| **UsageIngestionService** | Record usage events to append-only ledger |
-| **UsageProjectionService** | Maintain aggregated usage counts (derived from ledger) |
-| **CreditLedgerService** | Manage credit transactions (purchase, grant, deduct, refund) |
-| **SubscriptionsService** | Manage tenant subscriptions (create, change plan, cancel, renew) |
-| **DomainEventsService** | Emit and query domain events (audit trail) |
+| **EntitlementSnapshotService**    | Cache computed entitlements for fast reads (24h TTL)                   |
+| **UsageIngestionService**         | Record usage events to append-only ledger                              |
+| **UsageProjectionService**        | Maintain aggregated usage counts (derived from ledger)                 |
+| **CreditLedgerService**           | Manage credit transactions (purchase, grant, deduct, refund)           |
+| **SubscriptionsService**          | Manage tenant subscriptions (create, change plan, cancel, renew)       |
+| **DomainEventsService**           | Emit and query domain events (audit trail)                             |
 
 ### Feature Types
 
@@ -914,23 +914,25 @@ The system supports typed features:
 
 ### Plan Tiers
 
-| Plan | Target | Price | Key Features |
-|------|--------|-------|--------------|
-| **Navigator** (Free) | Founders | AED 0/mo | 3 docs/mo, basic regulatory |
-| **Shield** | Solo entrepreneurs | AED 249/mo | 25 docs/mo, essential templates |
-| **General Counsel** | Active SMEs | AED 599/mo | 100 docs/mo, full library, AI redlining |
-| **Infrastructure** | Agencies, enterprises | AED 2,499+/mo | Unlimited docs, custom playbooks, white-label |
+| Plan                 | Target                | Price         | Key Features                                  |
+| -------------------- | --------------------- | ------------- | --------------------------------------------- |
+| **Navigator** (Free) | Founders              | AED 0/mo      | 3 docs/mo, basic regulatory                   |
+| **Shield**           | Solo entrepreneurs    | AED 249/mo    | 25 docs/mo, essential templates               |
+| **General Counsel**  | Active SMEs           | AED 599/mo    | 100 docs/mo, full library, AI redlining       |
+| **Infrastructure**   | Agencies, enterprises | AED 2,499+/mo | Unlimited docs, custom playbooks, white-label |
 
 ### Global Module Architecture
 
 **EntitlementsModule is a Global Module** - marked with `@Global()` decorator for application-wide availability.
 
 **Why Global?**
+
 - Entitlements are a cross-cutting concern like authentication and RBAC
 - `EntitlementGuard` and `UsageEnforcementGuard` are used across many feature modules
 - Eliminates the need to import `EntitlementsModule` in every feature module
 
 **What's Available Globally:**
+
 - `EntitlementResolverService` - Entitlement resolution
 - `EntitlementEnforcementService` - Usage enforcement + credit fallback
 - `EntitlementSnapshotService` - Snapshot management
