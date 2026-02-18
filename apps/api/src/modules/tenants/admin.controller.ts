@@ -23,9 +23,7 @@ import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
-import {
-  CurrentUserIdentity,
-} from '../auth/decorators/current-user.decorator';
+import { CurrentUserIdentity } from '../auth/decorators/current-user.decorator';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import type { AuthenticatedIdentityUser } from '../auth/strategies';
 import { UpdateTenantDto } from './dto/update-tenant.dto';

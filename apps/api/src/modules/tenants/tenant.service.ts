@@ -73,11 +73,12 @@ export class TenantService {
   ): Promise<Tenant> {
     try {
       if (options?.platformAdminContext) {
-        const tenant = await this.databaseService.transactionWithPlatformAdminContext(
-          options.platformAdminContext,
-          async (client) =>
-            this.tenantRepository.findById(tenantId, { client }),
-        );
+        const tenant =
+          await this.databaseService.transactionWithPlatformAdminContext(
+            options.platformAdminContext,
+            async (client) =>
+              this.tenantRepository.findById(tenantId, { client }),
+          );
         if (!tenant) {
           throw new NotFoundException(`Tenant ${tenantId} not found`);
         }
@@ -138,7 +139,7 @@ export class TenantService {
           async (client) =>
             this.tenantRepository.update(tenantId, updateTenantDto, {
               client,
-            }) as Promise<Tenant>,
+            }),
         );
       }
 

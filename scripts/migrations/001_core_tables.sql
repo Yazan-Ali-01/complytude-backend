@@ -711,12 +711,17 @@ DROP TRIGGER IF EXISTS update_user_tenants_updated_at ON public.user_tenants;
 DROP TRIGGER IF EXISTS trigger_prevent_system_role_deletion ON public.roles;
 DROP TRIGGER IF EXISTS trigger_prevent_system_role_modification ON public.roles;
 DROP TRIGGER IF EXISTS update_roles_updated_at ON public.roles;
+DROP TRIGGER IF EXISTS trigger_prevent_platform_system_role_deletion ON public.platform_roles;
+DROP TRIGGER IF EXISTS trigger_prevent_platform_system_role_modification ON public.platform_roles;
+DROP TRIGGER IF EXISTS update_platform_roles_updated_at ON public.platform_roles;
 DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 DROP TRIGGER IF EXISTS update_tenants_updated_at ON public.tenants;
 
 -- Drop functions
 DROP FUNCTION IF EXISTS public.prevent_system_role_deletion();
 DROP FUNCTION IF EXISTS public.prevent_system_role_modification();
+DROP FUNCTION IF EXISTS public.prevent_platform_system_role_deletion();
+DROP FUNCTION IF EXISTS public.prevent_platform_system_role_modification();
 DROP FUNCTION IF EXISTS public.update_updated_at_column();
 
 -- Drop indexes
@@ -736,6 +741,7 @@ DROP INDEX IF EXISTS public.idx_user_tenants_user_tenant_active;
 DROP INDEX IF EXISTS public.idx_user_tenants_user_active;
 
 DROP INDEX IF EXISTS public.idx_users_email_verified;
+DROP INDEX IF EXISTS public.idx_users_platform_role;
 
 DROP INDEX IF EXISTS public.idx_tenants_parent_tenant_id;
 DROP INDEX IF EXISTS public.idx_tenants_is_active;
@@ -763,6 +769,13 @@ DROP INDEX IF EXISTS public.idx_roles_is_system;
 DROP INDEX IF EXISTS public.idx_roles_tenant_id;
 DROP INDEX IF EXISTS public.idx_roles_key;
 
+DROP INDEX IF EXISTS public.idx_platform_role_permissions_permission_id;
+DROP INDEX IF EXISTS public.idx_platform_role_permissions_role_id;
+DROP INDEX IF EXISTS public.idx_platform_permissions_resource;
+DROP INDEX IF EXISTS public.idx_platform_roles_is_active;
+DROP INDEX IF EXISTS public.idx_platform_roles_is_system;
+DROP INDEX IF EXISTS public.idx_platform_roles_key;
+
 -- Drop tables (in reverse dependency order)
 DROP TABLE IF EXISTS public.invitations;
 DROP TABLE IF EXISTS public.password_resets;
@@ -770,6 +783,9 @@ DROP TABLE IF EXISTS public.email_verifications;
 DROP TABLE IF EXISTS public.refresh_tokens;
 DROP TABLE IF EXISTS public.user_tenants;
 DROP TABLE IF EXISTS public.audit_logs;
+DROP TABLE IF EXISTS public.platform_role_permissions;
+DROP TABLE IF EXISTS public.platform_permissions;
+DROP TABLE IF EXISTS public.platform_roles;
 DROP TABLE IF EXISTS public.role_permissions;
 DROP TABLE IF EXISTS public.permissions;
 DROP TABLE IF EXISTS public.roles;
