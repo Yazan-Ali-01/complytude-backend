@@ -25,7 +25,9 @@ import {
   PaginationMetaDto,
   PaginationQueryDto,
 } from 'src/common/dto';
-import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
+import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiConflictError,
@@ -105,7 +107,9 @@ export class TemplatesController {
   }
 
   @Post()
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @ApiOperation({
     summary: 'Create new template',
     description:
@@ -124,7 +128,9 @@ export class TemplatesController {
   }
 
   @Delete(':key')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @ApiOperation({
     summary: 'Deactivate template',
     description:
@@ -165,7 +171,9 @@ export class TemplatesController {
   }
 
   @Post(':key/versions')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Create new template version',
@@ -213,7 +221,9 @@ export class TemplatesController {
   }
 
   @Post(':key/versions/:version/rollback')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @AuditAction('rollback') // Example: Custom action name
   @ApiOperation({
     summary: 'Rollback to previous template version',
@@ -245,7 +255,9 @@ export class TemplatesController {
   }
 
   @Post(':key/rulesets')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
   @ApiOperation({
     summary: 'Link rulesets to template',
     description:

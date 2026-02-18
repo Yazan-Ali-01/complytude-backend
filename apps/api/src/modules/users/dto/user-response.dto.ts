@@ -38,10 +38,11 @@ export class UserProfileResponseDto {
   isVerified: boolean;
 
   @ApiProperty({
-    description: 'System administrator status',
-    example: false,
+    description: 'Platform role key (null for tenant-only users)',
+    example: 'system_admin',
+    nullable: true,
   })
-  isSystemAdmin: boolean;
+  platformRole: string | null;
 
   @ApiProperty({
     description: 'Account creation timestamp',

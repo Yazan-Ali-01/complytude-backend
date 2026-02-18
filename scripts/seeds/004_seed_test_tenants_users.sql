@@ -25,14 +25,14 @@ ON CONFLICT (id) DO NOTHING;
 -- Hash generated with bcrypt (10 rounds): $2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW
 -- Note: Replace with actual bcrypt hash if needed
 
-INSERT INTO public.users (id, email, password_hash, first_name, last_name, is_verified, is_system_admin) VALUES
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'admin@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Alice', 'Admin', true, false),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'member@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Bob', 'Member', true, false),
-    ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'viewer@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Charlie', 'Viewer', true, false),
-    ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'admin@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Diana', 'Admin', true, false),
-    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'member@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Eve', 'Member', true, false),
-    ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'admin@tenant3.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Frank', 'Enterprise', true, false),
-    ('99999999-9999-9999-9999-999999999999', 'superadmin@complytude.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'System', 'Administrator', true, true)
+INSERT INTO public.users (id, email, password_hash, first_name, last_name, is_verified, platform_role_key) VALUES
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'admin@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Alice', 'Admin', true, NULL),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'member@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Bob', 'Member', true, NULL),
+    ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'viewer@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Charlie', 'Viewer', true, NULL),
+    ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'admin@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Diana', 'Admin', true, NULL),
+    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'member@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Eve', 'Member', true, NULL),
+    ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'admin@tenant3.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'Frank', 'Enterprise', true, NULL),
+    ('99999999-9999-9999-9999-999999999999', 'superadmin@complytude.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW', 'System', 'Administrator', true, 'system_admin')
 ON CONFLICT (id) DO NOTHING;
 
 -- =========================

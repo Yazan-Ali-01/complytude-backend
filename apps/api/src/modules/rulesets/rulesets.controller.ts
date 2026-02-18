@@ -19,7 +19,9 @@ import {
   PaginationMetaDto,
   PaginationQueryDto,
 } from 'src/common/dto';
-import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
+import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiConflictError,
@@ -86,7 +88,9 @@ export class RulesetsController {
   }
 
   @Post()
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
     summary: 'Create new ruleset',
     description:
@@ -103,7 +107,9 @@ export class RulesetsController {
   }
 
   @Delete(':key')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
     summary: 'Deactivate ruleset',
     description:
@@ -144,7 +150,9 @@ export class RulesetsController {
   }
 
   @Post(':key/versions')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
     summary: 'Create new ruleset version',
     description:
@@ -191,7 +199,9 @@ export class RulesetsController {
   }
 
   @Post(':key/versions/:version/rollback')
-  @UseGuards(SystemAdminGuard)
+  @AuthOptions({ identity: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
     summary: 'Rollback to previous ruleset version',
     description:

@@ -16,7 +16,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { MessageResponseDto, PaginationMetaDto } from 'src/common/dto';
-import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiConflictError,
@@ -80,7 +81,8 @@ export class AuthoritiesController {
 
   @Post()
   @AuthOptions({ identity: true })
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
     summary: 'Create authority',
     description:
@@ -98,7 +100,8 @@ export class AuthoritiesController {
 
   @Patch(':id')
   @AuthOptions({ identity: true })
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
     summary: 'Update authority',
     description:
@@ -121,7 +124,8 @@ export class AuthoritiesController {
 
   @Delete(':id')
   @AuthOptions({ identity: true })
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
     summary: 'Deactivate authority',
     description:

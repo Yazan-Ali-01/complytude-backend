@@ -4,7 +4,7 @@ import { isTenantSystemRole } from '../../common/utils/tenant-type-guards.util';
 import { RolesRepository } from '../../repositories/rbac/roles.repository';
 
 @Injectable()
-export class RbacService {
+export class TenantRbacService {
   // System roles use in-memory permission sets (TENANT_SYSTEM_ROLE_PERMISSIONS)
   // Custom tenant roles (MVP+) will query the database
   // TODO: Implement caching for custom tenant roles - load role-permissions
@@ -59,5 +59,5 @@ export class RbacService {
   // 1. Create a model-tier mapping (e.g., { 'claude-3.5-sonnet': 'premium', 'gpt-4': 'premium', 'gpt-3.5': 'standard' })
   // 2. Add permission: 'ai:use_premium_models' granted only to tenant_admin and legal_counsel
   // 3. Check permission before allowing model selection in AI generation endpoints
-  // 4. Use getRolePermissions() + in-memory check (same pattern as PermissionsGuard)
+  // 4. Use getRolePermissions() + in-memory check (same pattern as TenantPermissionsGuard)
 }

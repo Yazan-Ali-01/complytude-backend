@@ -67,14 +67,27 @@ export class TenantService {
   /**
    * Get tenant by ID
    */
-  async findById(tenantId: string): Promise<Tenant> {
+  async findById(
+    tenantId: string,
+    options?: { platformAdminContext?: string },
+  ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext) {
+        const tenant =
+          await this.databaseService.transactionWithPlatformAdminContext(
+            options.platformAdminContext,
+            async (client) =>
+              this.tenantRepository.findById(tenantId, { client }),
+          );
+        if (!tenant) {
+          throw new NotFoundException(`Tenant ${tenantId} not found`);
+        }
+        return tenant;
+      }
       const tenant = await this.tenantRepository.findById(tenantId);
-
       if (!tenant) {
         throw new NotFoundException(`Tenant ${tenantId} not found`);
       }
-
       return tenant;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
@@ -83,28 +96,52 @@ export class TenantService {
   }
 
   /**
-   * Get all tenants (admin only)
+   * Get all tenants (admin only when platformAdminContext)
+   * When platformAdminContext is true, runs in platform admin RLS context so all tenants are visible.
    */
   async findAll(
     cursorOptions?: CursorPaginationOptions,
+    options?: { platformAdminContext?: string },
   ): Promise<CursorPaginationResult<Tenant>> {
     try {
-      const tenants = await this.tenantRepository.findMany({}, cursorOptions);
-      return tenants;
-    } catch {
+      if (options?.platformAdminContext) {
+        return this.databaseService.transactionWithPlatformAdminContext(
+          options.platformAdminContext,
+          async (client) => {
+            return this.tenantRepository.findMany({}, cursorOptions, {
+              client,
+            });
+          },
+        );
+      }
+      return this.tenantRepository.findMany({}, cursorOptions);
+    } catch (error) {
+      this.logger.error(`Failed to fetch tenants: ${error.message}`, error);
       throw new InternalServerErrorException('Failed to fetch tenants');
     }
   }
 
   /**
    * Update tenant
+   * When platformAdminContext is set, runs in platform admin RLS context.
    */
   async updateTenant(
     tenantId: string,
     updateTenantDto: UpdateTenantDto,
+    options?: { platformAdminContext?: string },
   ): Promise<Tenant> {
     try {
-      await this.findById(tenantId);
+      await this.findById(tenantId, options);
+
+      if (options?.platformAdminContext) {
+        return this.databaseService.transactionWithPlatformAdminContext(
+          options.platformAdminContext,
+          async (client) =>
+            this.tenantRepository.update(tenantId, updateTenantDto, {
+              client,
+            }),
+        );
+      }
 
       const updated = await this.tenantRepository.update(tenantId, {
         ...updateTenantDto,
@@ -126,9 +163,28 @@ export class TenantService {
 
   /**
    * Delete tenant
+   * When platformAdminContext is set, runs in platform admin RLS context.
    */
-  async deleteTenant(tenantId: string): Promise<void> {
+  async deleteTenant(
+    tenantId: string,
+    options?: { platformAdminContext?: string },
+  ): Promise<void> {
     try {
+      if (options?.platformAdminContext) {
+        await this.databaseService.transactionWithPlatformAdminContext(
+          options.platformAdminContext,
+          async (client) => {
+            const deleted = await this.tenantRepository.delete(tenantId, {
+              client,
+            });
+            if (deleted === 0) {
+              throw new NotFoundException(`Tenant ${tenantId} not found`);
+            }
+          },
+        );
+        return;
+      }
+
       await this.databaseService.transaction(async (client) => {
         const deleted = await this.tenantRepository.delete(tenantId, {
           client,

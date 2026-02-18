@@ -101,6 +101,23 @@ $$;
 
 COMMENT ON FUNCTION public.is_auth_flow IS 'Check if current operation is an auth flow (signup, login, password reset, etc.)';
 
+-- Check if current user has a platform role (system admin, support, etc.)
+-- Used for RLS: platform admins can see all tenants and user_tenants
+CREATE FUNCTION public.is_platform_admin()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    role_val TEXT;
+BEGIN
+    role_val := current_setting('app.platform_role', true);
+    RETURN role_val IS NOT NULL AND role_val != '';
+END;
+$$;
+
+COMMENT ON FUNCTION public.is_platform_admin IS 'Check if current user has platform role (from app.platform_role session context). Used for RLS to allow platform admins to see all tenants.';
+
 COMMIT;
 
 -- =========================
@@ -111,6 +128,7 @@ COMMIT;
 BEGIN;
 
 -- Drop all session context functions
+DROP FUNCTION IF EXISTS public.is_platform_admin();
 DROP FUNCTION IF EXISTS public.is_auth_flow();
 DROP FUNCTION IF EXISTS public.is_tenant_admin();
 DROP FUNCTION IF EXISTS public.current_tenant_id_or_null();

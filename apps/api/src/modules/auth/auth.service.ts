@@ -21,7 +21,6 @@ import {
   TENANT_ACCESS_TOKEN_COOKIE_NAME,
   TENANT_REFRESH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
-import { GlobalRole } from 'src/common/types';
 import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
 import { TokenType } from 'src/repositories/users/interfaces/refresh-token.interfaces';
@@ -238,7 +237,7 @@ export class AuthService {
           first_name: signupDto.firstName ?? null,
           last_name: signupDto.lastName ?? null,
           is_verified: false,
-          is_system_admin: false,
+          platform_role_key: null,
         },
         { client },
       );
@@ -306,14 +305,11 @@ export class AuthService {
       throw new UnauthorizedException(this.i18n.t(I18nKeys.EMAIL_NOT_VERIFIED));
     }
 
-    // Determine global roles
-    const globalRoles: GlobalRole[] = user.is_system_admin
-      ? [GlobalRole.SYSTEM_ADMIN]
-      : [];
+    const platformRole = user.platform_role_key ?? null;
 
     // Generate identity tokens (access + refresh)
     const { identityAccessToken, identityRefreshToken } =
-      await this.generateIdentityTokens(user.id, user.email, globalRoles);
+      await this.generateIdentityTokens(user.id, user.email, platformRole);
 
     // Get user's active tenants
     const userTenants = await this.userTenantRepository.getActiveUserTenants(
@@ -344,7 +340,7 @@ export class AuthService {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        isSystemAdmin: user.is_system_admin,
+        platformRole: user.platform_role_key ?? null,
       },
       tenants: tenantsWithDetails,
       pendingInvitationsCount,
@@ -368,7 +364,7 @@ export class AuthService {
         'first_name',
         'last_name',
         'is_verified',
-        'is_system_admin',
+        'platform_role_key',
       ],
     });
     if (!user) {
@@ -399,12 +395,12 @@ export class AuthService {
   async generateIdentityTokens(
     userId: string,
     email: string,
-    globalRoles: GlobalRole[],
+    platformRole: string | null,
   ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     const accessPayload: IdentityPayload = {
       sub: userId,
       email,
-      globalRoles,
+      platformRole,
       type: 'identity',
     };
 
@@ -596,16 +592,13 @@ export class AuthService {
       throw new UnauthorizedException(this.i18n.t(I18nKeys.NOT_FOUND));
     }
 
-    // Determine global roles
-    const globalRoles: GlobalRole[] = user.is_system_admin
-      ? [GlobalRole.SYSTEM_ADMIN]
-      : [];
+    const platformRole = user.platform_role_key ?? null;
 
     // Generate new identity tokens
     const tokens = await this.generateIdentityTokens(
       userId,
       email,
-      globalRoles,
+      platformRole,
     );
 
     this.logger.log(`Identity tokens refreshed for user ${userId}`);

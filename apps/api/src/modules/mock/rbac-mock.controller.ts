@@ -12,10 +12,10 @@ import {
   AuditResource,
 } from 'src/common/decorators/audit.decorator';
 import {
-  RequireAllPermissions,
-  RequireAnyPermission,
-} from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+  RequireAllTenantPermissions,
+  RequireAnyTenantPermission,
+} from 'src/common/decorators/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
@@ -47,8 +47,8 @@ export class RbacMockController {
   //   - member: 'documents:read' matches 'documents:read' ✓
   //   - viewer: 'documents:read' matches 'documents:read' ✓
   @Get('documents')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('documents:read')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:read')
   @AuditAction({ action: 'read', resourceType: 'documents' })
   listDocuments(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Documents listed by ${user.email} (${user.role})` };
@@ -65,8 +65,8 @@ export class RbacMockController {
   //   - legal_counsel: 'documents:*' matches 'documents:*' ✓
   //   - member: 'documents:read' does NOT match 'documents:*' ✗
   @Get('documents/wildcard-required')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('documents:*')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:*')
   @AuditAction({ action: 'wildcard_check', resourceType: 'documents' })
   requireDocumentsWildcard(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
@@ -79,10 +79,14 @@ export class RbacMockController {
   // ============================================
   // Requires: User must have 'documents:read' OR 'templates:use' OR 'regulatory:query'
   // Passes: All roles (all have at least one of these)
-  // How it works: RequireAnyPermission checks if user has ANY of the listed permissions
+  // How it works: RequireAnyTenantPermission checks if user has ANY of the listed permissions
   @Get('multi-or')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('documents:read', 'templates:use', 'regulatory:query')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission(
+    'documents:read',
+    'templates:use',
+    'regulatory:query',
+  )
   @AuditAction({ action: 'multi_or_check', resourceType: 'permissions' })
   multiPermissionOr(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Multi-OR accessed by ${user.email} (${user.role})` };
@@ -94,10 +98,10 @@ export class RbacMockController {
   // Requires: User must have 'documents:read' AND 'documents:delete'
   // Passes: tenant_admin (has *:*), legal_counsel (has documents:*)
   // Fails: member (only has documents:read), viewer (only has documents:read)
-  // How it works: RequireAllPermissions checks if user has ALL listed permissions
+  // How it works: RequireAllTenantPermissions checks if user has ALL listed permissions
   @Delete('documents/:id')
-  @UseGuards(PermissionsGuard)
-  @RequireAllPermissions('documents:read', 'documents:delete')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAllTenantPermissions('documents:read', 'documents:delete')
   @AuditAction({ action: 'delete', resourceType: 'documents' })
   deleteDocument(
     @Param('id') id: string,
@@ -116,8 +120,8 @@ export class RbacMockController {
   // Fails: All other roles
   // How it works: Only tenant_admin has the '*:*' permission
   @Post('admin-only')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('*:*')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('*:*')
   @AuditAction({ action: 'admin_action', resourceType: 'system' })
   adminOnlyAction(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Admin action by ${user.email} (${user.role})` };
@@ -133,8 +137,8 @@ export class RbacMockController {
   //   - tenant_admin: '*:*' covers '*:read' ✓
   //   - viewer: 'documents:read' does NOT match '*:read' ✗
   @Get('read-anything')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('*:read')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('*:read')
   @AuditAction({ action: 'read', resourceType: 'wildcard' })
   readAnything(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
@@ -150,8 +154,8 @@ export class RbacMockController {
   // Fails: viewer (only has documents:read, not the wildcard or templates:use)
   // How it works: Checks if user has either the wildcard or the concrete permission
   @Post('mixed-permissions')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('documents:*', 'templates:use')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:*', 'templates:use')
   @AuditAction({ action: 'mixed_check', resourceType: 'permissions' })
   mixedPermissions(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
@@ -167,8 +171,8 @@ export class RbacMockController {
   // Fails: member, viewer (only have concrete permissions)
   // How it works: Checks if user has any of the wildcard permissions
   @Get('multi-wildcard-or')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('documents:*', 'contracts:*', 'templates:*')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:*', 'contracts:*', 'templates:*')
   @AuditAction({ action: 'multi_wildcard_or', resourceType: 'permissions' })
   multiWildcardOr(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
@@ -184,8 +188,8 @@ export class RbacMockController {
   // Fails: member, viewer (don't have wildcards)
   // How it works: Checks if user has ALL wildcard permissions
   @Post('multi-wildcard-and')
-  @UseGuards(PermissionsGuard)
-  @RequireAllPermissions('documents:*', 'contracts:*', 'templates:*')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAllTenantPermissions('documents:*', 'contracts:*', 'templates:*')
   @AuditAction({ action: 'multi_wildcard_and', resourceType: 'permissions' })
   multiWildcardAnd(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
@@ -201,8 +205,8 @@ export class RbacMockController {
   // Fails: member, viewer (don't have contracts permissions)
   // How it works: User's wildcard 'contracts:*' matches required 'contracts:analyze'
   @Post('contracts/analyze')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('contracts:analyze')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('contracts:analyze')
   @AuditAction({ action: 'analyze', resourceType: 'contracts' })
   analyzeContract(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Contract analyzed by ${user.email} (${user.role})` };
@@ -216,8 +220,8 @@ export class RbacMockController {
   // Fails: member (only has documents:create, not contracts:analyze), viewer
   // How it works: Checks if user has BOTH permissions (wildcards match concrete)
   @Post('contracts/redline')
-  @UseGuards(PermissionsGuard)
-  @RequireAllPermissions('contracts:analyze', 'documents:create')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAllTenantPermissions('contracts:analyze', 'documents:create')
   @AuditAction({ action: 'redline', resourceType: 'contracts' })
   redlineContract(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Contract redlined by ${user.email} (${user.role})` };
@@ -230,8 +234,8 @@ export class RbacMockController {
   // Passes: tenant_admin (has *:*), anyone with settings:manage, billing:manage, team:manage, templates:manage
   // How it works: matchTenantPermission checks if user has any permission ending with ':manage'
   @Patch('manage-anything')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('*:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('*:manage')
   @AuditAction({ action: 'manage', resourceType: 'wildcard' })
   manageAnything(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
@@ -261,8 +265,8 @@ export class RbacMockController {
   // Fails: legal_counsel, member, viewer (don't have settings permissions)
   // How it works: Checks for very specific permission
   @Patch('settings/jurisdiction')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:change_jurisdiction')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('settings:change_jurisdiction')
   @AuditAction({
     action: 'change',
     subResource: 'jurisdiction',
@@ -282,8 +286,8 @@ export class RbacMockController {
   // Fails: legal_counsel, member, viewer (don't have billing or settings)
   // How it works: Checks if user has either billing or settings management
   @Get('billing')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('billing:manage', 'settings:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('billing:manage', 'settings:manage')
   @AuditAction({ action: 'manage', resourceType: 'billing' })
   manageBilling(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Billing accessed by ${user.email} (${user.role})` };

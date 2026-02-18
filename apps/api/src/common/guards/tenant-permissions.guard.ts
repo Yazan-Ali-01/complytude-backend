@@ -7,18 +7,18 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthenticatedTenantUser } from '../../modules/auth/strategies';
-import { RbacService } from '../../modules/rbac/rbac.service';
+import { TenantRbacService } from '../../modules/tenant-rbac/tenant-rbac.service';
 import {
-  PERMISSIONS_KEY,
-  PermissionMetadata,
-} from '../decorators/permissions.decorator';
+  TENANT_PERMISSIONS_KEY,
+  TenantPermissionMetadata,
+} from '../decorators/tenant-permissions.decorator';
 import {
-  hasAllTenantPermissions,
-  hasAnyTenantPermission,
-} from '../utils/tenant-permission-matcher.util';
+  hasAllPermissions,
+  hasAnyPermission,
+} from '../utils/permission-matcher.util';
 
 @Injectable()
-export class PermissionsGuard implements CanActivate {
+export class TenantPermissionsGuard implements CanActivate {
   // Optimized permission checking:
   // 1. Fetch all role permissions once (single DB query or in-memory for system roles)
   // 2. Normalize wildcards in required permissions
@@ -27,16 +27,16 @@ export class PermissionsGuard implements CanActivate {
 
   constructor(
     private reflector: Reflector,
-    private rbacService: RbacService,
+    private tenantRbacService: TenantRbacService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Get required permissions metadata from decorator
     const permissionMetadata =
-      this.reflector.getAllAndOverride<PermissionMetadata>(PERMISSIONS_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]);
+      this.reflector.getAllAndOverride<TenantPermissionMetadata>(
+        TENANT_PERMISSIONS_KEY,
+        [context.getHandler(), context.getClass()],
+      );
 
     // If no permissions are required, allow access
     if (
@@ -65,15 +65,15 @@ export class PermissionsGuard implements CanActivate {
     // OPTIMIZATION: Fetch all role permissions once (single query or in-memory)
     // System roles: In-memory lookup (no DB query)
     // Custom roles: Single DB query with tenant context
-    const userPermissions = await this.rbacService.getRolePermissions(
+    const userPermissions = await this.tenantRbacService.getRolePermissions(
       tenant.role,
       tenant.tenantId,
     );
 
     // Check permissions based on requireAll flag (in-memory)
     const hasPermission = permissionMetadata.requireAll
-      ? hasAllTenantPermissions(userPermissions, permissionMetadata.permissions)
-      : hasAnyTenantPermission(userPermissions, permissionMetadata.permissions);
+      ? hasAllPermissions(userPermissions, permissionMetadata.permissions)
+      : hasAnyPermission(userPermissions, permissionMetadata.permissions);
 
     if (!hasPermission) {
       const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';

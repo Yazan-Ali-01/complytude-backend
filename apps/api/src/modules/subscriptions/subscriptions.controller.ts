@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { RequireAnyPermission } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { SystemTenantRole } from 'src/common/types';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
@@ -77,8 +77,8 @@ export class SubscriptionsController {
    * Requires: billing:manage permission (typically tenant_admin or billing manager)
    */
   @Post('change-plan')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('billing:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({
     summary: 'Change subscription plan',
     description:
@@ -128,8 +128,8 @@ export class SubscriptionsController {
    * Requires: billing:manage permission (typically tenant_admin or billing manager)
    */
   @Post('cancel')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('billing:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({
     summary: 'Cancel subscription',
     description:

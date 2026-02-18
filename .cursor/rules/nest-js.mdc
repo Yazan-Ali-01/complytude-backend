@@ -248,8 +248,8 @@ async getTenantInfo(
 
 // Permission-based access (requires tenant token)
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:create')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:create')
 @Post('create')
 async create() { }
 ```
@@ -269,7 +269,7 @@ rbac:
 strategy: "Permission-based RBAC with wildcard support"
 system_roles: "In-memory permission sets for performance"
 custom_roles: "Database-backed (MVP+)"
-sync: "RbacSyncService syncs permissions/roles from code to DB on startup"
+sync: "TenantRbacSyncService syncs permissions/roles from code to DB on startup"
 
 # ========================================
 
@@ -297,18 +297,18 @@ Permissions follow the pattern: `{resource}:{action}`
 
 # System Roles
 
-| Role          | Key             | Permissions (in-memory)                                           | Description                      |
-| ------------- | --------------- | ----------------------------------------------------------------- | -------------------------------- |
-| Tenant Admin  | `tenant_admin`  | `*:*`                                                             | Full access                      |
-| Legal Counsel | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`   | AI drafting, analysis, templates |
+| Role          | Key             | Permissions (in-memory)                                                   | Description                      |
+| ------------- | --------------- | ------------------------------------------------------------------------- | -------------------------------- |
+| Tenant Admin  | `tenant_admin`  | `*:*`                                                                     | Full access                      |
+| Legal Counsel | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`           | AI drafting, analysis, templates |
 | Member        | `member`        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation          |
-| Viewer        | `viewer`        | `documents:read`, `regulatory:query`                              | Read-only access                 |
+| Viewer        | `viewer`        | `documents:read`, `regulatory:query`                                      | Read-only access                 |
 
 **Note:** System roles use wildcards for cleaner permission sets. Permission matching handles wildcard expansion at runtime.
 
 # RBAC Sync Service
 
-The `RbacSyncService` automatically syncs permissions and system roles from code to database on app startup:
+The `TenantRbacSyncService` automatically syncs permissions and system roles from code to database on app startup:
 
 **Source of Truth:**
 
@@ -332,29 +332,29 @@ The `RbacSyncService` automatically syncs permissions and system roles from code
 
 ```typescript
 import {
-  RequireAllPermissions,
-  RequireAnyPermission,
+  RequireAllTenantPermissions,
+  RequireAnyTenantPermission,
 } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { TenantPermissionsGuard } from 'src/common/guards/permissions.guard';
 
 // Require ANY of the specified permissions (OR logic)
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:read', 'templates:use')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:read', 'templates:use')
 @Get()
 async listResources() { }
 
 // Require ALL specified permissions (AND logic)
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAllPermissions('documents:read', 'documents:delete')
+@UseGuards(TenantPermissionsGuard)
+@RequireAllTenantPermissions('documents:read', 'documents:delete')
 @Delete(':id')
 async deleteDocument() { }
 
 // Wildcard permission
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:*')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:*')
 @Post()
 async createDocument() { }
 ```
@@ -363,7 +363,7 @@ async createDocument() { }
 
 ```
 Request → JWT Guard → Extract role from token
-        → PermissionsGuard → RbacService.hasPermission()
+        → TenantPermissionsGuard → TenantRbacService.hasPermission()
         → System role: In-memory lookup (O(1))
         → Custom role: Database query
         → Permission matcher (wildcard support)
@@ -376,13 +376,13 @@ The `matchTenantPermission()` function handles wildcard matching:
 
 ```typescript
 // User permission expands to cover required permission
-matchTenantPermission('*:*', 'documents:read')      // true - covers everything
-matchTenantPermission('documents:*', 'documents:read') // true - covers all document actions
-matchTenantPermission('*:read', 'documents:read')   // true - covers read on all resources
+matchTenantPermission('*:*', 'documents:read'); // true - covers everything
+matchTenantPermission('documents:*', 'documents:read'); // true - covers all document actions
+matchTenantPermission('*:read', 'documents:read'); // true - covers read on all resources
 
 // No match
-matchTenantPermission('documents:read', 'documents:create') // false - different actions
-matchTenantPermission('documents:create', 'documents:*')    // false - user doesn't have wildcard
+matchTenantPermission('documents:read', 'documents:create'); // false - different actions
+matchTenantPermission('documents:create', 'documents:*'); // false - user doesn't have wildcard
 ```
 
 # Key Files
@@ -399,31 +399,31 @@ matchTenantPermission('documents:create', 'documents:*')    // false - user does
 
 # Global Module Architecture
 
-**RbacModule is a Global Module** - marked with `@Global()` decorator.
+**TenantRbacModule is a Global Module** - marked with `@Global()` decorator.
 
 **Why Global?**
 
 - RBAC is a cross-cutting concern like authentication
-- `PermissionsGuard` is used across many feature modules
-- Eliminates the need to import `RbacModule` in every feature module
+- `TenantPermissionsGuard` is used across many feature modules
+- Eliminates the need to import `TenantRbacModule` in every feature module
 - Follows NestJS best practices for authorization systems
 
 **How to Use:**
 
-1. **RbacModule is imported ONCE** in `AppModule`
+1. **TenantRbacModule is imported ONCE** in `AppModule`
 2. **No need to import** in feature modules - it's automatically available
-3. **Use `PermissionsGuard` directly** in any controller without importing `RbacModule`
+3. **Use `TenantPermissionsGuard` directly** in any controller without importing `TenantRbacModule`
 
 ```typescript
-// ✅ CORRECT: No RbacModule import needed
+// ✅ CORRECT: No TenantRbacModule import needed
 @Module({
-  controllers: [MyController], // Uses PermissionsGuard
+  controllers: [MyController], // Uses TenantPermissionsGuard
 })
 export class MyModule {}
 
-// ❌ WRONG: Don't import RbacModule in feature modules
+// ❌ WRONG: Don't import TenantRbacModule in feature modules
 @Module({
-  imports: [RbacModule], // ← Not needed! RbacModule is global
+  imports: [TenantRbacModule], // ← Not needed! TenantRbacModule is global
   controllers: [MyController],
 })
 export class MyModule {}
@@ -431,15 +431,15 @@ export class MyModule {}
 
 **What's Available Globally:**
 
-- `RbacService` - Permission checking logic
-- `RbacSyncService` - Database sync (internal, runs on startup)
-- `PermissionsGuard` - Permission-based authorization guard
+- `TenantRbacService` - Permission checking logic
+- `TenantRbacSyncService` - Database sync (internal, runs on startup)
+- `TenantPermissionsGuard` - Permission-based authorization guard
 - `RolesRepository` - Role data access
 - `PermissionsRepository` - Permission data access
 
 **When to use which:**
 
-- **PermissionsGuard + @RequirePermissions()** - For fine-grained permission checks (e.g., `documents:create`, `templates:manage`)
+- **TenantPermissionsGuard + @RequirePermissions()** - For fine-grained permission checks (e.g., `documents:create`, `templates:manage`)
 - **RolesGuard + @Roles()** - For simple role checks (e.g., checking if user is `tenant_admin`)
 
 ```typescript
@@ -450,10 +450,10 @@ export class MyModule {}
 @Post('admin-only')
 async adminOnlyAction() { }
 
-// Permission-based check - use PermissionsGuard
+// Permission-based check - use TenantPermissionsGuard
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:create')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:create')
 @Post('documents')
 async createDocument() { }
 ```

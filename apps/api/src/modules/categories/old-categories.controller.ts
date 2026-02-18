@@ -21,7 +21,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import { CategoriesService } from './categories.service';
 
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
@@ -35,7 +36,8 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
     summary: 'Create new category',
     description: 'Create a new template category (system admin only)',
@@ -118,7 +120,8 @@ export class CategoriesController {
   }
 
   @Put(':id')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
     summary: 'Update category',
     description: 'Update an existing category (system admin only)',
@@ -139,7 +142,8 @@ export class CategoriesController {
   }
 
   @Delete(':id')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('categories:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete category',

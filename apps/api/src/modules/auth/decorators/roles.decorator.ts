@@ -7,7 +7,7 @@ export const ROLES_KEY = 'roles';
  * Decorator to specify required roles for a route (OR logic - user needs ANY of the roles)
  *
  * Use with RolesGuard for simple role-based checks. For fine-grained permission
- * checks, use @RequireAnyPermission() or @RequireAllPermissions() with PermissionsGuard.
+ * checks, use @RequireAnyTenantPermission() or @RequireAllTenantPermissions() with TenantPermissionsGuard.
  *
  * @example
  * ```typescript
