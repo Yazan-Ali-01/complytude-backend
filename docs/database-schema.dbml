@@ -1,6 +1,6 @@
 // Complytude Database Schema
 // Multi-tenant SaaS platform for UAE legal document generation
-// Generated: 2026-02-03
+// Generated: 2026-02-18
 
 Project Complytude {
   database_type: 'PostgreSQL'
@@ -48,6 +48,11 @@ Enum invitation_status {
   REJECTED
   REVOKED
   EXPIRED
+}
+
+Enum refresh_token_type {
+  identity
+  tenant
 }
 
 // ============================================
@@ -113,6 +118,8 @@ Table refresh_tokens {
   id uuid [pk, default: `gen_random_uuid()`]
   user_id uuid [not null, ref: > users.id]
   token_hash varchar(255) [not null]
+  token_type refresh_token_type [not null, default: 'tenant', note: 'identity or tenant']
+  tenant_id uuid [null, ref: > tenants.id, note: 'NULL for identity tokens, required for tenant tokens']
   expires_at timestamptz [not null]
   created_at timestamptz [not null, default: `now()`]
   revoked_at timestamptz [null, note: 'NULL if still valid']
@@ -120,11 +127,12 @@ Table refresh_tokens {
   indexes {
     user_id
     token_hash
+    (user_id, token_type, tenant_id)
     expires_at
     (revoked_at) // [where: 'revoked_at IS NOT NULL']
   }
   
-  Note: 'JWT refresh tokens for session management'
+  Note: 'JWT refresh tokens for dual-token authentication (identity + tenant)'
 }
 
 Table email_verifications {
@@ -193,7 +201,7 @@ Table invitations {
 }
 
 // ============================================
-// RBAC TABLES
+// TENANT RBAC TABLES
 // ============================================
 
 Table roles {
@@ -266,6 +274,84 @@ Table role_permissions {
     Many-to-many: roles have multiple permissions.
     System roles use in-memory permission sets for performance.
     This table is primarily used for custom tenant roles.
+  '''
+}
+
+// ============================================
+// PLATFORM RBAC TABLES
+// ============================================
+
+Table platform_roles {
+  id uuid [pk, default: `gen_random_uuid()`]
+  key varchar(50) [unique, not null, note: 'Role key (e.g., system_admin, support, auditor)']
+  name varchar(100) [not null, note: 'Display name (e.g., System Admin)']
+  description text
+  is_system boolean [not null, default: false, note: 'TRUE for system roles, FALSE for custom platform roles']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    key
+    is_system
+  }
+  
+  Note: '''
+    Platform-level roles for system-wide access control.
+    System roles: system_admin, support, auditor
+    Custom platform roles: future extensibility
+  '''
+}
+
+Table platform_permissions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  key varchar(100) [unique, not null, note: 'Permission key (e.g., tenants:create, users:manage_roles)']
+  name varchar(100) [not null, note: 'Display name (e.g., Create Tenants)']
+  resource varchar(50) [not null, note: 'Resource type (e.g., tenants, users)']
+  action varchar(50) [not null, note: 'Action type (e.g., create, manage)']
+  description text
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    key
+    resource
+    (resource, action)
+  }
+  
+  Note: '''
+    Platform-level permissions for system-wide RBAC.
+    Format: {resource}:{action}
+    Wildcards supported: tenants:*, *:read, *:*
+    
+    Available permissions:
+    - tenants: create, read, update, delete
+    - users: read, update, delete, manage_roles
+    - plans: read, manage
+    - subscriptions: read, manage
+    - templates: read, manage
+    - rulesets: read, manage
+    - authorities: read, manage
+    - categories: read, manage
+    - entitlements: read, manage
+    - audit: read
+    - support: access, impersonate
+  '''
+}
+
+Table platform_role_permissions {
+  role_id uuid [pk, not null, ref: > platform_roles.id]
+  permission_id uuid [pk, not null, ref: > platform_permissions.id]
+  created_at timestamptz [not null, default: `now()`]
+  
+  indexes {
+    role_id
+    permission_id
+  }
+  
+  Note: '''
+    Many-to-many: platform roles have multiple permissions.
+    System roles use in-memory permission sets for performance.
+    This table exists for UI display and custom platform roles.
   '''
 }
 
@@ -749,10 +835,16 @@ TableGroup "Core Multi-Tenancy" {
   user_tenants
 }
 
-TableGroup "RBAC" {
+TableGroup "Tenant RBAC" {
   roles
   permissions
   role_permissions
+}
+
+TableGroup "Platform RBAC" {
+  platform_roles
+  platform_permissions
+  platform_role_permissions
 }
 
 TableGroup "Authentication" {
@@ -792,6 +884,7 @@ TableGroup "Junction Tables" {
   template_rulesets
   template_version_ruleset_versions
   role_permissions
+  platform_role_permissions
 }
 
 TableGroup "Tenant-Scoped Data (RLS)" {

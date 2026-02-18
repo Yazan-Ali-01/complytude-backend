@@ -35,13 +35,15 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 | -------------------- | ----- |
 | Total Tables         | 38    |
 | Core Tables          | 3     |
-| RBAC Tables          | 3     |
+| Tenant RBAC Tables   | 3     |
+| Platform RBAC Tables | 3     |
 | Auth Tables          | 4     |
-| Entitlement Tables   | 16    |
+| Entitlement Tables   | 14    |
 | Global Tables        | 6     |
 | Tenant-Scoped Tables | 2     |
-| Junction Tables      | 3     |
-| Enums                | 7     |
+| Junction Tables      | 4     |
+| Audit Tables         | 1     |
+| Enums                | 9     |
 
 ---
 
@@ -199,6 +201,8 @@ Many-to-many relationships:
 
 - `template_rulesets` - Templates ↔ Rulesets
 - `template_version_ruleset_versions` - Version-level associations
+- `role_permissions` - Tenant Roles ↔ Tenant Permissions
+- `platform_role_permissions` - Platform Roles ↔ Platform Permissions
 
 ### 6. Tenant-Scoped Data (RLS)
 
@@ -280,22 +284,28 @@ Many-to-many relationship: users belong to tenants with role assignments.
 
 ## RBAC Tables
 
-Tables for Role-Based Access Control with permission-based authorization.
+Tables for **Tenant RBAC** and **Platform RBAC** with permission-based authorization.
+
+> **📖 Complete RBAC Documentation:** See [RBAC.md](RBAC.md) for comprehensive guide on both Tenant and Platform RBAC systems, including permissions, roles, and implementation examples.
 
 ### Automatic Synchronization
 
-**Important:** The `permissions` table and system role entries in `roles` are **automatically synchronized** from code constants on every application startup via `TenantRbacSyncService`. You should never manually insert or update these records.
+**Important:** RBAC tables are **automatically synchronized** from code constants on every application startup. You should never manually insert or update these records.
 
-**Source of Truth:**
+**Tenant RBAC Sync:**
+- Service: `TenantRbacSyncService`
+- Source: `ALL_TENANT_PERMISSIONS` array and `TENANT_SYSTEM_ROLE_PERMISSIONS` map
+- Tables: `permissions`, `roles`, `role_permissions`
 
-- `src/common/constants/tenant-permissions.constant.ts` - `ALL_TENANT_PERMISSIONS` array defines all permissions
-- `src/common/constants/tenant-system-roles.constant.ts` - `TENANT_SYSTEM_ROLE_PERMISSIONS` map defines system role permissions
+**Platform RBAC Sync:**
+- Service: `PlatformRbacSyncService`
+- Source: `ALL_PLATFORM_PERMISSIONS` array and `PLATFORM_SYSTEM_ROLE_PERMISSIONS` map
+- Tables: `platform_permissions`, `platform_roles`, `platform_role_permissions`
 
 **Sync Behavior:**
-
 - **Permissions:** Add new, update existing, delete removed
 - **System Roles:** Add new, update existing, sync role-permission mappings
-- **Custom Roles:** Never touched (tenant_id IS NOT NULL)
+- **Custom Roles:** Never touched
 
 ### roles
 
@@ -397,6 +407,91 @@ Many-to-many relationship between roles and permissions.
 1. UI display (listing available roles)
 2. Custom tenant roles (MVP+ feature)
 3. Role-permission audit trail
+
+---
+
+## Platform RBAC Tables
+
+Tables for platform-wide authorization (system administration, tenant management).
+
+### platform_roles
+
+Platform-level roles for system-wide access control.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `key` | VARCHAR(50) | Role key (e.g., `system_admin`, `support`, `auditor`) |
+| `name` | VARCHAR(100) | Display name (e.g., `System Admin`) |
+| `description` | TEXT | Role description |
+| `is_system` | BOOLEAN | TRUE for system roles, FALSE for custom platform roles |
+| `is_active` | BOOLEAN | Active status |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+
+**Indexes:**
+
+- Unique constraint on `key`
+- `idx_platform_roles_is_system` - Filter system roles
+
+**System Roles (synced from code):**
+
+| Key | Name | Permissions | Description |
+|-----|------|-------------|-------------|
+| `system_admin` | System Admin | `*:*` | Full access to all platform features |
+| `support` | Support | Read-only permissions | Customer support access |
+| `auditor` | Auditor | Audit-focused permissions | Audit and compliance access |
+
+### platform_permissions
+
+Platform-level permissions for system-wide RBAC.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `key` | VARCHAR(100) | Permission key (e.g., `tenants:create`, `users:manage_roles`) |
+| `name` | VARCHAR(100) | Display name (e.g., `Create Tenants`) |
+| `resource` | VARCHAR(50) | Resource type (e.g., `tenants`, `users`) |
+| `action` | VARCHAR(50) | Action type (e.g., `create`, `manage`) |
+| `description` | TEXT | Permission description |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+
+**Indexes:**
+
+- Unique constraint on `key`
+- `idx_platform_permissions_resource` - Filter by resource
+- `idx_platform_permissions_resource_action` - Composite index
+
+**Available Permissions (synced from code):**
+
+| Resource | Permissions |
+|----------|-------------|
+| `tenants` | `tenants:create`, `tenants:read`, `tenants:update`, `tenants:delete`, `tenants:*` |
+| `users` | `users:read`, `users:update`, `users:delete`, `users:manage_roles`, `users:*` |
+| `plans` | `plans:read`, `plans:manage`, `plans:*` |
+| `subscriptions` | `subscriptions:read`, `subscriptions:manage`, `subscriptions:*` |
+| `templates` | `templates:read`, `templates:manage`, `templates:*` |
+| `rulesets` | `rulesets:read`, `rulesets:manage`, `rulesets:*` |
+| `authorities` | `authorities:read`, `authorities:manage`, `authorities:*` |
+| `categories` | `categories:read`, `categories:manage`, `categories:*` |
+| `entitlements` | `entitlements:read`, `entitlements:manage`, `entitlements:*` |
+| `audit` | `audit:read`, `audit:*` |
+| `support` | `support:access`, `support:impersonate`, `support:*` |
+| `*` (cross) | `*:read`, `*:manage`, `*:*` |
+
+### platform_role_permissions
+
+Many-to-many relationship between platform roles and permissions.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `role_id` | UUID | FK to platform_roles |
+| `permission_id` | UUID | FK to platform_permissions |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+
+**Primary Key:** `(role_id, permission_id)`
+
+**Note:** System roles use in-memory permission sets (`PLATFORM_SYSTEM_ROLE_PERMISSIONS`) for performance - no database query needed.
 
 ---
 
@@ -857,4 +952,4 @@ psql -d complytude -c "
 
 ---
 
-**Last Updated:** February 3, 2026
+**Last Updated:** February 18, 2026
