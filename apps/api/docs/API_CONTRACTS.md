@@ -92,14 +92,35 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
 
 ### Endpoint Authentication
 
-| Decorator                                                | When to Use                                       | Status Codes                    |
-| -------------------------------------------------------- | ------------------------------------------------- | ------------------------------- |
-| No decorator                                             | Public endpoints (no auth required)               | -                               |
-| `@AuthOptions({ identity: true })`                       | Identity-based auth (tenant selection, sys admin) | 401 if unauthenticated          |
-| `@AuthOptions({ tenant: true })`                         | Tenant-scoped endpoints (full auth required)      | 401 if unauthenticated          |
-| `@AuthOptions({ identity: true, tenant: true })`         | Requires both identity and tenant tokens          | 401 if unauthenticated          |
-| `@UseGuards(PermissionsGuard)` + `@RequirePermissions()` | Permission-based access (requires tenant token)   | 403 if insufficient permissions |
-| `@UseGuards(RolesGuard)` + `@Roles()`                    | Simple role check (e.g., `tenant_admin`)          | 403 if wrong role               |
+| Decorator | When to Use | Status Codes |
+|-----------|-------------|--------------|
+| No decorator | Public endpoints (no auth required) | - |
+| `@AuthOptions({ identity: true })` | Identity-based auth (tenant selection, platform operations) | 401 if unauthenticated |
+| `@AuthOptions({ tenant: true })` | Tenant-scoped endpoints (tenant operations) | 401 if unauthenticated |
+| `@AuthOptions({ identity: true, tenant: true })` | Requires both identity and tenant tokens | 401 if unauthenticated |
+
+### Authorization Guards
+
+> **📖 Complete RBAC Documentation:** See [RBAC.md](../../../docs/RBAC.md) for comprehensive guide on Tenant and Platform RBAC.
+
+**Tenant RBAC (Tenant-Scoped Operations):**
+
+| Guard + Decorator | When to Use | Example |
+|-------------------|-------------|---------|
+| `TenantPermissionsGuard` + `@RequireAnyTenantPermission()` | Permission-based access within tenant | `@RequireAnyTenantPermission('documents:create')` |
+| `TenantPermissionsGuard` + `@RequireAllTenantPermissions()` | Multiple permissions required (AND logic) | `@RequireAllTenantPermissions('documents:read', 'documents:delete')` |
+| `RolesGuard` + `@Roles()` | Simple role check | `@Roles('tenant_admin')` |
+
+**Platform RBAC (Platform-Wide Operations):**
+
+| Guard + Decorator | When to Use | Example |
+|-------------------|-------------|---------|
+| `PlatformPermissionsGuard` + `@RequireAnyPlatformPermission()` | Platform permission check | `@RequireAnyPlatformPermission('tenants:create')` |
+| `PlatformPermissionsGuard` + `@RequireAllPlatformPermissions()` | Multiple platform permissions (AND logic) | `@RequireAllPlatformPermissions('tenants:read', 'users:read')` |
+
+**Status Codes:**
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - Insufficient permissions for the operation
 
 ### Swagger Documentation
 
@@ -122,13 +143,21 @@ async getProfile(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) { .
 @Get('documents')
 async listDocuments(@CurrentUserTenant() user: AuthenticatedTenantUser) { ... }
 
-// Permission-protected endpoint
+// Tenant permission-protected endpoint
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:create')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:create')
 @ApiProtectedResponses('Requires documents:create permission')
-@Post('create')
-async create() { ... }
+@Post('documents')
+async createDocument() { ... }
+
+// Platform permission-protected endpoint
+@AuthOptions({ identity: true })
+@UseGuards(PlatformPermissionsGuard)
+@RequireAnyPlatformPermission('tenants:create')
+@ApiProtectedResponses('Requires tenants:create permission')
+@Post('admin/tenants')
+async createTenant() { ... }
 
 // Role-protected endpoint (simple role check)
 @AuthOptions({ tenant: true })
@@ -465,8 +494,8 @@ async findOne(@Param() params: TemplateIdParamDto): Promise<GetTemplateResponseD
 ```typescript
 @Post()
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('templates:manage')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('templates:manage')
 @ApiOperation({
   summary: 'Create a new template',
   description: 'Create a new document template. Requires templates:manage permission.',
@@ -527,8 +556,8 @@ export class CategoriesController {
 
   @Post()
   @AuthOptions({ tenant: true })
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('templates:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('templates:manage')
   @ApiCreateResponses(CategoryResponseDto, 'Category')
   async create(
     @Body() dto: CreateCategoryDto,
@@ -576,7 +605,7 @@ Available decorators in `src/common/swagger/decorators.ts`:
 - [ ] Success response documented with `@ApiResponse()`
 - [ ] Error responses documented (400, 401, 403, 404, 409, 500)
 - [ ] Authentication specified with `@AuthOptions()` decorator
-- [ ] Permission guards applied if needed (`@RequirePermissions()` + `PermissionsGuard` or `@Roles()` + `RolesGuard`)
+- [ ] Permission guards applied if needed (`@RequirePermissions()` + `TenantPermissionsGuard` or `@Roles()` + `RolesGuard`)
 - [ ] Query parameters documented (`@ApiQuery()` or query DTO)
 - [ ] Path parameters documented (`@ApiParam()` or param DTO)
 - [ ] Request body documented (`@ApiBody()` if needed)

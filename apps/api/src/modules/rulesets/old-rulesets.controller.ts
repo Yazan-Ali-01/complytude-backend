@@ -21,7 +21,8 @@ import {
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateRulesetDto, UpdateRulesetDto } from './dto/create-ruleset.dto';
@@ -35,7 +36,8 @@ export class RulesetsController {
   constructor(private readonly rulesetsService: RulesetsService) {}
 
   @Post()
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
     summary: 'Create new ruleset',
     description: 'Create a new legal ruleset with clauses (system admin only)',
@@ -121,7 +123,8 @@ export class RulesetsController {
   }
 
   @Put(':key')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
     summary: 'Update ruleset',
     description: 'Update an existing ruleset (system admin only)',
@@ -142,7 +145,8 @@ export class RulesetsController {
   }
 
   @Delete(':key')
-  @UseGuards(SystemAdminGuard)
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete ruleset',

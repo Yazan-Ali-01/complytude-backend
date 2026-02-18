@@ -1,9 +1,9 @@
 import { SetMetadata } from '@nestjs/common';
 import { TenantPermission } from '../types';
 
-export const PERMISSIONS_KEY = 'permissions';
+export const TENANT_PERMISSIONS_KEY = 'tenant_permissions';
 
-export interface PermissionMetadata {
+export interface TenantPermissionMetadata {
   permissions: TenantPermission[];
   requireAll: boolean;
 }
@@ -11,10 +11,10 @@ export interface PermissionMetadata {
 /**
  * Decorator to require ALL specified permissions for a route (AND logic)
  *
- * Usage: @RequireAllPermissions('documents:create', 'documents:delete')
+ * Usage: @RequireAllTenantPermissions('documents:create', 'documents:delete')
  *
  * The user must have permissions that COVER ALL of the required permissions.
- * Use with PermissionsGuard to enforce permission checks.
+ * Use with TenantPermissionsGuard to enforce permission checks.
  *
  * **Permission Matching Model:**
  * The system checks if the user's permissions COVER the required permissions.
@@ -30,8 +30,8 @@ export interface PermissionMetadata {
  * ```typescript
  * // ✅ RECOMMENDED: Require multiple concrete permissions (AND logic)
  * @Delete(':id')
- * @UseGuards(PermissionsGuard)
- * @RequireAllPermissions('documents:read', 'documents:delete')
+ * @UseGuards(TenantPermissionsGuard)
+ * @RequireAllTenantPermissions('documents:read', 'documents:delete')
  * async deleteDocument() {
  *   // User must have permissions covering BOTH requirements
  *   // TENANT_ADMIN: ✅ (has *:*)
@@ -41,8 +41,8 @@ export interface PermissionMetadata {
  *
  * // ✅ Single concrete permission
  * @Post()
- * @UseGuards(PermissionsGuard)
- * @RequireAllPermissions('documents:create')
+ * @UseGuards(TenantPermissionsGuard)
+ * @RequireAllTenantPermissions('documents:create')
  * async createDocument() {
  *   // LEGAL_COUNSEL: ✅ (documents:* covers documents:create)
  *   // MEMBER: ✅ (has documents:create)
@@ -50,16 +50,17 @@ export interface PermissionMetadata {
  * }
  * ```
  */
-export const RequireAllPermissions = (...permissions: TenantPermission[]) =>
-  SetMetadata(PERMISSIONS_KEY, { permissions, requireAll: true });
+export const RequireAllTenantPermissions = (
+  ...permissions: TenantPermission[]
+) => SetMetadata(TENANT_PERMISSIONS_KEY, { permissions, requireAll: true });
 
 /**
  * Decorator to require ANY of the specified permissions for a route (OR logic)
  *
- * Usage: @RequireAnyPermission('documents:create', 'documents:read')
+ * Usage: @RequireAnyTenantPermission('documents:create', 'documents:read')
  *
  * The user must have at least ONE permission that COVERS any of the required permissions.
- * Use with PermissionsGuard to enforce permission checks.
+ * Use with TenantPermissionsGuard to enforce permission checks.
  *
  * **Permission Matching Model:**
  * The system checks if the user's permissions COVER at least one required permission.
@@ -74,8 +75,8 @@ export const RequireAllPermissions = (...permissions: TenantPermission[]) =>
  * ```typescript
  * // ✅ RECOMMENDED: Multiple concrete options (OR logic)
  * @Get()
- * @UseGuards(PermissionsGuard)
- * @RequireAnyPermission('documents:read', 'documents:create')
+ * @UseGuards(TenantPermissionsGuard)
+ * @RequireAnyTenantPermission('documents:read', 'documents:create')
  * async listDocuments() {
  *   // User needs permission covering EITHER requirement
  *   // TENANT_ADMIN: ✅ (has *:*)
@@ -86,8 +87,8 @@ export const RequireAllPermissions = (...permissions: TenantPermission[]) =>
  *
  * // ✅ Single concrete permission (simplest case)
  * @Get(':id')
- * @UseGuards(PermissionsGuard)
- * @RequireAnyPermission('documents:read')
+ * @UseGuards(TenantPermissionsGuard)
+ * @RequireAnyTenantPermission('documents:read')
  * async getDocument() {
  *   // LEGAL_COUNSEL: ✅ (documents:* covers documents:read)
  *   // MEMBER: ✅ (has documents:read)
@@ -96,8 +97,8 @@ export const RequireAllPermissions = (...permissions: TenantPermission[]) =>
  *
  * // ✅ Requiring wildcard permission itself
  * @Post('batch-operations')
- * @UseGuards(PermissionsGuard)
- * @RequireAnyPermission('documents:*')
+ * @UseGuards(TenantPermissionsGuard)
+ * @RequireAnyTenantPermission('documents:*')
  * async batchOperations() {
  *   // Only users with the literal wildcard permission
  *   // TENANT_ADMIN: ✅ (has *:*)
@@ -106,5 +107,6 @@ export const RequireAllPermissions = (...permissions: TenantPermission[]) =>
  * }
  * ```
  */
-export const RequireAnyPermission = (...permissions: TenantPermission[]) =>
-  SetMetadata(PERMISSIONS_KEY, { permissions, requireAll: false });
+export const RequireAnyTenantPermission = (
+  ...permissions: TenantPermission[]
+) => SetMetadata(TENANT_PERMISSIONS_KEY, { permissions, requireAll: false });

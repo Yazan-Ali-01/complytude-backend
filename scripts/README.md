@@ -38,7 +38,7 @@ scripts/
 │   ├── 005_seed_templates.sql
 │   ├── 006_seed_test_documents.sql
 │   └── README.md
-│   # Note: RBAC is auto-synced by RbacSyncService on app startup
+│   # Note: RBAC is auto-synced by TenantRbacSyncService on app startup
 │
 ├── utilities/               # Management scripts
 │
@@ -126,7 +126,7 @@ Populates database with initial data:
 - 5 sample templates (dev/staging)
 - 7 sample documents (dev/staging)
 
-**Note:** RBAC roles and permissions are auto-synced by `RbacSyncService` on app startup.
+**Note:** RBAC roles and permissions are auto-synced by `TenantRbacSyncService` on app startup.
 
 ---
 
@@ -176,6 +176,7 @@ For most schema changes, **edit the existing migration file**:
    ```
 
 **When to edit existing migrations:**
+
 - Adding/removing columns to existing tables
 - Changing column types or constraints
 - Renaming columns or tables
@@ -185,6 +186,7 @@ For most schema changes, **edit the existing migration file**:
 #### Option 2: Create New Migration (Only for Large Features)
 
 Only create a new migration when:
+
 - Adding multiple new tables for a new feature
 - The change is very large and complex
 - It would make existing migrations unreadable
@@ -229,7 +231,7 @@ COMMIT;
 | 005 | `seed_templates.sql`          | Sample templates                   | Dev/Staging |
 | 006 | `seed_test_documents.sql`     | Tenant-specific documents          | Dev/Staging |
 
-**Note:** RBAC roles and permissions are automatically synced from code constants by `RbacSyncService` on every application startup. No SQL seed script is needed.
+**Note:** RBAC roles and permissions are automatically synced from code constants by `TenantRbacSyncService` on every application startup. No SQL seed script is needed.
 
 ### Development Credentials
 

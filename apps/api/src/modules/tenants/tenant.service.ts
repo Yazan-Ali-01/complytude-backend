@@ -115,19 +115,32 @@ export class TenantService {
    * const tenant = await tenantService.findById('111...');
    * ```
    */
-  async findById(tenantId: string): Promise<Tenant> {
+  async findById(
+    tenantId: string,
+    options?: { platformAdminContext?: string },
+  ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext) {
+        const tenant =
+          await this.databaseService.transactionWithPlatformAdminContext(
+            options.platformAdminContext,
+            async (client) =>
+              this.tenantRepository.findById(tenantId, { client }),
+          );
+        if (!tenant) {
+          throw new NotFoundException(`Tenant ${tenantId} not found`);
+        }
+        return tenant;
+      }
       const tenant = await this.databaseService.transactionWithTenantContext(
         tenantId,
         async (client) => {
           return await this.tenantRepository.findById(tenantId, { client });
         },
       );
-
       if (!tenant) {
         throw new NotFoundException(`Tenant ${tenantId} not found`);
       }
-
       return tenant;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
@@ -137,6 +150,8 @@ export class TenantService {
   }
 
   /**
+   * Get all tenants (admin only when platformAdminContext)
+   * When platformAdminContext is true, runs in platform admin RLS context so all tenants are visible.
    * Get all tenants (admin-only, bypasses RLS)
    *
    * ⚠️ Admin operation: Does NOT use tenant context. Relies on repository/DB policy
@@ -151,10 +166,20 @@ export class TenantService {
    */
   async findAll(
     cursorOptions?: CursorPaginationOptions,
+    options?: { platformAdminContext?: string },
   ): Promise<CursorPaginationResult<Tenant>> {
     try {
-      // Admin listing: no tenant context needed (bypasses RLS via policy)
-      return await this.tenantRepository.findMany({}, cursorOptions);
+      if (options?.platformAdminContext) {
+        return this.databaseService.transactionWithPlatformAdminContext(
+          options.platformAdminContext,
+          async (client) => {
+            return this.tenantRepository.findMany({}, cursorOptions, {
+              client,
+            });
+          },
+        );
+      }
+      return this.tenantRepository.findMany({}, cursorOptions);
     } catch (error) {
       this.logger.error(`Failed to fetch tenants: ${error.message}`, error);
       throw new InternalServerErrorException('Failed to fetch tenants');
@@ -179,8 +204,21 @@ export class TenantService {
   async updateTenant(
     tenantId: string,
     updateTenantDto: UpdateTenantDto,
+    options?: { platformAdminContext?: string },
   ): Promise<Tenant> {
     try {
+      await this.findById(tenantId, options);
+
+      if (options?.platformAdminContext) {
+        return this.databaseService.transactionWithPlatformAdminContext(
+          options.platformAdminContext,
+          async (client) =>
+            this.tenantRepository.update(tenantId, updateTenantDto, {
+              client,
+            }),
+        );
+      }
+
       return await this.databaseService.transactionWithTenantContext(
         tenantId,
         async (client) => {
@@ -230,8 +268,26 @@ export class TenantService {
    * @security Requires system_admin role or equivalent
    * @warning This operation may be irreversible - confirm business logic
    */
-  async deleteTenant(tenantId: string): Promise<void> {
+  async deleteTenant(
+    tenantId: string,
+    options?: { platformAdminContext?: string },
+  ): Promise<void> {
     try {
+      if (options?.platformAdminContext) {
+        await this.databaseService.transactionWithPlatformAdminContext(
+          options.platformAdminContext,
+          async (client) => {
+            const deleted = await this.tenantRepository.delete(tenantId, {
+              client,
+            });
+            if (deleted === 0) {
+              throw new NotFoundException(`Tenant ${tenantId} not found`);
+            }
+          },
+        );
+        return;
+      }
+
       await this.databaseService.transactionWithTenantContext(
         tenantId,
         async (client) => {

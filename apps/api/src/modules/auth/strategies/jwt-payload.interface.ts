@@ -1,5 +1,3 @@
-import { GlobalRole } from 'src/common/types';
-
 /**
  * Payload for identity access token (used after login, before tenant selection)
  * Used for: tenant selection, system admin operations, invitations
@@ -9,14 +7,14 @@ export const IDENTITY_PAYLOAD_TYPE = 'identity';
 export interface IdentityPayload {
   sub: string; // userId
   email: string;
-  globalRoles: GlobalRole[]; // ['SYSTEM_ADMIN'] or []
+  platformRole: string | null; // 'system_admin', 'support', 'auditor', or null
   type: typeof IDENTITY_PAYLOAD_TYPE;
 }
 
 export interface AuthenticatedIdentityUser {
   userId: string;
   email: string;
-  globalRoles: GlobalRole[];
+  platformRole: string | null;
 }
 
 /**

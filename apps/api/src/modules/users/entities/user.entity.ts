@@ -20,8 +20,12 @@ export class User {
   @ApiProperty({ description: 'Email verification status' })
   is_verified: boolean;
 
-  @ApiProperty({ description: 'System admin status' })
-  is_system_admin: boolean;
+  @ApiProperty({
+    description: 'Platform role key (null for tenant-only users)',
+    example: 'system_admin',
+    nullable: true,
+  })
+  platform_role_key: string | null;
 
   @ApiProperty({ description: 'Account creation timestamp' })
   created_at: Date;

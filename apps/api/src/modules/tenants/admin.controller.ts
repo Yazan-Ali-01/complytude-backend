@@ -20,8 +20,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
+import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
+import { CurrentUserIdentity } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedIdentityUser } from '../auth/strategies';
 import { TenantResponseDto } from './dto/tenant-response.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantService } from './tenant.service';
@@ -33,7 +36,7 @@ import { TenantService } from './tenant.service';
 @ApiTags('System Admin - Tenants')
 @Controller('admin/tenants')
 @AuthOptions({ identity: true })
-@UseGuards(SystemAdminGuard)
+@UseGuards(PlatformPermissionsGuard)
 @SwaggerCookieAuth.identityAccessToken()
 export class TenantAdminController {
   private readonly logger = new Logger(TenantAdminController.name);
@@ -45,6 +48,7 @@ export class TenantAdminController {
   // ============================================================================
 
   @Get()
+  @RequireAnyPlatformPermission('tenants:read')
   @ApiOperation({
     summary: '[ADMIN] List all tenants',
     description:
@@ -82,17 +86,19 @@ export class TenantAdminController {
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('direction')
     direction?: 'forward' | 'backward',
+    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<TenantResponseDto[]> {
     this.logger.log('[ADMIN] Fetching all tenants');
-    const tenants = await this.tenantService.findAll({
-      cursor,
-      limit,
-      direction,
-    });
+    const platformRole = identity!.platformRole!;
+    const tenants = await this.tenantService.findAll(
+      { cursor, limit, direction },
+      { platformAdminContext: platformRole },
+    );
     return tenants.data.map((tenant) => new TenantResponseDto(tenant));
   }
 
   @Get(':tenantId')
+  @RequireAnyPlatformPermission('tenants:read')
   @ApiOperation({
     summary: '[ADMIN] Get tenant by ID',
     description:
@@ -111,13 +117,18 @@ export class TenantAdminController {
   })
   async getTenantById(
     @Param('tenantId') tenantId: string,
+    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Fetching tenant: ${tenantId}`);
-    const tenant = await this.tenantService.findById(tenantId);
+    const platformRole = identity!.platformRole!;
+    const tenant = await this.tenantService.findById(tenantId, {
+      platformAdminContext: platformRole,
+    });
     return new TenantResponseDto(tenant);
   }
 
   @Put(':tenantId')
+  @RequireAnyPlatformPermission('tenants:update')
   @ApiOperation({
     summary: '[ADMIN] Update any tenant',
     description:
@@ -137,17 +148,23 @@ export class TenantAdminController {
   async updateTenant(
     @Param('tenantId') tenantId: string,
     @Body() updateTenantDto: UpdateTenantDto,
+    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Updating tenant: ${tenantId}`);
+    const platformRole = identity!.platformRole!;
     const tenant = await this.tenantService.updateTenant(
       tenantId,
       updateTenantDto,
+      {
+        platformAdminContext: platformRole,
+      },
     );
     return new TenantResponseDto(tenant);
   }
 
   @Delete(':tenantId')
   @HttpCode(HttpStatus.OK)
+  @RequireAnyPlatformPermission('tenants:delete')
   @ApiOperation({
     summary: '[ADMIN] Delete any tenant',
     description:
@@ -163,9 +180,15 @@ export class TenantAdminController {
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
-  async deleteTenant(@Param('tenantId') tenantId: string): Promise<void> {
+  async deleteTenant(
+    @Param('tenantId') tenantId: string,
+    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
+  ): Promise<{ message: string; tenantId: string }> {
     this.logger.warn(`[ADMIN] Deleting tenant: ${tenantId}`);
-    await this.tenantService.deleteTenant(tenantId);
-    return;
+    const platformRole = identity!.platformRole!;
+    await this.tenantService.deleteTenant(tenantId, {
+      platformAdminContext: platformRole,
+    });
+    return { message: 'Tenant deleted successfully', tenantId };
   }
 }

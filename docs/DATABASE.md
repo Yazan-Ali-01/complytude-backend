@@ -35,13 +35,15 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 | -------------------- | ----- |
 | Total Tables         | 38    |
 | Core Tables          | 3     |
-| RBAC Tables          | 3     |
+| Tenant RBAC Tables   | 3     |
+| Platform RBAC Tables | 3     |
 | Auth Tables          | 4     |
-| Entitlement Tables   | 16    |
+| Entitlement Tables   | 14    |
 | Global Tables        | 6     |
 | Tenant-Scoped Tables | 2     |
-| Junction Tables      | 3     |
-| Enums                | 7     |
+| Junction Tables      | 4     |
+| Audit Tables         | 1     |
+| Enums                | 9     |
 
 ---
 
@@ -132,6 +134,7 @@ Tables that define the multi-tenant structure:
 Production-grade entitlement engine with usage tracking and credit system:
 
 **Catalog Tables (Global, No RLS):**
+
 - `features` - Feature catalog with typed definitions (boolean, quota, capacity, etc.) and credit costs
   - `credit_cost` column: Cost in credits per unit (e.g., 5 credits for documents, 3 credits for queries)
   - NULL for non-creditable features
@@ -141,11 +144,13 @@ Production-grade entitlement engine with usage tracking and credit system:
 - `addon_entitlements` - Feature limits per add-on
 
 **Tenant-Scoped Tables (RLS Enabled):**
+
 - `tenant_subscriptions` - Active subscription binding with billing periods
 - `tenant_addons` - Active add-on bindings
 - `tenant_overrides` - Admin-applied entitlement overrides
 
 **Event Ledgers (Append-Only, RLS Enabled):**
+
 - `usage_ledger` - Usage event store (source of truth)
   - Metadata includes `credit_cost_per_unit` and `total_credits_deducted` when credits are used
 - `usage_allocations` - Source attribution for each usage event (plan/addon/credit/override)
@@ -153,10 +158,12 @@ Production-grade entitlement engine with usage tracking and credit system:
   - Metadata includes `credit_cost_per_unit` and `units_consumed` for deduction transactions
 
 **Projections & Snapshots (Performance Cache):**
+
 - `aggregated_usage` - Derived usage counts per billing period
 - `entitlement_snapshots` - Cached effective entitlements (24h TTL)
 
 **Domain Events (Audit Trail):**
+
 - `domain_events` - Immutable event log for domain-level auditing
   - `credit.deducted` events include `credit_cost_per_unit` and `units_consumed` in payload
 
@@ -194,6 +201,8 @@ Many-to-many relationships:
 
 - `template_rulesets` - Templates ↔ Rulesets
 - `template_version_ruleset_versions` - Version-level associations
+- `role_permissions` - Tenant Roles ↔ Tenant Permissions
+- `platform_role_permissions` - Platform Roles ↔ Platform Permissions
 
 ### 6. Tenant-Scoped Data (RLS)
 
@@ -227,17 +236,17 @@ Organizations using the platform.
 
 User accounts that can access multiple tenants.
 
-| Column            | Type         | Description                          |
-| ----------------- | ------------ | ------------------------------------ |
-| `id`              | UUID         | Primary key                          |
-| `email`           | VARCHAR(255) | Unique email address                 |
-| `password_hash`   | VARCHAR(255) | Bcrypt hashed password               |
-| `first_name`      | VARCHAR(255) | First name                           |
-| `last_name`       | VARCHAR(255) | Last name                            |
-| `is_verified`     | BOOLEAN      | Email verification status            |
-| `is_system_admin` | BOOLEAN      | Platform admin (not tenant-specific) |
-| `created_at`      | TIMESTAMPTZ  | Creation timestamp                   |
-| `updated_at`      | TIMESTAMPTZ  | Last update timestamp                |
+| Column              | Type         | Description                                                                                |
+| ------------------- | ------------ | ------------------------------------------------------------------------------------------ |
+| `id`                | UUID         | Primary key                                                                                |
+| `email`             | VARCHAR(255) | Unique email address                                                                       |
+| `password_hash`     | VARCHAR(255) | Bcrypt hashed password                                                                     |
+| `first_name`        | VARCHAR(255) | First name                                                                                 |
+| `last_name`         | VARCHAR(255) | Last name                                                                                  |
+| `is_verified`       | BOOLEAN      | Email verification status                                                                  |
+| `platform_role_key` | VARCHAR(50)  | Platform role key (e.g., `system_admin`, `support`, `auditor`). NULL for tenant-only users |
+| `created_at`        | TIMESTAMPTZ  | Creation timestamp                                                                         |
+| `updated_at`        | TIMESTAMPTZ  | Last update timestamp                                                                      |
 
 **Indexes:**
 
@@ -275,22 +284,28 @@ Many-to-many relationship: users belong to tenants with role assignments.
 
 ## RBAC Tables
 
-Tables for Role-Based Access Control with permission-based authorization.
+Tables for **Tenant RBAC** and **Platform RBAC** with permission-based authorization.
+
+> **📖 Complete RBAC Documentation:** See [RBAC.md](RBAC.md) for comprehensive guide on both Tenant and Platform RBAC systems, including permissions, roles, and implementation examples.
 
 ### Automatic Synchronization
 
-**Important:** The `permissions` table and system role entries in `roles` are **automatically synchronized** from code constants on every application startup via `RbacSyncService`. You should never manually insert or update these records.
+**Important:** RBAC tables are **automatically synchronized** from code constants on every application startup. You should never manually insert or update these records.
 
-**Source of Truth:**
+**Tenant RBAC Sync:**
+- Service: `TenantRbacSyncService`
+- Source: `ALL_TENANT_PERMISSIONS` array and `TENANT_SYSTEM_ROLE_PERMISSIONS` map
+- Tables: `permissions`, `roles`, `role_permissions`
 
-- `src/common/constants/tenant-permissions.constant.ts` - `ALL_TENANT_PERMISSIONS` array defines all permissions
-- `src/common/constants/tenant-system-roles.constant.ts` - `TENANT_SYSTEM_ROLE_PERMISSIONS` map defines system role permissions
+**Platform RBAC Sync:**
+- Service: `PlatformRbacSyncService`
+- Source: `ALL_PLATFORM_PERMISSIONS` array and `PLATFORM_SYSTEM_ROLE_PERMISSIONS` map
+- Tables: `platform_permissions`, `platform_roles`, `platform_role_permissions`
 
 **Sync Behavior:**
-
 - **Permissions:** Add new, update existing, delete removed
 - **System Roles:** Add new, update existing, sync role-permission mappings
-- **Custom Roles:** Never touched (tenant_id IS NOT NULL)
+- **Custom Roles:** Never touched
 
 ### roles
 
@@ -316,12 +331,12 @@ Tenant roles with support for custom roles (MVP+).
 
 **System Roles (synced from code):**
 
-| Key             | Name          | Permissions (in-memory)                                           | Description                                  |
-| --------------- | ------------- | ----------------------------------------------------------------- | -------------------------------------------- |
-| `tenant_admin`  | Tenant Admin  | `*:*` (wildcard)                                                  | Full access to all tenant features           |
-| `legal_counsel` | Legal Counsel | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`   | AI drafting, analysis, templates, regulatory |
+| Key             | Name          | Permissions (in-memory)                                                   | Description                                  |
+| --------------- | ------------- | ------------------------------------------------------------------------- | -------------------------------------------- |
+| `tenant_admin`  | Tenant Admin  | `*:*` (wildcard)                                                          | Full access to all tenant features           |
+| `legal_counsel` | Legal Counsel | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`           | AI drafting, analysis, templates, regulatory |
 | `member`        | Member        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation and viewing          |
-| `viewer`        | Viewer        | `documents:read`, `regulatory:query`                              | Read-only access                             |
+| `viewer`        | Viewer        | `documents:read`, `regulatory:query`                                      | Read-only access                             |
 
 **Note:** System roles use wildcards (e.g., `documents:*`) for cleaner permission sets. Permission matching handles wildcard expansion at runtime.
 
@@ -352,16 +367,16 @@ System permissions for RBAC. **Automatically synced from `ALL_TENANT_PERMISSIONS
 
 **Available Permissions (synced from code):**
 
-| Resource     | Permissions                                                        |
-| ------------ | ------------------------------------------------------------------ |
+| Resource     | Permissions                                                             |
+| ------------ | ----------------------------------------------------------------------- |
 | `documents`  | `documents:create`, `documents:read`, `documents:delete`, `documents:*` |
-| `contracts`  | `contracts:analyze`, `contracts:redline`, `contracts:*`            |
-| `templates`  | `templates:manage`, `templates:use`, `templates:*`                 |
-| `regulatory` | `regulatory:query`, `regulatory:*`                                 |
-| `billing`    | `billing:manage`, `billing:*`                                      |
-| `team`       | `team:manage`, `team:*`                                            |
-| `settings`   | `settings:manage`, `settings:change_jurisdiction`, `settings:*`    |
-| `*` (cross)  | `*:read`, `*:manage`, `*:*`                                        |
+| `contracts`  | `contracts:analyze`, `contracts:redline`, `contracts:*`                 |
+| `templates`  | `templates:manage`, `templates:use`, `templates:*`                      |
+| `regulatory` | `regulatory:query`, `regulatory:*`                                      |
+| `billing`    | `billing:manage`, `billing:*`                                           |
+| `team`       | `team:manage`, `team:*`                                                 |
+| `settings`   | `settings:manage`, `settings:change_jurisdiction`, `settings:*`         |
+| `*` (cross)  | `*:read`, `*:manage`, `*:*`                                             |
 
 **Wildcard Permissions:**
 
@@ -388,9 +403,95 @@ Many-to-many relationship between roles and permissions.
 - `idx_role_permissions_permission_id` - Filter by permission
 
 **Note:** System roles use in-memory permission sets (`TENANT_SYSTEM_ROLE_PERMISSIONS`) for performance - no database query needed. The database entries exist for:
+
 1. UI display (listing available roles)
 2. Custom tenant roles (MVP+ feature)
 3. Role-permission audit trail
+
+---
+
+## Platform RBAC Tables
+
+Tables for platform-wide authorization (system administration, tenant management).
+
+### platform_roles
+
+Platform-level roles for system-wide access control.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `key` | VARCHAR(50) | Role key (e.g., `system_admin`, `support`, `auditor`) |
+| `name` | VARCHAR(100) | Display name (e.g., `System Admin`) |
+| `description` | TEXT | Role description |
+| `is_system` | BOOLEAN | TRUE for system roles, FALSE for custom platform roles |
+| `is_active` | BOOLEAN | Active status |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+
+**Indexes:**
+
+- Unique constraint on `key`
+- `idx_platform_roles_is_system` - Filter system roles
+
+**System Roles (synced from code):**
+
+| Key | Name | Permissions | Description |
+|-----|------|-------------|-------------|
+| `system_admin` | System Admin | `*:*` | Full access to all platform features |
+| `support` | Support | Read-only permissions | Customer support access |
+| `auditor` | Auditor | Audit-focused permissions | Audit and compliance access |
+
+### platform_permissions
+
+Platform-level permissions for system-wide RBAC.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `key` | VARCHAR(100) | Permission key (e.g., `tenants:create`, `users:manage_roles`) |
+| `name` | VARCHAR(100) | Display name (e.g., `Create Tenants`) |
+| `resource` | VARCHAR(50) | Resource type (e.g., `tenants`, `users`) |
+| `action` | VARCHAR(50) | Action type (e.g., `create`, `manage`) |
+| `description` | TEXT | Permission description |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+
+**Indexes:**
+
+- Unique constraint on `key`
+- `idx_platform_permissions_resource` - Filter by resource
+- `idx_platform_permissions_resource_action` - Composite index
+
+**Available Permissions (synced from code):**
+
+| Resource | Permissions |
+|----------|-------------|
+| `tenants` | `tenants:create`, `tenants:read`, `tenants:update`, `tenants:delete`, `tenants:*` |
+| `users` | `users:read`, `users:update`, `users:delete`, `users:manage_roles`, `users:*` |
+| `plans` | `plans:read`, `plans:manage`, `plans:*` |
+| `subscriptions` | `subscriptions:read`, `subscriptions:manage`, `subscriptions:*` |
+| `templates` | `templates:read`, `templates:manage`, `templates:*` |
+| `rulesets` | `rulesets:read`, `rulesets:manage`, `rulesets:*` |
+| `authorities` | `authorities:read`, `authorities:manage`, `authorities:*` |
+| `categories` | `categories:read`, `categories:manage`, `categories:*` |
+| `entitlements` | `entitlements:read`, `entitlements:manage`, `entitlements:*` |
+| `audit` | `audit:read`, `audit:*` |
+| `support` | `support:access`, `support:impersonate`, `support:*` |
+| `*` (cross) | `*:read`, `*:manage`, `*:*` |
+
+### platform_role_permissions
+
+Many-to-many relationship between platform roles and permissions.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `role_id` | UUID | FK to platform_roles |
+| `permission_id` | UUID | FK to platform_permissions |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+
+**Primary Key:** `(role_id, permission_id)`
+
+**Note:** System roles use in-memory permission sets (`PLATFORM_SYSTEM_ROLE_PERMISSIONS`) for performance - no database query needed.
 
 ---
 
@@ -746,20 +847,20 @@ Database schema is managed through versioned migration files:
 
 **Location:** `scripts/migrations/`
 
-| #   | File                                              | Description                                  |
-| --- | ------------------------------------------------- | -------------------------------------------- |
-| 001 | `core_tables.sql`                                 | Tenants, users, user_tenants, auth tables    |
-| 002 | `grants_to_app_user.sql`                          | Grant permissions to app user                |
-| 003 | `session_context_contract.sql`                    | RLS helper functions                         |
-| 004 | `rls_enablement.sql`                              | Enable RLS on tables                         |
-| 005 | `rls_policies_core.sql`                           | Create RLS policies                          |
-| 006 | `global_tables.sql`                               | Authorities, categories, templates, rulesets |
-| 007 | `documents_table.sql`                             | Documents table with RLS                     |
-| 008 | `grants_global_tables.sql`                        | Permissions for global tables                |
-| 009 | `entitlement_tables.sql`                          | Entitlement system tables (features, plans, usage, credits) |
-| 010 | `entitlement_tables_grants_to_app_user.sql`       | Grants for entitlement tables                |
-| 011 | `entitlement_tables_rls_enablement.sql`           | RLS on tenant-scoped entitlement tables      |
-| 012 | `entitlement_tables_rls_policies.sql`             | RLS policies for entitlement tables          |
+| #   | File                                        | Description                                                 |
+| --- | ------------------------------------------- | ----------------------------------------------------------- |
+| 001 | `core_tables.sql`                           | Tenants, users, user_tenants, auth tables                   |
+| 002 | `grants_to_app_user.sql`                    | Grant permissions to app user                               |
+| 003 | `session_context_contract.sql`              | RLS helper functions                                        |
+| 004 | `rls_enablement.sql`                        | Enable RLS on tables                                        |
+| 005 | `rls_policies_core.sql`                     | Create RLS policies                                         |
+| 006 | `global_tables.sql`                         | Authorities, categories, templates, rulesets                |
+| 007 | `documents_table.sql`                       | Documents table with RLS                                    |
+| 008 | `grants_global_tables.sql`                  | Permissions for global tables                               |
+| 009 | `entitlement_tables.sql`                    | Entitlement system tables (features, plans, usage, credits) |
+| 010 | `entitlement_tables_grants_to_app_user.sql` | Grants for entitlement tables                               |
+| 011 | `entitlement_tables_rls_enablement.sql`     | RLS on tenant-scoped entitlement tables                     |
+| 012 | `entitlement_tables_rls_policies.sql`       | RLS policies for entitlement tables                         |
 
 ### Running Migrations
 
@@ -851,4 +952,4 @@ psql -d complytude -c "
 
 ---
 
-**Last Updated:** February 3, 2026
+**Last Updated:** February 18, 2026

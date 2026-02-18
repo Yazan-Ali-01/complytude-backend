@@ -12,12 +12,12 @@ BEGIN;
 -- tenants
 -- =========================
 
--- Users can only see their current tenant
+-- Users can only see their current tenant (or all if platform admin)
 CREATE POLICY tenant_select
 ON public.tenants
 FOR SELECT
 USING (
-    id = current_tenant_id_or_null() OR is_auth_flow()
+    id = current_tenant_id_or_null() OR is_auth_flow() OR is_platform_admin()
 );
 
 -- Tenant creation happens during signup (auth flow)
@@ -28,29 +28,29 @@ WITH CHECK (
     is_auth_flow()
 );
 
--- Tenant admins can update their tenant settings
+-- Tenant admins can update their tenant; platform admins can update any tenant
 CREATE POLICY tenant_update
 ON public.tenants
 FOR UPDATE
 USING (
-    id = current_tenant_id_or_null()
-    AND is_tenant_admin()
+    (id = current_tenant_id_or_null() AND is_tenant_admin())
+    OR is_platform_admin()
 )
 WITH CHECK (
-    id = current_tenant_id_or_null()
-    AND is_tenant_admin()
+    (id = current_tenant_id_or_null() AND is_tenant_admin())
+    OR is_platform_admin()
 );
 
 -- =========================
 -- user_tenants
 -- =========================
 
--- Users can see all members of their current tenant
+-- Users can see all members of their current tenant (or all if platform admin)
 CREATE POLICY user_tenants_select
 ON public.user_tenants
 FOR SELECT
 USING (
-    tenant_id = current_tenant_id_or_null() OR is_auth_flow()
+    tenant_id = current_tenant_id_or_null() OR is_auth_flow() OR is_platform_admin()
 );
 
 -- User-tenant association created during signup (auth flow)
@@ -61,35 +61,35 @@ WITH CHECK (
     is_auth_flow()
 );
 
--- Only tenant admins can add new members to their tenant
+-- Tenant admins can add members; platform admins can add to any tenant
 CREATE POLICY user_tenants_admin_insert
 ON public.user_tenants
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
-    AND is_tenant_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin())
+    OR is_platform_admin()
 );
 
--- Only tenant admins can update tenant membership (e.g., change roles)
+-- Tenant admins can update membership; platform admins can update any
 CREATE POLICY user_tenants_admin_update
 ON public.user_tenants
 FOR UPDATE
 USING (
-    tenant_id = current_tenant_id_or_null()
-    AND is_tenant_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin())
+    OR is_platform_admin()
 )
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
-    AND is_tenant_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin())
+    OR is_platform_admin()
 );
 
--- Only tenant admins can remove members from their tenant
+-- Tenant admins can remove members; platform admins can remove from any tenant
 CREATE POLICY user_tenants_admin_delete
 ON public.user_tenants
 FOR DELETE
 USING (
-    tenant_id = current_tenant_id_or_null()
-    AND is_tenant_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin())
+    OR is_platform_admin()
 );
 
 -- =========================

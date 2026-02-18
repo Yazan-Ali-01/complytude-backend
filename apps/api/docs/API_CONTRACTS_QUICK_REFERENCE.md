@@ -67,10 +67,10 @@ import {
 
 // Permission decorators (RBAC)
 import {
-  RequireAllPermissions,
-  RequireAnyPermission,
+  RequireAllTenantPermissions,
+  RequireAnyTenantPermission,
 } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { TenantPermissionsGuard } from 'src/common/guards/permissions.guard';
 
 // Role decorators (simple role checks)
 import { Roles } from 'src/modules/auth/decorators/roles.decorator';
@@ -144,8 +144,8 @@ async findOne(
 ```typescript
 @Post()
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:create')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:create')
 @ApiOperation({
   summary: 'Create a new resource',
   description: 'Create a new resource. Requires documents:create permission.',
@@ -166,8 +166,8 @@ async create(
 ```typescript
 @Patch(':id')
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAnyPermission('documents:create')
+@UseGuards(TenantPermissionsGuard)
+@RequireAnyTenantPermission('documents:create')
 @ApiOperation({
   summary: 'Update resource',
   description: 'Update an existing resource. Requires documents:create permission.',
@@ -193,8 +193,8 @@ async update(
 ```typescript
 @Delete(':id')
 @AuthOptions({ tenant: true })
-@UseGuards(PermissionsGuard)
-@RequireAllPermissions('documents:read', 'documents:delete')
+@UseGuards(TenantPermissionsGuard)
+@RequireAllTenantPermissions('documents:read', 'documents:delete')
 @ApiOperation({
   summary: 'Delete resource',
   description: 'Permanently delete a resource. Requires documents:read and documents:delete permissions.',
@@ -234,12 +234,13 @@ async publicEndpoint(): Promise<ResourceResponseDto> {
 }
 ```
 
-### 7. System Admin Endpoint (Identity Token)
+### 7. Platform Admin Endpoint (Identity Token)
 
 ```typescript
 @Get('admin/system-stats')
 @AuthOptions({ identity: true })
-@UseGuards(SystemAdminGuard)
+@UseGuards(PlatformTenantPermissionsGuard)
+@RequireAnyPlatformPermission('audit:read')
 @ApiOperation({
   summary: 'Get system statistics',
   description: 'Retrieve system-wide statistics. Requires system admin role.',

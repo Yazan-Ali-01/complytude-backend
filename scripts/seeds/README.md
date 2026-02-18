@@ -9,7 +9,9 @@ Seed scripts are separate from migrations and should be run after the schema mig
 ## Available Seed Scripts
 
 ### 001_seed_authorities.sql
+
 Seeds initial legal authorities for UAE:
+
 - DMCC (Dubai Multi Commodities Centre)
 - IFZA (International Free Zone Authority)
 - DED (Department of Economic Development)
@@ -22,7 +24,9 @@ Seeds initial legal authorities for UAE:
 - ADCCI (Abu Dhabi Chamber of Commerce and Industry)
 
 ### 002_seed_categories.sql
+
 Seeds initial template categories:
+
 - Employment Contracts
 - Freelance Agreements
 - Commercial Contracts
@@ -36,14 +40,17 @@ Seeds initial template categories:
 
 ### ~~003_seed_rbac.sql~~ (REMOVED)
 
-**Note:** RBAC roles and permissions are now automatically synchronized from code constants by `RbacSyncService` on every application startup. No manual SQL seeding is required.
+**Note:** RBAC roles and permissions are now automatically synchronized from code constants by `TenantRbacSyncService` on every application startup. No manual SQL seeding is required.
 
 **Source of Truth:**
+
 - `src/common/constants/tenant-permissions.constant.ts` - All permissions
 - `src/common/constants/tenant-system-roles.constant.ts` - System role permission sets
 
 ### 004_seed_test_tenants_users.sql
+
 Seeds test tenants, users, and relationships for development/testing:
+
 - **3 Test Tenants**: Pro, Basic, and Enterprise plans
 - **7 Test Users**: Including admins, members, viewers, and a super admin
 - **User-Tenant Relationships**: Various role assignments
@@ -53,14 +60,18 @@ Seeds test tenants, users, and relationships for development/testing:
 ⚠️ **WARNING**: Contains test data - DO NOT use in production!
 
 ### 005_seed_templates.sql
+
 Seeds sample templates with versions:
+
 - 5 complete templates across different authorities and categories
 - Template versions with field definitions
 - Demonstrates versioning (ADGM Partnership has v1.0.0 and v2.0.0)
 - Includes realistic field schemas in JSONB format
 
 ### 006_seed_test_documents.sql
+
 Seeds tenant-specific documents for RLS testing:
+
 - **Tenant 1 (Pro)**: 3 documents
 - **Tenant 2 (Basic)**: 2 documents
 - **Tenant 3 (Enterprise)**: 2 documents
@@ -70,6 +81,7 @@ Seeds tenant-specific documents for RLS testing:
 ## Running Seed Scripts
 
 ### Option 1: Automated Script (Recommended)
+
 ```bash
 # Make the script executable (first time only)
 chmod +x scripts/run-seeds.sh
@@ -85,6 +97,7 @@ chmod +x scripts/run-seeds.sh
 ```
 
 The script will:
+
 - Load environment variables from `.env`
 - Test database connection
 - Run all seed scripts in the correct order
@@ -92,16 +105,18 @@ The script will:
 - Show database statistics upon completion
 
 ### Option 2: Manual psql
+
 ```bash
 psql -U <username> -d <database> -f scripts/seeds/001_seed_authorities.sql
 psql -U <username> -d <database> -f scripts/seeds/002_seed_categories.sql
-# Note: RBAC is auto-synced by RbacSyncService on app startup - no SQL seed needed
+# Note: RBAC is auto-synced by TenantRbacSyncService on app startup - no SQL seed needed
 psql -U <username> -d <database> -f scripts/seeds/004_seed_test_tenants_users.sql
 psql -U <username> -d <database> -f scripts/seeds/005_seed_templates.sql
 psql -U <username> -d <database> -f scripts/seeds/006_seed_test_documents.sql
 ```
 
 ### Option 3: Using Node.js/TypeScript
+
 ```typescript
 import { readFileSync } from 'fs';
 import { pool } from './database';
@@ -109,10 +124,10 @@ import { pool } from './database';
 const seedFiles = [
   '001_seed_authorities.sql',
   '002_seed_categories.sql',
-  // Note: RBAC is auto-synced by RbacSyncService on app startup - no SQL seed needed
+  // Note: RBAC is auto-synced by TenantRbacSyncService on app startup - no SQL seed needed
   '004_seed_test_tenants_users.sql',
   '005_seed_templates.sql',
-  '006_seed_test_documents.sql'
+  '006_seed_test_documents.sql',
 ];
 
 for (const file of seedFiles) {
@@ -127,7 +142,7 @@ for (const file of seedFiles) {
 2. **Run seed scripts in order**:
    - 001_seed_authorities.sql (Global data)
    - 002_seed_categories.sql (Global data)
-   - ~~003_seed_rbac.sql~~ (RBAC is auto-synced by `RbacSyncService` on app startup)
+   - ~~003_seed_rbac.sql~~ (RBAC is auto-synced by `TenantRbacSyncService` on app startup)
    - 004_seed_test_tenants_users.sql (Test tenants/users)
    - 005_seed_templates.sql (Sample templates)
    - 006_seed_test_documents.sql (Tenant-specific documents)
@@ -140,15 +155,17 @@ All seed scripts use `ON CONFLICT (code) DO NOTHING` to ensure they can be run m
 ## Environment-Specific Seeds
 
 You may want different seed data for different environments:
+
 - **Development**: Full set of test data (001, 002, 004-006 seed scripts)
 - **Staging**: Subset of production-like data (001, 002, 004, 005)
 - **Production**: Essential reference data only (001, 002)
 
 For production, **only run**:
+
 - 001_seed_authorities.sql
 - 002_seed_categories.sql
 
-**Note:** RBAC roles and permissions are automatically synced from code by `RbacSyncService` when the application starts. No manual seeding required.
+**Note:** RBAC roles and permissions are automatically synced from code by `TenantRbacSyncService` when the application starts. No manual seeding required.
 
 **Skip** test tenants, users, and documents (004-006) in production!
 
@@ -182,12 +199,12 @@ SELECT * FROM public.templates;
 
 Use these credentials for testing your API:
 
-| Tenant | Email | Password | Role |
-|--------|-------|----------|------|
-| Tenant 1 (Pro) | admin@tenant1.test | Test123!@# | admin |
-| Tenant 1 (Pro) | member@tenant1.test | Test123!@# | member |
-| Tenant 1 (Pro) | viewer@tenant1.test | Test123!@# | viewer |
-| Tenant 2 (Basic) | admin@tenant2.test | Test123!@# | admin |
-| Tenant 2 (Basic) | member@tenant2.test | Test123!@# | member |
-| Tenant 3 (Enterprise) | admin@tenant3.test | Test123!@# | admin |
-| System Admin | superadmin@complytude.test | Test123!@# | system_admin |
+| Tenant                | Email                      | Password   | Role         |
+| --------------------- | -------------------------- | ---------- | ------------ |
+| Tenant 1 (Pro)        | admin@tenant1.test         | Test123!@# | admin        |
+| Tenant 1 (Pro)        | member@tenant1.test        | Test123!@# | member       |
+| Tenant 1 (Pro)        | viewer@tenant1.test        | Test123!@# | viewer       |
+| Tenant 2 (Basic)      | admin@tenant2.test         | Test123!@# | admin        |
+| Tenant 2 (Basic)      | member@tenant2.test        | Test123!@# | member       |
+| Tenant 3 (Enterprise) | admin@tenant3.test         | Test123!@# | admin        |
+| System Admin          | superadmin@complytude.test | Test123!@# | system_admin |

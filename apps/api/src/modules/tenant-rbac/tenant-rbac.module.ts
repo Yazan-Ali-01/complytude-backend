@@ -1,48 +1,48 @@
 import { Global, Module } from '@nestjs/common';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { TenantPermissionsGuard } from '../../common/guards/tenant-permissions.guard';
 import { DatabaseModule } from '../../database/database.module';
 import { PermissionsRepository } from '../../repositories/rbac/permissions.repository';
 import { RolesRepository } from '../../repositories/rbac/roles.repository';
-import { RbacSyncService } from './rbac-sync.service';
-import { RbacService } from './rbac.service';
+import { TenantRbacSyncService } from './tenant-rbac-sync.service';
+import { TenantRbacService } from './tenant-rbac.service';
 
 /**
- * RBAC Module - Global Module
+ * TenantRBAC Module - Global Module
  *
- * This module is marked as @Global() to make RBAC services and guards
- * available throughout the application without explicit imports.
+ * This module is marked as @Global() to make TenantRBAC services and guards
+ * available throughout the tenant application without explicit imports.
  *
  * Why Global?
- * - RBAC is a cross-cutting concern like authentication
+ * - TenantRBAC is a cross-cutting concern like authentication
  * - PermissionsGuard is used in many modules
- * - Eliminates the need to import RbacModule in every feature module
+ * - Eliminates the need to import TenantRbacModule in every feature module
  * - Follows NestJS best practices for authorization systems
  *
  * What's Exported:
- * - RbacService: Permission checking logic
+ * - TenantRbacService: Permission checking logic
  * - PermissionsGuard: Permission-based authorization guard
  * - RolesRepository: Role data access (for advanced use cases)
  * - PermissionsRepository: Permission data access (for advanced use cases)
  *
  * Sync Service:
- * - RbacSyncService: Syncs permissions and system roles on app startup
+ * - TenantRbacSyncService: Syncs permissions and system roles on app startup
  * - Runs via OnModuleInit (not exported, internal only)
  */
 @Global()
 @Module({
   imports: [DatabaseModule],
   providers: [
-    RbacService,
-    RbacSyncService,
+    TenantRbacService,
+    TenantRbacSyncService,
     RolesRepository,
     PermissionsRepository,
-    PermissionsGuard,
+    TenantPermissionsGuard,
   ],
   exports: [
-    RbacService,
+    TenantRbacService,
     RolesRepository,
     PermissionsRepository,
-    PermissionsGuard,
+    TenantPermissionsGuard,
   ],
 })
-export class RbacModule {}
+export class TenantRbacModule {}

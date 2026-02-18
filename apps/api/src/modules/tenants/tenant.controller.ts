@@ -20,10 +20,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { RequireAnyPermission } from 'src/common/decorators/permissions.decorator';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
+import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { FastifyMultipartInterceptor } from 'src/common/interceptors/fastify-multipart.interceptor';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import type { MulterLikeFile } from '../../common/interfaces/multer-file.interface';
@@ -114,8 +114,8 @@ export class TenantController {
    * @permission settings:manage
    */
   @Patch('me/profile')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Update organization profile',
     description:
@@ -157,8 +157,8 @@ export class TenantController {
    * @throws ConflictException if slug already taken
    */
   @Patch('me/slug')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Update tenant slug',
     description:
@@ -198,8 +198,8 @@ export class TenantController {
    * @permission settings:manage
    */
   @Patch('me/settings')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Update tenant preferences',
     description:
@@ -240,8 +240,8 @@ export class TenantController {
    * @permission settings:manage + white_label_exports entitlement
    */
   @Patch('me/branding')
-  @UseGuards(PermissionsGuard, EntitlementGuard)
-  @RequireAnyPermission('settings:manage')
+  @UseGuards(TenantPermissionsGuard, EntitlementGuard)
+  @RequireAnyTenantPermission('settings:manage')
   @RequireEntitlement('white_label_exports')
   @ApiOperation({
     summary: 'Update branding colors',
@@ -287,8 +287,8 @@ export class TenantController {
    * @consumes multipart/form-data
    */
   @Post('me/logo')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('settings:manage')
   @UseInterceptors(FastifyMultipartInterceptor(LogoUploadDto))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -381,8 +381,8 @@ export class TenantController {
    */
   @Delete('me/logo')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Remove tenant logo',
     description: 'Delete logo from storage and clear logo_url. Idempotent.',
@@ -433,8 +433,8 @@ export class TenantController {
    */
   @Post('me/onboarding/complete')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Mark onboarding complete',
     description: 'Set onboarding_completed_at timestamp. Idempotent.',
@@ -464,8 +464,8 @@ export class TenantController {
    * @permission settings:manage
    */
   @Patch('me/onboarding')
-  @UseGuards(PermissionsGuard)
-  @RequireAnyPermission('settings:manage')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Update onboarding progress',
     description: 'Update onboarding step tracking. JSONB deep-merged.',

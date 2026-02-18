@@ -12,5 +12,5 @@ export interface UserTenantWithUserRow extends UserTenant {
   first_name: string | null;
   last_name: string | null;
   is_verified: boolean;
-  is_system_admin: boolean;
+  platform_role_key: string | null;
 }
