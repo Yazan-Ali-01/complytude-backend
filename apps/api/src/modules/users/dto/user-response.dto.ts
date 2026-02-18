@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { SystemTenantRole } from 'src/common/types';
+import { Tenant } from '../../tenants/entities/tenant.entity';
 /**
  * User profile response DTO
  * Returns current user profile with all details (excludes password)
@@ -108,7 +109,16 @@ export class UserTenantResponseDto {
  * Current tenant info response DTO
  * Returns tenant details resolved from JWT token
  */
+// TODO to use this approach and not follow the lazy approach
 export class TenantInfoResponseDto {
+  constructor(data: Tenant) {
+    this.id = data.id;
+    this.plan = data.plan;
+    this.isActive = data.is_active;
+    this.createdAt = data.created_at.toISOString();
+    this.updatedAt = data.updated_at.toISOString();
+  }
+
   @ApiProperty({
     description: 'Tenant unique identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',

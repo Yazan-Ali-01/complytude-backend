@@ -20,11 +20,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
+import { TenantResponseDto } from './dto/tenant-response.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { Tenant } from './entities/tenant.entity';
 import { TenantService } from './tenant.service';
 
 /**
@@ -83,13 +82,14 @@ export class TenantAdminController {
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('direction')
     direction?: 'forward' | 'backward',
-  ): Promise<CursorPaginationResult<Tenant>> {
+  ): Promise<TenantResponseDto[]> {
     this.logger.log('[ADMIN] Fetching all tenants');
-    return this.tenantService.findAll({
+    const tenants = await this.tenantService.findAll({
       cursor,
       limit,
       direction,
     });
+    return tenants.data.map((tenant) => new TenantResponseDto(tenant));
   }
 
   @Get(':tenantId')
@@ -109,9 +109,12 @@ export class TenantAdminController {
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
-  async getTenantById(@Param('tenantId') tenantId: string): Promise<Tenant> {
+  async getTenantById(
+    @Param('tenantId') tenantId: string,
+  ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Fetching tenant: ${tenantId}`);
-    return this.tenantService.findById(tenantId);
+    const tenant = await this.tenantService.findById(tenantId);
+    return new TenantResponseDto(tenant);
   }
 
   @Put(':tenantId')
@@ -134,9 +137,13 @@ export class TenantAdminController {
   async updateTenant(
     @Param('tenantId') tenantId: string,
     @Body() updateTenantDto: UpdateTenantDto,
-  ): Promise<Tenant> {
+  ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Updating tenant: ${tenantId}`);
-    return this.tenantService.updateTenant(tenantId, updateTenantDto);
+    const tenant = await this.tenantService.updateTenant(
+      tenantId,
+      updateTenantDto,
+    );
+    return new TenantResponseDto(tenant);
   }
 
   @Delete(':tenantId')
@@ -156,14 +163,9 @@ export class TenantAdminController {
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
-  async deleteTenant(
-    @Param('tenantId') tenantId: string,
-  ): Promise<{ message: string; tenantId: string }> {
+  async deleteTenant(@Param('tenantId') tenantId: string): Promise<void> {
     this.logger.warn(`[ADMIN] Deleting tenant: ${tenantId}`);
     await this.tenantService.deleteTenant(tenantId);
-    return {
-      message: 'Tenant deleted successfully',
-      tenantId,
-    };
+    return;
   }
 }

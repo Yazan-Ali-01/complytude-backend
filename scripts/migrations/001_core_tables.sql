@@ -20,11 +20,35 @@ CREATE TYPE refresh_token_type AS ENUM ('identity', 'tenant');
 -- =========================
 CREATE TABLE public.tenants (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name             VARCHAR(255) DEFAULT NULL,
     plan             tenant_plan NOT NULL DEFAULT 'navigator',
+    logo_url         TEXT DEFAULT NULL,
+    brand_color_primary VARCHAR(7) DEFAULT NULL,
+    brand_color_secondary VARCHAR(7) DEFAULT NULL,
+    contact_email    VARCHAR(255) DEFAULT NULL,
+    billing_email    VARCHAR(255) DEFAULT NULL,
+    contact_phone    VARCHAR(50) DEFAULT NULL,
+    emirate          VARCHAR(50) DEFAULT NULL,
+    city             VARCHAR(100) DEFAULT NULL,
+    address_line_1   VARCHAR(500) DEFAULT NULL,
+    address_line_2   VARCHAR(500) DEFAULT NULL,
+    postal_code      VARCHAR(20) DEFAULT NULL,
+    trade_license_number VARCHAR(100) DEFAULT NULL,
+    legal_entity_type VARCHAR(50) DEFAULT NULL,
+    tax_registration_number VARCHAR(100) DEFAULT NULL,
+    locale             VARCHAR(50) DEFAULT 'en',
+    timezone           VARCHAR(50) DEFAULT NULL,
+    default_jurisdiction VARCHAR(100) DEFAULT NULL,
+    settings           JSONB DEFAULT '{}',
+    slug             VARCHAR(255) UNIQUE DEFAULT NULL,
     is_active        BOOLEAN NOT NULL DEFAULT true,
     parent_tenant_id UUID,
+    onboarding_completed_at TIMESTAMPTZ DEFAULT NULL,
+    onboarding_metadata JSONB DEFAULT '{}',
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deactivated_at   TIMESTAMPTZ DEFAULT NULL,
+    deactivation_reason TEXT DEFAULT NULL,
 
     CONSTRAINT fk_tenants_parent
         FOREIGN KEY (parent_tenant_id)
@@ -35,9 +59,33 @@ CREATE TABLE public.tenants (
 
 COMMENT ON TABLE public.tenants IS 'Organizations/companies using the platform';
 COMMENT ON COLUMN public.tenants.id IS 'Unique tenant identifier (UUID)';
+COMMENT ON COLUMN public.tenants.name IS 'Tenant name (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.plan IS 'Subscription plan: navigator, shield, general_counsel, or infrastructure';
+COMMENT ON COLUMN public.tenants.logo_url IS 'Tenant logo URL (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.brand_color_primary IS 'Tenant brand color primary (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.brand_color_secondary IS 'Tenant brand color secondary (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.contact_email IS 'Tenant contact email (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.billing_email IS 'Tenant billing email (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.contact_phone IS 'Tenant contact phone (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.emirate IS 'Tenant emirate (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.city IS 'Tenant city (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.address_line_1 IS 'Tenant address line 1 (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.address_line_2 IS 'Tenant address line 2 (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.postal_code IS 'Tenant postal code (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.trade_license_number IS 'Tenant trade license number (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.legal_entity_type IS 'Tenant legal entity type (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.tax_registration_number IS 'Tenant tax registration number (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.locale IS 'Tenant locale (en for English)';
+COMMENT ON COLUMN public.tenants.timezone IS 'Tenant timezone (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.default_jurisdiction IS 'Tenant default jurisdiction (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.settings IS 'Tenant settings (JSONB)';
+COMMENT ON COLUMN public.tenants.slug IS 'Tenant slug (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.is_active IS 'Whether the tenant account is active (soft delete flag)';
+COMMENT ON COLUMN public.tenants.deactivated_at IS 'Tenant deactivation timestamp (NULL for active tenants)';
+COMMENT ON COLUMN public.tenants.onboarding_completed_at IS 'Tenant onboarding completion timestamp (NULL for incomplete onboarding)';
+COMMENT ON COLUMN public.tenants.onboarding_metadata IS 'Tenant onboarding metadata (JSONB)';
 COMMENT ON COLUMN public.tenants.parent_tenant_id IS 'Parent tenant for Agency/Partner hierarchy (MVP+) - NULL for independent tenants';
+COMMENT ON COLUMN public.tenants.deactivation_reason IS 'Tenant deactivation reason (NULL for active tenants)';
 
 -- =========================
 -- Users
@@ -244,7 +292,7 @@ CREATE TABLE public.refresh_tokens (
         REFERENCES public.users(id)
         ON DELETE CASCADE
         ON UPDATE CASCADE,
-    
+
     CONSTRAINT fk_refresh_tokens_tenant
         FOREIGN KEY (tenant_id)
         REFERENCES public.tenants(id)
@@ -386,11 +434,11 @@ CREATE INDEX idx_audit_logs_tenant_created ON public.audit_logs(tenant_id, creat
 
 -- User Tenants
 -- Composite index for user's active tenants (WHERE user_id = ? AND is_active = true)
-CREATE INDEX idx_user_tenants_user_active ON public.user_tenants(user_id, is_active) 
+CREATE INDEX idx_user_tenants_user_active ON public.user_tenants(user_id, is_active)
 WHERE is_active = true;
 
 -- Composite index for tenant switch verification (WHERE user_id = ? AND tenant_id = ? AND is_active = true)
-CREATE INDEX idx_user_tenants_user_tenant_active ON public.user_tenants(user_id, tenant_id, is_active) 
+CREATE INDEX idx_user_tenants_user_tenant_active ON public.user_tenants(user_id, tenant_id, is_active)
 WHERE is_active = true;
 
 -- Index for tenant-based queries (WHERE tenant_id = ?)
@@ -399,48 +447,48 @@ CREATE INDEX idx_user_tenants_tenant_id ON public.user_tenants(tenant_id);
 -- Refresh Tokens
 -- Composite partial index for identity token refresh
 -- Covers: WHERE user_id = ? AND token_hash = ? AND token_type = 'identity' AND revoked_at IS NULL
-CREATE INDEX idx_refresh_tokens_user_token_identity ON public.refresh_tokens(user_id, token_hash, token_type) 
+CREATE INDEX idx_refresh_tokens_user_token_identity ON public.refresh_tokens(user_id, token_hash, token_type)
 WHERE token_type = 'identity' AND revoked_at IS NULL;
 
 -- Composite partial index for tenant token refresh
 -- Covers: WHERE user_id = ? AND tenant_id = ? AND token_hash = ? AND token_type = 'tenant' AND revoked_at IS NULL
-CREATE INDEX idx_refresh_tokens_user_tenant_token ON public.refresh_tokens(user_id, tenant_id, token_hash, token_type) 
+CREATE INDEX idx_refresh_tokens_user_tenant_token ON public.refresh_tokens(user_id, tenant_id, token_hash, token_type)
 WHERE token_type = 'tenant' AND revoked_at IS NULL;
 
 -- Index for revoking all user tokens (WHERE user_id = ? AND revoked_at IS NULL)
-CREATE INDEX idx_refresh_tokens_user_active ON public.refresh_tokens(user_id) 
+CREATE INDEX idx_refresh_tokens_user_active ON public.refresh_tokens(user_id)
 WHERE revoked_at IS NULL;
 
 -- Index for cleanup queries (WHERE expires_at < NOW())
-CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at) 
+CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at)
 WHERE revoked_at IS NULL;
 
 -- Email Verifications
 -- Composite partial index for verification lookup
 -- Covers: WHERE token = ? AND expires_at > NOW() AND verified_at IS NULL
-CREATE INDEX idx_email_verifications_token_active ON public.email_verifications(token, expires_at) 
+CREATE INDEX idx_email_verifications_token_active ON public.email_verifications(token, expires_at)
 WHERE verified_at IS NULL;
 
 -- Password Resets
 -- Composite partial index for reset token lookup
 -- Covers: WHERE token = ? AND expires_at > NOW() AND used_at IS NULL
-CREATE INDEX idx_password_resets_token_active ON public.password_resets(token, expires_at) 
+CREATE INDEX idx_password_resets_token_active ON public.password_resets(token, expires_at)
 WHERE used_at IS NULL;
 
 -- Invitations
 -- Composite partial index for token resolution
 -- Covers: WHERE token_hash = ? AND status = 'PENDING' AND expires_at > NOW()
-CREATE INDEX idx_invitations_token_pending ON public.invitations(token_hash, expires_at) 
+CREATE INDEX idx_invitations_token_pending ON public.invitations(token_hash, expires_at)
 WHERE status = 'PENDING';
 
 -- Composite partial index for duplicate invitation check
 -- Covers: WHERE email = ? AND tenant_id = ? AND status = 'PENDING'
-CREATE INDEX idx_invitations_email_tenant_status ON public.invitations(email, tenant_id) 
+CREATE INDEX idx_invitations_email_tenant_status ON public.invitations(email, tenant_id)
 WHERE status = 'PENDING';
 
 -- Composite partial index for listing user's pending invitations
 -- Covers: WHERE email = ? AND status = 'PENDING' AND expires_at > NOW()
-CREATE INDEX idx_invitations_email_pending ON public.invitations(email, expires_at) 
+CREATE INDEX idx_invitations_email_pending ON public.invitations(email, expires_at)
 WHERE status = 'PENDING';
 
 -- Index for tenant admin listing invitations (WHERE tenant_id = ?)
@@ -450,13 +498,22 @@ CREATE INDEX idx_invitations_tenant_id ON public.invitations(tenant_id);
 CREATE INDEX idx_invitations_invited_by ON public.invitations(invited_by);
 
 -- Unique constraint to prevent duplicate pending invitations
-CREATE UNIQUE INDEX idx_invitations_email_tenant_pending 
-    ON public.invitations(email, tenant_id) 
+CREATE UNIQUE INDEX idx_invitations_email_tenant_pending
+    ON public.invitations(email, tenant_id)
     WHERE status = 'PENDING';
 
 -- Unique constraint to prevent duplicate system roles
 CREATE UNIQUE INDEX idx_roles_key_system ON public.roles (key) WHERE tenant_id IS NULL;
 CREATE UNIQUE INDEX idx_roles_key_tenant ON public.roles (key, tenant_id) WHERE tenant_id IS NOT NULL;
+
+-- Lookup by slug for URL resolution (partial index for non-null slugs)
+CREATE INDEX idx_tenants_slug ON public.tenants(slug) WHERE slug IS NOT NULL;
+
+-- Filter tenants by emirate (admin analytics, grouping)
+CREATE INDEX idx_tenants_emirate ON public.tenants(emirate);
+
+-- Quick lookup of deactivated tenants
+CREATE INDEX idx_tenants_deactivated ON public.tenants(deactivated_at) WHERE deactivated_at IS NOT NULL;
 
 -- =========================
 -- Triggers
@@ -496,7 +553,7 @@ BEGIN
         RAISE EXCEPTION 'Cannot modify core attributes of system role: %', OLD.key
             USING HINT = 'System roles (is_system=true) are immutable. Use RbacSyncService to update.';
     END IF;
-    
+
     RETURN NEW;
 END;
 $$;
@@ -516,7 +573,7 @@ BEGIN
         RAISE EXCEPTION 'Cannot delete system role: %', OLD.key
             USING HINT = 'System roles are protected from deletion.';
     END IF;
-    
+
     RETURN OLD;
 END;
 $$;
@@ -607,6 +664,10 @@ DROP INDEX IF EXISTS public.idx_users_email_verified;
 
 DROP INDEX IF EXISTS public.idx_tenants_parent_tenant_id;
 DROP INDEX IF EXISTS public.idx_tenants_is_active;
+DROP INDEX IF EXISTS public.idx_tenants_deactivated;
+DROP INDEX IF EXISTS public.idx_tenants_emirate;
+DROP INDEX IF EXISTS public.idx_tenants_slug;
+
 
 DROP INDEX IF EXISTS public.idx_invitations_email_tenant_pending;
 DROP INDEX IF EXISTS public.idx_invitations_invited_by;
