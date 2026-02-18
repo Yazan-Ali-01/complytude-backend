@@ -90,7 +90,7 @@ export class TenantAdminController {
     @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<CursorPaginationResult<Tenant>> {
     this.logger.log('[ADMIN] Fetching all tenants');
-    const platformRole = identity?.platformRole ?? 'system_admin';
+    const platformRole = identity!.platformRole!;
     return this.tenantService.findAll(
       { cursor, limit, direction },
       { platformAdminContext: platformRole },
@@ -120,7 +120,7 @@ export class TenantAdminController {
     @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<Tenant> {
     this.logger.log(`[ADMIN] Fetching tenant: ${tenantId}`);
-    const platformRole = identity?.platformRole ?? 'system_admin';
+    const platformRole = identity!.platformRole!;
     return this.tenantService.findById(tenantId, {
       platformAdminContext: platformRole,
     });
@@ -150,7 +150,7 @@ export class TenantAdminController {
     @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<Tenant> {
     this.logger.log(`[ADMIN] Updating tenant: ${tenantId}`);
-    const platformRole = identity?.platformRole ?? 'system_admin';
+    const platformRole = identity!.platformRole!;
     return this.tenantService.updateTenant(tenantId, updateTenantDto, {
       platformAdminContext: platformRole,
     });
@@ -179,7 +179,7 @@ export class TenantAdminController {
     @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<{ message: string; tenantId: string }> {
     this.logger.warn(`[ADMIN] Deleting tenant: ${tenantId}`);
-    const platformRole = identity?.platformRole ?? 'system_admin';
+    const platformRole = identity!.platformRole!;
     await this.tenantService.deleteTenant(tenantId, {
       platformAdminContext: platformRole,
     });
