@@ -151,10 +151,13 @@ Data access layer with repository pattern:
 - **categories/** - Template categories repository
 - **documents/** - Documents repository
 - **invitations/** - Tenant invitations repository
-- **rbac/** - RBAC repositories (roles, permissions)
-- **roles.repository.ts** - Role CRUD and permission lookups
-- **permissions.repository.ts** - Permission queries
-- **interfaces/** - RBAC interfaces (Role, Permission, CreateRoleInput, etc.)
+- **rbac/** - Tenant RBAC repositories (roles, permissions)
+- **roles.repository.ts** - Tenant role CRUD and permission lookups
+- **permissions.repository.ts** - Tenant permission queries
+- **interfaces/** - Tenant RBAC interfaces (Role, Permission, CreateRoleInput, etc.)
+- **platform-rbac/** - Platform RBAC repositories
+- **platform-roles.repository.ts** - Platform role CRUD and permission lookups
+- **interfaces/** - Platform RBAC interfaces (PlatformRole, etc.)
 - **rulesets/** - Compliance rulesets repository
 - **templates/** - Templates and versions repositories
 - **tenants/** - Tenant management repository
@@ -187,8 +190,10 @@ Data access layer with repository pattern:
 #### Constants (`constants/`)
 
 - **i18n-keys.ts** - Internationalization key constants
-- **tenant-permissions.constant.ts** - RBAC permission definitions
-- **tenant-system-roles.constant.ts** - System role permission sets
+- **tenant-permissions.constant.ts** - Tenant RBAC permission definitions (source of truth)
+- **tenant-system-roles.constant.ts** - Tenant system role permission sets (in-memory)
+- **platform-permissions.constant.ts** - Platform RBAC permission definitions (source of truth)
+- **platform-system-roles.constant.ts** - Platform system role permission sets (in-memory)
 - **plan-entitlements.constant.ts** - Entitlement feature catalog and plan matrix (source of truth)
 
 #### Decorators (`decorators/`)
@@ -197,7 +202,8 @@ Data access layer with repository pattern:
 - **track-usage.decorator.ts** - Usage tracking decorator
 - **json-field.decorator.ts** - JSON field transformation
 - **file-validators.decorator.ts** - File validation decorators
-- **permissions.decorator.ts** - RBAC permission decorators (RequireAllTenantPermissions, RequireAnyTenantPermission)
+- **permissions.decorator.ts** - Tenant RBAC permission decorators (RequireAllTenantPermissions, RequireAnyTenantPermission)
+- **platform-permissions.decorator.ts** - Platform RBAC permission decorators (RequireAllPlatformPermissions, RequireAnyPlatformPermission)
 
 #### DTOs (`dto/`)
 
@@ -209,12 +215,13 @@ Data access layer with repository pattern:
 
 #### Guards (`guards/`)
 
-- **system-admin.guard.ts** - System admin authorization
+- **system-admin.guard.ts** - System admin authorization (deprecated, use platform-permissions.guard.ts)
 - **features.guard.ts** - Feature flag enforcement (deprecated, use entitlement.guard.ts)
 - **document-limit.guard.ts** - Document limit enforcement (deprecated, use usage-enforcement.guard.ts)
 - **entitlement.guard.ts** - Entitlement-based feature access
 - **usage-enforcement.guard.ts** - Quota enforcement with credit fallback
-- **permissions.guard.ts** - RBAC permission-based authorization
+- **permissions.guard.ts** - Tenant RBAC permission-based authorization (TenantPermissionsGuard)
+- **platform-permissions.guard.ts** - Platform RBAC permission-based authorization (PlatformPermissionsGuard)
 
 #### Interceptors (`interceptors/`)
 
@@ -331,13 +338,23 @@ Tenant invitation system:
 - **invitations.service.ts** - Invitation business logic
 - **invitations.module.ts** - Module configuration
 
-#### RBAC (`rbac/`)
+#### Tenant RBAC (`tenant-rbac/`)
 
-Role-Based Access Control:
+Tenant-scoped Role-Based Access Control:
 
-- **rbac.service.ts** - RBAC business logic (permission checking, role management)
-- **rbac-sync.service.ts** - Syncs permissions and system roles from code to DB on startup
-- **rbac.module.ts** - RBAC module configuration (exports TenantRbacService, TenantPermissionsGuard)
+- **tenant-rbac.service.ts** - Tenant RBAC business logic (permission checking, role management)
+- **tenant-rbac-sync.service.ts** - Syncs tenant permissions and system roles from code to DB on startup
+- **tenant-rbac.module.ts** - Tenant RBAC module configuration (global module, exports TenantRbacService, TenantPermissionsGuard)
+
+#### Platform RBAC (`platform-rbac/`)
+
+Platform-wide Role-Based Access Control:
+
+- **platform-rbac.service.ts** - Platform RBAC business logic (permission checking for system admins)
+- **platform-rbac-sync.service.ts** - Syncs platform permissions and system roles from code to DB on startup
+- **platform-rbac.module.ts** - Platform RBAC module configuration (global module, exports PlatformRbacService, PlatformPermissionsGuard)
+
+> **📖 Complete RBAC Documentation:** See [docs/RBAC.md](mdc:../docs/RBAC.md) for comprehensive guide on both Tenant and Platform RBAC
 
 #### Rulesets (`rulesets/`)
 

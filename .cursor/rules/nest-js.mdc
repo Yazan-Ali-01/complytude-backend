@@ -265,11 +265,28 @@ async create() { }
 
 # ========================================
 
+> **📖 Complete RBAC Documentation:** See [docs/RBAC.md](mdc:../docs/RBAC.md) for comprehensive guide
+
 rbac:
-strategy: "Permission-based RBAC with wildcard support"
+architecture: "Dual-level RBAC system"
+levels:
+  tenant: "Tenant-scoped authorization (documents, team, settings)"
+  platform: "Platform-wide authorization (tenant management, system admin)"
+strategy: "Permission-based with wildcard support"
 system_roles: "In-memory permission sets for performance"
 custom_roles: "Database-backed (MVP+)"
-sync: "TenantRbacSyncService syncs permissions/roles from code to DB on startup"
+sync: "Auto-sync services run on app startup (TenantRbacSyncService, PlatformRbacSyncService)"
+
+# Tenant RBAC vs Platform RBAC
+
+| Aspect | Tenant RBAC | Platform RBAC |
+|--------|-------------|---------------|
+| **Scope** | Tenant-specific operations | Platform-wide operations |
+| **Authentication** | Tenant token (`tenantAccessToken`) | Identity token (`identityAccessToken`) |
+| **Use Cases** | Documents, team, settings | Tenant management, global templates, system admin |
+| **Guard** | `TenantPermissionsGuard` | `PlatformPermissionsGuard` |
+| **Decorators** | `@RequireAnyTenantPermission()` | `@RequireAnyPlatformPermission()` |
+| **Roles** | `tenant_admin`, `legal_counsel`, `member`, `viewer` | `system_admin`, `support`, `auditor` |
 
 # ========================================
 
@@ -282,53 +299,21 @@ strategy: "Plan-based feature access with usage tracking and credit fallback"
 architecture: "Event-sourced with append-only ledgers and derived projections"
 sync: "EntitlementSyncService syncs features/plans from constants to DB on startup"
 
-# Permission Format
+# Tenant RBAC (Tenant-Scoped Authorization)
 
-Permissions follow the pattern: `{resource}:{action}`
+**Authentication:** Requires tenant token  
+**Use Cases:** Document operations, team management, tenant settings
 
-**Examples:**
+## Tenant System Roles
 
-- `documents:create` - Create documents
-- `documents:read` - View documents
-- `templates:manage` - Full template control
-- `documents:*` - All document permissions (wildcard)
-- `*:read` - Read permission on all resources (wildcard)
-- `*:*` - All permissions (tenant_admin only)
+| Role | Key | Permissions | Description |
+|------|-----|-------------|-------------|
+| Tenant Admin | `tenant_admin` | `*:*` | Full access to all tenant features |
+| Legal Counsel | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query` | AI drafting, analysis, templates |
+| Member | `member` | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation |
+| Viewer | `viewer` | `documents:read`, `regulatory:query` | Read-only access |
 
-# System Roles
-
-| Role          | Key             | Permissions (in-memory)                                                   | Description                      |
-| ------------- | --------------- | ------------------------------------------------------------------------- | -------------------------------- |
-| Tenant Admin  | `tenant_admin`  | `*:*`                                                                     | Full access                      |
-| Legal Counsel | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`           | AI drafting, analysis, templates |
-| Member        | `member`        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation          |
-| Viewer        | `viewer`        | `documents:read`, `regulatory:query`                                      | Read-only access                 |
-
-**Note:** System roles use wildcards for cleaner permission sets. Permission matching handles wildcard expansion at runtime.
-
-# RBAC Sync Service
-
-The `TenantRbacSyncService` automatically syncs permissions and system roles from code to database on app startup:
-
-**Source of Truth:**
-
-- `ALL_TENANT_PERMISSIONS` array in `tenant-permissions.constant.ts`
-- `TENANT_SYSTEM_ROLE_PERMISSIONS` map in `tenant-system-roles.constant.ts`
-
-**Sync Behavior:**
-
-- Runs on every app startup via `OnModuleInit` (idempotent)
-- Permissions: Add new, update existing, delete removed
-- System Roles: Add new, update existing, sync role-permission mappings
-- Custom Roles: Never touched (tenant_id IS NOT NULL)
-
-**Adding New Permissions:**
-
-1. Add to `ALL_TENANT_PERMISSIONS` array in `tenant-permissions.constant.ts`
-2. Optionally add to `TENANT_PERMISSIONS` object for autocomplete
-3. Restart app - sync service handles database update
-
-# Permission Decorators
+## Tenant Permission Examples
 
 ```typescript
 import {
@@ -337,125 +322,150 @@ import {
 } from 'src/common/decorators/permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/permissions.guard';
 
-// Require ANY of the specified permissions (OR logic)
+// Tenant-scoped endpoint
 @AuthOptions({ tenant: true })
 @UseGuards(TenantPermissionsGuard)
-@RequireAnyTenantPermission('documents:read', 'templates:use')
-@Get()
-async listResources() { }
+@RequireAnyTenantPermission('documents:create')
+@Post('documents')
+async createDocument(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+  // user.tenantId and user.role available
+}
 
-// Require ALL specified permissions (AND logic)
+// Multiple permissions (AND logic)
 @AuthOptions({ tenant: true })
 @UseGuards(TenantPermissionsGuard)
 @RequireAllTenantPermissions('documents:read', 'documents:delete')
-@Delete(':id')
-async deleteDocument() { }
+@Delete('documents/:id')
+async deleteDocument(@CurrentUserTenant() user: AuthenticatedTenantUser) { }
 
 // Wildcard permission
 @AuthOptions({ tenant: true })
 @UseGuards(TenantPermissionsGuard)
 @RequireAnyTenantPermission('documents:*')
-@Post()
-async createDocument() { }
+@Post('documents/bulk')
+async bulkOperation(@CurrentUserTenant() user: AuthenticatedTenantUser) { }
 ```
 
-# Permission Check Flow
+# Platform RBAC (Platform-Wide Authorization)
 
-```
-Request → JWT Guard → Extract role from token
-        → TenantPermissionsGuard → TenantRbacService.hasPermission()
-        → System role: In-memory lookup (O(1))
-        → Custom role: Database query
-        → Permission matcher (wildcard support)
-        → Allow/Deny
-```
+**Authentication:** Requires identity token  
+**Use Cases:** Tenant management, global templates, system administration
 
-# Permission Matching
+## Platform System Roles
 
-The `matchTenantPermission()` function handles wildcard matching:
+| Role | Key | Permissions | Description |
+|------|-----|-------------|-------------|
+| System Admin | `system_admin` | `*:*` | Full access to all platform features |
+| Support | `support` | Read-only permissions | Customer support access |
+| Auditor | `auditor` | Audit-focused permissions | Audit and compliance access |
+
+## Platform Permission Examples
 
 ```typescript
-// User permission expands to cover required permission
-matchTenantPermission('*:*', 'documents:read'); // true - covers everything
-matchTenantPermission('documents:*', 'documents:read'); // true - covers all document actions
-matchTenantPermission('*:read', 'documents:read'); // true - covers read on all resources
+import {
+  RequireAllPlatformPermissions,
+  RequireAnyPlatformPermission,
+} from 'src/common/decorators/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
 
-// No match
-matchTenantPermission('documents:read', 'documents:create'); // false - different actions
-matchTenantPermission('documents:create', 'documents:*'); // false - user doesn't have wildcard
+// Platform-scoped endpoint
+@AuthOptions({ identity: true })
+@UseGuards(PlatformPermissionsGuard)
+@RequireAnyPlatformPermission('tenants:create')
+@Post('admin/tenants')
+async createTenant(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) {
+  // identity.platformRole available
+}
+
+// Multiple platform permissions (AND logic)
+@AuthOptions({ identity: true })
+@UseGuards(PlatformPermissionsGuard)
+@RequireAllPlatformPermissions('tenants:read', 'users:read')
+@Get('admin/tenants/:id/users')
+async getTenantUsers(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) { }
+
+// Wildcard permission
+@AuthOptions({ identity: true })
+@UseGuards(PlatformPermissionsGuard)
+@RequireAnyPlatformPermission('templates:*')
+@Post('admin/templates')
+async createGlobalTemplate(@CurrentUserIdentity() identity: AuthenticatedIdentityUser) { }
 ```
 
-# Key Files
+# When to Use Which RBAC System
 
-- `src/common/decorators/permissions.decorator.ts` - Permission decorators
-- `src/common/guards/permissions.guard.ts` - Permission guard
-- `src/common/constants/tenant-permissions.constant.ts` - Permission definitions (source of truth)
-- `src/common/constants/tenant-system-roles.constant.ts` - System role permissions (in-memory)
-- `src/common/utils/tenant-permission-matcher.util.ts` - Wildcard matching utilities
-- `src/common/types/tenant.types.ts` - SystemTenantRole enum and TenantPermission type
-- `src/modules/rbac/rbac.service.ts` - RBAC business logic
-- `src/modules/rbac/rbac-sync.service.ts` - Database synchronization on startup
-- `src/repositories/rbac/` - RBAC repositories
+| Scenario | Use | Authentication | Example |
+|----------|-----|----------------|---------|
+| User creates document | Tenant RBAC | Tenant Token | `@RequireAnyTenantPermission('documents:create')` |
+| User manages team | Tenant RBAC | Tenant Token | `@RequireAnyTenantPermission('team:manage')` |
+| System admin creates tenant | Platform RBAC | Identity Token | `@RequireAnyPlatformPermission('tenants:create')` |
+| Support views all tenants | Platform RBAC | Identity Token | `@RequireAnyPlatformPermission('tenants:read')` |
+| System admin manages global templates | Platform RBAC | Identity Token | `@RequireAnyPlatformPermission('templates:manage')` |
+
+# Adding New Permissions
+
+**Tenant Permissions:**
+1. Add to `ALL_TENANT_PERMISSIONS` array in `tenant-permissions.constant.ts`
+2. Restart app - `TenantRbacSyncService` handles database update
+
+**Platform Permissions:**
+1. Add to `ALL_PLATFORM_PERMISSIONS` array in `platform-permissions.constant.ts`
+2. Restart app - `PlatformRbacSyncService` handles database update
+
+# Key RBAC Files
+
+**Tenant RBAC:**
+- `src/common/decorators/permissions.decorator.ts` - Tenant permission decorators
+- `src/common/guards/permissions.guard.ts` - Tenant permission guard
+- `src/common/constants/tenant-permissions.constant.ts` - Tenant permissions (source of truth)
+- `src/common/constants/tenant-system-roles.constant.ts` - Tenant system role permissions
+- `src/modules/tenant-rbac/tenant-rbac.service.ts` - Tenant RBAC business logic
+- `src/modules/tenant-rbac/tenant-rbac-sync.service.ts` - Tenant RBAC sync service
+
+**Platform RBAC:**
+- `src/common/decorators/platform-permissions.decorator.ts` - Platform permission decorators
+- `src/common/guards/platform-permissions.guard.ts` - Platform permission guard
+- `src/common/constants/platform-permissions.constant.ts` - Platform permissions (source of truth)
+- `src/common/constants/platform-system-roles.constant.ts` - Platform system role permissions
+- `src/modules/platform-rbac/platform-rbac.service.ts` - Platform RBAC business logic
+- `src/modules/platform-rbac/platform-rbac-sync.service.ts` - Platform RBAC sync service
+
+**Shared:**
+- `src/common/utils/permission-matcher.util.ts` - Wildcard matching utilities (shared)
 
 # Global Module Architecture
 
-**TenantRbacModule is a Global Module** - marked with `@Global()` decorator.
+**Both RBAC modules are Global Modules** - marked with `@Global()` decorator.
+
+- `TenantRbacModule` - Tenant-scoped authorization
+- `PlatformRbacModule` - Platform-wide authorization
 
 **Why Global?**
 
 - RBAC is a cross-cutting concern like authentication
-- `TenantPermissionsGuard` is used across many feature modules
-- Eliminates the need to import `TenantRbacModule` in every feature module
+- Guards are used across many feature modules
+- Eliminates the need to import RBAC modules in every feature module
 - Follows NestJS best practices for authorization systems
 
 **How to Use:**
 
-1. **TenantRbacModule is imported ONCE** in `AppModule`
-2. **No need to import** in feature modules - it's automatically available
-3. **Use `TenantPermissionsGuard` directly** in any controller without importing `TenantRbacModule`
+1. **RBAC modules are imported ONCE** in `AppModule`
+2. **No need to import** in feature modules - automatically available
+3. **Use guards directly** in any controller
 
 ```typescript
-// ✅ CORRECT: No TenantRbacModule import needed
+// ✅ CORRECT: No RBAC module import needed
 @Module({
-  controllers: [MyController], // Uses TenantPermissionsGuard
+  controllers: [MyController], // Uses guards directly
 })
 export class MyModule {}
 
-// ❌ WRONG: Don't import TenantRbacModule in feature modules
+// ❌ WRONG: Don't import RBAC modules in feature modules
 @Module({
-  imports: [TenantRbacModule], // ← Not needed! TenantRbacModule is global
+  imports: [TenantRbacModule, PlatformRbacModule], // ← Not needed! They're global
   controllers: [MyController],
 })
 export class MyModule {}
-```
-
-**What's Available Globally:**
-
-- `TenantRbacService` - Permission checking logic
-- `TenantRbacSyncService` - Database sync (internal, runs on startup)
-- `TenantPermissionsGuard` - Permission-based authorization guard
-- `RolesRepository` - Role data access
-- `PermissionsRepository` - Permission data access
-
-**When to use which:**
-
-- **TenantPermissionsGuard + @RequirePermissions()** - For fine-grained permission checks (e.g., `documents:create`, `templates:manage`)
-- **RolesGuard + @Roles()** - For simple role checks (e.g., checking if user is `tenant_admin`)
-
-```typescript
-// Simple role check - use RolesGuard
-@AuthOptions({ tenant: true })
-@UseGuards(RolesGuard)
-@Roles('tenant_admin')
-@Post('admin-only')
-async adminOnlyAction() { }
-
-// Permission-based check - use TenantPermissionsGuard
-@AuthOptions({ tenant: true })
-@UseGuards(TenantPermissionsGuard)
-@RequireAnyTenantPermission('documents:create')
-@Post('documents')
-async createDocument() { }
 ```
 
 # ========================================
