@@ -80,9 +80,12 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON public.email_verifications FROM app_use
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.refresh_tokens FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.user_tenants FROM app_user;
 REVOKE SELECT, INSERT ON public.audit_logs FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.platform_role_permissions FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.platform_permissions FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.platform_roles FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.role_permissions FROM app_user;
-REVOKE SELECT, INSERT, UPDATE ON public.permissions FROM app_user;
-REVOKE SELECT, INSERT, UPDATE ON public.roles FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.permissions FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.roles FROM app_user;
 REVOKE SELECT, INSERT, UPDATE ON public.users FROM app_user;
 REVOKE SELECT, INSERT, UPDATE ON public.tenants FROM app_user;
 
