@@ -19,12 +19,12 @@ USING (
     tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- System/admin or platform admin can create subscriptions (for any tenant when platform admin)
+-- Platform admins only: create subscriptions (tenant context is NOT sufficient)
 CREATE POLICY tenant_subscriptions_insert
 ON public.tenant_subscriptions
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+    is_platform_admin()
 );
 
 -- System/admin or platform admin can update subscriptions
@@ -50,12 +50,12 @@ USING (
     tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- System/admin or platform admin can add add-ons
+-- Platform admins only: add add-ons (tenant context is NOT sufficient)
 CREATE POLICY tenant_addons_insert
 ON public.tenant_addons
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+    is_platform_admin()
 );
 
 -- System/admin or platform admin can update add-ons
@@ -81,12 +81,12 @@ USING (
     tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- Platform admins can create overrides for any tenant
+-- Platform admins only: create overrides (tenant context is NOT sufficient)
 CREATE POLICY tenant_overrides_insert
 ON public.tenant_overrides
 FOR INSERT
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+    is_platform_admin()
 );
 
 -- Platform admins can update overrides for any tenant
