@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TENANT_SYSTEM_ROLE_PERMISSIONS } from '../../common/constants/tenant-system-roles.constant';
 import { isTenantSystemRole } from '../../common/utils/tenant-type-guards.util';
-import { RolesRepository } from '../../repositories/rbac/roles.repository';
+import { TenantRolesRepository } from '../../repositories/tenant-rbac/tenant-roles.repository';
 
 @Injectable()
 export class TenantRbacService {
@@ -10,7 +10,7 @@ export class TenantRbacService {
   // TODO: Implement caching for custom tenant roles - load role-permissions
   // No caching needed for system roles - O(1) in-memory lookup
 
-  constructor(private readonly rolesRepository: RolesRepository) {}
+  constructor(private readonly tenantRolesRepository: TenantRolesRepository) {}
 
   /**
    * Get all permissions for a role
@@ -34,14 +34,14 @@ export class TenantRbacService {
 
     // 2. Custom tenant roles: query database (MVP+ feature)
     // Returns only concrete permissions from database
-    return this.rolesRepository.getPermissionsForRole(roleKey, tenantId);
+    return this.tenantRolesRepository.getPermissionsForRole(roleKey, tenantId);
   }
 
   /**
    * Get all system roles
    */
   async getSystemRoles() {
-    return this.rolesRepository.findSystemRoles();
+    return this.tenantRolesRepository.findSystemRoles();
   }
 
   /**
@@ -50,7 +50,7 @@ export class TenantRbacService {
    * @param tenantId - Optional tenant ID for custom roles
    */
   async getRoleByKey(roleKey: string, tenantId?: string) {
-    return this.rolesRepository.findByKey(roleKey, tenantId);
+    return this.tenantRolesRepository.findByKey(roleKey, tenantId);
   }
 
   // TODO: AI Model Selection Gate

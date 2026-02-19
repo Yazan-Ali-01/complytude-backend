@@ -47,7 +47,7 @@ export class TenantRbacSyncService implements OnModuleInit {
       for (const perm of permissionsToSync) {
         await client.query(
           `
-          INSERT INTO public.permissions (key, name, resource, action, description)
+          INSERT INTO public.tenant_permissions (key, name, resource, action, description)
           VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (key) DO UPDATE SET
             name = EXCLUDED.name,
@@ -75,7 +75,7 @@ export class TenantRbacSyncService implements OnModuleInit {
       // Delete permissions that exist in DB but not in code
       const deleteResult = await client.query(
         `
-          DELETE FROM public.permissions
+          DELETE FROM public.tenant_permissions
           WHERE key NOT IN (${permissionKeys.map((_, i) => `$${i + 1}`).join(', ')})
           RETURNING key
         `,
@@ -109,7 +109,7 @@ export class TenantRbacSyncService implements OnModuleInit {
       for (const role of systemRoles) {
         await client.query(
           `
-          INSERT INTO public.roles (key, name, description, tenant_id, is_system, is_active)
+          INSERT INTO public.tenant_roles (key, name, description, tenant_id, is_system, is_active)
           VALUES ($1, $2, $3, NULL, true, true)
           ON CONFLICT (key) WHERE tenant_id IS NULL DO UPDATE SET
             name = EXCLUDED.name,
@@ -124,7 +124,7 @@ export class TenantRbacSyncService implements OnModuleInit {
       for (const role of systemRoles) {
         // Get role ID
         const roleResult = await client.query(
-          `SELECT id FROM public.roles WHERE key = $1 AND is_system = true`,
+          `SELECT id FROM public.tenant_roles WHERE key = $1 AND is_system = true`,
           [role.key],
         );
 
@@ -140,7 +140,7 @@ export class TenantRbacSyncService implements OnModuleInit {
 
         // Delete existing mappings for this role first
         await client.query(
-          `DELETE FROM public.role_permissions WHERE role_id = $1`,
+          `DELETE FROM public.tenant_role_permissions WHERE role_id = $1`,
           [roleId],
         );
 
@@ -155,7 +155,7 @@ export class TenantRbacSyncService implements OnModuleInit {
         // Get permission IDs for this role's permissions
         const permissionsResult = await client.query(
           `
-          SELECT id, key FROM public.permissions
+          SELECT id, key FROM public.tenant_permissions
           WHERE key IN (${permissionKeys.map((_, i) => `$${i + 1}`).join(', ')})
         `,
           permissionKeys,
@@ -170,7 +170,7 @@ export class TenantRbacSyncService implements OnModuleInit {
             .join(', ');
           await client.query(
             `
-            INSERT INTO public.role_permissions (role_id, permission_id)
+            INSERT INTO public.tenant_role_permissions (role_id, permission_id)
             VALUES ${values}
             ON CONFLICT (role_id, permission_id) DO NOTHING
           `,

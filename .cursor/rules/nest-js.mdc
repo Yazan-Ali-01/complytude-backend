@@ -405,12 +405,14 @@ async createGlobalTemplate(@CurrentUserIdentity() identity: AuthenticatedIdentit
 # Adding New Permissions
 
 **Tenant Permissions:**
-1. Add to `ALL_TENANT_PERMISSIONS` array in `tenant-permissions.constant.ts`
-2. Restart app - `TenantRbacSyncService` handles database update
+1. Add to `TENANT_PERMISSIONS` object in `tenant-permissions.constant.ts` (single source of truth)
+2. The `ALL_TENANT_PERMISSIONS` array is automatically derived from the object
+3. Restart app - `TenantRbacSyncService` handles database update
 
 **Platform Permissions:**
-1. Add to `ALL_PLATFORM_PERMISSIONS` array in `platform-permissions.constant.ts`
-2. Restart app - `PlatformRbacSyncService` handles database update
+1. Add to `PLATFORM_PERMISSIONS` object in `platform-permissions.constant.ts` (single source of truth)
+2. The `ALL_PLATFORM_PERMISSIONS` array is automatically derived from the object
+3. Restart app - `PlatformRbacSyncService` handles database update
 
 # Key RBAC Files
 
@@ -421,6 +423,8 @@ async createGlobalTemplate(@CurrentUserIdentity() identity: AuthenticatedIdentit
 - `src/common/constants/tenant-system-roles.constant.ts` - Tenant system role permissions
 - `src/modules/tenant-rbac/tenant-rbac.service.ts` - Tenant RBAC business logic
 - `src/modules/tenant-rbac/tenant-rbac-sync.service.ts` - Tenant RBAC sync service
+- `src/repositories/tenant-rbac/tenant-roles.repository.ts` - Tenant roles data access
+- `src/repositories/tenant-rbac/tenant-permissions.repository.ts` - Tenant permissions data access
 
 **Platform RBAC:**
 - `src/common/decorators/platform-permissions.decorator.ts` - Platform permission decorators

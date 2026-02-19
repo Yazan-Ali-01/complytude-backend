@@ -151,9 +151,9 @@ Data access layer with repository pattern:
 - **categories/** - Template categories repository
 - **documents/** - Documents repository
 - **invitations/** - Tenant invitations repository
-- **rbac/** - Tenant RBAC repositories (roles, permissions)
-- **roles.repository.ts** - Tenant role CRUD and permission lookups
-- **permissions.repository.ts** - Tenant permission queries
+- **tenant-rbac/** - Tenant RBAC repositories (tenant_roles, tenant_permissions)
+- **tenant-roles.repository.ts** - Tenant role CRUD and permission lookups
+- **tenant-permissions.repository.ts** - Tenant permission queries
 - **interfaces/** - Tenant RBAC interfaces (Role, Permission, CreateRoleInput, etc.)
 - **platform-rbac/** - Platform RBAC repositories
 - **platform-roles.repository.ts** - Platform role CRUD and permission lookups

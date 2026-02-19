@@ -7,13 +7,13 @@ import {
 } from './interfaces/permission.interface';
 
 @Injectable()
-export class PermissionsRepository extends BaseRepository<
+export class TenantPermissionsRepository extends BaseRepository<
   Permission,
   CreatePermissionInput,
   never
 > {
   constructor(databaseService: DatabaseService) {
-    super(databaseService, 'permissions');
+    super(databaseService, 'tenant_permissions');
   }
 
   protected mapRow(row: Record<string, unknown>): Permission {

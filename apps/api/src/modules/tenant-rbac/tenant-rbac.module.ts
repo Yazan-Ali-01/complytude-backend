@@ -1,8 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { TenantPermissionsGuard } from '../../common/guards/tenant-permissions.guard';
 import { DatabaseModule } from '../../database/database.module';
-import { PermissionsRepository } from '../../repositories/rbac/permissions.repository';
-import { RolesRepository } from '../../repositories/rbac/roles.repository';
+import { TenantPermissionsRepository } from '../../repositories/tenant-rbac/tenant-permissions.repository';
+import { TenantRolesRepository } from '../../repositories/tenant-rbac/tenant-roles.repository';
 import { TenantRbacSyncService } from './tenant-rbac-sync.service';
 import { TenantRbacService } from './tenant-rbac.service';
 
@@ -21,8 +21,8 @@ import { TenantRbacService } from './tenant-rbac.service';
  * What's Exported:
  * - TenantRbacService: Permission checking logic
  * - PermissionsGuard: Permission-based authorization guard
- * - RolesRepository: Role data access (for advanced use cases)
- * - PermissionsRepository: Permission data access (for advanced use cases)
+ * - TenantRolesRepository: Role data access (for advanced use cases)
+ * - TenantPermissionsRepository: Permission data access (for advanced use cases)
  *
  * Sync Service:
  * - TenantRbacSyncService: Syncs permissions and system roles on app startup
@@ -34,14 +34,14 @@ import { TenantRbacService } from './tenant-rbac.service';
   providers: [
     TenantRbacService,
     TenantRbacSyncService,
-    RolesRepository,
-    PermissionsRepository,
+    TenantRolesRepository,
+    TenantPermissionsRepository,
     TenantPermissionsGuard,
   ],
   exports: [
     TenantRbacService,
-    RolesRepository,
-    PermissionsRepository,
+    TenantRolesRepository,
+    TenantPermissionsRepository,
     TenantPermissionsGuard,
   ],
 })

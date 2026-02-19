@@ -91,7 +91,7 @@ export class UserTenantRepository extends BaseRepository<
   protected getFromClause(includeRoleName: boolean = true): string {
     if (includeRoleName) {
       return `${this.tableName} ut
-              INNER JOIN public.roles r ON r.key = ut.role_key 
+              INNER JOIN public.tenant_roles r ON r.key = ut.role_key 
                 AND (r.tenant_id = ut.tenant_id OR r.is_system = true)`;
     }
     return `${this.tableName} ut`;
@@ -456,7 +456,7 @@ export class UserTenantRepository extends BaseRepository<
     includeRoleName: boolean = true,
   ): Promise<UserTenantWithUserRow | null> {
     const roleJoin = includeRoleName
-      ? `INNER JOIN public.roles r ON r.key = ut.role_key 
+      ? `INNER JOIN public.tenant_roles r ON r.key = ut.role_key 
          AND (r.tenant_id = ut.tenant_id OR r.is_system = true)`
       : '';
 
