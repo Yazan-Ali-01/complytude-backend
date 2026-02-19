@@ -77,7 +77,7 @@ export class InvitationRepository extends BaseRepository<
    */
   protected getFromClauseWithRoles(): string {
     return `${this.tableName} i
-            INNER JOIN public.roles r ON r.id = i.role_id`;
+            INNER JOIN public.tenant_roles r ON r.id = i.role_id`;
   }
 
   /**

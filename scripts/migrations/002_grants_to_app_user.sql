@@ -22,10 +22,10 @@ GRANT SELECT, INSERT, UPDATE ON public.tenants TO app_user;
 GRANT SELECT, INSERT, UPDATE ON public.users TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_tenants TO app_user;
 
--- RBAC tables
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.roles TO app_user;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.permissions TO app_user;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.role_permissions TO app_user;
+-- Tenant RBAC tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_roles TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_permissions TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_role_permissions TO app_user;
 
 -- Platform RBAC tables
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.platform_roles TO app_user;
@@ -83,9 +83,9 @@ REVOKE SELECT, INSERT ON public.audit_logs FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.platform_role_permissions FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.platform_permissions FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.platform_roles FROM app_user;
-REVOKE SELECT, INSERT, UPDATE, DELETE ON public.role_permissions FROM app_user;
-REVOKE SELECT, INSERT, UPDATE, DELETE ON public.permissions FROM app_user;
-REVOKE SELECT, INSERT, UPDATE, DELETE ON public.roles FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.tenant_role_permissions FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.tenant_permissions FROM app_user;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.tenant_roles FROM app_user;
 REVOKE SELECT, INSERT, UPDATE ON public.users FROM app_user;
 REVOKE SELECT, INSERT, UPDATE ON public.tenants FROM app_user;
 

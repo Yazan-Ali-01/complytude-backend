@@ -1,12 +1,12 @@
 /**
  * Tenant-level RBAC permissions
  * These permissions are scoped to tenant operations and resources.
- * For platform-level permissions, see platform-permissions.constant.ts (future)
+ * For platform-level permissions, see platform-permissions.constant.ts
  *
  * Architecture:
- * 1. ALL_TENANT_PERMISSIONS array is the single source of truth
- * 2. TenantPermission type is derived from the array
- * 3. TENANT_PERMISSIONS object provides nice autocomplete grouping
+ * 1. TENANT_PERMISSIONS object is the single source of truth
+ * 2. ALL_TENANT_PERMISSIONS array is derived from the object
+ * 3. TenantPermission type is derived from the object values
  *
  * Permission Taxonomy:
  * - CRUD actions: create, read, update, delete (for data entities)
@@ -18,89 +18,8 @@
  */
 
 /**
- * All tenant permissions including wildcards
- * This is the single source of truth - used by sync service and type derivation
- *
- * IMPORTANT: This array must NEVER be empty. The sync service has a safeguard
- * that will throw an error if this array is empty to prevent accidental
- * deletion of all permissions from the database.
- */
-export const ALL_TENANT_PERMISSIONS = [
-  // ─────────────────────────────────────────────────────────────────
-  // Documents - Document repository operations
-  // Note: Documents are immutable - no 'update' permission by design.
-  // Users regenerate documents from templates with new parameters.
-  // ─────────────────────────────────────────────────────────────────
-  'documents:create',
-  'documents:read',
-  'documents:delete',
-  'documents:*', // Wildcard: All document permissions
-
-  // ─────────────────────────────────────────────────────────────────
-  // Contracts - AI-powered contract operations
-  // ─────────────────────────────────────────────────────────────────
-  'contracts:analyze',
-  'contracts:redline',
-  'contracts:*', // Wildcard: All contract permissions
-
-  // ─────────────────────────────────────────────────────────────────
-  // Templates - Document template management
-  // ─────────────────────────────────────────────────────────────────
-  'templates:manage',
-  'templates:use',
-  'templates:*', // Wildcard: All template permissions
-
-  // ─────────────────────────────────────────────────────────────────
-  // Regulatory - Regulatory hub access
-  // ─────────────────────────────────────────────────────────────────
-  'regulatory:query',
-  'regulatory:*', // Wildcard: All regulatory permissions
-
-  // ─────────────────────────────────────────────────────────────────
-  // Billing - Subscription and payment management
-  // ─────────────────────────────────────────────────────────────────
-  'billing:manage',
-  'billing:*', // Wildcard: All billing permissions
-
-  // ─────────────────────────────────────────────────────────────────
-  // Team - Team member management
-  // ─────────────────────────────────────────────────────────────────
-  'team:manage',
-  'team:*', // Wildcard: All team permissions
-
-  // ─────────────────────────────────────────────────────────────────
-  // Settings - Tenant configuration
-  // ─────────────────────────────────────────────────────────────────
-  'settings:manage',
-  'settings:change_jurisdiction',
-  'settings:*', // Wildcard: All settings permissions
-
-  // ─────────────────────────────────────────────────────────────────
-  // Cross-resource wildcards
-  // ─────────────────────────────────────────────────────────────────
-  '*:read', // All read permissions across resources
-  '*:manage', // All manage permissions across resources
-  '*:*', // Full access - all permissions (tenant_admin)
-] as const;
-
-/**
- * Tenant permission type derived from ALL_TENANT_PERMISSIONS array
- * Supports both concrete permissions and wildcard patterns
- *
- * Permission format: `resource:action`
- * - resource: The entity type (documents, contracts, templates, etc.)
- * - action: The operation (create, read, delete, manage, etc.)
- *
- * Wildcards:
- * - `resource:*` - All actions on a specific resource
- * - `*:action` - Specific action on all resources
- * - `*:*` - Full access (tenant_admin only)
- */
-export type TenantPermission = (typeof ALL_TENANT_PERMISSIONS)[number];
-
-/**
- * Grouped permission constants for nice autocomplete in code
- * All values must be valid TenantPermission types
+ * Grouped permission constants - SINGLE SOURCE OF TRUTH
+ * All permissions are defined here with nice autocomplete grouping
  */
 export const TENANT_PERMISSIONS = {
   DOCUMENTS: {
@@ -143,3 +62,47 @@ export const TENANT_PERMISSIONS = {
     ALL: '*:*' as const,
   },
 } as const;
+
+/**
+ * Extract all permission values from nested TENANT_PERMISSIONS object
+ * This type helper recursively extracts all string literal values
+ */
+type ExtractPermissionValues<T> =
+  T extends Record<string, unknown>
+    ? {
+        [K in keyof T]: T[K] extends string
+          ? T[K]
+          : T[K] extends Record<string, unknown>
+            ? ExtractPermissionValues<T[K]>
+            : never;
+      }[keyof T]
+    : never;
+
+/**
+ * Tenant permission type derived from TENANT_PERMISSIONS object
+ * Supports both concrete permissions and wildcard patterns
+ *
+ * Permission format: `resource:action`
+ * - resource: The entity type (documents, contracts, templates, etc.)
+ * - action: The operation (create, read, delete, manage, etc.)
+ *
+ * Wildcards:
+ * - `resource:*` - All actions on a specific resource
+ * - `*:action` - Specific action on all resources
+ * - `*:*` - Full access (tenant_admin only)
+ */
+export type TenantPermission = ExtractPermissionValues<
+  typeof TENANT_PERMISSIONS
+>;
+
+/**
+ * All tenant permissions as an array - derived from TENANT_PERMISSIONS object
+ * Used by sync service for database synchronization
+ *
+ * IMPORTANT: This array is automatically derived from TENANT_PERMISSIONS.
+ * Do not modify this array directly - add permissions to TENANT_PERMISSIONS instead.
+ */
+export const ALL_TENANT_PERMISSIONS: readonly TenantPermission[] =
+  Object.values(TENANT_PERMISSIONS).flatMap((category) =>
+    Object.values(category),
+  );

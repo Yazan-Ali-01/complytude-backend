@@ -309,7 +309,7 @@ export class InvitationsService {
           i.expires_at,
           i.created_at
         FROM public.invitations i
-        INNER JOIN public.roles r ON r.id = i.role_id
+        INNER JOIN public.tenant_roles r ON r.id = i.role_id
         INNER JOIN public.tenants t ON i.tenant_id = t.id
         INNER JOIN public.users u ON i.invited_by = u.id
         WHERE i.email = $1 
@@ -370,7 +370,7 @@ export class InvitationsService {
       name: string;
     }>(
       `SELECT id, name 
-       FROM public.roles 
+       FROM public.tenant_roles 
        WHERE key = $1 AND (tenant_id = $2 OR is_system = true)
        ORDER BY is_system DESC
        LIMIT 1`,

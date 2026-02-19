@@ -27,7 +27,7 @@ Enum tenant_plan {
 
 // Note: tenant_role is now stored as VARCHAR(50) role_key in user_tenants
 // System roles: tenant_admin, legal_counsel, member, viewer
-// Custom roles: stored in roles table with tenant_id
+// Custom roles: stored in tenant_roles table with tenant_id
 
 Enum template_status {
   active
@@ -106,7 +106,7 @@ Table user_tenants {
   Note: '''
     Many-to-many: users can belong to multiple tenants with different roles.
     role_key references system roles (tenant_admin, legal_counsel, member, viewer)
-    or custom roles defined in the roles table.
+    or custom roles defined in the tenant_roles table.
   '''
 }
 
@@ -204,7 +204,7 @@ Table invitations {
 // TENANT RBAC TABLES
 // ============================================
 
-Table roles {
+Table tenant_roles {
   id uuid [pk, default: `gen_random_uuid()`]
   key varchar(50) [not null, note: 'Role key (e.g., tenant_admin, legal_counsel)']
   name varchar(100) [not null, note: 'Display name (e.g., Tenant Admin)']
@@ -229,7 +229,7 @@ Table roles {
   '''
 }
 
-Table permissions {
+Table tenant_permissions {
   id uuid [pk, default: `gen_random_uuid()`]
   key varchar(100) [unique, not null, note: 'Permission key (e.g., documents:create)']
   name varchar(100) [not null, note: 'Display name (e.g., Create Documents)']
@@ -245,7 +245,7 @@ Table permissions {
   }
   
   Note: '''
-    System permissions for RBAC.
+    Tenant-level permissions for RBAC.
     Format: {resource}:{action}
     Wildcards supported: documents:*, *:read, *:*
     
@@ -260,9 +260,9 @@ Table permissions {
   '''
 }
 
-Table role_permissions {
-  role_id uuid [pk, not null, ref: > roles.id]
-  permission_id uuid [pk, not null, ref: > permissions.id]
+Table tenant_role_permissions {
+  role_id uuid [pk, not null, ref: > tenant_roles.id]
+  permission_id uuid [pk, not null, ref: > tenant_permissions.id]
   created_at timestamptz [not null, default: `now()`]
   
   indexes {
@@ -271,7 +271,7 @@ Table role_permissions {
   }
   
   Note: '''
-    Many-to-many: roles have multiple permissions.
+    Many-to-many: tenant roles have multiple permissions.
     System roles use in-memory permission sets for performance.
     This table is primarily used for custom tenant roles.
   '''
@@ -836,9 +836,9 @@ TableGroup "Core Multi-Tenancy" {
 }
 
 TableGroup "Tenant RBAC" {
-  roles
-  permissions
-  role_permissions
+  tenant_roles
+  tenant_permissions
+  tenant_role_permissions
 }
 
 TableGroup "Platform RBAC" {
@@ -883,7 +883,7 @@ TableGroup "Global Reference Data" {
 TableGroup "Junction Tables" {
   template_rulesets
   template_version_ruleset_versions
-  role_permissions
+  tenant_role_permissions
   platform_role_permissions
 }
 

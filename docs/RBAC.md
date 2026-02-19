@@ -220,7 +220,7 @@ Request → JWT Guard (Tenant Token)
 - `src/common/utils/tenant-permission-matcher.util.ts` - Wildcard matching
 - `src/modules/tenant-rbac/tenant-rbac.service.ts` - RBAC business logic
 - `src/modules/tenant-rbac/tenant-rbac-sync.service.ts` - Database sync (on startup)
-- `src/repositories/rbac/` - RBAC repositories
+- `src/repositories/tenant-rbac/` - Tenant RBAC repositories
 
 ---
 
@@ -456,38 +456,39 @@ Is this a platform-wide operation?
 
 #### Tenant Permissions
 
-1. **Add to constant array:**
+1. **Add to TENANT_PERMISSIONS object** (single source of truth):
    ```typescript
    // src/common/constants/tenant-permissions.constant.ts
-   export const ALL_TENANT_PERMISSIONS = [
-     // ... existing permissions
-     'new_resource:new_action',
-   ] as const;
-   ```
-
-2. **Optionally add to grouped object** (for autocomplete):
-   ```typescript
    export const TENANT_PERMISSIONS = {
+     // ... existing categories
      NEW_RESOURCE: {
-       NEW_ACTION: 'new_resource:new_action' as TenantPermission,
+       NEW_ACTION: 'new_resource:new_action' as const,
+       ALL: 'new_resource:*' as const,
      },
    };
    ```
 
-3. **Restart app** - sync service automatically updates database
+2. **Restart app** - sync service automatically updates database
+   - `ALL_TENANT_PERMISSIONS` array is automatically derived from the object
+   - No need to manually maintain the array
 
 #### Platform Permissions
 
-1. **Add to constant array:**
+1. **Add to PLATFORM_PERMISSIONS object** (single source of truth):
    ```typescript
    // src/common/constants/platform-permissions.constant.ts
-   export const ALL_PLATFORM_PERMISSIONS = [
-     // ... existing permissions
-     'new_resource:new_action',
-   ] as const;
+   export const PLATFORM_PERMISSIONS = {
+     // ... existing categories
+     NEW_RESOURCE: {
+       NEW_ACTION: 'new_resource:new_action' as const,
+       ALL: 'new_resource:*' as const,
+     },
+   };
    ```
 
 2. **Restart app** - sync service automatically updates database
+   - `ALL_PLATFORM_PERMISSIONS` array is automatically derived from the object
+   - No need to manually maintain the array
 
 ### Adding Permissions to System Roles
 
@@ -531,7 +532,7 @@ export const PLATFORM_SYSTEM_ROLE_PERMISSIONS: Record<
 
 ### Tenant RBAC Tables
 
-#### `roles` (Tenant Roles)
+#### `tenant_roles` (Tenant Roles)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -545,7 +546,7 @@ export const PLATFORM_SYSTEM_ROLE_PERMISSIONS: Record<
 | `created_at` | TIMESTAMPTZ | Creation timestamp |
 | `updated_at` | TIMESTAMPTZ | Last update timestamp |
 
-#### `permissions` (Tenant Permissions)
+#### `tenant_permissions` (Tenant Permissions)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -557,12 +558,12 @@ export const PLATFORM_SYSTEM_ROLE_PERMISSIONS: Record<
 | `description` | TEXT | Permission description |
 | `created_at` | TIMESTAMPTZ | Creation timestamp |
 
-#### `role_permissions` (Many-to-Many)
+#### `tenant_role_permissions` (Many-to-Many)
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `role_id` | UUID | Foreign key to roles |
-| `permission_id` | UUID | Foreign key to permissions |
+| `role_id` | UUID | Foreign key to tenant_roles |
+| `permission_id` | UUID | Foreign key to tenant_permissions |
 | `created_at` | TIMESTAMPTZ | Creation timestamp |
 
 ### Platform RBAC Tables
@@ -612,7 +613,8 @@ Both RBAC systems automatically sync permissions and system roles from code to d
 **Trigger:** `OnModuleInit` lifecycle hook
 
 **Source of Truth:**
-- `ALL_TENANT_PERMISSIONS` array in `tenant-permissions.constant.ts`
+- `TENANT_PERMISSIONS` object in `tenant-permissions.constant.ts` (single source)
+- `ALL_TENANT_PERMISSIONS` array (automatically derived from object)
 - `TENANT_SYSTEM_ROLE_PERMISSIONS` map in `tenant-system-roles.constant.ts`
 
 **Sync Behavior:**
@@ -627,7 +629,8 @@ Both RBAC systems automatically sync permissions and system roles from code to d
 **Trigger:** `OnModuleInit` lifecycle hook
 
 **Source of Truth:**
-- `ALL_PLATFORM_PERMISSIONS` array in `platform-permissions.constant.ts`
+- `PLATFORM_PERMISSIONS` object in `platform-permissions.constant.ts` (single source)
+- `ALL_PLATFORM_PERMISSIONS` array (automatically derived from object)
 - `PLATFORM_SYSTEM_ROLE_PERMISSIONS` map in `platform-system-roles.constant.ts`
 
 **Sync Behavior:**
@@ -644,18 +647,18 @@ Application Startup
 TenantRbacSyncService.onModuleInit()
   ↓
 1. Sync Tenant Permissions
-   - Parse ALL_TENANT_PERMISSIONS array
-   - Upsert to permissions table
+   - Use ALL_TENANT_PERMISSIONS array (derived from TENANT_PERMISSIONS object)
+   - Upsert to tenant_permissions table
    - Delete removed permissions
   ↓
 2. Sync Tenant System Roles
-   - Upsert system roles to roles table
+   - Upsert system roles to tenant_roles table
    - Sync role-permission mappings
   ↓
 PlatformRbacSyncService.onModuleInit()
   ↓
 3. Sync Platform Permissions
-   - Parse ALL_PLATFORM_PERMISSIONS array
+   - Use ALL_PLATFORM_PERMISSIONS array (derived from PLATFORM_PERMISSIONS object)
    - Upsert to platform_permissions table
    - Delete removed permissions
   ↓

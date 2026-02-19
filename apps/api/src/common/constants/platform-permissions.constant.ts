@@ -4,75 +4,14 @@
  * Mirrors tenant-permissions pattern.
  *
  * Architecture:
- * 1. ALL_PLATFORM_PERMISSIONS array is the single source of truth
- * 2. PlatformPermission type is derived from the array
- * 3. PLATFORM_PERMISSIONS object provides autocomplete grouping
+ * 1. PLATFORM_PERMISSIONS object is the single source of truth
+ * 2. ALL_PLATFORM_PERMISSIONS array is derived from the object
+ * 3. PlatformPermission type is derived from the object values
  */
 
 /**
- * All platform permissions including wildcards
- * Single source of truth - used by sync service and type derivation
- *
- * IMPORTANT: This array must NEVER be empty. The sync service has a safeguard
- * that will throw an error if this array is empty.
- */
-export const ALL_PLATFORM_PERMISSIONS = [
-  // Tenants
-  'tenants:create',
-  'tenants:read',
-  'tenants:update',
-  'tenants:delete',
-  'tenants:*',
-  // Users
-  'users:read',
-  'users:update',
-  'users:delete',
-  'users:manage_roles',
-  'users:*',
-  // Plans & Subscriptions
-  'plans:read',
-  'plans:manage',
-  'plans:*',
-  'subscriptions:read',
-  'subscriptions:manage',
-  'subscriptions:*',
-  // Templates (global management)
-  'templates:read',
-  'templates:manage',
-  'templates:*',
-  // Rulesets
-  'rulesets:read',
-  'rulesets:manage',
-  'rulesets:*',
-  // Authorities
-  'authorities:read',
-  'authorities:manage',
-  'authorities:*',
-  // Categories
-  'categories:read',
-  'categories:manage',
-  'categories:*',
-  // Entitlements
-  'entitlements:read',
-  'entitlements:manage',
-  'entitlements:*',
-  // Audit
-  'audit:read',
-  'audit:*',
-  // Support
-  'support:access',
-  'support:impersonate',
-  'support:*',
-  // Cross-resource wildcards
-  '*:read',
-  '*:manage',
-  '*:*',
-] as const;
-
-export type PlatformPermission = (typeof ALL_PLATFORM_PERMISSIONS)[number];
-
-/**
- * Grouped permission constants for autocomplete
+ * Grouped permission constants - SINGLE SOURCE OF TRUTH
+ * All permissions are defined here with nice autocomplete grouping
  */
 export const PLATFORM_PERMISSIONS = {
   TENANTS: {
@@ -139,3 +78,37 @@ export const PLATFORM_PERMISSIONS = {
     ALL: '*:*' as const,
   },
 } as const;
+
+/**
+ * Extract all permission values from nested PLATFORM_PERMISSIONS object
+ * This type helper recursively extracts all string literal values
+ */
+type ExtractPermissionValues<T> =
+  T extends Record<string, unknown>
+    ? {
+        [K in keyof T]: T[K] extends string
+          ? T[K]
+          : T[K] extends Record<string, unknown>
+            ? ExtractPermissionValues<T[K]>
+            : never;
+      }[keyof T]
+    : never;
+
+/**
+ * Platform permission type derived from PLATFORM_PERMISSIONS object
+ */
+export type PlatformPermission = ExtractPermissionValues<
+  typeof PLATFORM_PERMISSIONS
+>;
+
+/**
+ * All platform permissions as an array - derived from PLATFORM_PERMISSIONS object
+ * Used by sync service for database synchronization
+ *
+ * IMPORTANT: This array is automatically derived from PLATFORM_PERMISSIONS.
+ * Do not modify this array directly - add permissions to PLATFORM_PERMISSIONS instead.
+ */
+export const ALL_PLATFORM_PERMISSIONS: readonly PlatformPermission[] =
+  Object.values(PLATFORM_PERMISSIONS).flatMap((category) =>
+    Object.values(category),
+  );
