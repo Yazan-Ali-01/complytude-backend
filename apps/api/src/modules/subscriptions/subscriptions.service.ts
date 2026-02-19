@@ -514,7 +514,6 @@ export class SubscriptionsService {
     // Find all due subscriptions (platform admin context - batch job sees all tenants)
     const dueSubscriptions =
       await this.databaseService.transactionWithPlatformAdminContext(
-        'system_admin',
         async (client) =>
           this.subscriptionsRepository.findAllDueForRenewal({ client }),
       );

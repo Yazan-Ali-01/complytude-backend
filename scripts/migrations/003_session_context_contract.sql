@@ -108,11 +108,8 @@ RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
 AS $$
-DECLARE
-    role_val TEXT;
 BEGIN
-    role_val := current_setting('app.platform_role', true);
-    RETURN role_val IS NOT NULL AND role_val != '';
+    RETURN COALESCE(current_setting('app.platform_role', true), 'false') = 'true';
 END;
 $$;
 
