@@ -287,14 +287,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Execute a transaction with platform admin context for RLS.
-   * Sets app.platform_role so is_platform_admin() returns true.
+   * Sets app.platform_role to 'true' so is_platform_admin() returns true.
    * Use for platform admin operations (e.g. list all tenants).
    *
-   * @param platformRole Platform role key (e.g. 'system_admin')
    * @param callback Transaction callback
    */
   async transactionWithPlatformAdminContext<T>(
-    platformRole: string,
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.getClient();
@@ -302,7 +300,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       await client.query('BEGIN');
       await client.query('SELECT set_config($1, $2, true)', [
         'app.platform_role',
-        platformRole,
+        'true',
       ]);
       const result = await callback(client);
       await client.query('COMMIT');

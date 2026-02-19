@@ -23,9 +23,7 @@ import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
-import { CurrentUserIdentity } from '../auth/decorators/current-user.decorator';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
-import type { AuthenticatedIdentityUser } from '../auth/strategies';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
 import { TenantService } from './tenant.service';
@@ -87,13 +85,11 @@ export class TenantAdminController {
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('direction')
     direction?: 'forward' | 'backward',
-    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<CursorPaginationResult<Tenant>> {
     this.logger.log('[ADMIN] Fetching all tenants');
-    const platformRole = identity!.platformRole!;
     return this.tenantService.findAll(
       { cursor, limit, direction },
-      { platformAdminContext: platformRole },
+      { platformAdminContext: true },
     );
   }
 
@@ -117,12 +113,10 @@ export class TenantAdminController {
   })
   async getTenantById(
     @Param('tenantId') tenantId: string,
-    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<Tenant> {
     this.logger.log(`[ADMIN] Fetching tenant: ${tenantId}`);
-    const platformRole = identity!.platformRole!;
     return this.tenantService.findById(tenantId, {
-      platformAdminContext: platformRole,
+      platformAdminContext: true,
     });
   }
 
@@ -147,12 +141,10 @@ export class TenantAdminController {
   async updateTenant(
     @Param('tenantId') tenantId: string,
     @Body() updateTenantDto: UpdateTenantDto,
-    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<Tenant> {
     this.logger.log(`[ADMIN] Updating tenant: ${tenantId}`);
-    const platformRole = identity!.platformRole!;
     return this.tenantService.updateTenant(tenantId, updateTenantDto, {
-      platformAdminContext: platformRole,
+      platformAdminContext: true,
     });
   }
 
@@ -176,12 +168,10 @@ export class TenantAdminController {
   })
   async deleteTenant(
     @Param('tenantId') tenantId: string,
-    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<{ message: string; tenantId: string }> {
     this.logger.warn(`[ADMIN] Deleting tenant: ${tenantId}`);
-    const platformRole = identity!.platformRole!;
     await this.tenantService.deleteTenant(tenantId, {
-      platformAdminContext: platformRole,
+      platformAdminContext: true,
     });
     return {
       message: 'Tenant deleted successfully',
