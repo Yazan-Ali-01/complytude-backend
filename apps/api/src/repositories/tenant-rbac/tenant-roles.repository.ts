@@ -8,13 +8,13 @@ import {
 } from './interfaces/role.interface';
 
 @Injectable()
-export class RolesRepository extends BaseRepository<
+export class TenantRolesRepository extends BaseRepository<
   Role,
   CreateRoleInput,
   UpdateRoleInput
 > {
   constructor(databaseService: DatabaseService) {
-    super(databaseService, 'roles');
+    super(databaseService, 'tenant_roles');
   }
 
   protected mapRow(row: Record<string, unknown>): Role {
@@ -90,9 +90,9 @@ export class RolesRepository extends BaseRepository<
   ): Promise<string[]> {
     const query = `
       SELECT p.key
-      FROM permissions p
-      INNER JOIN role_permissions rp ON p.id = rp.permission_id
-      INNER JOIN roles r ON rp.role_id = r.id
+      FROM tenant_permissions p
+      INNER JOIN tenant_role_permissions rp ON p.id = rp.permission_id
+      INNER JOIN tenant_roles r ON rp.role_id = r.id
       WHERE r.key = $1
         AND r.is_active = true
         AND r.tenant_id = $2

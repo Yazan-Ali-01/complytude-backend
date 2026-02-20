@@ -294,12 +294,14 @@ Tables for **Tenant RBAC** and **Platform RBAC** with permission-based authoriza
 
 **Tenant RBAC Sync:**
 - Service: `TenantRbacSyncService`
-- Source: `ALL_TENANT_PERMISSIONS` array and `TENANT_SYSTEM_ROLE_PERMISSIONS` map
-- Tables: `permissions`, `roles`, `role_permissions`
+- Source: `TENANT_PERMISSIONS` object (single source) and `TENANT_SYSTEM_ROLE_PERMISSIONS` map
+- Derived: `ALL_TENANT_PERMISSIONS` array (automatically generated from object)
+- Tables: `tenant_permissions`, `tenant_roles`, `tenant_role_permissions`
 
 **Platform RBAC Sync:**
 - Service: `PlatformRbacSyncService`
-- Source: `ALL_PLATFORM_PERMISSIONS` array and `PLATFORM_SYSTEM_ROLE_PERMISSIONS` map
+- Source: `PLATFORM_PERMISSIONS` object (single source) and `PLATFORM_SYSTEM_ROLE_PERMISSIONS` map
+- Derived: `ALL_PLATFORM_PERMISSIONS` array (automatically generated from object)
 - Tables: `platform_permissions`, `platform_roles`, `platform_role_permissions`
 
 **Sync Behavior:**
@@ -307,7 +309,7 @@ Tables for **Tenant RBAC** and **Platform RBAC** with permission-based authoriza
 - **System Roles:** Add new, update existing, sync role-permission mappings
 - **Custom Roles:** Never touched
 
-### roles
+### tenant_roles
 
 Tenant roles with support for custom roles (MVP+).
 
@@ -325,9 +327,9 @@ Tenant roles with support for custom roles (MVP+).
 
 **Indexes:**
 
-- `idx_roles_key_tenant` - Unique constraint on (key, tenant_id)
-- `idx_roles_tenant_id` - Filter by tenant
-- `idx_roles_is_system` - Filter system roles
+- `idx_tenant_roles_key_tenant` - Unique constraint on (key, tenant_id)
+- `idx_tenant_roles_tenant_id` - Filter by tenant
+- `idx_tenant_roles_is_system` - Filter system roles
 
 **System Roles (synced from code):**
 
@@ -345,9 +347,9 @@ Tenant roles with support for custom roles (MVP+).
 - Custom roles cannot use reserved system role keys
 - System roles have `tenant_id = NULL` and `is_system = TRUE`
 
-### permissions
+### tenant_permissions
 
-System permissions for RBAC. **Automatically synced from `ALL_TENANT_PERMISSIONS` constant.**
+Tenant-level permissions for RBAC. **Automatically synced from `TENANT_PERMISSIONS` object (via derived `ALL_TENANT_PERMISSIONS` array).**
 
 | Column        | Type         | Description                               |
 | ------------- | ------------ | ----------------------------------------- |
@@ -362,8 +364,7 @@ System permissions for RBAC. **Automatically synced from `ALL_TENANT_PERMISSIONS
 **Indexes:**
 
 - Unique constraint on `key`
-- `idx_permissions_resource` - Filter by resource
-- `idx_permissions_resource_action` - Composite index
+- `idx_tenant_permissions_resource` - Filter by resource
 
 **Available Permissions (synced from code):**
 
@@ -385,22 +386,22 @@ System permissions for RBAC. **Automatically synced from `ALL_TENANT_PERMISSIONS
 - `*:manage` - Manage permission on all resources (stored as real permission)
 - `*:*` - All permissions (tenant_admin only)
 
-### role_permissions
+### tenant_role_permissions
 
-Many-to-many relationship between roles and permissions.
+Many-to-many relationship between tenant roles and tenant permissions.
 
-| Column          | Type        | Description        |
-| --------------- | ----------- | ------------------ |
-| `role_id`       | UUID        | FK to roles        |
-| `permission_id` | UUID        | FK to permissions  |
+| Column          | Type        | Description               |
+| --------------- | ----------- | ------------------------- |
+| `role_id`       | UUID        | FK to tenant_roles        |
+| `permission_id` | UUID        | FK to tenant_permissions  |
 | `created_at`    | TIMESTAMPTZ | Creation timestamp |
 
 **Primary Key:** `(role_id, permission_id)`
 
 **Indexes:**
 
-- `idx_role_permissions_role_id` - Filter by role
-- `idx_role_permissions_permission_id` - Filter by permission
+- `idx_tenant_role_permissions_role_id` - Filter by role
+- `idx_tenant_role_permissions_permission_id` - Filter by permission
 
 **Note:** System roles use in-memory permission sets (`TENANT_SYSTEM_ROLE_PERMISSIONS`) for performance - no database query needed. The database entries exist for:
 

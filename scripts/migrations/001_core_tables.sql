@@ -113,9 +113,9 @@ COMMENT ON COLUMN public.users.is_verified IS 'Whether user has verified their e
 COMMENT ON COLUMN public.users.platform_role_key IS 'Platform-level role key (e.g., system_admin, support, auditor). NULL for regular tenant-only users.';
 
 -- =========================
--- RBAC: Roles
+-- Tenant RBAC: Roles
 -- =========================
-CREATE TABLE public.roles (
+CREATE TABLE public.tenant_roles (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     key         VARCHAR(50) NOT NULL,
     name        VARCHAR(100) NOT NULL,
@@ -126,14 +126,14 @@ CREATE TABLE public.roles (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CONSTRAINT fk_roles_tenant
+    CONSTRAINT fk_tenant_roles_tenant
         FOREIGN KEY (tenant_id)
         REFERENCES public.tenants(id)
         ON DELETE CASCADE
         ON UPDATE CASCADE,
 
     -- Prevent custom roles from using reserved system role keys
-    CONSTRAINT chk_roles_no_reserved_keys
+    CONSTRAINT chk_tenant_roles_no_reserved_keys
         CHECK (
             -- If it's a custom role (tenant_id is NOT NULL)
             -- Then the key must NOT be one of the reserved system role keys
@@ -144,23 +144,23 @@ CREATE TABLE public.roles (
         ),
 
     -- Ensure system roles MUST have tenant_id = NULL (prevents data corruption)
-    CONSTRAINT chk_system_role_no_tenant
+    CONSTRAINT chk_tenant_system_role_no_tenant
         CHECK (NOT is_system OR tenant_id IS NULL)
 );
 
-COMMENT ON TABLE public.roles IS 'Tenant roles with support for custom roles (MVP+)';
-COMMENT ON COLUMN public.roles.key IS 'Role key used in code/JWT (e.g., tenant_admin) - slugified identifier';
-COMMENT ON COLUMN public.roles.name IS 'Display name for UI (e.g., Tenant Admin)';
-COMMENT ON COLUMN public.roles.tenant_id IS 'NULL for system (base) roles, UUID for custom tenant roles (MVP+)';
-COMMENT ON COLUMN public.roles.is_system IS 'TRUE for base roles (tenant_admin, legal_counsel, member, viewer)';
-COMMENT ON COLUMN public.roles.is_active IS 'Whether this role is active (soft delete)';
-COMMENT ON CONSTRAINT chk_roles_no_reserved_keys ON public.roles IS 'Prevents custom tenant roles from using reserved system role keys';
-COMMENT ON CONSTRAINT chk_system_role_no_tenant ON public.roles IS 'Enforces that system roles cannot have a tenant_id (prevents data corruption)';
+COMMENT ON TABLE public.tenant_roles IS 'Tenant roles with support for custom roles (MVP+)';
+COMMENT ON COLUMN public.tenant_roles.key IS 'Role key used in code/JWT (e.g., tenant_admin) - slugified identifier';
+COMMENT ON COLUMN public.tenant_roles.name IS 'Display name for UI (e.g., Tenant Admin)';
+COMMENT ON COLUMN public.tenant_roles.tenant_id IS 'NULL for system (base) roles, UUID for custom tenant roles (MVP+)';
+COMMENT ON COLUMN public.tenant_roles.is_system IS 'TRUE for base roles (tenant_admin, legal_counsel, member, viewer)';
+COMMENT ON COLUMN public.tenant_roles.is_active IS 'Whether this role is active (soft delete)';
+COMMENT ON CONSTRAINT chk_tenant_roles_no_reserved_keys ON public.tenant_roles IS 'Prevents custom tenant roles from using reserved system role keys';
+COMMENT ON CONSTRAINT chk_tenant_system_role_no_tenant ON public.tenant_roles IS 'Enforces that system roles cannot have a tenant_id (prevents data corruption)';
 
 -- =========================
--- RBAC: Permissions
+-- Tenant RBAC: Permissions
 -- =========================
-CREATE TABLE public.permissions (
+CREATE TABLE public.tenant_permissions (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     key         VARCHAR(100) UNIQUE NOT NULL,
     name        VARCHAR(100) NOT NULL,
@@ -170,36 +170,36 @@ CREATE TABLE public.permissions (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE public.permissions IS 'System permissions for RBAC';
-COMMENT ON COLUMN public.permissions.key IS 'Permission key used in code/decorators (e.g., documents:create)';
-COMMENT ON COLUMN public.permissions.name IS 'Display name for UI (e.g., Create Documents)';
-COMMENT ON COLUMN public.permissions.resource IS 'Resource type (e.g., documents, contracts, templates)';
-COMMENT ON COLUMN public.permissions.action IS 'Action type (e.g., create, read, delete, manage)';
+COMMENT ON TABLE public.tenant_permissions IS 'Tenant-level permissions for RBAC';
+COMMENT ON COLUMN public.tenant_permissions.key IS 'Permission key used in code/decorators (e.g., documents:create)';
+COMMENT ON COLUMN public.tenant_permissions.name IS 'Display name for UI (e.g., Create Documents)';
+COMMENT ON COLUMN public.tenant_permissions.resource IS 'Resource type (e.g., documents, contracts, templates)';
+COMMENT ON COLUMN public.tenant_permissions.action IS 'Action type (e.g., create, read, delete, manage)';
 
 -- =========================
--- RBAC: Role Permissions (Many-to-Many)
+-- Tenant RBAC: Role Permissions (Many-to-Many)
 -- =========================
-CREATE TABLE public.role_permissions (
+CREATE TABLE public.tenant_role_permissions (
     role_id       UUID NOT NULL,
     permission_id UUID NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     PRIMARY KEY (role_id, permission_id),
 
-    CONSTRAINT fk_role_permissions_role
+    CONSTRAINT fk_tenant_role_permissions_role
         FOREIGN KEY (role_id)
-        REFERENCES public.roles(id)
+        REFERENCES public.tenant_roles(id)
         ON DELETE CASCADE
         ON UPDATE CASCADE,
 
-    CONSTRAINT fk_role_permissions_permission
+    CONSTRAINT fk_tenant_role_permissions_permission
         FOREIGN KEY (permission_id)
-        REFERENCES public.permissions(id)
+        REFERENCES public.tenant_permissions(id)
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );
 
-COMMENT ON TABLE public.role_permissions IS 'Many-to-many relationship between roles and permissions';
+COMMENT ON TABLE public.tenant_role_permissions IS 'Many-to-many relationship between tenant roles and tenant permissions';
 
 -- =========================
 -- Platform RBAC: Roles
@@ -447,9 +447,9 @@ CREATE TABLE public.invitations (
         ON DELETE CASCADE
         ON UPDATE CASCADE,
 
-    CONSTRAINT fk_invitations_role
+    CONSTRAINT fk_invitations_tenant_role
         FOREIGN KEY (role_id)
-        REFERENCES public.roles(id)
+        REFERENCES public.tenant_roles(id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE
 );
@@ -457,7 +457,7 @@ CREATE TABLE public.invitations (
 COMMENT ON TABLE public.invitations IS 'Invitations to join a tenant';
 COMMENT ON COLUMN public.invitations.email IS 'Email address of the invited user';
 COMMENT ON COLUMN public.invitations.tenant_id IS 'Tenant ID the user is invited to';
-COMMENT ON COLUMN public.invitations.role_id IS 'Role to be assigned when invitation is accepted (references roles table)';
+COMMENT ON COLUMN public.invitations.role_id IS 'Role to be assigned when invitation is accepted (references tenant_roles table)';
 COMMENT ON COLUMN public.invitations.token_hash IS 'Unique invitation token sent via email';
 COMMENT ON COLUMN public.invitations.invited_by IS 'User ID of the user who invited the user';
 COMMENT ON COLUMN public.invitations.expires_at IS 'Timestamp when invitation expires';
@@ -481,19 +481,19 @@ CREATE INDEX idx_tenants_parent_tenant_id ON public.tenants(parent_tenant_id) WH
 CREATE INDEX idx_users_email_verified ON public.users(email, is_verified) WHERE is_verified = true;
 CREATE INDEX idx_users_platform_role ON public.users(platform_role_key) WHERE platform_role_key IS NOT NULL;
 
--- Roles
-CREATE INDEX idx_roles_key ON public.roles(key);
-CREATE INDEX idx_roles_tenant_id ON public.roles(tenant_id);
-CREATE INDEX idx_roles_is_system ON public.roles(is_system) WHERE is_system = true;
-CREATE INDEX idx_roles_is_active ON public.roles(is_active) WHERE is_active = true;
+-- Tenant Roles
+CREATE INDEX idx_tenant_roles_key ON public.tenant_roles(key);
+CREATE INDEX idx_tenant_roles_tenant_id ON public.tenant_roles(tenant_id);
+CREATE INDEX idx_tenant_roles_is_system ON public.tenant_roles(is_system) WHERE is_system = true;
+CREATE INDEX idx_tenant_roles_is_active ON public.tenant_roles(is_active) WHERE is_active = true;
 
--- Permissions
+-- Tenant Permissions
 -- Note: key has UNIQUE constraint which creates an index automatically
-CREATE INDEX idx_permissions_resource ON public.permissions(resource);
+CREATE INDEX idx_tenant_permissions_resource ON public.tenant_permissions(resource);
 
--- Role Permissions
-CREATE INDEX idx_role_permissions_role_id ON public.role_permissions(role_id);
-CREATE INDEX idx_role_permissions_permission_id ON public.role_permissions(permission_id);
+-- Tenant Role Permissions
+CREATE INDEX idx_tenant_role_permissions_role_id ON public.tenant_role_permissions(role_id);
+CREATE INDEX idx_tenant_role_permissions_permission_id ON public.tenant_role_permissions(permission_id);
 
 -- Platform Roles
 CREATE INDEX idx_platform_roles_key ON public.platform_roles(key);
@@ -585,8 +585,8 @@ CREATE UNIQUE INDEX idx_invitations_email_tenant_pending
     WHERE status = 'PENDING';
 
 -- Unique constraint to prevent duplicate system roles
-CREATE UNIQUE INDEX idx_roles_key_system ON public.roles (key) WHERE tenant_id IS NULL;
-CREATE UNIQUE INDEX idx_roles_key_tenant ON public.roles (key, tenant_id) WHERE tenant_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_tenant_roles_key_system ON public.tenant_roles (key) WHERE tenant_id IS NULL;
+CREATE UNIQUE INDEX idx_tenant_roles_key_tenant ON public.tenant_roles (key, tenant_id) WHERE tenant_id IS NOT NULL;
 
 -- Lookup by slug for URL resolution (partial index for non-null slugs)
 CREATE INDEX idx_tenants_slug ON public.tenants(slug) WHERE slug IS NOT NULL;
@@ -618,8 +618,8 @@ COMMENT ON FUNCTION public.update_updated_at_column IS 'Trigger function to auto
 -- System Role Protection Functions
 -- =========================
 
--- Function to prevent modifying system roles core attributes
-CREATE OR REPLACE FUNCTION public.prevent_system_role_modification()
+-- Function to prevent modifying tenant system roles core attributes
+CREATE OR REPLACE FUNCTION public.prevent_tenant_system_role_modification()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -632,18 +632,18 @@ BEGIN
         OLD.is_system != NEW.is_system OR
         OLD.tenant_id IS DISTINCT FROM NEW.tenant_id
     ) THEN
-        RAISE EXCEPTION 'Cannot modify core attributes of system role: %', OLD.key
-            USING HINT = 'System roles (is_system=true) are immutable. Use TenantRbacSyncService to update.';
+        RAISE EXCEPTION 'Cannot modify core attributes of tenant system role: %', OLD.key
+            USING HINT = 'Tenant system roles (is_system=true) are immutable. Use TenantRbacSyncService to update.';
     END IF;
 
     RETURN NEW;
 END;
 $$;
 
-COMMENT ON FUNCTION public.prevent_system_role_modification IS 'Prevents modification of critical system role attributes (key, is_system, tenant_id)';
+COMMENT ON FUNCTION public.prevent_tenant_system_role_modification IS 'Prevents modification of critical tenant system role attributes (key, is_system, tenant_id)';
 
--- Function to prevent deleting system roles
-CREATE OR REPLACE FUNCTION public.prevent_system_role_deletion()
+-- Function to prevent deleting tenant system roles
+CREATE OR REPLACE FUNCTION public.prevent_tenant_system_role_deletion()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -652,15 +652,15 @@ AS $$
 BEGIN
     -- Prevent DELETE on system roles
     IF OLD.is_system = true THEN
-        RAISE EXCEPTION 'Cannot delete system role: %', OLD.key
-            USING HINT = 'System roles are protected from deletion.';
+        RAISE EXCEPTION 'Cannot delete tenant system role: %', OLD.key
+            USING HINT = 'Tenant system roles are protected from deletion.';
     END IF;
 
     RETURN OLD;
 END;
 $$;
 
-COMMENT ON FUNCTION public.prevent_system_role_deletion IS 'Prevents deletion of system roles';
+COMMENT ON FUNCTION public.prevent_tenant_system_role_deletion IS 'Prevents deletion of tenant system roles';
 
 -- Platform system role protection (platform_roles has no tenant_id)
 CREATE OR REPLACE FUNCTION public.prevent_platform_system_role_modification()
@@ -711,21 +711,21 @@ CREATE TRIGGER update_users_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_roles_updated_at
-    BEFORE UPDATE ON public.roles
+CREATE TRIGGER update_tenant_roles_updated_at
+    BEFORE UPDATE ON public.tenant_roles
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at_column();
 
--- System role protection triggers
-CREATE TRIGGER trigger_prevent_system_role_modification
-    BEFORE UPDATE ON public.roles
+-- Tenant system role protection triggers
+CREATE TRIGGER trigger_prevent_tenant_system_role_modification
+    BEFORE UPDATE ON public.tenant_roles
     FOR EACH ROW
-    EXECUTE FUNCTION public.prevent_system_role_modification();
+    EXECUTE FUNCTION public.prevent_tenant_system_role_modification();
 
-CREATE TRIGGER trigger_prevent_system_role_deletion
-    BEFORE DELETE ON public.roles
+CREATE TRIGGER trigger_prevent_tenant_system_role_deletion
+    BEFORE DELETE ON public.tenant_roles
     FOR EACH ROW
-    EXECUTE FUNCTION public.prevent_system_role_deletion();
+    EXECUTE FUNCTION public.prevent_tenant_system_role_deletion();
 
 -- Platform role triggers
 CREATE TRIGGER update_platform_roles_updated_at
@@ -765,9 +765,9 @@ BEGIN;
 -- Drop triggers
 DROP TRIGGER IF EXISTS update_invitations_updated_at ON public.invitations;
 DROP TRIGGER IF EXISTS update_user_tenants_updated_at ON public.user_tenants;
-DROP TRIGGER IF EXISTS trigger_prevent_system_role_deletion ON public.roles;
-DROP TRIGGER IF EXISTS trigger_prevent_system_role_modification ON public.roles;
-DROP TRIGGER IF EXISTS update_roles_updated_at ON public.roles;
+DROP TRIGGER IF EXISTS trigger_prevent_tenant_system_role_deletion ON public.tenant_roles;
+DROP TRIGGER IF EXISTS trigger_prevent_tenant_system_role_modification ON public.tenant_roles;
+DROP TRIGGER IF EXISTS update_tenant_roles_updated_at ON public.tenant_roles;
 DROP TRIGGER IF EXISTS trigger_prevent_platform_system_role_deletion ON public.platform_roles;
 DROP TRIGGER IF EXISTS trigger_prevent_platform_system_role_modification ON public.platform_roles;
 DROP TRIGGER IF EXISTS update_platform_roles_updated_at ON public.platform_roles;
@@ -775,15 +775,15 @@ DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 DROP TRIGGER IF EXISTS update_tenants_updated_at ON public.tenants;
 
 -- Drop functions
-DROP FUNCTION IF EXISTS public.prevent_system_role_deletion();
-DROP FUNCTION IF EXISTS public.prevent_system_role_modification();
+DROP FUNCTION IF EXISTS public.prevent_tenant_system_role_deletion();
+DROP FUNCTION IF EXISTS public.prevent_tenant_system_role_modification();
 DROP FUNCTION IF EXISTS public.prevent_platform_system_role_deletion();
 DROP FUNCTION IF EXISTS public.prevent_platform_system_role_modification();
 DROP FUNCTION IF EXISTS public.update_updated_at_column();
 
 -- Drop indexes
-DROP INDEX IF EXISTS public.idx_roles_key_tenant;
-DROP INDEX IF EXISTS public.idx_roles_key_system;
+DROP INDEX IF EXISTS public.idx_tenant_roles_key_tenant;
+DROP INDEX IF EXISTS public.idx_tenant_roles_key_system;
 
 DROP INDEX IF EXISTS public.idx_password_resets_token_active;
 DROP INDEX IF EXISTS public.idx_email_verifications_token_active;
@@ -820,15 +820,15 @@ DROP INDEX IF EXISTS public.idx_audit_logs_action;
 DROP INDEX IF EXISTS public.idx_audit_logs_user_id;
 DROP INDEX IF EXISTS public.idx_audit_logs_tenant_id;
 
-DROP INDEX IF EXISTS public.idx_role_permissions_permission_id;
-DROP INDEX IF EXISTS public.idx_role_permissions_role_id;
+DROP INDEX IF EXISTS public.idx_tenant_role_permissions_permission_id;
+DROP INDEX IF EXISTS public.idx_tenant_role_permissions_role_id;
 
-DROP INDEX IF EXISTS public.idx_permissions_resource;
+DROP INDEX IF EXISTS public.idx_tenant_permissions_resource;
 
-DROP INDEX IF EXISTS public.idx_roles_is_active;
-DROP INDEX IF EXISTS public.idx_roles_is_system;
-DROP INDEX IF EXISTS public.idx_roles_tenant_id;
-DROP INDEX IF EXISTS public.idx_roles_key;
+DROP INDEX IF EXISTS public.idx_tenant_roles_is_active;
+DROP INDEX IF EXISTS public.idx_tenant_roles_is_system;
+DROP INDEX IF EXISTS public.idx_tenant_roles_tenant_id;
+DROP INDEX IF EXISTS public.idx_tenant_roles_key;
 
 DROP INDEX IF EXISTS public.idx_platform_role_permissions_permission_id;
 DROP INDEX IF EXISTS public.idx_platform_role_permissions_role_id;
@@ -847,9 +847,9 @@ DROP TABLE IF EXISTS public.audit_logs;
 DROP TABLE IF EXISTS public.platform_role_permissions;
 DROP TABLE IF EXISTS public.platform_permissions;
 DROP TABLE IF EXISTS public.platform_roles;
-DROP TABLE IF EXISTS public.role_permissions;
-DROP TABLE IF EXISTS public.permissions;
-DROP TABLE IF EXISTS public.roles;
+DROP TABLE IF EXISTS public.tenant_role_permissions;
+DROP TABLE IF EXISTS public.tenant_permissions;
+DROP TABLE IF EXISTS public.tenant_roles;
 DROP TABLE IF EXISTS public.users;
 DROP TABLE IF EXISTS public.tenants;
 

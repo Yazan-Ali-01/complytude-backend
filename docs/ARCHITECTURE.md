@@ -250,9 +250,9 @@ The database uses a **multi-tenant architecture** with Row-Level Security (RLS) 
    - `user_tenants` - Many-to-many with role assignments
 
 2. **RBAC Tables** (3)
-   - `roles` - System and custom role definitions
-   - `permissions` - Permission definitions
-   - `role_permissions` - Role-permission assignments
+   - `tenant_roles` - System and custom role definitions
+   - `tenant_permissions` - Permission definitions
+   - `tenant_role_permissions` - Role-permission assignments
 
 3. **Authentication Tables** (3)
    - `refresh_tokens` - JWT refresh tokens
@@ -270,7 +270,7 @@ The database uses a **multi-tenant architecture** with Row-Level Security (RLS) 
 6. **Junction Tables** (3)
    - `template_rulesets` - Templates ↔ Rulesets
    - `template_version_ruleset_versions` - Version associations
-   - `role_permissions` - Roles ↔ Permissions
+   - `tenant_role_permissions` - Tenant Roles ↔ Tenant Permissions
 
 ### ER Diagram
 

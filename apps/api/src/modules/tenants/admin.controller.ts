@@ -92,7 +92,7 @@ export class TenantAdminController {
     const platformRole = identity!.platformRole!;
     const tenants = await this.tenantService.findAll(
       { cursor, limit, direction },
-      { platformAdminContext: platformRole },
+      { platformAdminContext: true },
     );
     return tenants.data.map((tenant) => new TenantResponseDto(tenant));
   }
@@ -148,15 +148,13 @@ export class TenantAdminController {
   async updateTenant(
     @Param('tenantId') tenantId: string,
     @Body() updateTenantDto: UpdateTenantDto,
-    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Updating tenant: ${tenantId}`);
-    const platformRole = identity!.platformRole!;
     const tenant = await this.tenantService.updateTenant(
       tenantId,
       updateTenantDto,
       {
-        platformAdminContext: platformRole,
+        platformAdminContext: true,
       },
     );
     return new TenantResponseDto(tenant);
@@ -182,12 +180,10 @@ export class TenantAdminController {
   })
   async deleteTenant(
     @Param('tenantId') tenantId: string,
-    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<{ message: string; tenantId: string }> {
     this.logger.warn(`[ADMIN] Deleting tenant: ${tenantId}`);
-    const platformRole = identity!.platformRole!;
     await this.tenantService.deleteTenant(tenantId, {
-      platformAdminContext: platformRole,
+      platformAdminContext: true,
     });
     return { message: 'Tenant deleted successfully', tenantId };
   }

@@ -117,13 +117,12 @@ export class TenantService {
    */
   async findById(
     tenantId: string,
-    options?: { platformAdminContext?: string },
+    options?: { platformAdminContext?: boolean },
   ): Promise<Tenant> {
     try {
       if (options?.platformAdminContext) {
         const tenant =
           await this.databaseService.transactionWithPlatformAdminContext(
-            options.platformAdminContext,
             async (client) =>
               this.tenantRepository.findById(tenantId, { client }),
           );
@@ -166,12 +165,11 @@ export class TenantService {
    */
   async findAll(
     cursorOptions?: CursorPaginationOptions,
-    options?: { platformAdminContext?: string },
+    options?: { platformAdminContext?: boolean },
   ): Promise<CursorPaginationResult<Tenant>> {
     try {
       if (options?.platformAdminContext) {
         return this.databaseService.transactionWithPlatformAdminContext(
-          options.platformAdminContext,
           async (client) => {
             return this.tenantRepository.findMany({}, cursorOptions, {
               client,
@@ -204,14 +202,13 @@ export class TenantService {
   async updateTenant(
     tenantId: string,
     updateTenantDto: UpdateTenantDto,
-    options?: { platformAdminContext?: string },
+    options?: { platformAdminContext?: boolean },
   ): Promise<Tenant> {
     try {
       await this.findById(tenantId, options);
 
       if (options?.platformAdminContext) {
         return this.databaseService.transactionWithPlatformAdminContext(
-          options.platformAdminContext,
           async (client) =>
             this.tenantRepository.update(tenantId, updateTenantDto, {
               client,
@@ -270,12 +267,11 @@ export class TenantService {
    */
   async deleteTenant(
     tenantId: string,
-    options?: { platformAdminContext?: string },
+    options?: { platformAdminContext?: boolean },
   ): Promise<void> {
     try {
       if (options?.platformAdminContext) {
         await this.databaseService.transactionWithPlatformAdminContext(
-          options.platformAdminContext,
           async (client) => {
             const deleted = await this.tenantRepository.delete(tenantId, {
               client,
