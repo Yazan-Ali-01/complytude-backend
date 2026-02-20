@@ -92,7 +92,11 @@ export class TenantController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(`User ${user.userId} fetching tenant ${user.tenantId}`);
-    const tenant = await this.tenantService.findById(user.tenantId);
+    const tenant = await this.tenantService.findById(
+      user.tenantId,
+      { platformAdminContext: false },
+      { role: user.role },
+    );
     return new TenantResponseDto(tenant);
   }
 
@@ -136,7 +140,12 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} updating profile for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.updateProfile(user.tenantId, dto);
+    const tenant = await this.tenantService.updateProfile(
+      user.tenantId,
+      dto,
+      { platformAdminContext: false },
+      { role: user.role },
+    );
     return new TenantResponseDto(tenant);
   }
 
@@ -177,7 +186,12 @@ export class TenantController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(`User ${user.userId} updating slug to "${dto.slug}"`);
-    const tenant = await this.tenantService.updateSlug(user.tenantId, dto);
+    const tenant = await this.tenantService.updateSlug(
+      user.tenantId,
+      dto,
+      { platformAdminContext: false },
+      { role: user.role },
+    );
     return new TenantResponseDto(tenant);
   }
 
@@ -212,6 +226,7 @@ export class TenantController {
     type: TenantResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid locale/timezone value' })
+  @Patch('me/settings')
   async updateSettings(
     @Body() dto: UpdateTenantSettingsDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
@@ -219,7 +234,12 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} updating settings for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.updateSettings(user.tenantId, dto);
+    const tenant = await this.tenantService.updateSettings(
+      user.tenantId,
+      dto,
+      { platformAdminContext: false },
+      { role: user.role },
+    );
     return new TenantResponseDto(tenant);
   }
 
@@ -258,6 +278,7 @@ export class TenantController {
     status: 403,
     description: 'Missing permission or entitlement',
   })
+  @Patch('me/branding')
   async updateBranding(
     @Body() dto: UpdateTenantBrandingDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
@@ -265,7 +286,12 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} updating branding for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.updateBranding(user.tenantId, dto);
+    const tenant = await this.tenantService.updateBranding(
+      user.tenantId,
+      dto,
+      { platformAdminContext: false },
+      { role: user.role },
+    );
     return new TenantResponseDto(tenant);
   }
 
@@ -364,6 +390,8 @@ export class TenantController {
     const tenant = await this.tenantService.updateLogoUrl(
       user.tenantId,
       uploadResult.url,
+      { platformAdminContext: false },
+      { role: user.role },
     );
     return new TenantResponseDto(tenant);
   }
@@ -412,7 +440,12 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} removed logo for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.updateLogoUrl(user.tenantId, null);
+    const tenant = await this.tenantService.updateLogoUrl(
+      user.tenantId,
+      null,
+      { platformAdminContext: false },
+      { role: user.role },
+    );
     return new TenantResponseDto(tenant);
   }
 
@@ -444,13 +477,19 @@ export class TenantController {
     description: 'Onboarding marked complete',
     type: TenantResponseDto,
   })
+  @Post('me/onboarding/complete')
+  @HttpCode(HttpStatus.OK)
   async completeOnboarding(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(
       `User ${user.userId} completing onboarding for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.completeOnboarding(user.tenantId);
+    const tenant = await this.tenantService.completeOnboarding(
+      user.tenantId,
+      { platformAdminContext: false },
+      { role: user.role },
+    );
     return new TenantResponseDto(tenant);
   }
 
@@ -476,6 +515,7 @@ export class TenantController {
     description: 'Onboarding progress updated',
     type: TenantResponseDto,
   })
+  @Patch('me/onboarding')
   async updateOnboarding(
     @Body() dto: UpdateOnboardingDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
@@ -486,6 +526,8 @@ export class TenantController {
     const tenant = await this.tenantService.updateOnboarding(
       user.tenantId,
       dto,
+      { platformAdminContext: false },
+      { role: user.role },
     );
     return new TenantResponseDto(tenant);
   }

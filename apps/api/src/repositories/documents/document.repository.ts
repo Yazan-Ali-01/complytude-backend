@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { DatabaseService } from 'src/database/database.service';
 import { BaseRepository } from '../base/base.repository';
-import { DatabaseService } from '../../database/database.service';
 import { QueryOptions } from '../base/repository.interface';
 
 /**

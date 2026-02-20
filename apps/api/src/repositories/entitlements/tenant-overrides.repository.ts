@@ -72,14 +72,14 @@ export class TenantOverridesRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantOverride[]> {
     const query = `
-      SELECT 
-        tor.id, tor.tenant_id, tor.feature_id, tor.value_bool, tor.value_int, 
-        tor.value_text, tor.reason, tor.applied_by, tor.starts_at, tor.expires_at, 
+      SELECT
+        tor.id, tor.tenant_id, tor.feature_id, tor.value_bool, tor.value_int,
+        tor.value_text, tor.reason, tor.applied_by, tor.starts_at, tor.expires_at,
         tor.is_active, tor.created_at, tor.updated_at,
         f.key as feature_key
       FROM ${this.tableName} tor
       JOIN public.features f ON f.id = tor.feature_id
-      WHERE tor.tenant_id = $1 AND tor.is_active = true 
+      WHERE tor.tenant_id = $1 AND tor.is_active = true
         AND (tor.expires_at IS NULL OR tor.expires_at > now())
       ORDER BY tor.created_at DESC
     `;

@@ -69,7 +69,7 @@ export class TenantAddonsService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      data.tenant_id,
+      { tenantId: data.tenant_id },
       execute,
     );
   }
@@ -114,7 +114,10 @@ export class TenantAddonsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**

@@ -78,24 +78,24 @@ INSERT INTO public.refresh_tokens (id, user_id, token_hash, expires_at, revoked_
     (gen_random_uuid(), 'ffffffff-ffff-ffff-ffff-ffffffffffff', '$2b$10$token6hash6hash6hash6hash6hash6hash6hash6hash6hash6hash6h', now() + interval '7 days', NULL)
 ON CONFLICT (id) DO NOTHING;
 
--- =========================
--- Mock Storage Tracking Table (For Test Verification)
--- =========================
+-- -- =========================
+-- -- Mock Storage Tracking Table (For Test Verification)
+-- -- =========================
 
-CREATE TABLE IF NOT EXISTS public.mock_storage_uploads (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    file_key TEXT NOT NULL,
-    file_url TEXT NOT NULL,
-    mimetype TEXT NOT NULL,
-    original_name TEXT NOT NULL,
-    size_bytes INT NOT NULL,
-    user_id UUID NOT NULL REFERENCES public.users(id),
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- CREATE TABLE IF NOT EXISTS public.mock_storage_uploads (
+--     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+--     file_key TEXT NOT NULL,
+--     file_url TEXT NOT NULL,
+--     mimetype TEXT NOT NULL,
+--     original_name TEXT NOT NULL,
+--     size_bytes INT NOT NULL,
+--     user_id UUID NOT NULL REFERENCES public.users(id),
+--     created_at TIMESTAMPTZ DEFAULT NOW()
+-- );
 
-CREATE INDEX IF NOT EXISTS idx_mock_storage_tenant ON public.mock_storage_uploads(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_mock_storage_created ON public.mock_storage_uploads(created_at);
+-- CREATE INDEX IF NOT EXISTS idx_mock_storage_tenant ON public.mock_storage_uploads(tenant_id);
+-- CREATE INDEX IF NOT EXISTS idx_mock_storage_created ON public.mock_storage_uploads(created_at);
 
 COMMIT;
 

@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '../../database/database.service';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
@@ -399,7 +399,7 @@ export class DomainEventsMockController {
   })
   async triggerAndObserve(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Step 1: Record a usage event
         const usageEvent = await this.usageIngestionService.recordUsage(
@@ -640,7 +640,7 @@ export class DomainEventsMockController {
     @Param('aggregateId') aggregateId: string,
   ) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const event = await this.domainEventsService.getEventsByAggregate(
           aggregateType,

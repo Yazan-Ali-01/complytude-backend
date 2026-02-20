@@ -4,7 +4,7 @@ export interface Tenant {
   id: string;
   plan: PlanKey;
   is_active: boolean;
-  parent_tenant_id?: string;
+  parent_tenant_id?: string | null;
 
   // Group 1: Organization Identity
   name?: string | null;

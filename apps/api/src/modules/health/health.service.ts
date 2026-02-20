@@ -1,6 +1,6 @@
 import { RedisHealthIndicator } from '@lib/redis/redis.health';
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '../../database/database.service';
 
 export interface HealthCheckResult {
   status: string;

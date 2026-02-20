@@ -4,8 +4,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
 import { Readable } from 'stream';
+import { DatabaseService } from '../../database/database.service';
 
 // Re-export the same interfaces so imports stay identical
 export interface FileMetadata {

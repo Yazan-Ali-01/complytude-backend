@@ -91,7 +91,7 @@ export class UserTenantRepository extends BaseRepository<
   protected getFromClause(includeRoleName: boolean = true): string {
     if (includeRoleName) {
       return `${this.tableName} ut
-              INNER JOIN public.tenant_roles r ON r.key = ut.role_key 
+              INNER JOIN public.tenant_roles r ON r.key = ut.role_key
                 AND (r.tenant_id = ut.tenant_id OR r.is_system = true)`;
     }
     return `${this.tableName} ut`;
@@ -276,7 +276,7 @@ export class UserTenantRepository extends BaseRepository<
     // Execute query
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const query = `SELECT ${this.getSelectColumns(includeRoleName)} 
+    const query = `SELECT ${this.getSelectColumns(includeRoleName)}
                    FROM ${this.getFromClause(includeRoleName)}
                    ${whereClause} ORDER BY ut.joined_at`.trim();
     const result = await this.executeQuery<UserTenantRow>(
@@ -358,8 +358,8 @@ export class UserTenantRepository extends BaseRepository<
     const upsertResult = await this.executeQuery<{ was_created: boolean }>(
       `INSERT INTO ${this.tableName} (user_id, tenant_id, role_key, is_active)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (user_id, tenant_id) 
-       DO UPDATE SET 
+       ON CONFLICT (user_id, tenant_id)
+       DO UPDATE SET
          is_active = EXCLUDED.is_active,
          role_key = EXCLUDED.role_key,
          updated_at = NOW()
@@ -456,7 +456,7 @@ export class UserTenantRepository extends BaseRepository<
     includeRoleName: boolean = true,
   ): Promise<UserTenantWithUserRow | null> {
     const roleJoin = includeRoleName
-      ? `INNER JOIN public.tenant_roles r ON r.key = ut.role_key 
+      ? `INNER JOIN public.tenant_roles r ON r.key = ut.role_key
          AND (r.tenant_id = ut.tenant_id OR r.is_system = true)`
       : '';
 

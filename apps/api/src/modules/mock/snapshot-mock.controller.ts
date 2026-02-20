@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { PlanKey } from 'src/common/types/entitlement.types';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '../../database/database.service';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
@@ -88,7 +88,7 @@ export class SnapshotMockController {
   })
   async createSnapshot(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Compute entitlements
         const { entitlements, plan } =
@@ -184,7 +184,7 @@ export class SnapshotMockController {
   })
   async comparePerformance(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Measure snapshot read (hot path)
         const snapshotStart = Date.now();
@@ -294,7 +294,7 @@ export class SnapshotMockController {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Step 1: Create initial snapshot (if not exists)
         const initialSnapshot = await this.snapshotService.getOrNull(
@@ -386,7 +386,7 @@ export class SnapshotMockController {
   })
   async testStaleDetection(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Step 1: Create a snapshot with backdated valid_from (simulate old snapshot)
         const { entitlements, plan } =
@@ -399,7 +399,7 @@ export class SnapshotMockController {
         oldDate.setHours(oldDate.getHours() - 25); // 25 hours ago (exceeds 24h max age)
 
         await this.databaseService.query(
-          `INSERT INTO public.entitlement_snapshots 
+          `INSERT INTO public.entitlement_snapshots
            (tenant_id, snapshot_data, subscription_id, valid_from)
            VALUES ($1, $2, NULL, $3)`,
           [
@@ -496,7 +496,7 @@ export class SnapshotMockController {
   })
   async rebuildSnapshot(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Compute fresh entitlements
         const { entitlements, plan } =
@@ -548,7 +548,7 @@ export class SnapshotMockController {
   })
   async hitVsMiss(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Invalidate any existing snapshot to start fresh
         await this.snapshotService.invalidate(user.tenantId, 'test_setup', {
@@ -637,7 +637,7 @@ export class SnapshotMockController {
   })
   async getSnapshotAge(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const cached = await this.snapshotService.getOrNull(user.tenantId, {
           client,
@@ -706,7 +706,7 @@ export class SnapshotMockController {
   })
   async debugSnapshot(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const cached = await this.snapshotService.getOrNull(user.tenantId, {
           client,

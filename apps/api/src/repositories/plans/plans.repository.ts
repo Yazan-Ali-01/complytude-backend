@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import {
+  CreatePlanRow,
+  Plan,
+  PlanEntitlement,
+  PlanKey,
+  PlanWithEntitlements,
+  UpdatePlanRow,
+} from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';
-import {
-  Plan,
-  PlanKey,
-  CreatePlanRow,
-  UpdatePlanRow,
-  PlanWithEntitlements,
-  PlanEntitlement,
-} from 'src/common/types/entitlement.types';
 
 type PlanRow = {
   id: string;
@@ -96,8 +96,8 @@ export class PlansRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<PlanWithEntitlements | null> {
     const query = `
-      SELECT 
-        p.id, p.key, p.name, p.description, p.price_monthly, p.price_currency, 
+      SELECT
+        p.id, p.key, p.name, p.description, p.price_monthly, p.price_currency,
         p.billing_period, p.is_active, p.sort_order, p.metadata, p.created_at, p.updated_at,
         pe.id as entitlement_id, pe.feature_id, pe.value_bool, pe.value_int, pe.value_text,
         pe.metadata as entitlement_metadata, pe.created_at as entitlement_created_at,

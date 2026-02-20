@@ -76,7 +76,7 @@ export class EntitlementSyncService implements OnModuleInit {
 
       const deactivateResult = await this.databaseService.query(
         `
-        UPDATE public.features 
+        UPDATE public.features
         SET is_active = false, updated_at = now()
         WHERE key NOT IN (${placeholders})
           AND is_active = true
@@ -131,7 +131,7 @@ export class EntitlementSyncService implements OnModuleInit {
 
       const deactivateResult = await this.databaseService.query(
         `
-        UPDATE public.plans 
+        UPDATE public.plans
         SET is_active = false, updated_at = now()
         WHERE key NOT IN (${placeholders})
           AND is_active = true

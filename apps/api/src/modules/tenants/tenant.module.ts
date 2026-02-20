@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from 'src/database/database.module';
 import { TenantAdminController } from 'src/modules/tenants/admin.controller';
+import { DatabaseModule } from '../../database/database.module';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { MockModule } from '../mock/mock.module';

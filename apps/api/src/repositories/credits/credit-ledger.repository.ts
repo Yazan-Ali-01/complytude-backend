@@ -80,9 +80,9 @@ export class CreditLedgerRepository extends BaseRepository<
    */
   async getBalance(tenantId: string, options?: QueryOptions): Promise<number> {
     const result = await this.executeQuery<{ balance: string | number }>(
-      `SELECT COALESCE(SUM(amount), 0) as balance 
-       FROM ${this.tableName} 
-       WHERE tenant_id = $1 
+      `SELECT COALESCE(SUM(amount), 0) as balance
+       FROM ${this.tableName}
+       WHERE tenant_id = $1
        AND (expires_at IS NULL OR expires_at > now())`,
       [tenantId],
       options,

@@ -88,7 +88,7 @@ export class InvitationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Invitation | null> {
     const result = await this.executeQuery<InvitationRow>(
-      `SELECT ${this.getSelectColumns()} 
+      `SELECT ${this.getSelectColumns()}
        FROM ${this.getFromClauseWithRoles()}
        WHERE i.id = $1
        LIMIT 1`,
@@ -186,7 +186,7 @@ export class InvitationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Invitation | null> {
     const result = await this.executeQuery<InvitationRow>(
-      `SELECT ${this.getSelectColumns()} 
+      `SELECT ${this.getSelectColumns()}
        FROM ${this.getFromClauseWithRoles()}
        WHERE i.token_hash = $1 AND i.expires_at > NOW() AND i.status = '${InvitationStatus.PENDING}'`,
       [tokenHash],
@@ -214,7 +214,7 @@ export class InvitationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Invitation | null> {
     const result = await this.executeQuery<InvitationRow>(
-      `SELECT ${this.getSelectColumns()} 
+      `SELECT ${this.getSelectColumns()}
        FROM ${this.getFromClauseWithRoles()}
        WHERE i.email = $1 AND i.tenant_id = $2 AND i.status = '${InvitationStatus.PENDING}'`,
       [email, tenantId],
@@ -395,8 +395,8 @@ export class InvitationRepository extends BaseRepository<
    */
   async markExpiredInvitations(options?: QueryOptions): Promise<number> {
     const result = await this.executeQuery(
-      `UPDATE ${this.tableName} 
-       SET status = '${InvitationStatus.EXPIRED}' 
+      `UPDATE ${this.tableName}
+       SET status = '${InvitationStatus.EXPIRED}'
        WHERE status = '${InvitationStatus.PENDING}' AND expires_at <= NOW()`,
       [],
       options,

@@ -193,44 +193,40 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     params?: any[],
   ): Promise<QueryResult<T>> {
     // Wrap in transaction to ensure proper RLS context
-    return this.transactionWithTenantContext(tenantId, async (client) => {
-      return await client.query<T>(text, params);
-    });
+    return this.transactionWithTenantContext(
+      { tenantId: tenantId },
+      async (client) => {
+        return await client.query<T>(text, params);
+      },
+    );
   }
 
   /**
    * Execute a transaction within a specific tenant context with RLS
-   * @param tenantId Tenant identifier for RLS
+   * @param params Object that takes tenant id and isTenantAdmin
    * @param callback Transaction callback
    * @returns Transaction result
    */
   async transactionWithTenantContext<T>(
-    tenantId: string,
+    params: { tenantId: string; isTenantAdmin?: boolean },
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.getClient();
     try {
       await client.query('BEGIN');
-
-      // Set tenant context for RLS (transaction-scoped)
-      await this.setTenantContext(client, tenantId);
-
-      // Execute transaction
+      await this.setTenantContext(client, params);
       const result = await callback(client);
-
       await client.query('COMMIT');
-      this.logger.debug(`Transaction committed for tenant ${tenantId}`);
-
+      this.logger.debug(`Transaction committed for tenant ${params?.tenantId}`);
       return result;
     } catch (error) {
       await client.query('ROLLBACK');
       this.logger.error(
-        `Transaction rolled back in tenant context (${tenantId})`,
+        `Transaction rolled back in tenant context (${params?.tenantId})`,
         error,
       );
       throw error;
     } finally {
-      // Tenant context is automatically cleared on transaction end (SET LOCAL)
       client.release();
     }
   }
@@ -245,16 +241,25 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * @private
    */
   private async setTenantContext(
-    client: PoolClient,
-    tenantId: string,
+    client: PoolClient, // we want to make it optional
+    params?: { tenantId: string; isTenantAdmin?: boolean },
   ): Promise<void> {
     // SET LOCAL ensures the setting is transaction-scoped
     // It will automatically be cleared when the transaction ends (COMMIT or ROLLBACK)
     await client.query('SELECT set_config($1, $2, true)', [
       'app.tenant_id',
-      tenantId,
+      params?.tenantId,
     ]);
-    this.logger.debug(`Set tenant context: ${tenantId} (transaction-scoped)`);
+    // if its true, set the is_tenant_admin context
+    if (params?.isTenantAdmin) {
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.is_tenant_admin',
+        'true',
+      ]);
+    }
+    this.logger.debug(
+      `Set tenant context: ${params?.tenantId} (transaction-scoped)`,
+    );
   }
 
   /**

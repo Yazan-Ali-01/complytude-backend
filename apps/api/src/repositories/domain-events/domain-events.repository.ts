@@ -99,7 +99,7 @@ export class DomainEventsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<DomainEvent[]> {
     const result = await this.executeQuery<DomainEventRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE aggregate_type = $1 AND aggregate_id = $2
        ORDER BY sequence_number ASC NULLS LAST, recorded_at ASC`,
       [aggregateType, aggregateId],
@@ -158,8 +158,8 @@ export class DomainEventsRepository extends BaseRepository<
     const offset = filters?.offset ?? 0;
 
     const query = `
-      SELECT ${this.getSelectColumns()} 
-      FROM ${this.tableName} 
+      SELECT ${this.getSelectColumns()}
+      FROM ${this.tableName}
       WHERE ${conditions.join(' AND ')}
       ORDER BY recorded_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -198,8 +198,8 @@ export class DomainEventsRepository extends BaseRepository<
     }
 
     const query = `
-      SELECT ${this.getSelectColumns()} 
-      FROM ${this.tableName} 
+      SELECT ${this.getSelectColumns()}
+      FROM ${this.tableName}
       WHERE ${conditions.join(' AND ')}
       ORDER BY recorded_at DESC
       LIMIT $${params.length}
@@ -258,7 +258,7 @@ export class DomainEventsRepository extends BaseRepository<
 
     const query = `
       SELECT COUNT(*) as count
-      FROM ${this.tableName} 
+      FROM ${this.tableName}
       WHERE ${conditions.join(' AND ')}
     `;
 
@@ -281,7 +281,7 @@ export class DomainEventsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<DomainEvent | null> {
     const result = await this.executeQuery<DomainEventRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE aggregate_type = $1 AND aggregate_id = $2
        ORDER BY sequence_number DESC NULLS LAST, recorded_at DESC
        LIMIT 1`,
@@ -305,7 +305,7 @@ export class DomainEventsRepository extends BaseRepository<
       count: string;
     }>(
       `SELECT event_type, COUNT(*) as count
-       FROM ${this.tableName} 
+       FROM ${this.tableName}
        WHERE tenant_id = $1
        GROUP BY event_type
        ORDER BY count DESC`,

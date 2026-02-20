@@ -60,7 +60,7 @@ export class EntitlementSnapshotsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<EntitlementSnapshot | null> {
     const result = await this.executeQuery<EntitlementSnapshotRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE tenant_id = $1 AND invalidated_at IS NULL
        ORDER BY created_at DESC LIMIT 1`,
       [tenantId],
@@ -76,7 +76,7 @@ export class EntitlementSnapshotsRepository extends BaseRepository<
    */
   async invalidate(tenantId: string, options?: QueryOptions): Promise<void> {
     await this.executeQuery(
-      `UPDATE ${this.tableName} SET invalidated_at = now() 
+      `UPDATE ${this.tableName} SET invalidated_at = now()
        WHERE tenant_id = $1 AND invalidated_at IS NULL`,
       [tenantId],
       options,
@@ -93,7 +93,7 @@ export class EntitlementSnapshotsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<EntitlementSnapshot[]> {
     const result = await this.executeQuery<EntitlementSnapshotRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE tenant_id = $1
        ORDER BY created_at DESC
        LIMIT $2`,
@@ -110,7 +110,7 @@ export class EntitlementSnapshotsRepository extends BaseRepository<
    */
   async countActive(tenantId: string, options?: QueryOptions): Promise<number> {
     const result = await this.executeQuery<{ count: string }>(
-      `SELECT COUNT(*) as count FROM ${this.tableName} 
+      `SELECT COUNT(*) as count FROM ${this.tableName}
        WHERE tenant_id = $1 AND invalidated_at IS NULL`,
       [tenantId],
       options,

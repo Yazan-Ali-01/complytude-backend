@@ -227,7 +227,7 @@ export class UserRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<PasswordReset | null> {
     const result = await this.executeQuery<PasswordResetRow>(
-      `SELECT id, user_id, token, expires_at, used_at FROM public.password_resets 
+      `SELECT id, user_id, token, expires_at, used_at FROM public.password_resets
        WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL`,
       [token],
       options,

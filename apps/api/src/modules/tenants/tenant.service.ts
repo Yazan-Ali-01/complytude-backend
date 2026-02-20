@@ -1,17 +1,19 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { DatabaseService } from 'src/database/database.service';
 import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from 'src/repositories/base/repository.interface';
+import { SystemTenantRole } from '../../common/types/tenant.types';
+import { DatabaseService } from '../../database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
@@ -118,6 +120,7 @@ export class TenantService {
   async findById(
     tenantId: string,
     options?: { platformAdminContext?: boolean },
+    isTenantAdmin?: { role?: string },
   ): Promise<Tenant> {
     try {
       if (options?.platformAdminContext) {
@@ -132,7 +135,7 @@ export class TenantService {
         return tenant;
       }
       const tenant = await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId: tenantId, isTenantAdmin: !!isTenantAdmin?.role },
         async (client) => {
           return await this.tenantRepository.findById(tenantId, { client });
         },
@@ -217,7 +220,7 @@ export class TenantService {
       }
 
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId: tenantId },
         async (client) => {
           // Validate tenant exists in this context
           const existing = await this.tenantRepository.findById(tenantId, {
@@ -285,7 +288,7 @@ export class TenantService {
       }
 
       await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId: tenantId },
         async (client) => {
           const deleted = await this.tenantRepository.delete(tenantId, {
             client,
@@ -322,7 +325,7 @@ export class TenantService {
   async getDocumentCount(tenantId: string): Promise<number> {
     try {
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId: tenantId },
         async (client) => {
           // Validate tenant exists first
           const tenant = await this.tenantRepository.findById(tenantId, {
@@ -370,11 +373,29 @@ export class TenantService {
   async updateProfile(
     tenantId: string,
     dto: UpdateTenantProfileDto,
+    options: { platformAdminContext: boolean },
+    isTenantAdmin: { role?: string },
   ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext === true) {
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            return await this.tenantRepository.update(
+              tenantId,
+              { ...dto },
+              { client },
+            );
+          },
+        );
+      }
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId: tenantId, isTenantAdmin: !!isTenantAdmin?.role },
         async (client) => {
+          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
+            throw new ForbiddenException(
+              'You are not authorized to update this tenant',
+            );
+          }
           const updated = await this.tenantRepository.update(
             tenantId,
             { ...dto },
@@ -416,11 +437,31 @@ export class TenantService {
   async updateSlug(
     tenantId: string,
     dto: UpdateTenantSlugDto,
+    options: { platformAdminContext?: boolean },
+    isTenantAdmin: { role?: string },
   ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext) {
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            return await this.tenantRepository.update(
+              tenantId,
+              { slug: dto.slug },
+              { client },
+            );
+          },
+        );
+      }
+
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
         async (client) => {
+          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
+            throw new ForbiddenException(
+              'You are not authorized to update the tenant slug',
+            );
+          }
+
           // Check slug uniqueness (global, not tenant-scoped)
           const isTaken = await this.tenantRepository.isSlugTaken(
             dto.slug,
@@ -447,7 +488,8 @@ export class TenantService {
     } catch (error) {
       if (
         error instanceof NotFoundException ||
-        error instanceof ConflictException
+        error instanceof ConflictException ||
+        error instanceof ForbiddenException
       ) {
         throw error;
       }
@@ -479,11 +521,31 @@ export class TenantService {
   async updateSettings(
     tenantId: string,
     dto: UpdateTenantSettingsDto,
+    options: { platformAdminContext?: boolean },
+    isTenantAdmin: { role?: string },
   ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext) {
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            return await this.tenantRepository.update(
+              tenantId,
+              { ...dto },
+              { client },
+            );
+          },
+        );
+      }
+
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
         async (client) => {
+          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
+            throw new ForbiddenException(
+              'You are not authorized to update tenant settings',
+            );
+          }
+
           // Fetch current tenant to merge settings
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
@@ -517,7 +579,12 @@ export class TenantService {
         },
       );
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to update tenant settings: ${error.message}`,
         error,
@@ -548,11 +615,31 @@ export class TenantService {
   async updateBranding(
     tenantId: string,
     dto: UpdateTenantBrandingDto,
+    options: { platformAdminContext?: boolean },
+    isTenantAdmin: { role?: string },
   ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext) {
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            return await this.tenantRepository.update(
+              tenantId,
+              { ...dto },
+              { client },
+            );
+          },
+        );
+      }
+
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
         async (client) => {
+          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
+            throw new ForbiddenException(
+              'You are not authorized to update tenant branding',
+            );
+          }
+
           if (!dto.brand_color_primary && !dto.brand_color_secondary) {
             throw new BadRequestException(
               'At least one branding field must be provided',
@@ -573,7 +660,8 @@ export class TenantService {
     } catch (error) {
       if (
         error instanceof NotFoundException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
       ) {
         throw error;
       }
@@ -606,11 +694,31 @@ export class TenantService {
   async updateLogoUrl(
     tenantId: string,
     logoUrl: string | null,
+    options: { platformAdminContext?: boolean },
+    isTenantAdmin: { role?: string },
   ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext) {
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            return await this.tenantRepository.update(
+              tenantId,
+              { logo_url: logoUrl },
+              { client },
+            );
+          },
+        );
+      }
+
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
         async (client) => {
+          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
+            throw new ForbiddenException(
+              'You are not authorized to update the tenant logo',
+            );
+          }
+
           const updated = await this.tenantRepository.update(
             tenantId,
             { logo_url: logoUrl },
@@ -623,7 +731,12 @@ export class TenantService {
         },
       );
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to update tenant logo: ${error.message}`,
         error,
@@ -647,11 +760,33 @@ export class TenantService {
    * @permission Requires 'settings:manage' permission
    * @note Idempotent: returns immediately if onboarding_completed_at is already set
    */
-  async completeOnboarding(tenantId: string): Promise<Tenant> {
+  async completeOnboarding(
+    tenantId: string,
+    options: { platformAdminContext?: boolean },
+    isTenantAdmin: { role?: string },
+  ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext) {
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            return await this.tenantRepository.update(
+              tenantId,
+              { onboarding_completed_at: new Date() },
+              { client },
+            );
+          },
+        );
+      }
+
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
         async (client) => {
+          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
+            throw new ForbiddenException(
+              'You are not authorized to complete onboarding',
+            );
+          }
+
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
           });
@@ -676,7 +811,12 @@ export class TenantService {
         },
       );
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to complete onboarding: ${error.message}`,
         error,
@@ -704,11 +844,31 @@ export class TenantService {
   async updateOnboarding(
     tenantId: string,
     dto: UpdateOnboardingDto,
+    options: { platformAdminContext?: boolean },
+    isTenantAdmin: { role?: string },
   ): Promise<Tenant> {
     try {
+      if (options?.platformAdminContext) {
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            return await this.tenantRepository.update(
+              tenantId,
+              { onboarding_metadata: dto.onboarding_metadata },
+              { client },
+            );
+          },
+        );
+      }
+
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
         async (client) => {
+          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
+            throw new ForbiddenException(
+              'You are not authorized to update onboarding',
+            );
+          }
+
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
           });
@@ -734,7 +894,12 @@ export class TenantService {
         },
       );
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(`Failed to update onboarding: ${error.message}`, error);
       throw new InternalServerErrorException('Failed to update onboarding');
     }
@@ -767,7 +932,7 @@ export class TenantService {
   ): Promise<Tenant> {
     try {
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId: tenantId },
         async (client) => {
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
@@ -832,7 +997,7 @@ export class TenantService {
   async reactivateTenant(tenantId: string): Promise<Tenant> {
     try {
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId: tenantId },
         async (client) => {
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
@@ -898,7 +1063,7 @@ export class TenantService {
   ): Promise<Tenant> {
     try {
       return await this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId: tenantId },
         async (client) => {
           const updated = await this.tenantRepository.update(
             tenantId,

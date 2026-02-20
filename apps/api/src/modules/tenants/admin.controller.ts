@@ -21,10 +21,10 @@ import {
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
+import { MessageResponseDto } from '../../common/dto';
+import { TenantCursorPaginatedResponseDto } from '../../common/dto/tenant-cursor-paginated-response.dto';
 import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
-import { CurrentUserIdentity } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedIdentityUser } from '../auth/strategies';
 import { TenantResponseDto } from './dto/tenant-response.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantService } from './tenant.service';
@@ -81,20 +81,27 @@ export class TenantAdminController {
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of tenants',
+    type: TenantCursorPaginatedResponseDto, // ✅ Proper Swagger type
+  })
   async getAllTenants(
     @Query('cursor') cursor?: string,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
-    @Query('direction')
-    direction?: 'forward' | 'backward',
-    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
-  ): Promise<TenantResponseDto[]> {
+    @Query('direction') direction?: 'forward' | 'backward',
+  ): Promise<TenantCursorPaginatedResponseDto> {
     this.logger.log('[ADMIN] Fetching all tenants');
-    const platformRole = identity!.platformRole!;
-    const tenants = await this.tenantService.findAll(
+
+    const result = await this.tenantService.findAll(
       { cursor, limit, direction },
       { platformAdminContext: true },
     );
-    return tenants.data.map((tenant) => new TenantResponseDto(tenant));
+
+    return TenantCursorPaginatedResponseDto.fromResult(
+      result,
+      (tenant) => new TenantResponseDto(tenant),
+    );
   }
 
   @Get(':tenantId')
@@ -117,12 +124,10 @@ export class TenantAdminController {
   })
   async getTenantById(
     @Param('tenantId') tenantId: string,
-    @CurrentUserIdentity() identity?: AuthenticatedIdentityUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Fetching tenant: ${tenantId}`);
-    const platformRole = identity!.platformRole!;
     const tenant = await this.tenantService.findById(tenantId, {
-      platformAdminContext: platformRole,
+      platformAdminContext: true,
     });
     return new TenantResponseDto(tenant);
   }
@@ -180,11 +185,11 @@ export class TenantAdminController {
   })
   async deleteTenant(
     @Param('tenantId') tenantId: string,
-  ): Promise<{ message: string; tenantId: string }> {
+  ): Promise<MessageResponseDto> {
     this.logger.warn(`[ADMIN] Deleting tenant: ${tenantId}`);
     await this.tenantService.deleteTenant(tenantId, {
       platformAdminContext: true,
     });
-    return { message: 'Tenant deleted successfully', tenantId };
+    return new MessageResponseDto('Tenant deleted successfully');
   }
 }

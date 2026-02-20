@@ -138,8 +138,8 @@ export class UsageAllocationsRepository extends BaseRepository<
         .join(', ua.')}
        FROM ${this.tableName} ua
        JOIN public.usage_ledger ul ON ul.id = ua.usage_ledger_id
-       WHERE ul.tenant_id = $1 
-         AND ul.feature_id = $2 
+       WHERE ul.tenant_id = $1
+         AND ul.feature_id = $2
          AND ul.billing_period = $3
        ORDER BY ul.recorded_at ASC, ua.created_at ASC`,
       [tenantId, featureId, billingPeriod],

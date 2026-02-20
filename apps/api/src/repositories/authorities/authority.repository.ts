@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository } from '../base/base.repository';
+import { Authority } from 'src/modules/authorities/entities/authority.entity';
 import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
+import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 import {
-  QueryOptions,
   CursorPaginationOptions,
   CursorPaginationResult,
+  QueryOptions,
 } from '../base/repository.interface';
-import { Authority } from 'src/modules/authorities/entities/authority.entity';
-import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**
  * Type for creating a new authority row in the database.

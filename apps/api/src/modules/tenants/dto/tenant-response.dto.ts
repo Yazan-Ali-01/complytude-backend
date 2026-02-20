@@ -3,18 +3,13 @@ import type { PlanKey } from '../../../common/types/entitlement.types';
 import { Tenant } from '../entities/tenant.entity';
 
 export class TenantResponseDto {
-  constructor(data: Tenant) {
+  constructor(data: Tenant | string) {
     Object.assign(this, data);
   }
   @ApiProperty7({
     example: '11111111-1111-4111-8111-111111111111',
   })
   id: string;
-
-  @ApiProperty7({
-    example: '11111111-1111-4111-8111-111111111111',
-  })
-  parent_tenant_id: string | null;
 
   @ApiProperty7({
     example: 'navigator',
@@ -28,88 +23,93 @@ export class TenantResponseDto {
   is_active: boolean;
 
   @ApiProperty7({
+    example: '11111111-1111-4111-8111-111111111111',
+  })
+  parent_tenant_id?: string | null;
+
+  @ApiProperty7({
     example: 'Acme Legal LLC',
     nullable: true,
   })
-  name: string | null;
+  name?: string | null;
 
   @ApiProperty7({
     example: 'acme-legal',
     nullable: true,
   })
-  slug: string | null;
+  slug?: string | null;
 
   @ApiProperty7({
     example: 'https://s3.../logo.png',
     nullable: true,
   })
-  logo_url: string | null;
+  logo_url?: string | null;
 
   @ApiProperty7({
     example: 'contact@acme.com',
     nullable: true,
   })
-  contact_email: string | null;
+  contact_email?: string | null;
 
   @ApiProperty7({
     example: 'finance@acme.com',
     nullable: true,
   })
-  billing_email: string | null;
+  billing_email?: string | null;
 
   @ApiProperty7({
     example: '+971501234567',
     nullable: true,
   })
-  contact_phone: string | null;
+  contact_phone?: string | null;
 
   @ApiProperty7({
     example: 'Dubai',
     nullable: true,
   })
-  emirate: string | null;
+  emirate?: string | null;
 
   @ApiProperty7({
     example: 'Dubai',
     nullable: true,
   })
-  city: string | null;
+  city?: string | null;
 
   @ApiProperty7({
     example: '123 Sheikh Zayed Road',
     nullable: true,
   })
-  address_line_1: string | null;
+  address_line_1?: string | null;
 
   @ApiProperty7({
     example: 'Floor 12, Tower A',
     nullable: true,
   })
-  address_line_2: string | null;
+  address_line_2?: string | null;
 
   @ApiProperty7({
     example: '12345',
     nullable: true,
   })
-  postal_code: string | null;
+  postal_code?: string | null;
 
   @ApiProperty7({
     example: 'DED-123456',
     nullable: true,
   })
-  trade_license_number: string | null;
+  trade_license_number?: string | null;
 
   @ApiProperty7({
     example: 'Free Zone Establishment',
     nullable: true,
   })
-  legal_entity_type: string | null;
+  legal_entity_type?: string | null;
 
   @ApiProperty7({
     example: '100123456700003',
     nullable: true,
   })
-  tax_registration_number: string | null;
+  tax_registration_number?: string | null;
 
   @ApiProperty7({
     example: 'en',
@@ -125,7 +125,7 @@ export class TenantResponseDto {
     example: 'DMCC',
     nullable: true,
   })
-  default_jurisdiction: string | null;
+  default_jurisdiction?: string | null;
 
   @ApiProperty7({
     example: {},
@@ -136,31 +136,31 @@ export class TenantResponseDto {
     example: '#1A73E8',
     nullable: true,
   })
-  brand_color_primary: string | null;
+  brand_color_primary?: string | null;
 
   @ApiProperty7({
     example: '#FBBC04',
     nullable: true,
   })
-  brand_color_secondary: string | null;
+  brand_color_secondary?: string | null;
 
   @ApiProperty7({
     example: null,
     nullable: true,
   })
-  deactivated_at: Date | null;
+  deactivated_at?: Date | null;
 
   @ApiProperty7({
     example: null,
     nullable: true,
   })
-  deactivation_reason: string | null;
+  deactivation_reason?: string | null;
 
   @ApiProperty7({
     example: null,
     nullable: true,
   })
-  onboarding_completed_at: Date | null;
+  onboarding_completed_at?: Date | null;
 
   @ApiProperty7({
     example: {},

@@ -9,15 +9,15 @@ import {
   PlanKey,
   TenantSubscription,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from 'src/database/database.service';
 import { QueryOptions } from 'src/repositories/base/repository.interface';
-import { DomainEventsService } from '../entitlements/services/domain-events.service';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import {
   SubscriptionsRepository,
   TenantSubscriptionWithPlan,
 } from 'src/repositories/subscriptions/subscriptions.repository';
+import { DatabaseService } from '../../database/database.service';
+import { DomainEventsService } from '../entitlements/services/domain-events.service';
 
 /**
  * Subscriptions Service - Phase 6
@@ -80,7 +80,10 @@ export class SubscriptionsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -142,7 +145,7 @@ export class SubscriptionsService {
 
     // Step 5: Update within transaction
     return this.databaseService.transactionWithTenantContext(
-      tenantId,
+      { tenantId },
       async (client) => {
         // Get old plan for event
         const oldPlan = await this.plansRepository.findById(
@@ -296,7 +299,10 @@ export class SubscriptionsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -353,7 +359,7 @@ export class SubscriptionsService {
 
     // Step 4: Create within transaction
     return this.databaseService.transactionWithTenantContext(
-      tenantId,
+      { tenantId },
       async (client) => {
         const newSubscription = await this.subscriptionsRepository.upsert(
           {
@@ -496,7 +502,10 @@ export class SubscriptionsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
