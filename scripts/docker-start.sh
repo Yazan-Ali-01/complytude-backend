@@ -21,9 +21,16 @@ fi
 echo "✅ Docker is running"
 echo ""
 
+# Detect docker compose command
+if docker compose version > /dev/null 2>&1; then
+    DOCKER_COMPOSE="docker compose"
+else
+    DOCKER_COMPOSE="docker-compose"
+fi
+
 # Start services
 echo "🚀 Starting PostgreSQL, Redis, and MinIO..."
-docker-compose up -d postgres redis minio
+$DOCKER_COMPOSE up -d postgres redis minio
 
 # Wait for services to be ready
 echo "⏳ Waiting for services to be ready..."
