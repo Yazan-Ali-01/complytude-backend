@@ -1,8 +1,6 @@
 export const INGESTION_JOB_NAMES = {
   DOCUMENT_INGESTION: 'document-ingestion',
   USAGE_PROJECTION_UPDATE: 'usage-projection-update',
-  SNAPSHOT_REBUILD: 'snapshot-rebuild',
-  DOMAIN_EVENT_FANOUT: 'domain-event-fanout',
   SUBSCRIPTION_RENEWAL: 'subscription-renewal',
   CREDIT_NOTIFICATION: 'credit-notification',
 } as const;
@@ -24,18 +22,6 @@ export interface UsageProjectionUpdateJobData {
   usageEventId: string;
   periodStart: string;
   periodEnd: string;
-}
-
-export interface SnapshotRebuildJobData {
-  tenantId: string;
-  reason: 'invalidation' | 'scheduled' | 'manual';
-}
-
-export interface DomainEventFanoutJobData {
-  eventId: string;
-  eventType: string;
-  tenantId: string;
-  payload: Record<string, unknown>;
 }
 
 export interface SubscriptionRenewalJobData {

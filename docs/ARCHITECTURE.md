@@ -832,6 +832,127 @@ The system supports typed features:
 
 ---
 
+## Queue Architecture
+
+Background job processing uses **BullMQ** (Redis-backed) with a typed abstraction layer in `libs/queue/`.
+
+### Queue Topology
+
+```
+API App
+├── Produces jobs to:   AI_PROCESSING, DATA_INGESTION, ENTITLEMENT_PROCESSING
+├── Consumes jobs from: ENTITLEMENT_PROCESSING  (light DB ops, same service graph)
+
+Worker-Ingestion App (future)
+├── Consumes jobs from: DATA_INGESTION  (heavy I/O, file processing)
+
+Worker-AI App (future)
+├── Consumes jobs from: AI_PROCESSING   (GPU/LLM calls)
+```
+
+**Why does the API consume `ENTITLEMENT_PROCESSING`?**
+Entitlement jobs (snapshot rebuild, domain event fanout, credit events) are lightweight DB operations that need access to the same repositories and services already loaded in the API process. Running them in a separate worker would require duplicating the entire service/repository graph for marginal isolation benefit.
+
+### Queue Names
+
+| Constant | Redis key | Producer | Consumer |
+|---|---|---|---|
+| `QUEUE_NAMES.AI_PROCESSING` | `ai-processing` | API | worker-ai (future) |
+| `QUEUE_NAMES.DATA_INGESTION` | `data-ingestion` | API | worker-ingestion (future) |
+| `QUEUE_NAMES.ENTITLEMENT_PROCESSING` | `entitlement-processing` | API | API |
+
+### QueueProducerService
+
+Business services enqueue jobs via `QueueProducerService` — never by importing `bullmq` or `@nestjs/bullmq` directly. This is enforced by ESLint (`no-restricted-imports`).
+
+```typescript
+// ✅ Correct — typed, centralized
+constructor(private readonly queueProducer: QueueProducerService) {}
+
+await this.queueProducer.enqueue(
+  QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+  ENTITLEMENT_JOB_NAMES.SNAPSHOT_REBUILD,
+  { tenantId: '...', reason: 'invalidation' },
+  // ^ compile error if payload doesn't match EntitlementSnapshotRebuildJobData
+);
+
+// ❌ Wrong — BullMQ leaks into business logic
+@InjectQueue(QUEUE_NAMES.DATA_INGESTION) private queue: Queue
+await this.queue.add('snapshot-rebuild', { tenantId: '...' }); // no type safety
+```
+
+**Benefits of `QueueProducerService`:**
+- Compile-time job name validation — wrong job name for a queue = TS error
+- Compile-time payload typing — wrong data shape = TS error
+- Centralized retry/DLQ behavior and observability hooks
+- No BullMQ leakage into business services
+
+### AbstractProcessor
+
+All job processors extend `AbstractProcessor<TData>` from `libs/queue/`:
+
+```typescript
+import { Processor } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
+import { Job } from 'bullmq';
+import { AbstractProcessor, PermanentError, RetryableError } from '@lib/queue';
+
+@Processor(QUEUE_NAMES.ENTITLEMENT_PROCESSING)
+export class EntitlementProcessor extends AbstractProcessor<EntitlementSnapshotRebuildJobData> {
+  protected readonly logger = new Logger(EntitlementProcessor.name);
+
+  async handle(job: Job<EntitlementSnapshotRebuildJobData>): Promise<void> {
+    try {
+      await this.snapshotService.rebuild(job.data.tenantId);
+    } catch (error) {
+      if (isTransient(error)) throw new RetryableError('DB timeout', error);
+      throw new PermanentError('Rebuild failed', error);
+    }
+  }
+}
+```
+
+**What `AbstractProcessor` standardizes:**
+- Structured logging: `Job started [name] id=X attempt=N`, `Job completed [...] elapsed=Xms`, `Job failed (retryable) [...]`
+- Duration measurement: `elapsed_ms` logged on completion and failure
+- Error classification: `RetryableError` triggers BullMQ retry; `PermanentError` is converted to `UnrecoverableError` (skips retries, moves to failed)
+- Overridable hooks: `onPermanentFailure()` and `onDeadLetter()` for custom alerting/metrics
+
+### Retry and Backoff Strategy
+
+Configured in `libs/queue/src/queue.config.ts`:
+
+| Setting | Value |
+|---|---|
+| Attempts | 3 |
+| Backoff type | Exponential |
+| Delays | 1s → 2s → 4s |
+| Completed job retention | 24h or last 1,000 |
+| Failed job retention | 7 days |
+
+### Error Classification
+
+| Error class | Behavior |
+|---|---|
+| `RetryableError` | Re-thrown as-is; BullMQ applies exponential backoff and retries up to `attempts` times |
+| `PermanentError` | Converted to BullMQ's `UnrecoverableError`; job moves immediately to failed, no retries |
+| Retries exhausted | `onDeadLetter()` hook fires in the processor |
+
+### Graceful Shutdown
+
+`app.enableShutdownHooks()` is called in `main.ts`. On `SIGTERM`/`SIGINT`:
+1. NestJS fires `onModuleDestroy` on all providers
+2. `@nestjs/bullmq` workers drain active jobs before closing
+3. `RedisService` closes the Redis connection
+
+This prevents job loss during rolling deployments.
+
+### Queue Monitoring (Bull Board)
+
+A Bull Board dashboard is available at `/admin/queues` (no auth in dev — TODO: protect before production). All three queues are visible there and included in the `GET /health/queues` health check endpoint.
+
+---
+
 ## Related Documentation
 
 - [DATABASE.md](DATABASE.md) - Detailed database schema
@@ -843,4 +964,4 @@ The system supports typed features:
 
 ---
 
-**Last Updated:** February 3, 2026
+**Last Updated:** February 21, 2026

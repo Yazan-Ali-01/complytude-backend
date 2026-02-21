@@ -111,9 +111,7 @@ export class TenantAdminController {
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
-  async getTenantById(
-    @Param('tenantId') tenantId: string,
-  ): Promise<Tenant> {
+  async getTenantById(@Param('tenantId') tenantId: string): Promise<Tenant> {
     this.logger.log(`[ADMIN] Fetching tenant: ${tenantId}`);
     return this.tenantService.findById(tenantId, {
       platformAdminContext: true,
