@@ -1,5 +1,8 @@
 import { RedisHealthIndicator } from '@lib/redis/redis.health';
+import { QUEUE_NAMES } from '@lib/queue';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
+import { Queue } from 'bullmq';
 import { DatabaseService } from 'src/database/database.service';
 
 export interface HealthCheckResult {
@@ -22,6 +25,9 @@ export class HealthService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly redisHealthIndicator: RedisHealthIndicator,
+    @InjectQueue(QUEUE_NAMES.AI_PROCESSING) private readonly aiQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.DATA_INGESTION)
+    private readonly ingestionQueue: Queue,
   ) {}
 
   check(): HealthCheckResult {
@@ -56,5 +62,46 @@ export class HealthService {
 
   async checkRedis() {
     return await this.redisHealthIndicator.isHealthy();
+  }
+
+  async checkQueues() {
+    const queues = [
+      { name: QUEUE_NAMES.AI_PROCESSING, queue: this.aiQueue },
+      { name: QUEUE_NAMES.DATA_INGESTION, queue: this.ingestionQueue },
+    ];
+
+    const results = await Promise.all(
+      queues.map(async ({ name, queue }) => {
+        try {
+          const [waiting, active, completed, failed, delayed] =
+            await Promise.all([
+              queue.getWaitingCount(),
+              queue.getActiveCount(),
+              queue.getCompletedCount(),
+              queue.getFailedCount(),
+              queue.getDelayedCount(),
+            ]);
+
+          return {
+            name,
+            status: 'healthy' as const,
+            counts: { waiting, active, completed, failed, delayed },
+          };
+        } catch {
+          return {
+            name,
+            status: 'unhealthy' as const,
+            error: 'Connection failed',
+          };
+        }
+      }),
+    );
+
+    const allHealthy = results.every((r) => r.status === 'healthy');
+
+    return {
+      status: allHealthy ? 'healthy' : 'unhealthy',
+      queues: results,
+    };
   }
 }

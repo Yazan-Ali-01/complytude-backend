@@ -4,6 +4,7 @@ import { CreditsMockController } from './credits-mock.controller';
 import { DomainEventsMockController } from './domain-events-mock.controller';
 import { EnforcementMockController } from './enforcement-mock.controller';
 import { EntitlementsMockController } from './entitlements-mock.controller';
+import { QueueTestMockController } from './queue-test-mock.controller';
 import { RbacMockController } from './rbac-mock.controller';
 import { SnapshotMockController } from './snapshot-mock.controller';
 import { UsageMockController } from './usage-mock.controller';
@@ -34,6 +35,7 @@ import { UsageMockController } from './usage-mock.controller';
     EnforcementMockController,
     DomainEventsMockController,
     SnapshotMockController,
+    QueueTestMockController,
   ],
   imports: [SubscriptionsModule],
 })
