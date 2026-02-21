@@ -1,4 +1,5 @@
 import { RedisModule } from '@lib/redis';
+import { QUEUE_NAMES, QueueModule } from '@lib/queue';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -44,6 +45,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
       },
     }),
     RedisModule.forRoot(),
+    QueueModule.forRoot([QUEUE_NAMES.AI_PROCESSING, QUEUE_NAMES.DATA_INGESTION]),
     I18nModule,
     DatabaseModule,
     HealthModule,

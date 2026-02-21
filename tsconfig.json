@@ -28,6 +28,12 @@
       "@lib/redis/*": [
         "libs/redis/src/*"
       ],
+      "@lib/queue": [
+        "libs/queue/src"
+      ],
+      "@lib/queue/*": [
+        "libs/queue/src/*"
+      ],
       "src/*": [
         "apps/api/src/*"
       ]
