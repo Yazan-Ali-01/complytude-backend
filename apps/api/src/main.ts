@@ -1,5 +1,10 @@
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { FastifyAdapter as BullBoardFastifyAdapter } from '@bull-board/fastify';
+import { QUEUE_NAMES } from '@lib/queue';
+import { getQueueToken } from '@nestjs/bullmq';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -74,6 +79,23 @@ async function bootstrap() {
       exceptionFactory: validationExceptionFactory,
     }),
   );
+
+  // Bull Board — queue monitoring dashboard at /admin/queues
+  // TODO: Protect with platform RBAC or basic auth before production
+  const bullBoardAdapter = new BullBoardFastifyAdapter();
+  bullBoardAdapter.setBasePath('/admin/queues');
+
+  createBullBoard({
+    queues: [
+      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.AI_PROCESSING))),
+      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.DATA_INGESTION))),
+    ],
+    serverAdapter: bullBoardAdapter,
+  });
+
+  await app.register(bullBoardAdapter.registerPlugin(), {
+    prefix: '/admin/queues',
+  });
 
   // Setup Swagger documentation
   const config = new DocumentBuilder()

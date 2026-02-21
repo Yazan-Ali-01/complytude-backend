@@ -30,4 +30,12 @@ export class HealthController {
   async checkRedis() {
     return await this.healthService.checkRedis();
   }
+
+  @Get('queues')
+  @ApiOperation({ summary: 'Queue health check' })
+  @ApiResponse({ status: 200, description: 'Queues are healthy' })
+  @ApiResponse({ status: 503, description: 'One or more queues are unhealthy' })
+  async checkQueues() {
+    return await this.healthService.checkQueues();
+  }
 }
