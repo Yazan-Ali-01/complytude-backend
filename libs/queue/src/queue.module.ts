@@ -15,7 +15,7 @@ export class QueueModule {
         const host = configService.get<string>('redis.host');
         const port = configService.get<number>('redis.port');
         const password = configService.get<string>('redis.password');
-        const db = configService.get<number>('redis.db');
+        const db = configService.get<number>('redis.queueDb');
         const tls = configService.get<Record<string, unknown>>('redis.tls');
 
         // BullMQ requires maxRetriesPerRequest: null — it uses blocking
