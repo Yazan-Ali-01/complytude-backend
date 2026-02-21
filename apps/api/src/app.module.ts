@@ -1,8 +1,7 @@
 import { RedisModule } from '@lib/redis';
-import { DEFAULT_JOB_OPTIONS, QUEUE_NAMES } from '@lib/queue';
-import { BullModule } from '@nestjs/bullmq';
+import { QUEUE_NAMES, QueueModule } from '@lib/queue';
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import appConfig from 'src/config/app.config';
 import databaseConfig from 'src/config/database.config';
@@ -46,22 +45,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
       },
     }),
     RedisModule.forRoot(),
-    BullModule.forRootAsync({
-      useFactory: (configService: ConfigService) => ({
-        connection: {
-          host: configService.get<string>('redis.host'),
-          port: configService.get<number>('redis.port'),
-          password: configService.get<string>('redis.password'),
-          db: configService.get<number>('redis.db'),
-        },
-        defaultJobOptions: DEFAULT_JOB_OPTIONS,
-      }),
-      inject: [ConfigService],
-    }),
-    BullModule.registerQueue(
-      { name: QUEUE_NAMES.AI_PROCESSING },
-      { name: QUEUE_NAMES.DATA_INGESTION },
-    ),
+    QueueModule.forRoot([QUEUE_NAMES.AI_PROCESSING, QUEUE_NAMES.DATA_INGESTION]),
     I18nModule,
     DatabaseModule,
     HealthModule,
