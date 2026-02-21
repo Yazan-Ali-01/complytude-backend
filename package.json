@@ -75,8 +75,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.914.0",
     "@aws-sdk/s3-request-presigner": "^3.914.0",
-    "@bull-board/api": "^6.19.0",
-    "@bull-board/fastify": "^6.19.0",
     "@fastify/cookie": "^11.0.2",
     "@fastify/multipart": "^9.2.1",
     "@fastify/static": "^8.3.0",
@@ -114,6 +112,8 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@bull-board/api": "^6.19.0",
+    "@bull-board/fastify": "^6.19.0",
     "@commitlint/cli": "^20.2.0",
     "@commitlint/config-conventional": "^20.2.0",
     "@eslint/eslintrc": "^3.2.0",

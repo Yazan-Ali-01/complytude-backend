@@ -14,12 +14,6 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.914.0
         version: 3.940.0
-      '@bull-board/api':
-        specifier: ^6.19.0
-        version: 6.19.0(@bull-board/ui@6.19.0)
-      '@bull-board/fastify':
-        specifier: ^6.19.0
-        version: 6.19.0
       '@fastify/cookie':
         specifier: ^11.0.2
         version: 11.0.2
@@ -126,6 +120,12 @@ importers:
         specifier: ^13.0.0
         version: 13.0.0
     devDependencies:
+      '@bull-board/api':
+        specifier: ^6.19.0
+        version: 6.19.0(@bull-board/ui@6.19.0)
+      '@bull-board/fastify':
+        specifier: ^6.19.0
+        version: 6.19.0
       '@commitlint/cli':
         specifier: ^20.2.0
         version: 20.2.0(@types/node@22.19.1)(typescript@5.9.3)

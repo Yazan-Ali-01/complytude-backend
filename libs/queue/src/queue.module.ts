@@ -16,6 +16,7 @@ export class QueueModule {
         const port = configService.get<number>('redis.port');
         const password = configService.get<string>('redis.password');
         const db = configService.get<number>('redis.db');
+        const tls = configService.get<Record<string, unknown>>('redis.tls');
 
         // BullMQ requires maxRetriesPerRequest: null — it uses blocking
         // commands (BLPOP) that are incompatible with a finite retry limit
@@ -24,6 +25,7 @@ export class QueueModule {
           port,
           password,
           db,
+          tls,
           maxRetriesPerRequest: null,
           retryStrategy: (times) => {
             if (times > 3) {
