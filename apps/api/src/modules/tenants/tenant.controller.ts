@@ -186,6 +186,7 @@ export class TenantController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(`User ${user.userId} updating slug to "${dto.slug}"`);
+    // TODO: update the slug Context in the database ( right now the isSlugTaken needs the RLS bypass through the dabase )
     const tenant = await this.tenantService.updateSlug(
       user.tenantId,
       dto,
@@ -226,7 +227,6 @@ export class TenantController {
     type: TenantResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid locale/timezone value' })
-  @Patch('me/settings')
   async updateSettings(
     @Body() dto: UpdateTenantSettingsDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
@@ -278,7 +278,6 @@ export class TenantController {
     status: 403,
     description: 'Missing permission or entitlement',
   })
-  @Patch('me/branding')
   async updateBranding(
     @Body() dto: UpdateTenantBrandingDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
@@ -477,8 +476,6 @@ export class TenantController {
     description: 'Onboarding marked complete',
     type: TenantResponseDto,
   })
-  @Post('me/onboarding/complete')
-  @HttpCode(HttpStatus.OK)
   async completeOnboarding(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
@@ -515,7 +512,6 @@ export class TenantController {
     description: 'Onboarding progress updated',
     type: TenantResponseDto,
   })
-  @Patch('me/onboarding')
   async updateOnboarding(
     @Body() dto: UpdateOnboardingDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,

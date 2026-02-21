@@ -597,6 +597,31 @@ CREATE INDEX idx_tenants_emirate ON public.tenants(emirate);
 -- Quick lookup of deactivated tenants
 CREATE INDEX idx_tenants_deactivated ON public.tenants(deactivated_at) WHERE deactivated_at IS NOT NULL;
 
+
+-- =========================
+-- THIS IS THE CODE FOR THE GLOBAL SLUG CHECK
+-- =========================
+-- -- Add this to your RLS migration file
+-- CREATE OR REPLACE FUNCTION public.is_platform_context()
+-- RETURNS BOOLEAN
+-- LANGUAGE SQL
+-- STABLE
+-- AS $$
+--     SELECT current_setting('app.platform_context', true)::boolean;
+-- $$;
+
+-- -- Update tenant_select policy
+-- DROP POLICY IF EXISTS tenant_select ON public.tenants;
+-- CREATE POLICY tenant_select
+-- ON public.tenants
+-- FOR SELECT
+-- USING (
+--     id = current_tenant_id_or_null()
+--     OR is_auth_flow()
+--     OR is_platform_admin()
+--     OR is_platform_context()  -- ← Allows global slug checks
+-- );
+
 -- =========================
 -- Triggers
 -- =========================

@@ -229,7 +229,6 @@ export class TenantService {
           if (!existing) {
             throw new NotFoundException(`Tenant ${tenantId} not found`);
           }
-          console.log('heloooo');
 
           const updated = await this.tenantRepository.update(
             tenantId,
@@ -373,13 +372,21 @@ export class TenantService {
   async updateProfile(
     tenantId: string,
     dto: UpdateTenantProfileDto,
-    options: { platformAdminContext: boolean },
-    isTenantAdmin: { role?: string },
+    options: { platformAdminContext?: boolean } = {}, // ✅ Optional with default
+    isTenantAdmin?: { role?: string },
   ): Promise<Tenant> {
     try {
       if (options?.platformAdminContext === true) {
         return await this.databaseService.transactionWithPlatformAdminContext(
           async (client) => {
+            // ✅ Verify tenant exists before updating
+            const tenant = await this.tenantRepository.findById(tenantId, {
+              client,
+            });
+            if (!tenant) {
+              throw new NotFoundException(`Tenant ${tenantId} not found`);
+            }
+
             return await this.tenantRepository.update(
               tenantId,
               { ...dto },
@@ -408,7 +415,14 @@ export class TenantService {
         },
       );
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      // ✅ Map all known exceptions
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
       this.logger.error(
         `Failed to update tenant profile: ${error.message}`,
         error,
@@ -438,12 +452,13 @@ export class TenantService {
     tenantId: string,
     dto: UpdateTenantSlugDto,
     options: { platformAdminContext?: boolean },
-    isTenantAdmin: { role?: string },
+    isTenantAdmin?: { role?: string },
   ): Promise<Tenant> {
     try {
       if (options?.platformAdminContext) {
         return await this.databaseService.transactionWithPlatformAdminContext(
           async (client) => {
+            // SYS admins can immidiately update the slug
             return await this.tenantRepository.update(
               tenantId,
               { slug: dto.slug },
@@ -929,10 +944,15 @@ export class TenantService {
   async deactivateTenant(
     tenantId: string,
     dto: DeactivateTenantDto,
+    options: { platformAdminContext?: boolean },
   ): Promise<Tenant> {
     try {
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId: tenantId },
+      if (!options?.platformAdminContext) {
+        throw new ForbiddenException(
+          'Only platform administrators can deactivate tenants',
+        );
+      }
+      return await this.databaseService.transactionWithPlatformAdminContext(
         async (client) => {
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
@@ -994,10 +1014,17 @@ export class TenantService {
    * @security Requires system_admin role
    * @audit Logs reactivation event for compliance tracking
    */
-  async reactivateTenant(tenantId: string): Promise<Tenant> {
+  async reactivateTenant(
+    tenantId: string,
+    options: { platformAdminContext?: boolean },
+  ): Promise<Tenant> {
     try {
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId: tenantId },
+      if (!options?.platformAdminContext) {
+        throw new ForbiddenException(
+          'Only platform administrators can reactivate tenants',
+        );
+      }
+      return await this.databaseService.transactionWithPlatformAdminContext(
         async (client) => {
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
