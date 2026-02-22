@@ -1,46 +1,41 @@
-import { ApiProperty as ApiProperty3 } from '@nestjs/swagger';
-import {
-  IsIn as IsIn3,
-  IsObject,
-  IsOptional as IsOptional3,
-  IsString as IsString3,
-} from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class UpdateTenantSettingsDto {
-  @ApiProperty3({
+  @ApiProperty({
     description: 'Preferred language',
     example: 'en',
     enum: ['en', 'ar'],
     required: false,
   })
-  @IsIn3(['en', 'ar'])
-  @IsOptional3()
+  @IsIn(['en', 'ar'])
+  @IsOptional()
   locale?: string;
 
-  @ApiProperty3({
+  @ApiProperty({
     description: 'IANA timezone',
     example: 'Asia/Dubai',
     required: false,
   })
-  @IsString3()
-  @IsOptional3()
+  @IsString()
+  @IsOptional()
   timezone?: string;
 
-  @ApiProperty3({
+  @ApiProperty({
     description: 'Default authority for document generation',
     example: 'DMCC',
     required: false,
   })
-  @IsString3()
-  @IsOptional3()
+  @IsString()
+  @IsOptional()
   default_jurisdiction?: string;
 
-  @ApiProperty3({
+  @ApiProperty({
     description: 'Additional settings (merged with existing)',
     example: { notifications_enabled: true },
     required: false,
   })
   @IsObject()
-  @IsOptional3()
+  @IsOptional()
   settings?: Record<string, unknown>;
 }
