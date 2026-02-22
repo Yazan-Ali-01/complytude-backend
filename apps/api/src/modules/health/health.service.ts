@@ -1,7 +1,9 @@
 import { QUEUE_NAMES } from '@lib/queue';
 import { RedisHealthIndicator } from '@lib/redis/redis.health';
+// eslint-disable-next-line no-restricted-imports
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
+// eslint-disable-next-line no-restricted-imports
 import { Queue } from 'bullmq';
 import { DatabaseService } from 'src/database/database.service';
 
@@ -28,6 +30,8 @@ export class HealthService {
     @InjectQueue(QUEUE_NAMES.AI_PROCESSING) private readonly aiQueue: Queue,
     @InjectQueue(QUEUE_NAMES.DATA_INGESTION)
     private readonly ingestionQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.ENTITLEMENT_PROCESSING)
+    private readonly entitlementQueue: Queue,
   ) {}
 
   check(): HealthCheckResult {
@@ -68,6 +72,10 @@ export class HealthService {
     const queues = [
       { name: QUEUE_NAMES.AI_PROCESSING, queue: this.aiQueue },
       { name: QUEUE_NAMES.DATA_INGESTION, queue: this.ingestionQueue },
+      {
+        name: QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        queue: this.entitlementQueue,
+      },
     ];
 
     const results = await Promise.all(
