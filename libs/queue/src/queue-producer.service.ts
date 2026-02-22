@@ -1,11 +1,11 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Job, JobsOptions, Queue } from 'bullmq';
 import { JobDataFor, JobNameFor, QueueName } from './queue-job-map';
 import { QUEUE_NAMES } from './queue.constants';
 
 @Injectable()
-export class QueueProducerService implements OnModuleInit {
+export class QueueProducerService {
   private readonly logger = new Logger(QueueProducerService.name);
   private readonly queues = new Map<string, Queue>();
 
@@ -16,9 +16,7 @@ export class QueueProducerService implements OnModuleInit {
     private readonly ingestionQueue: Queue,
     @InjectQueue(QUEUE_NAMES.ENTITLEMENT_PROCESSING)
     private readonly entitlementQueue: Queue,
-  ) {}
-
-  onModuleInit() {
+  ) {
     this.queues.set(QUEUE_NAMES.AI_PROCESSING, this.aiQueue);
     this.queues.set(QUEUE_NAMES.DATA_INGESTION, this.ingestionQueue);
     this.queues.set(QUEUE_NAMES.ENTITLEMENT_PROCESSING, this.entitlementQueue);
