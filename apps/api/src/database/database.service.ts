@@ -203,18 +203,22 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Execute a transaction within a specific tenant context with RLS
-   * @param params Object that takes tenant id and isTenantAdmin
+   * @param params Object with tenantId, isTenantAdmin (for update policies), allowCrossTenantRead (for SELECT policy, cross-tenant reads)
    * @param callback Transaction callback
    * @returns Transaction result
    */
   async transactionWithTenantContext<T>(
-    params: { tenantId: string; isTenantAdmin?: boolean },
+    params: {
+      tenantId: string;
+      isTenantAdmin?: boolean;
+      allowCrossTenantRead?: boolean;
+    },
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.getClient();
     try {
       await client.query('BEGIN');
-      await this.setTenantContext(client, params);
+      await this.setTenantContext(params, client);
       const result = await callback(client);
       await client.query('COMMIT');
       this.logger.debug(`Transaction committed for tenant ${params?.tenantId}`);
@@ -236,24 +240,32 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * IMPORTANT: This must be called within an active transaction (after BEGIN)
    * Uses SET LOCAL to ensure the setting is transaction-scoped and clears automatically on COMMIT/ROLLBACK
    *
+   * @param params { tenantId, isTenantAdmin?, allowCrossTenantRead? }
    * @param client PoolClient with an active transaction
-   * @param tenantId Tenant identifier for RLS
    * @private
    */
   private async setTenantContext(
-    client: PoolClient, // we want to make it optional
-    params?: { tenantId: string; isTenantAdmin?: boolean },
+    params: {
+      tenantId: string;
+      isTenantAdmin?: boolean;
+      allowCrossTenantRead?: boolean;
+    },
+    client: PoolClient,
   ): Promise<void> {
     // SET LOCAL ensures the setting is transaction-scoped
-    // It will automatically be cleared when the transaction ends (COMMIT or ROLLBACK)
     await client.query('SELECT set_config($1, $2, true)', [
       'app.tenant_id',
       params?.tenantId,
     ]);
-    // if its true, set the is_tenant_admin context
     if (params?.isTenantAdmin) {
       await client.query('SELECT set_config($1, $2, true)', [
         'app.is_tenant_admin',
+        'true',
+      ]);
+    }
+    if (params?.allowCrossTenantRead) {
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.allow_cross_tenant_read',
         'true',
       ]);
     }

@@ -112,6 +112,19 @@ $$;
 
 COMMENT ON FUNCTION public.is_platform_admin IS 'Check if current user has platform role (from app.platform_role session context). Used for RLS to allow platform admins to see all tenants.';
 
+-- Check if cross-tenant read is allowed (for slug uniqueness checks by tenant admins)
+CREATE FUNCTION public.allow_cross_tenant_read()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+AS $$
+BEGIN
+    RETURN COALESCE(current_setting('app.allow_cross_tenant_read', true), 'false') = 'true';
+END;
+$$;
+
+COMMENT ON FUNCTION public.allow_cross_tenant_read IS 'Check if cross-tenant read is allowed (from app.allow_cross_tenant_read). Used in tenant_select RLS for slug/email uniqueness checks by tenant admins.';
+
 COMMIT;
 
 -- =========================
@@ -122,6 +135,7 @@ COMMIT;
 BEGIN;
 
 -- Drop all session context functions
+DROP FUNCTION IF EXISTS public.allow_cross_tenant_read();
 DROP FUNCTION IF EXISTS public.is_platform_admin();
 DROP FUNCTION IF EXISTS public.is_auth_flow();
 DROP FUNCTION IF EXISTS public.is_tenant_admin();

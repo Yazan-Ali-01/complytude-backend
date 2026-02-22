@@ -92,11 +92,9 @@ export class TenantController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
     this.logger.log(`User ${user.userId} fetching tenant ${user.tenantId}`);
-    const tenant = await this.tenantService.findById(
-      user.tenantId,
-      { platformAdminContext: false },
-      { role: user.role },
-    );
+    const tenant = await this.tenantService.findById(user.tenantId, {
+      mode: 'tenant',
+    });
     return new TenantResponseDto(tenant);
   }
 
@@ -140,12 +138,10 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} updating profile for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.updateProfile(
-      user.tenantId,
-      dto,
-      { platformAdminContext: false },
-      { role: user.role },
-    );
+    const tenant = await this.tenantService.updateProfile(user.tenantId, dto, {
+      mode: 'tenant',
+      canManageSettings: true,
+    });
     return new TenantResponseDto(tenant);
   }
 
@@ -187,12 +183,10 @@ export class TenantController {
   ): Promise<TenantResponseDto> {
     this.logger.log(`User ${user.userId} updating slug to "${dto.slug}"`);
     // TODO: update the slug Context in the database ( right now the isSlugTaken needs the RLS bypass through the dabase )
-    const tenant = await this.tenantService.updateSlug(
-      user.tenantId,
-      dto,
-      { platformAdminContext: false },
-      { role: user.role },
-    );
+    const tenant = await this.tenantService.updateSlug(user.tenantId, dto, {
+      mode: 'tenant',
+      canManageSettings: true,
+    });
     return new TenantResponseDto(tenant);
   }
 
@@ -234,12 +228,10 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} updating settings for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.updateSettings(
-      user.tenantId,
-      dto,
-      { platformAdminContext: false },
-      { role: user.role },
-    );
+    const tenant = await this.tenantService.updateSettings(user.tenantId, dto, {
+      mode: 'tenant',
+      canManageSettings: true,
+    });
     return new TenantResponseDto(tenant);
   }
 
@@ -285,12 +277,10 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} updating branding for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.updateBranding(
-      user.tenantId,
-      dto,
-      { platformAdminContext: false },
-      { role: user.role },
-    );
+    const tenant = await this.tenantService.updateBranding(user.tenantId, dto, {
+      mode: 'tenant',
+      canManageSettings: true,
+    });
     return new TenantResponseDto(tenant);
   }
 
@@ -363,7 +353,10 @@ export class TenantController {
       );
     }
 
-    const currentTenant = await this.tenantService.findById(user.tenantId);
+    const currentTenant = await this.tenantService.findById(user.tenantId, {
+      mode: 'tenant',
+      canManageSettings: true,
+    });
     const uploadResult = await this.storageService.uploadFile(
       user.tenantId,
       file.buffer,
@@ -389,8 +382,7 @@ export class TenantController {
     const tenant = await this.tenantService.updateLogoUrl(
       user.tenantId,
       uploadResult.url,
-      { platformAdminContext: false },
-      { role: user.role },
+      { mode: 'tenant', canManageSettings: true },
     );
     return new TenantResponseDto(tenant);
   }
@@ -422,7 +414,10 @@ export class TenantController {
   async deleteLogo(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
-    const currentTenant = await this.tenantService.findById(user.tenantId);
+    const currentTenant = await this.tenantService.findById(user.tenantId, {
+      mode: 'tenant',
+      canManageSettings: true,
+    });
 
     if (currentTenant.logo_url) {
       try {
@@ -439,12 +434,10 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} removed logo for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.updateLogoUrl(
-      user.tenantId,
-      null,
-      { platformAdminContext: false },
-      { role: user.role },
-    );
+    const tenant = await this.tenantService.updateLogoUrl(user.tenantId, null, {
+      mode: 'tenant',
+      canManageSettings: true,
+    });
     return new TenantResponseDto(tenant);
   }
 
@@ -482,11 +475,10 @@ export class TenantController {
     this.logger.log(
       `User ${user.userId} completing onboarding for tenant ${user.tenantId}`,
     );
-    const tenant = await this.tenantService.completeOnboarding(
-      user.tenantId,
-      { platformAdminContext: false },
-      { role: user.role },
-    );
+    const tenant = await this.tenantService.completeOnboarding(user.tenantId, {
+      mode: 'tenant',
+      canManageSettings: true,
+    });
     return new TenantResponseDto(tenant);
   }
 
@@ -522,8 +514,7 @@ export class TenantController {
     const tenant = await this.tenantService.updateOnboarding(
       user.tenantId,
       dto,
-      { platformAdminContext: false },
-      { role: user.role },
+      { mode: 'tenant', canManageSettings: true },
     );
     return new TenantResponseDto(tenant);
   }

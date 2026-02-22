@@ -12,12 +12,16 @@ BEGIN;
 -- tenants
 -- =========================
 
--- Users can only see their current tenant (or all if platform admin)
+-- Users can only see their current tenant (or all if platform admin or cross-tenant read allowed for slug checks)
+DROP POLICY IF EXISTS tenant_select ON public.tenants;
 CREATE POLICY tenant_select
 ON public.tenants
 FOR SELECT
 USING (
-    id = current_tenant_id_or_null() OR is_auth_flow() OR is_platform_admin()
+    id = current_tenant_id_or_null()
+    OR is_auth_flow()
+    OR is_platform_admin()
+    OR (current_tenant_id_or_null() IS NOT NULL AND allow_cross_tenant_read())
 );
 
 -- Tenant creation happens during signup (auth flow)

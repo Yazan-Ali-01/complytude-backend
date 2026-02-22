@@ -94,7 +94,7 @@ export class TenantAdminController {
     this.logger.log('[ADMIN] Fetching all tenants');
 
     const result = await this.tenantService.findAll(query, {
-      platformAdminContext: true,
+      mode: 'platform',
     });
 
     return TenantCursorPaginatedResponseDto.fromResult(
@@ -126,13 +126,12 @@ export class TenantAdminController {
   ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Fetching tenant: ${tenantId}`);
     const tenant = await this.tenantService.findById(tenantId, {
-      platformAdminContext: true,
+      mode: 'platform',
     });
     return new TenantResponseDto(tenant);
   }
 
   @Patch(':tenantId/profile')
-  @UseGuards(PlatformPermissionsGuard) // ✅ Fixed guard
   @RequireAnyPlatformPermission('tenants:update')
   @ApiOperation({
     summary: '[ADMIN] Update organization profile',
@@ -155,7 +154,7 @@ export class TenantAdminController {
   ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Updating profile for tenant: ${tenantId}`);
     const tenant = await this.tenantService.updateProfile(tenantId, dto, {
-      platformAdminContext: true,
+      mode: 'platform',
     });
     return new TenantResponseDto(tenant);
   }
@@ -196,7 +195,7 @@ export class TenantAdminController {
   ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Updating slug for tenant: ${tenantId}`);
     const tenant = await this.tenantService.updateSlug(tenantId, dto, {
-      platformAdminContext: true,
+      mode: 'platform',
     });
     return new TenantResponseDto(tenant);
   }
@@ -227,7 +226,7 @@ export class TenantAdminController {
   ): Promise<TenantResponseDto> {
     this.logger.warn(`[ADMIN] Deactivating tenant: ${tenantId}`);
     const tenant = await this.tenantService.deactivateTenant(tenantId, dto, {
-      platformAdminContext: true,
+      mode: 'platform',
     });
     return new TenantResponseDto(tenant);
   }
@@ -257,7 +256,7 @@ export class TenantAdminController {
   ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Reactivating tenant: ${tenantId}`);
     const tenant = await this.tenantService.reactivateTenant(tenantId, {
-      platformAdminContext: true,
+      mode: 'platform',
     });
     return new TenantResponseDto(tenant);
   }

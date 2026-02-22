@@ -12,7 +12,6 @@ import {
   CursorPaginationOptions,
   CursorPaginationResult,
 } from 'src/repositories/base/repository.interface';
-import { SystemTenantRole } from '../../common/types/tenant.types';
 import { DatabaseService } from '../../database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -24,6 +23,11 @@ import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UpdateTenantSlugDto } from './dto/update-tenant-slug.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
+
+/** Context for tenant operations: platform admin or tenant-scoped with optional permission flags */
+export type TenantContext =
+  | { mode: 'platform' }
+  | { mode: 'tenant'; canManageSettings?: boolean };
 
 /**
  * Tenant Service
@@ -117,13 +121,9 @@ export class TenantService {
    * const tenant = await tenantService.findById('111...');
    * ```
    */
-  async findById(
-    tenantId: string,
-    options?: { platformAdminContext?: boolean },
-    isTenantAdmin?: { role?: string },
-  ): Promise<Tenant> {
+  async findById(tenantId: string, context?: TenantContext): Promise<Tenant> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         const tenant =
           await this.databaseService.transactionWithPlatformAdminContext(
             async (client) =>
@@ -134,11 +134,11 @@ export class TenantService {
         }
         return tenant;
       }
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       const tenant = await this.databaseService.transactionWithTenantContext(
-        { tenantId: tenantId, isTenantAdmin: !!isTenantAdmin?.role },
-        async (client) => {
-          return await this.tenantRepository.findById(tenantId, { client });
-        },
+        { tenantId, isTenantAdmin: !!canUpdate },
+        async (client) => this.tenantRepository.findById(tenantId, { client }),
       );
       if (!tenant) {
         throw new NotFoundException(`Tenant ${tenantId} not found`);
@@ -152,8 +152,8 @@ export class TenantService {
   }
 
   /**
-   * Get all tenants (admin only when platformAdminContext)
-   * When platformAdminContext is true, runs in platform admin RLS context so all tenants are visible.
+   * Get all tenants (admin only when context.mode === 'platform')
+   * When platform context, runs in platform admin RLS context so all tenants are visible.
    * Get all tenants (admin-only, bypasses RLS)
    *
    * ⚠️ Admin operation: Does NOT use tenant context. Relies on repository/DB policy
@@ -168,16 +168,13 @@ export class TenantService {
    */
   async findAll(
     cursorOptions?: CursorPaginationOptions,
-    options?: { platformAdminContext?: boolean },
+    context?: TenantContext,
   ): Promise<CursorPaginationResult<Tenant>> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         return this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            return this.tenantRepository.findMany({}, cursorOptions, {
-              client,
-            });
-          },
+          async (client) =>
+            this.tenantRepository.findMany({}, cursorOptions, { client }),
         );
       }
       return this.tenantRepository.findMany({}, cursorOptions);
@@ -205,12 +202,12 @@ export class TenantService {
   async updateTenant(
     tenantId: string,
     updateTenantDto: UpdateTenantDto,
-    options?: { platformAdminContext?: boolean },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      await this.findById(tenantId, options);
+      await this.findById(tenantId, context);
 
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         return this.databaseService.transactionWithPlatformAdminContext(
           async (client) =>
             this.tenantRepository.update(tenantId, updateTenantDto, {
@@ -219,8 +216,10 @@ export class TenantService {
         );
       }
 
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       return await this.databaseService.transactionWithTenantContext(
-        { tenantId: tenantId },
+        { tenantId, isTenantAdmin: !!canUpdate },
         async (client) => {
           // Validate tenant exists in this context
           const existing = await this.tenantRepository.findById(tenantId, {
@@ -267,12 +266,9 @@ export class TenantService {
    * @security Requires system_admin role or equivalent
    * @warning This operation may be irreversible - confirm business logic
    */
-  async deleteTenant(
-    tenantId: string,
-    options?: { platformAdminContext?: boolean },
-  ): Promise<void> {
+  async deleteTenant(tenantId: string, context?: TenantContext): Promise<void> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         await this.databaseService.transactionWithPlatformAdminContext(
           async (client) => {
             const deleted = await this.tenantRepository.delete(tenantId, {
@@ -286,8 +282,10 @@ export class TenantService {
         return;
       }
 
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       await this.databaseService.transactionWithTenantContext(
-        { tenantId: tenantId },
+        { tenantId, isTenantAdmin: !!canUpdate },
         async (client) => {
           const deleted = await this.tenantRepository.delete(tenantId, {
             client,
@@ -372,21 +370,18 @@ export class TenantService {
   async updateProfile(
     tenantId: string,
     dto: UpdateTenantProfileDto,
-    options: { platformAdminContext?: boolean } = {}, // ✅ Optional with default
-    isTenantAdmin?: { role?: string },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (options?.platformAdminContext === true) {
+      if (context?.mode === 'platform') {
         return await this.databaseService.transactionWithPlatformAdminContext(
           async (client) => {
-            // ✅ Verify tenant exists before updating
             const tenant = await this.tenantRepository.findById(tenantId, {
               client,
             });
             if (!tenant) {
               throw new NotFoundException(`Tenant ${tenantId} not found`);
             }
-
             return await this.tenantRepository.update(
               tenantId,
               { ...dto },
@@ -395,14 +390,11 @@ export class TenantService {
           },
         );
       }
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       return await this.databaseService.transactionWithTenantContext(
-        { tenantId: tenantId, isTenantAdmin: !!isTenantAdmin?.role },
+        { tenantId, isTenantAdmin: !!canUpdate },
         async (client) => {
-          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
-            throw new ForbiddenException(
-              'You are not authorized to update this tenant',
-            );
-          }
           const updated = await this.tenantRepository.update(
             tenantId,
             { ...dto },
@@ -451,14 +443,22 @@ export class TenantService {
   async updateSlug(
     tenantId: string,
     dto: UpdateTenantSlugDto,
-    options: { platformAdminContext?: boolean },
-    isTenantAdmin?: { role?: string },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         return await this.databaseService.transactionWithPlatformAdminContext(
           async (client) => {
-            // SYS admins can immidiately update the slug
+            const isTaken = await this.tenantRepository.isSlugTaken(
+              dto.slug,
+              tenantId,
+              { client },
+            );
+            if (isTaken) {
+              throw new ConflictException(
+                `Slug "${dto.slug}" is already taken. Please choose a different slug.`,
+              );
+            }
             return await this.tenantRepository.update(
               tenantId,
               { slug: dto.slug },
@@ -468,15 +468,15 @@ export class TenantService {
         );
       }
 
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
+        {
+          tenantId,
+          isTenantAdmin: !!canUpdate,
+          allowCrossTenantRead: !!canUpdate,
+        },
         async (client) => {
-          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
-            throw new ForbiddenException(
-              'You are not authorized to update the tenant slug',
-            );
-          }
-
           // Check slug uniqueness (global, not tenant-scoped)
           const isTaken = await this.tenantRepository.isSlugTaken(
             dto.slug,
@@ -536,31 +536,21 @@ export class TenantService {
   async updateSettings(
     tenantId: string,
     dto: UpdateTenantSettingsDto,
-    options: { platformAdminContext?: boolean },
-    isTenantAdmin: { role?: string },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            return await this.tenantRepository.update(
-              tenantId,
-              { ...dto },
-              { client },
-            );
-          },
+          async (client) =>
+            this.tenantRepository.update(tenantId, { ...dto }, { client }),
         );
       }
 
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
+        { tenantId, isTenantAdmin: !!canUpdate },
         async (client) => {
-          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
-            throw new ForbiddenException(
-              'You are not authorized to update tenant settings',
-            );
-          }
-
           // Fetch current tenant to merge settings
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
@@ -630,31 +620,21 @@ export class TenantService {
   async updateBranding(
     tenantId: string,
     dto: UpdateTenantBrandingDto,
-    options: { platformAdminContext?: boolean },
-    isTenantAdmin: { role?: string },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            return await this.tenantRepository.update(
-              tenantId,
-              { ...dto },
-              { client },
-            );
-          },
+          async (client) =>
+            this.tenantRepository.update(tenantId, { ...dto }, { client }),
         );
       }
 
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
+        { tenantId, isTenantAdmin: !!canUpdate },
         async (client) => {
-          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
-            throw new ForbiddenException(
-              'You are not authorized to update tenant branding',
-            );
-          }
-
           if (!dto.brand_color_primary && !dto.brand_color_secondary) {
             throw new BadRequestException(
               'At least one branding field must be provided',
@@ -709,31 +689,25 @@ export class TenantService {
   async updateLogoUrl(
     tenantId: string,
     logoUrl: string | null,
-    options: { platformAdminContext?: boolean },
-    isTenantAdmin: { role?: string },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            return await this.tenantRepository.update(
+          async (client) =>
+            this.tenantRepository.update(
               tenantId,
               { logo_url: logoUrl },
               { client },
-            );
-          },
+            ),
         );
       }
 
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
+        { tenantId, isTenantAdmin: !!canUpdate },
         async (client) => {
-          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
-            throw new ForbiddenException(
-              'You are not authorized to update the tenant logo',
-            );
-          }
-
           const updated = await this.tenantRepository.update(
             tenantId,
             { logo_url: logoUrl },
@@ -777,31 +751,25 @@ export class TenantService {
    */
   async completeOnboarding(
     tenantId: string,
-    options: { platformAdminContext?: boolean },
-    isTenantAdmin: { role?: string },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            return await this.tenantRepository.update(
+          async (client) =>
+            this.tenantRepository.update(
               tenantId,
               { onboarding_completed_at: new Date() },
               { client },
-            );
-          },
+            ),
         );
       }
 
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
+        { tenantId, isTenantAdmin: !!canUpdate },
         async (client) => {
-          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
-            throw new ForbiddenException(
-              'You are not authorized to complete onboarding',
-            );
-          }
-
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
           });
@@ -859,31 +827,25 @@ export class TenantService {
   async updateOnboarding(
     tenantId: string,
     dto: UpdateOnboardingDto,
-    options: { platformAdminContext?: boolean },
-    isTenantAdmin: { role?: string },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (options?.platformAdminContext) {
+      if (context?.mode === 'platform') {
         return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            return await this.tenantRepository.update(
+          async (client) =>
+            this.tenantRepository.update(
               tenantId,
               { onboarding_metadata: dto.onboarding_metadata },
               { client },
-            );
-          },
+            ),
         );
       }
 
+      const canUpdate =
+        context?.mode === 'tenant' && context?.canManageSettings;
       return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!isTenantAdmin?.role },
+        { tenantId, isTenantAdmin: !!canUpdate },
         async (client) => {
-          if (isTenantAdmin?.role !== SystemTenantRole.TENANT_ADMIN) {
-            throw new ForbiddenException(
-              'You are not authorized to update onboarding',
-            );
-          }
-
           const tenant = await this.tenantRepository.findById(tenantId, {
             client,
           });
@@ -944,10 +906,10 @@ export class TenantService {
   async deactivateTenant(
     tenantId: string,
     dto: DeactivateTenantDto,
-    options: { platformAdminContext?: boolean },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (!options?.platformAdminContext) {
+      if (context?.mode !== 'platform') {
         throw new ForbiddenException(
           'Only platform administrators can deactivate tenants',
         );
@@ -989,7 +951,8 @@ export class TenantService {
     } catch (error) {
       if (
         error instanceof NotFoundException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
       ) {
         throw error;
       }
@@ -1016,10 +979,10 @@ export class TenantService {
    */
   async reactivateTenant(
     tenantId: string,
-    options: { platformAdminContext?: boolean },
+    context?: TenantContext,
   ): Promise<Tenant> {
     try {
-      if (!options?.platformAdminContext) {
+      if (context?.mode !== 'platform') {
         throw new ForbiddenException(
           'Only platform administrators can reactivate tenants',
         );
@@ -1059,7 +1022,8 @@ export class TenantService {
     } catch (error) {
       if (
         error instanceof NotFoundException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
       ) {
         throw error;
       }
