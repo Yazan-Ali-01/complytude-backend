@@ -25,6 +25,29 @@ export default tseslint.config(
     },
   },
   {
+    // Ban direct bullmq imports in apps — use @lib/queue abstractions instead
+    files: ['apps/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'bullmq',
+              message:
+                'Import from @lib/queue instead. Direct bullmq usage is only allowed in libs/queue.',
+            },
+            {
+              name: '@nestjs/bullmq',
+              message:
+                'Import from @lib/queue instead. Direct @nestjs/bullmq usage is only allowed in libs/queue.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',

@@ -3,6 +3,7 @@ import { DynamicModule, Global, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import IORedis from 'ioredis';
 import { DEFAULT_JOB_OPTIONS } from './queue.config';
+import { QueueProducerService } from './queue-producer.service';
 
 @Global()
 @Module({})
@@ -81,7 +82,8 @@ export class QueueModule {
     return {
       module: QueueModule,
       imports: [bullRootModule, bullQueuesModule],
-      exports: [BullModule],
+      providers: [QueueProducerService],
+      exports: [BullModule, QueueProducerService],
     };
   }
 }

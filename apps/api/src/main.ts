@@ -4,6 +4,7 @@ import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { FastifyAdapter as BullBoardFastifyAdapter } from '@bull-board/fastify';
 import { QUEUE_NAMES } from '@lib/queue';
+// eslint-disable-next-line no-restricted-imports
 import { getQueueToken } from '@nestjs/bullmq';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -89,6 +90,9 @@ async function bootstrap() {
     queues: [
       new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.AI_PROCESSING))),
       new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.DATA_INGESTION))),
+      new BullMQAdapter(
+        app.get(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING)),
+      ),
     ],
     serverAdapter: bullBoardAdapter,
   });
@@ -124,6 +128,10 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
+
+  // Enable graceful shutdown — fires onModuleDestroy on SIGTERM/SIGINT,
+  // draining active BullMQ jobs before exit
+  app.enableShutdownHooks();
 
   // Start server
   await app.listen(port, '0.0.0.0');

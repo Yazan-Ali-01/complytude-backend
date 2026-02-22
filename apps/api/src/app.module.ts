@@ -45,7 +45,11 @@ import { TenantModule } from './modules/tenants/tenant.module';
       },
     }),
     RedisModule.forRoot(),
-    QueueModule.forRoot([QUEUE_NAMES.AI_PROCESSING, QUEUE_NAMES.DATA_INGESTION]),
+    QueueModule.forRoot([
+      QUEUE_NAMES.AI_PROCESSING,
+      QUEUE_NAMES.DATA_INGESTION,
+      QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+    ]),
     I18nModule,
     DatabaseModule,
     HealthModule,
