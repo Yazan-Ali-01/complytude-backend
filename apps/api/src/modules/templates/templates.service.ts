@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { DatabaseService } from 'src/database/database.service';
 import {
   Template,
   TemplateWithDetails,
@@ -18,6 +17,7 @@ import {
   CursorPaginationResult,
 } from 'src/repositories/base/repository.interface';
 import { I18nKeys } from '../../common/constants/i18n-keys';
+import { DatabaseService } from '../../database/database.service';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { CategoryRepository } from '../../repositories/categories/category.repository';
 import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';

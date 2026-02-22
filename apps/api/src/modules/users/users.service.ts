@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '../../database/database.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -62,7 +62,7 @@ export class UsersService {
     const result = await this.databaseService.query(
       `SELECT ut.tenant_id, ut.role_key, r.name as role_name, ut.is_active, ut.joined_at
        FROM public.user_tenants ut
-       INNER JOIN public.tenant_roles r ON r.key = ut.role_key 
+       INNER JOIN public.tenant_roles r ON r.key = ut.role_key
          AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
        JOIN public.tenants t ON ut.tenant_id = t.id
        WHERE ut.user_id = $1
@@ -414,7 +414,7 @@ export class UsersService {
               ut.role_key, r.name as role_name, ut.is_active, ut.joined_at
        FROM public.users u
        JOIN public.user_tenants ut ON u.id = ut.user_id
-       INNER JOIN public.tenant_roles r ON r.key = ut.role_key 
+       INNER JOIN public.tenant_roles r ON r.key = ut.role_key
          AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
        WHERE u.id = $1 AND ut.tenant_id = $2`,
       [userId, tenantId],

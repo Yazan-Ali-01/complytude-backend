@@ -7,9 +7,9 @@ import {
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
-import { DomainEventsService } from './domain-events.service';
 import { EntitlementSnapshotsRepository } from '../../../repositories/entitlements/entitlement-snapshots.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
+import { DomainEventsService } from './domain-events.service';
 
 /**
  * Entitlement Snapshot Service - Phase 8
@@ -120,7 +120,10 @@ export class EntitlementSnapshotService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -214,7 +217,10 @@ export class EntitlementSnapshotService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -275,7 +281,10 @@ export class EntitlementSnapshotService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -310,7 +319,10 @@ export class EntitlementSnapshotService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -362,7 +374,10 @@ export class EntitlementSnapshotService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -386,6 +401,9 @@ export class EntitlementSnapshotService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 }

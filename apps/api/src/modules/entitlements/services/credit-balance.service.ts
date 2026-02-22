@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '../../../database/database.service';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { CreditLedgerRepository } from '../../../repositories/credits/credit-ledger.repository';
 
@@ -50,7 +50,10 @@ export class CreditBalanceService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -108,7 +111,7 @@ export class CreditBalanceService {
     const breakdown = options?.client
       ? await execute(options.client)
       : await this.databaseService.transactionWithTenantContext(
-          tenantId,
+          { tenantId },
           execute,
         );
 

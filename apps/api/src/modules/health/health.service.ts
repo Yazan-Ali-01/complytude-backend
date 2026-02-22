@@ -1,5 +1,5 @@
-import { RedisHealthIndicator } from '@lib/redis/redis.health';
 import { QUEUE_NAMES } from '@lib/queue';
+import { RedisHealthIndicator } from '@lib/redis/redis.health';
 // eslint-disable-next-line no-restricted-imports
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';

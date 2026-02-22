@@ -36,7 +36,8 @@ export const TENANT_SYSTEM_ROLE_PERMISSIONS: Record<
     'documents:*', // All document permissions (create, read, delete)
     'contracts:*', // All contract permissions (analyze, redline)
     'templates:*', // All template permissions (manage, use)
-    'regulatory:query', // Concrete permission
+    'regulatory:query',
+    'settings:manage', // Concrete permission
   ]),
 
   /**

@@ -11,7 +11,7 @@ import type {
   FeatureKey,
   UsageSource,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '../../database/database.service';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { UsageAllocationsRepository } from '../../repositories/usage/usage-allocations.repository';
@@ -348,7 +348,7 @@ export class UsageMockController {
     @Param('featureKey') featureKey: FeatureKey,
   ) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const subscription =
           await this.subscriptionsRepository.findActiveByTenant(user.tenantId, {
@@ -413,7 +413,7 @@ export class UsageMockController {
     @Param('featureKey') featureKey: FeatureKey,
   ) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const subscription =
           await this.subscriptionsRepository.findActiveByTenant(user.tenantId, {
@@ -492,7 +492,7 @@ export class UsageMockController {
   @ApiResponse({ status: 200, description: 'Billing period info' })
   async getBillingPeriod(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const subscription =
           await this.subscriptionsRepository.findActiveByTenantWithPlan(
@@ -543,7 +543,7 @@ export class UsageMockController {
     @Param('featureKey') featureKey: FeatureKey,
   ) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const subscription =
           await this.subscriptionsRepository.findActiveByTenant(user.tenantId, {
@@ -612,7 +612,7 @@ export class UsageMockController {
   async getFullStatus(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     // Phase 4: Now uses single transaction with shared client
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const subscription =
           await this.subscriptionsRepository.findActiveByTenantWithPlan(

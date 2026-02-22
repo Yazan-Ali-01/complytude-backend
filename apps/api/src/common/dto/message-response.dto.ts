@@ -5,6 +5,9 @@ import { ApiProperty } from '@nestjs/swagger';
  * Used for operations like delete, logout, password reset, etc.
  */
 export class MessageResponseDto {
+  constructor(message: string) {
+    this.message = message;
+  }
   @ApiProperty({
     description: 'Success message describing the operation result',
     example: 'Operation completed successfully',

@@ -80,7 +80,7 @@ export class UsageLedgerRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<UsageLedgerEvent[]> {
     const result = await this.executeQuery<UsageLedgerRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE tenant_id = $1 AND feature_id = $2 AND billing_period = $3
        ORDER BY recorded_at ASC`,
       [tenantId, featureId, billingPeriod],

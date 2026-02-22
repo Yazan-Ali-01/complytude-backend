@@ -7,8 +7,8 @@ import {
 import { DatabaseService } from '../../../database/database.service';
 import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { CreditLedgerRepository } from '../../../repositories/credits/credit-ledger.repository';
-import { DomainEventsService } from './domain-events.service';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
+import { DomainEventsService } from './domain-events.service';
 
 /**
  * Credit Ledger Service
@@ -268,7 +268,10 @@ export class CreditLedgerService {
     if (options?.client) {
       return execute(options.client);
     }
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -351,7 +354,10 @@ export class CreditLedgerService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**

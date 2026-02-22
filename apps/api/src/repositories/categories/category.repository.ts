@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository } from '../base/base.repository';
+import { Category } from 'src/modules/categories/entities/category.entity';
 import { DatabaseService } from '../../database/database.service';
+import { BaseRepository } from '../base/base.repository';
+import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 import {
-  QueryOptions,
   CursorPaginationOptions,
   CursorPaginationResult,
+  QueryOptions,
 } from '../base/repository.interface';
-import { Category } from 'src/modules/categories/entities/category.entity';
-import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 
 /**
  * Type for creating a new category row in the database.

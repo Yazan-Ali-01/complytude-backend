@@ -77,7 +77,7 @@ export class RefreshTokenRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<RefreshToken | null> {
     const result = await this.executeQuery<RefreshTokenRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE token_hash = $1 AND expires_at > NOW() AND revoked_at IS NULL`,
       [tokenHash],
       options,
@@ -99,9 +99,9 @@ export class RefreshTokenRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<RefreshToken | null> {
     const result = await this.executeQuery<RefreshTokenRow>(
-      `UPDATE ${this.tableName} 
-       SET revoked_at = NOW() 
-       WHERE id = $1 AND revoked_at IS NULL 
+      `UPDATE ${this.tableName}
+       SET revoked_at = NOW()
+       WHERE id = $1 AND revoked_at IS NULL
        RETURNING ${this.getSelectColumns()}`,
       [id],
       options,
@@ -125,8 +125,8 @@ export class RefreshTokenRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<number> {
     const result = await this.executeQuery(
-      `UPDATE ${this.tableName} 
-       SET revoked_at = NOW() 
+      `UPDATE ${this.tableName}
+       SET revoked_at = NOW()
        WHERE user_id = $1 AND revoked_at IS NULL`,
       [userId],
       options,
@@ -148,8 +148,8 @@ export class RefreshTokenRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<RefreshToken | null> {
     const result = await this.executeQuery<RefreshTokenRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
-       WHERE user_id = $1 AND token_hash = $2 AND token_type = 'identity' 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE user_id = $1 AND token_hash = $2 AND token_type = 'identity'
        AND expires_at > NOW() AND revoked_at IS NULL`,
       [userId, tokenHash],
       options,
@@ -175,8 +175,8 @@ export class RefreshTokenRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<RefreshToken | null> {
     const result = await this.executeQuery<RefreshTokenRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
-       WHERE user_id = $1 AND tenant_id = $2 AND token_hash = $3 AND token_type = 'tenant' 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE user_id = $1 AND tenant_id = $2 AND token_hash = $3 AND token_type = 'tenant'
        AND expires_at > NOW() AND revoked_at IS NULL`,
       [userId, tenantId, tokenHash],
       options,
@@ -198,8 +198,8 @@ export class RefreshTokenRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<number> {
     const result = await this.executeQuery(
-      `UPDATE ${this.tableName} 
-       SET revoked_at = NOW() 
+      `UPDATE ${this.tableName}
+       SET revoked_at = NOW()
        WHERE user_id = $1 AND token_type = 'identity' AND revoked_at IS NULL`,
       [userId],
       options,
@@ -221,8 +221,8 @@ export class RefreshTokenRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<number> {
     const result = await this.executeQuery(
-      `UPDATE ${this.tableName} 
-       SET revoked_at = NOW() 
+      `UPDATE ${this.tableName}
+       SET revoked_at = NOW()
        WHERE user_id = $1 AND tenant_id = $2 AND token_type = 'tenant' AND revoked_at IS NULL`,
       [userId, tenantId],
       options,

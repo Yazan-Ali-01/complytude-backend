@@ -1,9 +1,10 @@
 import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
+import { SystemTenantRole } from '../../../common/types';
 
 export interface LinkUserTenantInput {
   userId: string;
   tenantId: string;
-  roleKey: string;
+  roleKey: SystemTenantRole;
   isActive?: boolean;
 }
 

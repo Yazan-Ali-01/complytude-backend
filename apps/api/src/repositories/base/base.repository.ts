@@ -99,7 +99,7 @@ export abstract class BaseRepository<
 
     if (tenant) {
       return this.databaseService.transactionWithTenantContext(
-        tenant.tenantId,
+        { tenantId: tenant.tenantId },
         async (client) => {
           return await client.query<T>(query, params);
         },

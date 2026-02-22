@@ -107,7 +107,7 @@ export class DomainEventsService {
     // Use tenant context if tenant_id is provided
     if (event.tenant_id) {
       return this.databaseService.transactionWithTenantContext(
-        event.tenant_id,
+        { tenantId: event.tenant_id },
         execute,
       );
     }
@@ -139,7 +139,10 @@ export class DomainEventsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -172,7 +175,7 @@ export class DomainEventsService {
 
     if (tenantId) {
       return this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId },
         execute,
       );
     }
@@ -210,7 +213,7 @@ export class DomainEventsService {
 
     if (tenantId) {
       return this.databaseService.transactionWithTenantContext(
-        tenantId,
+        { tenantId },
         execute,
       );
     }
@@ -250,7 +253,10 @@ export class DomainEventsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -321,7 +327,10 @@ export class DomainEventsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -347,7 +356,10 @@ export class DomainEventsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
@@ -369,6 +381,9 @@ export class DomainEventsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 }

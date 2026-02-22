@@ -66,8 +66,8 @@ export class TenantAddonsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantAddon[]> {
     const result = await this.executeQuery<TenantAddonRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
-       WHERE tenant_id = $1 AND status = 'active' 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE tenant_id = $1 AND status = 'active'
        AND (expires_at IS NULL OR expires_at > now())
        ORDER BY created_at DESC`,
       [tenantId],
@@ -85,10 +85,10 @@ export class TenantAddonsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantAddonWithEntitlements[]> {
     const query = `
-      SELECT 
-        ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at, 
+      SELECT
+        ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at,
         ta.expires_at, ta.metadata, ta.created_at, ta.updated_at,
-        ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int, 
+        ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
         ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
         f.key as feature_key, f.feature_type
       FROM ${this.tableName} ta
@@ -143,10 +143,10 @@ export class TenantAddonsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantAddonWithEntitlements[]> {
     const query = `
-      SELECT 
-        ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at, 
+      SELECT
+        ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at,
         ta.expires_at, ta.metadata, ta.created_at, ta.updated_at,
-        ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int, 
+        ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
         ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
         f.key as feature_key, f.feature_type
       FROM ${this.tableName} ta

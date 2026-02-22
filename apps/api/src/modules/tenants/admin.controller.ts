@@ -1,18 +1,18 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Logger,
   Param,
-  ParseIntPipe,
-  Put,
+  Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBody,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -20,12 +20,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
+import { CursorQueryParamsDto } from '../../common/dto/cursor-query-params.dto';
+import { TenantCursorPaginatedResponseDto } from '../../common/dto/tenant-cursor-paginated-response.dto';
 import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
-import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { Tenant } from './entities/tenant.entity';
+import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
+import { TenantResponseDto } from './dto/tenant-response.dto';
+import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
+import { UpdateTenantSlugDto } from './dto/update-tenant-slug.dto';
 import { TenantService } from './tenant.service';
 
 /**
@@ -80,16 +83,23 @@ export class TenantAdminController {
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of tenants',
+    type: TenantCursorPaginatedResponseDto, // ✅ Proper Swagger type
+  })
   async getAllTenants(
-    @Query('cursor') cursor?: string,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
-    @Query('direction')
-    direction?: 'forward' | 'backward',
-  ): Promise<CursorPaginationResult<Tenant>> {
+    @Query() query: CursorQueryParamsDto,
+  ): Promise<TenantCursorPaginatedResponseDto> {
     this.logger.log('[ADMIN] Fetching all tenants');
-    return this.tenantService.findAll(
-      { cursor, limit, direction },
-      { platformAdminContext: true },
+
+    const result = await this.tenantService.findAll(query, {
+      mode: 'platform',
+    });
+
+    return TenantCursorPaginatedResponseDto.fromResult(
+      result,
+      (tenant) => new TenantResponseDto(tenant),
     );
   }
 
@@ -111,69 +121,143 @@ export class TenantAdminController {
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
-  async getTenantById(@Param('tenantId') tenantId: string): Promise<Tenant> {
+  async getTenantById(
+    @Param('tenantId') tenantId: string,
+  ): Promise<TenantResponseDto> {
     this.logger.log(`[ADMIN] Fetching tenant: ${tenantId}`);
-    return this.tenantService.findById(tenantId, {
-      platformAdminContext: true,
+    const tenant = await this.tenantService.findById(tenantId, {
+      mode: 'platform',
     });
+    return new TenantResponseDto(tenant);
   }
 
-  @Put(':tenantId')
+  @Patch(':tenantId/profile')
   @RequireAnyPlatformPermission('tenants:update')
   @ApiOperation({
-    summary: '[ADMIN] Update any tenant',
+    summary: '[ADMIN] Update organization profile',
     description:
-      'Updates any tenant including plan and features. System admin only. Use this to grant custom features or change plans.',
+      'Update tenant identity, contact, location, and business registration fields. Supports partial updates.',
   })
-  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
+  @ApiParam({ name: 'tenantId', description: 'Target Tenant ID' }) // ✅ Added param docs
+  @ApiBody({ type: UpdateTenantProfileDto })
   @ApiResponse({
     status: 200,
-    description: 'Tenant updated successfully',
-    type: Object,
+    description: 'Profile updated',
+    type: TenantResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Tenant not found' })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - System admin privileges required',
-  })
-  async updateTenant(
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Tenant not found' }) // ✅ Added 404
+  async updateProfile(
     @Param('tenantId') tenantId: string,
-    @Body() updateTenantDto: UpdateTenantDto,
-  ): Promise<Tenant> {
-    this.logger.log(`[ADMIN] Updating tenant: ${tenantId}`);
-    return this.tenantService.updateTenant(tenantId, updateTenantDto, {
-      platformAdminContext: true,
+    @Body() dto: UpdateTenantProfileDto,
+  ): Promise<TenantResponseDto> {
+    this.logger.log(`[ADMIN] Updating profile for tenant: ${tenantId}`);
+    const tenant = await this.tenantService.updateProfile(tenantId, dto, {
+      mode: 'platform',
     });
+    return new TenantResponseDto(tenant);
+  }
+  // ============================================================================
+  // SLUG
+  // ============================================================================
+
+  /**
+   * Update tenant slug (URL-safe identifier)
+   *
+   * Validates: lowercase alphanumeric + hyphens, 3-50 chars, globally unique.
+   *
+   * @param dto - New slug value
+   * @param user - Authenticated tenant user
+   * @returns Updated tenant with new slug
+   *
+   * @permission settings:manage
+   * @throws ConflictException if slug already taken
+   */
+  @Patch(':tenantId/slug')
+  @RequireAnyPlatformPermission('tenants:update')
+  @ApiOperation({
+    summary: 'Update tenant slug',
+    description:
+      'Update URL-safe identifier. Must be unique across all tenants.',
+  })
+  @ApiBody({ type: UpdateTenantSlugDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Slug updated',
+    type: TenantResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid slug format' })
+  @ApiResponse({ status: 409, description: 'Slug already taken' })
+  async updateSlug(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: UpdateTenantSlugDto,
+  ): Promise<TenantResponseDto> {
+    this.logger.log(`[ADMIN] Updating slug for tenant: ${tenantId}`);
+    const tenant = await this.tenantService.updateSlug(tenantId, dto, {
+      mode: 'platform',
+    });
+    return new TenantResponseDto(tenant);
   }
 
-  @Delete(':tenantId')
+  @Post(':tenantId/deactivate')
   @HttpCode(HttpStatus.OK)
-  @RequireAnyPlatformPermission('tenants:delete')
+  @RequireAnyPlatformPermission('tenants:update')
   @ApiOperation({
-    summary: '[ADMIN] Delete any tenant',
+    summary: '[ADMIN] Deactivate a tenant',
     description:
-      'Deletes any tenant and all associated data. ⚠️ This action is irreversible. System admin only.',
+      'Soft-deletes a tenant by setting is_active=false. Tenant data is preserved but access is revoked. System admin only.',
   })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
   @ApiResponse({
     status: 200,
-    description: 'Tenant deleted successfully',
+    description: 'Tenant deactivated successfully',
+    type: TenantResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Tenant already deactivated' })
   @ApiResponse({ status: 404, description: 'Tenant not found' })
   @ApiResponse({
     status: 403,
     description: 'Forbidden - System admin privileges required',
   })
-  async deleteTenant(
+  async deactivateTenant(
     @Param('tenantId') tenantId: string,
-  ): Promise<{ message: string; tenantId: string }> {
-    this.logger.warn(`[ADMIN] Deleting tenant: ${tenantId}`);
-    await this.tenantService.deleteTenant(tenantId, {
-      platformAdminContext: true,
+    @Body() dto: DeactivateTenantDto,
+  ): Promise<TenantResponseDto> {
+    this.logger.warn(`[ADMIN] Deactivating tenant: ${tenantId}`);
+    const tenant = await this.tenantService.deactivateTenant(tenantId, dto, {
+      mode: 'platform',
     });
-    return {
-      message: 'Tenant deleted successfully',
-      tenantId,
-    };
+    return new TenantResponseDto(tenant);
+  }
+
+  @Post(':tenantId/reactivate')
+  @HttpCode(HttpStatus.OK)
+  @RequireAnyPlatformPermission('tenants:update')
+  @ApiOperation({
+    summary: '[ADMIN] Reactivate a tenant',
+    description:
+      'Restores a previously deactivated tenant by setting is_active=true. System admin only.',
+  })
+  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant reactivated successfully',
+    type: TenantResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Tenant already active' })
+  @ApiResponse({ status: 404, description: 'Tenant not found' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - System admin privileges required',
+  })
+  async reactivateTenant(
+    @Param('tenantId') tenantId: string,
+  ): Promise<TenantResponseDto> {
+    this.logger.log(`[ADMIN] Reactivating tenant: ${tenantId}`);
+    const tenant = await this.tenantService.reactivateTenant(tenantId, {
+      mode: 'platform',
+    });
+    return new TenantResponseDto(tenant);
   }
 }

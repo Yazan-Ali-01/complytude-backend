@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FeatureKey } from 'src/common/types/entitlement.types';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '../../database/database.service';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
@@ -319,7 +319,7 @@ export class CreditsMockController {
     let unitsToExceed = 0;
 
     const result = await this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Step 1: Purchase credits first (if amount provided)
         await this.creditLedgerService.purchase(
@@ -418,7 +418,7 @@ export class CreditsMockController {
     let remaining = 0;
     let unitsToExceed = 0;
     const result = await this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Get current state
         const subscription =
@@ -508,7 +508,7 @@ export class CreditsMockController {
     let unitsToExceed = 0;
     let creditBalance = 0;
     const result = await this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // Purchase credits first (to prove they won't be used)
         await this.creditLedgerService.purchase(
@@ -605,7 +605,7 @@ export class CreditsMockController {
   @ApiResponse({ status: 200, description: 'Usage always allowed' })
   async enforceUnlimited(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     const result = await this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         // This test only makes sense for Infrastructure tenant (unlimited documents)
         const entitlement = await this.entitlementResolver.resolveForTenant(
@@ -673,7 +673,7 @@ export class CreditsMockController {
     }
 
     const result = await this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const entitlement = await this.entitlementResolver.resolveForTenant(
           user.tenantId,
@@ -733,7 +733,7 @@ export class CreditsMockController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ) {
     return this.databaseService.transactionWithTenantContext(
-      user.tenantId,
+      { tenantId: user.tenantId },
       async (client) => {
         const subscription =
           await this.subscriptionsRepository.findActiveByTenant(user.tenantId, {

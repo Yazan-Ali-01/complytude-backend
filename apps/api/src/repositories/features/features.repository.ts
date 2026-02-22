@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import {
+  CreateFeatureRow,
+  Feature,
+  FeatureKey,
+  UpdateFeatureRow,
+} from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { QueryOptions } from '../base/repository.interface';
-import {
-  Feature,
-  FeatureKey,
-  CreateFeatureRow,
-  UpdateFeatureRow,
-} from 'src/common/types/entitlement.types';
 
 type FeatureRow = {
   id: string;

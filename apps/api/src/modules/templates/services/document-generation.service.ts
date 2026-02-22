@@ -1,30 +1,30 @@
 import {
+  BadRequestException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
-  BadRequestException,
-  InternalServerErrorException,
 } from '@nestjs/common';
-import { Readable } from 'stream';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
+import { Readable } from 'stream';
 
 import {
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
 } from '../dto/generate-document.dto';
 
-import { TemplatesService } from 'src/modules/templates/templates.service';
-import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
 import { StorageService } from 'src/modules/storage/storage.service';
-import { DatabaseService } from 'src/database/database.service';
+import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
+import { TemplatesService } from 'src/modules/templates/templates.service';
 import { TenantService } from 'src/modules/tenants/tenant.service';
+import { DatabaseService } from '../../../database/database.service';
 
-import { TemplateValidationService } from './template-validation.service';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
-import { Template } from 'src/modules/templates/entities/template.entity';
-import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from 'src/modules/templates/constants/template.constants';
+import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
+import { Template } from 'src/modules/templates/entities/template.entity';
+import { TemplateValidationService } from './template-validation.service';
 @Injectable()
 export class DocumentGenerationService {
   private readonly logger = new Logger(DocumentGenerationService.name);
@@ -198,7 +198,7 @@ export class DocumentGenerationService {
       await this.databaseService.queryWithTenantContext(
         tenantId,
         `INSERT INTO public.documents (
-          id, tenant_id, title, content, metadata, 
+          id, tenant_id, title, content, metadata,
           template_key, template_version, generation_metadata, created_by, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [

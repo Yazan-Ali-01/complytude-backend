@@ -89,7 +89,7 @@ export class EmailVerificationRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<EmailVerification | null> {
     const result = await this.executeQuery<EmailVerificationRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE token = $1 AND expires_at > NOW() AND verified_at IS NULL`,
       [token],
       options,

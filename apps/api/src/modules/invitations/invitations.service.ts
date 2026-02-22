@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PoolClient } from 'pg';
-import { DatabaseService } from 'src/database/database.service';
 import {
   InvitationItemDto,
   InvitationListResponseDto,
@@ -28,6 +27,7 @@ import {
 import { InvitationRepository } from 'src/repositories/invitations/invitation.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
+import { DatabaseService } from '../../database/database.service';
 
 export interface CreateInvitationServiceInput {
   tenantId: string;
@@ -297,7 +297,7 @@ export class InvitationsService {
         expires_at: Date;
         created_at: Date;
       }>(
-        `SELECT 
+        `SELECT
           i.id,
           i.tenant_id,
           'Tenant ' || substring(t.id::text, 1, 8) as tenant_name,
@@ -312,8 +312,8 @@ export class InvitationsService {
         INNER JOIN public.tenant_roles r ON r.id = i.role_id
         INNER JOIN public.tenants t ON i.tenant_id = t.id
         INNER JOIN public.users u ON i.invited_by = u.id
-        WHERE i.email = $1 
-          AND i.status = '${InvitationStatus.PENDING}' 
+        WHERE i.email = $1
+          AND i.status = '${InvitationStatus.PENDING}'
           AND i.expires_at > NOW()
         ORDER BY i.created_at DESC`,
         [email],
@@ -348,8 +348,8 @@ export class InvitationsService {
       await this.setAuthFlowContext(client);
 
       const result = await client.query<{ count: string }>(
-        `SELECT COUNT(*) as count 
-        FROM public.invitations 
+        `SELECT COUNT(*) as count
+        FROM public.invitations
         WHERE email = $1 AND status = '${InvitationStatus.PENDING}' AND expires_at > NOW()`,
         [email],
       );
@@ -369,8 +369,8 @@ export class InvitationsService {
       id: string;
       name: string;
     }>(
-      `SELECT id, name 
-       FROM public.tenant_roles 
+      `SELECT id, name
+       FROM public.tenant_roles
        WHERE key = $1 AND (tenant_id = $2 OR is_system = true)
        ORDER BY is_system DESC
        LIMIT 1`,
@@ -502,8 +502,8 @@ export class InvitationsService {
       expiresAt.setDate(expiresAt.getDate() + 7);
 
       await client.query(
-        `UPDATE public.invitations 
-        SET token_hash = $1, expires_at = $2, updated_at = NOW() 
+        `UPDATE public.invitations
+        SET token_hash = $1, expires_at = $2, updated_at = NOW()
         WHERE id = $3`,
         [tokenHash, expiresAt, invitationId],
       );

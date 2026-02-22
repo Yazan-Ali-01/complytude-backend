@@ -212,7 +212,7 @@ export class UsageIngestionService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      tenant_id,
+      { tenantId: tenant_id },
       execute,
     );
   }

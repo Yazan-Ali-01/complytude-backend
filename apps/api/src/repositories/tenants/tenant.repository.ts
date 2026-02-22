@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Tenant } from 'src/modules/tenants/entities/tenant.entity';
 import { PlanKey } from 'src/common/types/entitlement.types';
+import { Tenant } from 'src/modules/tenants/entities/tenant.entity';
 import { DatabaseService } from '../../database/database.service';
 import { BaseRepository } from '../base/base.repository';
 import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
@@ -14,10 +14,16 @@ import {
  * Type for creating a new tenant row in the database.
  */
 export type CreateTenantRow = {
-  id?: string; // UUID, defaults to gen_random_uuid()
+  id?: string;
   plan?: PlanKey;
   is_active?: boolean;
   parent_tenant_id?: string;
+  name?: string | null;
+  slug?: string | null;
+  locale?: string;
+  timezone?: string;
+  settings?: Record<string, unknown>;
+  onboarding_metadata?: Record<string, unknown>;
   created_at?: Date;
   updated_at?: Date;
 };
@@ -29,6 +35,30 @@ export type UpdateTenantRow = {
   plan?: PlanKey;
   is_active?: boolean;
   parent_tenant_id?: string;
+  name?: string | null;
+  slug?: string | null;
+  logo_url?: string | null;
+  contact_email?: string | null;
+  billing_email?: string | null;
+  contact_phone?: string | null;
+  emirate?: string | null;
+  city?: string | null;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  postal_code?: string | null;
+  trade_license_number?: string | null;
+  legal_entity_type?: string | null;
+  tax_registration_number?: string | null;
+  locale?: string;
+  timezone?: string;
+  default_jurisdiction?: string | null;
+  settings?: Record<string, unknown>;
+  brand_color_primary?: string | null;
+  brand_color_secondary?: string | null;
+  deactivated_at?: Date | null;
+  deactivation_reason?: string | null;
+  onboarding_completed_at?: Date | null;
+  onboarding_metadata?: Record<string, unknown>;
   updated_at?: Date;
 };
 
@@ -37,6 +67,30 @@ type TenantRow = {
   plan: PlanKey;
   is_active: boolean;
   parent_tenant_id?: string;
+  name?: string | null;
+  slug?: string | null;
+  logo_url?: string | null;
+  contact_email?: string | null;
+  billing_email?: string | null;
+  contact_phone?: string | null;
+  emirate?: string | null;
+  city?: string | null;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  postal_code?: string | null;
+  trade_license_number?: string | null;
+  legal_entity_type?: string | null;
+  tax_registration_number?: string | null;
+  locale: string;
+  timezone: string;
+  default_jurisdiction?: string | null;
+  settings: Record<string, unknown>;
+  brand_color_primary?: string | null;
+  brand_color_secondary?: string | null;
+  deactivated_at?: Date | null;
+  deactivation_reason?: string | null;
+  onboarding_completed_at?: Date | null;
+  onboarding_metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 };
@@ -140,11 +194,76 @@ export class TenantRepository extends BaseRepository<
     return result.data;
   }
 
+  async findBySlug(
+    slug: string,
+    options?: QueryOptions,
+  ): Promise<Tenant | null> {
+    const result = await this.executeQuery<TenantRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE slug = $1`,
+      [slug],
+      options,
+    );
+    if (!result.rows[0]) return null;
+    return this.mapRow(result.rows[0]);
+  }
+
+  async isSlugTaken(
+    slug: string,
+    excludeTenantId?: string,
+    options?: QueryOptions,
+  ): Promise<boolean> {
+    const params: unknown[] = [slug];
+    let query = `SELECT id FROM ${this.tableName} WHERE slug = $1`;
+
+    if (excludeTenantId) {
+      params.push(excludeTenantId);
+      query += ` AND id != $2`;
+    }
+
+    const result = await this.executeQuery<{ id: string }>(
+      query,
+      params,
+      options,
+    );
+    return result.rows.length > 0;
+  }
+
   /**
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'id, plan, is_active, parent_tenant_id, created_at, updated_at';
+    return [
+      'id',
+      'plan',
+      'is_active',
+      'parent_tenant_id',
+      'name',
+      'slug',
+      'logo_url',
+      'contact_email',
+      'billing_email',
+      'contact_phone',
+      'emirate',
+      'city',
+      'address_line_1',
+      'address_line_2',
+      'postal_code',
+      'trade_license_number',
+      'legal_entity_type',
+      'tax_registration_number',
+      'locale',
+      'timezone',
+      'default_jurisdiction',
+      'settings',
+      'brand_color_primary',
+      'brand_color_secondary',
+      'deactivated_at',
+      'deactivation_reason',
+      'onboarding_completed_at',
+      'onboarding_metadata',
+      'created_at',
+      'updated_at',
+    ].join(', ');
   }
 
   /**
@@ -160,6 +279,30 @@ export class TenantRepository extends BaseRepository<
       plan: data.plan,
       is_active: data.is_active,
       parent_tenant_id: data.parent_tenant_id,
+      name: data.name ?? null,
+      slug: data.slug ?? null,
+      logo_url: data.logo_url ?? null,
+      contact_email: data.contact_email ?? null,
+      billing_email: data.billing_email ?? null,
+      contact_phone: data.contact_phone ?? null,
+      emirate: data.emirate ?? null,
+      city: data.city ?? null,
+      address_line_1: data.address_line_1 ?? null,
+      address_line_2: data.address_line_2 ?? null,
+      postal_code: data.postal_code ?? null,
+      trade_license_number: data.trade_license_number ?? null,
+      legal_entity_type: data.legal_entity_type ?? null,
+      tax_registration_number: data.tax_registration_number ?? null,
+      locale: data.locale ?? 'en',
+      timezone: data.timezone ?? 'Asia/Dubai',
+      default_jurisdiction: data.default_jurisdiction ?? null,
+      settings: data.settings ?? {},
+      brand_color_primary: data.brand_color_primary ?? null,
+      brand_color_secondary: data.brand_color_secondary ?? null,
+      deactivated_at: data.deactivated_at ?? null,
+      deactivation_reason: data.deactivation_reason ?? null,
+      onboarding_completed_at: data.onboarding_completed_at ?? null,
+      onboarding_metadata: data.onboarding_metadata ?? {},
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

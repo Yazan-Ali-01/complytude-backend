@@ -24,11 +24,11 @@ DECLARE
     tenant_id_val TEXT;
 BEGIN
     tenant_id_val := current_setting('app.tenant_id', true);
-    
+
     IF tenant_id_val IS NULL OR tenant_id_val = '' THEN
         RAISE EXCEPTION 'Session context app.tenant_id not set';
     END IF;
-    
+
     RETURN tenant_id_val::UUID;
 END;
 $$;
@@ -52,11 +52,11 @@ DECLARE
     tenant_id_val TEXT;
 BEGIN
     tenant_id_val := current_setting('app.tenant_id', true);
-    
+
     IF tenant_id_val IS NULL OR tenant_id_val = '' THEN
         RETURN NULL;
     END IF;
-    
+
     RETURN tenant_id_val::UUID;
 EXCEPTION
     WHEN OTHERS THEN
@@ -70,22 +70,19 @@ COMMENT ON FUNCTION public.current_tenant_id_or_null IS 'Get current tenant ID f
 -- Boolean Context Flags
 -- =========================
 
--- Check if current user is tenant admin (from user_tenants.role)
+-- Check if current user is tenant admin
 CREATE FUNCTION public.is_tenant_admin()
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
 -- VOLATILE
 AS $$
-DECLARE
-    role_val TEXT;
 BEGIN
-    role_val := current_setting('app.user_tenant_role', true);
-    RETURN role_val = 'tenant_admin';
+    RETURN COALESCE(current_setting('app.is_tenant_admin', true), 'false') = 'true';
 END;
 $$;
 
-COMMENT ON FUNCTION public.is_tenant_admin IS 'Check if current user has tenant admin role (from user_tenants.role in session context)';
+COMMENT ON FUNCTION public.is_tenant_admin IS 'Check if current user has tenant admin role (from app.is_tenant_admin session context)';
 
 -- Check if current operation is an auth flow (signup, login, password reset, etc.)
 CREATE FUNCTION public.is_auth_flow()
@@ -115,6 +112,19 @@ $$;
 
 COMMENT ON FUNCTION public.is_platform_admin IS 'Check if current user has platform role (from app.platform_role session context). Used for RLS to allow platform admins to see all tenants.';
 
+-- Check if cross-tenant read is allowed (for slug uniqueness checks by tenant admins)
+CREATE FUNCTION public.allow_cross_tenant_read()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+AS $$
+BEGIN
+    RETURN COALESCE(current_setting('app.allow_cross_tenant_read', true), 'false') = 'true';
+END;
+$$;
+
+COMMENT ON FUNCTION public.allow_cross_tenant_read IS 'Check if cross-tenant read is allowed (from app.allow_cross_tenant_read). Used in tenant_select RLS for slug/email uniqueness checks by tenant admins.';
+
 COMMIT;
 
 -- =========================
@@ -125,6 +135,7 @@ COMMIT;
 BEGIN;
 
 -- Drop all session context functions
+DROP FUNCTION IF EXISTS public.allow_cross_tenant_read();
 DROP FUNCTION IF EXISTS public.is_platform_admin();
 DROP FUNCTION IF EXISTS public.is_auth_flow();
 DROP FUNCTION IF EXISTS public.is_tenant_admin();

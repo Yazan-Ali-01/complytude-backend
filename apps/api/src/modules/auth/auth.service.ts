@@ -21,10 +21,10 @@ import {
   TENANT_ACCESS_TOKEN_COOKIE_NAME,
   TENANT_REFRESH_TOKEN_COOKIE_NAME,
 } from 'src/common/swagger/common';
-import { DatabaseService } from 'src/database/database.service';
 import { User } from 'src/modules/users/entities/user.entity';
 import { TokenType } from 'src/repositories/users/interfaces/refresh-token.interfaces';
 import { I18nKeys } from '../../common/constants/i18n-keys';
+import { DatabaseService } from '../../database/database.service';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';

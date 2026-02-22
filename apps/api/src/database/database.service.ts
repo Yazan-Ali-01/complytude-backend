@@ -193,44 +193,44 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     params?: any[],
   ): Promise<QueryResult<T>> {
     // Wrap in transaction to ensure proper RLS context
-    return this.transactionWithTenantContext(tenantId, async (client) => {
-      return await client.query<T>(text, params);
-    });
+    return this.transactionWithTenantContext(
+      { tenantId: tenantId },
+      async (client) => {
+        return await client.query<T>(text, params);
+      },
+    );
   }
 
   /**
    * Execute a transaction within a specific tenant context with RLS
-   * @param tenantId Tenant identifier for RLS
+   * @param params Object with tenantId, isTenantAdmin (for update policies), allowCrossTenantRead (for SELECT policy, cross-tenant reads)
    * @param callback Transaction callback
    * @returns Transaction result
    */
   async transactionWithTenantContext<T>(
-    tenantId: string,
+    params: {
+      tenantId: string;
+      isTenantAdmin?: boolean;
+      allowCrossTenantRead?: boolean;
+    },
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.getClient();
     try {
       await client.query('BEGIN');
-
-      // Set tenant context for RLS (transaction-scoped)
-      await this.setTenantContext(client, tenantId);
-
-      // Execute transaction
+      await this.setTenantContext(params, client);
       const result = await callback(client);
-
       await client.query('COMMIT');
-      this.logger.debug(`Transaction committed for tenant ${tenantId}`);
-
+      this.logger.debug(`Transaction committed for tenant ${params?.tenantId}`);
       return result;
     } catch (error) {
       await client.query('ROLLBACK');
       this.logger.error(
-        `Transaction rolled back in tenant context (${tenantId})`,
+        `Transaction rolled back in tenant context (${params?.tenantId})`,
         error,
       );
       throw error;
     } finally {
-      // Tenant context is automatically cleared on transaction end (SET LOCAL)
       client.release();
     }
   }
@@ -240,21 +240,38 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * IMPORTANT: This must be called within an active transaction (after BEGIN)
    * Uses SET LOCAL to ensure the setting is transaction-scoped and clears automatically on COMMIT/ROLLBACK
    *
+   * @param params { tenantId, isTenantAdmin?, allowCrossTenantRead? }
    * @param client PoolClient with an active transaction
-   * @param tenantId Tenant identifier for RLS
    * @private
    */
   private async setTenantContext(
+    params: {
+      tenantId: string;
+      isTenantAdmin?: boolean;
+      allowCrossTenantRead?: boolean;
+    },
     client: PoolClient,
-    tenantId: string,
   ): Promise<void> {
     // SET LOCAL ensures the setting is transaction-scoped
-    // It will automatically be cleared when the transaction ends (COMMIT or ROLLBACK)
     await client.query('SELECT set_config($1, $2, true)', [
       'app.tenant_id',
-      tenantId,
+      params?.tenantId,
     ]);
-    this.logger.debug(`Set tenant context: ${tenantId} (transaction-scoped)`);
+    if (params?.isTenantAdmin) {
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.is_tenant_admin',
+        'true',
+      ]);
+    }
+    if (params?.allowCrossTenantRead) {
+      await client.query('SELECT set_config($1, $2, true)', [
+        'app.allow_cross_tenant_read',
+        'true',
+      ]);
+    }
+    this.logger.debug(
+      `Set tenant context: ${params?.tenantId} (transaction-scoped)`,
+    );
   }
 
   /**

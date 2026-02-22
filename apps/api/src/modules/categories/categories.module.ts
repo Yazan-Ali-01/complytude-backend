@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
+import { CategoryRepository } from 'src/repositories/categories/category.repository';
+import { DatabaseModule } from '../../database/database.module';
 import { CategoriesController } from './categories.controller';
 import { CategoriesService } from './categories.service';
-import { DatabaseModule } from 'src/database/database.module';
-import { CategoryRepository } from 'src/repositories/categories/category.repository';
 
 @Module({
   imports: [DatabaseModule],

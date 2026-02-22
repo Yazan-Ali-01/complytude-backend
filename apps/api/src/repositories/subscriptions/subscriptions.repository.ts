@@ -89,14 +89,14 @@ export class SubscriptionsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantSubscriptionWithPlan | null> {
     const query = `
-      SELECT 
-        ts.id, ts.tenant_id, ts.plan_id, ts.status, ts.billing_period_start, 
-        ts.billing_period_end, ts.current_period_start, ts.current_period_end, 
+      SELECT
+        ts.id, ts.tenant_id, ts.plan_id, ts.status, ts.billing_period_start,
+        ts.billing_period_end, ts.current_period_start, ts.current_period_end,
         ts.cancelled_at, ts.metadata, ts.created_at, ts.updated_at,
-        p.id as plan_id_full, p.key as plan_key, p.name as plan_name, 
-        p.description as plan_description, p.price_monthly, p.price_currency, 
-        p.billing_period as plan_billing_period, p.is_active as plan_is_active, 
-        p.sort_order, p.metadata as plan_metadata, p.created_at as plan_created_at, 
+        p.id as plan_id_full, p.key as plan_key, p.name as plan_name,
+        p.description as plan_description, p.price_monthly, p.price_currency,
+        p.billing_period as plan_billing_period, p.is_active as plan_is_active,
+        p.sort_order, p.metadata as plan_metadata, p.created_at as plan_created_at,
         p.updated_at as plan_updated_at
       FROM ${this.tableName} ts
       JOIN public.plans p ON p.id = ts.plan_id
@@ -181,8 +181,8 @@ export class SubscriptionsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantSubscription[]> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
-      `SELECT ${this.getSelectColumns()} 
-       FROM ${this.tableName} 
+      `SELECT ${this.getSelectColumns()}
+       FROM ${this.tableName}
        WHERE status = 'active' AND current_period_end <= now()
        ORDER BY current_period_end ASC`,
       [],
@@ -201,9 +201,9 @@ export class SubscriptionsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantSubscription> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
-      `UPDATE ${this.tableName} 
-       SET plan_id = $1, updated_at = now() 
-       WHERE id = $2 
+      `UPDATE ${this.tableName}
+       SET plan_id = $1, updated_at = now()
+       WHERE id = $2
        RETURNING ${this.getSelectColumns()}`,
       [planId, id],
       options,
@@ -226,9 +226,9 @@ export class SubscriptionsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantSubscription> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
-      `UPDATE ${this.tableName} 
-       SET status = $1, cancelled_at = $2, updated_at = now() 
-       WHERE id = $3 
+      `UPDATE ${this.tableName}
+       SET status = $1, cancelled_at = $2, updated_at = now()
+       WHERE id = $3
        RETURNING ${this.getSelectColumns()}`,
       [status, cancelledAt ?? null, id],
       options,
@@ -251,9 +251,9 @@ export class SubscriptionsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantSubscription> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
-      `UPDATE ${this.tableName} 
-       SET current_period_start = $1, current_period_end = $2, updated_at = now() 
-       WHERE id = $3 
+      `UPDATE ${this.tableName}
+       SET current_period_start = $1, current_period_end = $2, updated_at = now()
+       WHERE id = $3
        RETURNING ${this.getSelectColumns()}`,
       [periodStart, periodEnd, id],
       options,

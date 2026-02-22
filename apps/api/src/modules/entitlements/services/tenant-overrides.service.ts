@@ -70,7 +70,7 @@ export class TenantOverridesService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      data.tenant_id,
+      { tenantId: data.tenant_id },
       execute,
     );
   }
@@ -115,7 +115,10 @@ export class TenantOverridesService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(tenantId, execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
   }
 
   /**
