@@ -3,10 +3,9 @@ import {
   AI_JOB_NAMES,
   DocumentGenerationJobData,
   ENTITLEMENT_JOB_NAMES,
-  INGESTION_JOB_NAMES,
+  EntitlementProjectionUpdateJobData,
   QUEUE_NAMES,
   QueueProducerService,
-  UsageProjectionUpdateJobData,
 } from '@lib/queue';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Controller, Get, Param, Post } from '@nestjs/common';
@@ -53,21 +52,25 @@ export class QueueTestMockController {
   @ApiOperation({ summary: 'Enqueue a test data ingestion job' })
   async enqueueIngestionJob() {
     const job = await this.queueProducer.enqueue(
-      QUEUE_NAMES.DATA_INGESTION,
-      INGESTION_JOB_NAMES.USAGE_PROJECTION_UPDATE,
+      QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+      ENTITLEMENT_JOB_NAMES.PROJECTION_UPDATE,
       {
+        usageLedgerId: 'test-ledger-001',
         tenantId: 'test-tenant-001',
         featureKey: 'documents',
-        usageEventId: 'test-event-001',
-        periodStart: new Date().toISOString(),
-        periodEnd: new Date().toISOString(),
-      } satisfies UsageProjectionUpdateJobData,
+        featureId: 'test-feature-001',
+        subscriptionId: 'test-sub-001',
+        units: 1,
+        billingPeriod: new Date().toISOString().slice(0, 7),
+        allocations: [{ source: 'plan', units: 1 }],
+        creditDeducted: false,
+      } satisfies EntitlementProjectionUpdateJobData,
     );
 
     return {
       jobId: job.id,
       name: job.name,
-      queue: QUEUE_NAMES.DATA_INGESTION,
+      queue: QUEUE_NAMES.ENTITLEMENT_PROCESSING,
       status: 'enqueued',
     };
   }
