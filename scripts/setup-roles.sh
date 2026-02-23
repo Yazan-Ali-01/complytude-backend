@@ -20,14 +20,21 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 # Load environment variables (check new location first, then fallback)
+# Strips inline comments (# ...) to avoid export errors on Linux/Windows
+load_env() {
+    local f="$1"
+    while IFS='=' read -r key value; do
+        [ -n "$key" ] && export "$key=$value"
+    done < <(grep -v '^[[:space:]]*#' "$f" | tr -d '\r' | sed 's/[[:space:]]*#.*$//' | grep -v '^[[:space:]]*$')
+}
 if [ -f apps/api/.env ]; then
-    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    load_env apps/api/.env
     echo "📝 Loaded environment from apps/api/.env"
 elif [ -f .env.api ]; then
-    export $(cat .env.api | grep -v '^#' | grep -v '^\s*$' | xargs)
+    load_env .env.api
     echo "📝 Loaded environment from .env.api (legacy)"
 elif [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    load_env .env
     echo "📝 Loaded environment from .env"
 else
     echo -e "${RED}❌ No .env file found${NC}"
