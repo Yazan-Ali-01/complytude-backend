@@ -26,13 +26,13 @@
         ]
       }
     },
-    "redis": {
+    "embedding": {
       "type": "library",
-      "root": "libs/redis",
+      "root": "libs/embedding",
       "entryFile": "index",
-      "sourceRoot": "libs/redis/src",
+      "sourceRoot": "libs/embedding/src",
       "compilerOptions": {
-        "tsConfigPath": "libs/redis/tsconfig.lib.json"
+        "tsConfigPath": "libs/embedding/tsconfig.lib.json"
       }
     },
     "queue": {
@@ -42,6 +42,15 @@
       "sourceRoot": "libs/queue/src",
       "compilerOptions": {
         "tsConfigPath": "libs/queue/tsconfig.lib.json"
+      }
+    },
+    "redis": {
+      "type": "library",
+      "root": "libs/redis",
+      "entryFile": "index",
+      "sourceRoot": "libs/redis/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/redis/tsconfig.lib.json"
       }
     },
     "worker-ai": {
