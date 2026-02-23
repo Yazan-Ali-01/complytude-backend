@@ -22,17 +22,23 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@lib/redis": [
-        "libs/redis/src"
+      "@lib/embedding": [
+        "libs/embedding/src"
       ],
-      "@lib/redis/*": [
-        "libs/redis/src/*"
+      "@lib/embedding/*": [
+        "libs/embedding/src/*"
       ],
       "@lib/queue": [
         "libs/queue/src"
       ],
       "@lib/queue/*": [
         "libs/queue/src/*"
+      ],
+      "@lib/redis": [
+        "libs/redis/src"
+      ],
+      "@lib/redis/*": [
+        "libs/redis/src/*"
       ],
       "src/*": [
         "apps/api/src/*"
