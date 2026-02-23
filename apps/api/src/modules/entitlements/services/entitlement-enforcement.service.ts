@@ -1,3 +1,9 @@
+import {
+  ENTITLEMENT_JOB_NAMES,
+  EntitlementProjectionUpdateJobData,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
@@ -15,6 +21,11 @@ import { DomainEventsService } from './domain-events.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
+
+interface EnforceResult {
+  result: EntitlementCheckResult;
+  projectionJob?: EntitlementProjectionUpdateJobData;
+}
 
 /**
  * Entitlement Enforcement Service
@@ -56,6 +67,7 @@ export class EntitlementEnforcementService {
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly domainEventsService: DomainEventsService,
     private readonly featuresRepository: FeaturesRepository,
+    private readonly queueProducer: QueueProducerService,
   ) {}
 
   /**
@@ -90,6 +102,8 @@ export class EntitlementEnforcementService {
       `Checking and recording: tenant=${tenantId}, feature=${featureKey}, units=${units}`,
     );
 
+    let projectionJob: EntitlementProjectionUpdateJobData | undefined;
+
     const execute = async (client: PoolClient) => {
       // Step 1: Resolve effective entitlement
       const entitlement = await this.entitlementResolver.resolveForTenant(
@@ -120,7 +134,7 @@ export class EntitlementEnforcementService {
         entitlement.feature_type === 'metered' ||
         entitlement.feature_type === 'capacity'
       ) {
-        return this.enforceUsageBasedFeature(
+        const enforceResult = await this.enforceUsageBasedFeature(
           tenantId,
           featureKey,
           entitlement,
@@ -129,6 +143,8 @@ export class EntitlementEnforcementService {
           metadata,
           client,
         );
+        projectionJob = enforceResult.projectionJob;
+        return enforceResult.result;
       }
 
       // Step 4: Handle rate_limit features (future implementation)
@@ -151,17 +167,26 @@ export class EntitlementEnforcementService {
       };
     };
 
-    if (options?.client) {
-      return execute(options.client);
+    const result = options?.client
+      ? await execute(options.client)
+      : await this.databaseService.transactionWithTenantContext(
+          { tenantId },
+          execute,
+        );
+
+    // Post-commit: enqueue projection update (fire-and-forget, with sync fallback)
+    if (projectionJob) {
+      await this.enqueueProjectionUpdate(projectionJob);
     }
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId },
-      execute,
-    );
+
+    return result;
   }
 
   /**
    * Enforce quota/metered/capacity feature with credit fallback
+   *
+   * Returns EnforceResult with both the check result and optional projection
+   * job data for async processing after commit.
    *
    * @param tenantId - Tenant ID
    * @param featureKey - Feature key
@@ -170,7 +195,7 @@ export class EntitlementEnforcementService {
    * @param units - Number of units to consume
    * @param metadata - Additional metadata
    * @param client - Transaction client
-   * @returns Check result
+   * @returns EnforceResult with result and optional projection job
    */
   private async enforceUsageBasedFeature(
     tenantId: string,
@@ -180,13 +205,11 @@ export class EntitlementEnforcementService {
     units: number,
     metadata: Record<string, any> | undefined,
     client: PoolClient,
-  ): Promise<EntitlementCheckResult> {
+  ): Promise<EnforceResult> {
     // Get subscription for billing period
     const subscription = await this.subscriptionsRepository.findActiveByTenant(
       tenantId,
-      {
-        client,
-      },
+      { client },
     );
 
     if (!subscription) {
@@ -194,6 +217,18 @@ export class EntitlementEnforcementService {
         `No active subscription for tenant: ${tenantId}`,
       );
     }
+
+    // Get feature (needed for projection job payload)
+    const feature = await this.featuresRepository.findByKey(featureKey, {
+      client,
+    });
+    if (!feature) {
+      throw new NotFoundException(`Feature not found: ${featureKey}`);
+    }
+
+    const billingPeriod = this.deriveBillingPeriod(
+      subscription.current_period_start,
+    );
 
     // Get current usage
     const usage = await this.usageProjectionService.getCurrentUsage(
@@ -208,7 +243,7 @@ export class EntitlementEnforcementService {
 
     // Handle unlimited (-1)
     if (limit === -1) {
-      await this.usageIngestionService.recordUsage(
+      const usageEvent = await this.usageIngestionService.recordUsage(
         {
           tenant_id: tenantId,
           feature_key: featureKey,
@@ -221,12 +256,25 @@ export class EntitlementEnforcementService {
       );
 
       return {
-        allowed: true,
-        source: 'plan',
-        allocations: [{ source: 'plan', units }],
-        remaining: -1,
-        limit: -1,
-        used,
+        result: {
+          allowed: true,
+          source: 'plan',
+          allocations: [{ source: 'plan', units }],
+          remaining: -1,
+          limit: -1,
+          used,
+        },
+        projectionJob: {
+          usageLedgerId: usageEvent.id,
+          tenantId,
+          featureKey,
+          featureId: feature.id,
+          subscriptionId: subscription.id,
+          units,
+          billingPeriod,
+          allocations: [{ source: 'plan', units }],
+          creditDeducted: false,
+        },
       };
     }
 
@@ -234,7 +282,7 @@ export class EntitlementEnforcementService {
 
     // Within quota: record with plan source
     if (remaining >= units) {
-      await this.usageIngestionService.recordUsage(
+      const usageEvent = await this.usageIngestionService.recordUsage(
         {
           tenant_id: tenantId,
           feature_key: featureKey,
@@ -247,12 +295,25 @@ export class EntitlementEnforcementService {
       );
 
       return {
-        allowed: true,
-        source: 'plan',
-        allocations: [{ source: 'plan', units }],
-        remaining: remaining - units,
-        limit,
-        used: used + units,
+        result: {
+          allowed: true,
+          source: 'plan',
+          allocations: [{ source: 'plan', units }],
+          remaining: remaining - units,
+          limit,
+          used: used + units,
+        },
+        projectionJob: {
+          usageLedgerId: usageEvent.id,
+          tenantId,
+          featureKey,
+          featureId: feature.id,
+          subscriptionId: subscription.id,
+          units,
+          billingPeriod,
+          allocations: [{ source: 'plan', units }],
+          creditDeducted: false,
+        },
       };
     }
 
@@ -272,10 +333,12 @@ export class EntitlementEnforcementService {
       );
 
       return {
-        allowed: false,
-        reason: 'quota_exceeded',
-        limit,
-        used,
+        result: {
+          allowed: false,
+          reason: 'quota_exceeded',
+          limit,
+          used,
+        },
       };
     }
 
@@ -285,12 +348,8 @@ export class EntitlementEnforcementService {
       client,
     });
 
-    // Get feature credit cost from database
-    const feature = await this.featuresRepository.findByKey(featureKey, {
-      client,
-    });
     const creditCostPerUnit =
-      feature?.credit_cost != null && feature.credit_cost > 0
+      feature.credit_cost != null && feature.credit_cost > 0
         ? feature.credit_cost
         : 1; // Default to 1 if not specified
 
@@ -314,11 +373,13 @@ export class EntitlementEnforcementService {
       );
 
       return {
-        allowed: false,
-        reason: 'quota_exceeded',
-        limit,
-        used,
-        creditsRemaining: creditBalance,
+        result: {
+          allowed: false,
+          reason: 'quota_exceeded',
+          limit,
+          used,
+          creditsRemaining: creditBalance,
+        },
       };
     }
 
@@ -355,7 +416,7 @@ export class EntitlementEnforcementService {
       await this.creditLedgerService.deduct(
         tenantId,
         creditCost,
-        feature?.id,
+        feature.id,
         usageEvent.id,
         {
           ...metadata,
@@ -376,15 +437,70 @@ export class EntitlementEnforcementService {
       allocations.length === 1 ? allocations[0].source : 'mixed';
 
     return {
-      allowed: true,
-      source: responseSource as any, // 'plan', 'credit', or 'mixed'
-      allocations,
-      creditsRemaining: creditBalance - creditCost,
-      creditsDeducted: creditUnits > 0 ? creditCost : undefined, // Only include if credits were used
-      creditCostPerUnit: creditUnits > 0 ? creditCostPerUnit : undefined, // Only include if credits were used
-      limit,
-      used: used + units,
+      result: {
+        allowed: true,
+        source: responseSource as any, // 'plan', 'credit', or 'mixed'
+        allocations,
+        creditsRemaining: creditBalance - creditCost,
+        creditsDeducted: creditUnits > 0 ? creditCost : undefined, // Only include if credits were used
+        creditCostPerUnit: creditUnits > 0 ? creditCostPerUnit : undefined, // Only include if credits were used
+        limit,
+        used: used + units,
+      },
+      projectionJob: {
+        usageLedgerId: usageEvent.id,
+        tenantId,
+        featureKey,
+        featureId: feature.id,
+        subscriptionId: subscription.id,
+        units,
+        billingPeriod,
+        allocations: allocations.map((a) => ({
+          source: a.source,
+          units: a.units,
+        })),
+        creditDeducted: creditUnits > 0,
+        creditAmount: creditUnits > 0 ? creditCost : undefined,
+      },
     };
+  }
+
+  /**
+   * Derive billing period string (YYYY-MM) from a date
+   */
+  private deriveBillingPeriod(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  /**
+   * Enqueue PROJECTION_UPDATE job for async processing.
+   * Falls back to sync incrementUsage if BullMQ is unavailable.
+   */
+  private async enqueueProjectionUpdate(
+    data: EntitlementProjectionUpdateJobData,
+  ): Promise<void> {
+    try {
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.PROJECTION_UPDATE,
+        data,
+        { attempts: 5, backoff: { type: 'exponential', delay: 500 } },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `BullMQ unavailable, falling back to sync projection update: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      await this.usageProjectionService.incrementUsage(
+        data.tenantId,
+        data.subscriptionId,
+        data.featureId,
+        data.billingPeriod,
+        data.allocations,
+        data.usageLedgerId,
+      );
+    }
   }
 
   /**
