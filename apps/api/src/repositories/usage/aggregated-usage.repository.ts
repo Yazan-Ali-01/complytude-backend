@@ -62,6 +62,30 @@ export class AggregatedUsageRepository extends BaseRepository<
   }
 
   /**
+   * Find aggregated usage row by subscription and feature
+   *
+   * Used by ProjectionUpdateHandler for idempotency check — detects if a
+   * ledger event was already projected by comparing last_event_id.
+   *
+   * @param subscriptionId - Subscription ID
+   * @param featureId - Feature UUID
+   * @param options - Query options
+   */
+  async findBySubscriptionAndFeature(
+    subscriptionId: string,
+    featureId: string,
+    options?: QueryOptions,
+  ): Promise<AggregatedUsage | null> {
+    const result = await this.executeQuery(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE subscription_id = $1 AND feature_id = $2`,
+      [subscriptionId, featureId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Find current usage for tenant, subscription, and feature
    * Phase 3 implementation (updated to use subscription_id)
    */
