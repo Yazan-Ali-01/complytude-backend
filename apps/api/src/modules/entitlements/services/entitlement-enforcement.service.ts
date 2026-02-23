@@ -120,7 +120,7 @@ export class EntitlementEnforcementService {
         entitlement.feature_type === 'metered' ||
         entitlement.feature_type === 'capacity'
       ) {
-        return this.enforceQuotaFeature(
+        return this.enforceUsageBasedFeature(
           tenantId,
           featureKey,
           entitlement,
@@ -172,7 +172,7 @@ export class EntitlementEnforcementService {
    * @param client - Transaction client
    * @returns Check result
    */
-  private async enforceQuotaFeature(
+  private async enforceUsageBasedFeature(
     tenantId: string,
     featureKey: FeatureKey,
     entitlement: EffectiveEntitlement,

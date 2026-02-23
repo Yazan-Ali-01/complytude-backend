@@ -184,19 +184,23 @@ Complytude supports three Docker deployment approaches:
 
 #### Option 1: Hybrid Mode (Default - Recommended for Development)
 
-**What you're using:** NestJS runs locally, services run in Docker
+**What you're using:** NestJS apps run locally, infrastructure services (PostgreSQL, Redis, MinIO) run in Docker
 
 ```bash
-pnpm dev  # Auto-starts services + local NestJS with hot-reload
+pnpm dev       # Start API only (auto-starts services + hot-reload)
+pnpm dev:all   # Start all apps (API + workers)
 ```
 
 ✅ **Best for:** Active development, fast iteration, easy debugging
 
 #### Option 2: Fully Dockerized - Development Mode
 
-**Everything in containers with hot-reload:** API + PostgreSQL + MinIO all in Docker
+**Everything in containers with hot-reload:** API + Workers + PostgreSQL + Redis + MinIO all in Docker
 
 ```bash
+# Build development image
+pnpm docker:dev:build
+
 # Start everything with hot-reload
 pnpm docker:dev
 
@@ -217,6 +221,9 @@ pnpm docker:dev:down
 **Optimized production build:** Everything in containers with production optimizations
 
 ```bash
+# Build production image
+pnpm docker:prod:build
+
 # Start production build
 pnpm docker:prod
 
@@ -240,7 +247,7 @@ pnpm docker:prod:down
 | **Debugging**       | ✅ Native      | ✅ Good    | ⚠️ Limited    |
 | **Startup**         | ⚡ ~5s         | 🐌 ~30s    | 🐌 ~30s       |
 | **Production-like** | ⚠️ Partial     | ⚠️ Partial | ✅ Identical  |
-| **Build Size**      | N/A            | ~800MB     | ~200MB        |
+| **Build Size**      | N/A            | ~300MB     | ~150MB        |
 | **Security**        | N/A            | Root user  | Non-root user |
 
 📚 **Full Docker Guide:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed instructions
@@ -252,7 +259,7 @@ pnpm docker:prod:down
 ```
 complytude/
 ├── apps/                     # Monorepo applications
-│   ├── api/                 # Main API application
+│   ├── api/                 # Main API application (REST API)
 │   │   ├── src/            # Source code
 │   │   │   ├── modules/    # Feature modules (auth, users, tenants, etc.)
 │   │   │   ├── common/     # Guards, decorators, interceptors
@@ -262,21 +269,22 @@ complytude/
 │   │   │   ├── i18n/       # Internationalization
 │   │   │   └── main.ts     # Application entry point
 │   │   ├── docs/           # API-specific documentation
+│   │   ├── Dockerfile      # Multi-stage Docker build
 │   │   └── .env.example    # API environment variables template
-│   ├── worker-ai/          # AI processing worker
+│   ├── worker-ai/          # AI processing worker (BullMQ consumer)
 │   │   ├── src/
-│   │   ├── docs/           # AI worker documentation (coming soon)
-│   │   └── .env.example
-│   └── worker-ingestion/   # Data ingestion worker
+│   │   └── docs/           # AI worker documentation (coming soon)
+│   └── worker-ingestion/   # Data ingestion worker (BullMQ consumer)
 │       ├── src/
-│       ├── docs/           # Ingestion worker documentation (coming soon)
-│       └── .env.example
+│       └── docs/           # Ingestion worker documentation (coming soon)
 ├── libs/                    # Shared libraries
-│   └── shared/             # Shared utilities and types
+│   ├── redis/              # Redis connection and configuration
+│   └── queue/              # BullMQ queue definitions and processors
 ├── scripts/                 # Database migrations and utility scripts
 ├── docs/                    # Monorepo-wide documentation
 │   ├── ARCHITECTURE.md     # System architecture
 │   ├── DATABASE.md         # Database schema
+│   ├── DEPLOYMENT.md       # Deployment guide (Docker, production)
 │   ├── DEPLOYMENT.md       # Deployment guide
 │   └── README.md           # Documentation hub
 └── docker-compose.yml       # Docker services
@@ -355,6 +363,10 @@ S3_FORCE_PATH_STYLE=true
 MAX_FILE_SIZE=10485760
 SIGNED_URL_EXPIRES_IN=900
 
+# Redis (Docker)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
 # MinIO (Docker)
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin
@@ -369,9 +381,11 @@ PGADMIN_PORT=5050
 
 **📝 Notes:**
 
-- Each app has its own `.env` file in `apps/{app-name}/.env`
-- Worker services have separate env files (see `apps/worker-ai/.env.example` and `apps/worker-ingestion/.env.example`)
-- When using fully dockerized mode (`pnpm docker:up:full`), the `docker-compose.yml` automatically overrides `DB_HOST` → `postgres` and `S3_ENDPOINT` → `http://minio:9000`
+- Main configuration is in `apps/api/.env` (shared by all apps)
+- When using fully dockerized mode (`pnpm docker:dev` or `pnpm docker:prod`), Docker Compose automatically overrides:
+  - `DB_HOST` → `postgres`
+  - `REDIS_HOST` → `redis`
+  - `S3_ENDPOINT` → `http://minio:9000`
 - Keep your `apps/api/.env` with `localhost` values for hybrid mode!
 - For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
