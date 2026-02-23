@@ -21,8 +21,10 @@ RUN npm install -g pnpm@9
 # Set working directory
 WORKDIR /app
 
-# Copy package files (from root for monorepo)
+# Copy root package files and workspace manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Copy app/lib package.json files so pnpm workspace resolves correctly
+COPY apps/api/package.json ./apps/api/package.json
 
 # Install ALL dependencies (including dev dependencies for build)
 RUN pnpm install --frozen-lockfile
@@ -62,21 +64,20 @@ WORKDIR /app
 # Copy dependencies
 COPY --from=dependencies /app/node_modules ./node_modules
 
-# Copy package files and configs
+# Copy root package files and configs
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY nest-cli.json tsconfig.json ./
 
-# Copy API source code
+# Copy API app
 COPY apps/api/src ./apps/api/src
+COPY apps/api/package.json ./apps/api/package.json
 COPY apps/api/tsconfig.app.json ./apps/api/tsconfig.app.json
 
-# Copy shared libraries (if they exist)
-COPY libs/shared/src ./libs/shared/src
-COPY libs/shared/tsconfig.lib.json ./libs/shared/tsconfig.lib.json
-COPY libs/shared/package.json ./libs/shared/package.json
-
-# Copy i18n locales (required for nestjs-i18n)
-COPY apps/api/src/i18n ./apps/api/src/i18n
+# Copy shared libraries
+COPY libs/redis/src ./libs/redis/src
+COPY libs/redis/tsconfig.lib.json ./libs/redis/tsconfig.lib.json
+COPY libs/queue/src ./libs/queue/src
+COPY libs/queue/tsconfig.lib.json ./libs/queue/tsconfig.lib.json
 
 # Expose application port
 EXPOSE 3000

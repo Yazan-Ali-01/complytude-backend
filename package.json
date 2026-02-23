@@ -58,7 +58,7 @@
     "db:setup:roles": "bash scripts/setup-roles.sh",
     "db:migrate": "bash scripts/run-migrations.sh",
     "db:seed": "bash scripts/run-seeds.sh",
-    "db:setup": "pnpm docker:start && pnpm db:wait && pnpm db:migrate",
+    "db:setup": "pnpm docker:start && pnpm db:wait && pnpm db:setup:roles && pnpm db:migrate",
     "db:setup:full": "bash scripts/setup-database.sh",
     "db:wait": "bash scripts/wait-for-db.sh",
     "// === 🎨 Code Quality ===": "",
