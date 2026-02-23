@@ -2,6 +2,9 @@ export const ENTITLEMENT_JOB_NAMES = {
   SNAPSHOT_REBUILD: 'snapshot-rebuild',
   DOMAIN_EVENT_FANOUT: 'domain-event-fanout',
   CREDIT_EVENT: 'credit-event',
+  PROJECTION_UPDATE: 'projection-update',
+  SUBSCRIPTION_RENEWAL: 'subscription-renewal',
+  CREDIT_NOTIFICATION: 'credit-notification',
 } as const;
 
 export type EntitlementJobName =
@@ -32,4 +35,32 @@ export interface EntitlementCreditEventJobData {
   amount: number;
   remainingBalance: number;
   featureKey?: string;
+}
+
+export interface EntitlementProjectionUpdateJobData {
+  usageLedgerId: string;
+  tenantId: string;
+  featureKey: string;
+  featureId: string;
+  subscriptionId: string;
+  units: number;
+  billingPeriod: string;
+  allocations: Array<{
+    source: 'plan' | 'addon' | 'credit' | 'override';
+    units: number;
+  }>;
+  creditDeducted: boolean;
+  creditAmount?: number;
+}
+
+export interface EntitlementSubscriptionRenewalJobData {
+  tenantId: string;
+  subscriptionId: string;
+}
+
+export interface EntitlementCreditNotificationJobData {
+  tenantId: string;
+  transactionType: 'purchased' | 'granted' | 'deducted' | 'refunded';
+  amount: number;
+  remainingBalance: number;
 }
