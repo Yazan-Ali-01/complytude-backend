@@ -1,13 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { PoolClient } from 'pg';
+import { MessageResponseDto } from '../../../common/dto';
 import {
   CreateTenantAddonRow,
   TenantAddon,
   UpdateTenantAddonRow,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
-import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
+import { TenantContext } from '../../tenants/tenant.service';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
 /**
@@ -40,8 +46,11 @@ export class TenantAddonsService {
    */
   async addAddon(
     data: CreateTenantAddonRow,
-    options?: QueryOptions,
+    context?: TenantContext,
   ): Promise<TenantAddon> {
+    if (context?.mode !== 'platform') {
+      throw new ForbiddenException('Only platform admins can manage add-ons');
+    }
     const execute = async (client: PoolClient) => {
       const addon = await this.tenantAddonsRepository.create(
         {
@@ -64,14 +73,7 @@ export class TenantAddonsService {
       return addon;
     };
 
-    if (options?.client) {
-      return execute(options.client);
-    }
-
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId: data.tenant_id },
-      execute,
-    );
+    return this.databaseService.transactionWithPlatformAdminContext(execute);
   }
 
   /**
@@ -89,8 +91,11 @@ export class TenantAddonsService {
     tenantId: string,
     tenantAddonId: string,
     updates: UpdateTenantAddonRow,
-    options?: QueryOptions,
+    context?: TenantContext,
   ): Promise<TenantAddon> {
+    if (context?.mode !== 'platform') {
+      throw new ForbiddenException('Only platform admins can update add-ons');
+    }
     const execute = async (client: PoolClient) => {
       const addon = await this.tenantAddonsRepository.update(
         tenantAddonId,
@@ -110,12 +115,7 @@ export class TenantAddonsService {
       return addon;
     };
 
-    if (options?.client) {
-      return execute(options.client);
-    }
-
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId },
+    return await this.databaseService.transactionWithPlatformAdminContext(
       execute,
     );
   }
@@ -133,13 +133,31 @@ export class TenantAddonsService {
   async removeAddon(
     tenantId: string,
     tenantAddonId: string,
-    options?: QueryOptions,
-  ): Promise<TenantAddon> {
-    return this.updateAddon(
-      tenantId,
-      tenantAddonId,
-      { status: 'cancelled' },
-      options,
-    );
+    context?: TenantContext,
+  ): Promise<MessageResponseDto> {
+    if (context?.mode !== 'platform') {
+      throw new ForbiddenException('Only platform admins can remove add-ons');
+    }
+    const execute = async (client: PoolClient) => {
+      const addon = await this.tenantAddonsRepository.update(
+        tenantAddonId,
+        { status: 'cancelled' },
+        { client },
+      );
+
+      await this.entitlementSnapshotService.invalidate(
+        tenantId,
+        'addon_removed',
+        { client },
+      );
+
+      return addon;
+    };
+
+    if (context?.mode === 'platform') {
+      await this.databaseService.transactionWithPlatformAdminContext(execute);
+      return new MessageResponseDto('Add-on removed successfully');
+    }
+    return new InternalServerErrorException('Failed to remove add-on');
   }
 }

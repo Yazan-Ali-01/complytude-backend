@@ -58,15 +58,15 @@ WITH CHECK (
     is_platform_admin()
 );
 
--- System/admin or platform admin can update add-ons
+-- Platform admins can update any add-on; tenant admins can update add-ons for their own tenant
 CREATE POLICY tenant_addons_update
 ON public.tenant_addons
 FOR UPDATE
 USING (
-    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin()) OR is_platform_admin()
 )
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin()) OR is_platform_admin()
 );
 
 -- =========================

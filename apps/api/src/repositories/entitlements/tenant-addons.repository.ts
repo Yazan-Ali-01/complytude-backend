@@ -3,6 +3,7 @@ import {
   AddonEntitlement,
   CreateTenantAddonRow,
   FeatureKey,
+  FeatureType,
   TenantAddon,
   TenantAddonWithEntitlements,
   UpdateTenantAddonRow,
@@ -61,17 +62,13 @@ export class TenantAddonsRepository extends BaseRepository<
   /**
    * Find all active add-ons for a tenant
    */
-  async findActiveByTenant(
-    tenantId: string,
-    options?: QueryOptions,
-  ): Promise<TenantAddon[]> {
+  async findActiveByTenant(tenantId: string): Promise<TenantAddon[]> {
     const result = await this.executeQuery<TenantAddonRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE tenant_id = $1 AND status = 'active'
        AND (expires_at IS NULL OR expires_at > now())
        ORDER BY created_at DESC`,
       [tenantId],
-      options,
     );
 
     return result.rows.map((row) => this.mapRow(row));
@@ -98,7 +95,6 @@ export class TenantAddonsRepository extends BaseRepository<
         AND (ta.expires_at IS NULL OR ta.expires_at > now())
       ORDER BY ta.created_at DESC
     `;
-
     const result = await this.executeQuery(query, [tenantId], options);
 
     // Group by tenant_addon id
@@ -121,6 +117,7 @@ export class TenantAddonsRepository extends BaseRepository<
           addon_id: row.addon_id as string,
           feature_id: row.feature_id as string,
           feature_key: row.feature_key as FeatureKey,
+          feature_type: row.feature_type as FeatureType,
           value_bool: row.value_bool as boolean | undefined,
           value_int: row.value_int as number | undefined,
           value_text: row.value_text as string | undefined,
@@ -130,7 +127,6 @@ export class TenantAddonsRepository extends BaseRepository<
         addonsMap.get(addonId)!.entitlements.push(entitlement);
       }
     });
-
     return Array.from(addonsMap.values());
   }
 
@@ -183,6 +179,7 @@ export class TenantAddonsRepository extends BaseRepository<
         addon_id: row.addon_id as string,
         feature_id: row.feature_id as string,
         feature_key: row.feature_key as FeatureKey,
+        feature_type: row.feature_type as FeatureType,
         value_bool: row.value_bool as boolean | undefined,
         value_int: row.value_int as number | undefined,
         value_text: row.value_text as string | undefined,

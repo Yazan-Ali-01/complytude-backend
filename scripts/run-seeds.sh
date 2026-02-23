@@ -105,9 +105,9 @@ print_warning() {
 run_seed_file() {
     local file=$1
     local filename=$(basename "$file")
-    
+
     echo -e "${BLUE}Running: ${filename}${NC}"
-    
+
     # Disable pager and run quietly to avoid "more..." prompts
     if PAGER="" PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f "$file" -v ON_ERROR_STOP=1 -q 2>&1 | cat; then
         print_success "Completed: ${filename}"
@@ -159,7 +159,7 @@ if [ "$ENVIRONMENT" = "production" ]; then
     echo -e "${RED}This will add test data to your production environment.${NC}"
     echo -e "${YELLOW}Type 'SEED_PRODUCTION' to continue, or anything else to abort:${NC}"
     read -r confirmation
-    
+
     if [ "$confirmation" != "SEED_PRODUCTION" ]; then
         print_warning "Seeding aborted by user."
         exit 0
@@ -197,28 +197,28 @@ SUCCESS_COUNT=0
 set +e
 for seed_file in "${SEED_FILES[@]}"; do
     file_path="${SEEDS_DIR}/${seed_file}"
-    
+
     if [ ! -f "$file_path" ]; then
         print_warning "Seed file not found: ${seed_file} (skipping)"
         continue
     fi
-    
+
     if run_seed_file "$file_path"; then
         ((SUCCESS_COUNT++))
     else
         ((FAILED_COUNT++))
         print_error "Seeding failed at: ${seed_file}"
-        
+
         echo -e "${YELLOW}Do you want to continue with remaining seeds? (y/n)${NC}"
         read -r continue_choice
-        
+
         if [ "$continue_choice" != "y" ] && [ "$continue_choice" != "Y" ]; then
             print_warning "Seeding aborted by user."
             set -e  # Re-enable before exit
             exit 1
         fi
     fi
-    
+
     echo ""
 done
 # Re-enable exit on error
@@ -236,14 +236,14 @@ echo ""
 
 if [ $FAILED_COUNT -eq 0 ]; then
     print_success "All seed scripts completed successfully!"
-    
+
     # Display some statistics
     echo ""
     echo -e "${BLUE}Database Statistics:${NC}"
     PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "
-        SELECT 
-            'Tenants' as table_name, 
-            COUNT(*)::text as count 
+        SELECT
+            'Tenants' as table_name,
+            COUNT(*)::text as count
         FROM public.tenants
         UNION ALL
         SELECT 'Users', COUNT(*)::text FROM public.users
@@ -257,7 +257,7 @@ if [ $FAILED_COUNT -eq 0 ]; then
         SELECT 'Documents', COUNT(*)::text FROM public.documents
         ORDER BY table_name;
     "
-    
+
     echo ""
     print_success "Database is ready for testing!"
     echo ""
@@ -265,7 +265,7 @@ if [ $FAILED_COUNT -eq 0 ]; then
     echo "  Email: admin@tenant1.test"
     echo "  Password: Test123!@#"
     echo ""
-    
+
     exit 0
 else
     print_error "Some seed scripts failed. Please check the errors above."

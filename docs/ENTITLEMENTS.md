@@ -1,7 +1,7 @@
 # Entitlement System Documentation
 
 **Version:** 1.0  
-**Last Updated:** February 7, 2026  
+**Last Updated:** February 23, 2026  
 **Status:** ✅ Implemented
 
 ---
@@ -18,7 +18,9 @@
 - [API Integration](#api-integration)
 - [Credit System](#credit-system)
 - [Domain Events](#domain-events)
-- [Admin Tools & Troubleshooting](#admin-tools--troubleshooting)
+- [Add-on Management](#add-on-management)
+- [Override Management (Platform Admin)](#override-management-platform-admin)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -1081,6 +1083,221 @@ export class AuditService {
   },
   "recorded_at": "2026-02-07T10:00:00Z"
 }
+```
+
+---
+
+## Add-on Management
+
+Add-ons are purchasable feature bundles that extend a tenant's entitlements beyond their base plan.
+
+### Add-on Catalog (Public)
+
+**Endpoint:** `GET /api/addons`  
+**Authentication:** None (public catalog)
+
+Browse available add-ons that can be purchased:
+
+```typescript
+// Response
+[
+  {
+    id: "uuid",
+    key: "extra_documents_pack",
+    name: "Extra Documents Pack",
+    description: "Add 50 additional documents per month",
+    priceMonthly: 99.00,
+    priceCurrency: "AED",
+    isActive: true
+  }
+]
+```
+
+**Endpoint:** `GET /api/addons/:key`  
+**Authentication:** None (public catalog)
+
+Get detailed add-on information with entitlements:
+
+```typescript
+// Response
+{
+  id: "uuid",
+  key: "extra_documents_pack",
+  name: "Extra Documents Pack",
+  description: "Add 50 additional documents per month",
+  priceMonthly: 99.00,
+  priceCurrency: "AED",
+  isActive: true,
+  entitlements: [
+    {
+      featureKey: "documents_per_month",
+      featureType: "quota",
+      valueInt: 50
+    }
+  ]
+}
+```
+
+### Tenant Add-on Management
+
+**Endpoint:** `GET /api/tenants/addons`  
+**Authentication:** Tenant token  
+**Permission:** Any tenant member (read-only)
+
+List tenant's active add-ons:
+
+```typescript
+// Response
+[
+  {
+    id: "uuid",
+    addonKey: "extra_documents_pack",
+    addonName: "Extra Documents Pack",
+    quantity: 2,
+    status: "active",
+    startsAt: "2026-02-01T00:00:00Z",
+    expiresAt: "2026-03-01T00:00:00Z",
+    entitlements: [
+      {
+        featureKey: "documents_per_month",
+        featureType: "quota",
+        valueInt: 100  // 50 × 2 quantity
+      }
+    ],
+    createdAt: "2026-02-01T00:00:00Z",
+    updatedAt: "2026-02-01T00:00:00Z"
+  }
+]
+```
+
+**Endpoint:** `POST /api/tenants/addons`  
+**Authentication:** Tenant token  
+**Permission:** `billing:manage`
+
+Add an add-on to tenant subscription:
+
+```typescript
+// Request
+{
+  addonKey: "extra_documents_pack",
+  quantity: 2  // optional, defaults to 1
+}
+
+// Response - same as list item above
+```
+
+**Endpoint:** `PATCH /api/tenants/addons/:id`  
+**Authentication:** Tenant token  
+**Permission:** `billing:manage`
+
+Update add-on quantity or status:
+
+```typescript
+// Request
+{
+  quantity: 3,  // optional
+  status: "cancelled"  // optional: active, cancelled, expired
+}
+
+// Response - updated add-on with entitlements
+```
+
+**Endpoint:** `DELETE /api/tenants/addons/:id`  
+**Authentication:** Tenant token  
+**Permission:** `billing:manage`
+
+Cancel/remove add-on:
+
+```typescript
+// Response
+{
+  message: "Add-on removed successfully"
+}
+```
+
+---
+
+## Override Management (Platform Admin)
+
+Overrides are admin-applied entitlement modifications for special cases (e.g., promotional grants, customer accommodations).
+
+**Endpoint:** `GET /api/admin/tenants/:tenantId/overrides`  
+**Authentication:** Identity token  
+**Permission:** `entitlements:manage` (Platform)
+
+List all overrides for a tenant:
+
+```typescript
+// Response
+[
+  {
+    id: "uuid",
+    featureKey: "documents_per_month",
+    featureType: "quota",
+    valueInt: 500,
+    reason: "Special customer agreement - Q1 2024 promotion",
+    appliedBy: "admin_user_id",
+    startsAt: "2026-02-01T00:00:00Z",
+    expiresAt: "2026-12-31T23:59:59Z",
+    isActive: true,
+    createdAt: "2026-02-01T00:00:00Z",
+    updatedAt: "2026-02-01T00:00:00Z"
+  }
+]
+```
+
+**Endpoint:** `POST /api/admin/tenants/:tenantId/overrides`  
+**Authentication:** Identity token  
+**Permission:** `entitlements:manage` (Platform)
+
+Apply an override:
+
+```typescript
+// Request - Exactly one value field required
+{
+  featureKey: "documents_per_month",
+  valueInt: 500,  // For quota/capacity features
+  // valueBool: true,  // For boolean features
+  // valueText: "premium",  // For tiered features
+  reason: "Special customer agreement - Q1 2024 promotion",
+  expiresAt: "2026-12-31T23:59:59Z"  // optional
+}
+
+// Response - same as list item above
+```
+
+**Validation Rules:**
+- Exactly one of `valueBool`, `valueInt`, or `valueText` must be provided
+- `reason` is required (audit trail)
+- `expiresAt` is optional (NULL = permanent override)
+
+**Endpoint:** `PATCH /api/admin/tenants/:tenantId/overrides/:id`  
+**Authentication:** Identity token  
+**Permission:** `entitlements:manage` (Platform)
+
+Update an existing override:
+
+```typescript
+// Request - At most one value field, or update reason/expiry only
+{
+  valueInt: 1000,  // optional - change the value
+  reason: "Extended per customer request",  // optional
+  expiresAt: "2027-06-30T23:59:59Z"  // optional
+}
+
+// Response - updated override
+```
+
+**Important:** When updating a value field (e.g., changing from `valueBool` to `valueInt`), provide the new field. The system automatically nulls the other value fields to satisfy the database constraint requiring exactly one value field.
+
+**Endpoint:** `DELETE /api/admin/tenants/:tenantId/overrides/:id`  
+**Authentication:** Identity token  
+**Permission:** `entitlements:manage` (Platform)
+
+Revoke (deactivate) an override:
+
+```typescript
+// Response - revoked override with is_active: false
 ```
 
 ---

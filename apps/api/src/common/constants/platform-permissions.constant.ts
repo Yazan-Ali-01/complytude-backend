@@ -77,6 +77,11 @@ export const PLATFORM_PERMISSIONS = {
     MANAGE_ALL: '*:manage' as const,
     ALL: '*:*' as const,
   },
+  ADDONS: {
+    READ: 'addons:read' as const,
+    MANAGE: 'addons:manage' as const,
+    ALL: 'addons:*' as const,
+  },
 } as const;
 
 /**

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   CreateTenantOverrideRow,
   FeatureKey,
+  FeatureType,
   TenantOverride,
   UpdateTenantOverrideRow,
 } from 'src/common/types/entitlement.types';
@@ -14,6 +15,7 @@ type TenantOverrideRow = {
   tenant_id: string;
   feature_id: string;
   feature_key?: string; // Optional for queries that JOIN with features table
+  feature_type?: string; // Optional for queries that JOIN with features table
   value_bool: boolean | null;
   value_int: number | null;
   value_text: string | null;
@@ -51,6 +53,7 @@ export class TenantOverridesRepository extends BaseRepository<
       tenant_id: data.tenant_id,
       feature_id: data.feature_id,
       feature_key: data.feature_key as FeatureKey, // Will be populated by queries that JOIN with features
+      feature_type: data.feature_type as FeatureType, // Will be populated by queries that JOIN with features
       value_bool: data.value_bool ?? undefined,
       value_int: data.value_int ?? undefined,
       value_text: data.value_text ?? undefined,

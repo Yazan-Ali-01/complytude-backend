@@ -128,6 +128,8 @@ INSERT INTO public.user_tenants (user_id, tenant_id, role_key) VALUES
     -- Tenant 2 (shield plan) - 2 users
     ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-4222-8222-222222222222', 'tenant_admin'),
     ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'member'),
+    -- for testing purposes (to test everything related to addons including the guards)
+    ('99999999-9999-9999-9999-999999999999', '22222222-2222-4222-8222-222222222222', 'tenant_admin'),
 
     -- Tenant 3 (infrastructure plan) - 1 user
     ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-2222-4222-8222-333333333333', 'tenant_admin'),

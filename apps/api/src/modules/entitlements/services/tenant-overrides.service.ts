@@ -1,12 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
+import { TenantContext } from 'src/modules/tenants/tenant.service';
 import {
   CreateTenantOverrideRow,
   TenantOverride,
   UpdateTenantOverrideRow,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
-import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
@@ -41,7 +41,7 @@ export class TenantOverridesService {
    */
   async applyOverride(
     data: CreateTenantOverrideRow,
-    options?: QueryOptions,
+    context?: TenantContext,
   ): Promise<TenantOverride> {
     const execute = async (client: PoolClient) => {
       const override = await this.tenantOverridesRepository.create(
@@ -65,12 +65,13 @@ export class TenantOverridesService {
       return override;
     };
 
-    if (options?.client) {
-      return execute(options.client);
+    if (context?.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(execute);
     }
 
+    const canManage = context?.mode === 'tenant' && context?.canManageSettings;
     return this.databaseService.transactionWithTenantContext(
-      { tenantId: data.tenant_id },
+      { tenantId: data.tenant_id, isTenantAdmin: !!canManage },
       execute,
     );
   }
@@ -90,8 +91,11 @@ export class TenantOverridesService {
     tenantId: string,
     overrideId: string,
     updates: UpdateTenantOverrideRow,
-    options?: QueryOptions,
+    context?: TenantContext,
   ): Promise<TenantOverride> {
+    if (context?.mode !== 'platform') {
+      throw new ForbiddenException('Only platform admins can update overrides');
+    }
     const execute = async (client: PoolClient) => {
       const override = await this.tenantOverridesRepository.update(
         overrideId,
@@ -111,14 +115,7 @@ export class TenantOverridesService {
       return override;
     };
 
-    if (options?.client) {
-      return execute(options.client);
-    }
-
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId },
-      execute,
-    );
+    return this.databaseService.transactionWithPlatformAdminContext(execute);
   }
 
   /**
@@ -134,13 +131,13 @@ export class TenantOverridesService {
   async revokeOverride(
     tenantId: string,
     overrideId: string,
-    options?: QueryOptions,
+    context?: TenantContext,
   ): Promise<TenantOverride> {
     return this.updateOverride(
       tenantId,
       overrideId,
       { is_active: false },
-      options,
+      context,
     );
   }
 }

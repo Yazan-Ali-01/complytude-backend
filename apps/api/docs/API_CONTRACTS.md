@@ -2,7 +2,7 @@
 
 > **Purpose:** Define standards and conventions for API contract definition across all modules
 
-**Last Updated:** February 3, 2026
+**Last Updated:** February 23, 2026
 **Status:** Foundation Complete
 
 ---
@@ -627,3 +627,6 @@ Available decorators in `src/common/swagger/decorators.ts`:
 - `src/modules/tenants/invitations.controller.ts` - Invitation management
 - `src/modules/storage/storage.controller.ts` - File upload/download
 - `src/modules/templates/templates.controller.ts` - Complex CRUD operations
+- `src/modules/entitlements/controllers/addon-catalog.controller.ts` - Public catalog endpoints
+- `src/modules/entitlements/controllers/tenant-addons.controller.ts` - Tenant-scoped add-on management
+- `src/modules/entitlements/controllers/tenant-overrides.controller.ts` - Platform admin overrides

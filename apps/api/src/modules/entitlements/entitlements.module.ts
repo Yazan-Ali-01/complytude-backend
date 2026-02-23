@@ -12,7 +12,11 @@ import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from 'src/repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from 'src/repositories/usage/usage-ledger.repository';
+import { AddonsRepository } from '../../repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from '../../repositories/entitlements/entitlement-snapshots.repository';
+import { AddonCatalogController } from './controllers/addon-catalog.controller';
+import { TenantAddonsController } from './controllers/tenant-addons.controller';
+import { TenantOverridesController } from './controllers/tenant-overrides.controller';
 import { EntitlementsController } from './entitlements.controller';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
@@ -44,7 +48,12 @@ import { UsageProjectionService } from './services/usage-projection.service';
 @Global()
 @Module({
   imports: [DatabaseModule],
-  controllers: [EntitlementsController],
+  controllers: [
+    EntitlementsController,
+    AddonCatalogController,
+    TenantAddonsController,
+    TenantOverridesController,
+  ],
   providers: [
     // Core services
     EntitlementResolverService,
@@ -58,6 +67,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     EntitlementSnapshotService, // Phase 8
     TenantAddonsService, // Add-on mutations with snapshot invalidation
     TenantOverridesService, // Override mutations with snapshot invalidation
+    AddonsRepository,
 
     // Catalog repositories
     FeaturesRepository,
@@ -94,6 +104,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     EntitlementSnapshotService, // Phase 8
     TenantAddonsService,
     TenantOverridesService,
+    AddonsRepository,
 
     // Repositories (for use in other modules)
     FeaturesRepository,
