@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
+  FeatureKey,
   UsageLedgerEvent,
   UsageRecordInput,
 } from '../../../common/types/entitlement.types';
@@ -104,47 +105,13 @@ export class UsageIngestionService {
     );
 
     const execute = async (client: PoolClient) => {
-      // Step 1: Resolve feature_id only if not already provided by caller
       const resolvedFeatureId = feature_id
         ? feature_id
-        : await (async () => {
-            const feature = await this.featuresRepository.findByKey(
-              feature_key,
-              {
-                client,
-              },
-            );
+        : await this.resolveFeatureId(feature_key, { client });
 
-            if (!feature) {
-              throw new NotFoundException(`Feature not found: ${feature_key}`);
-            }
-
-            if (!feature.is_active) {
-              throw new BadRequestException(
-                `Feature is inactive: ${feature_key}`,
-              );
-            }
-
-            return feature.id;
-          })();
-
-      // Step 2: Resolve billing_period only if not already provided by caller
       const resolvedBillingPeriod = billing_period
         ? billing_period
-        : await (async () => {
-            const subscription =
-              await this.subscriptionsRepository.findActiveByTenant(tenant_id, {
-                client,
-              });
-
-            if (!subscription) {
-              throw new NotFoundException(
-                `No active subscription for tenant: ${tenant_id}`,
-              );
-            }
-
-            return this.deriveBillingPeriod(subscription.current_period_start);
-          })();
+        : await this.resolveBillingPeriod(tenant_id, { client });
 
       // Step 3: Record usage event to ledger (append-only)
       const usageEvent = await this.usageLedgerRepository.record(
@@ -187,6 +154,50 @@ export class UsageIngestionService {
       { tenantId: tenant_id },
       execute,
     );
+  }
+
+  /**
+   * Resolve feature_id from feature_key. Validates feature exists and is active.
+   */
+  private async resolveFeatureId(
+    featureKey: FeatureKey,
+    options?: QueryOptions,
+  ): Promise<string> {
+    const feature = await this.featuresRepository.findByKey(
+      featureKey,
+      options,
+    );
+
+    if (!feature) {
+      throw new NotFoundException(`Feature not found: ${featureKey}`);
+    }
+
+    if (!feature.is_active) {
+      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
+    }
+
+    return feature.id;
+  }
+
+  /**
+   * Resolve billing_period from tenant's active subscription.
+   */
+  private async resolveBillingPeriod(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<string> {
+    const subscription = await this.subscriptionsRepository.findActiveByTenant(
+      tenantId,
+      options,
+    );
+
+    if (!subscription) {
+      throw new NotFoundException(
+        `No active subscription for tenant: ${tenantId}`,
+      );
+    }
+
+    return this.deriveBillingPeriod(subscription.current_period_start);
   }
 
   /**
