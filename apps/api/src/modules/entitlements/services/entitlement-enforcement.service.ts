@@ -102,9 +102,7 @@ export class EntitlementEnforcementService {
       `Checking and recording: tenant=${tenantId}, feature=${featureKey}, units=${units}`,
     );
 
-    let projectionJob: EntitlementProjectionUpdateJobData | undefined;
-
-    const execute = async (client: PoolClient) => {
+    const execute = async (client: PoolClient): Promise<EnforceResult> => {
       // Step 1: Resolve effective entitlement
       const entitlement = await this.entitlementResolver.resolveForTenant(
         tenantId,
@@ -123,8 +121,10 @@ export class EntitlementEnforcementService {
       if (entitlement.feature_type === 'boolean') {
         const allowed = entitlement.value_bool === true;
         return {
-          allowed,
-          source: entitlement.source,
+          result: {
+            allowed,
+            source: entitlement.source,
+          },
         };
       }
 
@@ -134,7 +134,7 @@ export class EntitlementEnforcementService {
         entitlement.feature_type === 'metered' ||
         entitlement.feature_type === 'capacity'
       ) {
-        const enforceResult = await this.enforceUsageBasedFeature(
+        return this.enforceUsageBasedFeature(
           tenantId,
           featureKey,
           entitlement,
@@ -143,8 +143,6 @@ export class EntitlementEnforcementService {
           metadata,
           client,
         );
-        projectionJob = enforceResult.projectionJob;
-        return enforceResult.result;
       }
 
       // Step 4: Handle rate_limit features (future implementation)
@@ -155,19 +153,23 @@ export class EntitlementEnforcementService {
           `Rate limit enforcement not yet implemented for ${featureKey}`,
         );
         return {
-          allowed: true,
-          source: entitlement.source,
+          result: {
+            allowed: true,
+            source: entitlement.source,
+          },
         };
       }
 
       // Default: allow
       return {
-        allowed: true,
-        source: entitlement.source,
+        result: {
+          allowed: true,
+          source: entitlement.source,
+        },
       };
     };
 
-    const result = options?.client
+    const { result, projectionJob } = options?.client
       ? await execute(options.client)
       : await this.databaseService.transactionWithTenantContext(
           { tenantId },
