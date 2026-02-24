@@ -278,9 +278,11 @@ export class EntitlementEnforcementService {
         {
           tenant_id: tenantId,
           feature_key: featureKey,
+          feature_id: feature.id,
           user_id: userId,
           units,
           allocations: [{ source: 'plan', units }],
+          billing_period: billingPeriod,
           metadata,
         },
         { client },
@@ -324,9 +326,11 @@ export class EntitlementEnforcementService {
         {
           tenant_id: tenantId,
           feature_key: featureKey,
+          feature_id: feature.id,
           user_id: userId,
           units,
           allocations: [{ source: 'plan', units }],
+          billing_period: billingPeriod,
           metadata,
         },
         { client },
@@ -442,9 +446,11 @@ export class EntitlementEnforcementService {
       {
         tenant_id: tenantId,
         feature_key: featureKey,
+        feature_id: feature.id,
         user_id: userId,
         units,
         allocations,
+        billing_period: billingPeriod,
         metadata: {
           ...metadata,
           credit_cost_per_unit: creditCostPerUnit,
@@ -538,7 +544,11 @@ export class EntitlementEnforcementService {
         QUEUE_NAMES.ENTITLEMENT_PROCESSING,
         ENTITLEMENT_JOB_NAMES.PROJECTION_UPDATE,
         data,
-        { attempts: 5, backoff: { type: 'exponential', delay: 500 } },
+        {
+          jobId: data.usageLedgerId,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 500 },
+        },
       );
     } catch (error) {
       this.logger.warn(

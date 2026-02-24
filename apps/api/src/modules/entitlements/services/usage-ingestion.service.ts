@@ -65,8 +65,16 @@ export class UsageIngestionService {
     input: UsageRecordInput,
     options?: QueryOptions,
   ): Promise<UsageLedgerEvent> {
-    const { tenant_id, feature_key, user_id, units, allocations, metadata } =
-      input;
+    const {
+      tenant_id,
+      feature_key,
+      feature_id,
+      user_id,
+      units,
+      allocations,
+      billing_period,
+      metadata,
+    } = input;
 
     // Validate units
     if (units <= 0) {
@@ -96,44 +104,56 @@ export class UsageIngestionService {
     );
 
     const execute = async (client: PoolClient) => {
-      // Step 1: Resolve feature_id from feature_key
-      const feature = await this.featuresRepository.findByKey(feature_key, {
-        client,
-      });
+      // Step 1: Resolve feature_id only if not already provided by caller
+      const resolvedFeatureId = feature_id
+        ? feature_id
+        : await (async () => {
+            const feature = await this.featuresRepository.findByKey(
+              feature_key,
+              {
+                client,
+              },
+            );
 
-      if (!feature) {
-        throw new NotFoundException(`Feature not found: ${feature_key}`);
-      }
+            if (!feature) {
+              throw new NotFoundException(`Feature not found: ${feature_key}`);
+            }
 
-      if (!feature.is_active) {
-        throw new BadRequestException(`Feature is inactive: ${feature_key}`);
-      }
+            if (!feature.is_active) {
+              throw new BadRequestException(
+                `Feature is inactive: ${feature_key}`,
+              );
+            }
 
-      // Step 2: Get tenant's active subscription to derive billing_period
-      const subscription =
-        await this.subscriptionsRepository.findActiveByTenant(tenant_id, {
-          client,
-        });
+            return feature.id;
+          })();
 
-      if (!subscription) {
-        throw new NotFoundException(
-          `No active subscription for tenant: ${tenant_id}`,
-        );
-      }
+      // Step 2: Resolve billing_period only if not already provided by caller
+      const resolvedBillingPeriod = billing_period
+        ? billing_period
+        : await (async () => {
+            const subscription =
+              await this.subscriptionsRepository.findActiveByTenant(tenant_id, {
+                client,
+              });
 
-      // Derive billing period (YYYY-MM format)
-      const billingPeriod = this.deriveBillingPeriod(
-        subscription.current_period_start,
-      );
+            if (!subscription) {
+              throw new NotFoundException(
+                `No active subscription for tenant: ${tenant_id}`,
+              );
+            }
+
+            return this.deriveBillingPeriod(subscription.current_period_start);
+          })();
 
       // Step 3: Record usage event to ledger (append-only)
       const usageEvent = await this.usageLedgerRepository.record(
         {
           tenant_id,
-          feature_id: feature.id,
+          feature_id: resolvedFeatureId,
           user_id,
           units,
-          billing_period: billingPeriod,
+          billing_period: resolvedBillingPeriod,
           resource_type: input.resource_type,
           resource_id: input.resource_id,
           metadata: metadata ? JSON.stringify(metadata) : '{}',

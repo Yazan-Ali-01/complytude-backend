@@ -3,6 +3,7 @@ import {
   ENTITLEMENT_JOB_NAMES,
   EntitlementProjectionUpdateJobData,
   Job,
+  PermanentError,
   Processor,
   QUEUE_NAMES,
 } from '@lib/queue';
@@ -53,10 +54,9 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
       //   return this.creditEventHandler.execute(job);
 
       default:
-        this.logger.warn(
+        throw new PermanentError(
           `No handler registered for job name="${job.name}" — ` +
-            `register a handler in EntitlementQueueProcessor.handle(). ` +
-            `Job will be marked complete without processing.`,
+            `register a handler in EntitlementQueueProcessor.handle().`,
         );
     }
   }
