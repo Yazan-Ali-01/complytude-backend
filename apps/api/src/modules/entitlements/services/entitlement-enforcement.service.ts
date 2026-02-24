@@ -183,7 +183,36 @@ export class EntitlementEnforcementService {
   }
 
   /**
+   * Router for usage-based enforcement modes.
+   *
+   * COM-133 uses async projection updates for all usage checks.
+   * COM-134 will add strict-mode routing for near-limit requests.
+   */
+  private async enforceUsageBasedFeature(
+    tenantId: string,
+    featureKey: FeatureKey,
+    entitlement: EffectiveEntitlement,
+    userId: string | undefined,
+    units: number,
+    metadata: Record<string, any> | undefined,
+    client: PoolClient,
+  ): Promise<EnforceResult> {
+    // TODO(COM-134): Add strict mode threshold check here.
+    // For now, always route to the async path.
+    return this.enforceUsageAsync(
+      tenantId,
+      featureKey,
+      entitlement,
+      userId,
+      units,
+      metadata,
+      client,
+    );
+  }
+
+  /**
    * Enforce quota/metered/capacity feature with credit fallback
+   * using the async projection path.
    *
    * Returns EnforceResult with both the check result and optional projection
    * job data for async processing after commit.
@@ -197,7 +226,7 @@ export class EntitlementEnforcementService {
    * @param client - Transaction client
    * @returns EnforceResult with result and optional projection job
    */
-  private async enforceUsageBasedFeature(
+  private async enforceUsageAsync(
     tenantId: string,
     featureKey: FeatureKey,
     entitlement: EffectiveEntitlement,
