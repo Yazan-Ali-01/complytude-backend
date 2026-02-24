@@ -59,11 +59,14 @@ export class QueueTestMockController {
         tenantId: 'test-tenant-001',
         featureKey: 'documents',
         featureId: 'test-feature-001',
+        featureName: 'Documents',
+        featureType: 'quota',
         subscriptionId: 'test-sub-001',
         units: 1,
         billingPeriod: new Date().toISOString().slice(0, 7),
         allocations: [{ source: 'plan', units: 1 }],
         creditDeducted: false,
+        recordedAt: new Date().toISOString(),
       } satisfies EntitlementProjectionUpdateJobData,
     );
 

@@ -289,9 +289,11 @@ export interface EntitlementCheckResult {
 export interface UsageRecordInput {
   tenant_id: string;
   feature_key: FeatureKey;
+  feature_id?: string;
   user_id?: string;
   units: number;
   allocations: Array<{ source: Exclude<UsageSource, 'mixed'>; units: number }>;
+  billing_period?: string;
   resource_type?: string;
   resource_id?: string;
   metadata?: Record<string, any>;

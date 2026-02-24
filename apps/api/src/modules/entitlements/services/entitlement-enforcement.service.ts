@@ -1,4 +1,15 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  EntitlementProjectionUpdateJobData,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
 import {
@@ -15,6 +26,11 @@ import { DomainEventsService } from './domain-events.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
+
+interface EnforceResult {
+  result: EntitlementCheckResult;
+  projectionJob?: EntitlementProjectionUpdateJobData;
+}
 
 /**
  * Entitlement Enforcement Service
@@ -56,6 +72,7 @@ export class EntitlementEnforcementService {
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly domainEventsService: DomainEventsService,
     private readonly featuresRepository: FeaturesRepository,
+    private readonly queueProducer: QueueProducerService,
   ) {}
 
   /**
@@ -90,7 +107,7 @@ export class EntitlementEnforcementService {
       `Checking and recording: tenant=${tenantId}, feature=${featureKey}, units=${units}`,
     );
 
-    const execute = async (client: PoolClient) => {
+    const execute = async (client: PoolClient): Promise<EnforceResult> => {
       // Step 1: Resolve effective entitlement
       const entitlement = await this.entitlementResolver.resolveForTenant(
         tenantId,
@@ -109,8 +126,10 @@ export class EntitlementEnforcementService {
       if (entitlement.feature_type === 'boolean') {
         const allowed = entitlement.value_bool === true;
         return {
-          allowed,
-          source: entitlement.source,
+          result: {
+            allowed,
+            source: entitlement.source,
+          },
         };
       }
 
@@ -139,38 +158,45 @@ export class EntitlementEnforcementService {
           `Rate limit enforcement not yet implemented for ${featureKey}`,
         );
         return {
-          allowed: true,
-          source: entitlement.source,
+          result: {
+            allowed: true,
+            source: entitlement.source,
+          },
         };
       }
 
       // Default: allow
       return {
-        allowed: true,
-        source: entitlement.source,
+        result: {
+          allowed: true,
+          source: entitlement.source,
+        },
       };
     };
 
-    if (options?.client) {
-      return execute(options.client);
+    const { result, projectionJob } = options?.client
+      ? await execute(options.client)
+      : await this.databaseService.transactionWithTenantContext(
+          { tenantId },
+          execute,
+        );
+
+    // Post-commit: enqueue projection update (fire-and-forget, with sync fallback)
+    if (projectionJob) {
+      await this.enqueueProjectionUpdate(projectionJob);
     }
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId },
-      execute,
-    );
+
+    return result;
   }
 
   /**
-   * Enforce quota/metered/capacity feature with credit fallback
+   * Router for usage-based enforcement modes.
    *
-   * @param tenantId - Tenant ID
-   * @param featureKey - Feature key
-   * @param entitlement - Resolved entitlement
-   * @param userId - User ID (optional)
-   * @param units - Number of units to consume
-   * @param metadata - Additional metadata
-   * @param client - Transaction client
-   * @returns Check result
+   * Pre-resolves subscription, usage, limit, and used so both async and strict
+   * paths (COM-134) receive shared data without duplicate DB round-trips.
+   *
+   * COM-133 uses async projection updates for all usage checks.
+   * COM-134 will add strict-mode routing for near-limit requests.
    */
   private async enforceUsageBasedFeature(
     tenantId: string,
@@ -180,13 +206,10 @@ export class EntitlementEnforcementService {
     units: number,
     metadata: Record<string, any> | undefined,
     client: PoolClient,
-  ): Promise<EntitlementCheckResult> {
-    // Get subscription for billing period
+  ): Promise<EnforceResult> {
     const subscription = await this.subscriptionsRepository.findActiveByTenant(
       tenantId,
-      {
-        client,
-      },
+      { client },
     );
 
     if (!subscription) {
@@ -195,7 +218,6 @@ export class EntitlementEnforcementService {
       );
     }
 
-    // Get current usage
     const usage = await this.usageProjectionService.getCurrentUsage(
       tenantId,
       subscription.id,
@@ -206,27 +228,102 @@ export class EntitlementEnforcementService {
     const limit = entitlement.value_int ?? 0;
     const used = usage?.total_units ?? 0;
 
+    // TODO(COM-134): Add strict mode threshold check here.
+    // For now, always route to the async path.
+    return this.enforceUsageAsync(
+      tenantId,
+      featureKey,
+      entitlement,
+      userId,
+      units,
+      metadata,
+      client,
+      subscription,
+      limit,
+      used,
+    );
+  }
+
+  /**
+   * Enforce quota/metered/capacity feature with credit fallback
+   * using the async projection path.
+   *
+   * Returns EnforceResult with both the check result and optional projection
+   * job data for async processing after commit.
+   *
+   * @param tenantId - Tenant ID
+   * @param featureKey - Feature key
+   * @param entitlement - Resolved entitlement
+   * @param userId - User ID (optional)
+   * @param units - Number of units to consume
+   * @param metadata - Additional metadata
+   * @param client - Transaction client
+   * @param subscription - Pre-resolved active subscription (from router)
+   * @param limit - Pre-resolved entitlement limit (from router)
+   * @param used - Pre-resolved current usage (from router)
+   * @returns EnforceResult with result and optional projection job
+   */
+  private async enforceUsageAsync(
+    tenantId: string,
+    featureKey: FeatureKey,
+    entitlement: EffectiveEntitlement,
+    userId: string | undefined,
+    units: number,
+    metadata: Record<string, any> | undefined,
+    client: PoolClient,
+    subscription: { id: string; current_period_start: Date },
+    limit: number,
+    used: number,
+  ): Promise<EnforceResult> {
+    const feature = await this.featuresRepository.findByKey(featureKey, {
+      client,
+    });
+    if (!feature) {
+      throw new NotFoundException(`Feature not found: ${featureKey}`);
+    }
+    if (!feature.is_active) {
+      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
+    }
+
+    const billingPeriod = this.deriveBillingPeriod(
+      subscription.current_period_start,
+    );
+
     // Handle unlimited (-1)
     if (limit === -1) {
-      await this.usageIngestionService.recordUsage(
+      const usageEvent = await this.usageIngestionService.recordUsage(
         {
           tenant_id: tenantId,
           feature_key: featureKey,
+          feature_id: feature.id,
           user_id: userId,
           units,
           allocations: [{ source: 'plan', units }],
+          billing_period: billingPeriod,
           metadata,
         },
         { client },
       );
 
       return {
-        allowed: true,
-        source: 'plan',
-        allocations: [{ source: 'plan', units }],
-        remaining: -1,
-        limit: -1,
-        used,
+        result: {
+          allowed: true,
+          source: 'plan',
+          allocations: [{ source: 'plan', units }],
+          remaining: -1,
+          limit: -1,
+          used,
+        },
+        projectionJob: this.buildProjectionJob(
+          tenantId,
+          featureKey,
+          usageEvent,
+          feature,
+          subscription,
+          billingPeriod,
+          [{ source: 'plan', units }],
+          userId,
+        ),
       };
     }
 
@@ -234,25 +331,39 @@ export class EntitlementEnforcementService {
 
     // Within quota: record with plan source
     if (remaining >= units) {
-      await this.usageIngestionService.recordUsage(
+      const usageEvent = await this.usageIngestionService.recordUsage(
         {
           tenant_id: tenantId,
           feature_key: featureKey,
+          feature_id: feature.id,
           user_id: userId,
           units,
           allocations: [{ source: 'plan', units }],
+          billing_period: billingPeriod,
           metadata,
         },
         { client },
       );
 
       return {
-        allowed: true,
-        source: 'plan',
-        allocations: [{ source: 'plan', units }],
-        remaining: remaining - units,
-        limit,
-        used: used + units,
+        result: {
+          allowed: true,
+          source: 'plan',
+          allocations: [{ source: 'plan', units }],
+          remaining: remaining - units,
+          limit,
+          used: used + units,
+        },
+        projectionJob: this.buildProjectionJob(
+          tenantId,
+          featureKey,
+          usageEvent,
+          feature,
+          subscription,
+          billingPeriod,
+          [{ source: 'plan', units }],
+          userId,
+        ),
       };
     }
 
@@ -272,10 +383,12 @@ export class EntitlementEnforcementService {
       );
 
       return {
-        allowed: false,
-        reason: 'quota_exceeded',
-        limit,
-        used,
+        result: {
+          allowed: false,
+          reason: 'quota_exceeded',
+          limit,
+          used,
+        },
       };
     }
 
@@ -285,12 +398,8 @@ export class EntitlementEnforcementService {
       client,
     });
 
-    // Get feature credit cost from database
-    const feature = await this.featuresRepository.findByKey(featureKey, {
-      client,
-    });
     const creditCostPerUnit =
-      feature?.credit_cost != null && feature.credit_cost > 0
+      feature.credit_cost != null && feature.credit_cost > 0
         ? feature.credit_cost
         : 1; // Default to 1 if not specified
 
@@ -314,11 +423,13 @@ export class EntitlementEnforcementService {
       );
 
       return {
-        allowed: false,
-        reason: 'quota_exceeded',
-        limit,
-        used,
-        creditsRemaining: creditBalance,
+        result: {
+          allowed: false,
+          reason: 'quota_exceeded',
+          limit,
+          used,
+          creditsRemaining: creditBalance,
+        },
       };
     }
 
@@ -336,9 +447,11 @@ export class EntitlementEnforcementService {
       {
         tenant_id: tenantId,
         feature_key: featureKey,
+        feature_id: feature.id,
         user_id: userId,
         units,
         allocations,
+        billing_period: billingPeriod,
         metadata: {
           ...metadata,
           credit_cost_per_unit: creditCostPerUnit,
@@ -355,7 +468,7 @@ export class EntitlementEnforcementService {
       await this.creditLedgerService.deduct(
         tenantId,
         creditCost,
-        feature?.id,
+        feature.id,
         usageEvent.id,
         {
           ...metadata,
@@ -376,15 +489,119 @@ export class EntitlementEnforcementService {
       allocations.length === 1 ? allocations[0].source : 'mixed';
 
     return {
-      allowed: true,
-      source: responseSource as any, // 'plan', 'credit', or 'mixed'
-      allocations,
-      creditsRemaining: creditBalance - creditCost,
-      creditsDeducted: creditUnits > 0 ? creditCost : undefined, // Only include if credits were used
-      creditCostPerUnit: creditUnits > 0 ? creditCostPerUnit : undefined, // Only include if credits were used
-      limit,
-      used: used + units,
+      result: {
+        allowed: true,
+        source: responseSource as any, // 'plan', 'credit', or 'mixed'
+        allocations,
+        creditsRemaining: creditBalance - creditCost,
+        creditsDeducted: creditUnits > 0 ? creditCost : undefined, // Only include if credits were used
+        creditCostPerUnit: creditUnits > 0 ? creditCostPerUnit : undefined, // Only include if credits were used
+        limit,
+        used: used + units,
+      },
+      projectionJob: this.buildProjectionJob(
+        tenantId,
+        featureKey,
+        usageEvent,
+        feature,
+        subscription,
+        billingPeriod,
+        allocations.map((a) => ({ source: a.source, units: a.units })),
+        userId,
+        creditUnits > 0,
+        creditUnits > 0 ? creditCost : undefined,
+      ),
     };
+  }
+
+  /**
+   * Build projection update job payload from usage event and context.
+   * Centralizes the ~17-field construction used in unlimited, within-quota,
+   * and credit-fallback paths.
+   */
+  private buildProjectionJob(
+    tenantId: string,
+    featureKey: FeatureKey,
+    usageEvent: {
+      id: string;
+      resource_type?: string;
+      resource_id?: string;
+      recorded_at: Date;
+      idempotency_key?: string;
+    },
+    feature: { id: string; name: string; feature_type: string },
+    subscription: { id: string },
+    billingPeriod: string,
+    allocations: Array<{
+      source: 'plan' | 'addon' | 'credit' | 'override';
+      units: number;
+    }>,
+    userId: string | undefined,
+    creditDeducted = false,
+    creditAmount?: number,
+  ): EntitlementProjectionUpdateJobData {
+    const units = allocations.reduce((sum, a) => sum + a.units, 0);
+    return {
+      usageLedgerId: usageEvent.id,
+      tenantId,
+      featureKey,
+      featureId: feature.id,
+      featureName: feature.name,
+      featureType: feature.feature_type,
+      subscriptionId: subscription.id,
+      units,
+      billingPeriod,
+      allocations,
+      resourceType: usageEvent.resource_type,
+      resourceId: usageEvent.resource_id,
+      actorId: userId,
+      recordedAt: usageEvent.recorded_at.toISOString(),
+      idempotencyKey: usageEvent.idempotency_key,
+      creditDeducted,
+      creditAmount,
+    };
+  }
+
+  /**
+   * Derive billing period string (YYYY-MM) from a date
+   */
+  private deriveBillingPeriod(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  /**
+   * Enqueue PROJECTION_UPDATE job for async processing.
+   * Falls back to sync incrementUsage if BullMQ is unavailable.
+   */
+  private async enqueueProjectionUpdate(
+    data: EntitlementProjectionUpdateJobData,
+  ): Promise<void> {
+    try {
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.PROJECTION_UPDATE,
+        data,
+        {
+          jobId: data.usageLedgerId,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 500 },
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `BullMQ unavailable, falling back to sync projection update: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      await this.usageProjectionService.incrementUsage(
+        data.tenantId,
+        data.subscriptionId,
+        data.featureId,
+        data.billingPeriod,
+        data.allocations,
+        data.usageLedgerId,
+      );
+    }
   }
 
   /**
