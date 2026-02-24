@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
   CreditLedgerTransaction,
+  CreditTransactionInput,
   CreditTransactionType,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
@@ -70,15 +71,12 @@ export class CreditLedgerService {
     );
 
     return this.recordTransaction(
-      tenantId,
-      'purchase',
-      amount,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      metadata,
+      {
+        tenant_id: tenantId,
+        transaction_type: 'purchase',
+        amount,
+        metadata,
+      },
       options,
     );
 
@@ -119,15 +117,15 @@ export class CreditLedgerService {
     );
 
     return this.recordTransaction(
-      tenantId,
-      'grant',
-      amount,
-      undefined,
-      undefined,
-      reason,
-      appliedBy,
-      expiresAt,
-      metadata,
+      {
+        tenant_id: tenantId,
+        transaction_type: 'grant',
+        amount,
+        reason,
+        applied_by: appliedBy,
+        expires_at: expiresAt,
+        metadata,
+      },
       options,
     );
 
@@ -167,15 +165,14 @@ export class CreditLedgerService {
     );
 
     return this.recordTransaction(
-      tenantId,
-      'deduction',
-      -amount, // Store as negative
-      featureId,
-      usageLedgerId,
-      undefined,
-      undefined,
-      undefined,
-      metadata,
+      {
+        tenant_id: tenantId,
+        transaction_type: 'deduction',
+        amount: -amount,
+        feature_id: featureId,
+        usage_ledger_id: usageLedgerId,
+        metadata,
+      },
       options,
     );
 
@@ -213,15 +210,13 @@ export class CreditLedgerService {
     );
 
     return this.recordTransaction(
-      tenantId,
-      'refund',
-      amount,
-      undefined,
-      undefined,
-      reason,
-      undefined,
-      undefined,
-      metadata,
+      {
+        tenant_id: tenantId,
+        transaction_type: 'refund',
+        amount,
+        reason,
+        metadata,
+      },
       options,
     );
   }
@@ -293,17 +288,20 @@ export class CreditLedgerService {
    * @returns The recorded credit transaction
    */
   private async recordTransaction(
-    tenantId: string,
-    transactionType: CreditTransactionType,
-    amount: number,
-    featureId?: string,
-    usageLedgerId?: string,
-    reason?: string,
-    appliedBy?: string,
-    expiresAt?: Date,
-    metadata?: Record<string, any>,
+    input: CreditTransactionInput,
     options?: QueryOptions,
   ): Promise<CreditLedgerTransaction> {
+    const {
+      tenant_id: tenantId,
+      transaction_type: transactionType,
+      amount,
+      feature_id: featureId,
+      usage_ledger_id: usageLedgerId,
+      reason,
+      applied_by: appliedBy,
+      expires_at: expiresAt,
+      metadata,
+    } = input;
     const execute = async (client: PoolClient) => {
       // Step 1: Get current balance
       const currentBalance = await this.creditLedgerRepository.getBalance(

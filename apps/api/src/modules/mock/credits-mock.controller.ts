@@ -267,15 +267,15 @@ export class CreditsMockController {
     description: 'Usage allowed and recorded with plan source',
   })
   async enforceWithinQuota(@CurrentUserTenant() user: AuthenticatedTenantUser) {
-    const result = await this.enforcementService.checkAndRecord(
-      user.tenantId,
-      'documents_per_month',
-      user.userId,
-      1,
-      {
+    const result = await this.enforcementService.checkAndRecord({
+      tenantId: user.tenantId,
+      featureKey: 'documents_per_month',
+      userId: user.userId,
+      units: 1,
+      metadata: {
         test_scenario: 'within_quota',
       },
-    );
+    });
 
     return {
       message: 'Usage allowed (within quota)',
@@ -361,12 +361,14 @@ export class CreditsMockController {
         unitsToExceed = remaining < Infinity ? Math.ceil(remaining) + 1 : 1;
 
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          'documents_per_month',
-          user.userId,
-          unitsToExceed,
           {
-            test_scenario: 'exceed_with_credits',
+            tenantId: user.tenantId,
+            featureKey: 'documents_per_month',
+            userId: user.userId,
+            units: unitsToExceed,
+            metadata: {
+              test_scenario: 'exceed_with_credits',
+            },
           },
           { client },
         );
@@ -448,12 +450,14 @@ export class CreditsMockController {
         unitsToExceed = remaining < Infinity ? Math.ceil(remaining) + 1 : 1;
 
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          'documents_per_month',
-          user.userId,
-          unitsToExceed,
           {
-            test_scenario: 'exceed_no_credits',
+            tenantId: user.tenantId,
+            featureKey: 'documents_per_month',
+            userId: user.userId,
+            units: unitsToExceed,
+            metadata: {
+              test_scenario: 'exceed_no_credits',
+            },
           },
           { client },
         );
@@ -555,12 +559,14 @@ export class CreditsMockController {
         unitsToExceed = remaining < Infinity ? Math.ceil(remaining) + 1 : 1;
 
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          'license_verifier_lookups',
-          user.userId,
-          unitsToExceed,
           {
-            test_scenario: 'non_creditable',
+            tenantId: user.tenantId,
+            featureKey: 'license_verifier_lookups',
+            userId: user.userId,
+            units: unitsToExceed,
+            metadata: {
+              test_scenario: 'non_creditable',
+            },
           },
           { client },
         );
@@ -627,12 +633,14 @@ export class CreditsMockController {
 
         // Record large usage (should always succeed)
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          'documents_per_month',
-          user.userId,
-          1000, // Large amount
           {
-            test_scenario: 'unlimited',
+            tenantId: user.tenantId,
+            featureKey: 'documents_per_month',
+            userId: user.userId,
+            units: 1000,
+            metadata: {
+              test_scenario: 'unlimited',
+            },
           },
           { client },
         );
@@ -688,12 +696,14 @@ export class CreditsMockController {
         }
 
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          featureKey,
-          user.userId,
-          1,
           {
-            test_scenario: 'boolean',
+            tenantId: user.tenantId,
+            featureKey,
+            userId: user.userId,
+            units: 1,
+            metadata: {
+              test_scenario: 'boolean',
+            },
           },
           { client },
         );

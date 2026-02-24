@@ -750,13 +750,13 @@ export class DocumentsService {
   
   async generateDocument(tenantId: string, userId: string, data: any) {
     // Check and record usage
-    const checkResult = await this.enforcementService.checkAndRecord(
+    const checkResult = await this.enforcementService.checkAndRecord({
       tenantId,
-      'documents_per_month',
+      featureKey: 'documents_per_month',
       userId,
-      1, // units
-      { document_type: data.type } // metadata
-    );
+      units: 1,
+      metadata: { document_type: data.type },
+    });
     
     if (!checkResult.allowed) {
       // Quota exceeded, no credits

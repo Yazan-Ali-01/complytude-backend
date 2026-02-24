@@ -7,7 +7,7 @@ import {
 import { PoolClient } from 'pg';
 import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
 import {
-  FeatureKey,
+  EmitUsageEventInput,
   UsageLedgerEvent,
   UsageRecordInput,
 } from '../../../common/types/entitlement.types';
@@ -178,12 +178,14 @@ export class UsageIngestionService {
       // This keeps the write path fast and moves projection updates off
       // the critical path.
       await this.usageProjectionService.incrementUsage(
-        tenant_id,
-        subscription.id, // Use subscription ID (unambiguous billing period)
-        feature.id,
-        billingPeriod,
-        allocations,
-        usageEvent.id,
+        {
+          tenantId: tenant_id,
+          subscriptionId: subscription.id,
+          featureId: feature.id,
+          billingPeriod,
+          allocations,
+          eventId: usageEvent.id,
+        },
         { client },
       );
 
@@ -192,11 +194,13 @@ export class UsageIngestionService {
       // async queue for non-critical events. Critical events (e.g., credit
       // deduction) should remain synchronous.
       await this.emitUsageRecordedEvent(
-        usageEvent,
-        allocations,
-        feature_key,
-        feature.name,
-        user_id,
+        {
+          usageEvent,
+          allocations,
+          featureKey: feature_key,
+          featureName: feature.name,
+          userId: user_id,
+        },
         { client },
       );
 
@@ -247,13 +251,10 @@ export class UsageIngestionService {
    * @param options - Query options
    */
   private async emitUsageRecordedEvent(
-    usageEvent: UsageLedgerEvent,
-    allocations: Array<{ source: string; units: number }>,
-    featureKey: FeatureKey,
-    featureName: string,
-    userId?: string,
+    input: EmitUsageEventInput,
     options?: QueryOptions,
   ): Promise<void> {
+    const { usageEvent, allocations, featureKey, featureName, userId } = input;
     const featureDef = getFeatureDefinition(featureKey);
 
     await this.domainEventsService.emit(

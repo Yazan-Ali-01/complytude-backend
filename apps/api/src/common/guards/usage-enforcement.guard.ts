@@ -85,16 +85,16 @@ export class UsageEnforcementGuard implements CanActivate {
     const { featureKey, units } = trackUsageOptions;
 
     // Check entitlement and record usage
-    const result = await this.enforcementService.checkAndRecord(
+    const result = await this.enforcementService.checkAndRecord({
       tenantId,
       featureKey,
       userId,
       units,
-      {
+      metadata: {
         endpoint: request.url,
         method: request.method,
       },
-    );
+    });
 
     // If allowed, attach result to request and proceed
     if (result.allowed) {

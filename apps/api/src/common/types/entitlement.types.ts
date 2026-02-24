@@ -312,6 +312,68 @@ export interface CreditTransactionInput {
 }
 
 // =========================
+// SERVICE INPUT TYPES (Named Parameters)
+// =========================
+
+/**
+ * Input for EntitlementEnforcementService.checkAndRecord()
+ */
+export interface CheckAndRecordInput {
+  tenantId: string;
+  featureKey: FeatureKey;
+  userId?: string;
+  units?: number;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Input for EntitlementEnforcementService.enforceUsageBasedFeature() (private method)
+ */
+export interface EnforceQuotaInput {
+  tenantId: string;
+  featureKey: FeatureKey;
+  entitlement: EffectiveEntitlement;
+  userId?: string;
+  units: number;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Input for UsageProjectionService.incrementUsage()
+ */
+export interface IncrementUsageInput {
+  tenantId: string;
+  subscriptionId: string;
+  featureId: string;
+  billingPeriod: string;
+  allocations: Array<{ source: Exclude<UsageSource, 'mixed'>; units: number }>;
+  eventId: string;
+}
+
+/**
+ * Input for UsageIngestionService.emitUsageRecordedEvent() (private method)
+ */
+export interface EmitUsageEventInput {
+  usageEvent: UsageLedgerEvent;
+  allocations: Array<{ source: string; units: number }>;
+  featureKey: FeatureKey;
+  featureName: string;
+  userId?: string;
+}
+
+/**
+ * Input for AggregatedUsageRepository.increment()
+ */
+export interface IncrementAggregatedUsageInput {
+  tenantId: string;
+  subscriptionId: string;
+  featureId: string;
+  billingPeriod: string;
+  allocations: Array<{ source: Exclude<UsageSource, 'mixed'>; units: number }>;
+  eventId: string;
+}
+
+// =========================
 // REPOSITORY INPUT TYPES
 // =========================
 

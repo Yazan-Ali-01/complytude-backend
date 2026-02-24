@@ -2,7 +2,8 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
 import {
-  EffectiveEntitlement,
+  CheckAndRecordInput,
+  EnforceQuotaInput,
   EntitlementCheckResult,
   FeatureKey,
 } from '../../../common/types/entitlement.types';
@@ -79,13 +80,10 @@ export class EntitlementEnforcementService {
    * @returns Check result with allowed flag, source, and remaining info
    */
   async checkAndRecord(
-    tenantId: string,
-    featureKey: FeatureKey,
-    userId?: string,
-    units: number = 1,
-    metadata?: Record<string, any>,
+    input: CheckAndRecordInput,
     options?: QueryOptions,
   ): Promise<EntitlementCheckResult> {
+    const { tenantId, featureKey, userId, units = 1, metadata } = input;
     this.logger.debug(
       `Checking and recording: tenant=${tenantId}, feature=${featureKey}, units=${units}`,
     );
@@ -121,12 +119,7 @@ export class EntitlementEnforcementService {
         entitlement.feature_type === 'capacity'
       ) {
         return this.enforceUsageBasedFeature(
-          tenantId,
-          featureKey,
-          entitlement,
-          userId,
-          units,
-          metadata,
+          { tenantId, featureKey, entitlement, userId, units, metadata },
           client,
         );
       }
@@ -173,14 +166,11 @@ export class EntitlementEnforcementService {
    * @returns Check result
    */
   private async enforceUsageBasedFeature(
-    tenantId: string,
-    featureKey: FeatureKey,
-    entitlement: EffectiveEntitlement,
-    userId: string | undefined,
-    units: number,
-    metadata: Record<string, any> | undefined,
+    input: EnforceQuotaInput,
     client: PoolClient,
   ): Promise<EntitlementCheckResult> {
+    const { tenantId, featureKey, entitlement, userId, units, metadata } =
+      input;
     // Get subscription for billing period
     const subscription = await this.subscriptionsRepository.findActiveByTenant(
       tenantId,

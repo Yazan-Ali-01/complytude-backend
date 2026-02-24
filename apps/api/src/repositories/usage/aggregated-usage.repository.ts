@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   AggregatedUsage,
   CreateAggregatedUsageRow,
+  IncrementAggregatedUsageInput,
   UpdateAggregatedUsageRow,
 } from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
@@ -152,17 +153,17 @@ export class AggregatedUsageRepository extends BaseRepository<
    * @returns Updated aggregated usage
    */
   async increment(
-    tenantId: string,
-    subscriptionId: string,
-    featureId: string,
-    billingPeriod: string,
-    allocations: Array<{
-      source: 'plan' | 'addon' | 'credit' | 'override';
-      units: number;
-    }>,
-    eventId: string,
+    input: IncrementAggregatedUsageInput,
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
+    const {
+      tenantId,
+      subscriptionId,
+      featureId,
+      billingPeriod,
+      allocations,
+      eventId,
+    } = input;
     // Compute deltas from allocations
     const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
     const planUnits = allocations
