@@ -280,7 +280,7 @@ export class AggregatedUsageRepository extends BaseRepository<
         override_units = ${this.tableName}.override_units + $9,
         last_event_id = $10,
         last_updated_at = now()
-      WHERE ${this.tableName}.total_units + $5 <= $11
+      WHERE ${this.tableName}.plan_units + $6 <= $11
       RETURNING ${this.getSelectColumns()}
       `,
       [
