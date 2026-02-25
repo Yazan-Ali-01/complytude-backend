@@ -1,29 +1,36 @@
 import {
-  ForbiddenException,
+  ConflictException,
   Injectable,
-  InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { MessageResponseDto } from '../../../common/dto';
+import { I18nKeys } from '../../../common/constants/i18n-keys';
 import {
-  CreateTenantAddonRow,
-  TenantAddon,
+  TenantAddonWithEntitlements,
   UpdateTenantAddonRow,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
+import { AddonsRepository } from '../../../repositories/entitlements/addons.repository';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { TenantContext } from '../../tenants/tenant.service';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
+// TODO: TenantContext will evolve to support:
+// - mode: 'platform' — platform admin operations (bypass RLS)
+// - mode: 'purchase' — tenant self-service purchases (new RLS context)
+// - mode: 'tenant' — standard tenant operations (current tenant RLS)
+// For now, addons use tenant admin context; overrides use platform context.
+
+/**
+ * Service call options - discriminated union
+ * Either provide context (creates transaction) or client (reuses transaction)
+ */
+type ServiceCallOptions = { context: TenantContext } | { client: PoolClient };
+
 /**
  * Tenant Add-ons Service
- *
- * Manages tenant add-on subscriptions. All mutations invalidate entitlement
- * snapshots to ensure cached entitlements reflect add-on changes immediately.
- *
- * Per PHASE-7-8-TEST-ANALYSIS.md: When add-ons are added/removed, snapshots
- * must be invalidated. This service ensures that invariant.
  */
 @Injectable()
 export class TenantAddonsService {
@@ -32,132 +39,204 @@ export class TenantAddonsService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
+    private readonly addonsRepository: AddonsRepository,
     private readonly entitlementSnapshotService: EntitlementSnapshotService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
    * Add an add-on to a tenant
-   *
-   * Invalidates entitlement snapshot so next resolution uses fresh add-on data.
-   *
-   * @param data - Add-on creation data
-   * @param options - Query options
-   * @returns Created tenant add-on
+   * Single transaction: validate → create → fetch enriched → invalidate snapshot
    */
   async addAddon(
-    data: CreateTenantAddonRow,
-    context?: TenantContext,
-  ): Promise<TenantAddon> {
-    if (context?.mode !== 'platform') {
-      throw new ForbiddenException('Only platform admins can manage add-ons');
+    tenantId: string,
+    addonKey: string,
+    quantity: number,
+    options: ServiceCallOptions,
+  ): Promise<TenantAddonWithEntitlements> {
+    if ('client' in options) {
+      return this.executeAddAddon(tenantId, addonKey, quantity, options.client);
     }
-    const execute = async (client: PoolClient) => {
-      const addon = await this.tenantAddonsRepository.create(
-        {
-          ...data,
-          status: data.status ?? 'active',
-          starts_at: data.starts_at ?? new Date(),
-        },
+
+    const { context } = options;
+    if (context.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(
+        (client) => this.executeAddAddon(tenantId, addonKey, quantity, client),
+      );
+    }
+
+    // TODO: Replace with transactionWithPurchaseContext when purchase RLS is implemented
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId, isTenantAdmin: true },
+      (client) => this.executeAddAddon(tenantId, addonKey, quantity, client),
+    );
+  }
+
+  private async executeAddAddon(
+    tenantId: string,
+    addonKey: string,
+    quantity: number,
+    client: PoolClient,
+  ): Promise<TenantAddonWithEntitlements> {
+    // Validate addon exists in catalog
+    const addon = await this.addonsRepository.findByKey(addonKey, { client });
+    if (!addon) {
+      throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+    }
+
+    // Check for duplicate
+    const existing = await this.tenantAddonsRepository.findActiveByTenant(
+      tenantId,
+      { client },
+    );
+    if (existing.some((a) => a.addon_id === addon.id)) {
+      throw new ConflictException(this.i18n.t(I18nKeys.ADDON_ALREADY_ACTIVE));
+    }
+
+    // Create addon
+    await this.tenantAddonsRepository.create(
+      {
+        tenant_id: tenantId,
+        addon_id: addon.id,
+        quantity,
+        status: 'active',
+        starts_at: new Date(),
+      },
+      { client },
+    );
+
+    // Invalidate snapshot
+    await this.entitlementSnapshotService.invalidate(tenantId, 'addon_added', {
+      client,
+    });
+
+    // Fetch enriched result
+    const addons =
+      await this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
+        tenantId,
         { client },
       );
+    const created = addons.find((a) => a.addon_id === addon.id);
 
-      await this.entitlementSnapshotService.invalidate(
-        data.tenant_id,
-        'addon_added',
-        { client },
-      );
+    if (!created) {
+      throw new Error('Failed to retrieve created addon');
+    }
 
-      this.logger.log(
-        `Add-on added: tenant=${data.tenant_id}, addon=${data.addon_id}`,
-      );
-      return addon;
-    };
-
-    return this.databaseService.transactionWithPlatformAdminContext(execute);
+    this.logger.log(`Add-on added: tenant=${tenantId}, addon=${addon.id}`);
+    return created;
   }
 
   /**
-   * Update a tenant add-on (quantity, status, expires_at)
-   *
-   * Invalidates entitlement snapshot after update.
-   *
-   * @param tenantId - Tenant ID
-   * @param tenantAddonId - Tenant add-on ID to update
-   * @param updates - Fields to update
-   * @param options - Query options
-   * @returns Updated tenant add-on
+   * Update a tenant add-on
+   * Single transaction: update → fetch enriched → invalidate snapshot
    */
   async updateAddon(
     tenantId: string,
     tenantAddonId: string,
     updates: UpdateTenantAddonRow,
-    context?: TenantContext,
-  ): Promise<TenantAddon> {
-    if (context?.mode !== 'platform') {
-      throw new ForbiddenException('Only platform admins can update add-ons');
-    }
-    const execute = async (client: PoolClient) => {
-      const addon = await this.tenantAddonsRepository.update(
+    options: ServiceCallOptions,
+  ): Promise<TenantAddonWithEntitlements> {
+    if ('client' in options) {
+      return this.executeUpdateAddon(
+        tenantId,
         tenantAddonId,
         updates,
-        { client },
+        options.client,
       );
+    }
 
-      await this.entitlementSnapshotService.invalidate(
-        tenantId,
-        'addon_updated',
-        { client },
+    const { context } = options;
+    if (context.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(
+        (client) =>
+          this.executeUpdateAddon(tenantId, tenantAddonId, updates, client),
       );
+    }
 
-      this.logger.log(
-        `Add-on updated: tenant=${tenantId}, addon=${tenantAddonId}`,
-      );
-      return addon;
-    };
-
-    return await this.databaseService.transactionWithPlatformAdminContext(
-      execute,
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId, isTenantAdmin: true },
+      (client) =>
+        this.executeUpdateAddon(tenantId, tenantAddonId, updates, client),
     );
   }
 
+  private async executeUpdateAddon(
+    tenantId: string,
+    tenantAddonId: string,
+    updates: UpdateTenantAddonRow,
+    client: PoolClient,
+  ): Promise<TenantAddonWithEntitlements> {
+    await this.tenantAddonsRepository.update(tenantAddonId, updates, {
+      client,
+    });
+
+    await this.entitlementSnapshotService.invalidate(
+      tenantId,
+      'addon_updated',
+      { client },
+    );
+
+    const addons =
+      await this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
+        tenantId,
+        { client },
+      );
+    const updated = addons.find((a) => a.id === tenantAddonId);
+
+    if (!updated) {
+      throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+    }
+
+    this.logger.log(
+      `Add-on updated: tenant=${tenantId}, addon=${tenantAddonId}`,
+    );
+    return updated;
+  }
+
   /**
-   * Remove (deactivate) an add-on for a tenant
-   *
-   * Sets status to 'cancelled' and invalidates entitlement snapshot.
-   *
-   * @param tenantId - Tenant ID
-   * @param tenantAddonId - Tenant add-on ID to remove
-   * @param options - Query options
-   * @returns Updated tenant add-on
+   * Remove (cancel) an add-on
    */
   async removeAddon(
     tenantId: string,
     tenantAddonId: string,
-    context?: TenantContext,
-  ): Promise<MessageResponseDto> {
-    if (context?.mode !== 'platform') {
-      throw new ForbiddenException('Only platform admins can remove add-ons');
+    options: ServiceCallOptions,
+  ): Promise<void> {
+    if ('client' in options) {
+      return this.executeRemoveAddon(tenantId, tenantAddonId, options.client);
     }
-    const execute = async (client: PoolClient) => {
-      const addon = await this.tenantAddonsRepository.update(
-        tenantAddonId,
-        { status: 'cancelled' },
-        { client },
+
+    const { context } = options;
+    if (context.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(
+        (client) => this.executeRemoveAddon(tenantId, tenantAddonId, client),
       );
-
-      await this.entitlementSnapshotService.invalidate(
-        tenantId,
-        'addon_removed',
-        { client },
-      );
-
-      return addon;
-    };
-
-    if (context?.mode === 'platform') {
-      await this.databaseService.transactionWithPlatformAdminContext(execute);
-      return new MessageResponseDto('Add-on removed successfully');
     }
-    return new InternalServerErrorException('Failed to remove add-on');
+
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId, isTenantAdmin: true },
+      (client) => this.executeRemoveAddon(tenantId, tenantAddonId, client),
+    );
+  }
+
+  private async executeRemoveAddon(
+    tenantId: string,
+    tenantAddonId: string,
+    client: PoolClient,
+  ): Promise<void> {
+    await this.tenantAddonsRepository.update(
+      tenantAddonId,
+      { status: 'cancelled' },
+      { client },
+    );
+
+    await this.entitlementSnapshotService.invalidate(
+      tenantId,
+      'addon_removed',
+      { client },
+    );
+
+    this.logger.log(
+      `Add-on removed: tenant=${tenantId}, addon=${tenantAddonId}`,
+    );
   }
 }

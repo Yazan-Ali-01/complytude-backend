@@ -551,6 +551,7 @@ export interface PlanWithEntitlements extends Plan {
 
 export interface TenantAddonWithEntitlements extends TenantAddon {
   entitlements: AddonEntitlement[];
+  addon_name?: string;
 }
 
 export type ResolvedEntitlements = Record<FeatureKey, EffectiveEntitlement>;

@@ -1,24 +1,30 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import { PoolClient } from 'pg';
-import { TenantContext } from 'src/modules/tenants/tenant.service';
 import {
-  CreateTenantOverrideRow,
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
+import { PoolClient } from 'pg';
+import { I18nKeys } from '../../../common/constants/i18n-keys';
+import {
   TenantOverride,
   UpdateTenantOverrideRow,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
+import { FeaturesRepository } from '../../../repositories/features/features.repository';
+import { TenantContext } from '../../tenants/tenant.service';
+import {
+  ApplyOverrideDto,
+  UpdateOverrideDto,
+} from '../dto/tenant-override.dto';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
+
+type ServiceCallOptions = { context: TenantContext } | { client: PoolClient };
 
 /**
  * Tenant Overrides Service
- *
- * Manages admin-applied entitlement overrides. All mutations invalidate
- * entitlement snapshots to ensure cached entitlements reflect override
- * changes immediately.
- *
- * Per PHASE-7-8-TEST-ANALYSIS.md: When overrides are applied/expired,
- * snapshots must be invalidated. This service ensures that invariant.
  */
 @Injectable()
 export class TenantOverridesService {
@@ -27,117 +33,267 @@ export class TenantOverridesService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
+    private readonly featuresRepository: FeaturesRepository,
     private readonly entitlementSnapshotService: EntitlementSnapshotService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
    * Apply an override for a tenant
-   *
-   * Invalidates entitlement snapshot so next resolution uses fresh override data.
-   *
-   * @param data - Override creation data
-   * @param options - Query options
-   * @returns Created tenant override
+   * Single transaction: validate → create → invalidate snapshot
    */
   async applyOverride(
-    data: CreateTenantOverrideRow,
-    context?: TenantContext,
+    tenantId: string,
+    dto: ApplyOverrideDto,
+    appliedBy: string,
+    options: ServiceCallOptions,
   ): Promise<TenantOverride> {
-    const execute = async (client: PoolClient) => {
-      const override = await this.tenantOverridesRepository.create(
-        {
-          ...data,
-          starts_at: data.starts_at ?? new Date(),
-          is_active: data.is_active ?? true,
-        },
-        { client },
-      );
+    // Validate exactly one value field
+    this.validateValueFields(dto);
 
-      await this.entitlementSnapshotService.invalidate(
-        data.tenant_id,
-        'override_applied',
-        { client },
+    if ('client' in options) {
+      return this.executeApplyOverride(
+        tenantId,
+        dto,
+        appliedBy,
+        options.client,
       );
-
-      this.logger.log(
-        `Override applied: tenant=${data.tenant_id}, feature=${data.feature_id}`,
-      );
-      return override;
-    };
-
-    if (context?.mode === 'platform') {
-      return this.databaseService.transactionWithPlatformAdminContext(execute);
     }
 
-    const canManage = context?.mode === 'tenant' && context?.canManageSettings;
+    const { context } = options;
+    if (context.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(
+        (client) => this.executeApplyOverride(tenantId, dto, appliedBy, client),
+      );
+    }
+
     return this.databaseService.transactionWithTenantContext(
-      { tenantId: data.tenant_id, isTenantAdmin: !!canManage },
-      execute,
+      { tenantId, isTenantAdmin: true },
+      (client) => this.executeApplyOverride(tenantId, dto, appliedBy, client),
     );
+  }
+
+  private async executeApplyOverride(
+    tenantId: string,
+    dto: ApplyOverrideDto,
+    appliedBy: string,
+    client: PoolClient,
+  ): Promise<TenantOverride> {
+    // Validate feature exists
+    const feature = await this.featuresRepository.findByKey(dto.featureKey, {
+      client,
+    });
+    if (!feature) {
+      throw new NotFoundException(
+        this.i18n.t(I18nKeys.OVERRIDE_FEATURE_NOT_FOUND, {
+          args: { featureKey: dto.featureKey },
+        }),
+      );
+    }
+
+    // Create override
+    const override = await this.tenantOverridesRepository.create(
+      {
+        tenant_id: tenantId,
+        feature_id: feature.id,
+        value_bool: dto.valueBool,
+        value_int: dto.valueInt,
+        value_text: dto.valueText,
+        reason: dto.reason,
+        applied_by: appliedBy,
+        starts_at: new Date(),
+        expires_at: dto.expiresAt,
+        is_active: true,
+      },
+      { client },
+    );
+
+    await this.entitlementSnapshotService.invalidate(
+      tenantId,
+      'override_applied',
+      { client },
+    );
+
+    // Fetch with feature details
+    const enriched = await this.tenantOverridesRepository.findActiveByTenant(
+      tenantId,
+      { client },
+    );
+    const created = enriched.find((o) => o.id === override.id);
+
+    this.logger.log(
+      `Override applied: tenant=${tenantId}, feature=${feature.id}`,
+    );
+    return created || override;
   }
 
   /**
    * Update a tenant override
-   *
-   * Invalidates entitlement snapshot after update.
-   *
-   * @param tenantId - Tenant ID
-   * @param overrideId - Override ID to update
-   * @param updates - Fields to update
-   * @param options - Query options
-   * @returns Updated tenant override
    */
   async updateOverride(
     tenantId: string,
     overrideId: string,
-    updates: UpdateTenantOverrideRow,
-    context?: TenantContext,
+    dto: UpdateOverrideDto,
+    options: ServiceCallOptions,
   ): Promise<TenantOverride> {
-    if (context?.mode !== 'platform') {
-      throw new ForbiddenException('Only platform admins can update overrides');
-    }
-    const execute = async (client: PoolClient) => {
-      const override = await this.tenantOverridesRepository.update(
-        overrideId,
-        updates,
-        { client },
-      );
+    // Validate at most one value field
+    this.validateValueFieldsForUpdate(dto);
 
-      await this.entitlementSnapshotService.invalidate(
+    if ('client' in options) {
+      return this.executeUpdateOverride(
         tenantId,
-        'override_updated',
-        { client },
+        overrideId,
+        dto,
+        options.client,
       );
+    }
 
-      this.logger.log(
-        `Override updated: tenant=${tenantId}, override=${overrideId}`,
+    const { context } = options;
+    if (context.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(
+        (client) =>
+          this.executeUpdateOverride(tenantId, overrideId, dto, client),
       );
-      return override;
-    };
+    }
 
-    return this.databaseService.transactionWithPlatformAdminContext(execute);
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId, isTenantAdmin: true },
+      (client) => this.executeUpdateOverride(tenantId, overrideId, dto, client),
+    );
+  }
+
+  private async executeUpdateOverride(
+    tenantId: string,
+    overrideId: string,
+    dto: UpdateOverrideDto,
+    client: PoolClient,
+  ): Promise<TenantOverride> {
+    const updates: UpdateTenantOverrideRow = {};
+    if (dto.valueBool !== undefined) updates.value_bool = dto.valueBool;
+    if (dto.valueInt !== undefined) updates.value_int = dto.valueInt;
+    if (dto.valueText !== undefined) updates.value_text = dto.valueText;
+    if (dto.reason !== undefined) updates.reason = dto.reason;
+    if (dto.expiresAt !== undefined) updates.expires_at = dto.expiresAt;
+
+    await this.tenantOverridesRepository.update(overrideId, updates, {
+      client,
+    });
+
+    await this.entitlementSnapshotService.invalidate(
+      tenantId,
+      'override_updated',
+      { client },
+    );
+
+    const enriched = await this.tenantOverridesRepository.findActiveByTenant(
+      tenantId,
+      { client },
+    );
+    const updated = enriched.find((o) => o.id === overrideId);
+
+    if (!updated) {
+      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
+    }
+
+    this.logger.log(
+      `Override updated: tenant=${tenantId}, override=${overrideId}`,
+    );
+    return updated;
   }
 
   /**
-   * Revoke (deactivate) an override for a tenant
-   *
-   * Sets is_active to false and invalidates entitlement snapshot.
-   *
-   * @param tenantId - Tenant ID
-   * @param overrideId - Override ID to revoke
-   * @param options - Query options
-   * @returns Updated tenant override
+   * Revoke (deactivate) an override
    */
   async revokeOverride(
     tenantId: string,
     overrideId: string,
-    context?: TenantContext,
+    options: ServiceCallOptions,
   ): Promise<TenantOverride> {
-    return this.updateOverride(
-      tenantId,
+    if ('client' in options) {
+      return this.executeRevokeOverride(tenantId, overrideId, options.client);
+    }
+
+    const { context } = options;
+    if (context.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(
+        (client) => this.executeRevokeOverride(tenantId, overrideId, client),
+      );
+    }
+
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId, isTenantAdmin: true },
+      (client) => this.executeRevokeOverride(tenantId, overrideId, client),
+    );
+  }
+
+  private async executeRevokeOverride(
+    tenantId: string,
+    overrideId: string,
+    client: PoolClient,
+  ): Promise<TenantOverride> {
+    const override = await this.tenantOverridesRepository.findById(overrideId, {
+      client,
+    });
+
+    if (!override || override.tenant_id !== tenantId) {
+      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
+    }
+
+    if (!override.is_active) {
+      throw new BadRequestException('Override already revoked');
+    }
+
+    await this.tenantOverridesRepository.update(
       overrideId,
       { is_active: false },
-      context,
+      { client },
     );
+
+    await this.entitlementSnapshotService.invalidate(
+      tenantId,
+      'override_revoked',
+      { client },
+    );
+
+    this.logger.log(
+      `Override revoked: tenant=${tenantId}, override=${overrideId}`,
+    );
+
+    // return the override we fetched (with updated is_active manually set)
+    return { ...override, is_active: false, updated_at: new Date() };
+  }
+
+  /**
+   * Validate exactly one value field is set (for create)
+   */
+  private validateValueFields(dto: ApplyOverrideDto): void {
+    const fieldsSet = [
+      dto.valueBool !== undefined,
+      dto.valueInt !== undefined,
+      dto.valueText !== undefined,
+    ].filter(Boolean).length;
+
+    if (fieldsSet !== 1) {
+      throw new BadRequestException(
+        this.i18n.t(I18nKeys.OVERRIDE_INVALID_VALUE),
+      );
+    }
+  }
+
+  /**
+   * Validate at most one value field is set (for update)
+   */
+  private validateValueFieldsForUpdate(dto: UpdateOverrideDto): void {
+    const fieldsSet = [
+      dto.valueBool !== undefined,
+      dto.valueInt !== undefined,
+      dto.valueText !== undefined,
+    ].filter(Boolean).length;
+
+    if (fieldsSet > 1) {
+      throw new BadRequestException(
+        this.i18n.t(I18nKeys.OVERRIDE_INVALID_VALUE),
+      );
+    }
   }
 }

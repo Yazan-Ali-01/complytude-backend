@@ -73,6 +73,18 @@ export const I18nKeys = {
   TENANT_SUSPENDED: 'tenant.TENANT_SUSPENDED',
   TENANT_INACTIVE: 'tenant.TENANT_INACTIVE',
   DOCUMENT_LIMIT_EXCEEDED: 'tenant.DOCUMENT_LIMIT_EXCEEDED',
+
+  // Entitlement keys
+  ADDON_NOT_FOUND: 'entitlements.addon.not_found',
+  ADDON_ALREADY_ACTIVE: 'entitlements.addon.already_active',
+  ADDON_ADD_SUCCESS: 'entitlements.addon.add_success',
+  ADDON_REMOVE_SUCCESS: 'entitlements.addon.remove_success',
+
+  OVERRIDE_NOT_FOUND: 'entitlements.override.not_found',
+  OVERRIDE_FEATURE_NOT_FOUND: 'entitlements.override.feature_not_found',
+  OVERRIDE_APPLY_SUCCESS: 'entitlements.override.apply_success',
+  OVERRIDE_REVOKE_SUCCESS: 'entitlements.override.revoke_success',
+  OVERRIDE_INVALID_VALUE: 'entitlements.override.invalid_value',
 } as const;
 
 /**

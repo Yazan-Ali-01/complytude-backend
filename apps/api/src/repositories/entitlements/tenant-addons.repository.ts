@@ -62,13 +62,17 @@ export class TenantAddonsRepository extends BaseRepository<
   /**
    * Find all active add-ons for a tenant
    */
-  async findActiveByTenant(tenantId: string): Promise<TenantAddon[]> {
+  async findActiveByTenant(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<TenantAddon[]> {
     const result = await this.executeQuery<TenantAddonRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE tenant_id = $1 AND status = 'active'
        AND (expires_at IS NULL OR expires_at > now())
        ORDER BY created_at DESC`,
       [tenantId],
+      options,
     );
 
     return result.rows.map((row) => this.mapRow(row));
@@ -85,20 +89,25 @@ export class TenantAddonsRepository extends BaseRepository<
       SELECT
         ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at,
         ta.expires_at, ta.metadata, ta.created_at, ta.updated_at,
+        a.key as addon_key, a.name as addon_name,
         ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
         ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
         f.key as feature_key, f.feature_type
       FROM ${this.tableName} ta
+      LEFT JOIN public.addons a ON a.id = ta.addon_id
       LEFT JOIN public.addon_entitlements ae ON ae.addon_id = ta.addon_id
       LEFT JOIN public.features f ON f.id = ae.feature_id
       WHERE ta.tenant_id = $1 AND ta.status = 'active'
         AND (ta.expires_at IS NULL OR ta.expires_at > now())
       ORDER BY ta.created_at DESC
     `;
+
     const result = await this.executeQuery(query, [tenantId], options);
 
-    // Group by tenant_addon id
-    const addonsMap = new Map<string, TenantAddonWithEntitlements>();
+    const addonsMap = new Map<
+      string,
+      TenantAddonWithEntitlements & { addon_name?: string }
+    >();
 
     result.rows.forEach((row) => {
       const addonId = row.id as string;
@@ -107,6 +116,7 @@ export class TenantAddonsRepository extends BaseRepository<
         const addon = this.mapRow(row);
         addonsMap.set(addonId, {
           ...addon,
+          addon_name: row.addon_name as string,
           entitlements: [],
         });
       }
@@ -127,6 +137,7 @@ export class TenantAddonsRepository extends BaseRepository<
         addonsMap.get(addonId)!.entitlements.push(entitlement);
       }
     });
+
     return Array.from(addonsMap.values());
   }
 

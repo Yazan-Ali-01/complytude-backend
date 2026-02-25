@@ -1,6 +1,5 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import type { QueryOptions } from '../../../repositories/base/repository.interface';
 import { AddonsRepository } from '../../../repositories/entitlements/addons.repository';
 import {
   AddonCatalogDetailResponseDto,
@@ -29,13 +28,9 @@ export class AddonCatalogController {
     description: 'List of available add-ons',
     type: [AddonCatalogResponseDto],
   })
-  async listAddons(options?: {
-    client?: QueryOptions['client'];
-  }): Promise<AddonCatalogResponseDto[]> {
+  async listAddons(): Promise<AddonCatalogResponseDto[]> {
     // Public endpoint - no context needed, uses default connection
-    const addons = await this.addonsRepository.findAllActive({
-      client: options?.client,
-    });
+    const addons = await this.addonsRepository.findAllActive();
 
     return addons.map((addon) => ({
       id: addon.id,

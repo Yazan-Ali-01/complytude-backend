@@ -12,10 +12,12 @@ import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from 'src/repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from 'src/repositories/usage/usage-ledger.repository';
+import { I18nModule } from '../../i18n/i18n.module';
 import { AddonsRepository } from '../../repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from '../../repositories/entitlements/entitlement-snapshots.repository';
 import { AddonCatalogController } from './controllers/addon-catalog.controller';
 import { TenantAddonsController } from './controllers/tenant-addons.controller';
+import { TenantOverridesReadController } from './controllers/tenant-overrides-read.controller';
 import { TenantOverridesController } from './controllers/tenant-overrides.controller';
 import { EntitlementsController } from './entitlements.controller';
 import { CreditBalanceService } from './services/credit-balance.service';
@@ -47,12 +49,13 @@ import { UsageProjectionService } from './services/usage-projection.service';
  */
 @Global()
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, I18nModule],
   controllers: [
     EntitlementsController,
     AddonCatalogController,
     TenantAddonsController,
     TenantOverridesController,
+    TenantOverridesReadController,
   ],
   providers: [
     // Core services
