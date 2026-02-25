@@ -1,7 +1,6 @@
+import { BaseRepository, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
-import { QueryOptions } from '../base/repository.interface';
 import { RefreshToken, TokenType } from './interfaces/refresh-token.interfaces';
 
 type RefreshTokenRow = {

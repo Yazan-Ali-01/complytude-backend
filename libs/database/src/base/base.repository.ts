@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { QueryResult, QueryResultRow } from 'pg';
-import { DatabaseService } from '../../database/database.service';
+import { DatabaseService } from '../database.service';
 import {
   ClientQueryOptions,
   FindOneOptions,
@@ -17,22 +17,6 @@ import {
  *                     with JSON/JSONB fields as strings (already stringified by services)
  * @template TUpdate - The input type for updating entities. Should use UpdateXRow types
  *                     with optional JSON/JSONB fields as strings (already stringified by services)
- *
- * @example
- * ```ts
- * // Entity type (returned from queries)
- * type Template = { id: string; metadata: Record<string, any> };
- *
- * // Create type (input to create method)
- * type CreateTemplateRow = { name: string; metadata: string }; // JSON already stringified
- *
- * // Update type (input to update method)
- * type UpdateTemplateRow = { name?: string; metadata?: string }; // JSON already stringified
- *
- * class TemplateRepository extends BaseRepository<Template, CreateTemplateRow, UpdateTemplateRow> {
- *   // Repository implementation
- * }
- * ```
  */
 @Injectable()
 export abstract class BaseRepository<
@@ -48,36 +32,10 @@ export abstract class BaseRepository<
     protected readonly tableName: string,
   ) {}
 
-  /**
-   * Convert a raw DB row into the concrete entity type.
-   * Implemented by child repositories to keep mapping logic close to the model.
-   *
-   * This method should parse JSON/JSONB string fields back into objects/arrays
-   * for the entity type.
-   */
   protected abstract mapRow(row: Record<string, unknown>): TEntity;
 
-  /**
-   * Get the list of columns to select in queries.
-   * Override this in child repositories to specify explicit columns.
-   * Default returns all columns (*).
-   */
   protected abstract getSelectColumns(): string;
 
-  /**
-   * Execute a query respecting transaction clients, tenant context, and RLS.
-   * Falls back to DatabaseService for non-transactional access.
-   *
-   * The `bypassRLS` option allows selectively bypassing Row-Level Security (RLS) enforcement.
-   * This is essential for privileged operations (such as system admin actions, migrations, cross-tenant management,
-   * or internal maintenance queries) which require direct access to all rows, regardless of RLS policies.
-   * For standard application flows, RLS is enforced by default to maintain data isolation and tenant security.
-   *
-   * Example (inside service):
-   * ```ts
-   * await this.executeQuery('UPDATE users SET last_login = NOW() WHERE id = $1', [userId], { client });
-   * ```
-   */
   protected async executeQuery<T extends QueryResultRow = QueryResultRow>(
     query: string,
     params: unknown[] = [],
@@ -106,22 +64,9 @@ export abstract class BaseRepository<
       );
     }
 
-    // todo: check the query function inside the database service
     return this.databaseService.query<T>(query, params, isAuthflow);
   }
 
-  /**
-   * Execute a query using a provided PoolClient, optionally setting tenant context
-   * or bypassing RLS. Resets session settings after the query completes.
-   *
-   * - When `tenant` is provided, sets `app.current_tenant_id` and search_path.
-   * - When `bypassRLS` is true, toggles `app.bypass_rls`.
-   *
-   * Example:
-   * ```ts
-   * await this.runWithClient(client, 'SELECT * FROM docs', [], { tenantId, schema: 'tenant_acme' });
-   * ```
-   */
   private async runWithClient<T extends QueryResultRow = QueryResultRow>(
     query: string,
     params: unknown[],
@@ -147,14 +92,6 @@ export abstract class BaseRepository<
     }
   }
 
-  /**
-   * Fetch entity by primary ID. Returns null when missing.
-   *
-   * Example:
-   * ```ts
-   * const user = await this.findById(userId, { tenant });
-   * ```
-   */
   async findById(id: string, options?: QueryOptions): Promise<TEntity | null> {
     this.logger.debug(
       `findById: table=${this.tableName}, id=${id}, tenant=${
@@ -173,14 +110,6 @@ export abstract class BaseRepository<
       : null;
   }
 
-  /**
-   * Fetch the first record matching the provided filters.
-   *
-   * Example:
-   * ```ts
-   * const user = await this.findOneBy({ email });
-   * ```
-   */
   async findOne(options?: FindOneOptions<TEntity>): Promise<TEntity | null> {
     this.logger.debug(
       `findOne: table=${this.tableName}, filters=${JSON.stringify(
@@ -210,20 +139,6 @@ export abstract class BaseRepository<
       : null;
   }
 
-  /**
-   * Insert a new record and return the mapped entity.
-   *
-   * IMPORTANT: JSON/JSONB fields in data must be pre-stringified by the service layer.
-   *
-   * Example:
-   * ```ts
-   * // Service layer stringifies JSON fields before calling repository
-   * const created = await this.create({
-   *   name: 'Template',
-   *   metadata: JSON.stringify({ key: 'value' }) // Already stringified
-   * });
-   * ```
-   */
   async create(data: TCreate, options?: QueryOptions): Promise<TEntity> {
     const keys = Object.keys(data as Record<string, unknown>);
     const values = Object.values(data as Record<string, unknown>);
@@ -251,19 +166,6 @@ export abstract class BaseRepository<
     return this.mapRow(result.rows[0] as Record<string, unknown>);
   }
 
-  /**
-   * Update an existing record by ID; throws NotFoundException when missing.
-   *
-   * IMPORTANT: JSON/JSONB fields in data must be pre-stringified by the service layer.
-   *
-   * Example:
-   * ```ts
-   * // Service layer stringifies JSON fields before calling repository
-   * const updated = await this.update(id, {
-   *   metadata: JSON.stringify({ key: 'value' }) // Already stringified
-   * });
-   * ```
-   */
   async update(
     id: string,
     data: TUpdate,
@@ -303,14 +205,6 @@ export abstract class BaseRepository<
     return this.mapRow(result.rows[0] as Record<string, unknown>);
   }
 
-  /**
-   * Delete a record by ID; throws NotFoundException when missing.
-   *
-   * Example:
-   * ```ts
-   * await this.delete(id);
-   * ```
-   */
   async delete(id: string, options?: QueryOptions): Promise<number> {
     this.logger.debug(
       `delete: table=${this.tableName}, id=${id}, tenant=${

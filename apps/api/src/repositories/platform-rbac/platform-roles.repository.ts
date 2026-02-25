@@ -1,6 +1,6 @@
+import { BaseRepository } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
 import {
   CreatePlatformRoleInput,
   PlatformRole,

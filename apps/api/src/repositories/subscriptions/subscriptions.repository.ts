@@ -1,3 +1,4 @@
+import { BaseRepository, QueryOptions } from '@lib/database';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   CreateTenantSubscriptionRow,
@@ -7,8 +8,6 @@ import {
   UpdateTenantSubscriptionRow,
 } from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
-import { QueryOptions } from '../base/repository.interface';
 
 type TenantSubscriptionRow = {
   id: string;

@@ -1,3 +1,4 @@
+import { CursorPaginationResult } from '@lib/database';
 import {
   Body,
   Controller,
@@ -25,7 +26,6 @@ import { RequireAnyPlatformPermission } from '../../common/decorators/platform-p
 import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import { CategoriesService } from './categories.service';
 
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { Category } from './entities/category.entity';
 

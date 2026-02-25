@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import {
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
-} from '../embedding.constants.js';
-import { ChunkOptions, TextChunk } from '../interfaces/chunking.interface.js';
-import { TokenCounterService } from './token-counter.service.js';
+} from '../embedding.constants';
+import { ChunkOptions, TextChunk } from '../interfaces/chunking.interface';
+import { TokenCounterService } from './token-counter.service';
 
 @Injectable()
 export class TextChunkerService {

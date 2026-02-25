@@ -1,11 +1,10 @@
+import { BaseRepository, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreateUsageAllocationRow,
   UsageAllocation,
 } from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
-import { QueryOptions } from '../base/repository.interface';
 
 type UsageAllocationRow = {
   id: string;

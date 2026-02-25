@@ -1,12 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
-import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
 import {
+  BaseRepository,
+  CursorPaginationHelper,
   CursorPaginationOptions,
   CursorPaginationResult,
   QueryOptions,
-} from '../base/repository.interface';
+} from '@lib/database';
+import { Injectable } from '@nestjs/common';
+import { DatabaseService } from '../../database/database.service';
+
 import {
   CreateInvitationInput,
   Invitation,
