@@ -79,7 +79,7 @@ export class TenantOverridesRepository extends BaseRepository<
         tor.id, tor.tenant_id, tor.feature_id, tor.value_bool, tor.value_int,
         tor.value_text, tor.reason, tor.applied_by, tor.starts_at, tor.expires_at,
         tor.is_active, tor.created_at, tor.updated_at,
-        f.key as feature_key
+        f.key as feature_key, f.feature_type
       FROM ${this.tableName} tor
       JOIN public.features f ON f.id = tor.feature_id
       WHERE tor.tenant_id = $1 AND tor.is_active = true

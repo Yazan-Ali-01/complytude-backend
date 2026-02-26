@@ -14,8 +14,6 @@ import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permiss
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { I18nKeys } from '../../../common/constants/i18n-keys';
 import { MessageResponseDto } from '../../../common/dto';
-import { DatabaseService } from '../../../database/database.service';
-import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../../auth/strategies/jwt-payload.interface';
@@ -33,9 +31,9 @@ import { mapTenantAddonToDto } from '../utils/entitlement-mappers.util';
 @UseGuards(TenantPermissionsGuard)
 export class TenantAddonsController {
   constructor(
-    private readonly databaseService: DatabaseService,
+    // private readonly databaseService: DatabaseService,
     private readonly tenantAddonsService: TenantAddonsService,
-    private readonly tenantAddonsRepository: TenantAddonsRepository,
+    // private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly i18n: I18nService,
   ) {}
 
@@ -50,14 +48,9 @@ export class TenantAddonsController {
   async listTenantAddons(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantAddonResponseDto[]> {
-    const addons = await this.databaseService.transactionWithTenantContext(
-      { tenantId: user.tenantId, isTenantAdmin: false },
-      async (client) =>
-        this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
-          user.tenantId,
-          { client },
-        ),
-    );
+    const addons = await this.tenantAddonsService.listAddons(user.tenantId, {
+      context: { mode: 'tenant', canManageSettings: true },
+    });
 
     return addons.map((addon) => mapTenantAddonToDto(addon, addon.addon_name));
   }

@@ -14,7 +14,7 @@ import {
 import { DatabaseService } from '../../../database/database.service';
 import { AddonsRepository } from '../../../repositories/entitlements/addons.repository';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
-import { TenantContext } from '../../tenants/tenant.service';
+import { ServiceCallOptions } from '../../tenants/tenant.service';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
 // TODO: TenantContext will evolve to support:
@@ -22,12 +22,6 @@ import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 // - mode: 'purchase' — tenant self-service purchases (new RLS context)
 // - mode: 'tenant' — standard tenant operations (current tenant RLS)
 // For now, addons use tenant admin context; overrides use platform context.
-
-/**
- * Service call options - discriminated union
- * Either provide context (creates transaction) or client (reuses transaction)
- */
-type ServiceCallOptions = { context: TenantContext } | { client: PoolClient };
 
 /**
  * Tenant Add-ons Service
@@ -43,6 +37,45 @@ export class TenantAddonsService {
     private readonly entitlementSnapshotService: EntitlementSnapshotService,
     private readonly i18n: I18nService,
   ) {}
+
+  /**
+   * List active addons for a tenant
+   */
+  async listAddons(
+    tenantId: string,
+    options: ServiceCallOptions,
+  ): Promise<TenantAddonWithEntitlements[]> {
+    if ('client' in options) {
+      return this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
+        tenantId,
+        { client: options.client },
+      );
+    }
+
+    const { context } = options;
+    if (context.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(
+        (client) =>
+          this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
+            tenantId,
+            {
+              client,
+            },
+          ),
+      );
+    }
+
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId, isTenantAdmin: false },
+      (client) =>
+        this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
+          tenantId,
+          {
+            client,
+          },
+        ),
+    );
+  }
 
   /**
    * Add an add-on to a tenant

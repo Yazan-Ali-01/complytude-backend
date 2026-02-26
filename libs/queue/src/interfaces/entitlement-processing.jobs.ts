@@ -42,6 +42,8 @@ export interface EntitlementProjectionUpdateJobData {
   tenantId: string;
   featureKey: string;
   featureId: string;
+  featureName: string;
+  featureType: string;
   subscriptionId: string;
   units: number;
   billingPeriod: string;
@@ -49,6 +51,11 @@ export interface EntitlementProjectionUpdateJobData {
     source: 'plan' | 'addon' | 'credit' | 'override';
     units: number;
   }>;
+  resourceType?: string;
+  resourceId?: string;
+  actorId?: string;
+  recordedAt: string;
+  idempotencyKey?: string;
   creditDeducted: boolean;
   creditAmount?: number;
 }

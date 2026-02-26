@@ -63,7 +63,6 @@ COMMENT ON COLUMN public.ruleset_chunks.metadata IS 'Extra info (token count, so
 -- RULESET_CHUNKS INDEXES
 -- =========================
 
-CREATE INDEX idx_ruleset_chunks_ruleset_id ON public.ruleset_chunks(ruleset_id);
 CREATE INDEX idx_ruleset_chunks_ruleset_version_id ON public.ruleset_chunks(ruleset_version_id);
 CREATE INDEX idx_ruleset_chunks_ruleset_version ON public.ruleset_chunks(ruleset_id, ruleset_version_id);
 
@@ -79,10 +78,11 @@ CREATE TABLE public.analysis_jobs (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id          UUID NOT NULL,
     document_id        UUID NOT NULL,
+    created_by         UUID,
     ruleset_id         UUID,
     ruleset_version_id UUID,
     status             analysis_job_status NOT NULL DEFAULT 'queued',
-    result             JSONB DEFAULT '{}',
+    result             JSONB,
     error              TEXT,
     started_at         TIMESTAMPTZ,
     completed_at       TIMESTAMPTZ,
@@ -101,6 +101,12 @@ CREATE TABLE public.analysis_jobs (
         ON DELETE CASCADE
         ON UPDATE CASCADE,
 
+    CONSTRAINT fk_analysis_jobs_created_by
+        FOREIGN KEY (created_by)
+        REFERENCES public.users(id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+
     CONSTRAINT fk_analysis_jobs_ruleset
         FOREIGN KEY (ruleset_id)
         REFERENCES public.rulesets(id)
@@ -116,6 +122,7 @@ CREATE TABLE public.analysis_jobs (
 
 COMMENT ON TABLE public.analysis_jobs IS 'Compliance analysis job lifecycle (tenant-scoped, RLS)';
 COMMENT ON COLUMN public.analysis_jobs.document_id IS 'Document being analyzed';
+COMMENT ON COLUMN public.analysis_jobs.created_by IS 'User who requested the analysis (SET NULL on delete)';
 COMMENT ON COLUMN public.analysis_jobs.ruleset_id IS 'Ruleset used for analysis (traceability, SET NULL on delete)';
 COMMENT ON COLUMN public.analysis_jobs.ruleset_version_id IS 'Ruleset version used for analysis (traceability, SET NULL on delete)';
 COMMENT ON COLUMN public.analysis_jobs.result IS 'Analysis output (matches, violations, recommendations)';
@@ -162,7 +169,6 @@ DROP INDEX IF EXISTS public.idx_analysis_jobs_tenant_id;
 DROP INDEX IF EXISTS public.idx_ruleset_chunks_embedding_hnsw;
 DROP INDEX IF EXISTS public.idx_ruleset_chunks_ruleset_version;
 DROP INDEX IF EXISTS public.idx_ruleset_chunks_ruleset_version_id;
-DROP INDEX IF EXISTS public.idx_ruleset_chunks_ruleset_id;
 
 -- Drop tables
 DROP TABLE IF EXISTS public.analysis_jobs;

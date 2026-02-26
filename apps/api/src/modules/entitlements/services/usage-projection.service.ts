@@ -24,11 +24,8 @@ import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.
  * - usage_ledger = append-only event store (source of truth)
  * - aggregated_usage = projection (derived, can be rebuilt)
  *
- * TODO: BullMQ - In production, projection updates should be processed
- * by a BullMQ worker consuming usage events from a queue. This ensures
- * the write path (usage recording) is fast and the projection update
- * happens asynchronously. For now, we update synchronously within the
- * same transaction for consistency.
+ * Projection updates are processed asynchronously by ProjectionUpdateHandler
+ * via the entitlement-processing queue. See processors/projection-update.handler.ts
  */
 @Injectable()
 export class UsageProjectionService {
@@ -43,20 +40,13 @@ export class UsageProjectionService {
   /**
    * Atomically increment usage counters for a feature with multi-source allocations
    *
-   * This method is called synchronously after recording a usage event.
-   * It updates the aggregated_usage projection with atomic SQL increments
-   * to prevent race conditions.
+   * Called by ProjectionUpdateHandler when processing PROJECTION_UPDATE jobs.
+   * Also used by EntitlementEnforcementService sync fallback when BullMQ is unavailable.
    *
    * Using subscription_id ensures:
    * - Each billing period gets its own projection (unambiguous)
    * - Quota enforcement checks the correct subscription
    * - Works for any billing cycle (monthly, yearly, custom)
-   *
-   * TODO: BullMQ - Move this to an async queue worker. The worker would:
-   * 1. Consume usage.recorded events from a queue
-   * 2. Call this method to update the projection
-   * 3. Handle retries if the update fails
-   * 4. Emit projection.updated event when complete
    *
    * @param tenantId - Tenant ID
    * @param subscriptionId - Subscription ID (source of truth for billing period)
@@ -134,10 +124,6 @@ export class UsageProjectionService {
    * - Consistency verification (compare projection vs allocations)
    * - Recovery from projection corruption
    * - Auditing and reconciliation
-   *
-   * TODO: BullMQ - A scheduled cron job should periodically run this
-   * for all active tenants to detect and fix projection drift. Alert
-   * if the projection doesn't match the allocations sum.
    *
    * @param tenantId - Tenant ID
    * @param subscriptionId - Subscription ID (identifies the billing period)
@@ -217,30 +203,4 @@ export class UsageProjectionService {
 
     return rebuilt;
   }
-
-  /**
-   * TODO: BullMQ - Process a single usage event (called by queue worker)
-   *
-   * This method would be called by a BullMQ worker that consumes
-   * usage.recorded events from a queue. It would:
-   * 1. Receive the event ID from the queue
-   * 2. Fetch the event from usage_ledger
-   * 3. Call incrementUsage() to update the projection
-   * 4. Emit projection.updated event
-   *
-   * Example worker implementation:
-   * ```typescript
-   * @Processor('usage-projection')
-   * export class UsageProjectionWorker {
-   *   @Process('update')
-   *   async processUsageEvent(job: Job<{ eventId: string }>) {
-   *     await this.projectionService.processUsageEvent(job.data.eventId);
-   *   }
-   * }
-   * ```
-   *
-   * async processUsageEvent(eventId: string): Promise<void> {
-   *   // Implementation would go here
-   * }
-   */
 }

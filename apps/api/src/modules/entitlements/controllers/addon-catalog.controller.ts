@@ -1,11 +1,16 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18nService } from 'nestjs-i18n';
+import { I18nKeys } from '../../../common/constants';
 import { AddonsRepository } from '../../../repositories/entitlements/addons.repository';
 import {
   AddonCatalogDetailResponseDto,
   AddonCatalogResponseDto,
-  AddonEntitlementDto,
 } from '../dto/addon-catalog.dto';
+import {
+  mapAddonToCatalogDetailDto,
+  mapAddonToCatalogDto,
+} from '../utils/entitlement-mappers.util';
 
 /**
  * Add-on Catalog Controller
@@ -16,7 +21,10 @@ import {
 @Controller('addons')
 @ApiTags('addons')
 export class AddonCatalogController {
-  constructor(private readonly addonsRepository: AddonsRepository) {}
+  constructor(
+    private readonly addonsRepository: AddonsRepository,
+    private readonly i18n: I18nService,
+  ) {}
 
   /**
    * List all available add-ons
@@ -32,15 +40,7 @@ export class AddonCatalogController {
     // Public endpoint - no context needed, uses default connection
     const addons = await this.addonsRepository.findAllActive();
 
-    return addons.map((addon) => ({
-      id: addon.id,
-      key: addon.key,
-      name: addon.name,
-      description: addon.description,
-      priceMonthly: addon.price_monthly,
-      priceCurrency: addon.price_currency,
-      isActive: addon.is_active,
-    }));
+    return addons.map(mapAddonToCatalogDto);
   }
 
   /**
@@ -69,29 +69,8 @@ export class AddonCatalogController {
     const addon = await this.addonsRepository.findByKeyWithEntitlements(key);
 
     if (!addon) {
-      throw new NotFoundException(`Add-on not found: ${key}`);
+      throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
     }
-
-    // Map entitlements to DTO
-    const entitlements: AddonEntitlementDto[] = addon.entitlements.map(
-      (ent) => ({
-        featureKey: ent.feature_key,
-        featureType: ent.feature_type,
-        valueBool: ent.value_bool,
-        valueInt: ent.value_int,
-        valueText: ent.value_text,
-      }),
-    );
-
-    return {
-      id: addon.id,
-      key: addon.key,
-      name: addon.name,
-      description: addon.description,
-      priceMonthly: addon.price_monthly,
-      priceCurrency: addon.price_currency,
-      isActive: addon.is_active,
-      entitlements,
-    };
+    return mapAddonToCatalogDetailDto(addon);
   }
 }

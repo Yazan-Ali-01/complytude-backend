@@ -9,7 +9,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { I18nService } from 'nestjs-i18n';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
 import { DatabaseService } from '../../../database/database.service';
@@ -35,7 +34,6 @@ export class TenantOverridesController {
     private readonly databaseService: DatabaseService,
     private readonly tenantOverridesService: TenantOverridesService,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
-    private readonly i18n: I18nService,
   ) {}
 
   @Get()

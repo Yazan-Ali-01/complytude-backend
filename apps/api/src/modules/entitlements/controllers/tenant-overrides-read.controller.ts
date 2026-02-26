@@ -1,6 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { I18nService } from 'nestjs-i18n';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { DatabaseService } from '../../../database/database.service';
@@ -20,7 +19,6 @@ export class TenantOverridesReadController {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
-    private readonly i18n: I18nService,
   ) {}
 
   @Get()

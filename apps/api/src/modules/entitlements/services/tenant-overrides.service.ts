@@ -14,14 +14,12 @@ import {
 import { DatabaseService } from '../../../database/database.service';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
-import { TenantContext } from '../../tenants/tenant.service';
+import { ServiceCallOptions } from '../../tenants/tenant.service';
 import {
   ApplyOverrideDto,
   UpdateOverrideDto,
 } from '../dto/tenant-override.dto';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
-
-type ServiceCallOptions = { context: TenantContext } | { client: PoolClient };
 
 /**
  * Tenant Overrides Service
@@ -169,11 +167,15 @@ export class TenantOverridesService {
     client: PoolClient,
   ): Promise<TenantOverride> {
     const updates: UpdateTenantOverrideRow = {};
-    if (dto.valueBool !== undefined) updates.value_bool = dto.valueBool;
-    if (dto.valueInt !== undefined) updates.value_int = dto.valueInt;
-    if (dto.valueText !== undefined) updates.value_text = dto.valueText;
-    if (dto.reason !== undefined) updates.reason = dto.reason;
-    if (dto.expiresAt !== undefined) updates.expires_at = dto.expiresAt;
+    if (
+      dto.valueBool !== undefined ||
+      dto.valueInt !== undefined ||
+      dto.valueText !== undefined
+    ) {
+      updates.value_bool = dto.valueBool ?? null;
+      updates.value_int = dto.valueInt ?? null;
+      updates.value_text = dto.valueText ?? null;
+    }
 
     await this.tenantOverridesRepository.update(overrideId, updates, {
       client,
@@ -231,18 +233,6 @@ export class TenantOverridesService {
     overrideId: string,
     client: PoolClient,
   ): Promise<TenantOverride> {
-    const override = await this.tenantOverridesRepository.findById(overrideId, {
-      client,
-    });
-
-    if (!override || override.tenant_id !== tenantId) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
-    }
-
-    if (!override.is_active) {
-      throw new BadRequestException('Override already revoked');
-    }
-
     await this.tenantOverridesRepository.update(
       overrideId,
       { is_active: false },
@@ -255,12 +245,18 @@ export class TenantOverridesService {
       { client },
     );
 
-    this.logger.log(
-      `Override revoked: tenant=${tenantId}, override=${overrideId}`,
+    // Fetch to return enriched result
+    const enriched = await this.tenantOverridesRepository.findActiveByTenant(
+      tenantId,
+      { client },
     );
+    const revoked = enriched.find((o) => o.id === overrideId);
 
-    // return the override we fetched (with updated is_active manually set)
-    return { ...override, is_active: false, updated_at: new Date() };
+    if (!revoked) {
+      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
+    }
+
+    return revoked;
   }
 
   /**

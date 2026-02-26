@@ -16,10 +16,13 @@ import { I18nModule } from '../../i18n/i18n.module';
 import { AddonsRepository } from '../../repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from '../../repositories/entitlements/entitlement-snapshots.repository';
 import { AddonCatalogController } from './controllers/addon-catalog.controller';
+import { PlatformAddonsController } from './controllers/platform-addons.controller';
 import { TenantAddonsController } from './controllers/tenant-addons.controller';
 import { TenantOverridesReadController } from './controllers/tenant-overrides-read.controller';
 import { TenantOverridesController } from './controllers/tenant-overrides.controller';
 import { EntitlementsController } from './entitlements.controller';
+import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
+import { ProjectionUpdateHandler } from './processors/projection-update.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
@@ -56,6 +59,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     TenantAddonsController,
     TenantOverridesController,
     TenantOverridesReadController,
+    PlatformAddonsController,
   ],
   providers: [
     // Core services
@@ -71,6 +75,10 @@ import { UsageProjectionService } from './services/usage-projection.service';
     TenantAddonsService, // Add-on mutations with snapshot invalidation
     TenantOverridesService, // Override mutations with snapshot invalidation
     AddonsRepository,
+
+    // Queue processor + handlers
+    EntitlementQueueProcessor,
+    ProjectionUpdateHandler,
 
     // Catalog repositories
     FeaturesRepository,

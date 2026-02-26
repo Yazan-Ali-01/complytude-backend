@@ -116,6 +116,7 @@ export class TenantAddonsRepository extends BaseRepository<
         const addon = this.mapRow(row);
         addonsMap.set(addonId, {
           ...addon,
+          addon_key: row.addon_key as string,
           addon_name: row.addon_name as string,
           entitlements: [],
         });

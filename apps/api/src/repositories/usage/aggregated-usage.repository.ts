@@ -62,6 +62,30 @@ export class AggregatedUsageRepository extends BaseRepository<
   }
 
   /**
+   * Find aggregated usage row by subscription and feature
+   *
+   * Used by ProjectionUpdateHandler for idempotency check — detects if a
+   * ledger event was already projected by comparing last_event_id.
+   *
+   * @param subscriptionId - Subscription ID
+   * @param featureId - Feature UUID
+   * @param options - Query options
+   */
+  async findBySubscriptionAndFeature(
+    subscriptionId: string,
+    featureId: string,
+    options?: QueryOptions,
+  ): Promise<AggregatedUsage | null> {
+    const result = await this.executeQuery(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE subscription_id = $1 AND feature_id = $2`,
+      [subscriptionId, featureId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Find current usage for tenant, subscription, and feature
    * Phase 3 implementation (updated to use subscription_id)
    */
@@ -206,6 +230,78 @@ export class AggregatedUsageRepository extends BaseRepository<
       ],
       options,
     );
+
+    return this.mapRow(result.rows[0]);
+  }
+
+  /**
+   * Atomically increment usage counters with a quota guard (CAS).
+   *
+   * Uses ON CONFLICT DO UPDATE ... WHERE total_units + delta <= limit.
+   * Returns null when the guarded UPDATE path fails (0 rows), which indicates
+   * another concurrent request consumed the remaining quota.
+   */
+  async conditionalIncrement(
+    tenantId: string,
+    subscriptionId: string,
+    featureId: string,
+    billingPeriod: string,
+    allocations: Array<{
+      source: 'plan' | 'addon' | 'credit' | 'override';
+      units: number;
+    }>,
+    eventId: string,
+    limit: number,
+    options?: QueryOptions,
+  ): Promise<AggregatedUsage | null> {
+    const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
+    const planUnits = allocations
+      .filter((a) => a.source === 'plan')
+      .reduce((sum, a) => sum + a.units, 0);
+    const addonUnits = allocations
+      .filter((a) => a.source === 'addon')
+      .reduce((sum, a) => sum + a.units, 0);
+    const creditUnits = allocations
+      .filter((a) => a.source === 'credit')
+      .reduce((sum, a) => sum + a.units, 0);
+    const overrideUnits = allocations
+      .filter((a) => a.source === 'override')
+      .reduce((sum, a) => sum + a.units, 0);
+
+    const result = await this.executeQuery<AggregatedUsageRow>(
+      `
+      INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units, last_event_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (subscription_id, feature_id) DO UPDATE SET
+        total_units = ${this.tableName}.total_units + $5,
+        plan_units = ${this.tableName}.plan_units + $6,
+        addon_units = ${this.tableName}.addon_units + $7,
+        credit_units = ${this.tableName}.credit_units + $8,
+        override_units = ${this.tableName}.override_units + $9,
+        last_event_id = $10,
+        last_updated_at = now()
+      WHERE ${this.tableName}.plan_units + $6 <= $11
+      RETURNING ${this.getSelectColumns()}
+      `,
+      [
+        tenantId,
+        subscriptionId,
+        featureId,
+        billingPeriod,
+        totalUnits,
+        planUnits,
+        addonUnits,
+        creditUnits,
+        overrideUnits,
+        eventId,
+        limit,
+      ],
+      options,
+    );
+
+    if (result.rowCount === 0) {
+      return null;
+    }
 
     return this.mapRow(result.rows[0]);
   }
