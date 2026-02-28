@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { DEFAULT_CHUNK_SIZE } from '../embedding.constants.js';
+import { DEFAULT_CHUNK_SIZE } from '../embedding.constants';
 import {
   ChunkOptions,
   ClauseChunk,
   ClauseInput,
-} from '../interfaces/chunking.interface.js';
-import { TextChunkerService } from './text-chunker.service.js';
-import { TokenCounterService } from './token-counter.service.js';
+} from '../interfaces/chunking.interface';
+import { TextChunkerService } from './text-chunker.service';
+import { TokenCounterService } from './token-counter.service';
 
 @Injectable()
 export class ClauseChunkerService {

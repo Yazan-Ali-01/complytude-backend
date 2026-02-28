@@ -1,3 +1,4 @@
+import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -8,10 +9,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
 import { DatabaseService } from '../../database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { CreateTenantDto } from './dto/create-tenant.dto';

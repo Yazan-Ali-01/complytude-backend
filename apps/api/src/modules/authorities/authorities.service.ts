@@ -1,20 +1,17 @@
+import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
 import {
+  ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
 } from '@nestjs/common';
-import { Authority } from './entities/authority.entity';
+import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import {
   CreateAuthorityDto,
   UpdateAuthorityDto,
 } from './dto/create-authority.dto';
-import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
+import { Authority } from './entities/authority.entity';
 
 @Injectable()
 export class AuthoritiesService {

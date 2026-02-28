@@ -1,11 +1,11 @@
 import { DynamicModule, Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ClauseChunkerService } from './chunking/clause-chunker.service.js';
-import { TextChunkerService } from './chunking/text-chunker.service.js';
-import { TokenCounterService } from './chunking/token-counter.service.js';
-import { EMBEDDING_MODULE_OPTIONS } from './embedding.constants.js';
-import { EmbeddingService } from './embedding.service.js';
-import type { EmbeddingModuleConfig } from './interfaces/embedding-config.interface.js';
+import { ClauseChunkerService } from './chunking/clause-chunker.service';
+import { TextChunkerService } from './chunking/text-chunker.service';
+import { TokenCounterService } from './chunking/token-counter.service';
+import { EMBEDDING_MODULE_OPTIONS } from './embedding.constants';
+import { EmbeddingService } from './embedding.service';
+import type { EmbeddingModuleConfig } from './interfaces/embedding-config.interface';
 
 @Global()
 @Module({})

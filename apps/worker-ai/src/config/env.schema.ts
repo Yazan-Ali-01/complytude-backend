@@ -1,3 +1,4 @@
+import { databaseEnvSchema } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
 import * as Joi from 'joi';
 
@@ -30,14 +31,7 @@ export const validationSchema = Joi.object({
   WORKER_AI_CPU_LIMIT: Joi.string().default('2'),
 
   // Database (shared)
-  DB_HOST: Joi.string().required(),
-  DB_PORT: Joi.number().default(5432),
-  DB_USER: Joi.string().required(),
-  DB_PASSWORD: Joi.string().required(),
-  DB_NAME: Joi.string().required(),
-  DB_MAX_CONNECTIONS: Joi.number().default(10),
-  DB_IDLE_TIMEOUT: Joi.number().default(30000),
-  DB_CONNECTION_TIMEOUT: Joi.number().default(2000),
+  ...databaseEnvSchema,
 
   // Embedding (OpenAI)
   ...embeddingEnvSchema,

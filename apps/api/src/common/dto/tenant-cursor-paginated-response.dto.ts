@@ -1,7 +1,7 @@
+import { CursorPaginationResult } from '@lib/database';
 import { ApiProperty } from '@nestjs/swagger';
 import { TenantResponseDto } from '../../modules/tenants/dto/tenant-response.dto';
 import { Tenant } from '../../modules/tenants/entities/tenant.entity';
-import { CursorPaginationResult } from '../../repositories/base/cursor-pagination.helper';
 import { PaginationResponseDto } from './pagination-response.dto';
 
 export class TenantCursorPaginatedResponseDto extends PaginationResponseDto<TenantResponseDto> {
