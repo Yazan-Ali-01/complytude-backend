@@ -3,27 +3,17 @@
  * Uses base64-encoded IDs as cursors for bidirectional navigation.
  */
 
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  PaginationDirection,
+} from './repository.interface';
+
 /** Default number of items per page */
 const DEFAULT_PAGE_LIMIT = 50;
 
 /** Maximum allowed items per page */
 const MAX_PAGE_LIMIT = 1000;
-
-export type PaginationDirection = 'forward' | 'backward';
-
-export interface CursorPaginationOptions {
-  cursor?: string | null;
-  limit: number;
-  direction: PaginationDirection;
-}
-
-export interface CursorPaginationResult<T> {
-  data: T[];
-  nextCursor: string | null;
-  prevCursor: string | null;
-  hasNext: boolean;
-  hasPrevious: boolean;
-}
 
 export interface CursorQueryResult {
   clause: string;
@@ -38,25 +28,11 @@ export interface CursorData {
 }
 
 export class CursorPaginationHelper {
-  /**
-   * Encode ID and created_at as a base64 cursor string.
-   *
-   * @param id - The entity ID to encode
-   * @param created_at - The entity creation timestamp
-   * @returns Base64-encoded cursor string
-   */
   static encodeCursor(id: string, created_at: Date): string {
     const cursorData: CursorData = { id, created_at };
     return Buffer.from(JSON.stringify(cursorData), 'utf-8').toString('base64');
   }
 
-  /**
-   * Decode a base64 cursor string back to ID and created_at.
-   *
-   * @param cursor - Base64-encoded cursor
-   * @returns Decoded cursor data with ID and timestamp
-   * @throws Error if cursor is invalid
-   */
   static decodeCursor(cursor: string): CursorData {
     try {
       const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
@@ -80,16 +56,8 @@ export class CursorPaginationHelper {
     }
   }
 
-  /**
-   * Build a WHERE clause for cursor-based pagination using created_at and id.
-   *
-   * @param direction - Pagination direction ('forward' or 'backward')
-   * @param cursor - Optional cursor string to paginate from
-   * @param nextIndex - The next parameter index for parameterized queries
-   * @returns Query clause, parameters, and updated index
-   */
   static buildCursorQuery(
-    direction: PaginationDirection,
+    direction: PaginationDirection = 'forward',
     cursor: string | null | undefined,
     nextIndex: number,
   ): CursorQueryResult {
@@ -105,7 +73,6 @@ export class CursorPaginationHelper {
     const decoded = this.decodeCursor(cursor);
     const operator = direction === 'forward' ? '>' : '<';
 
-    // Build composite cursor comparison:
     const clause = `(created_at ${operator} $${nextIndex} OR (created_at = $${nextIndex} AND id ${operator} $${nextIndex + 1}))`;
 
     const orderClause =
@@ -121,48 +88,26 @@ export class CursorPaginationHelper {
     };
   }
 
-  /**
-   * Build LIMIT clause for cursor pagination.
-   * Fetches limit + 1 to detect if there are more records.
-   *
-   * @param limit - Number of records to fetch
-   * @param nextIndex - The next parameter index for parameterized queries
-   * @returns Query clause with LIMIT and updated parameter index
-   */
   static buildLimitClause(
-    limit: number,
+    limit: number = 50,
     nextIndex: number,
   ): { clause: string; params: unknown[]; nextIndex: number } {
     return {
       clause: `LIMIT $${nextIndex}`,
-      params: [limit + 1], // Fetch one extra to determine hasMore
+      params: [limit + 1],
       nextIndex: nextIndex + 1,
     };
   }
 
-  /**
-   * Create a cursor pagination response from query results.
-   * Handles trimming extra records and determining navigation flags.
-   *
-   * @param rows - Raw query results (must include id and created_at)
-   * @param limit - Requested limit
-   * @param direction - Pagination direction
-   * @param hasInitialCursor - Whether a cursor was provided (indicates hasPrevious for forward)
-   * @returns Formatted cursor pagination result
-   */
   static createPaginationResponse<T extends { id: string; created_at: Date }>(
     rows: T[],
-    limit: number,
-    direction: PaginationDirection,
+    limit: number = 50,
+    direction: PaginationDirection = 'forward',
     hasInitialCursor: boolean,
   ): CursorPaginationResult<T> {
-    // Check if there are more records than requested
     const hasMore = rows.length > limit;
-
-    // Trim to the requested limit
     const data = hasMore ? rows.slice(0, limit) : rows;
 
-    // For backward pagination, reverse the results to show correct order
     if (direction === 'backward') {
       data.reverse();
     }
@@ -170,7 +115,6 @@ export class CursorPaginationHelper {
     const hasNext = direction === 'forward' ? hasMore : hasInitialCursor;
     const hasPrevious = direction === 'forward' ? hasInitialCursor : hasMore;
 
-    // Calculate cursors using both id and created_at
     const nextCursor =
       hasNext && data.length > 0
         ? this.encodeCursor(
@@ -192,12 +136,6 @@ export class CursorPaginationHelper {
     };
   }
 
-  /**
-   * Validate and normalize pagination options.
-   *
-   * @param options - Raw cursor pagination options
-   * @returns Validated options with defaults applied
-   */
   static validateOptions(
     options?: Partial<CursorPaginationOptions>,
   ): CursorPaginationOptions {

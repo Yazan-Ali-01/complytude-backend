@@ -1,3 +1,4 @@
+import { QueryOptions } from '@lib/database';
 import {
   BadRequestException,
   Injectable,
@@ -9,7 +10,6 @@ import {
   PlanKey,
   TenantSubscription,
 } from 'src/common/types/entitlement.types';
-import { QueryOptions } from 'src/repositories/base/repository.interface';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import {

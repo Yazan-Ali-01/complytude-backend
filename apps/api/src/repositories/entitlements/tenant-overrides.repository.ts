@@ -1,3 +1,4 @@
+import { BaseRepository, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreateTenantOverrideRow,
@@ -7,8 +8,6 @@ import {
   UpdateTenantOverrideRow,
 } from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
-import { QueryOptions } from '../base/repository.interface';
 
 type TenantOverrideRow = {
   id: string;
@@ -105,18 +104,18 @@ export class TenantOverridesRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<TenantOverride | null> {
     const query = `
-      SELECT ${this.getSelectColumns()
-        .split(', ')
-        .map((col) => `tor.${col}`)
-        .join(', ')}, f.key as feature_key
-      FROM ${this.tableName} tor
-      JOIN public.features f ON f.id = tor.feature_id
-      WHERE tor.tenant_id = $1 AND tor.is_active = true
-        AND (tor.expires_at IS NULL OR tor.expires_at > now())
-        AND f.key = $2
-      ORDER BY tor.created_at DESC
-      LIMIT 1
-    `;
+    SELECT ${this.getSelectColumns()
+      .split(', ')
+      .map((col) => `tor.${col}`)
+      .join(', ')}, f.key as feature_key, f.feature_type
+    FROM ${this.tableName} tor
+    JOIN public.features f ON f.id = tor.feature_id
+    WHERE tor.tenant_id = $1 AND tor.is_active = true
+      AND (tor.expires_at IS NULL OR tor.expires_at > now())
+      AND f.key = $2
+    ORDER BY tor.created_at DESC
+    LIMIT 1
+  `;
 
     const result = await this.executeQuery(
       query,

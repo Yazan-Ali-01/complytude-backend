@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
-import { TokenCounterService } from './chunking/token-counter.service.js';
+import { TokenCounterService } from './chunking/token-counter.service';
 import {
   DEFAULT_DIMENSIONS,
   DEFAULT_MAX_RETRIES,
@@ -8,9 +8,9 @@ import {
   EMBEDDING_MODULE_OPTIONS,
   MAX_BATCH_SIZE,
   MAX_INPUT_TOKENS,
-} from './embedding.constants.js';
-import type { EmbeddingModuleConfig } from './interfaces/embedding-config.interface.js';
-import type { EmbeddingResult } from './interfaces/chunking.interface.js';
+} from './embedding.constants';
+import type { EmbeddingResult } from './interfaces/chunking.interface';
+import type { EmbeddingModuleConfig } from './interfaces/embedding-config.interface';
 
 @Injectable()
 export class EmbeddingService {

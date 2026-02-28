@@ -1,14 +1,13 @@
+import { databaseConfig, DatabaseModule } from '@lib/database';
 import { RedisModule } from '@lib/redis';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import appConfig from 'src/config/app.config';
-import databaseConfig from 'src/config/database.config';
 import { validationSchema } from 'src/config/env.schema';
 import jwtConfig from 'src/config/jwt.config';
 import storageConfig from 'src/config/storage.config';
-import { DatabaseModule } from 'src/database/database.module';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { HealthModule } from 'src/modules/health/health.module';
 import { UsersModule } from 'src/modules/users/users.module';
@@ -51,7 +50,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
       QUEUE_NAMES.ENTITLEMENT_PROCESSING,
     ]),
     I18nModule,
-    DatabaseModule,
+    DatabaseModule.forRoot(),
     HealthModule,
     EntitlementsModule,
     SubscriptionsModule,

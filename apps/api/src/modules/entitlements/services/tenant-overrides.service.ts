@@ -37,6 +37,36 @@ export class TenantOverridesService {
   ) {}
 
   /**
+   * List active overrides for a tenant
+   */
+  async listOverrides(
+    tenantId: string,
+    options: ServiceCallOptions,
+  ): Promise<TenantOverride[]> {
+    if ('client' in options) {
+      return this.tenantOverridesRepository.findActiveByTenant(tenantId, {
+        client: options.client,
+      });
+    }
+
+    const { context } = options;
+    if (context.mode === 'platform') {
+      return this.databaseService.transactionWithPlatformAdminContext(
+        (client) =>
+          this.tenantOverridesRepository.findActiveByTenant(tenantId, {
+            client,
+          }),
+      );
+    }
+
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId, isTenantAdmin: context.canManageSettings ?? false },
+      (client) =>
+        this.tenantOverridesRepository.findActiveByTenant(tenantId, { client }),
+    );
+  }
+
+  /**
    * Apply an override for a tenant
    * Single transaction: validate → create → invalidate snapshot
    */
@@ -210,12 +240,18 @@ export class TenantOverridesService {
     tenantId: string,
     overrideId: string,
     options: ServiceCallOptions,
-  ): Promise<TenantOverride> {
+  ): Promise<void> {
     if ('client' in options) {
-      return this.executeRevokeOverride(tenantId, overrideId, options.client);
+      await this.executeRevokeOverride(tenantId, overrideId, options.client);
+      return;
     }
-
+    console.log('===================================================');
+    console.log('options', options);
+    console.log('===================================================');
     const { context } = options;
+    console.log('===================================================');
+    console.log('context', context.mode);
+    console.log('===================================================');
     if (context.mode === 'platform') {
       return this.databaseService.transactionWithPlatformAdminContext(
         (client) => this.executeRevokeOverride(tenantId, overrideId, client),
@@ -232,7 +268,7 @@ export class TenantOverridesService {
     tenantId: string,
     overrideId: string,
     client: PoolClient,
-  ): Promise<TenantOverride> {
+  ): Promise<void> {
     await this.tenantOverridesRepository.update(
       overrideId,
       { is_active: false },
@@ -245,18 +281,9 @@ export class TenantOverridesService {
       { client },
     );
 
-    // Fetch to return enriched result
-    const enriched = await this.tenantOverridesRepository.findActiveByTenant(
-      tenantId,
-      { client },
+    this.logger.log(
+      `Override revoked: tenant=${tenantId}, override=${overrideId}`,
     );
-    const revoked = enriched.find((o) => o.id === overrideId);
-
-    if (!revoked) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
-    }
-
-    return revoked;
   }
 
   /**

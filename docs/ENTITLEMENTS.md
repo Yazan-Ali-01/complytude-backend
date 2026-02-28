@@ -1297,7 +1297,10 @@ Update an existing override:
 Revoke (deactivate) an override:
 
 ```typescript
-// Response - revoked override with is_active: false
+// Response
+{
+  "message": "Override revoked successfully"
+}
 ```
 
 ---

@@ -1,9 +1,5 @@
-import { Global, Module } from '@nestjs/common';
-import { DatabaseService } from './database.service';
-
-@Global()
-@Module({
-  providers: [DatabaseService],
-  exports: [DatabaseService],
-})
-export class DatabaseModule {}
+/**
+ * @deprecated Import from '@lib/database' instead.
+ * This re-export exists for backward compatibility during migration.
+ */
+export { DatabaseModule } from '@lib/database';

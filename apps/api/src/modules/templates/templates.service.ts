@@ -1,3 +1,4 @@
+import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -12,10 +13,6 @@ import {
   Template,
   TemplateWithDetails,
 } from 'src/modules/templates/entities/template.entity';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
 import { I18nKeys } from '../../common/constants/i18n-keys';
 import { DatabaseService } from '../../database/database.service';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';

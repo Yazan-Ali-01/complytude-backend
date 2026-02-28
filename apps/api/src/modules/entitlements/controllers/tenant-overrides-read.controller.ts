@@ -2,12 +2,11 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
-import { DatabaseService } from '../../../database/database.service';
-import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../../auth/strategies/jwt-payload.interface';
 import { OverrideResponseDto } from '../dto/tenant-override.dto';
+import { TenantOverridesService } from '../services/tenant-overrides.service';
 import { mapOverrideToDto } from '../utils/entitlement-mappers.util';
 
 @Controller('tenants/overrides')
@@ -17,8 +16,7 @@ import { mapOverrideToDto } from '../utils/entitlement-mappers.util';
 @RequireAnyTenantPermission('billing:manage')
 export class TenantOverridesReadController {
   constructor(
-    private readonly databaseService: DatabaseService,
-    private readonly tenantOverridesRepository: TenantOverridesRepository,
+    private readonly tenantOverridesService: TenantOverridesService,
   ) {}
 
   @Get()
@@ -33,12 +31,11 @@ export class TenantOverridesReadController {
   async listMyOverrides(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<OverrideResponseDto[]> {
-    const overrides = await this.databaseService.transactionWithTenantContext(
-      { tenantId: user.tenantId, isTenantAdmin: false },
-      async (client) =>
-        this.tenantOverridesRepository.findActiveByTenant(user.tenantId, {
-          client,
-        }),
+    const overrides = await this.tenantOverridesService.listOverrides(
+      user.tenantId,
+      {
+        context: { mode: 'tenant', canManageSettings: true },
+      },
     );
 
     return overrides.map(mapOverrideToDto);

@@ -11,8 +11,7 @@ import {
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
-import { DatabaseService } from '../../../database/database.service';
-import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
+import { MessageResponseDto } from '../../../common/dto';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserIdentity } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedIdentityUser } from '../../auth/strategies/jwt-payload.interface';
@@ -31,9 +30,7 @@ import { mapOverrideToDto } from '../utils/entitlement-mappers.util';
 @RequireAnyPlatformPermission('entitlements:manage')
 export class TenantOverridesController {
   constructor(
-    private readonly databaseService: DatabaseService,
     private readonly tenantOverridesService: TenantOverridesService,
-    private readonly tenantOverridesRepository: TenantOverridesRepository,
   ) {}
 
   @Get()
@@ -44,16 +41,16 @@ export class TenantOverridesController {
     description: "Tenant's active overrides",
     type: [OverrideResponseDto],
   })
+  @RequireAnyPlatformPermission('entitlements:manage')
   async listOverrides(
     @Param('tenantId') tenantId: string,
   ): Promise<OverrideResponseDto[]> {
-    const overrides =
-      await this.databaseService.transactionWithPlatformAdminContext(
-        async (client) =>
-          this.tenantOverridesRepository.findActiveByTenant(tenantId, {
-            client,
-          }),
-      );
+    const overrides = await this.tenantOverridesService.listOverrides(
+      tenantId,
+      {
+        context: { mode: 'platform' },
+      },
+    );
 
     return overrides.map(mapOverrideToDto);
   }
@@ -117,13 +114,11 @@ export class TenantOverridesController {
   async revokeOverride(
     @Param('tenantId') tenantId: string,
     @Param('id') id: string,
-  ): Promise<OverrideResponseDto> {
-    const revoked = await this.tenantOverridesService.revokeOverride(
-      tenantId,
-      id,
-      { context: { mode: 'platform' } },
-    );
+  ): Promise<MessageResponseDto> {
+    await this.tenantOverridesService.revokeOverride(tenantId, id, {
+      context: { mode: 'platform' },
+    });
 
-    return mapOverrideToDto(revoked);
+    return new MessageResponseDto('Override revoked successfully');
   }
 }

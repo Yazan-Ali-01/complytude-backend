@@ -80,6 +80,10 @@ import { UsageProjectionService } from './services/usage-projection.service';
     EntitlementQueueProcessor,
     ProjectionUpdateHandler,
 
+    // Queue processor + handlers
+    EntitlementQueueProcessor,
+    ProjectionUpdateHandler,
+
     // Catalog repositories
     FeaturesRepository,
     PlansRepository,

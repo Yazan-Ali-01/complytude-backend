@@ -1,6 +1,7 @@
+import { databaseConfig, DatabaseModule } from '@lib/database';
+import { embeddingConfig, EmbeddingModule } from '@lib/embedding';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { embeddingConfig, EmbeddingModule } from '@lib/embedding';
 import { validationSchema } from './config/env.schema';
 import workerAiConfig from './config/worker-ai.config';
 import { WorkerAiController } from './worker-ai.controller';
@@ -10,7 +11,7 @@ import { WorkerAiService } from './worker-ai.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [workerAiConfig, embeddingConfig],
+      load: [workerAiConfig, embeddingConfig, databaseConfig],
       validationSchema: validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -19,6 +20,7 @@ import { WorkerAiService } from './worker-ai.service';
       envFilePath: ['apps/worker-ai/.env'],
     }),
     EmbeddingModule.forRoot(),
+    DatabaseModule.forRoot(),
   ],
   controllers: [WorkerAiController],
   providers: [WorkerAiService],

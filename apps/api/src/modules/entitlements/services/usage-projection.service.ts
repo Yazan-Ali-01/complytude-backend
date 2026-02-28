@@ -1,10 +1,10 @@
+import { QueryOptions } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   AggregatedUsage,
   FeatureKey,
   UsageSource,
 } from '../../../common/types/entitlement.types';
-import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from '../../../repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';

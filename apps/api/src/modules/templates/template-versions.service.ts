@@ -1,21 +1,18 @@
+import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
 import {
+  ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
-  InternalServerErrorException,
-  ConflictException,
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import {
-  TemplateVersion,
-  TemplateField,
-} from './entities/template-version.entity';
-import { TemplateRepository } from '../../repositories/templates/template.repository';
 import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
+import { TemplateRepository } from '../../repositories/templates/template.repository';
 import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
+  TemplateField,
+  TemplateVersion,
+} from './entities/template-version.entity';
 
 @Injectable()
 export class TemplateVersionsService {

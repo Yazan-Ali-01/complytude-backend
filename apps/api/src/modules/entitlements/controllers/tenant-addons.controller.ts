@@ -31,9 +31,7 @@ import { mapTenantAddonToDto } from '../utils/entitlement-mappers.util';
 @UseGuards(TenantPermissionsGuard)
 export class TenantAddonsController {
   constructor(
-    // private readonly databaseService: DatabaseService,
     private readonly tenantAddonsService: TenantAddonsService,
-    // private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly i18n: I18nService,
   ) {}
 
