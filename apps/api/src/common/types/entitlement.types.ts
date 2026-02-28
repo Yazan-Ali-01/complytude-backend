@@ -186,6 +186,7 @@ export interface UsageLedgerEvent {
   metadata: Record<string, any>;
   idempotency_key?: string;
   recorded_at: Date;
+  projected_at?: Date;
 }
 
 export interface UsageAllocation {
@@ -227,7 +228,6 @@ export interface AggregatedUsage {
   addon_units: number;
   credit_units: number;
   override_units: number;
-  last_event_id?: string;
   last_updated_at: Date;
 }
 
@@ -502,7 +502,6 @@ export interface CreateAggregatedUsageRow {
   addon_units?: number;
   credit_units?: number;
   override_units?: number;
-  last_event_id?: string;
 }
 
 export interface UpdateAggregatedUsageRow {
@@ -511,7 +510,6 @@ export interface UpdateAggregatedUsageRow {
   addon_units?: number;
   credit_units?: number;
   override_units?: number;
-  last_event_id?: string;
 }
 
 // Entitlement Snapshots

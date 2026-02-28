@@ -1,7 +1,7 @@
 import { EntitlementProjectionUpdateJobData, Job } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../../database/database.service';
-import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
+import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
 import { DomainEventsService } from '../services/domain-events.service';
 import { UsageProjectionService } from '../services/usage-projection.service';
 
@@ -12,13 +12,14 @@ import { UsageProjectionService } from '../services/usage-projection.service';
  * after a usage ledger write commits.
  *
  * Responsibilities:
- * - Idempotency guard via last_event_id on aggregated_usage
+ * - Per-event idempotency via projected_at CAS on usage_ledger
  * - Atomically increment aggregated_usage counters
  * - Emit usage.recorded domain event with enforcement_mode: 'async'
  *
- * Idempotency: if the handler's transaction commits but BullMQ ACK is lost
- * (process crash between commit and ACK), the retry detects the duplicate
- * via aggregated_usage.last_event_id and skips re-processing.
+ * Idempotency: claimForProjection() atomically sets projected_at = NOW()
+ * WHERE projected_at IS NULL. If 0 rows returned, this event was already
+ * projected (BullMQ ACK loss → retry) — skip. Order-independent: works
+ * correctly regardless of retry interleaving with other events.
  */
 @Injectable()
 export class ProjectionUpdateHandler {
@@ -28,7 +29,7 @@ export class ProjectionUpdateHandler {
     private readonly databaseService: DatabaseService,
     private readonly usageProjectionService: UsageProjectionService,
     private readonly domainEventsService: DomainEventsService,
-    private readonly aggregatedUsageRepository: AggregatedUsageRepository,
+    private readonly usageLedgerRepository: UsageLedgerRepository,
   ) {}
 
   /**
@@ -42,18 +43,16 @@ export class ProjectionUpdateHandler {
     await this.databaseService.transactionWithTenantContext(
       { tenantId: data.tenantId },
       async (client) => {
-        // Idempotency guard: skip if this ledger event was already projected.
-        // Protects against BullMQ ACK loss → retry after successful commit.
-        const existing =
-          await this.aggregatedUsageRepository.findBySubscriptionAndFeature(
-            data.subscriptionId,
-            data.featureId,
-            { client },
-          );
+        // Per-event idempotency guard: atomically claim this event for projection.
+        // Returns false if projected_at was already set — event already processed.
+        const claimed = await this.usageLedgerRepository.claimForProjection(
+          data.usageLedgerId,
+          { client },
+        );
 
-        if (existing?.last_event_id === data.usageLedgerId) {
+        if (!claimed) {
           this.logger.warn(
-            `Skipping duplicate projection: ledger=${data.usageLedgerId} ` +
+            `Skipping already-projected event: ledger=${data.usageLedgerId} ` +
               `feature=${data.featureKey} tenant=${data.tenantId}`,
           );
           return;
@@ -66,7 +65,6 @@ export class ProjectionUpdateHandler {
           data.featureId,
           data.billingPeriod,
           data.allocations,
-          data.usageLedgerId,
           { client },
         );
 

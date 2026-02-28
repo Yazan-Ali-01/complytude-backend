@@ -224,6 +224,7 @@ CREATE TABLE public.usage_ledger (
     metadata        JSONB DEFAULT '{}',
     idempotency_key VARCHAR(255),
     recorded_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    projected_at    TIMESTAMPTZ NULL,
     
     CONSTRAINT chk_usage_units CHECK (units > 0)
 );
@@ -233,6 +234,7 @@ COMMENT ON COLUMN public.usage_ledger.billing_period IS 'Billing period in YYYY-
 COMMENT ON COLUMN public.usage_ledger.resource_type IS 'Type of resource created (e.g., document, contract_review)';
 COMMENT ON COLUMN public.usage_ledger.resource_id IS 'ID of the resource created';
 COMMENT ON COLUMN public.usage_ledger.idempotency_key IS 'Prevents duplicate event recording';
+COMMENT ON COLUMN public.usage_ledger.projected_at IS 'Timestamp when this event was projected into aggregated_usage (NULL = not yet projected). Used as CAS idempotency guard.';
 
 -- Usage Allocations: Per-source funding breakdown for usage events
 CREATE TABLE public.usage_allocations (
@@ -290,30 +292,65 @@ CREATE CONSTRAINT TRIGGER validate_usage_allocations_sum_trigger
 COMMENT ON TRIGGER validate_usage_allocations_sum_trigger ON public.usage_allocations IS 'Ensures allocations sum equals usage_ledger.units (deferred to transaction commit)';
 
 -- Immutability enforcement for usage_ledger (using triggers, not rules)
--- Triggers enforce immutability AFTER permission checks and raise explicit errors
-CREATE OR REPLACE FUNCTION prevent_ledger_modification()
+-- Triggers enforce immutability AFTER permission checks and raise explicit errors.
+--
+-- usage_ledger has a single permitted mutation: setting projected_at (NULL → timestamp).
+-- This is used by the idempotency CAS in ProjectionUpdateHandler / sync fallback.
+-- All other UPDATE columns and all DELETEs are blocked.
+CREATE OR REPLACE FUNCTION prevent_usage_ledger_modification()
 RETURNS TRIGGER AS $$
 BEGIN
-    RAISE EXCEPTION 'Ledger tables are immutable. UPDATE and DELETE operations are not allowed.'
-        USING ERRCODE = '42501',  -- insufficient_privilege
-              HINT = 'Ledgers are append-only for audit integrity. Use INSERT only.';
+    -- Allow setting projected_at exactly once (NULL → non-NULL).
+    -- All other columns must remain unchanged.
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.projected_at IS NULL AND NEW.projected_at IS NOT NULL AND
+           NEW.id               = OLD.id               AND
+           NEW.tenant_id        = OLD.tenant_id        AND
+           NEW.feature_id       = OLD.feature_id       AND
+           NEW.user_id          IS NOT DISTINCT FROM OLD.user_id AND
+           NEW.units            = OLD.units            AND
+           NEW.billing_period   = OLD.billing_period   AND
+           NEW.resource_type    IS NOT DISTINCT FROM OLD.resource_type AND
+           NEW.resource_id      IS NOT DISTINCT FROM OLD.resource_id  AND
+           NEW.idempotency_key  IS NOT DISTINCT FROM OLD.idempotency_key AND
+           NEW.recorded_at      = OLD.recorded_at
+        THEN
+            RETURN NEW;
+        END IF;
+    END IF;
+
+    RAISE EXCEPTION 'usage_ledger is immutable. Only projected_at may be set once (NULL → timestamp).'
+        USING ERRCODE = '42501',
+              HINT = 'usage_ledger is append-only. Use claimForProjection() to set projected_at.';
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION prevent_ledger_modification() IS 'Enforces immutability of ledger tables (usage_ledger, credit_ledger) by blocking UPDATE and DELETE operations';
+COMMENT ON FUNCTION prevent_usage_ledger_modification() IS 'Enforces immutability of usage_ledger; only allows setting projected_at once (NULL → timestamp)';
 
 CREATE TRIGGER prevent_usage_ledger_update
     BEFORE UPDATE ON public.usage_ledger
     FOR EACH ROW
-    EXECUTE FUNCTION prevent_ledger_modification();
+    EXECUTE FUNCTION prevent_usage_ledger_modification();
 
 CREATE TRIGGER prevent_usage_ledger_delete
     BEFORE DELETE ON public.usage_ledger
     FOR EACH ROW
-    EXECUTE FUNCTION prevent_ledger_modification();
+    EXECUTE FUNCTION prevent_usage_ledger_modification();
 
-COMMENT ON TRIGGER prevent_usage_ledger_update ON public.usage_ledger IS 'Blocks UPDATE operations to enforce immutability';
+COMMENT ON TRIGGER prevent_usage_ledger_update ON public.usage_ledger IS 'Blocks UPDATE except projected_at (NULL→timestamp) to enforce immutability';
 COMMENT ON TRIGGER prevent_usage_ledger_delete ON public.usage_ledger IS 'Blocks DELETE operations to enforce immutability';
+
+-- Generic immutability for tables with no permitted mutations (usage_allocations, credit_ledger)
+CREATE OR REPLACE FUNCTION prevent_ledger_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Ledger tables are immutable. UPDATE and DELETE operations are not allowed.'
+        USING ERRCODE = '42501',
+              HINT = 'Ledgers are append-only for audit integrity. Use INSERT only.';
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION prevent_ledger_modification() IS 'Enforces full immutability of ledger tables (usage_allocations, credit_ledger)';
 
 -- Immutability enforcement for usage_allocations (using triggers)
 CREATE TRIGGER prevent_usage_allocations_update
@@ -383,7 +420,6 @@ CREATE TABLE public.aggregated_usage (
     addon_units     INTEGER NOT NULL DEFAULT 0,
     credit_units    INTEGER NOT NULL DEFAULT 0,
     override_units  INTEGER NOT NULL DEFAULT 0,
-    last_event_id   UUID,
     last_updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     
     CONSTRAINT uq_aggregated_usage_subscription_feature UNIQUE (subscription_id, feature_id)
@@ -397,7 +433,6 @@ COMMENT ON COLUMN public.aggregated_usage.plan_units IS 'Usage from plan entitle
 COMMENT ON COLUMN public.aggregated_usage.addon_units IS 'Usage from add-ons';
 COMMENT ON COLUMN public.aggregated_usage.credit_units IS 'Usage paid with credits';
 COMMENT ON COLUMN public.aggregated_usage.override_units IS 'Usage from admin overrides';
-COMMENT ON COLUMN public.aggregated_usage.last_event_id IS 'Last usage_ledger event processed';
 
 -- Entitlement Snapshots: Cached effective entitlements (performance optimization)
 CREATE TABLE public.entitlement_snapshots (
@@ -528,6 +563,8 @@ CREATE INDEX idx_usage_ledger_tenant_feature_period ON public.usage_ledger(tenan
 CREATE INDEX idx_usage_ledger_recorded_at ON public.usage_ledger(recorded_at DESC);
 CREATE UNIQUE INDEX idx_usage_ledger_idempotency_key ON public.usage_ledger(idempotency_key) 
     WHERE idempotency_key IS NOT NULL;
+-- Partial index for finding unprojected events (stuck event detection + reconciliation)
+CREATE INDEX idx_usage_ledger_unprojected ON public.usage_ledger(recorded_at) WHERE projected_at IS NULL;
 
 -- Usage Allocations
 CREATE INDEX idx_usage_allocations_ledger_id ON public.usage_allocations(usage_ledger_id);

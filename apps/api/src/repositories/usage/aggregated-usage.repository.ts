@@ -19,7 +19,6 @@ type AggregatedUsageRow = {
   addon_units: number;
   credit_units: number;
   override_units: number;
-  last_event_id: string | null;
   last_updated_at: Date;
 };
 
@@ -40,7 +39,7 @@ export class AggregatedUsageRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units, last_event_id, last_updated_at';
+    return 'id, tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units, last_updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): AggregatedUsage {
@@ -56,16 +55,13 @@ export class AggregatedUsageRepository extends BaseRepository<
       addon_units: data.addon_units,
       credit_units: data.credit_units,
       override_units: data.override_units,
-      last_event_id: data.last_event_id ?? undefined,
       last_updated_at: data.last_updated_at,
     };
   }
 
   /**
-   * Find aggregated usage row by subscription and feature
-   *
-   * Used by ProjectionUpdateHandler for idempotency check — detects if a
-   * ledger event was already projected by comparing last_event_id.
+   * Find aggregated usage row by subscription and feature.
+   * Used by ProjectionReconciliationService for drift detection.
    *
    * @param subscriptionId - Subscription ID
    * @param featureId - Feature UUID
@@ -124,15 +120,14 @@ export class AggregatedUsageRepository extends BaseRepository<
   ): Promise<AggregatedUsage> {
     const result = await this.executeQuery<AggregatedUsageRow>(
       `
-      INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units, last_event_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (subscription_id, feature_id) DO UPDATE SET
         total_units = EXCLUDED.total_units,
         plan_units = EXCLUDED.plan_units,
         addon_units = EXCLUDED.addon_units,
         credit_units = EXCLUDED.credit_units,
         override_units = EXCLUDED.override_units,
-        last_event_id = EXCLUDED.last_event_id,
         last_updated_at = now()
       RETURNING ${this.getSelectColumns()}
       `,
@@ -146,7 +141,6 @@ export class AggregatedUsageRepository extends BaseRepository<
         usage.addon_units ?? 0,
         usage.credit_units ?? 0,
         usage.override_units ?? 0,
-        usage.last_event_id ?? null,
       ],
       options,
     );
@@ -184,7 +178,6 @@ export class AggregatedUsageRepository extends BaseRepository<
       source: 'plan' | 'addon' | 'credit' | 'override';
       units: number;
     }>,
-    eventId: string,
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
     // Compute deltas from allocations
@@ -204,15 +197,14 @@ export class AggregatedUsageRepository extends BaseRepository<
 
     const result = await this.executeQuery<AggregatedUsageRow>(
       `
-      INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units, last_event_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (subscription_id, feature_id) DO UPDATE SET
         total_units = ${this.tableName}.total_units + $5,
         plan_units = ${this.tableName}.plan_units + $6,
         addon_units = ${this.tableName}.addon_units + $7,
         credit_units = ${this.tableName}.credit_units + $8,
         override_units = ${this.tableName}.override_units + $9,
-        last_event_id = $10,
         last_updated_at = now()
       RETURNING ${this.getSelectColumns()}
       `,
@@ -226,7 +218,6 @@ export class AggregatedUsageRepository extends BaseRepository<
         addonUnits,
         creditUnits,
         overrideUnits,
-        eventId,
       ],
       options,
     );
@@ -250,7 +241,6 @@ export class AggregatedUsageRepository extends BaseRepository<
       source: 'plan' | 'addon' | 'credit' | 'override';
       units: number;
     }>,
-    eventId: string,
     limit: number,
     options?: QueryOptions,
   ): Promise<AggregatedUsage | null> {
@@ -270,17 +260,16 @@ export class AggregatedUsageRepository extends BaseRepository<
 
     const result = await this.executeQuery<AggregatedUsageRow>(
       `
-      INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units, last_event_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (subscription_id, feature_id) DO UPDATE SET
         total_units = ${this.tableName}.total_units + $5,
         plan_units = ${this.tableName}.plan_units + $6,
         addon_units = ${this.tableName}.addon_units + $7,
         credit_units = ${this.tableName}.credit_units + $8,
         override_units = ${this.tableName}.override_units + $9,
-        last_event_id = $10,
         last_updated_at = now()
-      WHERE ${this.tableName}.plan_units + $6 <= $11
+      WHERE ${this.tableName}.plan_units + $6 <= $10
       RETURNING ${this.getSelectColumns()}
       `,
       [
@@ -293,7 +282,6 @@ export class AggregatedUsageRepository extends BaseRepository<
         addonUnits,
         creditUnits,
         overrideUnits,
-        eventId,
         limit,
       ],
       options,

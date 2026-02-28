@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PoolClient } from 'pg';
 import {
   CreateUsageLedgerRow,
   UsageLedgerEvent,
@@ -19,6 +20,7 @@ type UsageLedgerRow = {
   metadata: unknown;
   idempotency_key: string | null;
   recorded_at: Date;
+  projected_at: Date | null;
 };
 
 /**
@@ -38,7 +40,7 @@ export class UsageLedgerRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, feature_id, user_id, units, billing_period, resource_type, resource_id, metadata, idempotency_key, recorded_at';
+    return 'id, tenant_id, feature_id, user_id, units, billing_period, resource_type, resource_id, metadata, idempotency_key, recorded_at, projected_at';
   }
 
   protected mapRow(row: Record<string, unknown>): UsageLedgerEvent {
@@ -55,6 +57,7 @@ export class UsageLedgerRepository extends BaseRepository<
       metadata: (data.metadata as Record<string, any>) ?? {},
       idempotency_key: data.idempotency_key ?? undefined,
       recorded_at: data.recorded_at,
+      projected_at: data.projected_at ?? undefined,
     };
   }
 
@@ -88,6 +91,29 @@ export class UsageLedgerRepository extends BaseRepository<
     );
 
     return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Atomically claim a ledger event for projection (CAS idempotency guard).
+   *
+   * Sets projected_at = NOW() only if it is currently NULL.
+   * Returns true if the claim succeeded (this call owns projection for this event).
+   * Returns false if projected_at was already set — event was already projected, skip.
+   *
+   * This is the idempotency mechanism for ProjectionUpdateHandler and the sync fallback.
+   * Because projected_at lives on the event itself (not on aggregated_usage), it is
+   * order-independent: any retry order produces correct results.
+   */
+  async claimForProjection(
+    ledgerId: string,
+    options?: { client?: PoolClient },
+  ): Promise<boolean> {
+    const result = await this.executeQuery(
+      `UPDATE ${this.tableName} SET projected_at = NOW() WHERE id = $1 AND projected_at IS NULL RETURNING id`,
+      [ledgerId],
+      options,
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Override update/delete to prevent usage (immutable ledger)

@@ -26,6 +26,7 @@ import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
+import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
 import { CreditLedgerService } from './credit-ledger.service';
 import { DomainEventsService } from './domain-events.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
@@ -99,6 +100,7 @@ export class EntitlementEnforcementService {
     private readonly domainEventsService: DomainEventsService,
     private readonly featuresRepository: FeaturesRepository,
     private readonly aggregatedUsageRepository: AggregatedUsageRepository,
+    private readonly usageLedgerRepository: UsageLedgerRepository,
     private readonly configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
   ) {}
@@ -533,7 +535,6 @@ export class EntitlementEnforcementService {
           feature.id,
           billingPeriod,
           allocations.map((a) => ({ source: a.source, units: a.units })),
-          usageEvent.id,
           limit,
           { client },
         );
@@ -935,13 +936,26 @@ export class EntitlementEnforcementService {
       await this.databaseService.transactionWithTenantContext(
         { tenantId: data.tenantId },
         async (client) => {
+          // Same idempotency mechanism as the async path — prevents double-projection
+          // if BullMQ later recovers and the job is retried.
+          const claimed = await this.usageLedgerRepository.claimForProjection(
+            data.usageLedgerId,
+            { client },
+          );
+
+          if (!claimed) {
+            this.logger.warn(
+              `[projection.fallback_to_sync] Event already projected, skipping: ledger=${data.usageLedgerId}`,
+            );
+            return;
+          }
+
           await this.usageProjectionService.incrementUsage(
             data.tenantId,
             data.subscriptionId,
             data.featureId,
             data.billingPeriod,
             data.allocations,
-            data.usageLedgerId,
             { client },
           );
 
