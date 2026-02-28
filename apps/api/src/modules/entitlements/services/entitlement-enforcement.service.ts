@@ -904,7 +904,12 @@ export class EntitlementEnforcementService {
 
   /**
    * Enqueue PROJECTION_UPDATE job for async processing.
-   * Falls back to sync incrementUsage if BullMQ is unavailable.
+   * Falls back to sync projection + domain event if BullMQ is unavailable.
+   *
+   * The fallback mirrors exactly what ProjectionUpdateHandler does (projection
+   * increment + domain event) so downstream consumers see the same event
+   * structure regardless of which path ran. Both operations are wrapped in
+   * transactionWithTenantContext so RLS policies are satisfied.
    */
   private async enqueueProjectionUpdate(
     data: EntitlementProjectionUpdateJobData,
@@ -922,15 +927,57 @@ export class EntitlementEnforcementService {
       );
     } catch (error) {
       this.logger.warn(
-        `BullMQ unavailable, falling back to sync projection update: ${error instanceof Error ? error.message : String(error)}`,
+        `[projection.fallback_to_sync] BullMQ unavailable — falling back to sync. ` +
+          `tenant=${data.tenantId} feature=${data.featureKey} ledger=${data.usageLedgerId} ` +
+          `error=${error instanceof Error ? error.message : String(error)}`,
       );
-      await this.usageProjectionService.incrementUsage(
-        data.tenantId,
-        data.subscriptionId,
-        data.featureId,
-        data.billingPeriod,
-        data.allocations,
-        data.usageLedgerId,
+
+      await this.databaseService.transactionWithTenantContext(
+        { tenantId: data.tenantId },
+        async (client) => {
+          await this.usageProjectionService.incrementUsage(
+            data.tenantId,
+            data.subscriptionId,
+            data.featureId,
+            data.billingPeriod,
+            data.allocations,
+            data.usageLedgerId,
+            { client },
+          );
+
+          await this.domainEventsService.emit(
+            {
+              tenant_id: data.tenantId,
+              event_type: 'usage.recorded',
+              aggregate_type: 'usage',
+              aggregate_id: data.usageLedgerId,
+              actor_id: data.actorId,
+              actor_type: data.actorId ? 'user' : 'system',
+              payload: JSON.stringify({
+                usage_event_id: data.usageLedgerId,
+                feature_id: data.featureId,
+                feature_key: data.featureKey,
+                feature_name: data.featureName,
+                feature_type: data.featureType,
+                units: data.units,
+                allocations: data.allocations,
+                billing_period: data.billingPeriod,
+                resource_type: data.resourceType,
+                resource_id: data.resourceId,
+                recorded_at: data.recordedAt,
+                idempotency_key: data.idempotencyKey,
+                enforcement_mode: 'async',
+                credit_deducted: data.creditDeducted,
+                credit_amount: data.creditAmount,
+                fallback: true,
+              }),
+              metadata: JSON.stringify({
+                fallback_reason: 'bullmq_unavailable',
+              }),
+            },
+            { client },
+          );
+        },
       );
     }
   }
