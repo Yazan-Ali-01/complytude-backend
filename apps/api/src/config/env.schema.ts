@@ -9,6 +9,11 @@ export const validationSchema = Joi.object({
   PORT: Joi.number().default(3000),
   API_PREFIX: Joi.string().default('api'),
   CORS_ORIGINS: Joi.string().required(),
+  ENTITLEMENT_STRICT_THRESHOLD_PERCENT: Joi.number()
+    .integer()
+    .min(1)
+    .max(50)
+    .default(5),
 
   // Database
   ...databaseEnvSchema,

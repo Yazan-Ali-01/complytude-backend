@@ -11,6 +11,7 @@ import {
   UsageLedgerEvent,
   UsageRecordInput,
 } from '../../../common/types/entitlement.types';
+import { deriveBillingPeriod } from '../../../common/utils/billing.util';
 import { DatabaseService } from '../../../database/database.service';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
@@ -197,20 +198,6 @@ export class UsageIngestionService {
       );
     }
 
-    return this.deriveBillingPeriod(subscription.current_period_start);
-  }
-
-  /**
-   * Derive billing period string from a date
-   *
-   * Converts a Date to YYYY-MM format for billing period tracking.
-   *
-   * @param date - Date to convert
-   * @returns Billing period string (e.g., '2026-02')
-   */
-  private deriveBillingPeriod(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
+    return deriveBillingPeriod(subscription.current_period_start);
   }
 }
