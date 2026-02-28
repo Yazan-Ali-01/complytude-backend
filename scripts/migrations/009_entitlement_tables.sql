@@ -313,7 +313,8 @@ BEGIN
            NEW.resource_type    IS NOT DISTINCT FROM OLD.resource_type AND
            NEW.resource_id      IS NOT DISTINCT FROM OLD.resource_id  AND
            NEW.idempotency_key  IS NOT DISTINCT FROM OLD.idempotency_key AND
-           NEW.recorded_at      = OLD.recorded_at
+           NEW.recorded_at      = OLD.recorded_at AND
+           NEW.metadata         IS NOT DISTINCT FROM OLD.metadata
         THEN
             RETURN NEW;
         END IF;

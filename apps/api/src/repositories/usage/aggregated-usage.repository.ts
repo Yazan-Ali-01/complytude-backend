@@ -59,6 +59,23 @@ export class AggregatedUsageRepository extends BaseRepository<
   }
 
   /**
+   * Batch-fetch all aggregated usage rows for a set of subscription IDs.
+   * Used by ProjectionReconciliationService to avoid N+1 queries.
+   */
+  async findBySubscriptionIds(
+    subscriptionIds: string[],
+    options?: QueryOptions,
+  ): Promise<AggregatedUsage[]> {
+    if (subscriptionIds.length === 0) return [];
+    const result = await this.executeQuery<AggregatedUsageRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE subscription_id = ANY($1)`,
+      [subscriptionIds],
+      options,
+    );
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
    * Find aggregated usage row by subscription and feature.
    * Used by ProjectionReconciliationService for drift detection.
    *

@@ -32,6 +32,7 @@ import { DomainEventsService } from './domain-events.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
+import { buildUsageRecordedPayload } from '../utils/usage-event-payload.util';
 
 interface EnforceResult {
   result: EntitlementCheckResult;
@@ -967,22 +968,7 @@ export class EntitlementEnforcementService {
               aggregate_id: data.usageLedgerId,
               actor_id: data.actorId,
               actor_type: data.actorId ? 'user' : 'system',
-              payload: JSON.stringify({
-                usage_event_id: data.usageLedgerId,
-                feature_id: data.featureId,
-                feature_key: data.featureKey,
-                feature_name: data.featureName,
-                feature_type: data.featureType,
-                units: data.units,
-                allocations: data.allocations,
-                billing_period: data.billingPeriod,
-                resource_type: data.resourceType,
-                resource_id: data.resourceId,
-                recorded_at: data.recordedAt,
-                idempotency_key: data.idempotencyKey,
-                enforcement_mode: 'async',
-                credit_deducted: data.creditDeducted,
-                credit_amount: data.creditAmount,
+              payload: buildUsageRecordedPayload(data, 'sync_fallback', {
                 fallback: true,
               }),
               metadata: JSON.stringify({

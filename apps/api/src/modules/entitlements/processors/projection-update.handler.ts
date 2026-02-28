@@ -4,6 +4,7 @@ import { DatabaseService } from '../../../database/database.service';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
 import { DomainEventsService } from '../services/domain-events.service';
 import { UsageProjectionService } from '../services/usage-projection.service';
+import { buildUsageRecordedPayload } from '../utils/usage-event-payload.util';
 
 /**
  * Projection Update Handler
@@ -77,23 +78,7 @@ export class ProjectionUpdateHandler {
             aggregate_id: data.usageLedgerId,
             actor_id: data.actorId,
             actor_type: data.actorId ? 'user' : 'system',
-            payload: JSON.stringify({
-              usage_event_id: data.usageLedgerId,
-              feature_id: data.featureId,
-              feature_key: data.featureKey,
-              feature_name: data.featureName,
-              feature_type: data.featureType,
-              units: data.units,
-              allocations: data.allocations,
-              billing_period: data.billingPeriod,
-              resource_type: data.resourceType,
-              resource_id: data.resourceId,
-              recorded_at: data.recordedAt,
-              idempotency_key: data.idempotencyKey,
-              enforcement_mode: 'async',
-              credit_deducted: data.creditDeducted,
-              credit_amount: data.creditAmount,
-            }),
+            payload: buildUsageRecordedPayload(data, 'async'),
             metadata: JSON.stringify({
               job_id: job.id,
               attempt: job.attemptsMade + 1,

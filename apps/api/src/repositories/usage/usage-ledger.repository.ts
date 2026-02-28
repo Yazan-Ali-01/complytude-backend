@@ -1,6 +1,5 @@
 import { BaseRepository, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
-import { PoolClient } from 'pg';
 import {
   CreateUsageLedgerRow,
   UsageLedgerEvent,
@@ -105,7 +104,7 @@ export class UsageLedgerRepository extends BaseRepository<
    */
   async claimForProjection(
     ledgerId: string,
-    options?: { client?: PoolClient },
+    options?: QueryOptions,
   ): Promise<boolean> {
     const result = await this.executeQuery(
       `UPDATE ${this.tableName} SET projected_at = NOW() WHERE id = $1 AND projected_at IS NULL RETURNING id`,
