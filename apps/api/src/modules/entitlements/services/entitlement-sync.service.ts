@@ -1,9 +1,12 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PlanKey } from 'src/common/types/entitlement.types';
 import {
-  ALL_FEATURES,
-  ALL_PLANS,
+  FEATURE_CATALOG,
+  FeatureCatalogEntry,
+  FeatureKey,
+  PLAN_CATALOG,
   PLAN_ENTITLEMENTS,
+  PlanCatalogEntry,
 } from '../../../common/constants/plan-entitlements.constant';
 import { DatabaseService } from '../../../database/database.service';
 import { PlanEntitlementsRepository } from '../../../repositories/entitlements/plan-entitlements.repository';
@@ -24,6 +27,11 @@ import { PlansRepository } from '../../../repositories/plans/plans.repository';
  * Runs on every app startup via OnModuleInit (idempotent).
  *
  * Pattern follows TenantRbacSyncService.
+ *
+ * ARCHITECTURE CHANGE:
+ * - Now uses Object.entries() to iterate FEATURE_CATALOG and PLAN_CATALOG
+ * - Keys are extracted from object keys (not from entry.key property)
+ * - O(1) catalog lookups instead of O(n) array scans
  */
 @Injectable()
 export class EntitlementSyncService implements OnModuleInit {
@@ -50,19 +58,25 @@ export class EntitlementSyncService implements OnModuleInit {
    */
   private async syncFeatures(): Promise<void> {
     await this.databaseService.transaction(async (client) => {
-      this.logger.log(`Syncing ${ALL_FEATURES.length} features to database...`);
+      const featureEntries = Object.entries(FEATURE_CATALOG);
+      this.logger.log(
+        `Syncing ${featureEntries.length} features to database...`,
+      );
 
       // 1. Upsert each feature from code
-      for (const feature of ALL_FEATURES) {
+      // Key is now extracted from object key, not from entry.key
+      for (const [key, entry] of featureEntries) {
+        // Cast to FeatureCatalogEntry to access optional properties safely
+        const catalogEntry = entry as FeatureCatalogEntry;
         await this.featuresRepository.upsertByKey(
           {
-            key: feature.key,
-            name: feature.name,
-            description: feature.description,
-            feature_type: feature.feature_type,
-            unit: feature.unit,
-            creditable: feature.creditable ?? false,
-            credit_cost: feature.credit_cost ?? null,
+            key: key as FeatureKey,
+            name: catalogEntry.name,
+            description: catalogEntry.description,
+            feature_type: catalogEntry.feature_type,
+            unit: catalogEntry.unit,
+            creditable: catalogEntry.creditable ?? false,
+            credit_cost: catalogEntry.credit_cost ?? null,
             is_active: true,
             metadata: '{}',
           },
@@ -71,7 +85,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       // 2. Soft-delete features removed from code (set is_active = false)
-      const codeKeys = ALL_FEATURES.map((f) => f.key);
+      const codeKeys = Object.keys(FEATURE_CATALOG);
       const placeholders = codeKeys.map((_, i) => `$${i + 1}`).join(', ');
 
       const deactivateResult = await this.databaseService.query(
@@ -105,20 +119,24 @@ export class EntitlementSyncService implements OnModuleInit {
    */
   private async syncPlans(): Promise<void> {
     await this.databaseService.transaction(async (client) => {
-      this.logger.log(`Syncing ${ALL_PLANS.length} plans to database...`);
+      const planEntries = Object.entries(PLAN_CATALOG);
+      this.logger.log(`Syncing ${planEntries.length} plans to database...`);
 
       // 1. Upsert each plan from code
-      for (const plan of ALL_PLANS) {
+      // Key is now extracted from object key, not from entry.key
+      for (const [key, entry] of planEntries) {
+        // Cast to PlanCatalogEntry for type safety
+        const catalogEntry = entry as PlanCatalogEntry;
         await this.plansRepository.upsertByKey(
           {
-            key: plan.key,
-            name: plan.name,
-            description: plan.description,
-            price_monthly: plan.price_monthly,
-            price_currency: plan.price_currency,
-            billing_period: plan.billing_period,
+            key: key as PlanKey,
+            name: catalogEntry.name,
+            description: catalogEntry.description,
+            price_monthly: catalogEntry.price_monthly,
+            price_currency: catalogEntry.price_currency,
+            billing_period: catalogEntry.billing_period,
             is_active: true,
-            sort_order: plan.sort_order,
+            sort_order: catalogEntry.sort_order,
             metadata: '{}',
           },
           { client },
@@ -126,7 +144,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       // 2. Soft-delete plans removed from code (set is_active = false)
-      const codeKeys = ALL_PLANS.map((p) => p.key);
+      const codeKeys = Object.keys(PLAN_CATALOG);
       const placeholders = codeKeys.map((_, i) => `$${i + 1}`).join(', ');
 
       const deactivateResult = await this.databaseService.query(
@@ -177,9 +195,7 @@ export class EntitlementSyncService implements OnModuleInit {
 
         // Get feature IDs for this plan's entitlements
         const entitlements = PLAN_ENTITLEMENTS[planKey];
-        const featureKeys = Object.keys(entitlements) as Array<
-          keyof typeof entitlements
-        >;
+        const featureKeys = Object.keys(entitlements) as FeatureKey[];
 
         const entitlementsToSync: Array<{
           plan_id: string;

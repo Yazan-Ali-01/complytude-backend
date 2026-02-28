@@ -1353,11 +1353,14 @@ const feature = getFeatureDefinition('feature_key');
 console.log(feature.creditable); // Should be true
 console.log(feature.credit_cost); // Should be a positive number
 
-// If false or missing, update in plan-entitlements.constant.ts:
-{
-  key: 'feature_key',
+// If false or missing, update in plan-entitlements.constant.ts FEATURE_CATALOG:
+feature_key: {
+  name: 'Feature Name',
+  feature_type: 'quota' as const,
+  unit: 'units',
   creditable: true, // ← Add this
   credit_cost: 5, // ← Add this (credits per unit)
+  description: 'Feature description',
 }
 ```
 
@@ -1416,14 +1419,16 @@ console.log(events.length);
    - `apps/api/src/common/guards/entitlement.guard.ts` - Guard implementation
 
 2. **Add a new feature:**
-   - Add to `ALL_FEATURES` array
-   - Add to `PLAN_ENTITLEMENTS` matrix
+   - Add to `FEATURE_CATALOG` object in `plan-entitlements.constant.ts`
+   - Add to `PLAN_ENTITLEMENTS` matrix for each plan
    - Restart app (EntitlementSyncService syncs to DB)
+   - TypeScript will auto-update the `FeatureKey` type
 
 3. **Add a new plan:**
-   - Add to `ALL_PLANS` array
-   - Add entitlements to `PLAN_ENTITLEMENTS`
+   - Add to `PLAN_CATALOG` object in `plan-entitlements.constant.ts`
+   - Add entitlements to `PLAN_ENTITLEMENTS` matrix
    - Restart app
+   - TypeScript will auto-update the `PlanKey` type
 
 4. **Integrate into your endpoint:**
    - Boolean features → Use `@RequireEntitlement()` + `EntitlementGuard`

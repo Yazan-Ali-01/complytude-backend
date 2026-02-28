@@ -5,16 +5,23 @@
  * Synced to database on app startup via EntitlementSyncService.
  *
  * Pattern follows tenant-system-roles.constant.ts (RBAC system).
+ *
+ * ARCHITECTURE:
+ * - FEATURE_CATALOG: Keyed object (O(1) lookup by feature key)
+ * - PLAN_CATALOG: Keyed object (O(1) lookup by plan key)
+ * - FeatureKey, PlanKey: Derived types from object keys (auto-update)
  */
 
-import { FeatureKey, FeatureType, PlanKey } from '../types/entitlement.types';
+import { FeatureType } from './entitlement-constants';
 
 // =========================
-// FEATURE DEFINITIONS
+// FEATURE CATALOG
 // =========================
 
-export interface FeatureDefinition {
-  key: FeatureKey;
+/**
+ * Feature catalog entry (without key field - key is the object key)
+ */
+export interface FeatureCatalogEntry {
   name: string;
   feature_type: FeatureType;
   unit?: string;
@@ -26,118 +33,116 @@ export interface FeatureDefinition {
 /**
  * Complete feature catalog (source of truth).
  * Synced to public.features table on app startup.
+ *
+ * Key is the feature identifier (e.g., 'documents_per_month')
+ * Value contains feature metadata
+ *
+ * Pattern: Object keys ARE the feature keys → type derived automatically
  */
-export const ALL_FEATURES: FeatureDefinition[] = [
-  {
-    key: 'documents_per_month',
+export const FEATURE_CATALOG = {
+  documents_per_month: {
     name: 'Documents Per Month',
-    feature_type: 'quota',
+    feature_type: 'quota' as const,
     unit: 'documents',
     creditable: true,
     credit_cost: 5, // 5 credits per document
     description: 'Number of documents that can be generated per billing period',
   },
-  {
-    key: 'template_library',
+  template_library: {
     name: 'Template Library',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'Access to template library (essential or full)',
   },
-  {
-    key: 'bilingual_quality',
+  bilingual_quality: {
     name: 'Bilingual Quality',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description:
       'Quality of bilingual document generation (standard or jais_native)',
   },
-  {
-    key: 'contract_reviews_per_month',
+  contract_reviews_per_month: {
     name: 'Contract Reviews Per Month',
-    feature_type: 'quota',
+    feature_type: 'quota' as const,
     unit: 'reviews',
     creditable: false,
     description: 'Number of AI contract reviews per billing period',
   },
-  {
-    key: 'risk_analysis_level',
+  risk_analysis_level: {
     name: 'Risk Analysis Level',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'Level of risk analysis (none, critical_only, or full)',
   },
-  {
-    key: 'redlining_enabled',
+  redlining_enabled: {
     name: 'AI Redlining',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'AI suggests alternative compliant wording',
   },
-  {
-    key: 'localizer_check',
+  localizer_check: {
     name: 'Localizer Check',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'Flags governing law / jurisdiction mismatches',
   },
-  {
-    key: 'regulatory_hub_access',
+  regulatory_hub_access: {
     name: 'Regulatory Hub Access',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'Access to compliance dashboard',
   },
-  {
-    key: 'regulatory_queries_per_month',
+  regulatory_queries_per_month: {
     name: 'Regulatory Queries',
-    feature_type: 'quota',
+    feature_type: 'quota' as const,
     unit: 'queries',
     creditable: true,
     credit_cost: 3, // 3 credits per query
     description: 'Chat-with-Law queries per billing period',
   },
-  {
-    key: 'license_verifier_lookups',
+  license_verifier_lookups: {
     name: 'License Verifier Lookups',
-    feature_type: 'quota',
+    feature_type: 'quota' as const,
     unit: 'lookups',
     creditable: false,
     description: 'DED API lookups per billing period',
   },
-  {
-    key: 'jurisdictions',
+  jurisdictions: {
     name: 'Jurisdictions',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'Access to jurisdictions (single or all)',
   },
-  {
-    key: 'user_seats',
+  user_seats: {
     name: 'User Seats',
-    feature_type: 'capacity',
+    feature_type: 'capacity' as const,
     unit: 'seats',
     description: 'Maximum number of users in tenant',
   },
-  {
-    key: 'data_isolation',
+  data_isolation: {
     name: 'Data Isolation',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'Level of data isolation (shared, row_level, or silo)',
   },
-  {
-    key: 'custom_playbooks',
+  custom_playbooks: {
     name: 'Custom Playbooks',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'Upload company-specific negotiating positions',
   },
-  {
-    key: 'white_label_exports',
+  white_label_exports: {
     name: 'White Label Exports',
-    feature_type: 'boolean',
+    feature_type: 'boolean' as const,
     description: 'Export reports with tenant branding',
   },
-];
+} satisfies Record<string, FeatureCatalogEntry>;
+
+/**
+ * Feature key type - derived from FEATURE_CATALOG keys
+ * Add a key to FEATURE_CATALOG → type updates automatically
+ */
+export type FeatureKey = keyof typeof FEATURE_CATALOG;
 
 // =========================
-// PLAN DEFINITIONS
+// PLAN CATALOG
 // =========================
 
-export interface PlanDefinition {
-  key: PlanKey;
+/**
+ * Plan catalog entry (without key field - key is the object key)
+ */
+export interface PlanCatalogEntry {
   name: string;
   description: string;
   price_monthly: number;
@@ -149,10 +154,14 @@ export interface PlanDefinition {
 /**
  * Plan catalog (source of truth).
  * Synced to public.plans table on app startup.
+ *
+ * Key is the plan identifier (e.g., 'navigator', 'shield')
+ * Value contains plan metadata
+ *
+ * Pattern: Object keys ARE the plan keys → type derived automatically
  */
-export const ALL_PLANS: PlanDefinition[] = [
-  {
-    key: 'navigator',
+export const PLAN_CATALOG = {
+  navigator: {
     name: 'Navigator',
     description: 'Lead magnet — Regulatory Watch + basic Chat with Law',
     price_monthly: 0,
@@ -160,8 +169,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     billing_period: 'monthly',
     sort_order: 1,
   },
-  {
-    key: 'shield',
+  shield: {
     name: 'Shield',
     description: 'Solo entrepreneurs — Essential templates + basic analysis',
     price_monthly: 249,
@@ -169,8 +177,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     billing_period: 'monthly',
     sort_order: 2,
   },
-  {
-    key: 'general_counsel',
+  general_counsel: {
     name: 'General Counsel',
     description: 'Active SMEs — Full library + Jais-native Arabic + redlining',
     price_monthly: 599,
@@ -178,8 +185,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     billing_period: 'monthly',
     sort_order: 3,
   },
-  {
-    key: 'infrastructure',
+  infrastructure: {
     name: 'Infrastructure',
     description: 'Agencies — Silo isolation + custom playbooks + white-label',
     price_monthly: 2499,
@@ -187,10 +193,16 @@ export const ALL_PLANS: PlanDefinition[] = [
     billing_period: 'monthly',
     sort_order: 4,
   },
-];
+} satisfies Record<string, PlanCatalogEntry>;
+
+/**
+ * Plan key type - derived from PLAN_CATALOG keys
+ * Add a key to PLAN_CATALOG → type updates automatically
+ */
+export type PlanKey = keyof typeof PLAN_CATALOG;
 
 // =========================
-// PLAN ENTITLEMENTS
+// PLAN ENTITLEMENTS MATRIX
 // =========================
 
 export interface PlanEntitlementValue {
@@ -204,6 +216,8 @@ export interface PlanEntitlementValue {
  * Synced to public.plan_entitlements table on app startup.
  *
  * This is the in-memory lookup used by EntitlementResolverService for O(1) performance.
+ *
+ * Type-safe: PlanKey and FeatureKey are derived from catalogs
  */
 export const PLAN_ENTITLEMENTS: Record<
   PlanKey,
@@ -279,8 +293,12 @@ export const PLAN_ENTITLEMENTS: Record<
   },
 };
 
+// =========================
+// HELPER FUNCTIONS (O(1) Lookups)
+// =========================
+
 /**
- * Helper: Get entitlement value for a plan and feature (O(1) lookup)
+ * Get entitlement value for a plan and feature (O(1) lookup)
  */
 export function getPlanEntitlement(
   planKey: PlanKey,
@@ -290,7 +308,7 @@ export function getPlanEntitlement(
 }
 
 /**
- * Helper: Get all entitlements for a plan
+ * Get all entitlements for a plan (O(1) lookup)
  */
 export function getAllPlanEntitlements(
   planKey: PlanKey,
@@ -299,19 +317,90 @@ export function getAllPlanEntitlements(
 }
 
 /**
- * Helper: Check if a feature key exists in the catalog
+ * Check if a feature key exists in the catalog (O(1) lookup)
  */
 export function isValidFeatureKey(
   featureKey: string,
 ): featureKey is FeatureKey {
-  return ALL_FEATURES.some((f) => f.key === featureKey);
+  return featureKey in FEATURE_CATALOG;
 }
 
 /**
- * Helper: Get feature definition by key
+ * Get feature definition by key (O(1) lookup)
+ * Returns the feature entry with the key included
  */
 export function getFeatureDefinition(
   featureKey: FeatureKey,
-): FeatureDefinition | undefined {
-  return ALL_FEATURES.find((f) => f.key === featureKey);
+): FeatureCatalogEntry & { key: FeatureKey } {
+  return {
+    key: featureKey,
+    ...FEATURE_CATALOG[featureKey],
+  };
+}
+
+/**
+ * Get feature definition without key field (O(1) lookup)
+ * Use when you only need the entry data
+ */
+export function getFeatureEntry(featureKey: FeatureKey): FeatureCatalogEntry {
+  return FEATURE_CATALOG[featureKey];
+}
+
+/**
+ * Get plan definition by key (O(1) lookup)
+ * Returns the plan entry with the key included
+ */
+export function getPlanDefinition(
+  planKey: PlanKey,
+): PlanCatalogEntry & { key: PlanKey } {
+  return {
+    key: planKey,
+    ...PLAN_CATALOG[planKey],
+  };
+}
+
+/**
+ * Get plan definition without key field (O(1) lookup)
+ * Use when you only need the entry data
+ */
+export function getPlanEntry(planKey: PlanKey): PlanCatalogEntry {
+  return PLAN_CATALOG[planKey];
+}
+
+/**
+ * Get all feature keys as array
+ */
+export function getAllFeatureKeys(): FeatureKey[] {
+  return Object.keys(FEATURE_CATALOG) as FeatureKey[];
+}
+
+/**
+ * Get all plan keys as array
+ */
+export function getAllPlanKeys(): PlanKey[] {
+  return Object.keys(PLAN_CATALOG) as PlanKey[];
+}
+
+/**
+ * Get all features with keys (for iteration)
+ */
+export function getAllFeaturesWithKeys(): Array<
+  FeatureCatalogEntry & { key: FeatureKey }
+> {
+  return Object.entries(FEATURE_CATALOG).map(([key, entry]) => ({
+    key: key as FeatureKey,
+    ...entry,
+  }));
+}
+
+/**
+ * Get all plans with keys (for iteration)
+ */
+export function getAllPlansWithKeys(): Array<
+  PlanCatalogEntry & { key: PlanKey }
+> {
+  return Object.entries(PLAN_CATALOG).map(([key, entry]) => ({
+    key: key as PlanKey,
+    ...entry,
+  }));
 }
