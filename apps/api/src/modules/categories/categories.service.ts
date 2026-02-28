@@ -1,3 +1,4 @@
+import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
 import {
   ConflictException,
   Injectable,
@@ -5,10 +6,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
 import { CategoryRepository } from '../../repositories/categories/category.repository';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { Category } from './entities/category.entity';

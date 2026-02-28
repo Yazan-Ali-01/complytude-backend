@@ -1,3 +1,4 @@
+import { QueryOptions } from '@lib/database';
 import {
   BadRequestException,
   Injectable,
@@ -12,7 +13,6 @@ import {
 } from '../../../common/types/entitlement.types';
 import { deriveBillingPeriod } from '../../../common/utils/billing.util';
 import { DatabaseService } from '../../../database/database.service';
-import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { UsageAllocationsRepository } from '../../../repositories/usage/usage-allocations.repository';

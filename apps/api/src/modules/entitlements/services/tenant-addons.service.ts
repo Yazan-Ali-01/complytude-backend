@@ -1,3 +1,4 @@
+import { QueryOptions } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -6,7 +7,6 @@ import {
   UpdateTenantAddonRow,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
-import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 

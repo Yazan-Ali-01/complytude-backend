@@ -1,14 +1,14 @@
+import {
+  BaseRepository,
+  CursorPaginationHelper,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  QueryOptions,
+} from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import { PlanKey } from 'src/common/types/entitlement.types';
 import { Tenant } from 'src/modules/tenants/entities/tenant.entity';
 import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
-import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-  QueryOptions,
-} from '../base/repository.interface';
 
 /**
  * Type for creating a new tenant row in the database.

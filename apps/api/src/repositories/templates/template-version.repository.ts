@@ -1,16 +1,16 @@
+import {
+  BaseRepository,
+  CursorPaginationHelper,
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  QueryOptions,
+} from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   TemplateField,
   TemplateVersion,
 } from 'src/modules/templates/entities/template-version.entity';
 import { DatabaseService } from '../../database/database.service';
-import { BaseRepository } from '../base/base.repository';
-import { CursorPaginationHelper } from '../base/cursor-pagination.helper';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-  QueryOptions,
-} from '../base/repository.interface';
 
 /**
  * Type for creating a new template version row in the database.

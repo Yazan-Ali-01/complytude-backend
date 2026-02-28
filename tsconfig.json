@@ -40,6 +40,12 @@
       "@lib/redis/*": [
         "libs/redis/src/*"
       ],
+      "@lib/database": [
+        "libs/database/src"
+      ],
+      "@lib/database/*": [
+        "libs/database/src/*"
+      ],
       "src/*": [
         "apps/api/src/*"
       ]

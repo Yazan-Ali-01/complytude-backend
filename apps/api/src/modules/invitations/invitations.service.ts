@@ -1,3 +1,4 @@
+import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -16,10 +17,6 @@ import {
   InvitationInvitedByDto,
   ResolveInvitationResponseDto,
 } from 'src/modules/auth/dto/resolve-invitation-response.dto';
-import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
-} from 'src/repositories/base/repository.interface';
 import {
   CreateInvitationInput,
   InvitationStatus,

@@ -1,3 +1,4 @@
+import { QueryOptions } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -7,7 +8,6 @@ import {
   DomainEventSummary,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
-import { QueryOptions } from '../../../repositories/base/repository.interface';
 import { DomainEventsRepository } from '../../../repositories/domain-events/domain-events.repository';
 
 /**

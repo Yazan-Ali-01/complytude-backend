@@ -1,3 +1,4 @@
+import { CursorPaginationResult } from '@lib/database';
 import {
   Body,
   Controller,
@@ -21,7 +22,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
-import { CursorPaginationResult } from 'src/repositories/base/repository.interface';
 import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
 import { AuthoritiesService } from './authorities.service';
