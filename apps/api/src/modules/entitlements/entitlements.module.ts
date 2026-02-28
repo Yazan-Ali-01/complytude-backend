@@ -34,8 +34,6 @@ import { TenantAddonsService } from './services/tenant-addons.service';
 import { TenantOverridesService } from './services/tenant-overrides.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
 import { UsageProjectionService } from './services/usage-projection.service';
-import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
-import { ProjectionUpdateHandler } from './processors/projection-update.handler';
 
 /**
  * Entitlements Module
