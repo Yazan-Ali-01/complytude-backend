@@ -6,13 +6,13 @@ import {
   ModuleMetadata,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Pool } from 'pg';
+import { Pool, PoolConfig } from 'pg';
 import { DATABASE_POOL } from './database.constants';
 import { DatabaseService } from './database.service';
 
 export interface DatabaseModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {
-  useFactory: (...args: any[]) => Pool | Promise<Pool>;
+  useFactory: (...args: any[]) => PoolConfig | Promise<PoolConfig>;
   inject?: any[];
 }
 
@@ -24,7 +24,7 @@ export class DatabaseModule {
   static forRoot(): DynamicModule {
     return DatabaseModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
+      useFactory: (configService: ConfigService): PoolConfig => {
         const host = configService.get<string>('database.host');
         const port = configService.get<number>('database.port');
         const database = configService.get<string>('database.name');
@@ -37,11 +37,7 @@ export class DatabaseModule {
           );
         }
 
-        DatabaseModule.logger.log(
-          `Creating database pool: ${host}:${port}/${database}`,
-        );
-
-        return new Pool({
+        return {
           host,
           port,
           database,
@@ -53,7 +49,7 @@ export class DatabaseModule {
           connectionTimeoutMillis:
             configService.get<number>('database.connectionTimeoutMillis') ??
             2000,
-        });
+        };
       },
     });
   }
@@ -65,7 +61,15 @@ export class DatabaseModule {
       providers: [
         {
           provide: DATABASE_POOL,
-          useFactory: options.useFactory,
+          useFactory: async (...args: any[]) => {
+            const config = await options.useFactory(...args);
+
+            DatabaseModule.logger.log(
+              `Creating database pool: ${config.host}:${config.port}/${config.database}`,
+            );
+
+            return new Pool(config);
+          },
           inject: options.inject ?? [],
         },
         DatabaseService,
