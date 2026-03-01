@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -86,7 +87,7 @@ export class TenantAddonsController {
   })
   async updateAddon(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAddonDto,
   ): Promise<TenantAddonResponseDto> {
     const updated = await this.tenantAddonsService.updateAddon(
@@ -110,7 +111,7 @@ export class TenantAddonsController {
   })
   async removeAddon(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<MessageResponseDto> {
     await this.tenantAddonsService.removeAddon(user.tenantId, id, {
       context: { mode: 'tenant', canManageSettings: true },

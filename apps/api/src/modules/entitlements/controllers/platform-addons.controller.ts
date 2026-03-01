@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -48,7 +49,7 @@ export class PlatformAddonsController {
     type: [TenantAddonResponseDto],
   })
   async listTenantAddons(
-    @Param('tenantId') tenantId: string,
+    @Param('tenantId', ParseUUIDPipe) tenantId: string,
   ): Promise<TenantAddonResponseDto[]> {
     const addons = await this.tenantAddonsService.listAddons(tenantId, {
       context: { mode: 'platform' },
@@ -82,7 +83,7 @@ export class PlatformAddonsController {
     description: 'Permission denied - requires entitlements:manage',
   })
   async addAddonToTenant(
-    @Param('tenantId') tenantId: string,
+    @Param('tenantId', ParseUUIDPipe) tenantId: string,
     @Body() dto: AddAddonDto,
   ): Promise<TenantAddonResponseDto> {
     const created = await this.tenantAddonsService.addAddon(
@@ -116,8 +117,8 @@ export class PlatformAddonsController {
     description: 'Permission denied - requires entitlements:manage',
   })
   async removeAddonFromTenant(
-    @Param('tenantId') tenantId: string,
-    @Param('id') id: string,
+    @Param('tenantId', ParseUUIDPipe) tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<MessageResponseDto> {
     await this.tenantAddonsService.removeAddon(tenantId, id, {
       context: { mode: 'platform' },

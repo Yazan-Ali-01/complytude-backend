@@ -1,58 +1,162 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
-  IsBoolean,
-  IsDateString,
-  IsInt,
+  IsDate,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
+  registerDecorator,
+  ValidationArguments,
+  ValidationOptions,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
+import { ALL_FEATURES } from 'src/common/constants/plan-entitlements.constant';
 import type {
   FeatureKey,
   FeatureType,
 } from 'src/common/types/entitlement.types';
 
+// =============================================================================
+// Custom validator: checks that `value` matches the storage_type of `featureKey`
+// When featureKey is absent (UpdateOverrideDto), just checks it's a primitive.
+// =============================================================================
+
+@ValidatorConstraint({ name: 'matchesFeatureValueType', async: false })
+class MatchesFeatureValueTypeConstraint
+  implements ValidatorConstraintInterface
+{
+  validate(value: unknown, args: ValidationArguments): boolean {
+    const featureKey = (args.object as Record<string, unknown>).featureKey;
+
+    if (featureKey === undefined) {
+      // UpdateOverrideDto: featureKey not present, just ensure it's a primitive
+      return (
+        typeof value === 'boolean' ||
+        (typeof value === 'number' && Number.isInteger(value)) ||
+        typeof value === 'string'
+      );
+    }
+
+    const feature = ALL_FEATURES.find((f) => f.key === featureKey);
+    if (!feature) {
+      return false; // featureKey is invalid; @IsIn will catch this separately
+    }
+
+    switch (feature.storage_type) {
+      case 'bool':
+        return typeof value === 'boolean';
+      case 'int':
+        return typeof value === 'number' && Number.isInteger(value);
+      case 'text':
+        return typeof value === 'string';
+      default:
+        return false;
+    }
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    const featureKey = (args.object as Record<string, unknown>).featureKey as
+      | FeatureKey
+      | undefined;
+    const feature = featureKey
+      ? ALL_FEATURES.find((f) => f.key === featureKey)
+      : undefined;
+
+    if (!feature) {
+      return 'value must be a boolean, integer, or string';
+    }
+
+    const expected =
+      feature.storage_type === 'bool'
+        ? 'boolean'
+        : feature.storage_type === 'int'
+          ? 'integer'
+          : 'string';
+
+    return `value for feature '${featureKey}' must be a ${expected}`;
+  }
+}
+
+function MatchesFeatureValueType(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName,
+      options: validationOptions,
+      constraints: [],
+      validator: MatchesFeatureValueTypeConstraint,
+    });
+  };
+}
+
+// =============================================================================
+// Standalone: value must be boolean, integer, or string — no objects/arrays/null
+// =============================================================================
+
+@ValidatorConstraint({ name: 'isPrimitiveValue', async: false })
+class IsPrimitiveValueConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return (
+      typeof value === 'boolean' ||
+      (typeof value === 'number' && Number.isInteger(value)) ||
+      typeof value === 'string'
+    );
+  }
+
+  defaultMessage(): string {
+    return 'value must be a boolean, integer, or string';
+  }
+}
+
+function IsPrimitiveValue(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName,
+      options: validationOptions,
+      constraints: [],
+      validator: IsPrimitiveValueConstraint,
+    });
+  };
+}
+
+// =============================================================================
+// DTOs
+// =============================================================================
+
 /**
- * DTO for applying an entitlement override
- *
- * Custom validation: Exactly one of valueBool/valueInt/valueText must be set.
- * This matches the DB constraint chk_tenant_overrides_value.
+ * DTO for applying an entitlement override.
+ * `value` is dynamically validated against the feature's storage_type:
+ *   - quota/capacity/metered/rate_limit features → integer
+ *   - simple boolean features (redlining_enabled, etc.) → boolean
+ *   - tiered string features (template_library, data_isolation, etc.) → string
  */
 export class ApplyOverrideDto {
   @ApiProperty({
     description: 'Feature key to override',
     example: 'documents_per_month',
+    enum: ALL_FEATURES.map((f) => f.key),
   })
-  @IsString()
+  @IsEnum(ALL_FEATURES.map((f) => f.key), {
+    message: 'Invalid feature key',
+  })
   @IsNotEmpty()
   featureKey: FeatureKey;
 
   @ApiProperty({
-    description: 'Boolean value (for boolean features)',
-    example: true,
-    required: false,
+    description:
+      'Value for the override. Type must match the feature: boolean for on/off features, integer for quota/capacity features, string for tiered features.',
+    oneOf: [
+      { type: 'boolean', example: true },
+      { type: 'integer', example: 500 },
+      { type: 'string', example: 'full' },
+    ],
   })
-  @IsOptional()
-  @IsBoolean()
-  valueBool?: boolean;
-
-  @ApiProperty({
-    description: 'Integer value (for quota/capacity features)',
-    example: 500,
-    required: false,
-  })
-  @IsOptional()
-  @IsInt()
-  valueInt?: number;
-
-  @ApiProperty({
-    description: 'Text value (for tiered features)',
-    example: 'premium',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  valueText?: string;
+  @IsNotEmpty()
+  @MatchesFeatureValueType()
+  value: boolean | number | string;
 
   @ApiProperty({
     description: 'Reason for applying this override',
@@ -65,43 +169,43 @@ export class ApplyOverrideDto {
   @ApiProperty({
     description: 'Expiration date (ISO 8601 format)',
     example: '2024-12-31T23:59:59Z',
-    required: false,
   })
-  @IsOptional()
-  @IsDateString()
-  expiresAt?: Date;
+  @Type(() => Date)
+  @IsDate()
+  expiresAt: Date;
 }
 
 /**
- * DTO for updating an override
+ * Used for programmatic service-level validation of value type once the feature key is known.
+ * Call `validateOverrideValue(featureKey, value)` in the service after fetching the override.
+ */
+export class OverrideValueValidationDto {
+  @IsEnum(ALL_FEATURES.map((f) => f.key), { message: 'Invalid feature key' })
+  featureKey: FeatureKey;
+
+  @IsNotEmpty()
+  @MatchesFeatureValueType()
+  value: boolean | number | string;
+}
+
+/**
+ * DTO for updating an override.
+ * `value` type is validated at service level against the existing override's feature.
  */
 export class UpdateOverrideDto {
   @ApiProperty({
-    description: 'New boolean value',
-    example: false,
+    description:
+      'New value for the override. Type must match the feature (boolean, integer, or string).',
+    oneOf: [
+      { type: 'boolean', example: false },
+      { type: 'integer', example: 1000 },
+      { type: 'string', example: 'enterprise' },
+    ],
     required: false,
   })
   @IsOptional()
-  @IsBoolean()
-  valueBool?: boolean;
-
-  @ApiProperty({
-    description: 'New integer value',
-    example: 1000,
-    required: false,
-  })
-  @IsOptional()
-  @IsInt()
-  valueInt?: number;
-
-  @ApiProperty({
-    description: 'New text value',
-    example: 'enterprise',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  valueText?: string;
+  @IsPrimitiveValue()
+  value?: boolean | number | string;
 
   @ApiProperty({
     description: 'Updated reason',
@@ -118,7 +222,8 @@ export class UpdateOverrideDto {
     required: false,
   })
   @IsOptional()
-  @IsDateString()
+  @Type(() => Date)
+  @IsDate()
   expiresAt?: Date;
 }
 

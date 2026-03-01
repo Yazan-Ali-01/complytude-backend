@@ -13,10 +13,18 @@ import { FeatureKey, FeatureType, PlanKey } from '../types/entitlement.types';
 // FEATURE DEFINITIONS
 // =========================
 
+export type FeatureStorageType = 'bool' | 'int' | 'text';
+
 export interface FeatureDefinition {
   key: FeatureKey;
   name: string;
   feature_type: FeatureType;
+  /**
+   * Which DB column stores this feature's value.
+   * Needed because feature_type:'boolean' is used for both simple on/off features
+   * (stored in value_bool) and tiered string features (stored in value_text).
+   */
+  storage_type: FeatureStorageType;
   unit?: string;
   creditable?: boolean;
   credit_cost?: number | null; // Cost in credits per unit (null for non-creditable features)
@@ -32,6 +40,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     key: 'documents_per_month',
     name: 'Documents Per Month',
     feature_type: 'quota',
+    storage_type: 'int',
     unit: 'documents',
     creditable: true,
     credit_cost: 5, // 5 credits per document
@@ -41,12 +50,14 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     key: 'template_library',
     name: 'Template Library',
     feature_type: 'boolean',
+    storage_type: 'text', // tiered: 'essential' | 'full'
     description: 'Access to template library (essential or full)',
   },
   {
     key: 'bilingual_quality',
     name: 'Bilingual Quality',
     feature_type: 'boolean',
+    storage_type: 'text', // tiered: 'standard' | 'jais_native'
     description:
       'Quality of bilingual document generation (standard or jais_native)',
   },
@@ -54,6 +65,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     key: 'contract_reviews_per_month',
     name: 'Contract Reviews Per Month',
     feature_type: 'quota',
+    storage_type: 'int',
     unit: 'reviews',
     creditable: false,
     description: 'Number of AI contract reviews per billing period',
@@ -62,30 +74,35 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     key: 'risk_analysis_level',
     name: 'Risk Analysis Level',
     feature_type: 'boolean',
+    storage_type: 'text', // tiered: 'none' | 'critical_only' | 'full'
     description: 'Level of risk analysis (none, critical_only, or full)',
   },
   {
     key: 'redlining_enabled',
     name: 'AI Redlining',
     feature_type: 'boolean',
+    storage_type: 'bool',
     description: 'AI suggests alternative compliant wording',
   },
   {
     key: 'localizer_check',
     name: 'Localizer Check',
     feature_type: 'boolean',
+    storage_type: 'bool',
     description: 'Flags governing law / jurisdiction mismatches',
   },
   {
     key: 'regulatory_hub_access',
     name: 'Regulatory Hub Access',
     feature_type: 'boolean',
+    storage_type: 'bool',
     description: 'Access to compliance dashboard',
   },
   {
     key: 'regulatory_queries_per_month',
     name: 'Regulatory Queries',
     feature_type: 'quota',
+    storage_type: 'int',
     unit: 'queries',
     creditable: true,
     credit_cost: 3, // 3 credits per query
@@ -95,6 +112,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     key: 'license_verifier_lookups',
     name: 'License Verifier Lookups',
     feature_type: 'quota',
+    storage_type: 'int',
     unit: 'lookups',
     creditable: false,
     description: 'DED API lookups per billing period',
@@ -103,12 +121,14 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     key: 'jurisdictions',
     name: 'Jurisdictions',
     feature_type: 'boolean',
+    storage_type: 'text', // tiered: 'single' | 'all'
     description: 'Access to jurisdictions (single or all)',
   },
   {
     key: 'user_seats',
     name: 'User Seats',
     feature_type: 'capacity',
+    storage_type: 'int',
     unit: 'seats',
     description: 'Maximum number of users in tenant',
   },
@@ -116,18 +136,21 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     key: 'data_isolation',
     name: 'Data Isolation',
     feature_type: 'boolean',
+    storage_type: 'text', // tiered: 'shared' | 'row_level' | 'silo'
     description: 'Level of data isolation (shared, row_level, or silo)',
   },
   {
     key: 'custom_playbooks',
     name: 'Custom Playbooks',
     feature_type: 'boolean',
+    storage_type: 'bool',
     description: 'Upload company-specific negotiating positions',
   },
   {
     key: 'white_label_exports',
     name: 'White Label Exports',
     feature_type: 'boolean',
+    storage_type: 'bool',
     description: 'Export reports with tenant branding',
   },
 ];
@@ -314,4 +337,18 @@ export function getFeatureDefinition(
   featureKey: FeatureKey,
 ): FeatureDefinition | undefined {
   return ALL_FEATURES.find((f) => f.key === featureKey);
+}
+
+/**
+ * Helper: Get the DB storage type for a feature key.
+ * Throws if the feature key is unknown (programmer error).
+ */
+export function getFeatureStorageType(
+  featureKey: FeatureKey,
+): FeatureStorageType {
+  const feature = ALL_FEATURES.find((f) => f.key === featureKey);
+  if (!feature) {
+    throw new Error(`Unknown feature key: ${featureKey}`);
+  }
+  return feature.storage_type;
 }

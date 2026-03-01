@@ -142,6 +142,69 @@ export class TenantAddonsRepository extends BaseRepository<
   }
 
   /**
+   * Find all add-ons with entitlements (JOIN to avoid N+1)
+   */
+  async findByTenantIdWithEntitlements(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<TenantAddonWithEntitlements[]> {
+    const query = `
+      SELECT
+        ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at,
+        ta.expires_at, ta.metadata, ta.created_at, ta.updated_at,
+        a.key as addon_key, a.name as addon_name,
+        ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
+        ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
+        f.key as feature_key, f.feature_type
+      FROM ${this.tableName} ta
+      LEFT JOIN public.addons a ON a.id = ta.addon_id
+      LEFT JOIN public.addon_entitlements ae ON ae.addon_id = ta.addon_id
+      LEFT JOIN public.features f ON f.id = ae.feature_id
+      WHERE ta.tenant_id = $1
+      ORDER BY ta.created_at DESC
+    `;
+
+    const result = await this.executeQuery(query, [tenantId], options);
+
+    const addonsMap = new Map<
+      string,
+      TenantAddonWithEntitlements & { addon_name?: string }
+    >();
+
+    result.rows.forEach((row) => {
+      const addonId = row.id as string;
+
+      if (!addonsMap.has(addonId)) {
+        const addon = this.mapRow(row);
+        addonsMap.set(addonId, {
+          ...addon,
+          addon_key: row.addon_key as string,
+          addon_name: row.addon_name as string,
+          entitlements: [],
+        });
+      }
+
+      if (row.entitlement_id) {
+        const entitlement: AddonEntitlement = {
+          id: row.entitlement_id as string,
+          addon_id: row.addon_id as string,
+          feature_id: row.feature_id as string,
+          feature_key: row.feature_key as FeatureKey,
+          feature_type: row.feature_type as FeatureType,
+          value_bool: row.value_bool as boolean | undefined,
+          value_int: row.value_int as number | undefined,
+          value_text: row.value_text as string | undefined,
+          metadata: (row.entitlement_metadata as Record<string, any>) ?? {},
+          created_at: row.entitlement_created_at as Date,
+        };
+        addonsMap.get(addonId)!.entitlements.push(entitlement);
+      }
+    });
+
+    return Array.from(addonsMap.values());
+  }
+
+  /**
    * Find active add-ons for a specific feature (JOIN to avoid N+1)
    */
   async findActiveByTenantAndFeature(
@@ -153,10 +216,12 @@ export class TenantAddonsRepository extends BaseRepository<
       SELECT
         ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at,
         ta.expires_at, ta.metadata, ta.created_at, ta.updated_at,
+        a.key as addon_key, a.name as addon_name,
         ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
         ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
         f.key as feature_key, f.feature_type
       FROM ${this.tableName} ta
+      JOIN public.addons a ON a.id = ta.addon_id
       JOIN public.addon_entitlements ae ON ae.addon_id = ta.addon_id
       JOIN public.features f ON f.id = ae.feature_id
       WHERE ta.tenant_id = $1 AND ta.status = 'active'
@@ -181,6 +246,8 @@ export class TenantAddonsRepository extends BaseRepository<
         const addon = this.mapRow(row);
         addonsMap.set(addonId, {
           ...addon,
+          addon_key: row.addon_key as string,
+          addon_name: row.addon_name as string,
           entitlements: [],
         });
       }

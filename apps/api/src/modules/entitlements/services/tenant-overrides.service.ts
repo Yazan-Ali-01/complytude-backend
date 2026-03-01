@@ -4,9 +4,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import { I18nKeys } from '../../../common/constants/i18n-keys';
+import { getFeatureStorageType } from '../../../common/constants/plan-entitlements.constant';
 import {
   TenantOverride,
   UpdateTenantOverrideRow,
@@ -17,6 +20,7 @@ import { FeaturesRepository } from '../../../repositories/features/features.repo
 import { ServiceCallOptions } from '../../tenants/tenant.service';
 import {
   ApplyOverrideDto,
+  OverrideValueValidationDto,
   UpdateOverrideDto,
 } from '../dto/tenant-override.dto';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
@@ -76,9 +80,6 @@ export class TenantOverridesService {
     appliedBy: string,
     options: ServiceCallOptions,
   ): Promise<TenantOverride> {
-    // Validate exactly one value field
-    this.validateValueFields(dto);
-
     if ('client' in options) {
       return this.executeApplyOverride(
         tenantId,
@@ -119,14 +120,20 @@ export class TenantOverridesService {
       );
     }
 
+    // Map the single `value` to the correct DB column based on the feature's storage type
+    const storageType = getFeatureStorageType(dto.featureKey);
+    const valueColumns = {
+      value_bool: storageType === 'bool' ? (dto.value as boolean) : undefined,
+      value_int: storageType === 'int' ? (dto.value as number) : undefined,
+      value_text: storageType === 'text' ? (dto.value as string) : undefined,
+    };
+
     // Create override
     const override = await this.tenantOverridesRepository.create(
       {
         tenant_id: tenantId,
         feature_id: feature.id,
-        value_bool: dto.valueBool,
-        value_int: dto.valueInt,
-        value_text: dto.valueText,
+        ...valueColumns,
         reason: dto.reason,
         applied_by: appliedBy,
         starts_at: new Date(),
@@ -164,9 +171,6 @@ export class TenantOverridesService {
     dto: UpdateOverrideDto,
     options: ServiceCallOptions,
   ): Promise<TenantOverride> {
-    // Validate at most one value field
-    this.validateValueFieldsForUpdate(dto);
-
     if ('client' in options) {
       return this.executeUpdateOverride(
         tenantId,
@@ -196,15 +200,45 @@ export class TenantOverridesService {
     dto: UpdateOverrideDto,
     client: PoolClient,
   ): Promise<TenantOverride> {
+    // Look up the existing override first to get its feature_key (needed for value mapping)
+    const existing = await this.tenantOverridesRepository
+      .findActiveByTenant(tenantId, { client })
+      .then((overrides) => overrides.find((o) => o.id === overrideId));
+
+    if (!existing) {
+      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
+    }
+
+    if (dto.value !== undefined) {
+      const probe = plainToInstance(OverrideValueValidationDto, {
+        featureKey: existing.feature_key,
+        value: dto.value,
+      });
+      const errors = await validate(probe);
+      if (errors.length) {
+        throw new BadRequestException(
+          errors.flatMap((e) => Object.values(e.constraints ?? {})).join('; '),
+        );
+      }
+    }
+
     const updates: UpdateTenantOverrideRow = {};
-    if (
-      dto.valueBool !== undefined ||
-      dto.valueInt !== undefined ||
-      dto.valueText !== undefined
-    ) {
-      updates.value_bool = dto.valueBool ?? null;
-      updates.value_int = dto.valueInt ?? null;
-      updates.value_text = dto.valueText ?? null;
+
+    if (dto.value !== undefined) {
+      const storageType = getFeatureStorageType(existing.feature_key);
+      updates.value_bool =
+        storageType === 'bool' ? (dto.value as boolean) : null;
+      updates.value_int = storageType === 'int' ? (dto.value as number) : null;
+      updates.value_text =
+        storageType === 'text' ? (dto.value as string) : null;
+    }
+
+    if (dto.reason !== undefined) {
+      updates.reason = dto.reason;
+    }
+
+    if (dto.expiresAt !== undefined) {
+      updates.expires_at = dto.expiresAt;
     }
 
     await this.tenantOverridesRepository.update(overrideId, updates, {
@@ -245,13 +279,7 @@ export class TenantOverridesService {
       await this.executeRevokeOverride(tenantId, overrideId, options.client);
       return;
     }
-    console.log('===================================================');
-    console.log('options', options);
-    console.log('===================================================');
     const { context } = options;
-    console.log('===================================================');
-    console.log('context', context.mode);
-    console.log('===================================================');
     if (context.mode === 'platform') {
       return this.databaseService.transactionWithPlatformAdminContext(
         (client) => this.executeRevokeOverride(tenantId, overrideId, client),
@@ -269,6 +297,14 @@ export class TenantOverridesService {
     overrideId: string,
     client: PoolClient,
   ): Promise<void> {
+    const overrides = await this.tenantOverridesRepository.findActiveByTenant(
+      tenantId,
+      { client },
+    );
+    if (!overrides.some((o) => o.id === overrideId)) {
+      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
+    }
+
     await this.tenantOverridesRepository.update(
       overrideId,
       { is_active: false },
@@ -284,39 +320,5 @@ export class TenantOverridesService {
     this.logger.log(
       `Override revoked: tenant=${tenantId}, override=${overrideId}`,
     );
-  }
-
-  /**
-   * Validate exactly one value field is set (for create)
-   */
-  private validateValueFields(dto: ApplyOverrideDto): void {
-    const fieldsSet = [
-      dto.valueBool !== undefined,
-      dto.valueInt !== undefined,
-      dto.valueText !== undefined,
-    ].filter(Boolean).length;
-
-    if (fieldsSet !== 1) {
-      throw new BadRequestException(
-        this.i18n.t(I18nKeys.OVERRIDE_INVALID_VALUE),
-      );
-    }
-  }
-
-  /**
-   * Validate at most one value field is set (for update)
-   */
-  private validateValueFieldsForUpdate(dto: UpdateOverrideDto): void {
-    const fieldsSet = [
-      dto.valueBool !== undefined,
-      dto.valueInt !== undefined,
-      dto.valueText !== undefined,
-    ].filter(Boolean).length;
-
-    if (fieldsSet > 1) {
-      throw new BadRequestException(
-        this.i18n.t(I18nKeys.OVERRIDE_INVALID_VALUE),
-      );
-    }
   }
 }

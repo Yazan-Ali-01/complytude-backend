@@ -2,11 +2,11 @@ import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
 import { I18nKeys } from '../../../common/constants';
-import { AddonsRepository } from '../../../repositories/entitlements/addons.repository';
 import {
   AddonCatalogDetailResponseDto,
   AddonCatalogResponseDto,
 } from '../dto/addon-catalog.dto';
+import { TenantAddonsService } from '../services/tenant-addons.service';
 import {
   mapAddonToCatalogDetailDto,
   mapAddonToCatalogDto,
@@ -22,7 +22,7 @@ import {
 @ApiTags('addons')
 export class AddonCatalogController {
   constructor(
-    private readonly addonsRepository: AddonsRepository,
+    private readonly tenantAddonsService: TenantAddonsService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -37,9 +37,7 @@ export class AddonCatalogController {
     type: [AddonCatalogResponseDto],
   })
   async listAddons(): Promise<AddonCatalogResponseDto[]> {
-    // Public endpoint - no context needed, uses default connection
-    const addons = await this.addonsRepository.findAllActive();
-
+    const addons = await this.tenantAddonsService.listCatalog();
     return addons.map(mapAddonToCatalogDto);
   }
 
@@ -65,8 +63,7 @@ export class AddonCatalogController {
   async getAddonByKey(
     @Param('key') key: string,
   ): Promise<AddonCatalogDetailResponseDto> {
-    // Public endpoint - no context needed, uses default connection
-    const addon = await this.addonsRepository.findByKeyWithEntitlements(key);
+    const addon = await this.tenantAddonsService.getCatalogByKey(key);
 
     if (!addon) {
       throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));

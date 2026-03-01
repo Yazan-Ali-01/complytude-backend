@@ -8,11 +8,15 @@ import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import { I18nKeys } from '../../../common/constants/i18n-keys';
 import {
+  Addon,
   TenantAddonWithEntitlements,
   UpdateTenantAddonRow,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
-import { AddonsRepository } from '../../../repositories/entitlements/addons.repository';
+import {
+  AddonWithEntitlements,
+  AddonsRepository,
+} from '../../../repositories/entitlements/addons.repository';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { ServiceCallOptions } from '../../tenants/tenant.service';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
@@ -199,6 +203,23 @@ export class TenantAddonsService {
     updates: UpdateTenantAddonRow,
     client: PoolClient,
   ): Promise<TenantAddonWithEntitlements> {
+    // TODO: Remove undefined values from updates object before continuing (future enhancement)
+    const filteredUpdates = Object.fromEntries(
+      Object.entries(updates ?? {}).filter(([_, value]) => value !== undefined),
+    );
+
+    if (!filteredUpdates || Object.keys(filteredUpdates).length === 0) {
+      return this.tenantAddonsRepository
+        .findByTenantIdWithEntitlements(tenantId, { client })
+        .then((addons) => {
+          const addon = addons.find((a) => a.id === tenantAddonId);
+          if (!addon) {
+            throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+          }
+          return addon;
+        });
+    }
+
     await this.tenantAddonsRepository.update(tenantAddonId, updates, {
       client,
     });
@@ -210,7 +231,7 @@ export class TenantAddonsService {
     );
 
     const addons =
-      await this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
+      await this.tenantAddonsRepository.findByTenantIdWithEntitlements(
         tenantId,
         { client },
       );
@@ -256,6 +277,14 @@ export class TenantAddonsService {
     tenantAddonId: string,
     client: PoolClient,
   ): Promise<void> {
+    const existing = await this.tenantAddonsRepository.findActiveByTenant(
+      tenantId,
+      { client },
+    );
+    if (!existing.some((a) => a.id === tenantAddonId)) {
+      throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+    }
+
     await this.tenantAddonsRepository.update(
       tenantAddonId,
       { status: 'cancelled' },
@@ -271,5 +300,19 @@ export class TenantAddonsService {
     this.logger.log(
       `Add-on removed: tenant=${tenantId}, addon=${tenantAddonId}`,
     );
+  }
+
+  /**
+   * List all active add-ons from the global catalog (public, no tenant context)
+   */
+  async listCatalog(): Promise<Addon[]> {
+    return this.addonsRepository.findAllActive();
+  }
+
+  /**
+   * Get a single add-on from the catalog with its entitlements (public, no tenant context)
+   */
+  async getCatalogByKey(key: string): Promise<AddonWithEntitlements | null> {
+    return this.addonsRepository.findByKeyWithEntitlements(key);
   }
 }

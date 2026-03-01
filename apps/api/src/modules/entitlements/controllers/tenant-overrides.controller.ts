@@ -4,11 +4,14 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18nService } from 'nestjs-i18n';
+import { I18nKeys } from 'src/common/constants/i18n-keys';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
 import { MessageResponseDto } from '../../../common/dto';
@@ -31,6 +34,7 @@ import { mapOverrideToDto } from '../utils/entitlement-mappers.util';
 export class TenantOverridesController {
   constructor(
     private readonly tenantOverridesService: TenantOverridesService,
+    private readonly i18n: I18nService,
   ) {}
 
   @Get()
@@ -41,9 +45,8 @@ export class TenantOverridesController {
     description: "Tenant's active overrides",
     type: [OverrideResponseDto],
   })
-  @RequireAnyPlatformPermission('entitlements:manage')
   async listOverrides(
-    @Param('tenantId') tenantId: string,
+    @Param('tenantId', ParseUUIDPipe) tenantId: string,
   ): Promise<OverrideResponseDto[]> {
     const overrides = await this.tenantOverridesService.listOverrides(
       tenantId,
@@ -64,7 +67,7 @@ export class TenantOverridesController {
     type: OverrideResponseDto,
   })
   async applyOverride(
-    @Param('tenantId') tenantId: string,
+    @Param('tenantId', ParseUUIDPipe) tenantId: string,
     @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
     @Body() dto: ApplyOverrideDto,
   ): Promise<OverrideResponseDto> {
@@ -88,8 +91,8 @@ export class TenantOverridesController {
     type: OverrideResponseDto,
   })
   async updateOverride(
-    @Param('tenantId') tenantId: string,
-    @Param('id') id: string,
+    @Param('tenantId', ParseUUIDPipe) tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOverrideDto,
   ): Promise<OverrideResponseDto> {
     const updated = await this.tenantOverridesService.updateOverride(
@@ -109,16 +112,18 @@ export class TenantOverridesController {
   @ApiResponse({
     status: 200,
     description: 'Override revoked successfully',
-    type: OverrideResponseDto,
+    type: MessageResponseDto,
   })
   async revokeOverride(
-    @Param('tenantId') tenantId: string,
-    @Param('id') id: string,
+    @Param('tenantId', ParseUUIDPipe) tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<MessageResponseDto> {
     await this.tenantOverridesService.revokeOverride(tenantId, id, {
       context: { mode: 'platform' },
     });
 
-    return new MessageResponseDto('Override revoked successfully');
+    return new MessageResponseDto(
+      this.i18n.t(I18nKeys.OVERRIDE_REVOKE_SUCCESS),
+    );
   }
 }
