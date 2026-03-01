@@ -26,11 +26,27 @@ import { DatabaseService } from '../../../database/database.service';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
+import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
+import { buildUsageRecordedEvent } from '../utils/usage-event-payload.util';
 import { CreditLedgerService } from './credit-ledger.service';
 import { DomainEventsService } from './domain-events.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
+
+interface AllocationResolution {
+  mode: 'within_quota' | 'credit_fallback';
+  allocations: Array<{ source: 'plan' | 'credit'; units: number }>;
+  creditUnits: number;
+  creditCost: number;
+  creditCostPerUnit: number;
+  creditBalance?: number;
+}
+
+interface UsageWriteResult {
+  usageEvent: UsageLedgerEvent;
+  planUnits: number;
+}
 
 interface EnforceResult {
   result: EntitlementCheckResult;
@@ -99,6 +115,7 @@ export class EntitlementEnforcementService {
     private readonly domainEventsService: DomainEventsService,
     private readonly featuresRepository: FeaturesRepository,
     private readonly aggregatedUsageRepository: AggregatedUsageRepository,
+    private readonly usageLedgerRepository: UsageLedgerRepository,
     private readonly configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
   ) {}
@@ -533,7 +550,6 @@ export class EntitlementEnforcementService {
           feature.id,
           billingPeriod,
           allocations.map((a) => ({ source: a.source, units: a.units })),
-          usageEvent.id,
           limit,
           { client },
         );
@@ -904,7 +920,12 @@ export class EntitlementEnforcementService {
 
   /**
    * Enqueue PROJECTION_UPDATE job for async processing.
-   * Falls back to sync incrementUsage if BullMQ is unavailable.
+   * Falls back to sync projection + domain event if BullMQ is unavailable.
+   *
+   * The fallback mirrors exactly what ProjectionUpdateHandler does (projection
+   * increment + domain event) so downstream consumers see the same event
+   * structure regardless of which path ran. Both operations are wrapped in
+   * transactionWithTenantContext so RLS policies are satisfied.
    */
   private async enqueueProjectionUpdate(
     data: EntitlementProjectionUpdateJobData,
@@ -922,15 +943,44 @@ export class EntitlementEnforcementService {
       );
     } catch (error) {
       this.logger.warn(
-        `BullMQ unavailable, falling back to sync projection update: ${error instanceof Error ? error.message : String(error)}`,
+        `[projection.fallback_to_sync] BullMQ unavailable — falling back to sync. ` +
+          `tenant=${data.tenantId} feature=${data.featureKey} ledger=${data.usageLedgerId} ` +
+          `error=${error instanceof Error ? error.message : String(error)}`,
       );
-      await this.usageProjectionService.incrementUsage(
-        data.tenantId,
-        data.subscriptionId,
-        data.featureId,
-        data.billingPeriod,
-        data.allocations,
-        data.usageLedgerId,
+
+      await this.databaseService.transactionWithTenantContext(
+        { tenantId: data.tenantId },
+        async (client) => {
+          // Same idempotency mechanism as the async path — prevents double-projection
+          // if BullMQ later recovers and the job is retried.
+          const claimed = await this.usageLedgerRepository.claimForProjection(
+            data.usageLedgerId,
+            { client },
+          );
+
+          if (!claimed) {
+            this.logger.warn(
+              `[projection.fallback_to_sync] Event already projected, skipping: ledger=${data.usageLedgerId}`,
+            );
+            return;
+          }
+
+          await this.usageProjectionService.incrementUsage(
+            data.tenantId,
+            data.subscriptionId,
+            data.featureId,
+            data.billingPeriod,
+            data.allocations,
+            { client },
+          );
+
+          await this.domainEventsService.emit(
+            buildUsageRecordedEvent(data, 'sync_fallback', {
+              fallback_reason: 'bullmq_unavailable',
+            }),
+            { client },
+          );
+        },
       );
     }
   }

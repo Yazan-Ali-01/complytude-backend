@@ -53,7 +53,6 @@ export class UsageProjectionService {
    * @param featureId - Feature UUID
    * @param billingPeriod - Billing period (YYYY-MM format, for analytics)
    * @param allocations - Array of { source, units } allocations
-   * @param eventId - Usage ledger event ID (for idempotency)
    * @param options - Query options (client for transactions)
    * @returns Updated aggregated usage
    */
@@ -66,7 +65,6 @@ export class UsageProjectionService {
       source: Exclude<UsageSource, 'mixed'>;
       units: number;
     }>,
-    eventId: string,
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
     const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
@@ -80,7 +78,6 @@ export class UsageProjectionService {
       featureId,
       billingPeriod,
       allocations,
-      eventId,
       options,
     );
   }
@@ -158,11 +155,9 @@ export class UsageProjectionService {
     let addonUnits = 0;
     let creditUnits = 0;
     let overrideUnits = 0;
-    let lastEventId: string | undefined;
 
     for (const allocation of allocations) {
       totalUnits += allocation.units;
-      lastEventId = allocation.usage_ledger_id; // Track last event processed
 
       switch (allocation.source) {
         case 'plan':
@@ -192,7 +187,6 @@ export class UsageProjectionService {
         addon_units: addonUnits,
         credit_units: creditUnits,
         override_units: overrideUnits,
-        last_event_id: lastEventId,
       },
       options,
     );

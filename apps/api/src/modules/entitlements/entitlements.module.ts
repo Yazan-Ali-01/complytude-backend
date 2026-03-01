@@ -30,6 +30,7 @@ import { EntitlementEnforcementService } from './services/entitlement-enforcemen
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
 import { EntitlementSnapshotService } from './services/entitlement-snapshot.service';
 import { EntitlementSyncService } from './services/entitlement-sync.service';
+import { ProjectionReconciliationService } from './services/projection-reconciliation.service';
 import { TenantAddonsService } from './services/tenant-addons.service';
 import { TenantOverridesService } from './services/tenant-overrides.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
@@ -74,6 +75,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     EntitlementSnapshotService, // Phase 8
     TenantAddonsService, // Add-on mutations with snapshot invalidation
     TenantOverridesService, // Override mutations with snapshot invalidation
+    ProjectionReconciliationService, // COM-135 — drift detection + auto-correction
     AddonsRepository,
 
     // Queue processor + handlers
@@ -116,6 +118,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     TenantAddonsService,
     TenantOverridesService,
     AddonsRepository,
+    ProjectionReconciliationService,
 
     // Repositories (for use in other modules)
     FeaturesRepository,
