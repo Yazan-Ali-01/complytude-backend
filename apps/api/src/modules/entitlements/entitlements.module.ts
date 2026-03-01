@@ -25,6 +25,7 @@ import { TenantAddonsService } from './services/tenant-addons.service';
 import { TenantOverridesService } from './services/tenant-overrides.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
 import { UsageProjectionService } from './services/usage-projection.service';
+import { ProjectionReconciliationService } from './services/projection-reconciliation.service';
 import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
 import { ProjectionUpdateHandler } from './processors/projection-update.handler';
 
@@ -60,6 +61,7 @@ import { ProjectionUpdateHandler } from './processors/projection-update.handler'
     EntitlementSnapshotService, // Phase 8
     TenantAddonsService, // Add-on mutations with snapshot invalidation
     TenantOverridesService, // Override mutations with snapshot invalidation
+    ProjectionReconciliationService, // COM-135 — drift detection + auto-correction
 
     // Queue processor + handlers
     EntitlementQueueProcessor,
@@ -100,6 +102,7 @@ import { ProjectionUpdateHandler } from './processors/projection-update.handler'
     EntitlementSnapshotService, // Phase 8
     TenantAddonsService,
     TenantOverridesService,
+    ProjectionReconciliationService,
 
     // Repositories (for use in other modules)
     FeaturesRepository,
