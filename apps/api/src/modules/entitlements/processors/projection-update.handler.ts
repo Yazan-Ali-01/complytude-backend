@@ -4,7 +4,7 @@ import { DatabaseService } from '../../../database/database.service';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
 import { DomainEventsService } from '../services/domain-events.service';
 import { UsageProjectionService } from '../services/usage-projection.service';
-import { buildUsageRecordedPayload } from '../utils/usage-event-payload.util';
+import { buildUsageRecordedEvent } from '../utils/usage-event-payload.util';
 
 /**
  * Projection Update Handler
@@ -71,19 +71,10 @@ export class ProjectionUpdateHandler {
 
         // Emit usage.recorded domain event
         await this.domainEventsService.emit(
-          {
-            tenant_id: data.tenantId,
-            event_type: 'usage.recorded',
-            aggregate_type: 'usage',
-            aggregate_id: data.usageLedgerId,
-            actor_id: data.actorId,
-            actor_type: data.actorId ? 'user' : 'system',
-            payload: buildUsageRecordedPayload(data, 'async'),
-            metadata: JSON.stringify({
-              job_id: job.id,
-              attempt: job.attemptsMade + 1,
-            }),
-          },
+          buildUsageRecordedEvent(data, 'async', {
+            job_id: job.id,
+            attempt: job.attemptsMade + 1,
+          }),
           { client },
         );
       },

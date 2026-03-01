@@ -121,11 +121,22 @@ export class ProjectionReconciliationService {
             });
           }
           const entry = expectedMap.get(key)!;
-          const units = parseInt(row.ledger_units, 10);
+          const units = Number(row.ledger_units);
+          if (Number.isNaN(units)) {
+            this.logger.error(
+              `[projection.reconcile] Non-numeric ledger_units for subscription=${row.subscription_id} feature=${row.feature_id} source=${row.source} value=${row.ledger_units} — skipping row`,
+            );
+            continue;
+          }
           if (row.source === 'plan') entry.planUnits += units;
           else if (row.source === 'addon') entry.addonUnits += units;
           else if (row.source === 'credit') entry.creditUnits += units;
           else if (row.source === 'override') entry.overrideUnits += units;
+          else {
+            this.logger.warn(
+              `[projection.reconcile] Unknown allocation source '${row.source as string}' for subscription=${row.subscription_id} feature=${row.feature_id} — units dropped`,
+            );
+          }
         }
 
         // Batch-fetch all aggregated_usage rows for the affected subscriptions.
@@ -155,6 +166,15 @@ export class ProjectionReconciliationService {
     const details: ReconciliationResult['details'] = [];
     const failedDetails: ReconciliationResult['failedDetails'] = [];
 
+    // TODO(COM-XXX): Reconciliation only iterates over ledger entries — it does not
+    // detect "orphan" aggregated_usage rows that have no corresponding ledger events
+    // in the current billing period (e.g., stale rows from a previous period that
+    // weren't reset during subscription rollover).
+    //
+    // The intended fix is for billing period rollover to reset aggregated_usage when
+    // transitioning to a new period, which eliminates orphans at the source.
+    // Until that's implemented, a stale projection from a prior period will persist
+    // uncorrected.  Track in a follow-up ticket.
     for (const [, expected] of expectedMap) {
       checked++;
 

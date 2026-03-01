@@ -53,7 +53,6 @@ export class UsageProjectionService {
    * @param featureId - Feature UUID
    * @param billingPeriod - Billing period (YYYY-MM format, for analytics)
    * @param allocations - Array of { source, units } allocations
-   * @param eventId - Usage ledger event ID (for idempotency)
    * @param options - Query options (client for transactions)
    * @returns Updated aggregated usage
    */

@@ -32,7 +32,7 @@ import { DomainEventsService } from './domain-events.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
-import { buildUsageRecordedPayload } from '../utils/usage-event-payload.util';
+import { buildUsageRecordedEvent } from '../utils/usage-event-payload.util';
 
 interface EnforceResult {
   result: EntitlementCheckResult;
@@ -961,20 +961,9 @@ export class EntitlementEnforcementService {
           );
 
           await this.domainEventsService.emit(
-            {
-              tenant_id: data.tenantId,
-              event_type: 'usage.recorded',
-              aggregate_type: 'usage',
-              aggregate_id: data.usageLedgerId,
-              actor_id: data.actorId,
-              actor_type: data.actorId ? 'user' : 'system',
-              payload: buildUsageRecordedPayload(data, 'sync_fallback', {
-                fallback: true,
-              }),
-              metadata: JSON.stringify({
-                fallback_reason: 'bullmq_unavailable',
-              }),
-            },
+            buildUsageRecordedEvent(data, 'sync_fallback', {
+              fallback_reason: 'bullmq_unavailable',
+            }),
             { client },
           );
         },
