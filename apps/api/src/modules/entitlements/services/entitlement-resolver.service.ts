@@ -313,51 +313,6 @@ export class EntitlementResolverService {
   }
 
   /**
-   * Merge plan + addons + override
-   *
-   * @param plan - Plan entitlement
-   * @param addons - Add-on entitlements
-   * @param override - Admin override (highest precedence)
-   * @returns Merged effective entitlement
-   */
-  private merge(
-    plan: EffectiveEntitlement,
-    addons: any[],
-    override?: any,
-  ): EffectiveEntitlement {
-    // If override exists, it takes full precedence
-    if (override) {
-      return {
-        feature_key: plan.feature_key,
-        feature_type: plan.feature_type,
-        value_bool: override.value_bool,
-        value_int: override.value_int,
-        value_text: override.value_text,
-        source: 'override',
-      };
-    }
-
-    // Start with plan entitlement
-    let merged = { ...plan };
-
-    // Merge add-ons
-    for (const addon of addons) {
-      for (const entitlement of addon.entitlements || []) {
-        merged = this.mergeValues(merged, {
-          feature_key: plan.feature_key,
-          feature_type: plan.feature_type,
-          value_bool: entitlement.value_bool,
-          value_int: entitlement.value_int,
-          value_text: entitlement.value_text,
-          source: 'addon',
-        });
-      }
-    }
-
-    return merged;
-  }
-
-  /**
    * Merge two entitlement values based on feature type
    */
   private mergeValues(

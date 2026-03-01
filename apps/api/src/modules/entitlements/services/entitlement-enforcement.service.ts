@@ -27,12 +27,26 @@ import { FeaturesRepository } from '../../../repositories/features/features.repo
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
+import { buildUsageRecordedEvent } from '../utils/usage-event-payload.util';
 import { CreditLedgerService } from './credit-ledger.service';
 import { DomainEventsService } from './domain-events.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
-import { buildUsageRecordedEvent } from '../utils/usage-event-payload.util';
+
+interface AllocationResolution {
+  mode: 'within_quota' | 'credit_fallback';
+  allocations: Array<{ source: 'plan' | 'credit'; units: number }>;
+  creditUnits: number;
+  creditCost: number;
+  creditCostPerUnit: number;
+  creditBalance?: number;
+}
+
+interface UsageWriteResult {
+  usageEvent: UsageLedgerEvent;
+  planUnits: number;
+}
 
 interface EnforceResult {
   result: EntitlementCheckResult;

@@ -8,7 +8,7 @@ import {
   QUEUE_NAMES,
 } from '@lib/queue';
 import { Logger } from '@nestjs/common';
-import { ProjectionUpdateHandler } from '../processors/projection-update.handler';
+import { ProjectionUpdateHandler } from './projection-update.handler';
 
 /**
  * Entitlement Queue Processor

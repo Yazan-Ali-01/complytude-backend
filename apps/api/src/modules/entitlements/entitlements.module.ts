@@ -12,8 +12,17 @@ import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from 'src/repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from 'src/repositories/usage/usage-ledger.repository';
+import { I18nModule } from '../../i18n/i18n.module';
+import { AddonsRepository } from '../../repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from '../../repositories/entitlements/entitlement-snapshots.repository';
+import { AddonCatalogController } from './controllers/addon-catalog.controller';
+import { PlatformAddonsController } from './controllers/platform-addons.controller';
+import { TenantAddonsController } from './controllers/tenant-addons.controller';
+import { TenantOverridesReadController } from './controllers/tenant-overrides-read.controller';
+import { TenantOverridesController } from './controllers/tenant-overrides.controller';
 import { EntitlementsController } from './entitlements.controller';
+import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
+import { ProjectionUpdateHandler } from './processors/projection-update.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
@@ -21,13 +30,11 @@ import { EntitlementEnforcementService } from './services/entitlement-enforcemen
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
 import { EntitlementSnapshotService } from './services/entitlement-snapshot.service';
 import { EntitlementSyncService } from './services/entitlement-sync.service';
+import { ProjectionReconciliationService } from './services/projection-reconciliation.service';
 import { TenantAddonsService } from './services/tenant-addons.service';
 import { TenantOverridesService } from './services/tenant-overrides.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
 import { UsageProjectionService } from './services/usage-projection.service';
-import { ProjectionReconciliationService } from './services/projection-reconciliation.service';
-import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
-import { ProjectionUpdateHandler } from './processors/projection-update.handler';
 
 /**
  * Entitlements Module
@@ -46,8 +53,15 @@ import { ProjectionUpdateHandler } from './processors/projection-update.handler'
  */
 @Global()
 @Module({
-  imports: [DatabaseModule],
-  controllers: [EntitlementsController],
+  imports: [DatabaseModule, I18nModule],
+  controllers: [
+    EntitlementsController,
+    AddonCatalogController,
+    TenantAddonsController,
+    TenantOverridesController,
+    TenantOverridesReadController,
+    PlatformAddonsController,
+  ],
   providers: [
     // Core services
     EntitlementResolverService,
@@ -62,6 +76,7 @@ import { ProjectionUpdateHandler } from './processors/projection-update.handler'
     TenantAddonsService, // Add-on mutations with snapshot invalidation
     TenantOverridesService, // Override mutations with snapshot invalidation
     ProjectionReconciliationService, // COM-135 — drift detection + auto-correction
+    AddonsRepository,
 
     // Queue processor + handlers
     EntitlementQueueProcessor,
@@ -102,6 +117,7 @@ import { ProjectionUpdateHandler } from './processors/projection-update.handler'
     EntitlementSnapshotService, // Phase 8
     TenantAddonsService,
     TenantOverridesService,
+    AddonsRepository,
     ProjectionReconciliationService,
 
     // Repositories (for use in other modules)

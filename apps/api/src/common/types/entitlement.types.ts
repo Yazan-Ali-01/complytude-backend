@@ -114,6 +114,7 @@ export interface AddonEntitlement {
   addon_id: string;
   feature_id: string;
   feature_key: FeatureKey; // Feature key for O(1) lookup in getFeatureDefinition()
+  feature_type: FeatureType;
   value_bool?: boolean;
   value_int?: number;
   value_text?: string;
@@ -153,11 +154,18 @@ export interface TenantAddon {
   updated_at: Date;
 }
 
+export interface TenantAddonWithEntitlements extends TenantAddon {
+  entitlements: AddonEntitlement[];
+  addon_key?: string; // Human-readable key like 'extra_documents_pack'
+  addon_name?: string; // Display name
+}
+
 export interface TenantOverride {
   id: string;
   tenant_id: string;
   feature_id: string;
   feature_key: FeatureKey; // Feature key for O(1) lookup in getFeatureDefinition()
+  feature_type: FeatureType;
   value_bool?: boolean;
   value_int?: number;
   value_text?: string;
@@ -444,9 +452,9 @@ export interface CreateTenantOverrideRow {
 }
 
 export interface UpdateTenantOverrideRow {
-  value_bool?: boolean;
-  value_int?: number;
-  value_text?: string;
+  value_bool?: boolean | null;
+  value_int?: number | null;
+  value_text?: string | null;
   reason?: string;
   expires_at?: Date;
   is_active?: boolean;
@@ -545,10 +553,6 @@ export interface CreateDomainEventRow {
 
 export interface PlanWithEntitlements extends Plan {
   entitlements: PlanEntitlement[];
-}
-
-export interface TenantAddonWithEntitlements extends TenantAddon {
-  entitlements: AddonEntitlement[];
 }
 
 export type ResolvedEntitlements = Record<FeatureKey, EffectiveEntitlement>;

@@ -50,23 +50,26 @@ USING (
     tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
--- Platform admins only: add add-ons (tenant context is NOT sufficient)
+-- TODO: Replace (tenant_id + is_tenant_admin) with (tenant_id + purchase context)
+-- when the "Purchase" RLS context is implemented for tenant self-service operations.
+-- For now, tenant admins can insert add-ons for their tenant; platform admins for any tenant.
 CREATE POLICY tenant_addons_insert
 ON public.tenant_addons
 FOR INSERT
 WITH CHECK (
-    is_platform_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin())
+    OR is_platform_admin()
 );
 
--- System/admin or platform admin can update add-ons
+-- Platform admins can update any add-on; tenant admins can update add-ons for their own tenant
 CREATE POLICY tenant_addons_update
 ON public.tenant_addons
 FOR UPDATE
 USING (
-    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin()) OR is_platform_admin()
 )
 WITH CHECK (
-    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+    (tenant_id = current_tenant_id_or_null() AND is_tenant_admin()) OR is_platform_admin()
 );
 
 -- =========================

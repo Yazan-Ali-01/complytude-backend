@@ -79,7 +79,7 @@ CREATE TABLE public.plan_entitlements (
     value_text  VARCHAR(255),
     metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
+
     CONSTRAINT uq_plan_entitlements_plan_feature UNIQUE (plan_id, feature_id),
     CONSTRAINT chk_plan_entitlements_value CHECK (
         (value_bool IS NOT NULL AND value_int IS NULL AND value_text IS NULL) OR
@@ -121,7 +121,7 @@ CREATE TABLE public.addon_entitlements (
     value_text  VARCHAR(255),
     metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
+
     CONSTRAINT uq_addon_entitlements_addon_feature UNIQUE (addon_id, feature_id),
     CONSTRAINT chk_addon_entitlements_value CHECK (
         (value_bool IS NOT NULL AND value_int IS NULL AND value_text IS NULL) OR
@@ -171,7 +171,7 @@ CREATE TABLE public.tenant_addons (
     metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
+
     CONSTRAINT chk_tenant_addons_quantity CHECK (quantity > 0)
 );
 
@@ -194,7 +194,7 @@ CREATE TABLE public.tenant_overrides (
     is_active   BOOLEAN NOT NULL DEFAULT true,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
+
     CONSTRAINT chk_tenant_overrides_value CHECK (
         (value_bool IS NOT NULL AND value_int IS NULL AND value_text IS NULL) OR
         (value_bool IS NULL AND value_int IS NOT NULL AND value_text IS NULL) OR
@@ -243,7 +243,7 @@ CREATE TABLE public.usage_allocations (
     source          usage_source NOT NULL,
     units           INTEGER NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
+
     CONSTRAINT chk_allocation_units CHECK (units > 0)
 );
 
@@ -263,12 +263,12 @@ BEGIN
     SELECT units INTO ledger_units
     FROM public.usage_ledger
     WHERE id = COALESCE(NEW.usage_ledger_id, OLD.usage_ledger_id);
-    
+
     -- Get the sum of all allocations for this usage event
     SELECT COALESCE(SUM(units), 0) INTO allocations_sum
     FROM public.usage_allocations
     WHERE usage_ledger_id = COALESCE(NEW.usage_ledger_id, OLD.usage_ledger_id);
-    
+
     -- Check if sum matches (only enforce at transaction commit via DEFERRABLE)
     IF allocations_sum != ledger_units THEN
         RAISE EXCEPTION 'Usage allocations sum (%) does not match usage_ledger units (%) for usage_ledger_id=%',
@@ -276,7 +276,7 @@ BEGIN
             USING ERRCODE = '23514',  -- check_violation
                   HINT = 'The sum of all usage_allocations.units must equal usage_ledger.units';
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -422,7 +422,7 @@ CREATE TABLE public.aggregated_usage (
     credit_units    INTEGER NOT NULL DEFAULT 0,
     override_units  INTEGER NOT NULL DEFAULT 0,
     last_updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
+
     CONSTRAINT uq_aggregated_usage_subscription_feature UNIQUE (subscription_id, feature_id)
 );
 
@@ -535,26 +535,31 @@ CREATE INDEX idx_addon_entitlements_feature_id ON public.addon_entitlements(feat
 CREATE INDEX idx_tenant_subscriptions_tenant_id ON public.tenant_subscriptions(tenant_id);
 CREATE INDEX idx_tenant_subscriptions_plan_id ON public.tenant_subscriptions(plan_id);
 CREATE INDEX idx_tenant_subscriptions_status ON public.tenant_subscriptions(status);
-CREATE INDEX idx_tenant_subscriptions_tenant_active ON public.tenant_subscriptions(tenant_id, status) 
+CREATE INDEX idx_tenant_subscriptions_tenant_active ON public.tenant_subscriptions(tenant_id, status)
     WHERE status = 'active';
 
 -- Unique constraint: only one active subscription per tenant (for upsert in SubscriptionsRepository)
-CREATE UNIQUE INDEX idx_tenant_subscriptions_tenant_active_unique 
-    ON public.tenant_subscriptions(tenant_id) 
+CREATE UNIQUE INDEX idx_tenant_subscriptions_tenant_active_unique
+    ON public.tenant_subscriptions(tenant_id)
     WHERE status = 'active';
 
 -- Tenant Addons
 CREATE INDEX idx_tenant_addons_tenant_id ON public.tenant_addons(tenant_id);
 CREATE INDEX idx_tenant_addons_addon_id ON public.tenant_addons(addon_id);
-CREATE INDEX idx_tenant_addons_tenant_active ON public.tenant_addons(tenant_id, status) 
+CREATE INDEX idx_tenant_addons_tenant_active ON public.tenant_addons(tenant_id, status)
+    WHERE status = 'active';
+
+-- Partial unique index: prevent duplicate active addons per tenant
+CREATE UNIQUE INDEX idx_tenant_addons_unique_active
+    ON public.tenant_addons (tenant_id, addon_id)
     WHERE status = 'active';
 
 -- Tenant Overrides
 CREATE INDEX idx_tenant_overrides_tenant_id ON public.tenant_overrides(tenant_id);
 CREATE INDEX idx_tenant_overrides_feature_id ON public.tenant_overrides(feature_id);
-CREATE INDEX idx_tenant_overrides_tenant_active ON public.tenant_overrides(tenant_id, is_active) 
+CREATE INDEX idx_tenant_overrides_tenant_active ON public.tenant_overrides(tenant_id, is_active)
     WHERE is_active = true;
-CREATE INDEX idx_tenant_overrides_expires_at ON public.tenant_overrides(expires_at) 
+CREATE INDEX idx_tenant_overrides_expires_at ON public.tenant_overrides(expires_at)
     WHERE expires_at IS NOT NULL;
 
 -- Usage Ledger
@@ -562,7 +567,7 @@ CREATE INDEX idx_usage_ledger_tenant_id ON public.usage_ledger(tenant_id);
 CREATE INDEX idx_usage_ledger_feature_id ON public.usage_ledger(feature_id);
 CREATE INDEX idx_usage_ledger_tenant_feature_period ON public.usage_ledger(tenant_id, feature_id, billing_period);
 CREATE INDEX idx_usage_ledger_recorded_at ON public.usage_ledger(recorded_at DESC);
-CREATE UNIQUE INDEX idx_usage_ledger_idempotency_key ON public.usage_ledger(idempotency_key) 
+CREATE UNIQUE INDEX idx_usage_ledger_idempotency_key ON public.usage_ledger(idempotency_key)
     WHERE idempotency_key IS NOT NULL;
 -- Partial index for finding unprojected events (stuck event detection + reconciliation)
 CREATE INDEX idx_usage_ledger_unprojected ON public.usage_ledger(recorded_at) WHERE projected_at IS NULL;
@@ -577,7 +582,7 @@ CREATE INDEX idx_credit_ledger_tenant_id ON public.credit_ledger(tenant_id);
 CREATE INDEX idx_credit_ledger_feature_id ON public.credit_ledger(feature_id);
 CREATE INDEX idx_credit_ledger_tenant_recorded ON public.credit_ledger(tenant_id, recorded_at DESC);
 CREATE INDEX idx_credit_ledger_usage_ledger_id ON public.credit_ledger(usage_ledger_id);
-CREATE UNIQUE INDEX idx_credit_ledger_idempotency_key ON public.credit_ledger(idempotency_key) 
+CREATE UNIQUE INDEX idx_credit_ledger_idempotency_key ON public.credit_ledger(idempotency_key)
     WHERE idempotency_key IS NOT NULL;
 
 -- Aggregated Usage

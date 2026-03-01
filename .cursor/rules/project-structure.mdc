@@ -166,24 +166,25 @@ Data access layer with repository pattern:
 #### Entitlement Repositories
 
 - **entitlements/** - Entitlement-specific repositories
-- **entitlement-snapshots.repository.ts** - Snapshot CRUD
-- **plan-entitlements.repository.ts** - Plan-feature matrix
-- **tenant-addons.repository.ts** - Tenant add-on bindings
-- **tenant-overrides.repository.ts** - Admin overrides
+  - **entitlement-snapshots.repository.ts** - Snapshot CRUD
+  - **plan-entitlements.repository.ts** - Plan-feature matrix
+  - **addons.repository.ts** - Add-on catalog repository
+  - **tenant-addons.repository.ts** - Tenant add-on bindings
+  - **tenant-overrides.repository.ts** - Admin overrides
 - **plans/** - Plan catalog repository
-- **plans.repository.ts** - Plan CRUD
+  - **plans.repository.ts** - Plan CRUD
 - **features/** - Feature catalog repository
-- **features.repository.ts** - Feature CRUD
+  - **features.repository.ts** - Feature CRUD
 - **subscriptions/** - Subscription management
-- **subscriptions.repository.ts** - Tenant subscription CRUD
+  - **subscriptions.repository.ts** - Tenant subscription CRUD
 - **usage/** - Usage tracking repositories
-- **usage-ledger.repository.ts** - Append-only usage events
-- **usage-allocations.repository.ts** - Source attribution per usage event
-- **aggregated-usage.repository.ts** - Derived usage projections
+  - **usage-ledger.repository.ts** - Append-only usage events
+  - **usage-allocations.repository.ts** - Source attribution per usage event
+  - **aggregated-usage.repository.ts** - Derived usage projections
 - **credits/** - Credit system repository
-- **credit-ledger.repository.ts** - Append-only credit transactions
+  - **credit-ledger.repository.ts** - Append-only credit transactions
 - **domain-events/** - Domain event repository
-- **domain-events.repository.ts** - Append-only event log
+  - **domain-events.repository.ts** - Append-only event log
 
 ### Common Utilities (`common/`)
 
@@ -278,20 +279,27 @@ Production-grade entitlement engine with usage tracking and credit system:
 
 - **entitlements.controller.ts** - Entitlement query endpoints (admin + tenant)
 - **entitlements.module.ts** - Global module configuration (exports all services)
+- **controllers/** - Feature-specific controllers
+  - **addon-catalog.controller.ts** - Public add-on catalog endpoints (no auth)
+  - **tenant-addons.controller.ts** - Tenant add-on management (tenant auth, billing:manage permission)
+  - **tenant-overrides.controller.ts** - Platform admin overrides (identity auth, entitlements:manage permission)
 - **services/** - Core entitlement services
-- **entitlement-resolver.service.ts** - Resolve effective entitlements (plan + addons + overrides)
-- **entitlement-enforcement.service.ts** - Runtime checks + usage recording + credit fallback
-- **entitlement-snapshot.service.ts** - Snapshot lifecycle (cache + invalidation)
-- **entitlement-sync.service.ts** - Sync features/plans from constants to DB (on startup)
-- **usage-ingestion.service.ts** - Record usage events to append-only ledger
-- **usage-projection.service.ts** - Maintain aggregated usage counts
-- **credit-ledger.service.ts** - Credit transactions (purchase, grant, deduct, refund)
-- **credit-balance.service.ts** - Credit balance queries
-- **tenant-addons.service.ts** - Add-on management
-- **tenant-overrides.service.ts** - Admin override management
-- **domain-events.service.ts** - Domain event queries/replay
+  - **entitlement-resolver.service.ts** - Resolve effective entitlements (plan + addons + overrides)
+  - **entitlement-enforcement.service.ts** - Runtime checks + usage recording + credit fallback
+  - **entitlement-snapshot.service.ts** - Snapshot lifecycle (cache + invalidation)
+  - **entitlement-sync.service.ts** - Sync features/plans from constants to DB (on startup)
+  - **usage-ingestion.service.ts** - Record usage events to append-only ledger
+  - **usage-projection.service.ts** - Maintain aggregated usage counts
+  - **credit-ledger.service.ts** - Credit transactions (purchase, grant, deduct, refund)
+  - **credit-balance.service.ts** - Credit balance queries
+  - **tenant-addons.service.ts** - Add-on mutations with snapshot invalidation
+  - **tenant-overrides.service.ts** - Override mutations with snapshot invalidation
+  - **domain-events.service.ts** - Domain event queries/replay
 - **dto/** - Entitlement DTOs
-- **entitlement-response.dto.ts** - EffectiveEntitlementDto, CurrentEntitlementsResponseDto, PlanResponseDto
+  - **entitlement-response.dto.ts** - EffectiveEntitlementDto, CurrentEntitlementsResponseDto, PlanResponseDto
+  - **addon-catalog.dto.ts** - Public catalog DTOs
+  - **tenant-addon.dto.ts** - Tenant add-on management DTOs
+  - **tenant-override.dto.ts** - Override management DTOs
 
 #### Authorities (`authorities/`)
 

@@ -22,9 +22,22 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
 
 /** Context for tenant operations: platform admin or tenant-scoped with optional permission flags */
+// TODO: TenantContext will evolve to support:
+// - mode: 'platform' — platform admin operations (bypass RLS)
+// - mode: 'purchase' — tenant self-service purchases (new RLS context)
+// - mode: 'tenant' — standard tenant operations (current tenant RLS)
+// For now, addons use tenant admin context; overrides use platform context.
 export type TenantContext =
   | { mode: 'platform' }
-  | { mode: 'tenant'; canManageSettings?: boolean };
+  | { mode: 'tenant'; canManageSettings?: boolean; tenantId?: string };
+
+/**
+ * Service call options - discriminated union
+ * Either provide context (creates transaction) or client (reuses transaction)
+ */
+export type ServiceCallOptions =
+  | { context: TenantContext }
+  | { client: PoolClient };
 
 /**
  * Tenant Service
