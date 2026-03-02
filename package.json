@@ -64,7 +64,22 @@
     "// === 🎨 Code Quality ===": "",
     "lint": "eslint \"{apps,libs}/**/*.ts\" --fix",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "// === 🧪 Tests ===": "",
+    "// --passWithNoTests: needed while no tests exist; consider removing once COM-140+ lands": "",
+    "test": "jest --passWithNoTests",
+    "test:unit": "jest --selectProjects unit --passWithNoTests",
+    "test:integration": "jest --selectProjects integration --passWithNoTests",
+    "test:integration:watch": "jest --selectProjects integration --watch --passWithNoTests",
+    "test:coverage": "jest --coverage --passWithNoTests"
+  },
+  "ts-node": {
+    "// Required for jest.config.ts — root tsconfig uses nodenext which ts-node can't load": "",
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "CommonJS",
+      "moduleResolution": "Node"
+    }
   },
   "lint-staged": {
     "*.ts": [
@@ -122,18 +137,26 @@
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.1.14",
+    "@swc/core": "^1.15.18",
+    "@swc/jest": "^0.2.39",
+    "@testcontainers/postgresql": "^11.12.0",
     "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "concurrently": "^9.2.1",
+    "dotenv": "^17.3.1",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
     "husky": "^9.1.7",
+    "jest": "^30.2.0",
     "lint-staged": "^16.2.7",
     "madge": "^8.0.0",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
+    "testcontainers": "^11.12.0",
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
