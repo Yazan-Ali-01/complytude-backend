@@ -13,6 +13,7 @@ import {
   ApiExtraModels,
   ApiOperation,
   ApiParam,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
@@ -315,6 +316,46 @@ export class RulesetsController {
       identity.userId,
     );
     return this.mapVersionToResponse(version);
+  }
+
+  @Post(':key/ingest')
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
+  @ApiOperation({
+    summary: 'Manually trigger ruleset ingestion',
+    description:
+      'Enqueue a re-ingestion job for the active version of a ruleset. Useful for demo/backfill scenarios. Restricted to platform administrators.',
+  })
+  @ApiParam({
+    name: 'key',
+    description: 'Ruleset unique key',
+    example: 'dmcc_employment_rules_v1',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Ingestion job enqueued',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        jobId: { type: 'string', nullable: true },
+        versionId: { type: 'string' },
+      },
+    },
+  })
+  async ingest(@Param() params: RulesetKeyParamDto): Promise<{
+    message: string;
+    jobId: string | undefined;
+    versionId: string;
+  }> {
+    const result = await this.rulesetsService.enqueueIngestionForActiveVersion(
+      params.key,
+    );
+    return {
+      message: `Ingestion job enqueued for ruleset "${params.key}"`,
+      jobId: result.jobId,
+      versionId: result.versionId,
+    };
   }
 
   // ─── Response Mapping ──────────────────────────────────────────

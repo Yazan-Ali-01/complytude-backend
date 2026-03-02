@@ -1,3 +1,4 @@
+import { QUEUE_NAMES } from '@lib/queue';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -14,7 +15,7 @@ async function bootstrap() {
   const port = configService.get<number>('workerIngestion.port') || 3002;
   const environment =
     configService.get<string>('workerIngestion.environment') || 'development';
-  const queueName = configService.get<string>('workerIngestion.queueName');
+  const queueName = QUEUE_NAMES.DATA_INGESTION;
 
   await app.listen(port, '0.0.0.0');
 
