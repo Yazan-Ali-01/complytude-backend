@@ -1,9 +1,11 @@
 import {
   DynamicModule,
   Global,
+  InjectionToken,
   Logger,
   Module,
   ModuleMetadata,
+  OptionalFactoryDependency,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolConfig } from 'pg';
@@ -12,8 +14,8 @@ import { DatabaseService } from './database.service';
 
 export interface DatabaseModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {
-  useFactory: (...args: any[]) => PoolConfig | Promise<PoolConfig>;
-  inject?: any[];
+  useFactory: (...args: unknown[]) => PoolConfig | Promise<PoolConfig>;
+  inject?: InjectionToken[] | OptionalFactoryDependency[];
 }
 
 @Global()
@@ -61,7 +63,7 @@ export class DatabaseModule {
       providers: [
         {
           provide: DATABASE_POOL,
-          useFactory: async (...args: any[]) => {
+          useFactory: async (...args: unknown[]) => {
             const config = await options.useFactory(...args);
 
             DatabaseModule.logger.log(

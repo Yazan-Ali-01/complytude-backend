@@ -1,9 +1,27 @@
 import { BullModule } from '@nestjs/bullmq';
-import { DynamicModule, Global, Logger, Module } from '@nestjs/common';
+import {
+  DynamicModule,
+  Global,
+  InjectionToken,
+  Logger,
+  Module,
+  ModuleMetadata,
+  OptionalFactoryDependency,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import IORedis from 'ioredis';
-import { DEFAULT_JOB_OPTIONS } from './queue.config';
+import { QueueRedisConfig } from './interfaces/queue-config.interface';
 import { QueueProducerService } from './queue-producer.service';
+import { DEFAULT_JOB_OPTIONS } from './queue.config';
+
+export interface QueueModuleAsyncOptions
+  extends Pick<ModuleMetadata, 'imports'> {
+  queues: string[];
+  useFactory: (
+    ...args: unknown[]
+  ) => QueueRedisConfig | Promise<QueueRedisConfig>;
+  inject?: InjectionToken[] | OptionalFactoryDependency[];
+}
 
 @Global()
 @Module({})
@@ -11,72 +29,99 @@ export class QueueModule {
   private static readonly logger = new Logger(QueueModule.name);
 
   static forRoot(queues: string[]): DynamicModule {
-    const bullRootModule = BullModule.forRootAsync({
-      useFactory: (configService: ConfigService) => {
+    return QueueModule.forRootAsync({
+      queues,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService): QueueRedisConfig => {
         const host = configService.get<string>('redis.host');
         const port = configService.get<number>('redis.port');
         const password = configService.get<string>('redis.password');
         const db = configService.get<number>('redis.queueDb');
         const tls = configService.get<Record<string, unknown>>('redis.tls');
 
-        // BullMQ requires maxRetriesPerRequest: null — it uses blocking
-        // commands (BLPOP) that are incompatible with a finite retry limit
-        const connection = new IORedis({
-          host,
-          port,
-          password,
-          db,
-          tls,
-          maxRetriesPerRequest: null,
-          retryStrategy: (times) => {
-            if (times > 3) {
-              QueueModule.logger.error(
-                'BullMQ Redis connection failed after 3 retries',
-              );
-              return null;
-            }
-            const delay = Math.min(times * 100, 2000);
-            QueueModule.logger.warn(
-              `BullMQ Redis connection attempt ${times}, retrying in ${delay}ms...`,
-            );
-            return delay;
-          },
-        });
-
-        connection.on('connect', () => {
-          QueueModule.logger.log(
-            'BullMQ Redis connection established successfully',
+        if (!host || !port) {
+          throw new Error(
+            'Redis configuration not found. Make sure redisConfig is loaded in ConfigModule.',
           );
-        });
+        }
 
-        connection.on('ready', () => {
-          QueueModule.logger.log(
-            'BullMQ Redis client is ready to accept commands',
+        return { host, port, password, db, tls };
+      },
+    });
+  }
+
+  private static createConnection(config: QueueRedisConfig): IORedis {
+    const retryDelayMs = config.retryDelayMs ?? 100;
+
+    // BullMQ requires maxRetriesPerRequest: null — it uses blocking
+    // commands (BLPOP) that are incompatible with a finite retry limit
+    const connection = new IORedis({
+      host: config.host,
+      port: config.port,
+      password: config.password,
+      db: config.db,
+      tls: config.tls,
+      maxRetriesPerRequest: null,
+      retryStrategy: (times) => {
+        if (times > 3) {
+          QueueModule.logger.error(
+            'BullMQ Redis connection failed after 3 retries',
           );
-        });
+          return null;
+        }
+        const delay = Math.min(times * retryDelayMs, 2000);
+        QueueModule.logger.warn(
+          `BullMQ Redis connection attempt ${times}, retrying in ${delay}ms...`,
+        );
+        return delay;
+      },
+    });
 
-        connection.on('error', (error: Error) => {
-          QueueModule.logger.error('BullMQ Redis client error:', error.message);
-        });
+    connection.on('connect', () => {
+      QueueModule.logger.log(
+        'BullMQ Redis connection established successfully',
+      );
+    });
 
-        connection.on('close', () => {
-          QueueModule.logger.warn('BullMQ Redis connection closed');
-        });
+    connection.on('ready', () => {
+      QueueModule.logger.log('BullMQ Redis client is ready to accept commands');
+    });
 
-        connection.on('reconnecting', () => {
-          QueueModule.logger.log('BullMQ Redis client reconnecting...');
-        });
+    connection.on('error', (error: Error) => {
+      QueueModule.logger.error('BullMQ Redis client error:', error.message);
+    });
+
+    connection.on('close', () => {
+      QueueModule.logger.warn('BullMQ Redis connection closed');
+    });
+
+    connection.on('reconnecting', () => {
+      QueueModule.logger.log('BullMQ Redis client reconnecting...');
+    });
+
+    return connection;
+  }
+
+  static forRootAsync(options: QueueModuleAsyncOptions): DynamicModule {
+    const bullRootModule = BullModule.forRootAsync({
+      imports: options.imports ?? [],
+      useFactory: async (...args: unknown[]) => {
+        const config = await options.useFactory(...args);
+
+        QueueModule.logger.log(
+          `Creating BullMQ Redis connection: ${config.host}:${config.port}/${config.db ?? 0}`,
+        );
 
         return {
-          connection,
+          connection: QueueModule.createConnection(config),
           defaultJobOptions: DEFAULT_JOB_OPTIONS,
         };
       },
-      inject: [ConfigService],
+      inject: options.inject ?? [],
     });
 
     const bullQueuesModule = BullModule.registerQueue(
-      ...queues.map((name) => ({ name })),
+      ...options.queues.map((name) => ({ name })),
     );
 
     return {
