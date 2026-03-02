@@ -222,7 +222,7 @@ export class EntitlementResolverService {
 
       // Convert plan entitlements to EffectiveEntitlement format
       for (const [featureKey, value] of Object.entries(planEntitlements)) {
-        const featureDef = getFeatureDefinition(featureKey as FeatureKey); // Safe: Object.entries() returns string, but featureKey is from Record<FeatureKey, ...>
+        const featureDef = getFeatureDefinition(featureKey as FeatureKey);
         if (!featureDef) continue;
 
         resolved[featureKey] = {

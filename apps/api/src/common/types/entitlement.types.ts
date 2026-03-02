@@ -26,12 +26,6 @@ export type {
 } from '../constants/plan-entitlements.constant';
 
 // =========================
-// ENUMS
-// =========================
-
-// Re-export derived types from constants (single source of truth)
-
-// =========================
 // CATALOG ENTITIES
 // =========================
 

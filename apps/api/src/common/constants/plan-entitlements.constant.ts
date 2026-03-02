@@ -138,7 +138,7 @@ export const FEATURE_CATALOG = {
     storage_type: 'bool',
     description: 'Export reports with tenant branding',
   },
-} satisfies Record<string, FeatureCatalogEntry>;
+} as const satisfies Record<string, FeatureCatalogEntry>;
 
 export type FeatureKey = keyof typeof FEATURE_CATALOG;
 
@@ -150,9 +150,6 @@ export const ALL_FEATURE_KEYS = Object.keys(FEATURE_CATALOG) as FeatureKey[]; //
 // =========================
 // PLAN DEFINITIONS
 // =========================
-
-// Remove PlanDefinition interface (lines 155-163)
-// Add PlanCatalogEntry interface:
 
 export interface PlanCatalogEntry {
   name: string;
@@ -332,8 +329,8 @@ export function isValidFeatureKey(
  */
 export function getFeatureDefinition(
   featureKey: FeatureKey,
-): FeatureCatalogEntry {
-  return FEATURE_CATALOG[featureKey];
+): FeatureCatalogEntry | undefined {
+  return FEATURE_CATALOG[featureKey] as FeatureCatalogEntry | undefined;
 }
 
 /**
