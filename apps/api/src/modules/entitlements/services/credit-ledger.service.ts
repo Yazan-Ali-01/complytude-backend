@@ -2,7 +2,12 @@ import { QueryOptions } from '@lib/database';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
+  CreditDeductInput,
+  CreditGrantInput,
   CreditLedgerTransaction,
+  CreditPurchaseInput,
+  CreditRefundInput,
+  CreditTransactionInput,
   CreditTransactionType,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
@@ -56,11 +61,10 @@ export class CreditLedgerService {
    * @throws BadRequestException - Invalid amount
    */
   async purchase(
-    tenantId: string,
-    amount: number,
-    metadata?: Record<string, any>,
+    input: CreditPurchaseInput,
     options?: QueryOptions,
   ): Promise<CreditLedgerTransaction> {
+    const { tenantId, amount, metadata } = input;
     if (amount <= 0) {
       throw new BadRequestException('Purchase amount must be greater than 0');
     }
@@ -70,15 +74,12 @@ export class CreditLedgerService {
     );
 
     return this.recordTransaction(
-      tenantId,
-      'purchase',
-      amount,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      metadata,
+      {
+        tenant_id: tenantId,
+        transaction_type: 'purchase',
+        amount,
+        metadata,
+      },
       options,
     );
 
@@ -102,14 +103,10 @@ export class CreditLedgerService {
    * @throws BadRequestException - Invalid amount
    */
   async grant(
-    tenantId: string,
-    amount: number,
-    reason: string,
-    expiresAt?: Date,
-    appliedBy?: string,
-    metadata?: Record<string, any>,
+    input: CreditGrantInput,
     options?: QueryOptions,
   ): Promise<CreditLedgerTransaction> {
+    const { tenantId, amount, reason, expiresAt, appliedBy, metadata } = input;
     if (amount <= 0) {
       throw new BadRequestException('Grant amount must be greater than 0');
     }
@@ -119,15 +116,15 @@ export class CreditLedgerService {
     );
 
     return this.recordTransaction(
-      tenantId,
-      'grant',
-      amount,
-      undefined,
-      undefined,
-      reason,
-      appliedBy,
-      expiresAt,
-      metadata,
+      {
+        tenant_id: tenantId,
+        transaction_type: 'grant',
+        amount,
+        reason,
+        applied_by: appliedBy,
+        expires_at: expiresAt,
+        metadata,
+      },
       options,
     );
 
@@ -151,13 +148,10 @@ export class CreditLedgerService {
    * @throws BadRequestException - Invalid amount or insufficient balance
    */
   async deduct(
-    tenantId: string,
-    amount: number,
-    featureId?: string,
-    usageLedgerId?: string,
-    metadata?: Record<string, any>,
+    input: CreditDeductInput,
     options?: QueryOptions,
   ): Promise<CreditLedgerTransaction> {
+    const { tenantId, amount, featureId, usageLedgerId, metadata } = input;
     if (amount <= 0) {
       throw new BadRequestException('Deduction amount must be greater than 0');
     }
@@ -167,15 +161,14 @@ export class CreditLedgerService {
     );
 
     return this.recordTransaction(
-      tenantId,
-      'deduction',
-      -amount, // Store as negative
-      featureId,
-      usageLedgerId,
-      undefined,
-      undefined,
-      undefined,
-      metadata,
+      {
+        tenant_id: tenantId,
+        transaction_type: 'deduction',
+        amount: -amount, // Store as negative
+        feature_id: featureId,
+        usage_ledger_id: usageLedgerId,
+        metadata,
+      },
       options,
     );
 
@@ -198,12 +191,10 @@ export class CreditLedgerService {
    * @throws BadRequestException - Invalid amount
    */
   async refund(
-    tenantId: string,
-    amount: number,
-    reason: string,
-    metadata?: Record<string, any>,
+    input: CreditRefundInput,
     options?: QueryOptions,
   ): Promise<CreditLedgerTransaction> {
+    const { tenantId, amount, reason, metadata } = input;
     if (amount <= 0) {
       throw new BadRequestException('Refund amount must be greater than 0');
     }
@@ -213,15 +204,13 @@ export class CreditLedgerService {
     );
 
     return this.recordTransaction(
-      tenantId,
-      'refund',
-      amount,
-      undefined,
-      undefined,
-      reason,
-      undefined,
-      undefined,
-      metadata,
+      {
+        tenant_id: tenantId,
+        transaction_type: 'refund',
+        amount,
+        reason,
+        metadata,
+      },
       options,
     );
   }
@@ -293,18 +282,21 @@ export class CreditLedgerService {
    * @returns The recorded credit transaction
    */
   private async recordTransaction(
-    tenantId: string,
-    transactionType: CreditTransactionType,
-    amount: number,
-    featureId?: string,
-    usageLedgerId?: string,
-    reason?: string,
-    appliedBy?: string,
-    expiresAt?: Date,
-    metadata?: Record<string, any>,
+    input: CreditTransactionInput,
     options?: QueryOptions,
   ): Promise<CreditLedgerTransaction> {
     const execute = async (client: PoolClient) => {
+      const {
+        tenant_id: tenantId,
+        transaction_type: transactionType,
+        amount,
+        feature_id: featureId,
+        usage_ledger_id: usageLedgerId,
+        reason,
+        applied_by: appliedBy,
+        expires_at: expiresAt,
+        metadata,
+      } = input;
       // Step 1: Get current balance
       const currentBalance = await this.creditLedgerRepository.getBalance(
         tenantId,
@@ -355,7 +347,7 @@ export class CreditLedgerService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId },
+      { tenantId: input.tenant_id },
       execute,
     );
   }

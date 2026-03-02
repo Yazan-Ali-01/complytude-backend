@@ -566,3 +566,176 @@ export interface SnapshotComparison {
   computeTimeMs: number;
   speedup: string; // e.g., "3.2x faster"
 }
+
+// === Enforcement Service Inputs ===
+
+// For checkAndRecord() — public API
+export interface CheckAndRecordInput {
+  tenantId: string;
+  featureKey: FeatureKey;
+  userId?: string;
+  units?: number;
+  metadata?: Record<string, any>;
+}
+
+// For enforceUsageBasedFeature() — private router
+export interface EnforceUsageBasedInput {
+  tenantId: string;
+  featureKey: FeatureKey;
+  entitlement: EffectiveEntitlement;
+  userId?: string;
+  units: number;
+  metadata?: Record<string, any>;
+}
+
+// Shared context pre-resolved by enforceUsageBasedFeature and passed to async/strict/unlimited
+export interface EnforcementContext {
+  tenantId: string;
+  featureKey: FeatureKey;
+  userId?: string;
+  units: number;
+  metadata?: Record<string, any>;
+  subscription: { id: string };
+  feature: {
+    id: string;
+    name: string;
+    feature_type: string;
+    credit_cost?: number | null;
+  };
+  billingPeriod: string;
+}
+
+// For enforceUsageAsync() and enforceUsageStrict() (extends context + limit/used)
+export interface EnforceUsageLimitedInput extends EnforcementContext {
+  limit: number;
+  used: number;
+}
+
+// For enforceUsageUnlimited() (extends context + used only)
+export interface EnforceUsageUnlimitedInput extends EnforcementContext {
+  used: number;
+}
+
+// For writeUsageAndCredits()
+export interface WriteUsageAndCreditsInput {
+  tenantId: string;
+  featureKey: FeatureKey;
+  userId?: string;
+  units: number;
+  metadata?: Record<string, any>;
+  feature: {
+    id: string;
+    name: string;
+    feature_type: string;
+    credit_cost?: number | null;
+  };
+  billingPeriod: string;
+  allocationResolution: AllocationResolution;
+}
+
+export interface AllocationResolution {
+  mode: 'within_quota' | 'credit_fallback';
+  allocations: Array<{ source: 'plan' | 'credit'; units: number }>;
+  creditUnits: number;
+  creditCost: number;
+  creditCostPerUnit: number;
+  creditBalance?: number;
+}
+
+// For resolveAllocationsWithCreditFallback()
+export interface ResolveAllocationsInput {
+  tenantId: string;
+  featureKey: FeatureKey;
+  userId?: string;
+  units: number;
+  limit: number;
+  used: number;
+  remaining: number;
+  featureCreditCost?: number | null;
+}
+
+// For buildProjectionJob()
+export interface BuildProjectionJobInput {
+  tenantId: string;
+  featureKey: FeatureKey;
+  usageEvent: {
+    id: string;
+    resource_type?: string;
+    resource_id?: string;
+    recorded_at: Date;
+    idempotency_key?: string;
+  };
+  feature: { id: string; name: string; feature_type: string };
+  subscription: { id: string };
+  billingPeriod: string;
+  allocations: Array<{
+    source: 'plan' | 'addon' | 'credit' | 'override';
+    units: number;
+  }>;
+  userId?: string;
+  creditDeducted?: boolean;
+  creditAmount?: number;
+}
+
+// For emitDenialEvent()
+export interface EmitDenialEventInput {
+  tenantId: string;
+  featureKey: FeatureKey;
+  userId?: string;
+  units: number;
+  limit: number;
+  used: number;
+  reason: string;
+}
+
+// === Credit Ledger Service Inputs ===
+
+// For purchase()
+export interface CreditPurchaseInput {
+  tenantId: string;
+  amount: number;
+  metadata?: Record<string, any>;
+}
+
+// For grant()
+export interface CreditGrantInput {
+  tenantId: string;
+  amount: number;
+  reason: string;
+  expiresAt?: Date;
+  appliedBy?: string;
+  metadata?: Record<string, any>;
+}
+
+// For deduct()
+export interface CreditDeductInput {
+  tenantId: string;
+  amount: number;
+  featureId?: string;
+  usageLedgerId?: string;
+  metadata?: Record<string, any>;
+}
+
+// For refund()
+export interface CreditRefundInput {
+  tenantId: string;
+  amount: number;
+  reason: string;
+  metadata?: Record<string, any>;
+}
+
+// === Usage Projection / Repository Inputs ===
+
+// For incrementUsage() and AggregatedUsageRepository.increment()
+export interface IncrementUsageInput {
+  tenantId: string;
+  subscriptionId: string;
+  featureId: string;
+  billingPeriod: string;
+  allocations: Array<{ source: Exclude<UsageSource, 'mixed'>; units: number }>;
+}
+
+// For AggregatedUsageRepository.conditionalIncrement()
+export interface ConditionalIncrementInput extends IncrementUsageInput {
+  limit: number;
+}

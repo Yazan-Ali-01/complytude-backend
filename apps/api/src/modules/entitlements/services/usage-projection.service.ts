@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   AggregatedUsage,
   FeatureKey,
-  UsageSource,
+  IncrementUsageInput,
 } from '../../../common/types/entitlement.types';
 import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from '../../../repositories/usage/usage-allocations.repository';
@@ -57,27 +57,24 @@ export class UsageProjectionService {
    * @returns Updated aggregated usage
    */
   async incrementUsage(
-    tenantId: string,
-    subscriptionId: string,
-    featureId: string,
-    billingPeriod: string,
-    allocations: Array<{
-      source: Exclude<UsageSource, 'mixed'>;
-      units: number;
-    }>,
+    input: IncrementUsageInput,
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
+    const { tenantId, subscriptionId, featureId, billingPeriod, allocations } =
+      input;
     const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
     this.logger.debug(
       `Incrementing usage: tenant=${tenantId}, subscription=${subscriptionId}, feature=${featureId}, period=${billingPeriod}, units=${totalUnits}, allocations=${JSON.stringify(allocations)}`,
     );
 
     return this.aggregatedUsageRepository.increment(
-      tenantId,
-      subscriptionId,
-      featureId,
-      billingPeriod,
-      allocations,
+      {
+        tenantId,
+        subscriptionId,
+        featureId,
+        billingPeriod,
+        allocations,
+      },
       options,
     );
   }

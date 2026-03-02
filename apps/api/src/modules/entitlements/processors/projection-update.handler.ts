@@ -61,11 +61,13 @@ export class ProjectionUpdateHandler {
 
         // Update aggregated_usage projection
         await this.usageProjectionService.incrementUsage(
-          data.tenantId,
-          data.subscriptionId,
-          data.featureId,
-          data.billingPeriod,
-          data.allocations,
+          {
+            tenantId: data.tenantId,
+            subscriptionId: data.subscriptionId,
+            featureId: data.featureId,
+            billingPeriod: data.billingPeriod,
+            allocations: data.allocations,
+          },
           { client },
         );
 

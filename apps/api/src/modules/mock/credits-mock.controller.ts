@@ -85,14 +85,14 @@ export class CreditsMockController {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
-    const transaction = await this.creditLedgerService.purchase(
-      user.tenantId,
+    const transaction = await this.creditLedgerService.purchase({
+      tenantId: user.tenantId,
       amount,
-      {
+      metadata: {
         test_scenario: 'purchase',
         user_id: user.userId,
       },
-    );
+    });
 
     return {
       message: `${amount} credits purchased`,
@@ -133,16 +133,16 @@ export class CreditsMockController {
       throw new BadRequestException('Reason is required');
     }
 
-    const transaction = await this.creditLedgerService.grant(
-      user.tenantId,
+    const transaction = await this.creditLedgerService.grant({
+      tenantId: user.tenantId,
       amount,
       reason,
-      expiresAt ? new Date(expiresAt) : undefined,
-      user.userId,
-      {
+      expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+      appliedBy: user.userId,
+      metadata: {
         test_scenario: 'grant',
       },
-    );
+    });
 
     return {
       message: `${amount} credits granted`,
@@ -267,15 +267,15 @@ export class CreditsMockController {
     description: 'Usage allowed and recorded with plan source',
   })
   async enforceWithinQuota(@CurrentUserTenant() user: AuthenticatedTenantUser) {
-    const result = await this.enforcementService.checkAndRecord(
-      user.tenantId,
-      'documents_per_month',
-      user.userId,
-      1,
-      {
+    const result = await this.enforcementService.checkAndRecord({
+      tenantId: user.tenantId,
+      featureKey: 'documents_per_month',
+      userId: user.userId,
+      units: 1,
+      metadata: {
         test_scenario: 'within_quota',
       },
-    );
+    });
 
     return {
       message: 'Usage allowed (within quota)',
@@ -323,10 +323,12 @@ export class CreditsMockController {
       async (client) => {
         // Step 1: Purchase credits first (if amount provided)
         await this.creditLedgerService.purchase(
-          user.tenantId,
-          creditAmount,
           {
-            test_scenario: 'setup_for_exceed_test',
+            tenantId: user.tenantId,
+            amount: creditAmount,
+            metadata: {
+              test_scenario: 'setup_for_exceed_test',
+            },
           },
           { client },
         );
@@ -361,12 +363,12 @@ export class CreditsMockController {
         unitsToExceed = remaining < Infinity ? Math.ceil(remaining) + 1 : 1;
 
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          'documents_per_month',
-          user.userId,
-          unitsToExceed,
           {
-            test_scenario: 'exceed_with_credits',
+            tenantId: user.tenantId,
+            featureKey: 'documents_per_month',
+            userId: user.userId,
+            units: unitsToExceed,
+            metadata: { test_scenario: 'exceed_with_credits' },
           },
           { client },
         );
@@ -448,12 +450,14 @@ export class CreditsMockController {
         unitsToExceed = remaining < Infinity ? Math.ceil(remaining) + 1 : 1;
 
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          'documents_per_month',
-          user.userId,
-          unitsToExceed,
           {
-            test_scenario: 'exceed_no_credits',
+            tenantId: user.tenantId,
+            featureKey: 'documents_per_month',
+            userId: user.userId,
+            units: unitsToExceed,
+            metadata: {
+              test_scenario: 'exceed_no_credits',
+            },
           },
           { client },
         );
@@ -512,10 +516,12 @@ export class CreditsMockController {
       async (client) => {
         // Purchase credits first (to prove they won't be used)
         await this.creditLedgerService.purchase(
-          user.tenantId,
-          100,
           {
-            test_scenario: 'non_creditable_test',
+            tenantId: user.tenantId,
+            amount: 100,
+            metadata: {
+              test_scenario: 'non_creditable_test',
+            },
           },
           { client },
         );
@@ -555,12 +561,14 @@ export class CreditsMockController {
         unitsToExceed = remaining < Infinity ? Math.ceil(remaining) + 1 : 1;
 
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          'license_verifier_lookups',
-          user.userId,
-          unitsToExceed,
           {
-            test_scenario: 'non_creditable',
+            tenantId: user.tenantId,
+            featureKey: 'license_verifier_lookups',
+            userId: user.userId,
+            units: unitsToExceed,
+            metadata: {
+              test_scenario: 'non_creditable_feature',
+            },
           },
           { client },
         );
@@ -604,6 +612,7 @@ export class CreditsMockController {
   })
   @ApiResponse({ status: 200, description: 'Usage always allowed' })
   async enforceUnlimited(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    const largeUsage = 1000; // Test with large usage for unlimited feature
     const result = await this.databaseService.transactionWithTenantContext(
       { tenantId: user.tenantId },
       async (client) => {
@@ -627,12 +636,14 @@ export class CreditsMockController {
 
         // Record large usage (should always succeed)
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          'documents_per_month',
-          user.userId,
-          1000, // Large amount
           {
-            test_scenario: 'unlimited',
+            tenantId: user.tenantId,
+            featureKey: 'documents_per_month',
+            userId: user.userId,
+            units: largeUsage,
+            metadata: {
+              test_scenario: 'unlimited_usage',
+            },
           },
           { client },
         );
@@ -642,7 +653,7 @@ export class CreditsMockController {
       message: 'Usage allowed (unlimited feature)',
       tenantId: user.tenantId,
       featureKey: 'documents_per_month',
-      unitsRequested: 1000,
+      unitsRequested: largeUsage,
       result,
       note: 'Unlimited features never trigger credit deduction',
     };
@@ -688,12 +699,15 @@ export class CreditsMockController {
         }
 
         return this.enforcementService.checkAndRecord(
-          user.tenantId,
-          featureKey,
-          user.userId,
-          1,
           {
-            test_scenario: 'boolean',
+            tenantId: user.tenantId,
+            featureKey: featureKey,
+            userId: user.userId,
+            units: 1,
+            metadata: {
+              test_scenario: 'bulk_mixed_features',
+              feature: featureKey,
+            },
           },
           { client },
         );
