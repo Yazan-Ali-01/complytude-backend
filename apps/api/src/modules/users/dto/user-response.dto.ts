@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { SystemTenantRole } from 'src/common/types';
+import {
+  ALL_PLAN_KEYS,
+  type PlanKey,
+} from '../../../common/constants/plan-entitlements.constant';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 /**
  * User profile response DTO
@@ -128,10 +132,10 @@ export class TenantInfoResponseDto {
 
   @ApiProperty({
     description: 'Subscription plan tier',
-    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
+    enum: ALL_PLAN_KEYS,
     example: 'general_counsel',
   })
-  plan: 'navigator' | 'shield' | 'general_counsel' | 'infrastructure';
+  plan: PlanKey;
 
   @ApiProperty({
     description: 'Whether tenant is active',

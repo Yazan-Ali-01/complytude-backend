@@ -85,8 +85,7 @@ export class EntitlementsController {
       const entitlementsDto: Record<string, EffectiveEntitlementDto> = {};
 
       for (const [featureKey, value] of Object.entries(planEntitlements)) {
-        const featureDef = getFeatureDefinition(featureKey as FeatureKey);
-        if (!featureDef) continue;
+        const featureDef = getFeatureDefinition(featureKey as FeatureKey); // Safe: Object.entries() returns string, but featureKey is from Record<FeatureKey, ...>        if (!featureDef) continue;
 
         entitlementsDto[featureKey] = {
           featureKey,
@@ -136,8 +135,7 @@ export class EntitlementsController {
     const entitlementsDto: Record<string, EffectiveEntitlementDto> = {};
 
     for (const [featureKey, value] of Object.entries(planEntitlements)) {
-      const featureDef = getFeatureDefinition(featureKey as FeatureKey);
-      if (!featureDef) continue;
+      const featureDef = getFeatureDefinition(featureKey as FeatureKey); // Safe: Object.entries() returns string, but featureKey is from Record<FeatureKey, ...>      if (!featureDef) continue;
 
       entitlementsDto[featureKey] = {
         featureKey,

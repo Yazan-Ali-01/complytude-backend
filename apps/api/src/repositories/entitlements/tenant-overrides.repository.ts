@@ -51,8 +51,8 @@ export class TenantOverridesRepository extends BaseRepository<
       id: data.id,
       tenant_id: data.tenant_id,
       feature_id: data.feature_id,
-      feature_key: data.feature_key as FeatureKey, // Will be populated by queries that JOIN with features
-      feature_type: data.feature_type as FeatureType, // Will be populated by queries that JOIN with features
+      feature_key: data.feature_key as FeatureKey, // Safe: queries JOIN with features table (validated by FK constraint)
+      feature_type: data.feature_type as FeatureType, // Safe: queries JOIN with features table (validated by FK constraint)
       value_bool: data.value_bool ?? undefined,
       value_int: data.value_int ?? undefined,
       value_text: data.value_text ?? undefined,

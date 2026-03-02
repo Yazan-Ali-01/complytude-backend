@@ -12,7 +12,10 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
-import { ALL_FEATURES } from 'src/common/constants/plan-entitlements.constant';
+import {
+  ALL_FEATURE_KEYS,
+  FEATURE_CATALOG,
+} from 'src/common/constants/plan-entitlements.constant';
 import type {
   FeatureKey,
   FeatureType,
@@ -39,7 +42,7 @@ class MatchesFeatureValueTypeConstraint
       );
     }
 
-    const feature = ALL_FEATURES.find((f) => f.key === featureKey);
+    const feature = FEATURE_CATALOG[featureKey as FeatureKey];
     if (!feature) {
       return false; // featureKey is invalid; @IsIn will catch this separately
     }
@@ -60,9 +63,7 @@ class MatchesFeatureValueTypeConstraint
     const featureKey = (args.object as Record<string, unknown>).featureKey as
       | FeatureKey
       | undefined;
-    const feature = featureKey
-      ? ALL_FEATURES.find((f) => f.key === featureKey)
-      : undefined;
+    const feature = featureKey ? FEATURE_CATALOG[featureKey] : undefined;
 
     if (!feature) {
       return 'value must be a boolean, integer, or string';
@@ -137,9 +138,9 @@ export class ApplyOverrideDto {
   @ApiProperty({
     description: 'Feature key to override',
     example: 'documents_per_month',
-    enum: ALL_FEATURES.map((f) => f.key),
+    enum: ALL_FEATURE_KEYS,
   })
-  @IsEnum(ALL_FEATURES.map((f) => f.key), {
+  @IsEnum(ALL_FEATURE_KEYS, {
     message: 'Invalid feature key',
   })
   @IsNotEmpty()
@@ -180,7 +181,7 @@ export class ApplyOverrideDto {
  * Call `validateOverrideValue(featureKey, value)` in the service after fetching the override.
  */
 export class OverrideValueValidationDto {
-  @IsEnum(ALL_FEATURES.map((f) => f.key), { message: 'Invalid feature key' })
+  @IsEnum(ALL_FEATURE_KEYS, { message: 'Invalid feature key' })
   featureKey: FeatureKey;
 
   @IsNotEmpty()
