@@ -6,7 +6,6 @@ import {
   getFeatureDefinition,
 } from '../../common/constants/plan-entitlements.constant';
 import { PlansRepository } from '../../repositories/plans/plans.repository';
-import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
@@ -28,7 +27,6 @@ export class EntitlementsController {
   constructor(
     private readonly resolver: EntitlementResolverService,
     private readonly plansRepository: PlansRepository,
-    private readonly tenantRepository: TenantRepository,
   ) {}
 
   /**
