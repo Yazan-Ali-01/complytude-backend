@@ -15,6 +15,10 @@ import {
   BackfillResult,
   StripeCustomerService,
 } from '../services/stripe-customer.service';
+import {
+  StripeTaxService,
+  TaxBackfillResult,
+} from '../services/stripe-tax.service';
 
 @ApiTags('System Admin - Stripe')
 @Controller('admin/stripe')
@@ -24,7 +28,10 @@ import {
 export class StripeAdminController {
   private readonly logger = new Logger(StripeAdminController.name);
 
-  constructor(private readonly stripeCustomerService: StripeCustomerService) {}
+  constructor(
+    private readonly stripeCustomerService: StripeCustomerService,
+    private readonly stripeTaxService: StripeTaxService,
+  ) {}
 
   @Post('backfill-customers')
   @HttpCode(HttpStatus.OK)
@@ -53,5 +60,36 @@ export class StripeAdminController {
   async backfillCustomers(): Promise<BackfillResult> {
     this.logger.log('[ADMIN] Starting Stripe customer backfill');
     return this.stripeCustomerService.backfillStripeCustomers();
+  }
+
+  @Post('backfill-tax')
+  @HttpCode(HttpStatus.OK)
+  @RequireAnyPlatformPermission('entitlements:manage')
+  @ApiOperation({
+    summary:
+      '[ADMIN] Backfill Stripe Tax (address + TRN) for existing customers',
+    description:
+      'Syncs UAE billing address and TRN to every tenant that already has a Stripe Customer. ' +
+      'Idempotent — safe to run multiple times. Requires STRIPE_TAX_ENABLED=true.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tax backfill completed',
+    schema: {
+      type: 'object',
+      properties: {
+        synced: { type: 'number' },
+        skipped: { type: 'number' },
+        failed: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Insufficient platform permissions',
+  })
+  async backfillTax(): Promise<TaxBackfillResult> {
+    this.logger.log('[ADMIN] Starting Stripe Tax backfill');
+    return this.stripeTaxService.backfillCustomerTax();
   }
 }

@@ -362,6 +362,20 @@ export class TenantRepository extends BaseRepository<
   }
 
   /**
+   * Find all tenants that already have a Stripe customer ID.
+   * Used by the tax backfill to sync address/TRN to existing customers.
+   * Caller must provide a platform admin context client so RLS permits the SELECT.
+   */
+  async findWithStripeCustomer(options?: QueryOptions): Promise<Tenant[]> {
+    const result = await this.executeQuery<TenantRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE stripe_customer_id IS NOT NULL ORDER BY created_at ASC`,
+      [],
+      options,
+    );
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
    * Get the count of documents for a tenant.
    * Uses RLS - documents are in public.documents table with tenant_id column.
    *

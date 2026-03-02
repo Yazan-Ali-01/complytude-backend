@@ -12,6 +12,7 @@ import { PoolClient } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { StripeCustomerService } from '../stripe/services/stripe-customer.service';
+import { StripeTaxService } from '../stripe/services/stripe-tax.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
@@ -63,6 +64,7 @@ export class TenantService {
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
     private readonly stripeCustomerService: StripeCustomerService,
+    private readonly stripeTaxService: StripeTaxService,
     // private readonly entitlementResolver: EntitlementResolverService,
   ) {}
 
@@ -404,39 +406,46 @@ export class TenantService {
     context?: TenantContext,
   ): Promise<Tenant> {
     try {
+      let updated: Tenant;
+
       if (context?.mode === 'platform') {
-        return await this.databaseService.transactionWithPlatformAdminContext(
+        updated =
+          await this.databaseService.transactionWithPlatformAdminContext(
+            async (client) => {
+              const tenant = await this.tenantRepository.findById(tenantId, {
+                client,
+              });
+              if (!tenant) {
+                throw new NotFoundException(`Tenant ${tenantId} not found`);
+              }
+              return await this.tenantRepository.update(
+                tenantId,
+                { ...dto },
+                { client },
+              );
+            },
+          );
+      } else {
+        const canUpdate =
+          context?.mode === 'tenant' && context?.canManageSettings;
+        updated = await this.databaseService.transactionWithTenantContext(
+          { tenantId, isTenantAdmin: !!canUpdate },
           async (client) => {
-            const tenant = await this.tenantRepository.findById(tenantId, {
-              client,
-            });
-            if (!tenant) {
-              throw new NotFoundException(`Tenant ${tenantId} not found`);
-            }
-            return await this.tenantRepository.update(
+            const result = await this.tenantRepository.update(
               tenantId,
               { ...dto },
               { client },
             );
+            if (!result) {
+              throw new NotFoundException(`Tenant ${tenantId} not found`);
+            }
+            return result;
           },
         );
       }
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => {
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            { ...dto },
-            { client },
-          );
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-          return updated;
-        },
-      );
+
+      this.maybeSyncTaxToStripe(dto, updated);
+      return updated;
     } catch (error) {
       // ✅ Map all known exceptions
       if (
@@ -1084,20 +1093,23 @@ export class TenantService {
     dto: UpdateTenantProfileDto,
   ): Promise<Tenant> {
     try {
-      return await this.databaseService.transactionWithTenantContext(
+      const updated = await this.databaseService.transactionWithTenantContext(
         { tenantId: tenantId },
         async (client) => {
-          const updated = await this.tenantRepository.update(
+          const result = await this.tenantRepository.update(
             tenantId,
             { ...dto },
             { client },
           );
-          if (!updated) {
+          if (!result) {
             throw new NotFoundException(`Tenant ${tenantId} not found`);
           }
-          return updated;
+          return result;
         },
       );
+
+      this.maybeSyncTaxToStripe(dto, updated);
+      return updated;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       this.logger.error(
@@ -1105,6 +1117,43 @@ export class TenantService {
         error,
       );
       throw new InternalServerErrorException('Failed to update tenant profile');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fire-and-forget tax sync: if the DTO touches any Stripe Tax–relevant field
+   * (address, TRN, or name) and the tenant already has a Stripe customer, kick
+   * off a non-blocking sync. Errors are handled inside StripeTaxService.
+   */
+  private maybeSyncTaxToStripe(
+    dto: UpdateTenantProfileDto,
+    tenant: Tenant,
+  ): void {
+    if (!tenant.stripe_customer_id) return;
+
+    const taxRelevantFields: (keyof UpdateTenantProfileDto)[] = [
+      'name',
+      'emirate',
+      'city',
+      'address_line_1',
+      'address_line_2',
+      'postal_code',
+      'tax_registration_number',
+    ];
+
+    const hasTaxRelevantChange = taxRelevantFields.some(
+      (field) => field in dto && dto[field] !== undefined,
+    );
+
+    if (hasTaxRelevantChange) {
+      void this.stripeTaxService.syncCustomerTax(
+        tenant.stripe_customer_id,
+        tenant,
+      );
     }
   }
 }

@@ -8,6 +8,7 @@ import { UserTenantRepository } from 'src/repositories/users/user-tenant.reposit
 import { StripeAdminController } from './controllers/stripe-admin.controller';
 import { StripeCatalogSyncService } from './services/stripe-catalog-sync.service';
 import { StripeCustomerService } from './services/stripe-customer.service';
+import { StripeTaxService } from './services/stripe-tax.service';
 import { StripeService } from './stripe.service';
 import { StripeEventHandlersService } from './webhook/stripe-event-handlers';
 import { StripeWebhookController } from './webhook/stripe-webhook.controller';
@@ -24,9 +25,10 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     StripeEventHandlersService,
     StripeCatalogSyncService,
     StripeCustomerService,
+    StripeTaxService,
     TenantRepository,
     UserTenantRepository,
   ],
-  exports: [StripeService, StripeCustomerService],
+  exports: [StripeService, StripeCustomerService, StripeTaxService],
 })
 export class StripeModule {}

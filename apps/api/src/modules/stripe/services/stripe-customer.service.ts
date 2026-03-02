@@ -5,6 +5,7 @@ import { UserTenantRepository } from 'src/repositories/users/user-tenant.reposit
 import Stripe from 'stripe';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { StripeService } from '../stripe.service';
+import { StripeTaxService } from './stripe-tax.service';
 
 export type BackfillResult = {
   created: number;
@@ -26,6 +27,7 @@ export class StripeCustomerService {
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
     private readonly userTenantRepository: UserTenantRepository,
+    private readonly stripeTaxService: StripeTaxService,
   ) {}
 
   /**
@@ -165,6 +167,9 @@ export class StripeCustomerService {
    * Create a Stripe customer via the API and persist the resulting ID to the
    * tenant row. Runs the DB write in a platform admin context so RLS permits
    * the UPDATE.
+   *
+   * After persisting, fires a non-blocking tax sync so the customer's UAE address
+   * and TRN are registered with Stripe Tax immediately.
    */
   private async createStripeCustomerAndPersist(
     tenant: Tenant,
@@ -182,6 +187,8 @@ export class StripeCustomerService {
         client,
       }),
     );
+
+    void this.stripeTaxService.syncCustomerTax(customer.id, tenant);
 
     return customer.id;
   }

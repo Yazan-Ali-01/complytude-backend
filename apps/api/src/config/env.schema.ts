@@ -60,4 +60,5 @@ export const validationSchema = Joi.object({
   STRIPE_WEBHOOK_SECRET: Joi.string().required(),
   STRIPE_PUBLISHABLE_KEY: Joi.string().required(),
   STRIPE_CATALOG_SYNC_ENABLED: Joi.boolean().default(false),
+  STRIPE_TAX_ENABLED: Joi.boolean().default(false),
 });
