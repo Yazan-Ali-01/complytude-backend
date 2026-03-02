@@ -1,7 +1,7 @@
 # Entitlement System Documentation
 
-**Version:** 1.0  
-**Last Updated:** February 23, 2026  
+**Version:** 1.0
+**Last Updated:** February 23, 2026
 **Status:** ✅ Implemented
 
 ---
@@ -52,15 +52,16 @@ The Entitlement System is a production-grade engine that manages what features t
 
 A **feature** is something a tenant can use. Each feature has a **type**:
 
-| Type | Description | Example | Value Storage |
-|------|-------------|---------|---------------|
-| **boolean** | On/off access | `redlining_enabled` | `value_bool: true/false` |
-| **quota** | Units per billing period | `documents_per_month: 25` | `value_int: 25` (-1 = unlimited) |
-| **capacity** | Max concurrent resources | `user_seats: 10` | `value_int: 10` |
-| **metered** | Per-usage tracking | Future: API calls | `value_int` |
-| **rate_limit** | Time-based limit | Future: requests/min | `value_int` |
+| Type           | Description              | Example                   | Value Storage                    |
+| -------------- | ------------------------ | ------------------------- | -------------------------------- |
+| **boolean**    | On/off access            | `redlining_enabled`       | `value_bool: true/false`         |
+| **quota**      | Units per billing period | `documents_per_month: 25` | `value_int: 25` (-1 = unlimited) |
+| **capacity**   | Max concurrent resources | `user_seats: 10`          | `value_int: 10`                  |
+| **metered**    | Per-usage tracking       | Future: API calls         | `value_int`                      |
+| **rate_limit** | Time-based limit         | Future: requests/min      | `value_int`                      |
 
 **Tiered Features:** Some features use `value_text` for tiers:
+
 - `template_library: 'essential'` or `'full'`
 - `bilingual_quality: 'standard'` or `'jais_native'`
 - `data_isolation: 'shared'`, `'row_level'`, or `'silo'`
@@ -69,12 +70,12 @@ A **feature** is something a tenant can use. Each feature has a **type**:
 
 A **plan** is a subscription tier with predefined feature limits:
 
-| Plan | Target Audience | Price | Key Features |
-|------|----------------|-------|--------------|
-| **Navigator** (Free) | Founders in idea phase | AED 0/mo | 3 docs/mo, basic regulatory |
-| **Shield** | Solo entrepreneurs | AED 249/mo | 25 docs/mo, essential templates |
-| **General Counsel** | Active SMEs | AED 599/mo | 100 docs/mo, full library, AI redlining |
-| **Infrastructure** | Agencies, enterprises | AED 2,499+/mo | Unlimited docs, custom playbooks, white-label |
+| Plan                 | Target Audience        | Price         | Key Features                                  |
+| -------------------- | ---------------------- | ------------- | --------------------------------------------- |
+| **Navigator** (Free) | Founders in idea phase | AED 0/mo      | 3 docs/mo, basic regulatory                   |
+| **Shield**           | Solo entrepreneurs     | AED 249/mo    | 25 docs/mo, essential templates               |
+| **General Counsel**  | Active SMEs            | AED 599/mo    | 100 docs/mo, full library, AI redlining       |
+| **Infrastructure**   | Agencies, enterprises  | AED 2,499+/mo | Unlimited docs, custom playbooks, white-label |
 
 ### 3. Effective Entitlement
 
@@ -85,6 +86,7 @@ effective_entitlements = plan_entitlements + addon_entitlements + overrides
 ```
 
 **Resolution Order:**
+
 1. Start with plan's base entitlements
 2. Add entitlements from active add-ons (stacking)
 3. Apply admin overrides (highest precedence)
@@ -107,6 +109,7 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 ```
 
 **Source Attribution:**
+
 - `plan`: Used from plan quota
 - `addon`: Used from add-on quota
 - `credit`: Paid with credits (overage)
@@ -117,18 +120,21 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 **Credits** are a fallback mechanism for **creditable features** (marked with `creditable: true`).
 
 **How It Works:**
+
 1. Tenant exceeds quota (e.g., 25 docs used, tries to create 26th)
 2. System checks if feature is creditable
 3. If yes, deducts credits based on feature's `credit_cost` (e.g., 5 credits per document)
 4. Usage is recorded with `source: "credit"`
 
 **Credit Cost Per Feature:**
+
 - Each creditable feature has a `credit_cost` field defining credits per unit
 - Example: `documents_per_month` costs 5 credits per document
 - Example: `regulatory_queries_per_month` costs 3 credits per query
 - Non-creditable features have `credit_cost: null`
 
 **Credit Ledger:**
+
 - Append-only transaction log
 - Tracks purchases, grants, deductions, refunds
 - Running balance computed from ledger
@@ -191,16 +197,16 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ### Key Services
 
-| Service | Responsibility |
-|---------|----------------|
-| **EntitlementResolverService** | Compute effective entitlements (plan + addons + overrides) |
+| Service                           | Responsibility                                                         |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| **EntitlementResolverService**    | Compute effective entitlements (plan + addons + overrides)             |
 | **EntitlementEnforcementService** | Runtime checks: can tenant use feature? Record usage + credit fallback |
-| **EntitlementSnapshotService** | Cache computed entitlements for fast reads (24h TTL) |
-| **UsageIngestionService** | Record usage events to append-only ledger |
-| **UsageProjectionService** | Maintain aggregated usage counts (derived from ledger) |
-| **CreditLedgerService** | Manage credit transactions (purchase, grant, deduct, refund) |
-| **SubscriptionsService** | Manage tenant subscriptions (create, change plan, cancel, renew) |
-| **DomainEventsService** | Emit and query domain events (audit trail) |
+| **EntitlementSnapshotService**    | Cache computed entitlements for fast reads (24h TTL)                   |
+| **UsageIngestionService**         | Record usage events to append-only ledger                              |
+| **UsageProjectionService**        | Maintain aggregated usage counts (derived from ledger)                 |
+| **CreditLedgerService**           | Manage credit transactions (purchase, grant, deduct, refund)           |
+| **SubscriptionsService**          | Manage tenant subscriptions (create, change plan, cancel, renew)       |
+| **DomainEventsService**           | Emit and query domain events (audit trail)                             |
 
 ---
 
@@ -208,23 +214,23 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ### Complete Feature List
 
-| Feature Key | Type | Unit | Creditable | Credit Cost | Description |
-|-------------|------|------|------------|-------------|-------------|
-| `documents_per_month` | quota | documents | ✅ Yes | 5 credits | Documents that can be generated per billing period |
-| `template_library` | boolean | - | ❌ No | - | Access to template library (essential/full) |
-| `bilingual_quality` | boolean | - | ❌ No | - | Bilingual quality (standard/jais_native) |
-| `contract_reviews_per_month` | quota | reviews | ❌ No | - | AI contract reviews per billing period |
-| `risk_analysis_level` | boolean | - | ❌ No | - | Risk analysis level (none/critical_only/full) |
-| `redlining_enabled` | boolean | - | ❌ No | - | AI suggests alternative compliant wording |
-| `localizer_check` | boolean | - | ❌ No | - | Flags governing law/jurisdiction mismatches |
-| `regulatory_hub_access` | boolean | - | ❌ No | - | Access to compliance dashboard |
-| `regulatory_queries_per_month` | quota | queries | ✅ Yes | 3 credits | Chat-with-Law queries per billing period |
-| `license_verifier_lookups` | quota | lookups | ❌ No | - | DED API lookups per billing period |
-| `jurisdictions` | boolean | - | ❌ No | - | Access to jurisdictions (single/all) |
-| `user_seats` | capacity | seats | ❌ No | - | Maximum number of users in tenant |
-| `data_isolation` | boolean | - | ❌ No | - | Data isolation level (shared/row_level/silo) |
-| `custom_playbooks` | boolean | - | ❌ No | - | Upload company-specific negotiating positions |
-| `white_label_exports` | boolean | - | ❌ No | - | Export reports with tenant branding |
+| Feature Key                    | Type     | Unit      | Creditable | Credit Cost | Description                                        |
+| ------------------------------ | -------- | --------- | ---------- | ----------- | -------------------------------------------------- |
+| `documents_per_month`          | quota    | documents | ✅ Yes     | 5 credits   | Documents that can be generated per billing period |
+| `template_library`             | boolean  | -         | ❌ No      | -           | Access to template library (essential/full)        |
+| `bilingual_quality`            | boolean  | -         | ❌ No      | -           | Bilingual quality (standard/jais_native)           |
+| `contract_reviews_per_month`   | quota    | reviews   | ❌ No      | -           | AI contract reviews per billing period             |
+| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | Risk analysis level (none/critical_only/full)      |
+| `redlining_enabled`            | boolean  | -         | ❌ No      | -           | AI suggests alternative compliant wording          |
+| `localizer_check`              | boolean  | -         | ❌ No      | -           | Flags governing law/jurisdiction mismatches        |
+| `regulatory_hub_access`        | boolean  | -         | ❌ No      | -           | Access to compliance dashboard                     |
+| `regulatory_queries_per_month` | quota    | queries   | ✅ Yes     | 3 credits   | Chat-with-Law queries per billing period           |
+| `license_verifier_lookups`     | quota    | lookups   | ❌ No      | -           | DED API lookups per billing period                 |
+| `jurisdictions`                | boolean  | -         | ❌ No      | -           | Access to jurisdictions (single/all)               |
+| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant                  |
+| `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)       |
+| `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions      |
+| `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                |
 
 ---
 
@@ -232,95 +238,95 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ### Navigator (Free)
 
-**Target:** Founders in idea phase  
+**Target:** Founders in idea phase
 **Price:** AED 0/month
 
-| Feature | Value |
-|---------|-------|
-| Documents per month | 3 |
-| Template library | essential |
-| Bilingual quality | standard |
-| Contract reviews | 0 |
-| Risk analysis | none |
-| Redlining | ❌ |
-| Localizer check | ❌ |
-| Regulatory hub | ✅ |
-| Regulatory queries | 5/month |
-| License lookups | 0 |
-| Jurisdictions | single |
-| User seats | 1 |
-| Data isolation | shared |
-| Custom playbooks | ❌ |
-| White-label | ❌ |
+| Feature             | Value     |
+| ------------------- | --------- |
+| Documents per month | 3         |
+| Template library    | essential |
+| Bilingual quality   | standard  |
+| Contract reviews    | 0         |
+| Risk analysis       | none      |
+| Redlining           | ❌        |
+| Localizer check     | ❌        |
+| Regulatory hub      | ✅        |
+| Regulatory queries  | 5/month   |
+| License lookups     | 0         |
+| Jurisdictions       | single    |
+| User seats          | 1         |
+| Data isolation      | shared    |
+| Custom playbooks    | ❌        |
+| White-label         | ❌        |
 
 ### Shield
 
-**Target:** Solo entrepreneurs (1-5 employees)  
+**Target:** Solo entrepreneurs (1-5 employees)
 **Price:** AED 249/month
 
-| Feature | Value |
-|---------|-------|
-| Documents per month | 25 |
-| Template library | essential |
-| Bilingual quality | standard |
-| Contract reviews | 5/month |
-| Risk analysis | critical_only |
-| Redlining | ❌ |
-| Localizer check | ❌ |
-| Regulatory hub | ✅ |
-| Regulatory queries | 20/month |
-| License lookups | 5/month |
-| Jurisdictions | single |
-| User seats | 3 |
-| Data isolation | shared |
-| Custom playbooks | ❌ |
-| White-label | ❌ |
+| Feature             | Value         |
+| ------------------- | ------------- |
+| Documents per month | 25            |
+| Template library    | essential     |
+| Bilingual quality   | standard      |
+| Contract reviews    | 5/month       |
+| Risk analysis       | critical_only |
+| Redlining           | ❌            |
+| Localizer check     | ❌            |
+| Regulatory hub      | ✅            |
+| Regulatory queries  | 20/month      |
+| License lookups     | 5/month       |
+| Jurisdictions       | single        |
+| User seats          | 3             |
+| Data isolation      | shared        |
+| Custom playbooks    | ❌            |
+| White-label         | ❌            |
 
 ### General Counsel
 
-**Target:** Active SMEs (5-50 employees)  
+**Target:** Active SMEs (5-50 employees)
 **Price:** AED 599/month
 
-| Feature | Value |
-|---------|-------|
-| Documents per month | 100 |
-| Template library | full |
-| Bilingual quality | jais_native |
-| Contract reviews | 30/month |
-| Risk analysis | full |
-| Redlining | ✅ |
-| Localizer check | ✅ |
-| Regulatory hub | ✅ |
-| Regulatory queries | 100/month |
-| License lookups | 20/month |
-| Jurisdictions | all |
-| User seats | 10 |
-| Data isolation | row_level |
-| Custom playbooks | ❌ |
-| White-label | ❌ |
+| Feature             | Value       |
+| ------------------- | ----------- |
+| Documents per month | 100         |
+| Template library    | full        |
+| Bilingual quality   | jais_native |
+| Contract reviews    | 30/month    |
+| Risk analysis       | full        |
+| Redlining           | ✅          |
+| Localizer check     | ✅          |
+| Regulatory hub      | ✅          |
+| Regulatory queries  | 100/month   |
+| License lookups     | 20/month    |
+| Jurisdictions       | all         |
+| User seats          | 10          |
+| Data isolation      | row_level   |
+| Custom playbooks    | ❌          |
+| White-label         | ❌          |
 
 ### Infrastructure
 
-**Target:** Agencies, law firms, enterprises  
+**Target:** Agencies, law firms, enterprises
 **Price:** AED 2,499+/month
 
-| Feature | Value |
-|---------|-------|
+| Feature             | Value              |
+| ------------------- | ------------------ |
 | Documents per month | **Unlimited** (-1) |
-| Template library | full |
-| Bilingual quality | jais_native |
-| Contract reviews | **Unlimited** (-1) |
-| Risk analysis | full |
-| Redlining | ✅ |
-| Localizer check | ✅ |
-| Regulatory hub | ✅ |
-| Regulatory queries | **Unlimited** (-1) |
-| License lookups | **Unlimited** (-1) |
-| Jurisdictions | all |
-| User seats | **Unlimited** (-1) |
-| Data isolation | silo |
-| Custom playbooks | ✅ |
-| White-label | ✅ |
+| Template library    | full               |
+| Bilingual quality   | jais_native        |
+| Contract reviews    | **Unlimited** (-1) |
+| Risk analysis       | full               |
+| Redlining           | ✅                 |
+| Localizer check     | ✅                 |
+| Regulatory hub      | ✅                 |
+| Regulatory queries  | **Unlimited** (-1) |
+| License lookups     | **Unlimited** (-1) |
+| Jurisdictions       | all                |
+| User seats          | **Unlimited** (-1) |
+| Data isolation      | silo               |
+| Custom playbooks    | ✅                 |
+| White-label         | ✅                 |
 
 ---
 
@@ -352,6 +358,7 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 ```
 
 **Snapshot Invalidation:**
+
 - Plan change → invalidate immediately
 - Add-on added/removed → invalidate immediately
 - Override applied/expired → invalidate immediately
@@ -690,7 +697,6 @@ import { RequireEntitlement } from '@common/decorators/require-entitlement.decor
 
 @Controller('contracts')
 export class ContractsController {
-  
   // Simple boolean check
   @Post('analyze')
   @AuthOptions({ tenant: true })
@@ -700,20 +706,20 @@ export class ContractsController {
     // Only executes if tenant has redlining_enabled = true
     return this.contractsService.analyze(tenant.tenantId);
   }
-  
+
   // Tiered feature check
   @Get('templates/all')
   @AuthOptions({ tenant: true })
   @UseGuards(EntitlementGuard)
   @RequireEntitlement({
     featureKey: 'template_library',
-    value_text: 'full'
+    value_text: 'full',
   })
   async listAllTemplates() {
     // Only executes if tenant has template_library = 'full'
     return this.templatesService.findAll();
   }
-  
+
   // Multiple requirements (AND logic)
   @Post('advanced-analysis')
   @AuthOptions({ tenant: true })
@@ -723,14 +729,14 @@ export class ContractsController {
     // Only executes if BOTH features are enabled
     return this.contractsService.advancedAnalysis();
   }
-  
+
   // Minimum value check (capacity)
   @Post('team/invite')
   @AuthOptions({ tenant: true })
   @UseGuards(EntitlementGuard)
   @RequireEntitlement({
     featureKey: 'user_seats',
-    minValue: 2
+    minValue: 2,
   })
   async inviteTeamMember() {
     // Only executes if tenant has >= 2 user seats
@@ -749,7 +755,7 @@ export class DocumentsService {
   constructor(
     private readonly enforcementService: EntitlementEnforcementService,
   ) {}
-  
+
   async generateDocument(tenantId: string, userId: string, data: any) {
     // Check and record usage
     const checkResult = await this.enforcementService.checkAndRecord(
@@ -757,9 +763,9 @@ export class DocumentsService {
       'documents_per_month',
       userId,
       1, // units
-      { document_type: data.type } // metadata
+      { document_type: data.type }, // metadata
     );
-    
+
     if (!checkResult.allowed) {
       // Quota exceeded, no credits
       throw new PaymentRequiredException({
@@ -769,10 +775,10 @@ export class DocumentsService {
         creditsRemaining: checkResult.creditsRemaining,
       });
     }
-    
+
     // Generate document
     const document = await this.createDocument(data);
-    
+
     // Return with usage info
     return {
       document,
@@ -780,7 +786,7 @@ export class DocumentsService {
         source: checkResult.source, // 'plan', 'credit', or 'mixed'
         remaining: checkResult.remaining,
         creditsRemaining: checkResult.creditsRemaining,
-      }
+      },
     };
   }
 }
@@ -793,14 +799,12 @@ import { EntitlementResolverService } from '@modules/entitlements/services/entit
 
 @Injectable()
 export class BillingService {
-  constructor(
-    private readonly resolver: EntitlementResolverService,
-  ) {}
-  
+  constructor(private readonly resolver: EntitlementResolverService) {}
+
   async getCurrentPlanDetails(tenantId: string) {
     // Get all entitlements for tenant
     const result = await this.resolver.resolveAllForTenant(tenantId);
-    
+
     return {
       plan: result.plan, // 'shield', 'general_counsel', etc.
       entitlements: result.entitlements, // Map of feature_key -> entitlement
@@ -833,18 +837,19 @@ export class UsageService {
     private readonly projectionService: UsageProjectionService,
     private readonly subscriptionsRepository: SubscriptionsRepository,
   ) {}
-  
+
   async getCurrentUsage(tenantId: string, featureKey: FeatureKey) {
     // Get active subscription
-    const subscription = await this.subscriptionsRepository.findActiveByTenant(tenantId);
-    
+    const subscription =
+      await this.subscriptionsRepository.findActiveByTenant(tenantId);
+
     // Get current usage
     const usage = await this.projectionService.getCurrentUsage(
       tenantId,
       subscription.id,
-      featureKey
+      featureKey,
     );
-    
+
     return {
       total_units: usage.total_units,
       plan_units: usage.plan_units,
@@ -867,10 +872,8 @@ import { CreditLedgerService } from '@modules/entitlements/services/credit-ledge
 
 @Injectable()
 export class CreditsController {
-  constructor(
-    private readonly creditLedger: CreditLedgerService,
-  ) {}
-  
+  constructor(private readonly creditLedger: CreditLedgerService) {}
+
   @Get('balance')
   @AuthOptions({ tenant: true })
   async getBalance(@CurrentUserTenant() tenant) {
@@ -895,7 +898,7 @@ async getTransactions(
     limit,
     cursor
   );
-  
+
   return {
     transactions, // Array of credit transactions
     // Each transaction has:
@@ -921,7 +924,7 @@ async purchaseCredits(
     dto.amount,
     { payment_reference: dto.paymentRef }
   );
-  
+
   return {
     transaction_id: transaction.id,
     balance: transaction.balance_after,
@@ -947,7 +950,7 @@ async grantCredits(
     dto.expiresAt, // optional
     admin.userId
   );
-  
+
   return {
     transaction_id: transaction.id,
     balance: transaction.balance_after,
@@ -961,21 +964,21 @@ async grantCredits(
 
 ### Event Types
 
-| Event Type | Aggregate | Description |
-|------------|-----------|-------------|
-| `usage.recorded` | usage | Usage event appended to ledger |
-| `credit.purchased` | credit | Credits purchased |
-| `credit.granted` | credit | Credits granted (promo/admin) |
-| `credit.deducted` | credit | Credits used for overage |
-| `credit.refunded` | credit | Credits refunded |
-| `credit.expired` | credit | Credits expired |
-| `entitlement.denied` | entitlement | Feature access denied (quota exceeded, no credits) |
-| `entitlement.snapshot_created` | entitlement | Snapshot created |
-| `entitlement.snapshot_invalidated` | entitlement | Snapshot invalidated |
-| `subscription.created` | subscription | New subscription created |
-| `subscription.plan_changed` | subscription | Plan upgraded/downgraded |
-| `subscription.cancelled` | subscription | Subscription cancelled |
-| `subscription.renewed` | subscription | Billing period renewed |
+| Event Type                         | Aggregate    | Description                                        |
+| ---------------------------------- | ------------ | -------------------------------------------------- |
+| `usage.recorded`                   | usage        | Usage event appended to ledger                     |
+| `credit.purchased`                 | credit       | Credits purchased                                  |
+| `credit.granted`                   | credit       | Credits granted (promo/admin)                      |
+| `credit.deducted`                  | credit       | Credits used for overage                           |
+| `credit.refunded`                  | credit       | Credits refunded                                   |
+| `credit.expired`                   | credit       | Credits expired                                    |
+| `entitlement.denied`               | entitlement  | Feature access denied (quota exceeded, no credits) |
+| `entitlement.snapshot_created`     | entitlement  | Snapshot created                                   |
+| `entitlement.snapshot_invalidated` | entitlement  | Snapshot invalidated                               |
+| `subscription.created`             | subscription | New subscription created                           |
+| `subscription.plan_changed`        | subscription | Plan upgraded/downgraded                           |
+| `subscription.cancelled`           | subscription | Subscription cancelled                             |
+| `subscription.renewed`             | subscription | Billing period renewed                             |
 
 ### Querying Events
 
@@ -984,26 +987,24 @@ import { DomainEventsService } from '@modules/entitlements/services/domain-event
 
 @Injectable()
 export class AuditService {
-  constructor(
-    private readonly domainEvents: DomainEventsService,
-  ) {}
-  
+  constructor(private readonly domainEvents: DomainEventsService) {}
+
   // Get all events for a tenant
   async getTenantAuditTrail(tenantId: string, filters?: DomainEventFilters) {
     return this.domainEvents.getEventsByTenant(tenantId, filters);
     // filters: { eventType, aggregateType, fromDate, toDate, limit, offset }
   }
-  
+
   // Get events for a specific aggregate (e.g., a usage event)
   async getResourceAuditTrail(aggregateType: string, aggregateId: string) {
     return this.domainEvents.getEventsByAggregate(aggregateType, aggregateId);
   }
-  
+
   // Get events by type
   async getCreditDeductions(tenantId: string) {
     return this.domainEvents.getEventsByType('credit.deducted', tenantId);
   }
-  
+
   // Event replay (for debugging/reconstruction)
   async replayEvents(tenantId: string, fromDate?: Date) {
     return this.domainEvents.replayEvents(tenantId, fromDate);
@@ -1014,6 +1015,7 @@ export class AuditService {
 ### Event Payload Examples
 
 **usage.recorded:**
+
 ```json
 {
   "event_type": "usage.recorded",
@@ -1028,9 +1030,7 @@ export class AuditService {
     "feature_name": "Documents Per Month",
     "feature_type": "quota",
     "units": 1,
-    "allocations": [
-      { "source": "plan", "units": 1 }
-    ],
+    "allocations": [{ "source": "plan", "units": 1 }],
     "billing_period": "2026-02",
     "resource_type": "document",
     "resource_id": "document_uuid"
@@ -1040,6 +1040,7 @@ export class AuditService {
 ```
 
 **credit.deducted:**
+
 ```json
 {
   "event_type": "credit.deducted",
@@ -1068,6 +1069,7 @@ export class AuditService {
 ```
 
 **subscription.plan_changed:**
+
 ```json
 {
   "event_type": "subscription.plan_changed",
@@ -1093,7 +1095,7 @@ Add-ons are purchasable feature bundles that extend a tenant's entitlements beyo
 
 ### Add-on Catalog (Public)
 
-**Endpoint:** `GET /api/addons`  
+**Endpoint:** `GET /api/addons`
 **Authentication:** None (public catalog)
 
 Browse available add-ons that can be purchased:
@@ -1102,18 +1104,18 @@ Browse available add-ons that can be purchased:
 // Response
 [
   {
-    id: "uuid",
-    key: "extra_documents_pack",
-    name: "Extra Documents Pack",
-    description: "Add 50 additional documents per month",
-    priceMonthly: 99.00,
-    priceCurrency: "AED",
-    isActive: true
-  }
-]
+    id: 'uuid',
+    key: 'extra_documents_pack',
+    name: 'Extra Documents Pack',
+    description: 'Add 50 additional documents per month',
+    priceMonthly: 99.0,
+    priceCurrency: 'AED',
+    isActive: true,
+  },
+];
 ```
 
-**Endpoint:** `GET /api/addons/:key`  
+**Endpoint:** `GET /api/addons/:key`
 **Authentication:** None (public catalog)
 
 Get detailed add-on information with entitlements:
@@ -1140,8 +1142,8 @@ Get detailed add-on information with entitlements:
 
 ### Tenant Add-on Management
 
-**Endpoint:** `GET /api/tenants/addons`  
-**Authentication:** Tenant token  
+**Endpoint:** `GET /api/tenants/addons`
+**Authentication:** Tenant token
 **Permission:** Any tenant member (read-only)
 
 List tenant's active add-ons:
@@ -1150,28 +1152,28 @@ List tenant's active add-ons:
 // Response
 [
   {
-    id: "uuid",
-    addonKey: "extra_documents_pack",
-    addonName: "Extra Documents Pack",
+    id: 'uuid',
+    addonKey: 'extra_documents_pack',
+    addonName: 'Extra Documents Pack',
     quantity: 2,
-    status: "active",
-    startsAt: "2026-02-01T00:00:00Z",
-    expiresAt: "2026-03-01T00:00:00Z",
+    status: 'active',
+    startsAt: '2026-02-01T00:00:00Z',
+    expiresAt: '2026-03-01T00:00:00Z',
     entitlements: [
       {
-        featureKey: "documents_per_month",
-        featureType: "quota",
-        valueInt: 100  // 50 × 2 quantity
-      }
+        featureKey: 'documents_per_month',
+        featureType: 'quota',
+        valueInt: 100, // 50 × 2 quantity
+      },
     ],
-    createdAt: "2026-02-01T00:00:00Z",
-    updatedAt: "2026-02-01T00:00:00Z"
-  }
-]
+    createdAt: '2026-02-01T00:00:00Z',
+    updatedAt: '2026-02-01T00:00:00Z',
+  },
+];
 ```
 
-**Endpoint:** `POST /api/tenants/addons`  
-**Authentication:** Tenant token  
+**Endpoint:** `POST /api/tenants/addons`
+**Authentication:** Tenant token
 **Permission:** `billing:manage`
 
 Add an add-on to tenant subscription:
@@ -1186,8 +1188,8 @@ Add an add-on to tenant subscription:
 // Response - same as list item above
 ```
 
-**Endpoint:** `PATCH /api/tenants/addons/:id`  
-**Authentication:** Tenant token  
+**Endpoint:** `PATCH /api/tenants/addons/:id`
+**Authentication:** Tenant token
 **Permission:** `billing:manage`
 
 Update add-on quantity or status:
@@ -1202,8 +1204,8 @@ Update add-on quantity or status:
 // Response - updated add-on with entitlements
 ```
 
-**Endpoint:** `DELETE /api/tenants/addons/:id`  
-**Authentication:** Tenant token  
+**Endpoint:** `DELETE /api/tenants/addons/:id`
+**Authentication:** Tenant token
 **Permission:** `billing:manage`
 
 Cancel/remove add-on:
@@ -1211,7 +1213,7 @@ Cancel/remove add-on:
 ```typescript
 // Response
 {
-  message: "Add-on removed successfully"
+  message: 'Add-on removed successfully';
 }
 ```
 
@@ -1221,8 +1223,8 @@ Cancel/remove add-on:
 
 Overrides are admin-applied entitlement modifications for special cases (e.g., promotional grants, customer accommodations).
 
-**Endpoint:** `GET /api/admin/tenants/:tenantId/overrides`  
-**Authentication:** Identity token  
+**Endpoint:** `GET /api/admin/tenants/:tenantId/overrides`
+**Authentication:** Identity token
 **Permission:** `entitlements:manage` (Platform)
 
 List all overrides for a tenant:
@@ -1231,23 +1233,23 @@ List all overrides for a tenant:
 // Response
 [
   {
-    id: "uuid",
-    featureKey: "documents_per_month",
-    featureType: "quota",
+    id: 'uuid',
+    featureKey: 'documents_per_month',
+    featureType: 'quota',
     valueInt: 500,
-    reason: "Special customer agreement - Q1 2024 promotion",
-    appliedBy: "admin_user_id",
-    startsAt: "2026-02-01T00:00:00Z",
-    expiresAt: "2026-12-31T23:59:59Z",
+    reason: 'Special customer agreement - Q1 2024 promotion',
+    appliedBy: 'admin_user_id',
+    startsAt: '2026-02-01T00:00:00Z',
+    expiresAt: '2026-12-31T23:59:59Z',
     isActive: true,
-    createdAt: "2026-02-01T00:00:00Z",
-    updatedAt: "2026-02-01T00:00:00Z"
-  }
-]
+    createdAt: '2026-02-01T00:00:00Z',
+    updatedAt: '2026-02-01T00:00:00Z',
+  },
+];
 ```
 
-**Endpoint:** `POST /api/admin/tenants/:tenantId/overrides`  
-**Authentication:** Identity token  
+**Endpoint:** `POST /api/admin/tenants/:tenantId/overrides`
+**Authentication:** Identity token
 **Permission:** `entitlements:manage` (Platform)
 
 Apply an override:
@@ -1267,12 +1269,13 @@ Apply an override:
 ```
 
 **Validation Rules:**
+
 - Exactly one of `valueBool`, `valueInt`, or `valueText` must be provided
 - `reason` is required (audit trail)
 - `expiresAt` is optional (NULL = permanent override)
 
-**Endpoint:** `PATCH /api/admin/tenants/:tenantId/overrides/:id`  
-**Authentication:** Identity token  
+**Endpoint:** `PATCH /api/admin/tenants/:tenantId/overrides/:id`
+**Authentication:** Identity token
 **Permission:** `entitlements:manage` (Platform)
 
 Update an existing override:
@@ -1290,8 +1293,8 @@ Update an existing override:
 
 **Important:** When updating a value field (e.g., changing from `valueBool` to `valueInt`), provide the new field. The system automatically nulls the other value fields to satisfy the database constraint requiring exactly one value field.
 
-**Endpoint:** `DELETE /api/admin/tenants/:tenantId/overrides/:id`  
-**Authentication:** Identity token  
+**Endpoint:** `DELETE /api/admin/tenants/:tenantId/overrides/:id`
+**Authentication:** Identity token
 **Permission:** `entitlements:manage` (Platform)
 
 Revoke (deactivate) an override:
@@ -1314,6 +1317,7 @@ Revoke (deactivate) an override:
 **Cause:** Stale snapshot cache.
 
 **Solution:**
+
 ```typescript
 // Force snapshot invalidation
 await entitlementSnapshotService.invalidate(tenantId, 'manual_fix');
@@ -1330,13 +1334,14 @@ await entitlementSnapshotService.rebuild(tenantId, entitlements, planKey);
 **Cause:** Projection drift (rare, but possible if projection update fails).
 
 **Solution:**
+
 ```typescript
 // Rebuild projection from ledger (source of truth)
 await usageProjectionService.rebuildFromLedger(
   tenantId,
   subscriptionId,
   featureKey,
-  billingPeriod
+  billingPeriod,
 );
 ```
 
@@ -1347,17 +1352,22 @@ await usageProjectionService.rebuildFromLedger(
 **Cause:** Feature is not marked as `creditable` or `credit_cost` is not set.
 
 **Solution:**
+
 ```typescript
 // Check feature definition
 const feature = getFeatureDefinition('feature_key');
 console.log(feature.creditable); // Should be true
 console.log(feature.credit_cost); // Should be a positive number
 
-// If false or missing, update in plan-entitlements.constant.ts:
-{
-  key: 'feature_key',
+// If false or missing, update in plan-entitlements.constant.ts FEATURE_CATALOG:
+feature_key: {
+  name: 'Feature Name',
+  feature_type: 'quota',
+  storage_type: 'int',
+  unit: 'units',
   creditable: true, // ← Add this
   credit_cost: 5, // ← Add this (credits per unit)
+  description: 'Feature description',
 }
 ```
 
@@ -1368,6 +1378,7 @@ console.log(feature.credit_cost); // Should be a positive number
 **Cause:** Subscription renewal job not running or failed.
 
 **Solution:**
+
 ```typescript
 // Manual renewal
 await subscriptionsService.renewPeriod(tenantId);
@@ -1383,6 +1394,7 @@ await subscriptionsService.renewAllDuePeriods();
 **Cause:** Event emission failed or transaction rolled back.
 
 **Solution:**
+
 ```typescript
 // Check if events are being emitted
 const events = await domainEventsService.getEventsByTenant(tenantId);
@@ -1400,6 +1412,7 @@ console.log(events.length);
 **Cause:** Race condition on aggregated_usage update.
 
 **Solution:**
+
 - The system uses `SELECT ... FOR UPDATE` on aggregated_usage row within transaction
 - If still occurring, check that all usage recording goes through EntitlementEnforcementService
 - Never bypass the enforcement service and record usage directly
@@ -1416,14 +1429,17 @@ console.log(events.length);
    - `apps/api/src/common/guards/entitlement.guard.ts` - Guard implementation
 
 2. **Add a new feature:**
-   - Add to `ALL_FEATURES` array
-   - Add to `PLAN_ENTITLEMENTS` matrix
+   - Add to `FEATURE_CATALOG` keyed object in `plan-entitlements.constant.ts`
+   - Add to all plan definitions in `PLAN_ENTITLEMENTS` matrix
+   - TypeScript will enforce coverage (compile error if missing from any plan)
    - Restart app (EntitlementSyncService syncs to DB)
+   - The derived `FeatureKey` type updates automatically
 
 3. **Add a new plan:**
-   - Add to `ALL_PLANS` array
-   - Add entitlements to `PLAN_ENTITLEMENTS`
+   - Add to `PLAN_CATALOG` keyed object in `plan-entitlements.constant.ts`
+   - Add entitlements to `PLAN_ENTITLEMENTS` matrix
    - Restart app
+   - The derived `PlanKey` type updates automatically
 
 4. **Integrate into your endpoint:**
    - Boolean features → Use `@RequireEntitlement()` + `EntitlementGuard`

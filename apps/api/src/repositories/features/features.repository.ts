@@ -45,7 +45,7 @@ export class FeaturesRepository extends BaseRepository<
     const data = row as FeatureRow;
     return {
       id: data.id,
-      key: data.key as FeatureKey,
+      key: data.key as FeatureKey, // Safe: features.key is validated by sync service from FEATURE_CATALOG
       name: data.name,
       description: data.description ?? undefined,
       feature_type: data.feature_type as Feature['feature_type'],

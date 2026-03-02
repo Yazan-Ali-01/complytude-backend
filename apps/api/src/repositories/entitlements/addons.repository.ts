@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
 import { BaseRepository, QueryOptions } from '@lib/database';
+import { Injectable } from '@nestjs/common';
 import {
   Addon,
   AddonEntitlement,
@@ -148,8 +148,8 @@ export class AddonsRepository extends BaseRepository<
           id: row.entitlement_id as string,
           addon_id: row.id as string,
           feature_id: row.feature_id as string,
-          feature_key: row.feature_key as FeatureKey,
-          feature_type: row.feature_type as FeatureType,
+          feature_key: row.feature_key as FeatureKey, // Safe: from addon_entitlements JOIN features (validated by FK)
+          feature_type: row.feature_type as FeatureType, // Safe: from addon_entitlements JOIN features (validated by FK)
           value_bool: row.value_bool as boolean | undefined,
           value_int: row.value_int as number | undefined,
           value_text: row.value_text as string | undefined,

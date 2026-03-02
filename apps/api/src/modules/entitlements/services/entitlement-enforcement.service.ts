@@ -19,7 +19,6 @@ import {
   EntitlementCheckResult,
   FeatureKey,
   UsageLedgerEvent,
-  UsageSource,
 } from '../../../common/types/entitlement.types';
 import { deriveBillingPeriod } from '../../../common/utils/billing.util';
 import { DatabaseService } from '../../../database/database.service';
@@ -452,7 +451,7 @@ export class EntitlementEnforcementService {
     return {
       result: {
         allowed: true,
-        source: responseSource as UsageSource,
+        source: responseSource,
         allocations,
         remaining: 0,
         creditsRemaining: (creditBalance ?? 0) - creditCost,
@@ -623,7 +622,7 @@ export class EntitlementEnforcementService {
       return {
         result: {
           allowed: true,
-          source: responseSource as UsageSource,
+          source: responseSource,
           allocations,
           remaining: limit - casResult.total_units,
           limit,

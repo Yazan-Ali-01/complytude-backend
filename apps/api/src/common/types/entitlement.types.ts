@@ -5,51 +5,25 @@
  * plans, subscriptions, usage tracking, credits, and domain events.
  */
 
-// =========================
-// ENUMS
-// =========================
+import {
+  CreditTransactionType,
+  FeatureType,
+  SubscriptionStatus,
+  UsageSource,
+} from '../constants/entitlement-constants';
+import { FeatureKey, PlanKey } from '../constants/plan-entitlements.constant';
 
-export type FeatureType =
-  | 'boolean'
-  | 'quota'
-  | 'metered'
-  | 'capacity'
-  | 'rate_limit';
-
-export type FeatureKey =
-  | 'documents_per_month'
-  | 'template_library'
-  | 'bilingual_quality'
-  | 'contract_reviews_per_month'
-  | 'risk_analysis_level'
-  | 'redlining_enabled'
-  | 'localizer_check'
-  | 'regulatory_hub_access'
-  | 'regulatory_queries_per_month'
-  | 'license_verifier_lookups'
-  | 'jurisdictions'
-  | 'user_seats'
-  | 'data_isolation'
-  | 'custom_playbooks'
-  | 'white_label_exports';
-
-export type PlanKey =
-  | 'navigator'
-  | 'shield'
-  | 'general_counsel'
-  | 'infrastructure';
-export type UsageSource = 'plan' | 'addon' | 'credit' | 'override' | 'mixed';
-export type SubscriptionStatus =
-  | 'active'
-  | 'cancelled'
-  | 'past_due'
-  | 'trialing';
-export type CreditTransactionType =
-  | 'purchase'
-  | 'grant'
-  | 'deduction'
-  | 'expiry'
-  | 'refund';
+// Re-export derived types from constants (single source of truth)
+export type {
+  CreditTransactionType,
+  FeatureType,
+  SubscriptionStatus,
+  UsageSource,
+} from '../constants/entitlement-constants';
+export type {
+  FeatureKey,
+  PlanKey,
+} from '../constants/plan-entitlements.constant';
 
 // =========================
 // CATALOG ENTITIES
