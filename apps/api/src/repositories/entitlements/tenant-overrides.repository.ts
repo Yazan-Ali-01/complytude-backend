@@ -68,13 +68,16 @@ export class TenantOverridesRepository extends BaseRepository<
 
   /**
    * Find all active overrides for a tenant (with feature_key JOIN)
+   *
+   * Returns only the newest override per feature using DISTINCT ON.
+   * This ensures correct precedence: newest override wins.
    */
   async findActiveByTenant(
     tenantId: string,
     options?: QueryOptions,
   ): Promise<TenantOverride[]> {
     const query = `
-      SELECT
+      SELECT DISTINCT ON (f.key)
         tor.id, tor.tenant_id, tor.feature_id, tor.value_bool, tor.value_int,
         tor.value_text, tor.reason, tor.applied_by, tor.starts_at, tor.expires_at,
         tor.is_active, tor.created_at, tor.updated_at,
@@ -83,7 +86,7 @@ export class TenantOverridesRepository extends BaseRepository<
       JOIN public.features f ON f.id = tor.feature_id
       WHERE tor.tenant_id = $1 AND tor.is_active = true
         AND (tor.expires_at IS NULL OR tor.expires_at > now())
-      ORDER BY tor.created_at DESC
+      ORDER BY f.key, tor.created_at DESC
     `;
 
     const result = await this.executeQuery<TenantOverrideRow>(
