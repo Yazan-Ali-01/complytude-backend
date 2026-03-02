@@ -144,6 +144,41 @@ export class PlansRepository extends BaseRepository<
   }
 
   /**
+   * Update the Stripe product ID for a plan
+   */
+  async updateStripeProductId(
+    id: string,
+    stripeProductId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET stripe_product_id = $1, updated_at = now() WHERE id = $2`,
+      [stripeProductId, id],
+      options,
+    );
+  }
+
+  /**
+   * Update a Stripe price ID for a plan (monthly or annual)
+   */
+  async updateStripePriceId(
+    id: string,
+    interval: 'monthly' | 'annual',
+    priceId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    const column =
+      interval === 'monthly'
+        ? 'stripe_price_id_monthly'
+        : 'stripe_price_id_annual';
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET ${column} = $1, updated_at = now() WHERE id = $2`,
+      [priceId, id],
+      options,
+    );
+  }
+
+  /**
    * Upsert plan by key (for sync service)
    */
   async upsertByKey(

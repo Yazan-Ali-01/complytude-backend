@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import stripeConfig from 'src/config/stripe.config';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
+import { StripeCatalogSyncService } from './services/stripe-catalog-sync.service';
 import { StripeService } from './stripe.service';
 import { StripeEventHandlersService } from './webhook/stripe-event-handlers';
 import { StripeWebhookController } from './webhook/stripe-webhook.controller';
@@ -16,6 +17,7 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     StripeWebhookService,
     StripeWebhookEventsRepository,
     StripeEventHandlersService,
+    StripeCatalogSyncService,
   ],
   exports: [StripeService],
 })

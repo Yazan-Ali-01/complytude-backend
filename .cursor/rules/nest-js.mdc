@@ -44,6 +44,7 @@ architecture:
 - Use `@nestjs/config` with Joi schema validation (src/config/env.schema.ts)
 - All environment variables must be validated on startup
 - Never hardcode secrets - use .env files
+- **Always update `apps/api/.env.example`** whenever you add, remove, or rename an environment variable in `env.schema.ts`
 
 # HTTP & API
 

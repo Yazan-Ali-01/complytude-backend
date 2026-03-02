@@ -120,6 +120,36 @@ export class AddonsRepository extends BaseRepository<
   }
 
   /**
+   * Update the Stripe product ID for an add-on
+   */
+  async updateStripeProductId(
+    id: string,
+    stripeProductId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET stripe_product_id = $1, updated_at = now() WHERE id = $2`,
+      [stripeProductId, id],
+      options,
+    );
+  }
+
+  /**
+   * Update the Stripe price ID for an add-on
+   */
+  async updateStripePriceId(
+    id: string,
+    priceId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET stripe_price_id = $1, updated_at = now() WHERE id = $2`,
+      [priceId, id],
+      options,
+    );
+  }
+
+  /**
    * Find add-on by key with entitlements (JOIN to avoid N+1)
    */
   async findByKeyWithEntitlements(

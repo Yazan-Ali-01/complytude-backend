@@ -187,7 +187,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     key: 'shield',
     name: 'Shield',
     description: 'Solo entrepreneurs — Essential templates + basic analysis',
-    price_monthly: 249,
+    price_monthly: 349,
     price_currency: 'AED',
     billing_period: 'monthly',
     sort_order: 2,
