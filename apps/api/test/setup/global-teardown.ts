@@ -1,7 +1,38 @@
+import * as fs from 'fs';
+
+const TEST_CONFIG_PATH = '/tmp/complytude-test-config.json';
+
 /**
  * Global teardown — runs once after all integration test workers finish.
- * Implemented in COM-140: stops testcontainers.
+ * Stops testcontainers and removes temp config file.
+ * Wrapped in try/catch to avoid masking test failures.
  */
 export default async function globalTeardown(): Promise<void> {
-  // Placeholder — COM-140 implements testcontainers lifecycle
+  try {
+    const pgContainer = (globalThis as unknown as { __PG_CONTAINER__?: { stop: () => Promise<unknown> } })
+      .__PG_CONTAINER__;
+    if (pgContainer) {
+      await pgContainer.stop();
+    }
+  } catch {
+    // Ignore — avoid masking test failures
+  }
+
+  try {
+    const redisContainer = (globalThis as unknown as { __REDIS_CONTAINER__?: { stop: () => Promise<unknown> } })
+      .__REDIS_CONTAINER__;
+    if (redisContainer) {
+      await redisContainer.stop();
+    }
+  } catch {
+    // Ignore — avoid masking test failures
+  }
+
+  try {
+    if (fs.existsSync(TEST_CONFIG_PATH)) {
+      fs.unlinkSync(TEST_CONFIG_PATH);
+    }
+  } catch {
+    // Ignore — temp file cleanup is best-effort
+  }
 }

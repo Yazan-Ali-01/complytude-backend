@@ -23,6 +23,7 @@ const sharedProjectConfig = {
     '^.+\\.(t|j)s$': ['@swc/jest', swcTransformConfig],
   },
   moduleNameMapper: {
+    '^file-type$': '<rootDir>/test/mocks/file-type.mock.ts',
     '^src/(.*)$': '<rootDir>/src/$1',
     '^@lib/database$': '<rootDir>/../../libs/database/src',
     '^@lib/database/(.*)$': '<rootDir>/../../libs/database/src/$1',

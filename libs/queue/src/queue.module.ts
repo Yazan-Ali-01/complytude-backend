@@ -61,6 +61,9 @@ export class QueueModule {
       password: config.password,
       db: config.db,
       tls: config.tls,
+      // Prevents CLIENT SETINFO from being queued on connect; avoids "Connection is closed"
+      // during graceful shutdown when quit() runs with pending commands (ioredis #2025)
+      disableClientInfo: true,
       maxRetriesPerRequest: null,
       retryStrategy: (times) => {
         if (times > 3) {

@@ -66,12 +66,11 @@
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "type-check": "tsc --noEmit",
     "// === 🧪 Tests ===": "",
-    "// --passWithNoTests: needed while no tests exist; consider removing once COM-140+ lands": "",
-    "test": "jest --passWithNoTests",
-    "test:unit": "jest --selectProjects unit --passWithNoTests",
-    "test:integration": "jest --selectProjects integration --passWithNoTests",
-    "test:integration:watch": "jest --selectProjects integration --watch --passWithNoTests",
-    "test:coverage": "jest --coverage --passWithNoTests"
+    "test": "jest",
+    "test:unit": "jest --selectProjects unit",
+    "test:integration": "jest --selectProjects integration",
+    "test:integration:watch": "jest --selectProjects integration --watch",
+    "test:coverage": "jest --coverage"
   },
   "ts-node": {
     "// Required for jest.config.ts — root tsconfig uses nodenext which ts-node can't load": "",
