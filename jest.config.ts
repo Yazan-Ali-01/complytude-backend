@@ -64,6 +64,7 @@ const config: Config = {
     'apps/api/src/**/*.ts',
     '!apps/api/src/**/*.spec.ts',
     '!apps/api/src/**/*.integration.spec.ts',
+    // TODO: Add libs/*/src/**/*.ts when lib-level tests or cross-lib coverage is needed
   ],
   coverageProvider: 'v8',
 };
