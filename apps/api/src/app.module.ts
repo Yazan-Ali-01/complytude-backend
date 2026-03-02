@@ -28,6 +28,7 @@ import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TemplatesModule } from './modules/templates/templates.module';
+import { StripeModule } from './modules/stripe/stripe.module';
 import { TenantRbacModule } from './modules/tenant-rbac/tenant-rbac.module';
 import { TenantModule } from './modules/tenants/tenant.module';
 
@@ -63,6 +64,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     AuthoritiesModule,
     RulesetsModule,
     DocumentsModule,
+    StripeModule,
     TenantRbacModule,
     PlatformRbacModule,
     AuditModule,

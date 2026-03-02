@@ -54,4 +54,9 @@ export const validationSchema = Joi.object({
   REDIS_QUEUE_DB: Joi.number().default(1),
   REDIS_TLS: Joi.boolean().default(false),
   REDIS_KEY_PREFIX: Joi.string().default('complytude:'),
+
+  // Stripe
+  STRIPE_SECRET_KEY: Joi.string().required(),
+  STRIPE_WEBHOOK_SECRET: Joi.string().required(),
+  STRIPE_PUBLISHABLE_KEY: Joi.string().required(),
 });
