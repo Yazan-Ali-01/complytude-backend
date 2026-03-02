@@ -57,6 +57,8 @@ const config: Config = {
       globalTeardown: '<rootDir>/test/setup/global-teardown.ts',
       setupFiles: ['<rootDir>/test/setup/jest.setup.ts'],
       testTimeout: 30000,
+      // Cap workers at 16 — each worker uses one Redis DB (0-15), Redis default limit
+      maxWorkers: 16,
     },
   ],
   coverageDirectory: 'coverage',
