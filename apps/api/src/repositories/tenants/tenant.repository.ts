@@ -87,6 +87,7 @@ type TenantRow = {
   settings: Record<string, unknown>;
   brand_color_primary?: string | null;
   brand_color_secondary?: string | null;
+  stripe_customer_id?: string | null;
   deactivated_at?: Date | null;
   deactivation_reason?: string | null;
   onboarding_completed_at?: Date | null;
@@ -257,6 +258,7 @@ export class TenantRepository extends BaseRepository<
       'settings',
       'brand_color_primary',
       'brand_color_secondary',
+      'stripe_customer_id',
       'deactivated_at',
       'deactivation_reason',
       'onboarding_completed_at',
@@ -299,6 +301,7 @@ export class TenantRepository extends BaseRepository<
       settings: data.settings ?? {},
       brand_color_primary: data.brand_color_primary ?? null,
       brand_color_secondary: data.brand_color_secondary ?? null,
+      stripe_customer_id: data.stripe_customer_id ?? null,
       deactivated_at: data.deactivated_at ?? null,
       deactivation_reason: data.deactivation_reason ?? null,
       onboarding_completed_at: data.onboarding_completed_at ?? null,
@@ -306,6 +309,56 @@ export class TenantRepository extends BaseRepository<
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
+  }
+
+  /**
+   * Store or update the Stripe customer ID for a tenant.
+   * Caller must provide a platform admin context client so RLS permits the UPDATE.
+   */
+  async updateStripeCustomerId(
+    tenantId: string,
+    stripeCustomerId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    const result = await this.executeQuery(
+      `UPDATE ${this.tableName} SET stripe_customer_id = $1, updated_at = NOW() WHERE id = $2`,
+      [stripeCustomerId, tenantId],
+      options,
+    );
+    if (result.rowCount === 0) {
+      throw new Error(
+        `updateStripeCustomerId: no tenant found with id ${tenantId}`,
+      );
+    }
+  }
+
+  /**
+   * Find a tenant by its Stripe customer ID.
+   * Caller must provide a platform admin context client so RLS permits the SELECT.
+   */
+  async findByStripeCustomerId(
+    stripeCustomerId: string,
+    options?: QueryOptions,
+  ): Promise<Tenant | null> {
+    const result = await this.executeQuery<TenantRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE stripe_customer_id = $1 LIMIT 1`,
+      [stripeCustomerId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
+   * Find all tenants that do not yet have a Stripe customer ID.
+   * Caller must provide a platform admin context client so RLS permits the SELECT.
+   */
+  async findWithoutStripeCustomer(options?: QueryOptions): Promise<Tenant[]> {
+    const result = await this.executeQuery<TenantRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE stripe_customer_id IS NULL ORDER BY created_at ASC`,
+      [],
+      options,
+    );
+    return result.rows.map((row) => this.mapRow(row));
   }
 
   /**

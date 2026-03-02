@@ -440,6 +440,28 @@ export class UserTenantRepository extends BaseRepository<
   }
 
   /**
+   * Find the email of the first tenant_admin user in the given tenant.
+   * Used by Stripe customer creation to populate customer email.
+   * Caller must provide a platform admin context client so RLS permits the SELECT.
+   */
+  async findTenantAdminEmail(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<string | null> {
+    const result = await this.executeQuery<{ email: string }>(
+      `SELECT u.email
+       FROM ${this.tableName} ut
+       JOIN public.users u ON ut.user_id = u.id
+       WHERE ut.tenant_id = $1 AND ut.role_key = 'tenant_admin'
+       ORDER BY ut.joined_at ASC
+       LIMIT 1`,
+      [tenantId],
+      options,
+    );
+    return result.rows[0]?.email ?? null;
+  }
+
+  /**
    * Get user in tenant.
    *
    * @param userId - User ID

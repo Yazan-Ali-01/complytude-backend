@@ -11,6 +11,7 @@ import {
 import { PoolClient } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { StripeCustomerService } from '../stripe/services/stripe-customer.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
@@ -61,6 +62,7 @@ export class TenantService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
+    private readonly stripeCustomerService: StripeCustomerService,
     // private readonly entitlementResolver: EntitlementResolverService,
   ) {}
 
@@ -75,7 +77,10 @@ export class TenantService {
    * Does NOT require RLS context since it's inserting a new row (RLS policies typically allow INSERT).
    *
    * @param createTenantDto - Tenant configuration including plan selection
-   * @param options - Optional database client for transaction support (used by parent transactions)
+   * @param options - Optional database client for transaction support (used by parent transactions).
+   *   `creatorEmail` and `creatorUserId` are forwarded to Stripe customer creation.
+   *   TODO: Wire creatorEmail/creatorUserId from the signup flow once tenant creation is
+   *   integrated with the auth/signup path.
    * @returns The created Tenant entity with generated ID and timestamps
    *
    * @throws InternalServerErrorException - If database operation fails
@@ -87,9 +92,15 @@ export class TenantService {
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
-    options?: { client?: PoolClient },
+    options?: {
+      client?: PoolClient;
+      creatorEmail?: string;
+      creatorUserId?: string;
+    },
   ): Promise<Tenant> {
-    const { client } = options ?? {};
+    const { client, creatorEmail, creatorUserId } = options ?? {};
+
+    let tenant: Tenant;
 
     try {
       const tenantCreation = async (client: PoolClient) => {
@@ -103,15 +114,25 @@ export class TenantService {
       };
 
       // Reuse provided client or start new transaction
-      if (client) {
-        return await tenantCreation(client);
-      } else {
-        return await this.databaseService.transaction(tenantCreation);
-      }
+      tenant = client
+        ? await tenantCreation(client)
+        : await this.databaseService.transaction(tenantCreation);
     } catch (error) {
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
       throw new InternalServerErrorException('Failed to create tenant');
     }
+
+    // Non-fatal: Stripe customer creation must never block tenant signup.
+    // Fires and forgets — the returned `tenant` object will have stripe_customer_id = null.
+    // Downstream code that needs a guaranteed customer ID should call
+    // StripeCustomerService.getOrCreateCustomer() instead of reading tenant.stripe_customer_id directly.
+    void this.stripeCustomerService.createCustomerForTenant(
+      tenant,
+      creatorEmail,
+      creatorUserId,
+    );
+
+    return tenant;
   }
 
   /**
