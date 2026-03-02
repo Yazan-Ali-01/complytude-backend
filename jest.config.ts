@@ -11,7 +11,7 @@ const swcTransformConfig = {
       decoratorMetadata: true,
     },
     keepClassNames: true,
-    target: 'es2022',
+    target: 'es2023',
   },
   module: {
     type: 'commonjs',
@@ -51,6 +51,7 @@ const config: Config = {
       displayName: 'integration',
       rootDir: '<rootDir>/apps/api',
       testMatch: ['<rootDir>/**/*.integration.spec.ts'],
+      // Runs via ts-node (package.json ts-node config). Required for .ts files outside Jest transform.
       globalSetup: '<rootDir>/test/setup/global-setup.ts',
       globalTeardown: '<rootDir>/test/setup/global-teardown.ts',
       setupFiles: ['<rootDir>/test/setup/jest.setup.ts'],
@@ -58,6 +59,7 @@ const config: Config = {
     },
   ],
   coverageDirectory: 'coverage',
+  // Paths relative to repo root (jest.config.ts location)
   collectCoverageFrom: [
     'apps/api/src/**/*.ts',
     '!apps/api/src/**/*.spec.ts',

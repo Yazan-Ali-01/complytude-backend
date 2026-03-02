@@ -66,6 +66,7 @@
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "type-check": "tsc --noEmit",
     "// === 🧪 Tests ===": "",
+    "// --passWithNoTests: needed while no tests exist; consider removing once COM-140+ lands": "",
     "test": "jest --passWithNoTests",
     "test:unit": "jest --selectProjects unit --passWithNoTests",
     "test:integration": "jest --selectProjects integration --passWithNoTests",
