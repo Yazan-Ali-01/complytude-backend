@@ -6,7 +6,9 @@ import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-we
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { StripeAdminController } from './controllers/stripe-admin.controller';
+import { StripeCheckoutController } from './controllers/stripe-checkout.controller';
 import { StripeCatalogSyncService } from './services/stripe-catalog-sync.service';
+import { StripeCheckoutService } from './services/stripe-checkout.service';
 import { StripeCustomerService } from './services/stripe-customer.service';
 import { StripeTaxService } from './services/stripe-tax.service';
 import { StripeService } from './stripe.service';
@@ -17,7 +19,11 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
 @Global()
 @Module({
   imports: [ConfigModule.forFeature(stripeConfig), DatabaseModule],
-  controllers: [StripeWebhookController, StripeAdminController],
+  controllers: [
+    StripeWebhookController,
+    StripeAdminController,
+    StripeCheckoutController,
+  ],
   providers: [
     StripeService,
     StripeWebhookService,
@@ -25,6 +31,7 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     StripeEventHandlersService,
     StripeCatalogSyncService,
     StripeCustomerService,
+    StripeCheckoutService,
     StripeTaxService,
     TenantRepository,
     UserTenantRepository,
