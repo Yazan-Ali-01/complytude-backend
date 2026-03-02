@@ -119,9 +119,6 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
-      stripe:
-        specifier: ^20.4.0
-        version: 20.4.0(@types/node@22.19.1)
       tiktoken:
         specifier: ^1.0.22
         version: 1.0.22
@@ -306,6 +303,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      stripe:
+        specifier: ^20.4.0
+        version: 20.4.0(@types/node@24.10.1)
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
@@ -8077,9 +8077,9 @@ snapshots:
 
   strip-json-comments@3.1.1: {}
 
-  stripe@20.4.0(@types/node@22.19.1):
+  stripe@20.4.0(@types/node@24.10.1):
     optionalDependencies:
-      '@types/node': 22.19.1
+      '@types/node': 24.10.1
 
   strnum@2.1.1: {}
 

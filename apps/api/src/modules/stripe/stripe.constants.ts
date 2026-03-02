@@ -30,5 +30,6 @@ export const STRIPE_WEBHOOK_EVENTS = {
   PAYMENT_METHOD_DETACHED: 'payment_method.detached',
 } as const;
 
-export type StripeWebhookEvent =
+/** Union of all known Stripe event type strings (e.g. 'invoice.paid'). */
+export type StripeWebhookEventType =
   (typeof STRIPE_WEBHOOK_EVENTS)[keyof typeof STRIPE_WEBHOOK_EVENTS];
