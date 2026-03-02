@@ -20,6 +20,10 @@ type TenantSubscriptionRow = {
   current_period_end: Date;
   cancelled_at: Date | null;
   metadata: unknown;
+  stripe_subscription_id: string | null;
+  stripe_schedule_id: string | null;
+  stripe_current_period_end: Date | null;
+  stripe_status: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -43,7 +47,7 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, plan_id, status, billing_period_start, billing_period_end, current_period_start, current_period_end, cancelled_at, metadata, created_at, updated_at';
+    return 'id, tenant_id, plan_id, status, billing_period_start, billing_period_end, current_period_start, current_period_end, cancelled_at, metadata, stripe_subscription_id, stripe_schedule_id, stripe_current_period_end, stripe_status, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): TenantSubscription {
@@ -59,6 +63,10 @@ export class SubscriptionsRepository extends BaseRepository<
       current_period_end: data.current_period_end,
       cancelled_at: data.cancelled_at ?? undefined,
       metadata: (data.metadata as Record<string, any>) ?? {},
+      stripe_subscription_id: data.stripe_subscription_id,
+      stripe_schedule_id: data.stripe_schedule_id,
+      stripe_current_period_end: data.stripe_current_period_end,
+      stripe_status: data.stripe_status,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

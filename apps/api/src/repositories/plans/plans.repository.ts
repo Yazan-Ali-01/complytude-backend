@@ -21,6 +21,9 @@ type PlanRow = {
   is_active: boolean;
   sort_order: number;
   metadata: unknown;
+  stripe_product_id: string | null;
+  stripe_price_id_monthly: string | null;
+  stripe_price_id_annual: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -40,7 +43,7 @@ export class PlansRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, description, price_monthly, price_currency, billing_period, is_active, sort_order, metadata, created_at, updated_at';
+    return 'id, key, name, description, price_monthly, price_currency, billing_period, is_active, sort_order, metadata, stripe_product_id, stripe_price_id_monthly, stripe_price_id_annual, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Plan {
@@ -56,6 +59,9 @@ export class PlansRepository extends BaseRepository<
       is_active: data.is_active,
       sort_order: data.sort_order,
       metadata: (data.metadata as Record<string, any>) ?? {},
+      stripe_product_id: data.stripe_product_id,
+      stripe_price_id_monthly: data.stripe_price_id_monthly,
+      stripe_price_id_annual: data.stripe_price_id_annual,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

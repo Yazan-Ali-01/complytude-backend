@@ -49,6 +49,7 @@ CREATE TABLE public.tenants (
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deactivated_at   TIMESTAMPTZ DEFAULT NULL,
     deactivation_reason TEXT DEFAULT NULL,
+    stripe_customer_id VARCHAR(255) UNIQUE DEFAULT NULL,
 
     CONSTRAINT fk_tenants_parent
         FOREIGN KEY (parent_tenant_id)
@@ -60,6 +61,7 @@ CREATE TABLE public.tenants (
 COMMENT ON TABLE public.tenants IS 'Organizations/companies using the platform';
 COMMENT ON COLUMN public.tenants.id IS 'Unique tenant identifier (UUID)';
 COMMENT ON COLUMN public.tenants.name IS 'Tenant name (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.stripe_customer_id IS 'Stripe customer ID (cus_xxx), NULL until billing is set up';
 COMMENT ON COLUMN public.tenants.plan IS 'Subscription plan: navigator, shield, general_counsel, or infrastructure';
 COMMENT ON COLUMN public.tenants.logo_url IS 'Tenant logo URL (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.brand_color_primary IS 'Tenant brand color primary (NULL for anonymous tenants)';
@@ -597,6 +599,9 @@ CREATE INDEX idx_tenants_emirate ON public.tenants(emirate);
 -- Quick lookup of deactivated tenants
 CREATE INDEX idx_tenants_deactivated ON public.tenants(deactivated_at) WHERE deactivated_at IS NOT NULL;
 
+-- Stripe customer lookup (partial: only indexes non-NULL values)
+CREATE UNIQUE INDEX idx_tenants_stripe_customer_id ON public.tenants(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
+
 
 -- =========================
 -- THIS IS THE CODE FOR THE GLOBAL SLUG CHECK
@@ -825,6 +830,7 @@ DROP INDEX IF EXISTS public.idx_user_tenants_user_active;
 DROP INDEX IF EXISTS public.idx_users_email_verified;
 DROP INDEX IF EXISTS public.idx_users_platform_role;
 
+DROP INDEX IF EXISTS public.idx_tenants_stripe_customer_id;
 DROP INDEX IF EXISTS public.idx_tenants_parent_tenant_id;
 DROP INDEX IF EXISTS public.idx_tenants_is_active;
 DROP INDEX IF EXISTS public.idx_tenants_deactivated;

@@ -18,6 +18,8 @@ type CreateAddonRow = {
   price_currency?: string;
   is_active?: boolean;
   metadata?: string;
+  stripe_product_id?: string | null;
+  stripe_price_id?: string | null;
 };
 
 type UpdateAddonRow = {
@@ -27,6 +29,8 @@ type UpdateAddonRow = {
   price_currency?: string;
   is_active?: boolean;
   metadata?: string;
+  stripe_product_id?: string | null;
+  stripe_price_id?: string | null;
 };
 
 type AddonRow = {
@@ -38,6 +42,8 @@ type AddonRow = {
   price_currency: string;
   is_active: boolean;
   metadata: unknown;
+  stripe_product_id: string | null;
+  stripe_price_id: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -64,7 +70,7 @@ export class AddonsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, description, price_monthly, price_currency, is_active, metadata, created_at, updated_at';
+    return 'id, key, name, description, price_monthly, price_currency, is_active, metadata, stripe_product_id, stripe_price_id, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Addon {
@@ -78,6 +84,8 @@ export class AddonsRepository extends BaseRepository<
       price_currency: data.price_currency,
       is_active: data.is_active,
       metadata: (data.metadata as Record<string, any>) ?? {},
+      stripe_product_id: data.stripe_product_id,
+      stripe_price_id: data.stripe_price_id,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

@@ -20,6 +20,7 @@ type TenantAddonRow = {
   starts_at: Date;
   expires_at: Date | null;
   metadata: unknown;
+  stripe_subscription_item_id: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -39,7 +40,7 @@ export class TenantAddonsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, addon_id, quantity, status, starts_at, expires_at, metadata, created_at, updated_at';
+    return 'id, tenant_id, addon_id, quantity, status, starts_at, expires_at, metadata, stripe_subscription_item_id, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): TenantAddon {
@@ -53,6 +54,7 @@ export class TenantAddonsRepository extends BaseRepository<
       starts_at: data.starts_at,
       expires_at: data.expires_at ?? undefined,
       metadata: (data.metadata as Record<string, any>) ?? {},
+      stripe_subscription_item_id: data.stripe_subscription_item_id,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

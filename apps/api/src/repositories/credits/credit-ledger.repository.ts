@@ -19,6 +19,7 @@ type CreditLedgerRow = {
   expires_at: Date | null;
   metadata: unknown;
   idempotency_key: string | null;
+  stripe_payment_intent_id: string | null;
   recorded_at: Date;
 };
 
@@ -39,7 +40,7 @@ export class CreditLedgerRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, transaction_type, amount, balance_after, feature_id, usage_ledger_id, reason, applied_by, expires_at, metadata, idempotency_key, recorded_at';
+    return 'id, tenant_id, transaction_type, amount, balance_after, feature_id, usage_ledger_id, reason, applied_by, expires_at, metadata, idempotency_key, stripe_payment_intent_id, recorded_at';
   }
 
   protected mapRow(row: Record<string, unknown>): CreditLedgerTransaction {
@@ -58,6 +59,7 @@ export class CreditLedgerRepository extends BaseRepository<
       expires_at: data.expires_at ?? undefined,
       metadata: (data.metadata as Record<string, any>) ?? {},
       idempotency_key: data.idempotency_key ?? undefined,
+      stripe_payment_intent_id: data.stripe_payment_intent_id,
       recorded_at: data.recorded_at,
     };
   }

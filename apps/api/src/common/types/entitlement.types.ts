@@ -81,6 +81,9 @@ export interface Plan {
   is_active: boolean;
   sort_order: number;
   metadata: Record<string, any>;
+  stripe_product_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -105,6 +108,8 @@ export interface Addon {
   price_currency: string;
   is_active: boolean;
   metadata: Record<string, any>;
+  stripe_product_id?: string | null;
+  stripe_price_id?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -137,6 +142,10 @@ export interface TenantSubscription {
   current_period_end: Date;
   cancelled_at?: Date;
   metadata: Record<string, any>;
+  stripe_subscription_id?: string | null;
+  stripe_schedule_id?: string | null;
+  stripe_current_period_end?: Date | null;
+  stripe_status?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -150,6 +159,7 @@ export interface TenantAddon {
   starts_at: Date;
   expires_at?: Date;
   metadata: Record<string, any>;
+  stripe_subscription_item_id?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -218,6 +228,7 @@ export interface CreditLedgerTransaction {
   expires_at?: Date;
   metadata: Record<string, any>;
   idempotency_key?: string;
+  stripe_payment_intent_id?: string | null;
   recorded_at: Date;
 }
 
@@ -362,6 +373,9 @@ export interface CreatePlanRow {
   is_active?: boolean;
   sort_order?: number;
   metadata?: string; // Stringified JSON
+  stripe_product_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
 }
 
 export interface UpdatePlanRow {
@@ -373,6 +387,9 @@ export interface UpdatePlanRow {
   is_active?: boolean;
   sort_order?: number;
   metadata?: string; // Stringified JSON
+  stripe_product_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
 }
 
 // Plan Entitlements
@@ -405,6 +422,10 @@ export interface CreateTenantSubscriptionRow {
   current_period_end: Date;
   cancelled_at?: Date;
   metadata?: string; // Stringified JSON
+  stripe_subscription_id?: string | null;
+  stripe_schedule_id?: string | null;
+  stripe_current_period_end?: Date | null;
+  stripe_status?: string | null;
 }
 
 export interface UpdateTenantSubscriptionRow {
@@ -415,6 +436,10 @@ export interface UpdateTenantSubscriptionRow {
   current_period_end?: Date;
   cancelled_at?: Date;
   metadata?: string; // Stringified JSON
+  stripe_subscription_id?: string | null;
+  stripe_schedule_id?: string | null;
+  stripe_current_period_end?: Date | null;
+  stripe_status?: string | null;
 }
 
 // Tenant Addons
@@ -427,6 +452,7 @@ export interface CreateTenantAddonRow {
   starts_at?: Date;
   expires_at?: Date;
   metadata?: string; // Stringified JSON
+  stripe_subscription_item_id?: string | null;
 }
 
 export interface UpdateTenantAddonRow {
@@ -434,6 +460,7 @@ export interface UpdateTenantAddonRow {
   status?: string;
   expires_at?: Date;
   metadata?: string; // Stringified JSON
+  stripe_subscription_item_id?: string | null;
 }
 
 // Tenant Overrides
@@ -496,6 +523,7 @@ export interface CreateCreditLedgerRow {
   expires_at?: Date;
   metadata?: string; // Stringified JSON
   idempotency_key?: string;
+  stripe_payment_intent_id?: string | null;
 }
 
 // Aggregated Usage
@@ -591,4 +619,43 @@ export interface SnapshotComparison {
   snapshotTimeMs: number;
   computeTimeMs: number;
   speedup: string; // e.g., "3.2x faster"
+}
+
+// =========================
+// STRIPE TYPES
+// =========================
+
+export type StripeWebhookProcessingStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed';
+
+export interface StripeWebhookEvent {
+  id: string;
+  stripe_event_id: string;
+  event_type: string;
+  stripe_api_version?: string | null;
+  data: Record<string, any>;
+  processing_status: StripeWebhookProcessingStatus;
+  processing_error?: string | null;
+  attempts: number;
+  processed_at?: Date | null;
+  created_at: Date;
+}
+
+export interface CreateStripeWebhookEventRow {
+  id?: string;
+  stripe_event_id: string;
+  event_type: string;
+  stripe_api_version?: string | null;
+  data: string; // Stringified JSON
+  processing_status?: StripeWebhookProcessingStatus;
+}
+
+export interface UpdateStripeWebhookEventRow {
+  processing_status?: StripeWebhookProcessingStatus;
+  processing_error?: string | null;
+  attempts?: number;
+  processed_at?: Date | null;
 }
