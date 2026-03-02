@@ -2,10 +2,10 @@ import { ApiProperty } from '@nestjs/swagger';
 import { RulesetVersionResponseDto } from './ruleset-version-response.dto';
 
 /**
- * Ruleset response DTO
- * Returns ruleset details with all fields including current version data
+ * Ruleset summary DTO for list endpoints.
+ * Omits currentVersionData to avoid N+1 queries.
  */
-export class RulesetResponseDto {
+export class RulesetSummaryResponseDto {
   @ApiProperty({
     description: 'Ruleset unique identifier',
     example: '550e8400-e29b-41d4-a716-446655440000',
@@ -45,12 +45,6 @@ export class RulesetResponseDto {
   currentVersion: string;
 
   @ApiProperty({
-    description: 'Current version data including clauses',
-    type: RulesetVersionResponseDto,
-  })
-  currentVersionData: RulesetVersionResponseDto;
-
-  @ApiProperty({
     description: 'Ruleset status',
     enum: ['active', 'inactive', 'deprecated'],
     example: 'active',
@@ -85,4 +79,16 @@ export class RulesetResponseDto {
     format: 'date-time',
   })
   updatedAt: string;
+}
+
+/**
+ * Full ruleset response DTO for single-item endpoints.
+ * Includes current version data with clauses.
+ */
+export class RulesetResponseDto extends RulesetSummaryResponseDto {
+  @ApiProperty({
+    description: 'Current version data including clauses',
+    type: RulesetVersionResponseDto,
+  })
+  currentVersionData: RulesetVersionResponseDto;
 }
