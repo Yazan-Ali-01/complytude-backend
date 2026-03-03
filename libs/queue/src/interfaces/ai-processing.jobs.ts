@@ -2,6 +2,7 @@ export const AI_JOB_NAMES = {
   DOCUMENT_GENERATION: 'document-generation',
   TEMPLATE_ANALYSIS: 'template-analysis',
   ARABIC_TRANSLATION: 'arabic-translation',
+  DOCUMENT_ANALYSIS: 'document-analysis',
 } as const;
 
 export type AiJobName = (typeof AI_JOB_NAMES)[keyof typeof AI_JOB_NAMES];
@@ -25,4 +26,10 @@ export interface ArabicTranslationJobData {
   tenantId: string;
   documentId: string;
   changedBlockIds: string[];
+}
+
+export interface DocumentAnalysisJobData {
+  analysisJobId: string;
+  documentId: string;
+  tenantId: string;
 }

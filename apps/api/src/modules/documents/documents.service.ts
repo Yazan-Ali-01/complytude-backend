@@ -1,6 +1,13 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { AI_JOB_NAMES, QUEUE_NAMES, QueueProducerService } from '@lib/queue';
+import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
+import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
+import { DocumentRepository } from 'src/repositories/documents/document.repository';
+import { DatabaseService } from '../../database/database.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedTenantUser } from '../auth/strategies';
 import type {
+  AnalyzeDocumentDto,
+  AnalyzeDocumentResponseDto,
   DeleteDocumentResponseDto,
   DocumentListResponseDto,
   DocumentResponseDto,
@@ -11,16 +18,66 @@ import type {
   PreviewDocumentResponseDto,
 } from './dto';
 
-/**
- * Documents Service
- *
- * This is a stub service for API contract definition.
- * All methods throw NotImplementedException and will be implemented in the business logic phase.
- */
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly documentRepository: DocumentRepository,
+    private readonly analysisJobRepository: AnalysisJobRepository,
+    private readonly queueProducerService: QueueProducerService,
+  ) {}
+
+  async analyze(
+    dto: AnalyzeDocumentDto,
+    user: AuthenticatedTenantUser,
+  ): Promise<AnalyzeDocumentResponseDto> {
+    const { documentId, analysisJobId } =
+      await this.databaseService.transactionWithTenantContext(
+        { tenantId: user.tenantId },
+        async (client) => {
+          const document = await this.documentRepository.create(
+            {
+              tenant_id: user.tenantId,
+              title: dto.title,
+              content: dto.content,
+              created_by: user.userId,
+              metadata: JSON.stringify({}),
+            },
+            { client },
+          );
+
+          const analysisJob = await this.analysisJobRepository.create(
+            {
+              tenant_id: user.tenantId,
+              document_id: document.id,
+              created_by: user.userId,
+              status: 'queued',
+            },
+            { client },
+          );
+
+          return { documentId: document.id, analysisJobId: analysisJob.id };
+        },
+      );
+
+    await this.queueProducerService.enqueue(
+      QUEUE_NAMES.AI_PROCESSING,
+      AI_JOB_NAMES.DOCUMENT_ANALYSIS,
+      { analysisJobId, documentId, tenantId: user.tenantId },
+      { jobId: `doc-analysis-${analysisJobId}` },
+    );
+
+    this.logger.log(
+      `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJobId} tenantId=${user.tenantId}`,
+    );
+
+    return { documentId, analysisJobId };
+  }
+
   /**
-   * Generate a temporary preview document
+   * @deprecated stub — will be implemented in a later ticket
    */
   preview(
     _dto: PreviewDocumentDto,
@@ -32,7 +89,7 @@ export class DocumentsService {
   }
 
   /**
-   * Generate and save a permanent document
+   * @deprecated stub — will be implemented in a later ticket
    */
   generate(
     _dto: GenerateDocumentDto,
@@ -44,7 +101,7 @@ export class DocumentsService {
   }
 
   /**
-   * List all documents for the authenticated user's tenant
+   * @deprecated stub — will be implemented in a later ticket
    */
   findAll(
     _query: ListDocumentsQueryDto,
@@ -54,14 +111,14 @@ export class DocumentsService {
   }
 
   /**
-   * Get a single document by ID with full details
+   * @deprecated stub — will be implemented in a later ticket
    */
   findOne(_id: string, _user: AuthenticatedUser): Promise<DocumentResponseDto> {
     throw new NotImplementedException('Document retrieval not yet implemented');
   }
 
   /**
-   * Soft-delete a document
+   * @deprecated stub — will be implemented in a later ticket
    */
   remove(
     _id: string,
