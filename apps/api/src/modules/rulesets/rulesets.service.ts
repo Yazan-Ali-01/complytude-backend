@@ -1,5 +1,10 @@
 import { OffsetPaginationOptions, OffsetPaginationResult } from '@lib/database';
 import {
+  INGESTION_JOB_NAMES,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
+import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -34,6 +39,7 @@ export class RulesetsService {
     private readonly rulesetRepository: RulesetRepository,
     private readonly rulesetVersionRepository: RulesetVersionRepository,
     private readonly authorityRepository: AuthorityRepository,
+    private readonly queueProducerService: QueueProducerService,
   ) {}
 
   async create(
@@ -52,7 +58,7 @@ export class RulesetsService {
         await this.validateAuthorityExists(dto.authority_id);
       }
 
-      return await this.databaseService.transaction(async (client) => {
+      const result = await this.databaseService.transaction(async (client) => {
         const ruleset = await this.rulesetRepository.create(
           {
             key: dto.key,
@@ -81,8 +87,18 @@ export class RulesetsService {
         this.logger.log(
           `Created ruleset "${dto.key}" with initial version 1.0.0`,
         );
+
         return { ruleset, currentVersionData: version };
-      }, true);
+      });
+
+      await this.enqueueIngestion(
+        result.ruleset.id,
+        result.currentVersionData.id,
+        dto.key,
+        '1.0.0',
+      );
+
+      return result;
     } catch (error) {
       this.handleError(error, `create ruleset "${dto.key}"`);
     }
@@ -217,6 +233,9 @@ export class RulesetsService {
       });
 
       this.logger.log(`Created version "${dto.version}" for ruleset "${key}"`);
+
+      await this.enqueueIngestion(ruleset.id, version.id, key, dto.version);
+
       return version;
     } catch (error) {
       this.handleError(error, `create version for ruleset "${key}"`);
@@ -314,11 +333,69 @@ export class RulesetsService {
       this.logger.log(
         `Rolled back ruleset "${key}" from v${sourceVersion} → v${newVersion}`,
       );
+
+      await this.enqueueIngestion(ruleset.id, version.id, key, newVersion);
+
       return version;
     } catch (error) {
       this.handleError(
         error,
         `rollback ruleset "${key}" from v${sourceVersion}`,
+      );
+    }
+  }
+
+  async enqueueIngestionForActiveVersion(
+    key: string,
+  ): Promise<{ jobId: string | undefined; versionId: string }> {
+    const ruleset = await this.rulesetRepository.findByKey(key);
+    if (!ruleset) {
+      throw new NotFoundException(`Ruleset with key "${key}" not found`);
+    }
+
+    const activeVersion =
+      await this.rulesetVersionRepository.findActiveByRulesetId(ruleset.id);
+    if (!activeVersion) {
+      throw new InternalServerErrorException(
+        `Ruleset "${key}" has no active version`,
+      );
+    }
+
+    // Manual /ingest endpoint: no jobId (allow re-ingestion for testing/backfill)
+    const job = await this.queueProducerService.enqueue(
+      QUEUE_NAMES.DATA_INGESTION,
+      INGESTION_JOB_NAMES.RULESET_INGESTION,
+      { rulesetId: ruleset.id, versionId: activeVersion.id },
+    );
+
+    this.logger.log(
+      `Manually enqueued ingestion job for ruleset "${key}" v${activeVersion.version} (jobId=${job.id})`,
+    );
+
+    return { jobId: job.id, versionId: activeVersion.id };
+  }
+
+  private async enqueueIngestion(
+    rulesetId: string,
+    versionId: string,
+    key: string,
+    version: string,
+  ): Promise<void> {
+    try {
+      await this.queueProducerService.enqueue(
+        QUEUE_NAMES.DATA_INGESTION,
+        INGESTION_JOB_NAMES.RULESET_INGESTION,
+        { rulesetId, versionId },
+        { jobId: `ruleset-ingest-${versionId}` },
+      );
+      this.logger.log(
+        `Enqueued ingestion job for ruleset "${key}" v${version} (versionId=${versionId})`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Failed to enqueue ingestion job for ruleset "${key}" v${version}: ${message}. ` +
+          `Use POST /rulesets/${key}/ingest to retry.`,
       );
     }
   }

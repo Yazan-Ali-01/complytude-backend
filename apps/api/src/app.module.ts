@@ -1,6 +1,6 @@
 import { databaseConfig, DatabaseModule } from '@lib/database';
-import { RedisModule } from '@lib/redis';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
+import { redisConfig, RedisModule } from '@lib/redis';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -14,7 +14,6 @@ import { UsersModule } from 'src/modules/users/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
-import redisConfig from './config/redis-config';
 import { I18nModule } from './i18n/i18n.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
