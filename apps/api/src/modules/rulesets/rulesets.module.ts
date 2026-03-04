@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AuthorityRepository } from 'src/repositories/authorities/authority.repository';
-import { RulesetRepository } from 'src/repositories/rulesets/ruleset.repository';
 import { RulesetVersionRepository } from 'src/repositories/rulesets/ruleset-version.repository';
-import { DatabaseModule } from '../../database/database.module';
+import { RulesetRepository } from 'src/repositories/rulesets/ruleset.repository';
 import { RulesetsController } from './rulesets.controller';
 import { RulesetsService } from './rulesets.service';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [],
   controllers: [RulesetsController],
   providers: [
     RulesetsService,

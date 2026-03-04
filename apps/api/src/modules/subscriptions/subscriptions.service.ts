@@ -1,4 +1,4 @@
-import { QueryOptions } from '@lib/database';
+import { DatabaseService, QueryOptions } from '@lib/database';
 import {
   BadRequestException,
   Injectable,
@@ -16,7 +16,6 @@ import {
   SubscriptionsRepository,
   TenantSubscriptionWithPlan,
 } from 'src/repositories/subscriptions/subscriptions.repository';
-import { DatabaseService } from '../../database/database.service';
 import { DomainEventsService } from '../entitlements/services/domain-events.service';
 
 /**

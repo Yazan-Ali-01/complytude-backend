@@ -1,12 +1,12 @@
 import {
   BaseRepository,
+  DatabaseService,
   OffsetPaginationOptions,
   OffsetPaginationResult,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import { Authority } from 'src/modules/authorities/entities/authority.entity';
-import { DatabaseService } from '../../database/database.service';
 
 export type CreateAuthorityRow = {
   id?: string;

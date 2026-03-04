@@ -1,4 +1,4 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   Addon,
@@ -6,7 +6,6 @@ import {
   FeatureKey,
   FeatureType,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 // Row types for BaseRepository (not used for reads but required by interface)
 type CreateAddonRow = {

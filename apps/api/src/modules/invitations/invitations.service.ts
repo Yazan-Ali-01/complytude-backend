@@ -1,4 +1,8 @@
-import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  DatabaseService,
+} from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -24,7 +28,6 @@ import {
 import { InvitationRepository } from 'src/repositories/invitations/invitation.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
-import { DatabaseService } from '../../database/database.service';
 
 export interface CreateInvitationServiceInput {
   tenantId: string;

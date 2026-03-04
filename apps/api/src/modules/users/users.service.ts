@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -9,7 +10,6 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { DatabaseService } from '../../database/database.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';

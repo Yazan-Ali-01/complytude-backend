@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../../database/database.module';
 import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -24,7 +23,7 @@ import { SubscriptionsService } from './subscriptions.service';
  * - EntitlementsModule (global): For snapshot invalidation, domain events, repositories
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],

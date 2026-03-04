@@ -1,5 +1,6 @@
 import {
   BaseRepository,
+  DatabaseService,
   OffsetPaginationOptions,
   OffsetPaginationResult,
   QueryOptions,
@@ -7,7 +8,6 @@ import {
 import { Injectable } from '@nestjs/common';
 import { RulesetVersion } from 'src/modules/rulesets/entities/ruleset-version.entity';
 import { RulesetClause } from 'src/modules/rulesets/entities/ruleset.entity';
-import { DatabaseService } from '../../database/database.service';
 
 export type CreateRulesetVersionRow = {
   ruleset_id: string;

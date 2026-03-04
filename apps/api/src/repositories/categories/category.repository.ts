@@ -1,12 +1,12 @@
 import {
   BaseRepository,
+  DatabaseService,
   OffsetPaginationOptions,
   OffsetPaginationResult,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import { Category } from 'src/modules/categories/entities/category.entity';
-import { DatabaseService } from '../../database/database.service';
 
 export type CreateCategoryRow = {
   id?: string;

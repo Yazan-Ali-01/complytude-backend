@@ -1,7 +1,6 @@
-import { QueryOptions } from '@lib/database';
+import { DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { DatabaseService } from '../../../database/database.service';
 import { CreditLedgerRepository } from '../../../repositories/credits/credit-ledger.repository';
 
 /**

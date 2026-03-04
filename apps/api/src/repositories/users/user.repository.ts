@@ -3,11 +3,11 @@ import {
   CursorPaginationHelper,
   CursorPaginationOptions,
   CursorPaginationResult,
+  DatabaseService,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import { User } from 'src/modules/users/entities/user.entity';
-import { DatabaseService } from '../../database/database.service';
 import {
   CreatePasswordResetInput,
   PasswordReset,
