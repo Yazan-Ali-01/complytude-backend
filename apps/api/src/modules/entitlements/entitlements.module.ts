@@ -1,5 +1,4 @@
 import { Global, Module } from '@nestjs/common';
-import { DatabaseModule } from 'src/database/database.module';
 import { CreditLedgerRepository } from 'src/repositories/credits/credit-ledger.repository';
 import { DomainEventsRepository } from 'src/repositories/domain-events/domain-events.repository';
 import { PlanEntitlementsRepository } from 'src/repositories/entitlements/plan-entitlements.repository';
@@ -53,7 +52,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
  */
 @Global()
 @Module({
-  imports: [DatabaseModule, I18nModule],
+  imports: [I18nModule],
   controllers: [
     EntitlementsController,
     AddonCatalogController,

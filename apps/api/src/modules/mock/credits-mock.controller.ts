@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Body,
@@ -7,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FeatureKey } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';

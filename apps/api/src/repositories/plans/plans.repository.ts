@@ -1,4 +1,4 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreatePlanRow,
@@ -8,7 +8,6 @@ import {
   PlanWithEntitlements,
   UpdatePlanRow,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type PlanRow = {
   id: string;

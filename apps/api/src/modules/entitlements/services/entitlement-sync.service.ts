@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PlanKey } from 'src/common/types/entitlement.types';
 import {
@@ -8,7 +9,6 @@ import {
   PLAN_CATALOG,
   PLAN_ENTITLEMENTS,
 } from '../../../common/constants/plan-entitlements.constant';
-import { DatabaseService } from '../../../database/database.service';
 import { PlanEntitlementsRepository } from '../../../repositories/entitlements/plan-entitlements.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { PlansRepository } from '../../../repositories/plans/plans.repository';

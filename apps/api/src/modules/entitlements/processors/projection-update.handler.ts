@@ -1,6 +1,6 @@
+import { DatabaseService } from '@lib/database';
 import { EntitlementProjectionUpdateJobData, Job } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../database/database.service';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
 import { DomainEventsService } from '../services/domain-events.service';
 import { UsageProjectionService } from '../services/usage-projection.service';

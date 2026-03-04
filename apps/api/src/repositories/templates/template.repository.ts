@@ -3,11 +3,11 @@ import {
   CursorPaginationHelper,
   CursorPaginationOptions,
   CursorPaginationResult,
+  DatabaseService,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import { Template } from 'src/modules/templates/entities/template.entity';
-import { DatabaseService } from '../../database/database.service';
 
 /**
  * Type for creating a new template row in the database.

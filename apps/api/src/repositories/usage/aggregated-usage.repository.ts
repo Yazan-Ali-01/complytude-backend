@@ -1,4 +1,4 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   AggregatedUsage,
@@ -7,7 +7,6 @@ import {
   IncrementUsageInput,
   UpdateAggregatedUsageRow,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type AggregatedUsageRow = {
   id: string;
