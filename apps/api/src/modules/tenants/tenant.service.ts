@@ -9,6 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
+import { deepMerge } from '../../common/utils/deep-merge.util';
 import { DatabaseService } from '../../database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -63,72 +64,6 @@ export class TenantService {
     private readonly tenantRepository: TenantRepository,
   ) {}
 
-  /**
-   * Deep merge two objects recursively
-   *
-   * Properly merges nested objects instead of replacing them.
-   * Arrays are replaced (not merged) to avoid ambiguity.
-   *
-   * @param target - Base object
-   * @param source - Object to merge into target
-   * @returns New merged object (does not mutate inputs)
-   *
-   * @example
-   * ```ts
-   * deepMerge(
-   *   { theme: { colors: { primary: 'blue' } } },
-   *   { theme: { colors: { secondary: 'red' } } }
-   * )
-   * // Returns: { theme: { colors: { primary: 'blue', secondary: 'red' } } }
-   * ```
-   */
-  private deepMerge<T extends Record<string, any>>(
-    target: T,
-    source: Partial<T>,
-  ): T {
-    const result = { ...target };
-
-    for (const key in source) {
-      if (!Object.prototype.hasOwnProperty.call(source, key)) {
-        continue;
-      }
-
-      const sourceValue = source[key];
-      const targetValue = result[key];
-
-      // Handle null/undefined - allow explicit null to clear values
-      if (sourceValue === null || sourceValue === undefined) {
-        result[key] = sourceValue as any;
-        continue;
-      }
-
-      // Check if both values are plain objects (not arrays, dates, etc.)
-      const isTargetObject =
-        targetValue !== null &&
-        typeof targetValue === 'object' &&
-        !Array.isArray(targetValue) &&
-        !((targetValue as Date) instanceof Date);
-
-      const isSourceObject =
-        typeof sourceValue === 'object' &&
-        !Array.isArray(sourceValue) &&
-        !((sourceValue as Date) instanceof Date);
-
-      // Recursively merge if both are plain objects
-      if (isTargetObject && isSourceObject) {
-        result[key] = this.deepMerge(
-          targetValue as Record<string, any>,
-          sourceValue as Record<string, any>,
-        ) as any;
-      } else {
-        // Otherwise replace (including arrays, primitives, dates)
-        result[key] = sourceValue as any;
-      }
-    }
-
-    return result;
-  }
-
   // ============================================================================
   // TENANT CREATION & ADMIN OPERATIONS
   // ============================================================================
@@ -153,13 +88,13 @@ export class TenantService {
    *
    * @example
    * ```ts
-   * return this.withContext(tenantId, context, async (client) => {
+   * return this.executeInTenantScope(tenantId, context, async (client) => {
    *   return this.tenantRepository.findById(tenantId, { client });
    * });
    * ```
    */
 
-  private async withContext<T>(
+  private async executeInTenantScope<T>(
     tenantId: string,
     context: TenantContext | undefined,
     callback: (client: PoolClient) => Promise<T>,
@@ -207,38 +142,21 @@ export class TenantService {
   }
 
   /**
-   * Execute operation with context and validate tenant exists
-   *
-   * Common pattern: fetch tenant first, then perform operation
-   * Throws NotFoundException if tenant not found or inaccessible
-   *
-   * @param tenantId - Tenant ID to validate and use for context
-   * @param context - Execution context
-   * @param callback - Operation to execute after validation
-   * @returns Result from callback
+   * Update tenant and throw NotFoundException if not found.
+   * Centralizes the repeated update + null-check pattern.
    */
-  private async withContextAndValidation<T>(
+  private async updateOrThrow(
     tenantId: string,
-    context: TenantContext | undefined,
-    callback: (client: PoolClient, tenant: Tenant) => Promise<T>,
-    options?: {
-      allowCrossTenantRead?: boolean;
-    },
-  ): Promise<T> {
-    return this.withContext(
-      tenantId,
-      context,
-      async (client) => {
-        const tenant = await this.tenantRepository.findById(tenantId, {
-          client,
-        });
-        if (!tenant) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
-        return callback(client, tenant);
-      },
-      options,
-    );
+    data: Record<string, any>,
+    client: PoolClient,
+  ): Promise<Tenant> {
+    const updated = await this.tenantRepository.update(tenantId, data, {
+      client,
+    });
+    if (!updated) {
+      throw new NotFoundException(`Tenant ${tenantId} not found`);
+    }
+    return updated;
   }
 
   /**
@@ -293,6 +211,7 @@ export class TenantService {
    * Returns 404 if tenant doesn't exist OR if caller lacks access per RLS policy.
    *
    * @param tenantId - UUID of the tenant to fetch
+   * @param options - TenantContext for scoped access, or { client } when already inside a transaction
    * @returns The Tenant entity if found and accessible
    *
    * @throws NotFoundException - If tenant not found or access denied by RLS
@@ -301,13 +220,25 @@ export class TenantService {
    * @example
    * ```ts
    * const tenant = await tenantService.findById('111...');
+   * const tenant = await tenantService.findById('111...', { client });
    * ```
    */
-  async findById(tenantId: string, context?: TenantContext): Promise<Tenant> {
-    return this.withContextAndValidation(
+  async findById(
+    tenantId: string,
+    options?: TenantContext | { client: PoolClient },
+  ): Promise<Tenant> {
+    const client = options && 'client' in options ? options.client : undefined;
+    if (client) {
+      const tenant = await this.tenantRepository.findById(tenantId, { client });
+      if (!tenant) {
+        throw new NotFoundException(`Tenant ${tenantId} not found`);
+      }
+      return tenant;
+    }
+    return this.executeInTenantScope(
       tenantId,
-      context,
-      async (client, tenant) => tenant,
+      options as TenantContext | undefined,
+      (c) => this.findById(tenantId, { client: c }),
     );
   }
 
@@ -364,16 +295,8 @@ export class TenantService {
     updateTenantDto: UpdateTenantDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    return this.withContextAndValidation(tenantId, context, async (client) => {
-      const updated = await this.tenantRepository.update(
-        tenantId,
-        updateTenantDto,
-        { client },
-      );
-      if (!updated) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
-      }
-      return updated;
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      return this.updateOrThrow(tenantId, updateTenantDto, client);
     });
   }
 
@@ -395,15 +318,11 @@ export class TenantService {
    * ```
    */
   async getDocumentCount(tenantId: string): Promise<number> {
-    return this.withContextAndValidation(
-      tenantId,
-      undefined,
-      async (client) => {
-        return await this.tenantRepository.getDocumentCount(tenantId, {
-          client,
-        });
-      },
-    );
+    return this.executeInTenantScope(tenantId, undefined, async (client) => {
+      return await this.tenantRepository.getDocumentCount(tenantId, {
+        client,
+      });
+    });
   }
 
   // ============================================================================
@@ -430,16 +349,8 @@ export class TenantService {
     dto: UpdateTenantProfileDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    return this.withContext(tenantId, context, async (client) => {
-      const updated = await this.tenantRepository.update(
-        tenantId,
-        { ...dto },
-        { client },
-      );
-      if (!updated) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
-      }
-      return updated;
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      return this.updateOrThrow(tenantId, { ...dto }, client);
     });
   }
 
@@ -465,7 +376,7 @@ export class TenantService {
     dto: UpdateTenantSlugDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    return this.withContext(
+    return this.executeInTenantScope(
       tenantId,
       context,
       async (client) => {
@@ -481,15 +392,7 @@ export class TenantService {
           );
         }
 
-        const updated = await this.tenantRepository.update(
-          tenantId,
-          { slug: dto.slug },
-          { client },
-        );
-        if (!updated) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
-        return updated;
+        return this.updateOrThrow(tenantId, { slug: dto.slug }, client);
       },
       {
         allowCrossTenantRead: context?.mode === 'tenant',
@@ -519,34 +422,25 @@ export class TenantService {
     dto: UpdateTenantSettingsDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    return this.withContextAndValidation(
-      tenantId,
-      context,
-      async (client, tenant) => {
-        // Deep-merge settings
-        const mergedSettings = dto.settings
-          ? this.deepMerge(tenant.settings || {}, dto.settings)
-          : tenant.settings;
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      const mergedSettings = dto.settings
+        ? deepMerge(tenant.settings || {}, dto.settings)
+        : tenant.settings;
 
-        const updated = await this.tenantRepository.update(
-          tenantId,
-          {
-            ...(dto.locale && { locale: dto.locale }),
-            ...(dto.timezone && { timezone: dto.timezone }),
-            ...(dto.default_jurisdiction !== undefined && {
-              default_jurisdiction: dto.default_jurisdiction,
-            }),
-            settings: mergedSettings,
-          },
-          { client },
-        );
-
-        if (!updated) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
-        return updated;
-      },
-    );
+      return this.updateOrThrow(
+        tenantId,
+        {
+          ...(dto.locale && { locale: dto.locale }),
+          ...(dto.timezone && { timezone: dto.timezone }),
+          ...(dto.default_jurisdiction !== undefined && {
+            default_jurisdiction: dto.default_jurisdiction,
+          }),
+          settings: mergedSettings,
+        },
+        client,
+      );
+    });
   }
 
   /**
@@ -571,22 +465,14 @@ export class TenantService {
     dto: UpdateTenantBrandingDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    return this.withContext(tenantId, context, async (client) => {
-      if (!dto.brand_color_primary && !dto.brand_color_secondary) {
-        throw new BadRequestException(
-          'At least one branding field must be provided',
-        );
-      }
-
-      const updated = await this.tenantRepository.update(
-        tenantId,
-        { ...dto },
-        { client },
+    if (!dto.brand_color_primary && !dto.brand_color_secondary) {
+      throw new BadRequestException(
+        'At least one branding field must be provided',
       );
-      if (!updated) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
-      }
-      return updated;
+    }
+
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      return this.updateOrThrow(tenantId, { ...dto }, client);
     });
   }
 
@@ -611,16 +497,8 @@ export class TenantService {
     logoUrl: string | null,
     context?: TenantContext,
   ): Promise<Tenant> {
-    return this.withContext(tenantId, context, async (client) => {
-      const updated = await this.tenantRepository.update(
-        tenantId,
-        { logo_url: logoUrl },
-        { client },
-      );
-      if (!updated) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
-      }
-      return updated;
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      return this.updateOrThrow(tenantId, { logo_url: logoUrl }, client);
     });
   }
 
@@ -643,26 +521,17 @@ export class TenantService {
     tenantId: string,
     context?: TenantContext,
   ): Promise<Tenant> {
-    return this.withContextAndValidation(
-      tenantId,
-      context,
-      async (client, tenant) => {
-        // Idempotent: skip if already completed
-        if (tenant.onboarding_completed_at) {
-          return tenant;
-        }
-
-        const updated = await this.tenantRepository.update(
-          tenantId,
-          { onboarding_completed_at: new Date() },
-          { client },
-        );
-        if (!updated) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
-        return updated;
-      },
-    );
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      if (tenant.onboarding_completed_at) {
+        return tenant;
+      }
+      return this.updateOrThrow(
+        tenantId,
+        { onboarding_completed_at: new Date() },
+        client,
+      );
+    });
   }
 
   /**
@@ -686,27 +555,18 @@ export class TenantService {
     dto: UpdateOnboardingDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    return this.withContextAndValidation(
-      tenantId,
-      context,
-      async (client, tenant) => {
-        // Deep-merge onboarding metadata
-        const mergedMetadata = this.deepMerge(
-          tenant.onboarding_metadata || {},
-          dto.onboarding_metadata || {},
-        );
-
-        const updated = await this.tenantRepository.update(
-          tenantId,
-          { onboarding_metadata: mergedMetadata },
-          { client },
-        );
-        if (!updated) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
-        return updated;
-      },
-    );
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      const mergedMetadata = deepMerge(
+        tenant.onboarding_metadata || {},
+        dto.onboarding_metadata || {},
+      );
+      return this.updateOrThrow(
+        tenantId,
+        { onboarding_metadata: mergedMetadata },
+        client,
+      );
+    });
   }
 
   // ============================================================================
@@ -741,35 +601,29 @@ export class TenantService {
       );
     }
 
-    return this.withContextAndValidation(
-      tenantId,
-      context,
-      async (client, tenant) => {
-        if (!tenant.is_active) {
-          throw new BadRequestException(
-            `Tenant ${tenantId} is already deactivated`,
-          );
-        }
-
-        const updated = await this.tenantRepository.update(
-          tenantId,
-          {
-            is_active: false,
-            deactivated_at: new Date(),
-            deactivation_reason: dto.reason,
-          },
-          { client },
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      if (!tenant.is_active) {
+        throw new BadRequestException(
+          `Tenant ${tenantId} is already deactivated`,
         );
-        if (!updated) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
+      }
 
-        this.logger.warn(
-          `Tenant ${tenantId} deactivated by admin. Reason: ${dto.reason}`,
-        );
-        return updated;
-      },
-    );
+      const updated = await this.updateOrThrow(
+        tenantId,
+        {
+          is_active: false,
+          deactivated_at: new Date(),
+          deactivation_reason: dto.reason,
+        },
+        client,
+      );
+
+      this.logger.warn(
+        `Tenant ${tenantId} deactivated by admin. Reason: ${dto.reason}`,
+      );
+      return updated;
+    });
   }
 
   /**
@@ -798,30 +652,24 @@ export class TenantService {
       );
     }
 
-    return this.withContextAndValidation(
-      tenantId,
-      context,
-      async (client, tenant) => {
-        if (tenant.is_active) {
-          throw new BadRequestException(`Tenant ${tenantId} is already active`);
-        }
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      if (tenant.is_active) {
+        throw new BadRequestException(`Tenant ${tenantId} is already active`);
+      }
 
-        const updated = await this.tenantRepository.update(
-          tenantId,
-          {
-            is_active: true,
-            deactivated_at: null,
-            deactivation_reason: null,
-          },
-          { client },
-        );
-        if (!updated) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
+      const updated = await this.updateOrThrow(
+        tenantId,
+        {
+          is_active: true,
+          deactivated_at: null,
+          deactivation_reason: null,
+        },
+        client,
+      );
 
-        this.logger.log(`Tenant ${tenantId} reactivated by admin`);
-        return updated;
-      },
-    );
+      this.logger.log(`Tenant ${tenantId} reactivated by admin`);
+      return updated;
+    });
   }
 }

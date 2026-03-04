@@ -30,7 +30,15 @@ import { DATABASE_POOL } from './database.constants';
  * - SET LOCAL app.current_tenant_id is transaction-scoped (clears on COMMIT/ROLLBACK)
  * - Always pass { client } to repository methods within the transaction
  * - Never use queryWithTenantContext for single queries - wrap in transaction instead
- * - System operations (e.g., sync services) should use transaction(callback, true) to bypass RLS
+ * - System operations (e.g., sync services) should use transactionWithPlatformAdminContext
+ *
+ * Why transactions for reads:
+ * set_config(name, value, is_local=true) scopes the setting to the current transaction.
+ * Without a transaction, is_local=true behaves like is_local=false and the setting persists
+ * on the connection for the entire session. Since pg.Pool reuses connections, a leaked
+ * set_config from one request could carry over to a different tenant's request — causing
+ * a tenant data leak via RLS bypass. The BEGIN/COMMIT overhead is the price for safe
+ * multi-tenant isolation with connection pooling.
  */
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -191,18 +199,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       'app.tenant_id',
       params?.tenantId,
     ]);
-    if (params?.isTenantAdmin) {
-      await client.query('SELECT set_config($1, $2, true)', [
-        'app.is_tenant_admin',
-        params?.isTenantAdmin ? 'true' : 'false',
-      ]);
-    }
-    if (params?.allowCrossTenantRead) {
-      await client.query('SELECT set_config($1, $2, true)', [
-        'app.allow_cross_tenant_read',
-        params?.allowCrossTenantRead ? 'true' : 'false',
-      ]);
-    }
+    await client.query('SELECT set_config($1, $2, true)', [
+      'app.is_tenant_admin',
+      params?.isTenantAdmin ? 'true' : 'false',
+    ]);
+    await client.query('SELECT set_config($1, $2, true)', [
+      'app.allow_cross_tenant_read',
+      params?.allowCrossTenantRead ? 'true' : 'false',
+    ]);
     this.logger.debug(
       `Set tenant context: ${params?.tenantId} (transaction-scoped)`,
     );

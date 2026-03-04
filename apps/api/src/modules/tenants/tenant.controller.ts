@@ -11,6 +11,7 @@ import {
   Post,
   UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -23,6 +24,7 @@ import { RequireEntitlement } from 'src/common/decorators/require-entitlement.de
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
+import { FastifyMultipartInterceptor } from 'src/common/interceptors/fastify-multipart.interceptor';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import type { MulterLikeFile } from '../../common/interfaces/multer-file.interface';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
@@ -291,6 +293,7 @@ export class TenantController {
   @Post('me/logo')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
+  @UseInterceptors(FastifyMultipartInterceptor(class LogoUploadDto {}))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {

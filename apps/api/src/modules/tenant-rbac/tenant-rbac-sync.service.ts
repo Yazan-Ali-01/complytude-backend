@@ -89,7 +89,7 @@ export class TenantRbacSyncService implements OnModuleInit {
       }
 
       this.logger.log('Permissions synced successfully');
-    }); // bypassRLS: true for system operations
+    });
   }
 
   /**
@@ -184,7 +184,7 @@ export class TenantRbacSyncService implements OnModuleInit {
       }
 
       this.logger.log('System roles synced successfully');
-    }); // bypassRLS: true for system operations
+    });
   }
 
   /**
