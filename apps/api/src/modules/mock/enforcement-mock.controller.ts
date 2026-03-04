@@ -448,14 +448,14 @@ export class EnforcementMockController {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
-    const transaction = await this.creditLedgerService.purchase(
-      user.tenantId,
+    const transaction = await this.creditLedgerService.purchase({
+      tenantId: user.tenantId,
       amount,
-      {
+      metadata: {
         test_scenario: 'debug_purchase',
         user_id: user.userId,
       },
-    );
+    });
 
     const newBalance = await this.creditBalanceService.getAvailableBalance(
       user.tenantId,
