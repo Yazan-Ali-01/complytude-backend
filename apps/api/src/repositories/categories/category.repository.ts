@@ -1,17 +1,13 @@
 import {
   BaseRepository,
-  CursorPaginationHelper,
-  CursorPaginationOptions,
-  CursorPaginationResult,
+  OffsetPaginationOptions,
+  OffsetPaginationResult,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import { Category } from 'src/modules/categories/entities/category.entity';
 import { DatabaseService } from '../../database/database.service';
 
-/**
- * Type for creating a new category row in the database.
- */
 export type CreateCategoryRow = {
   id?: string;
   code: string;
@@ -19,21 +15,21 @@ export type CreateCategoryRow = {
   description?: string | null;
   parent_id?: string | null;
   is_active?: boolean;
-  created_at?: Date;
-  updated_at?: Date;
 };
 
-/**
- * Type for updating an existing category row in the database.
- */
 export type UpdateCategoryRow = {
-  code?: string;
   name?: string;
   description?: string | null;
   parent_id?: string | null;
   is_active?: boolean;
   updated_at?: Date;
 };
+
+export interface CategoryFilters {
+  isActive?: boolean;
+  parentId?: string;
+  search?: string;
+}
 
 type CategoryRow = {
   id: string;
@@ -46,10 +42,13 @@ type CategoryRow = {
   updated_at: Date;
 };
 
-/**
- * Repository for managing Category entities.
- * Handles database operations for template categories.
- */
+const ALLOWED_SORT_COLUMNS: Record<string, string> = {
+  name: 'name',
+  code: 'code',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+};
+
 @Injectable()
 export class CategoryRepository extends BaseRepository<
   Category,
@@ -60,106 +59,89 @@ export class CategoryRepository extends BaseRepository<
     super(databaseService, 'public.categories');
   }
 
-  /**
-   * Find categories with cursor-based pagination.
-   * Supports filtering by is_active, parent_id, and code.
-   *
-   * @param filters - Optional filters for is_active, parent_id, and code
-   * @param cursorOptions - Cursor, limit, and direction for pagination
-   * @param options - Query options (tenant context, client, etc.)
-   * @returns Cursor-paginated results with navigation metadata
-   */
   async findMany(
-    filters: { is_active?: boolean; parent_id?: string; code?: string } = {},
-    cursorOptions?: CursorPaginationOptions,
+    filters: CategoryFilters = {},
+    pagination: OffsetPaginationOptions = { page: 1, limit: 20 },
     options?: QueryOptions,
-  ): Promise<CursorPaginationResult<Category>> {
-    // Validate and normalize cursor options
-    const { cursor, limit, direction } =
-      CursorPaginationHelper.validateOptions(cursorOptions);
-
+  ): Promise<OffsetPaginationResult<Category>> {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    if (filters.is_active !== undefined) {
-      params.push(filters.is_active);
+    if (filters.isActive !== undefined) {
+      params.push(filters.isActive);
       conditions.push(`is_active = $${params.length}`);
     }
-    if (filters.parent_id) {
-      params.push(filters.parent_id);
+    if (filters.parentId) {
+      params.push(filters.parentId);
       conditions.push(`parent_id = $${params.length}`);
     }
-    if (filters.code) {
-      params.push(filters.code);
-      conditions.push(`code = $${params.length}`);
-    }
-
-    // Add cursor condition using helper
-    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
-      direction,
-      cursor,
-      params.length + 1,
-    );
-
-    if (cursorQuery.clause) {
-      conditions.push(cursorQuery.clause);
-      params.push(...cursorQuery.params);
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(name ILIKE $${params.length} OR code ILIKE $${params.length} OR description ILIKE $${params.length})`,
+      );
     }
 
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const limitClause = CursorPaginationHelper.buildLimitClause(
-      limit,
-      params.length + 1,
+    const countResult = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) as count FROM ${this.tableName} ${whereClause}`,
+      params,
+      options,
     );
-    params.push(...limitClause.params);
+    const total = parseInt(countResult.rows[0].count, 10);
 
-    const query =
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
-    const result = await this.executeQuery<CategoryRow>(query, params, options);
+    const sortColumn =
+      ALLOWED_SORT_COLUMNS[pagination.sortBy ?? ''] ?? 'created_at';
+    const sortOrder = pagination.sortOrder === 'asc' ? 'ASC' : 'DESC';
+    const offset = (pagination.page - 1) * pagination.limit;
 
-    const mappedRows = result.rows.map((row) => this.mapRow(row));
-
-    return CursorPaginationHelper.createPaginationResponse(
-      mappedRows,
-      limit,
-      direction,
-      !!cursor,
+    params.push(pagination.limit, offset);
+    const dataResult = await this.executeQuery<CategoryRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ORDER BY ${sortColumn} ${sortOrder} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+      options,
     );
+
+    const totalPages = Math.ceil(total / pagination.limit);
+
+    return {
+      data: dataResult.rows.map((row) => this.mapRow(row)),
+      total,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages,
+      hasNextPage: pagination.page < totalPages,
+      hasPreviousPage: pagination.page > 1,
+    };
   }
 
-  /**
-   * Find all active categories.
-   * Uses cursor pagination internally but returns only the first 1000 rows (if more exist, they are NOT returned).
-   *
-   * @note This method does NOT fetch more than 1000 active categories.
-   *
-   * @param options - Query options (tenant context, client, etc.)
-   * @returns Array of active categories
-   */
   async findActive(options?: QueryOptions): Promise<Category[]> {
     const result = await this.findMany(
-      { is_active: true },
-      { limit: 1000 },
+      { isActive: true },
+      { page: 1, limit: 1000 },
       options,
     );
     return result.data;
   }
 
-  /**
-   * Get the list of columns to select in queries.
-   */
+  async deactivate(
+    id: string,
+    options?: QueryOptions,
+  ): Promise<Category | null> {
+    const result = await this.executeQuery<CategoryRow>(
+      `UPDATE ${this.tableName} SET is_active = false WHERE id = $1 RETURNING ${this.getSelectColumns()}`,
+      [id],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
   protected getSelectColumns(): string {
     return 'id, code, name, description, parent_id, is_active, created_at, updated_at';
   }
 
-  /**
-   * Map a database row to a Category domain entity.
-   *
-   * @param row - Raw database row
-   * @returns Mapped Category entity
-   */
   protected mapRow(row: Record<string, unknown>): Category {
     const data = row as CategoryRow;
     return {

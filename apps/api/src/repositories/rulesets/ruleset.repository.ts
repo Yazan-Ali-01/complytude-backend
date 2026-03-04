@@ -1,51 +1,41 @@
 import {
   BaseRepository,
-  CursorPaginationHelper,
-  CursorPaginationOptions,
-  CursorPaginationResult,
+  OffsetPaginationOptions,
+  OffsetPaginationResult,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   Ruleset,
-  RulesetClause,
+  RulesetStatus,
 } from 'src/modules/rulesets/entities/ruleset.entity';
 import { DatabaseService } from '../../database/database.service';
 
-/**
- * Type for creating a new ruleset row in the database.
- * JSON/JSONB fields must be pre-stringified.
- */
 export type CreateRulesetRow = {
-  id?: string;
   key: string;
   name: string;
   description?: string | null;
   authority_id?: string | null;
-  clauses: string; // Stringified JSONB array
-  metadata: string; // Stringified JSONB object
-  version?: string;
-  status?: 'active' | 'inactive' | 'deprecated';
+  status?: RulesetStatus;
+  /** JSON string (stringified by service before passing) */
+  metadata?: string;
   created_by?: string | null;
-  created_at?: Date;
-  updated_at?: Date;
 };
 
-/**
- * Type for updating an existing ruleset row in the database.
- * JSON/JSONB fields must be pre-stringified.
- */
 export type UpdateRulesetRow = {
-  key?: string;
   name?: string;
   description?: string | null;
   authority_id?: string | null;
-  clauses?: string; // Stringified JSONB array
-  metadata?: string; // Stringified JSONB object
-  version?: string;
-  status?: 'active' | 'inactive' | 'deprecated';
-  updated_at?: Date;
+  status?: RulesetStatus;
+  /** JSON string (stringified by service before passing) */
+  metadata?: string;
 };
+
+export interface RulesetFilters {
+  status?: RulesetStatus;
+  authorityId?: string;
+  search?: string;
+}
 
 type RulesetRow = {
   id: string;
@@ -53,19 +43,22 @@ type RulesetRow = {
   name: string;
   description: string | null;
   authority_id: string | null;
-  clauses: string | unknown[];
-  metadata: string | Record<string, unknown>;
-  version: string;
-  status: Ruleset['status'];
+  current_version: string;
+  status: RulesetStatus;
+  metadata: Record<string, unknown>;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
 };
 
-/**
- * Repository for managing Ruleset entities.
- * Handles database operations for compliance rulesets.
- */
+const ALLOWED_SORT_COLUMNS: Record<string, string> = {
+  name: 'name',
+  key: 'key',
+  status: 'status',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+};
+
 @Injectable()
 export class RulesetRepository extends BaseRepository<
   Ruleset,
@@ -76,218 +69,133 @@ export class RulesetRepository extends BaseRepository<
     super(databaseService, 'public.rulesets');
   }
 
-  /**
-   * Find rulesets with cursor-based pagination.
-   * Supports filtering by authority_id and status.
-   *
-   * @param filters - Optional filters for authority_id and status
-   * @param cursorOptions - Cursor, limit, and direction for pagination
-   * @param options - Query options (tenant context, client, etc.)
-   * @returns Cursor-paginated results with navigation metadata
-   */
   async findMany(
-    filters: { authority_id?: string; status?: string } = {},
-    cursorOptions?: CursorPaginationOptions,
+    filters: RulesetFilters = {},
+    pagination: OffsetPaginationOptions = { page: 1, limit: 20 },
     options?: QueryOptions,
-  ): Promise<CursorPaginationResult<Ruleset>> {
-    // Validate and normalize cursor options
-    const { cursor, limit, direction } =
-      CursorPaginationHelper.validateOptions(cursorOptions);
-
+  ): Promise<OffsetPaginationResult<Ruleset>> {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    if (filters.authority_id) {
-      params.push(filters.authority_id);
-      conditions.push(`authority_id = $${params.length}`);
-    }
     if (filters.status) {
       params.push(filters.status);
       conditions.push(`status = $${params.length}`);
     }
-
-    // Add cursor condition using helper
-    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
-      direction,
-      cursor,
-      params.length + 1,
-    );
-
-    if (cursorQuery.clause) {
-      conditions.push(cursorQuery.clause);
-      params.push(...cursorQuery.params);
+    if (filters.authorityId) {
+      params.push(filters.authorityId);
+      conditions.push(`authority_id = $${params.length}`);
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(name ILIKE $${params.length} OR description ILIKE $${params.length})`,
+      );
     }
 
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const limitClause = CursorPaginationHelper.buildLimitClause(
-      limit,
-      params.length + 1,
-    );
-    params.push(...limitClause.params);
-
-    const query =
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
-    const result = await this.executeQuery<RulesetRow>(query, params, options);
-
-    const mappedRows = result.rows.map((row) => this.mapRow(row));
-
-    return CursorPaginationHelper.createPaginationResponse(
-      mappedRows,
-      limit,
-      direction,
-      !!cursor,
-    );
-  }
-
-  /**
-   * Find all active rulesets.
-   * Uses cursor pagination internally but returns only the first 1000 rows (if more exist, they are NOT returned).
-   *
-   * @note This method does NOT fetch more than 1000 active rulesets.
-   *
-   * @param options - Query options (tenant context, client, etc.)
-   * @returns Array of active rulesets
-   */
-  async findActive(options?: QueryOptions): Promise<Ruleset[]> {
-    const result = await this.findMany(
-      { status: 'active' },
-      { limit: 1000 },
+    const countResult = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) as count FROM ${this.tableName} ${whereClause}`,
+      params,
       options,
     );
-    return result.data;
-  }
+    const total = parseInt(countResult.rows[0].count, 10);
 
-  /**
-   * Get the list of columns to select in queries.
-   */
-  protected getSelectColumns(): string {
-    return 'id, key, name, description, authority_id, clauses, metadata, version, status, created_by, created_at, updated_at';
-  }
+    const sortColumn =
+      ALLOWED_SORT_COLUMNS[pagination.sortBy ?? ''] ?? 'created_at';
+    const sortOrder = pagination.sortOrder === 'asc' ? 'ASC' : 'DESC';
+    const offset = (pagination.page - 1) * pagination.limit;
 
-  /**
-   * Map a database row to a Ruleset domain entity.
-   *
-   * @param row - Raw database row
-   * @returns Mapped Ruleset entity
-   */
-  protected mapRow(row: Record<string, unknown>): Ruleset {
-    const data = row as RulesetRow;
+    params.push(pagination.limit, offset);
+    const dataResult = await this.executeQuery<RulesetRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ORDER BY ${sortColumn} ${sortOrder} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+      options,
+    );
+
+    const totalPages = Math.ceil(total / pagination.limit);
+
     return {
-      id: data.id,
-      key: data.key,
-      name: data.name,
-      description: data.description,
-      authority_id: data.authority_id,
-      clauses: data.clauses as RulesetClause[],
-      metadata: data.metadata as Record<string, unknown>,
-      version: data.version,
-      status: data.status,
-      created_by: data.created_by,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
+      data: dataResult.rows.map((row) => this.mapRow(row)),
+      total,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages,
+      hasNextPage: pagination.page < totalPages,
+      hasPreviousPage: pagination.page > 1,
     };
   }
 
-  /**
-   * Find rulesets associated with a specific template.
-   *
-   * @param templateId - The ID of the template
-   * @param options - Query options
-   * @returns Array of associated rulesets
-   */
+  async findByKey(
+    key: string,
+    options?: QueryOptions,
+  ): Promise<Ruleset | null> {
+    const result = await this.executeQuery<RulesetRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE key = $1`,
+      [key],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {
+    if (!keys.length) return [];
+
+    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
+    const result = await this.executeQuery<RulesetRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE key IN (${placeholders}) AND status = 'active' ORDER BY name`,
+      keys,
+      options,
+    );
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  async deactivateByKey(
+    key: string,
+    options?: QueryOptions,
+  ): Promise<Ruleset | null> {
+    const result = await this.executeQuery<RulesetRow>(
+      `UPDATE ${this.tableName} SET status = 'inactive' WHERE key = $1 RETURNING ${this.getSelectColumns()}`,
+      [key],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
   async findByTemplateId(
     templateId: string,
     options?: QueryOptions,
   ): Promise<Ruleset[]> {
     const result = await this.executeQuery<RulesetRow>(
-      `
-      SELECT r.*
-      FROM public.rulesets r
-      INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
-      WHERE tr.template_id = $1
-    `,
+      `SELECT r.${this.getSelectColumns()
+        .split(', ')
+        .map((c) => `r.${c.trim()}`)
+        .join(', ')}
+       FROM ${this.tableName} r
+       INNER JOIN public.template_rulesets tr ON r.id = tr.ruleset_id
+       WHERE tr.template_id = $1`,
       [templateId],
       options,
     );
-
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  /**
-   * Find multiple rulesets by their keys.
-   * Only returns active rulesets.
-   *
-   * @param keys - Array of ruleset keys to find
-   * @param options - Query options
-   * @returns Array of found active rulesets
-   */
-  async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {
-    if (!keys.length) return [];
-
-    // Build parameterized placeholders for IN clause: ($1, $2, ..., $N)
-    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
-    const statusParamIndex = keys.length + 1;
-
-    const result = await this.executeQuery<RulesetRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE key IN (${placeholders}) AND status = $${statusParamIndex} ORDER BY name`,
-      [...keys, 'active'],
-      options,
-    );
-
-    return result.rows.map((row) => this.mapRow(row));
-  }
-
-  /**
-   * Delete a ruleset by its key.
-   *
-   * @param key - The unique key of the ruleset
-   * @param options - Query options
-   * @returns Number of rows deleted (0 if not found)
-   */
-  async deleteByKey(key: string, options?: QueryOptions): Promise<number> {
-    const result = await this.executeQuery(
-      `DELETE FROM ${this.tableName} WHERE key = $1`,
-      [key],
-      options,
-    );
-
-    return result.rowCount ?? 0;
-  }
-
-  /**
-   * Associate rulesets with a template.
-   * Ignores duplicates if association already exists.
-   *
-   * @param templateId - The ID of the template
-   * @param rulesetIds - Array of ruleset IDs to associate
-   * @param options - Query options
-   */
   async associateWithTemplate(
     templateId: string,
     rulesetIds: string[],
     options?: QueryOptions,
   ): Promise<void> {
-    for (const rulesetId of rulesetIds) {
-      await this.executeQuery(
-        `
-          INSERT INTO public.template_rulesets (template_id, ruleset_id)
-          VALUES ($1, $2)
-          ON CONFLICT DO NOTHING
-        `,
-        [templateId, rulesetId],
-        options,
-      );
-    }
+    if (!rulesetIds.length) return;
+
+    const values = rulesetIds.map((_, idx) => `($1, $${idx + 2})`).join(', ');
+    await this.executeQuery(
+      `INSERT INTO public.template_rulesets (template_id, ruleset_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+      [templateId, ...rulesetIds],
+      options,
+    );
   }
 
-  /**
-   * Remove all ruleset associations for a specific template.
-   *
-   * @param templateId - The ID of the template
-   * @param options - Query options
-   */
   async removeTemplateAssociations(
     templateId: string,
     options?: QueryOptions,
@@ -297,5 +205,26 @@ export class RulesetRepository extends BaseRepository<
       [templateId],
       options,
     );
+  }
+
+  protected getSelectColumns(): string {
+    return 'id, key, name, description, authority_id, current_version, status, metadata, created_by, created_at, updated_at';
+  }
+
+  protected mapRow(row: Record<string, unknown>): Ruleset {
+    const data = row as RulesetRow;
+    return {
+      id: data.id,
+      key: data.key,
+      name: data.name,
+      description: data.description,
+      authorityId: data.authority_id,
+      currentVersion: data.current_version,
+      status: data.status,
+      metadata: data.metadata,
+      createdBy: data.created_by,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
   }
 }

@@ -1,4 +1,4 @@
-import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
+import { OffsetPaginationOptions, OffsetPaginationResult } from '@lib/database';
 import {
   ConflictException,
   Injectable,
@@ -6,7 +6,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
+import {
+  AuthorityRepository,
+  AuthorityFilters,
+} from '../../repositories/authorities/authority.repository';
 import {
   CreateAuthorityDto,
   UpdateAuthorityDto,
@@ -21,7 +24,6 @@ export class AuthoritiesService {
 
   async create(createAuthorityDto: CreateAuthorityDto): Promise<Authority> {
     try {
-      // Check if code already exists
       const existing = await this.authorityRepository.findOne({
         filters: { code: createAuthorityDto.code.toUpperCase() },
         select: ['id'],
@@ -48,16 +50,11 @@ export class AuthoritiesService {
   }
 
   async findAll(
-    active?: boolean,
-    cursorOptions?: CursorPaginationOptions,
-  ): Promise<CursorPaginationResult<Authority>> {
+    filters: AuthorityFilters = {},
+    pagination: OffsetPaginationOptions = { page: 1, limit: 20 },
+  ): Promise<OffsetPaginationResult<Authority>> {
     try {
-      const filters = active !== undefined ? { is_active: active } : {};
-      const result = await this.authorityRepository.findMany(
-        { ...filters },
-        cursorOptions,
-      );
-      return result;
+      return await this.authorityRepository.findMany(filters, pagination);
     } catch (error) {
       this.logger.error(`Failed to fetch authorities: ${error.message}`);
       throw new InternalServerErrorException('Failed to fetch authorities');

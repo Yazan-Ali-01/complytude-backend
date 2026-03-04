@@ -14,13 +14,14 @@ async function bootstrap() {
   const port = configService.get<number>('workerAi.port') || 3001;
   const environment =
     configService.get<string>('workerAi.environment') || 'development';
-  const queueName = configService.get<string>('workerAi.queueName');
+  const model = configService.get<string>('workerAi.llmModel') || 'gpt-4o-mini';
 
+  app.enableShutdownHooks();
   await app.listen(port, '0.0.0.0');
 
   logger.log(`🤖 Worker AI is running on: http://localhost:${port}`);
   logger.log(`🌍 Environment: ${environment}`);
-  logger.log(`📬 Queue: ${queueName}`);
+  logger.log(`🧠 LLM model: ${model}`);
 }
 
 void bootstrap();

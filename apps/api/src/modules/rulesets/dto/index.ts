@@ -1,10 +1,10 @@
 /**
  * Rulesets DTOs barrel export
- * Centralized exports for all ruleset-related DTOs
  */
 
 // Request DTOs
 export * from './create-ruleset.dto';
+export * from './update-ruleset.dto';
 export * from './create-ruleset-version.dto';
 export * from './ruleset-query.dto';
 export * from './ruleset-param.dto';

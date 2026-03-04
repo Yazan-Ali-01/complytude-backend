@@ -11,7 +11,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { ClauseItemDto } from 'src/modules/rulesets/dto/clause.dto';
+import { ClauseItemDto } from './clause.dto';
 
 export class CreateRulesetDto {
   @ApiProperty({
@@ -59,7 +59,7 @@ export class CreateRulesetDto {
         is_required: true,
       },
     ],
-    description: 'Array of legal clauses',
+    description: 'Array of legal clauses for the initial version (1.0.0)',
     type: [ClauseItemDto],
   })
   @IsArray()
@@ -74,52 +74,5 @@ export class CreateRulesetDto {
   })
   @IsObject()
   @IsOptional()
-  metadata?: Record<string, any>;
-}
-
-// todo: should be removed
-export class UpdateRulesetDto {
-  @ApiPropertyOptional({
-    example: 'DMCC Employment Rules v1.1',
-    description: 'Ruleset display name',
-  })
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
-  name?: string;
-
-  @ApiPropertyOptional({
-    example: 'Updated employment rules',
-    description: 'Ruleset description',
-  })
-  @IsString()
-  @IsOptional()
-  description?: string;
-
-  @ApiPropertyOptional({
-    example: '123e4567-e89b-12d3-a456-426614174000',
-    description: 'Authority ID',
-  })
-  @IsUUID()
-  @IsOptional()
-  authority_id?: string;
-
-  @ApiPropertyOptional({
-    example: [],
-    description: 'Array of legal clauses',
-    type: [ClauseItemDto],
-  })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ClauseItemDto)
-  @IsOptional()
-  clauses?: ClauseItemDto[];
-
-  @ApiPropertyOptional({
-    example: {},
-    description: 'Additional metadata',
-  })
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
