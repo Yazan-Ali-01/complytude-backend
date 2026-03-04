@@ -569,30 +569,24 @@ export interface SnapshotComparison {
 
 // === Enforcement Service Inputs ===
 
-// For checkAndRecord() — public API
-export interface CheckAndRecordInput {
+export interface BaseEnforcementFields {
   tenantId: string;
   featureKey: FeatureKey;
   userId?: string;
+}
+
+export interface CheckAndRecordInput extends BaseEnforcementFields {
   units?: number;
   metadata?: Record<string, any>;
 }
 
-// For enforceUsageBasedFeature() — private router
-export interface EnforceUsageBasedInput {
-  tenantId: string;
-  featureKey: FeatureKey;
+export interface EnforceUsageBasedInput extends BaseEnforcementFields {
   entitlement: EffectiveEntitlement;
-  userId?: string;
   units: number;
   metadata?: Record<string, any>;
 }
 
-// Shared context pre-resolved by enforceUsageBasedFeature and passed to async/strict/unlimited
-export interface EnforcementContext {
-  tenantId: string;
-  featureKey: FeatureKey;
-  userId?: string;
+export interface EnforcementContext extends BaseEnforcementFields {
   units: number;
   metadata?: Record<string, any>;
   subscription: { id: string };
@@ -605,22 +599,16 @@ export interface EnforcementContext {
   billingPeriod: string;
 }
 
-// For enforceUsageAsync() and enforceUsageStrict() (extends context + limit/used)
 export interface EnforceUsageLimitedInput extends EnforcementContext {
   limit: number;
   used: number;
 }
 
-// For enforceUsageUnlimited() (extends context + used only)
 export interface EnforceUsageUnlimitedInput extends EnforcementContext {
   used: number;
 }
 
-// For writeUsageAndCredits()
-export interface WriteUsageAndCreditsInput {
-  tenantId: string;
-  featureKey: FeatureKey;
-  userId?: string;
+export interface WriteUsageAndCreditsInput extends BaseEnforcementFields {
   units: number;
   metadata?: Record<string, any>;
   feature: {
@@ -642,22 +630,14 @@ export interface AllocationResolution {
   creditBalance?: number;
 }
 
-// For resolveAllocationsWithCreditFallback()
-export interface ResolveAllocationsInput {
-  tenantId: string;
-  featureKey: FeatureKey;
-  userId?: string;
+export interface ResolveAllocationsInput extends BaseEnforcementFields {
   units: number;
   limit: number;
   used: number;
-  remaining: number;
   featureCreditCost?: number | null;
 }
 
-// For buildProjectionJob()
-export interface BuildProjectionJobInput {
-  tenantId: string;
-  featureKey: FeatureKey;
+export interface BuildProjectionJobInput extends BaseEnforcementFields {
   usageEvent: {
     id: string;
     resource_type?: string;
@@ -672,32 +652,30 @@ export interface BuildProjectionJobInput {
     source: 'plan' | 'addon' | 'credit' | 'override';
     units: number;
   }>;
-  userId?: string;
   creditDeducted?: boolean;
   creditAmount?: number;
 }
 
-// For emitDenialEvent()
-export interface EmitDenialEventInput {
-  tenantId: string;
-  featureKey: FeatureKey;
-  userId?: string;
+export interface EmitDenialEventInput extends BaseEnforcementFields {
   units: number;
   limit: number;
   used: number;
   reason: string;
 }
 
+export interface UsageWriteResult {
+  usageEvent: UsageLedgerEvent;
+  planUnits: number;
+}
+
 // === Credit Ledger Service Inputs ===
 
-// For purchase()
 export interface CreditPurchaseInput {
   tenantId: string;
   amount: number;
   metadata?: Record<string, any>;
 }
 
-// For grant()
 export interface CreditGrantInput {
   tenantId: string;
   amount: number;
@@ -707,7 +685,6 @@ export interface CreditGrantInput {
   metadata?: Record<string, any>;
 }
 
-// For deduct()
 export interface CreditDeductInput {
   tenantId: string;
   amount: number;
@@ -716,11 +693,22 @@ export interface CreditDeductInput {
   metadata?: Record<string, any>;
 }
 
-// For refund()
 export interface CreditRefundInput {
   tenantId: string;
   amount: number;
   reason: string;
+  metadata?: Record<string, any>;
+}
+
+export interface RecordTransactionInput {
+  tenantId: string;
+  transactionType: CreditTransactionType;
+  amount: number;
+  featureId?: string;
+  usageLedgerId?: string;
+  reason?: string;
+  appliedBy?: string;
+  expiresAt?: Date;
   metadata?: Record<string, any>;
 }
 

@@ -37,25 +37,6 @@ export class UsageProjectionService {
     private readonly usageAllocationsRepository: UsageAllocationsRepository,
   ) {}
 
-  /**
-   * Atomically increment usage counters for a feature with multi-source allocations
-   *
-   * Called by ProjectionUpdateHandler when processing PROJECTION_UPDATE jobs.
-   * Also used by EntitlementEnforcementService sync fallback when BullMQ is unavailable.
-   *
-   * Using subscription_id ensures:
-   * - Each billing period gets its own projection (unambiguous)
-   * - Quota enforcement checks the correct subscription
-   * - Works for any billing cycle (monthly, yearly, custom)
-   *
-   * @param tenantId - Tenant ID
-   * @param subscriptionId - Subscription ID (source of truth for billing period)
-   * @param featureId - Feature UUID
-   * @param billingPeriod - Billing period (YYYY-MM format, for analytics)
-   * @param allocations - Array of { source, units } allocations
-   * @param options - Query options (client for transactions)
-   * @returns Updated aggregated usage
-   */
   async incrementUsage(
     input: IncrementUsageInput,
     options?: QueryOptions,

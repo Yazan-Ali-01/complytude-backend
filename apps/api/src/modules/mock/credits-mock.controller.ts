@@ -567,7 +567,7 @@ export class CreditsMockController {
             userId: user.userId,
             units: unitsToExceed,
             metadata: {
-              test_scenario: 'non_creditable_feature',
+              test_scenario: 'non_creditable',
             },
           },
           { client },
@@ -642,7 +642,7 @@ export class CreditsMockController {
             userId: user.userId,
             units: largeUsage,
             metadata: {
-              test_scenario: 'unlimited_usage',
+              test_scenario: 'unlimited',
             },
           },
           { client },
@@ -701,12 +701,11 @@ export class CreditsMockController {
         return this.enforcementService.checkAndRecord(
           {
             tenantId: user.tenantId,
-            featureKey: featureKey,
+            featureKey,
             userId: user.userId,
             units: 1,
             metadata: {
-              test_scenario: 'bulk_mixed_features',
-              feature: featureKey,
+              test_scenario: 'boolean',
             },
           },
           { client },

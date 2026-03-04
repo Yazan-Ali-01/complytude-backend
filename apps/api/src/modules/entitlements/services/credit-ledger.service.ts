@@ -7,8 +7,8 @@ import {
   CreditLedgerTransaction,
   CreditPurchaseInput,
   CreditRefundInput,
-  CreditTransactionInput,
   CreditTransactionType,
+  RecordTransactionInput,
 } from '../../../common/types/entitlement.types';
 import { DatabaseService } from '../../../database/database.service';
 import { CreditLedgerRepository } from '../../../repositories/credits/credit-ledger.repository';
@@ -47,19 +47,6 @@ export class CreditLedgerService {
     private readonly domainEventsService: DomainEventsService,
   ) {}
 
-  /**
-   * Purchase credits
-   *
-   * Records a credit purchase transaction with positive amount.
-   *
-   * @param tenantId - Tenant ID
-   * @param amount - Number of credits to purchase (must be > 0)
-   * @param metadata - Additional metadata (e.g., payment reference, invoice ID)
-   * @param options - Query options (optional client for shared transactions)
-   * @returns The recorded credit transaction
-   *
-   * @throws BadRequestException - Invalid amount
-   */
   async purchase(
     input: CreditPurchaseInput,
     options?: QueryOptions,
@@ -75,8 +62,8 @@ export class CreditLedgerService {
 
     return this.recordTransaction(
       {
-        tenant_id: tenantId,
-        transaction_type: 'purchase',
+        tenantId,
+        transactionType: 'purchase',
         amount,
         metadata,
       },
@@ -86,22 +73,6 @@ export class CreditLedgerService {
     // TODO: BullMQ - Emit credit.purchased event to queue for async notification
   }
 
-  /**
-   * Grant credits (promotional or admin-applied)
-   *
-   * Records a credit grant transaction with positive amount and optional expiry.
-   *
-   * @param tenantId - Tenant ID
-   * @param amount - Number of credits to grant (must be > 0)
-   * @param reason - Reason for the grant (e.g., "welcome_bonus", "compensation")
-   * @param expiresAt - Optional expiry date for the credits
-   * @param appliedBy - User ID of admin who granted the credits
-   * @param metadata - Additional metadata
-   * @param options - Query options
-   * @returns The recorded credit transaction
-   *
-   * @throws BadRequestException - Invalid amount
-   */
   async grant(
     input: CreditGrantInput,
     options?: QueryOptions,
@@ -117,12 +88,12 @@ export class CreditLedgerService {
 
     return this.recordTransaction(
       {
-        tenant_id: tenantId,
-        transaction_type: 'grant',
+        tenantId,
+        transactionType: 'grant',
         amount,
         reason,
-        applied_by: appliedBy,
-        expires_at: expiresAt,
+        appliedBy,
+        expiresAt,
         metadata,
       },
       options,
@@ -131,22 +102,6 @@ export class CreditLedgerService {
     // TODO: BullMQ - Emit credit.granted event to queue for async notification
   }
 
-  /**
-   * Deduct credits
-   *
-   * Records a credit deduction transaction with negative amount.
-   * Links to the usage event that triggered the deduction.
-   *
-   * @param tenantId - Tenant ID
-   * @param amount - Number of credits to deduct (must be > 0, will be stored as negative)
-   * @param featureId - Feature ID (optional, for feature-specific credits)
-   * @param usageLedgerId - Usage ledger event ID that triggered the deduction
-   * @param metadata - Additional metadata (should include credit_cost_per_unit, units_consumed)
-   * @param options - Query options (optional client for shared transactions)
-   * @returns The recorded credit transaction
-   *
-   * @throws BadRequestException - Invalid amount or insufficient balance
-   */
   async deduct(
     input: CreditDeductInput,
     options?: QueryOptions,
@@ -162,11 +117,11 @@ export class CreditLedgerService {
 
     return this.recordTransaction(
       {
-        tenant_id: tenantId,
-        transaction_type: 'deduction',
-        amount: -amount, // Store as negative
-        feature_id: featureId,
-        usage_ledger_id: usageLedgerId,
+        tenantId,
+        transactionType: 'deduction',
+        amount: -amount,
+        featureId,
+        usageLedgerId,
         metadata,
       },
       options,
@@ -176,20 +131,6 @@ export class CreditLedgerService {
     // (email alert when balance is low)
   }
 
-  /**
-   * Refund credits
-   *
-   * Records a credit refund transaction with positive amount.
-   *
-   * @param tenantId - Tenant ID
-   * @param amount - Number of credits to refund (must be > 0)
-   * @param reason - Reason for the refund
-   * @param metadata - Additional metadata
-   * @param options - Query options
-   * @returns The recorded credit transaction
-   *
-   * @throws BadRequestException - Invalid amount
-   */
   async refund(
     input: CreditRefundInput,
     options?: QueryOptions,
@@ -205,8 +146,8 @@ export class CreditLedgerService {
 
     return this.recordTransaction(
       {
-        tenant_id: tenantId,
-        transaction_type: 'refund',
+        tenantId,
+        transactionType: 'refund',
         amount,
         reason,
         metadata,
@@ -263,57 +204,36 @@ export class CreditLedgerService {
     );
   }
 
-  /**
-   * Record a credit transaction (internal helper)
-   *
-   * Computes balance_after within a transaction and records the transaction.
-   * Emits domain events for audit trail.
-   *
-   * @param tenantId - Tenant ID
-   * @param transactionType - Type of transaction
-   * @param amount - Amount (positive for credit, negative for deduction)
-   * @param featureId - Feature ID (optional)
-   * @param usageLedgerId - Usage ledger event ID (optional)
-   * @param reason - Reason (optional)
-   * @param appliedBy - User ID who applied the transaction (optional)
-   * @param expiresAt - Expiry date (optional)
-   * @param metadata - Additional metadata
-   * @param options - Query options
-   * @returns The recorded credit transaction
-   */
   private async recordTransaction(
-    input: CreditTransactionInput,
+    input: RecordTransactionInput,
     options?: QueryOptions,
   ): Promise<CreditLedgerTransaction> {
+    const {
+      tenantId,
+      transactionType,
+      amount,
+      featureId,
+      usageLedgerId,
+      reason,
+      appliedBy,
+      expiresAt,
+      metadata,
+    } = input;
+
     const execute = async (client: PoolClient) => {
-      const {
-        tenant_id: tenantId,
-        transaction_type: transactionType,
-        amount,
-        feature_id: featureId,
-        usage_ledger_id: usageLedgerId,
-        reason,
-        applied_by: appliedBy,
-        expires_at: expiresAt,
-        metadata,
-      } = input;
-      // Step 1: Get current balance
       const currentBalance = await this.creditLedgerRepository.getBalance(
         tenantId,
         { client },
       );
 
-      // Step 2: Compute new balance
       const newBalance = currentBalance + amount;
 
-      // Step 3: Validate balance (prevent negative balance for deductions)
       if (newBalance < 0) {
         throw new BadRequestException(
           `Insufficient credits. Current balance: ${currentBalance}, requested: ${Math.abs(amount)}`,
         );
       }
 
-      // Step 4: Record transaction with balance_after
       const transaction = await this.creditLedgerRepository.record(
         {
           tenant_id: tenantId,
@@ -330,7 +250,6 @@ export class CreditLedgerService {
         { client },
       );
 
-      // Step 5: Emit domain event
       await this.emitCreditEvent(transaction, transactionType, appliedBy, {
         client,
       });
@@ -347,7 +266,7 @@ export class CreditLedgerService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId: input.tenant_id },
+      { tenantId },
       execute,
     );
   }

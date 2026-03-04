@@ -24,7 +24,7 @@ import {
   EnforceUsageUnlimitedInput,
   EntitlementCheckResult,
   ResolveAllocationsInput,
-  UsageLedgerEvent,
+  UsageWriteResult,
   WriteUsageAndCreditsInput,
 } from '../../../common/types/entitlement.types';
 import { deriveBillingPeriod } from '../../../common/utils/billing.util';
@@ -40,11 +40,6 @@ import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
 
-interface UsageWriteResult {
-  usageEvent: UsageLedgerEvent;
-  planUnits: number;
-}
-
 interface EnforceResult {
   result: EntitlementCheckResult;
   projectionJob?: EntitlementProjectionUpdateJobData;
@@ -55,11 +50,6 @@ class EntitlementDeniedException extends Error {
     super('Entitlement denied');
     this.name = 'EntitlementDeniedException';
   }
-}
-
-interface UsageWriteResult {
-  usageEvent: UsageLedgerEvent;
-  planUnits: number;
 }
 
 /**
@@ -108,26 +98,6 @@ export class EntitlementEnforcementService {
     private readonly queueProducer: QueueProducerService,
   ) {}
 
-  /**
-   * Check entitlement and record usage (with credit fallback if applicable)
-   *
-   * This is the main entry point for runtime enforcement. It orchestrates:
-   * 1. Entitlement resolution
-   * 2. Usage quota checking
-   * 3. Credit fallback for creditable features
-   * 4. Usage recording with source attribution
-   * 5. Domain event emission
-   *
-   * All operations run in a single transaction for atomicity.
-   *
-   * @param tenantId - Tenant ID
-   * @param featureKey - Feature key to check and record
-   * @param userId - User ID (optional)
-   * @param units - Number of units to consume (default 1)
-   * @param metadata - Additional metadata for usage event
-   * @param options - Query options (optional client for shared transactions)
-   * @returns Check result with allowed flag, source, and remaining info
-   */
   async checkAndRecord(
     input: CheckAndRecordInput,
     options?: QueryOptions,
@@ -329,25 +299,6 @@ export class EntitlementEnforcementService {
     );
   }
 
-  /**
-   * Enforce quota/metered/capacity feature with credit fallback
-   * using the async projection path.
-   *
-   * Returns EnforceResult with both the check result and optional projection
-   * job data for async processing after commit.
-   *
-   * @param tenantId - Tenant ID
-   * @param featureKey - Feature key
-   * @param entitlement - Resolved entitlement
-   * @param userId - User ID (optional)
-   * @param units - Number of units to consume
-   * @param metadata - Additional metadata
-   * @param client - Transaction client
-   * @param subscription - Pre-resolved active subscription (from router)
-   * @param limit - Pre-resolved entitlement limit (from router)
-   * @param used - Pre-resolved current usage (from router)
-   * @returns EnforceResult with result and optional projection job
-   */
   private async enforceUsageAsync(
     input: EnforceUsageLimitedInput,
     client: PoolClient,
@@ -365,7 +316,6 @@ export class EntitlementEnforcementService {
       used,
     } = input;
 
-    const remaining = limit - used;
     let allocationResolution: AllocationResolution;
     try {
       allocationResolution = await this.resolveAllocationsWithCreditFallback(
@@ -376,7 +326,6 @@ export class EntitlementEnforcementService {
           units,
           limit,
           used,
-          remaining,
           featureCreditCost: feature.credit_cost,
         },
         client,
@@ -425,7 +374,7 @@ export class EntitlementEnforcementService {
           allowed: true,
           source: 'plan',
           allocations,
-          remaining: remaining - units,
+          remaining: limit - used - units,
           limit,
           used: used + units,
         },
@@ -491,7 +440,6 @@ export class EntitlementEnforcementService {
       limit,
       used,
     } = input;
-    const remaining = limit - used;
     let allocationResolution: AllocationResolution;
     try {
       allocationResolution = await this.resolveAllocationsWithCreditFallback(
@@ -502,7 +450,6 @@ export class EntitlementEnforcementService {
           units,
           limit,
           used,
-          remaining,
           featureCreditCost: feature.credit_cost,
         },
         client,
@@ -791,9 +738,9 @@ export class EntitlementEnforcementService {
       units,
       limit,
       used,
-      remaining,
       featureCreditCost,
     } = input;
+    const remaining = limit - used;
 
     if (remaining >= units) {
       return {
@@ -996,18 +943,6 @@ export class EntitlementEnforcementService {
     }
   }
 
-  /**
-   * Emit entitlement denial event
-   *
-   * @param tenantId - Tenant ID
-   * @param featureKey - Feature key
-   * @param userId - User ID (optional)
-   * @param units - Requested units
-   * @param limit - Entitlement limit
-   * @param used - Current usage
-   * @param reason - Denial reason
-   * @param client - Transaction client
-   */
   private async emitDenialEvent(
     input: EmitDenialEventInput,
     client: PoolClient,
