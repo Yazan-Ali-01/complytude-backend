@@ -318,7 +318,8 @@ export class SubscriptionsService {
    *
    * @param tenantId - Tenant ID
    * @param planKey - Plan key to subscribe to
-   * @param actorId - User ID performing the creation
+   * @param actorId - User ID performing the creation (or 'system' for automated creation)
+   * @param options - Optional database client for transaction support
    * @returns New subscription
    * @throws BadRequestException if active subscription already exists
    * @throws NotFoundException if plan not found
@@ -327,81 +328,90 @@ export class SubscriptionsService {
     tenantId: string,
     planKey: PlanKey,
     actorId: string,
+    options?: { client?: PoolClient },
   ): Promise<TenantSubscription> {
-    this.logger.log(
-      `Creating subscription: tenant=${tenantId}, plan=${planKey}, actor=${actorId}`,
-    );
-
-    // Step 1: Check no active subscription exists
-    const existingSubscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
-
-    if (existingSubscription) {
-      throw new BadRequestException(
-        `Tenant already has an active subscription. Use changePlan to switch plans.`,
+    const execute = async (client: PoolClient) => {
+      this.logger.log(
+        `Creating subscription: tenant=${tenantId}, plan=${planKey}, actor=${actorId}`,
       );
+
+      // Step 1: Check no active subscription exists
+      const existingSubscription =
+        await this.subscriptionsRepository.findActiveByTenant(tenantId, {
+          client,
+        });
+
+      if (existingSubscription) {
+        throw new BadRequestException(
+          `Tenant already has an active subscription. Use changePlan to switch plans.`,
+        );
+      }
+
+      // Step 2: Find plan
+      const plan = await this.plansRepository.findByKey(planKey, { client });
+      if (!plan) {
+        throw new NotFoundException(`Plan not found: ${planKey}`);
+      }
+
+      if (!plan.is_active) {
+        throw new BadRequestException(`Plan is not active: ${planKey}`);
+      }
+
+      // Step 3: Calculate billing period
+      const now = new Date();
+      const oneMonthLater = new Date(now);
+      oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+
+      // Step 4: Create subscription
+      const newSubscription = await this.subscriptionsRepository.upsert(
+        {
+          tenant_id: tenantId,
+          plan_id: plan.id,
+          status: 'active',
+          billing_period_start: now,
+          billing_period_end: oneMonthLater,
+          current_period_start: now,
+          current_period_end: oneMonthLater,
+          metadata: '{}',
+        },
+        { client },
+      );
+
+      // Emit domain event
+      await this.domainEventsService.emit(
+        {
+          tenant_id: tenantId,
+          event_type: 'subscription.created',
+          aggregate_type: 'subscription',
+          aggregate_id: newSubscription.id,
+          actor_id: actorId,
+          actor_type: actorId === 'system' ? 'system' : 'user',
+          payload: JSON.stringify({
+            subscription_id: newSubscription.id,
+            plan_id: plan.id,
+            plan_key: plan.key,
+          }),
+          metadata: JSON.stringify({
+            timestamp: new Date().toISOString(),
+          }),
+        },
+        { client },
+      );
+
+      this.logger.log(
+        `Subscription created: tenant=${tenantId}, plan=${planKey}`,
+      );
+
+      return newSubscription;
+    };
+
+    if (options?.client) {
+      return execute(options.client);
     }
 
-    // Step 2: Find plan
-    const plan = await this.plansRepository.findByKey(planKey);
-    if (!plan) {
-      throw new NotFoundException(`Plan not found: ${planKey}`);
-    }
-
-    if (!plan.is_active) {
-      throw new BadRequestException(`Plan is not active: ${planKey}`);
-    }
-
-    // Step 3: Calculate billing period
-    const now = new Date();
-    const oneMonthLater = new Date(now);
-    oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
-
-    // Step 4: Create within transaction
     return this.databaseService.transactionWithTenantContext(
       { tenantId },
-      async (client) => {
-        const newSubscription = await this.subscriptionsRepository.upsert(
-          {
-            tenant_id: tenantId,
-            plan_id: plan.id,
-            status: 'active',
-            billing_period_start: now,
-            billing_period_end: oneMonthLater,
-            current_period_start: now,
-            current_period_end: oneMonthLater,
-            metadata: '{}',
-          },
-          { client },
-        );
-
-        // Emit domain event
-        await this.domainEventsService.emit(
-          {
-            tenant_id: tenantId,
-            event_type: 'subscription.created',
-            aggregate_type: 'subscription',
-            aggregate_id: newSubscription.id,
-            actor_id: actorId,
-            actor_type: 'user',
-            payload: JSON.stringify({
-              subscription_id: newSubscription.id,
-              plan_id: plan.id,
-              plan_key: plan.key,
-            }),
-            metadata: JSON.stringify({
-              timestamp: new Date().toISOString(),
-            }),
-          },
-          { client },
-        );
-
-        this.logger.log(
-          `Subscription created: tenant=${tenantId}, plan=${planKey}`,
-        );
-
-        return newSubscription;
-      },
+      execute,
     );
   }
 

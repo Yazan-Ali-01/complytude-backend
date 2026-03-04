@@ -12,6 +12,7 @@ import { PoolClient } from 'pg';
 import { deepMerge } from '../../common/utils/deep-merge.util';
 import { DatabaseService } from '../../database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
@@ -62,6 +63,7 @@ export class TenantService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   // ============================================================================
@@ -160,20 +162,24 @@ export class TenantService {
   }
 
   /**
-   * Create a new tenant
+   * Create a new tenant with default subscription
    *
    * 📝 Creates a tenant record with default plan and active status.
-   * Does NOT require RLS context since it's inserting a new row (RLS policies typically allow INSERT).
+   * Also creates a default subscription in the same transaction for atomicity.
+   * Does NOT require RLS context since it's inserting new rows (RLS policies typically allow INSERT).
    *
-   * @param createTenantDto - Tenant configuration including plan selection
+   * @param createTenantDto - Tenant creation data (optional planKey, defaults to 'navigator')
    * @param options - Optional database client for transaction support (used by parent transactions)
    * @returns The created Tenant entity with generated ID and timestamps
    *
    * @throws InternalServerErrorException - If database operation fails
+   * @throws NotFoundException - If specified plan not found
+   * @throws BadRequestException - If specified plan is not active
    *
    * @example
    * ```ts
    * const tenant = await tenantService.createTenant({ plan: 'general_counsel' });
+   * const tenant = await tenantService.createTenant({}); // Uses default 'navigator' plan
    * ```
    */
   async createTenant(
@@ -184,13 +190,28 @@ export class TenantService {
 
     try {
       const tenantCreation = async (client: PoolClient) => {
-        return await this.tenantRepository.create(
+        // Step 1: Create the tenant
+        const tenant = await this.tenantRepository.create(
           {
-            plan: createTenantDto.plan ?? 'navigator',
             is_active: true,
           },
           { client },
         );
+
+        // Step 2: Create default subscription with the specified plan (or 'navigator' default)
+        const planKey = createTenantDto.planKey ?? 'navigator';
+        await this.subscriptionsService.createSubscription(
+          tenant.id,
+          planKey,
+          'system', // System-initiated subscription creation
+          { client },
+        );
+
+        this.logger.log(
+          `Tenant created with subscription: tenant=${tenant.id}, plan=${planKey}`,
+        );
+
+        return tenant;
       };
 
       if (client) {

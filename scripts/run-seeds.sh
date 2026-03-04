@@ -186,6 +186,7 @@ SEED_FILES=(
     "005_seed_templates.sql"
     "006_seed_test_documents.sql"
     "007_seed_features_plans.sql"
+    "003_seed_test_subscriptions.sql"    # Runs after plans exist
     "008_seed_test_entitlements.sql"
 )
 

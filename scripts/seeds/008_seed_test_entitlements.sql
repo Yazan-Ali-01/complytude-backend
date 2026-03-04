@@ -18,93 +18,19 @@ DECLARE
     tenant3_id UUID := '33333333-2222-4222-8222-333333333333';
     admin_user_id UUID := '99999999-9999-9999-9999-999999999999';
     
-    navigator_plan_id UUID;
-    shield_plan_id UUID;
-    general_counsel_plan_id UUID;
-    infrastructure_plan_id UUID;
-    
     documents_feature_id UUID;
     contract_reviews_feature_id UUID;
     
     extra_docs_addon_id UUID;
     extra_reviews_addon_id UUID;
 BEGIN
-    -- Get plan IDs
-    SELECT id INTO navigator_plan_id FROM public.plans WHERE key = 'navigator';
-    SELECT id INTO shield_plan_id FROM public.plans WHERE key = 'shield';
-    SELECT id INTO general_counsel_plan_id FROM public.plans WHERE key = 'general_counsel';
-    SELECT id INTO infrastructure_plan_id FROM public.plans WHERE key = 'infrastructure';
-    
     -- Get feature IDs
     SELECT id INTO documents_feature_id FROM public.features WHERE key = 'documents_per_month';
     SELECT id INTO contract_reviews_feature_id FROM public.features WHERE key = 'contract_reviews_per_month';
     
     -- =========================
-    -- Tenant Subscriptions
+    -- Note: Tenant Subscriptions are now seeded in 003_seed_test_subscriptions.sql
     -- =========================
-    -- Create active subscriptions for all test tenants
-    -- Note: Delete existing active subscriptions first to avoid duplicates
-    
-    -- Delete existing active subscriptions for test tenants
-    DELETE FROM public.tenant_subscriptions 
-    WHERE tenant_id IN (tenant1_id, tenant2_id, tenant3_id) AND status = 'active';
-    
-    -- Tenant 1: general_counsel plan
-    INSERT INTO public.tenant_subscriptions (
-        tenant_id, 
-        plan_id, 
-        status, 
-        billing_period_start, 
-        billing_period_end,
-        current_period_start, 
-        current_period_end
-    ) VALUES (
-        tenant1_id,
-        general_counsel_plan_id,
-        'active',
-        now() - interval '1 month',
-        now() + interval '11 months',
-        now(),
-        now() + interval '1 month'
-    );
-    
-    -- Tenant 2: shield plan
-    INSERT INTO public.tenant_subscriptions (
-        tenant_id, 
-        plan_id, 
-        status, 
-        billing_period_start, 
-        billing_period_end,
-        current_period_start, 
-        current_period_end
-    ) VALUES (
-        tenant2_id,
-        shield_plan_id,
-        'active',
-        now() - interval '2 months',
-        now() + interval '10 months',
-        now(),
-        now() + interval '1 month'
-    );
-    
-    -- Tenant 3: infrastructure plan
-    INSERT INTO public.tenant_subscriptions (
-        tenant_id, 
-        plan_id, 
-        status, 
-        billing_period_start, 
-        billing_period_end,
-        current_period_start, 
-        current_period_end
-    ) VALUES (
-        tenant3_id,
-        infrastructure_plan_id,
-        'active',
-        now() - interval '6 months',
-        now() + interval '6 months',
-        now(),
-        now() + interval '1 month'
-    );
     
     -- =========================
     -- Test Add-ons
@@ -197,18 +123,7 @@ COMMIT;
 -- =========================
 -- Run these to verify the seed data:
 
--- Check subscriptions
--- SELECT 
---     t.id as tenant_id,
---     t.plan as tenant_plan,
---     p.key as subscription_plan,
---     ts.status,
---     ts.current_period_start,
---     ts.current_period_end
--- FROM public.tenants t
--- JOIN public.tenant_subscriptions ts ON ts.tenant_id = t.id
--- JOIN public.plans p ON p.id = ts.plan_id
--- ORDER BY t.id;
+-- Note: Subscriptions are seeded in 003_seed_test_subscriptions.sql
 
 -- Check add-ons
 -- SELECT 

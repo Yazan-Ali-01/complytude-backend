@@ -4,6 +4,7 @@ import { DatabaseModule } from '../../database/database.module';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { MockModule } from '../mock/mock.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { TenantInvitationsController } from './invitations.controller';
 import { TenantController } from './tenant.controller';
 import { TenantService } from './tenant.service';
@@ -12,6 +13,7 @@ import { TenantService } from './tenant.service';
   imports: [
     DatabaseModule,
     InvitationsModule,
+    SubscriptionsModule,
     MockModule, // ✅ Use mock module
   ],
   controllers: [
