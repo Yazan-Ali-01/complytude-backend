@@ -64,23 +64,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * Execute a query with parameters
    * @param text SQL query string
    * @param params Query parameters
-   * @param bypassRLS Whether to bypass row level security (default: true)
    * @returns Query result
    */
   async query<T extends QueryResultRow = any>(
     text: string,
     params?: any[],
-    bypassRLS: boolean = true,
   ): Promise<QueryResult<T>> {
     const start = Date.now();
     const client = await this.getClient();
     try {
-      if (bypassRLS) {
-        await client.query('SELECT set_config($1, $2, true)', [
-          'app.bypass_rls',
-          'true',
-        ]);
-      }
       const result = await client.query<T>(text, params);
       const duration = Date.now() - start;
       this.logger.debug(`Executed query in ${duration}ms: ${text}`);
@@ -104,22 +96,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   /**
    * Execute multiple queries in a transaction
    * @param callback Transaction callback
-   * @param bypassRLS Whether to bypass row level security (default: false)
    * @returns Transaction result
    */
   async transaction<T>(
     callback: (client: PoolClient) => Promise<T>,
-    bypassRLS: boolean = false,
   ): Promise<T> {
     const client = await this.getClient();
     try {
       await client.query('BEGIN');
-      if (bypassRLS) {
-        await client.query('SELECT set_config($1, $2, true)', [
-          'app.bypass_rls',
-          'true',
-        ]);
-      }
       const result = await callback(client);
       await client.query('COMMIT');
       this.logger.debug('Transaction committed successfully');
@@ -150,12 +134,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     text: string,
     params?: any[],
   ): Promise<QueryResult<T>> {
-    return this.transactionWithTenantContext(
-      { tenantId: tenantId },
-      async (client) => {
-        return await client.query<T>(text, params);
-      },
-    );
+    return this.transactionWithTenantContext({ tenantId }, async (client) => {
+      return await client.query<T>(text, params);
+    });
   }
 
   /**
@@ -172,6 +153,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     },
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
+    if (!params?.tenantId || typeof params.tenantId !== 'string') {
+      throw new Error(
+        'tenantId is required and must be a valid string for tenant context',
+      );
+    }
+
     const client = await this.getClient();
     try {
       await client.query('BEGIN');
@@ -207,34 +194,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (params?.isTenantAdmin) {
       await client.query('SELECT set_config($1, $2, true)', [
         'app.is_tenant_admin',
-        'true',
+        params?.isTenantAdmin ? 'true' : 'false',
       ]);
     }
     if (params?.allowCrossTenantRead) {
       await client.query('SELECT set_config($1, $2, true)', [
         'app.allow_cross_tenant_read',
-        'true',
+        params?.allowCrossTenantRead ? 'true' : 'false',
       ]);
     }
     this.logger.debug(
       `Set tenant context: ${params?.tenantId} (transaction-scoped)`,
     );
-  }
-
-  /**
-   * Get a client configured for a specific tenant (RLS context only)
-   * Remember to release the client after use!
-   */
-  async getTenantClient(tenantId: string): Promise<PoolClient> {
-    const client = await this.getClient();
-
-    try {
-      await client.query(`SET LOCAL app.current_tenant_id = $1`, [tenantId]);
-      return client;
-    } catch (error) {
-      client.release();
-      throw error;
-    }
   }
 
   /**

@@ -33,7 +33,6 @@ export class RulesetVersionReadRepository {
        FROM public.ruleset_versions
        WHERE id = $1`,
       [versionId],
-      true,
     );
 
     const row = result.rows[0];
@@ -64,7 +63,6 @@ export class RulesetVersionReadRepository {
        LEFT JOIN public.authorities a ON a.id = r.authority_id
        WHERE r.id = $1`,
       [rulesetId],
-      true,
     );
 
     const row = result.rows[0];

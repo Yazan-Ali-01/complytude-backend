@@ -76,7 +76,7 @@ export class PlatformRbacSyncService implements OnModuleInit {
       }
 
       this.logger.log('Platform permissions synced successfully');
-    }, true);
+    });
   }
 
   private async syncSystemRoles(): Promise<void> {
@@ -150,7 +150,7 @@ export class PlatformRbacSyncService implements OnModuleInit {
       }
 
       this.logger.log('Platform system roles synced successfully');
-    }, true);
+    });
   }
 
   private parsePermissions(): Array<{
