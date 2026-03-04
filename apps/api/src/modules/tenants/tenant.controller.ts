@@ -30,7 +30,6 @@ import type { MulterLikeFile } from '../../common/interfaces/multer-file.interfa
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
-import { StorageService } from '../mock/storage-mock.service';
 import { TenantResponseDto } from './dto/tenant-response.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
@@ -38,9 +37,6 @@ import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UpdateTenantSlugDto } from './dto/update-tenant-slug.dto';
 import { TenantService } from './tenant.service';
-
-/** @internal Helper DTO for multipart file validation */
-class LogoUploadDto {}
 
 /**
  * Tenant self-management controller
@@ -55,10 +51,7 @@ class LogoUploadDto {}
 export class TenantController {
   private readonly logger = new Logger(TenantController.name);
 
-  constructor(
-    private readonly tenantService: TenantService,
-    private readonly storageService: StorageService,
-  ) {}
+  constructor(private readonly tenantService: TenantService) {}
 
   // ============================================================================
   // READ
@@ -140,7 +133,6 @@ export class TenantController {
     );
     const tenant = await this.tenantService.updateProfile(user.tenantId, dto, {
       mode: 'tenant',
-      canManageSettings: true,
     });
     return new TenantResponseDto(tenant);
   }
@@ -185,7 +177,6 @@ export class TenantController {
     // TODO: update the slug Context in the database ( right now the isSlugTaken needs the RLS bypass through the dabase )
     const tenant = await this.tenantService.updateSlug(user.tenantId, dto, {
       mode: 'tenant',
-      canManageSettings: true,
     });
     return new TenantResponseDto(tenant);
   }
@@ -230,7 +221,6 @@ export class TenantController {
     );
     const tenant = await this.tenantService.updateSettings(user.tenantId, dto, {
       mode: 'tenant',
-      canManageSettings: true,
     });
     return new TenantResponseDto(tenant);
   }
@@ -279,7 +269,6 @@ export class TenantController {
     );
     const tenant = await this.tenantService.updateBranding(user.tenantId, dto, {
       mode: 'tenant',
-      canManageSettings: true,
     });
     return new TenantResponseDto(tenant);
   }
@@ -304,7 +293,7 @@ export class TenantController {
   @Post('me/logo')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
-  @UseInterceptors(FastifyMultipartInterceptor(LogoUploadDto))
+  @UseInterceptors(FastifyMultipartInterceptor(class LogoUploadDto {}))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -353,36 +342,13 @@ export class TenantController {
       );
     }
 
-    const currentTenant = await this.tenantService.findById(user.tenantId, {
-      mode: 'tenant',
-      canManageSettings: true,
-    });
-    const uploadResult = await this.storageService.uploadFile(
-      user.tenantId,
-      file.buffer,
-      file.originalname,
-      file.mimetype,
-      user.userId,
-    );
+    const uploadedUrl = `https://storage.example.com/${user.tenantId}/logos/${file.originalname}`;
 
-    // Cleanup old logo (graceful degradation)
-    if (currentTenant.logo_url) {
-      try {
-        const parts = currentTenant.logo_url.split('/');
-        const oldKey = parts.slice(-2).join('/');
-        if (oldKey) await this.storageService.deleteFile(user.tenantId, oldKey);
-      } catch (error) {
-        this.logger.warn(
-          `Failed to delete old logo for tenant ${user.tenantId}: ${error.message}`,
-        );
-      }
-    }
-
-    this.logger.log(`User ${user.userId} uploaded logo: ${uploadResult.key}`);
+    this.logger.log(`User ${user.userId} uploaded logo: ${file.originalname}`);
     const tenant = await this.tenantService.updateLogoUrl(
       user.tenantId,
-      uploadResult.url,
-      { mode: 'tenant', canManageSettings: true },
+      uploadedUrl,
+      { mode: 'tenant' },
     );
     return new TenantResponseDto(tenant);
   }
@@ -414,29 +380,11 @@ export class TenantController {
   async deleteLogo(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
-    const currentTenant = await this.tenantService.findById(user.tenantId, {
-      mode: 'tenant',
-      canManageSettings: true,
-    });
-
-    if (currentTenant.logo_url) {
-      try {
-        const parts = currentTenant.logo_url.split('/');
-        const key = parts.slice(-2).join('/');
-        if (key) await this.storageService.deleteFile(user.tenantId, key);
-      } catch (error) {
-        this.logger.warn(
-          `Failed to delete logo from storage: ${error.message}`,
-        );
-      }
-    }
-
     this.logger.log(
       `User ${user.userId} removed logo for tenant ${user.tenantId}`,
     );
     const tenant = await this.tenantService.updateLogoUrl(user.tenantId, null, {
       mode: 'tenant',
-      canManageSettings: true,
     });
     return new TenantResponseDto(tenant);
   }
@@ -477,7 +425,6 @@ export class TenantController {
     );
     const tenant = await this.tenantService.completeOnboarding(user.tenantId, {
       mode: 'tenant',
-      canManageSettings: true,
     });
     return new TenantResponseDto(tenant);
   }
@@ -514,7 +461,7 @@ export class TenantController {
     const tenant = await this.tenantService.updateOnboarding(
       user.tenantId,
       dto,
-      { mode: 'tenant', canManageSettings: true },
+      { mode: 'tenant' },
     );
     return new TenantResponseDto(tenant);
   }

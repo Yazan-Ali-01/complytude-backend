@@ -8,7 +8,6 @@ import { EntitlementsMockController } from './entitlements-mock.controller';
 import { QueueTestMockController } from './queue-test-mock.controller';
 import { RbacMockController } from './rbac-mock.controller';
 import { SnapshotMockController } from './snapshot-mock.controller';
-import { StorageService } from './storage-mock.service';
 import { UsageMockController } from './usage-mock.controller';
 
 /**
@@ -39,8 +38,6 @@ import { UsageMockController } from './usage-mock.controller';
     SnapshotMockController,
     QueueTestMockController,
   ],
-  providers: [StorageService],
-  exports: [StorageService],
   imports: [SubscriptionsModule, DatabaseModule],
 })
 export class MockModule {}

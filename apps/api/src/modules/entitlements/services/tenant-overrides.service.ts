@@ -64,7 +64,7 @@ export class TenantOverridesService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: context.canManageSettings ?? false },
+      { tenantId, isTenantAdmin: true },
       (client) =>
         this.tenantOverridesRepository.findActiveByTenant(tenantId, { client }),
     );

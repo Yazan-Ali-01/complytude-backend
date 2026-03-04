@@ -1,8 +1,8 @@
 import { DatabaseService } from '@lib/database';
-import { ClauseChunkerService, EmbeddingService } from '@lib/embedding';
 import type { ClauseInput } from '@lib/embedding';
-import { PermanentError, RetryableError } from '@lib/queue';
+import { ClauseChunkerService, EmbeddingService } from '@lib/embedding';
 import type { RulesetIngestionJobData } from '@lib/queue';
+import { PermanentError, RetryableError } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -132,7 +132,7 @@ export class RulesetIngestionService {
           this.insertBatchSize,
         );
         return deleted;
-      }, true)
+      })
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error upserting chunks for ruleset "${ruleset.key}" v${version.version}`,
