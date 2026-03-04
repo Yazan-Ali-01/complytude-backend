@@ -67,11 +67,12 @@ cursor-rules.mdc ←→ self-improvement.mdc (meta rules)
 
 - **Rules Directory:** `.cursor/rules/`
 - **Documentation:** `docs/`
-- **API Contracts:** `docs/API_CONTRACTS.md`
+- **API Contracts:** `apps/api/docs/API_CONTRACTS.md`
 - **Database Schema:** `docs/DATABASE.md`
 - **Architecture:** `docs/ARCHITECTURE.md`
 - **Entitlements:** `docs/ENTITLEMENTS.md`
+- **RBAC:** `docs/RBAC.md`
 
 ---
 
-**Last Updated:** 2026-02-14 | **Total Rules:** 7 (6 always applied, 1 requestable) | **Status:** PRE-PRODUCTION
+**Last Updated:** 2026-03-04 | **Total Rules:** 8 (7 always applied, 1 requestable) | **Status:** PRE-PRODUCTION
