@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Body,
@@ -7,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { PlanKey } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';

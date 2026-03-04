@@ -1,8 +1,8 @@
+import { DatabaseService } from '@lib/database';
 import { AI_JOB_NAMES, QUEUE_NAMES, QueueProducerService } from '@lib/queue';
 import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
-import { DatabaseService } from '../../database/database.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
 import type {

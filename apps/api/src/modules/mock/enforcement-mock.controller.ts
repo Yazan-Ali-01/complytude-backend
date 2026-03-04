@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Body,
@@ -12,7 +13,6 @@ import { RequireEntitlement } from 'src/common/decorators/require-entitlement.de
 import { TrackUsage } from 'src/common/decorators/track-usage.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import { UsageEnforcementGuard } from 'src/common/guards/usage-enforcement.guard';
-import { DatabaseService } from '../../database/database.service';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';

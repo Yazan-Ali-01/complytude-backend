@@ -1,8 +1,8 @@
 # Entitlement System Documentation
 
-**Version:** 1.0
-**Last Updated:** February 23, 2026
-**Status:** ✅ Implemented
+**Version:** 2.0
+**Last Updated:** March 4, 2026
+**Status:** ✅ Implemented (Dual-Mode Enforcement)
 
 ---
 
@@ -148,19 +148,58 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                   Request Flow                                │
+│                   Request Flow (Dual-Mode)                    │
 ├──────────────────────────────────────────────────────────────┤
 │  1. HTTP Request → EntitlementGuard (check access)           │
 │  2. Controller → Service → EntitlementEnforcementService     │
-│  3. Resolve entitlement (snapshot cache or fresh compute)    │
-│  4. Check usage vs limit                                     │
-│  5. If exceeded → check credits → deduct if available        │
-│  6. Record usage event (append-only ledger)                  │
-│  7. Update aggregated projection (sync for now)              │
-│  8. Emit domain event (audit trail)                          │
-│  9. Return result to client                                  │
+│  3. Resolve effective entitlement (snapshot or fresh)         │
+│  4. Get current usage from aggregated_usage projection       │
+│  5. Route to enforcement mode based on remaining quota:      │
+│     ┌─────────────────────────────────────────────────┐      │
+│     │ ASYNC MODE (far from limit)                     │      │
+│     │  • Record usage to ledger (in transaction)      │      │
+│     │  • Enqueue PROJECTION_UPDATE job (BullMQ)       │      │
+│     │  • Projection updated async by worker           │      │
+│     │  • Sync fallback if BullMQ unavailable          │      │
+│     ├─────────────────────────────────────────────────┤      │
+│     │ STRICT MODE (near limit, ≤5% or 3 units)       │      │
+│     │  • Record usage to ledger (in savepoint)        │      │
+│     │  • CAS on aggregated_usage (conditionalIncr.)   │      │
+│     │  • If CAS fails → rollback + deny (race)        │      │
+│     │  • If CAS succeeds → commit + emit event        │      │
+│     ├─────────────────────────────────────────────────┤      │
+│     │ UNLIMITED MODE (limit = -1)                     │      │
+│     │  • Always async path (no quota to enforce)      │      │
+│     └─────────────────────────────────────────────────┘      │
+│  6. If quota exceeded → check credits → deduct if available  │
+│  7. Return result to client                                  │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+### Enforcement Modes
+
+The system uses a **dual-mode enforcement strategy** that balances performance (async projection updates) with correctness (strict mode near limits):
+
+| Mode | Condition | Projection Update | Concurrency Safety |
+|------|-----------|-------------------|-------------------|
+| **Async** | `remaining > threshold` | BullMQ job (async) with sync fallback | Eventual consistency (safe: far from limit) |
+| **Strict** | `remaining ≤ threshold` | CAS (`conditionalIncrement`) in-transaction | Strong consistency (prevents over-quota) |
+| **Unlimited** | `limit = -1` | BullMQ job (async) | N/A (no quota) |
+
+**Threshold:** Configurable via `app.entitlement.strictThresholdPercent` (default: 5% of limit, minimum 3 units).
+
+**Async Path Details:**
+- Usage is written to the append-only ledger within the main transaction
+- After commit, a `PROJECTION_UPDATE` job is enqueued to BullMQ
+- `ProjectionUpdateHandler` processes the job: claims event via `projected_at` CAS, increments `aggregated_usage`, emits domain event
+- If BullMQ is unavailable, falls back to synchronous projection + domain event emission
+- Idempotency: `claimForProjection()` uses CAS on `projected_at` column — prevents double-projection on retries
+
+**Strict Path Details:**
+- Uses PostgreSQL savepoints for atomic rollback on CAS failure
+- `conditionalIncrement()` atomically increments `aggregated_usage` only if current total hasn't exceeded the limit
+- If CAS returns null (concurrent request consumed remaining quota), the savepoint is rolled back and the request is denied with `concurrent_quota_race` reason
+- Domain event is emitted in-transaction (not async)
 
 ### Data Layer
 
@@ -366,7 +405,36 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ### 2. Usage Enforcement
 
-**Example: Document Generation**
+**Example: Document Generation (Async Mode — far from limit)**
+
+```typescript
+// EntitlementEnforcementService.checkAndRecord()
+1. Resolve entitlement for 'documents_per_month'
+   → Result: { value_int: 25, source: 'plan', creditable: true }
+
+2. Get current usage for billing period
+   → Query aggregated_usage: total_units = 10
+
+3. Check: remaining = 25 - 10 = 15 units left (> threshold of 3)
+   → Route to ASYNC enforcement
+
+4. Record usage event to ledger (in transaction):
+   - tenant_id, feature_id, units: 1
+   - allocations: [{ source: 'plan', units: 1 }]
+   - billing_period: '2026-02'
+
+5. Transaction commits
+
+6. Post-commit: enqueue PROJECTION_UPDATE job to BullMQ
+   → ProjectionUpdateHandler (async):
+     a. Claim event via projected_at CAS (idempotency)
+     b. Increment aggregated_usage: total_units 10 → 11
+     c. Emit domain event: 'usage.recorded' (enforcement_mode: 'async')
+
+7. Return: { allowed: true, source: 'plan', remaining: 14 }
+```
+
+**Example: Document Generation (Strict Mode — near limit)**
 
 ```typescript
 // EntitlementEnforcementService.checkAndRecord()
@@ -376,22 +444,36 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 2. Get current usage for billing period
    → Query aggregated_usage: total_units = 24
 
-3. Check: remaining = 25 - 24 = 1 unit left
-   → Request: 1 unit
-   → Allowed: YES (within quota)
+3. Check: remaining = 25 - 24 = 1 unit left (≤ threshold of 3)
+   → Route to STRICT enforcement
 
-4. Record usage event:
-   - tenant_id, feature_id, units: 1
+4. Create savepoint
+
+5. Record usage event to ledger (in savepoint):
    - allocations: [{ source: 'plan', units: 1 }]
-   - billing_period: '2026-02'
 
-5. Update aggregated_usage:
-   - total_units: 24 → 25
-   - plan_units: 24 → 25
+6. CAS: conditionalIncrement on aggregated_usage
+   → Atomically: UPDATE ... SET total_units = total_units + 1
+     WHERE total_units + 1 <= 25
+   → Success: returns { total_units: 25 }
 
-6. Emit domain event: 'usage.recorded'
+7. Release savepoint, emit domain event in-transaction
 
-7. Return: { allowed: true, source: 'plan', remaining: 0 }
+8. Return: { allowed: true, source: 'plan', remaining: 0 }
+```
+
+**Example: Strict Mode CAS Failure (Concurrent Race)**
+
+```typescript
+// Two concurrent requests for the last unit
+1. Request A and Request B both read: total_units = 24, remaining = 1
+
+2. Request A wins CAS: total_units → 25 ✅
+
+3. Request B attempts CAS: total_units + 1 > 25 → returns NULL
+   → Rollback to savepoint (usage ledger entry removed)
+   → Emit 'entitlement.denied' with reason: 'concurrent_quota_race'
+   → Return: { allowed: false, reason: 'quota_exceeded' }
 ```
 
 **Example: Quota Exceeded (Credit Fallback)**
@@ -1331,16 +1413,20 @@ await entitlementSnapshotService.rebuild(tenantId, entitlements, planKey);
 
 **Symptom:** Aggregated usage shows 30 docs but ledger has 25 events.
 
-**Cause:** Projection drift (rare, but possible if projection update fails).
+**Cause:** Projection drift (possible if async projection job failed or was duplicated).
 
 **Solution:**
 
 ```typescript
-// Rebuild projection from ledger (source of truth)
+// Option 1: Run reconciliation (detects and auto-corrects all drift)
+const result = await projectionReconciliationService.reconcile(tenantId);
+// result.drifted shows how many rows had drift, result.corrected shows fixes
+
+// Option 2: Manually rebuild a single projection from ledger
 await usageProjectionService.rebuildFromLedger(
   tenantId,
   subscriptionId,
-  featureKey,
+  featureId,
   billingPeriod,
 );
 ```
@@ -1409,13 +1495,51 @@ console.log(events.length);
 
 **Symptom:** Two requests at the same time, both succeed, but quota is exceeded.
 
-**Cause:** Race condition on aggregated_usage update.
+**Cause:** Both requests read the same usage count in async mode before either updates the projection.
 
 **Solution:**
 
-- The system uses `SELECT ... FOR UPDATE` on aggregated_usage row within transaction
-- If still occurring, check that all usage recording goes through EntitlementEnforcementService
-- Never bypass the enforcement service and record usage directly
+- The system automatically routes to **strict mode** when remaining quota is within the threshold (≤5% of limit or 3 units). Strict mode uses CAS (`conditionalIncrement`) on `aggregated_usage` — the second concurrent request will fail the CAS and be denied.
+- If the threshold is too low for your use case, increase `app.entitlement.strictThresholdPercent` in config.
+- Never bypass the enforcement service and record usage directly.
+
+---
+
+## Projection Reconciliation
+
+Since async mode introduces eventual consistency, a **reconciliation service** detects and auto-corrects drift between projections and the ledger truth.
+
+### How It Works
+
+`ProjectionReconciliationService.reconcile()` runs in three phases:
+
+1. **Read Phase:** Query per-source ledger totals (`SUM(usage_allocations.units) GROUP BY source`) and current `aggregated_usage` projections in a single transaction
+2. **Compare Phase:** Per-source drift check — catches cross-source drift even when totals match (e.g., plan=5/addon=3 vs plan=4/addon=4)
+3. **Correct Phase:** For each drifted row, calls `rebuildFromLedger()` to recompute the projection from allocations. Each rebuild runs in its own transaction for error isolation.
+
+### When It Runs
+
+- **Currently:** Manual trigger (admin endpoint, REPL)
+- **Future:** Scheduled cron job via BullMQ
+
+### Result Format
+
+```typescript
+{
+  checked: 15,      // Rows compared
+  drifted: 2,       // Rows with drift detected
+  corrected: 2,     // Rows successfully corrected
+  failed: 0,        // Rows that failed to correct
+  details: [...],   // Per-row drift details (projection vs ledger breakdown)
+  failedDetails: [] // Error details for failed corrections
+}
+```
+
+### Key Design Decisions
+
+- **Per-source comparison** (not total-only) catches subtle cross-source drift
+- **Per-row error isolation** — one failed rebuild doesn't abort the entire reconciliation
+- **Single-subscription-per-tenant invariant** — the query assumes one active subscription per tenant. If this is ever relaxed, the query must be updated.
 
 ---
 
@@ -1425,6 +1549,8 @@ console.log(events.length);
 
 1. **Read the code:**
    - `apps/api/src/modules/entitlements/` - Core services
+   - `apps/api/src/modules/entitlements/processors/` - BullMQ job handlers (projection updates)
+   - `apps/api/src/modules/entitlements/services/projection-reconciliation.service.ts` - Drift detection/correction
    - `apps/api/src/common/constants/plan-entitlements.constant.ts` - Feature catalog
    - `apps/api/src/common/guards/entitlement.guard.ts` - Guard implementation
 

@@ -1,4 +1,4 @@
-import { QueryOptions } from '@lib/database';
+import { DatabaseService, QueryOptions } from '@lib/database';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -10,7 +10,6 @@ import {
   CreditTransactionType,
   RecordTransactionInput,
 } from '../../../common/types/entitlement.types';
-import { DatabaseService } from '../../../database/database.service';
 import { CreditLedgerRepository } from '../../../repositories/credits/credit-ledger.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { DomainEventsService } from './domain-events.service';

@@ -1,6 +1,5 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
 
 export const ANALYSIS_JOB_STATUSES = {
   QUEUED: 'queued',

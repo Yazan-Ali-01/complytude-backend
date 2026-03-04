@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -24,7 +25,6 @@ import {
 import { User } from 'src/modules/users/entities/user.entity';
 import { TokenType } from 'src/repositories/users/interfaces/refresh-token.interfaces';
 import { I18nKeys } from '../../common/constants/i18n-keys';
-import { DatabaseService } from '../../database/database.service';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';

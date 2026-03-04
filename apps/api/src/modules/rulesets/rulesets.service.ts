@@ -1,4 +1,8 @@
-import { OffsetPaginationOptions, OffsetPaginationResult } from '@lib/database';
+import {
+  DatabaseService,
+  OffsetPaginationOptions,
+  OffsetPaginationResult,
+} from '@lib/database';
 import {
   INGESTION_JOB_NAMES,
   QUEUE_NAMES,
@@ -12,7 +16,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { RulesetVersionRepository } from '../../repositories/rulesets/ruleset-version.repository';
 import {

@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   ConflictException,
   Injectable,
@@ -12,7 +13,6 @@ import {
   TenantAddonWithEntitlements,
   UpdateTenantAddonRow,
 } from '../../../common/types/entitlement.types';
-import { DatabaseService } from '../../../database/database.service';
 import {
   AddonWithEntitlements,
   AddonsRepository,

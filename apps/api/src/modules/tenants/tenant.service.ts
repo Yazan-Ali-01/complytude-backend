@@ -1,4 +1,8 @@
-import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  DatabaseService,
+} from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -10,7 +14,6 @@ import {
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { deepMerge } from '../../common/utils/deep-merge.util';
-import { DatabaseService } from '../../database/database.service';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';

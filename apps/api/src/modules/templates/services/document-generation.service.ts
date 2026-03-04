@@ -14,11 +14,11 @@ import {
   GenerateDocumentResponseDto,
 } from '../dto/generate-document.dto';
 
+import { DatabaseService } from '@lib/database';
 import { StorageService } from 'src/modules/storage/storage.service';
 import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
 import { TemplatesService } from 'src/modules/templates/templates.service';
 import { TenantService } from 'src/modules/tenants/tenant.service';
-import { DatabaseService } from '../../../database/database.service';
 
 import { ValidationException } from 'src/common/exceptions/validation.exception';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from 'src/modules/templates/constants/template.constants';

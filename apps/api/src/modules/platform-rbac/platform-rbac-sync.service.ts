@@ -1,5 +1,5 @@
+import { DatabaseService } from '@lib/database';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { DatabaseService } from 'src/database/database.service';
 import { ALL_PLATFORM_PERMISSIONS } from '../../common/constants/platform-permissions.constant';
 import { PLATFORM_SYSTEM_ROLE_PERMISSIONS } from '../../common/constants/platform-system-roles.constant';
 import { SystemPlatformRole } from '../../common/types';

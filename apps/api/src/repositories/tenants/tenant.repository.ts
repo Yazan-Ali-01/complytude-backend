@@ -3,11 +3,11 @@ import {
   CursorPaginationHelper,
   CursorPaginationOptions,
   CursorPaginationResult,
+  DatabaseService,
   QueryOptions,
 } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import { Tenant } from 'src/modules/tenants/entities/tenant.entity';
-import { DatabaseService } from '../../database/database.service';
 
 /**
  * Type for creating a new tenant row in the database.

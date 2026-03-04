@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../../database/database.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { CreditsMockController } from './credits-mock.controller';
 import { DomainEventsMockController } from './domain-events-mock.controller';
@@ -38,6 +37,6 @@ import { UsageMockController } from './usage-mock.controller';
     SnapshotMockController,
     QueueTestMockController,
   ],
-  imports: [SubscriptionsModule, DatabaseModule],
+  imports: [SubscriptionsModule],
 })
 export class MockModule {}

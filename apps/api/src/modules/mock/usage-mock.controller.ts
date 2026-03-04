@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Body,
@@ -11,7 +12,6 @@ import type {
   FeatureKey,
   UsageSource,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { UsageAllocationsRepository } from '../../repositories/usage/usage-allocations.repository';
