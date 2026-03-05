@@ -429,7 +429,7 @@ Data access layer with repository pattern. All repositories extend `BaseReposito
 
 ### Feature Modules (`apps/api/src/modules/`)
 
-**17 modules total:** auth, audit, authorities, categories, documents, entitlements, health, invitations, mock, platform-rbac, rulesets, storage, subscriptions, tenant-rbac, tenants, templates, users
+**18 modules total:** auth, audit, authorities, categories, documents, entitlements, health, invitations, mock, platform-rbac, rag-mock, rulesets, storage, subscriptions, tenant-rbac, tenants, templates, users
 
 #### Authentication (`auth/`)
 
@@ -568,6 +568,15 @@ Development/testing mock controllers (non-production):
 - **rbac-mock.controller.ts** - Mock RBAC operations
 - **snapshot-mock.controller.ts** - Mock snapshots
 - **usage-mock.controller.ts** - Mock usage tracking
+
+#### RAG Mock (`rag-mock/`)
+
+Demo module for RAG compliance analysis pipeline end-to-end testing:
+
+- **rag-mock.module.ts** - Module configuration (imports DocumentsModule)
+- **rag-mock.controller.ts** - Demo endpoints: GET /contracts, POST /analyze/:n
+- **sample-contracts.constant.ts** - 5 sample contracts with deliberate compliance gaps
+- **README.md** - Demo flow, setup options, debugging
 
 #### Tenant RBAC (`tenant-rbac/`)
 

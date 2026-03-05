@@ -188,6 +188,8 @@ SEED_FILES=(
     "007_seed_features_plans.sql"
     "003_seed_test_subscriptions.sql"    # Runs after plans exist
     "008_seed_test_entitlements.sql"
+    "009_seed_rulesets.sql"
+    "010_seed_ruleset_chunks.sql"
 )
 
 FAILED_COUNT=0
