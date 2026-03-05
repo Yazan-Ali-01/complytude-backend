@@ -22,6 +22,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 import { MockModule } from './modules/mock/mock.module';
+import { RagMockModule } from './modules/rag-mock/rag-mock.module';
 import { PlatformRbacModule } from './modules/platform-rbac/platform-rbac.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -66,6 +67,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     PlatformRbacModule,
     AuditModule,
     MockModule,
+    RagMockModule,
   ],
   controllers: [AppController],
   providers: [

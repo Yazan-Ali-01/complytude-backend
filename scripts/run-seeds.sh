@@ -187,6 +187,8 @@ SEED_FILES=(
     "006_seed_test_documents.sql"
     "007_seed_features_plans.sql"
     "008_seed_test_entitlements.sql"
+    "009_seed_rulesets.sql"
+    "010_seed_ruleset_chunks.sql"
 )
 
 FAILED_COUNT=0
