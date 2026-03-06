@@ -1,0 +1,6 @@
+# Copy this file to terraform.tfvars and fill in the values.
+# terraform.tfvars is gitignored — never commit it.
+
+aws_region  = "me-central-1"
+environment = "staging"
+project     = "complytude"

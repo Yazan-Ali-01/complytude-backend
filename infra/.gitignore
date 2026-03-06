@@ -1,0 +1,20 @@
+# Terraform working directory — contains provider binaries, not source files
+.terraform/
+
+# State files — managed remotely in S3, never commit locally
+*.tfstate
+*.tfstate.backup
+
+# Variable files may contain secrets — use *.tfvars.example for templates
+*.tfvars
+!*.tfvars.example
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files — local developer overrides, not shared
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
