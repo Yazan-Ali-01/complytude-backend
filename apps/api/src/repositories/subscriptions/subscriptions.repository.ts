@@ -151,8 +151,15 @@ export class SubscriptionsRepository extends BaseRepository<
   ): Promise<TenantSubscription> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
       `
-      INSERT INTO ${this.tableName} (tenant_id, plan_id, status, billing_period_start, billing_period_end, current_period_start, current_period_end, metadata)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO ${this.tableName} (
+        tenant_id, plan_id, status,
+        billing_period_start, billing_period_end,
+        current_period_start, current_period_end,
+        metadata,
+        stripe_subscription_id, stripe_schedule_id,
+        stripe_current_period_end, stripe_status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       ON CONFLICT (tenant_id) WHERE status = 'active'
       DO UPDATE SET
         plan_id = EXCLUDED.plan_id,
@@ -161,6 +168,10 @@ export class SubscriptionsRepository extends BaseRepository<
         current_period_start = EXCLUDED.current_period_start,
         current_period_end = EXCLUDED.current_period_end,
         metadata = EXCLUDED.metadata,
+        stripe_subscription_id = COALESCE(EXCLUDED.stripe_subscription_id, ${this.tableName}.stripe_subscription_id),
+        stripe_schedule_id = COALESCE(EXCLUDED.stripe_schedule_id, ${this.tableName}.stripe_schedule_id),
+        stripe_current_period_end = COALESCE(EXCLUDED.stripe_current_period_end, ${this.tableName}.stripe_current_period_end),
+        stripe_status = COALESCE(EXCLUDED.stripe_status, ${this.tableName}.stripe_status),
         updated_at = now()
       RETURNING ${this.getSelectColumns()}
       `,
@@ -173,6 +184,10 @@ export class SubscriptionsRepository extends BaseRepository<
         subscription.current_period_start,
         subscription.current_period_end,
         subscription.metadata ?? '{}',
+        subscription.stripe_subscription_id ?? null,
+        subscription.stripe_schedule_id ?? null,
+        subscription.stripe_current_period_end ?? null,
+        subscription.stripe_status ?? null,
       ],
       options,
     );

@@ -46,6 +46,10 @@ export class StripeCheckoutController {
     status: 400,
     description: 'Plan has no Stripe price configured',
   })
+  @ApiResponse({
+    status: 409,
+    description: 'Tenant already has an active Stripe subscription — use the plan change flow',
+  })
   @ApiResponse({ status: 403, description: 'Insufficient permissions' })
   @ApiResponse({ status: 404, description: 'Plan not found' })
   async createCheckoutSession(

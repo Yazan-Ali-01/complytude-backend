@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,7 +8,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PlanKey } from 'src/common/types/entitlement.types';
+import { DatabaseService } from 'src/database/database.service';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
+import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
 import {
   CheckoutSessionResponseDto,
   CreateCheckoutSessionDto,
@@ -23,6 +26,8 @@ export class StripeCheckoutService {
     private readonly stripeService: StripeService,
     private readonly stripeCustomerService: StripeCustomerService,
     private readonly plansRepository: PlansRepository,
+    private readonly subscriptionsRepository: SubscriptionsRepository,
+    private readonly databaseService: DatabaseService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -39,6 +44,17 @@ export class StripeCheckoutService {
     tenantId: string,
     dto: CreateCheckoutSessionDto,
   ): Promise<CheckoutSessionResponseDto> {
+    const existing =
+      await this.databaseService.transactionWithPlatformAdminContext(
+        async (client) =>
+          this.subscriptionsRepository.findActiveByTenant(tenantId, { client }),
+      );
+    if (existing?.stripe_subscription_id) {
+      throw new ConflictException(
+        'Tenant already has an active Stripe subscription. Use the plan change flow to switch plans.',
+      );
+    }
+
     const plan = await this.plansRepository.findByKey(dto.planKey as PlanKey);
     if (!plan) {
       throw new NotFoundException(`Plan not found: ${dto.planKey}`);

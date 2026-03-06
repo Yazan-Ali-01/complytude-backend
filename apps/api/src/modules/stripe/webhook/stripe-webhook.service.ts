@@ -26,7 +26,7 @@ export class StripeWebhookService {
     await this.webhookEventsRepository.upsertEvent(event, 'processing');
 
     try {
-      this.routeEvent(event);
+      await this.routeEvent(event);
       await this.webhookEventsRepository.markCompleted(event.id);
     } catch (error) {
       const message =
@@ -40,7 +40,7 @@ export class StripeWebhookService {
     }
   }
 
-  private routeEvent(event: Stripe.Event): void {
+  private routeEvent(event: Stripe.Event): Promise<void> | void {
     switch (event.type) {
       case STRIPE_WEBHOOK_EVENTS.CHECKOUT_SESSION_COMPLETED:
         return this.handlers.handleCheckoutCompleted(event);
