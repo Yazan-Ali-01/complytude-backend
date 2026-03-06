@@ -1,6 +1,12 @@
 # Copy this file to terraform.tfvars and fill in the values.
 # terraform.tfvars is gitignored — never commit it.
 
-aws_region  = "me-central-1"
-environment = "staging"
-project     = "complytude"
+aws_region         = "me-central-1"
+environment        = "staging"
+project            = "complytude"
+vpc_cidr           = "10.0.0.0/16"
+availability_zones = ["me-central-1a", "me-central-1c"]
+
+# RDS — never commit your actual password, set it only in terraform.tfvars
+# RDS does NOT allow: / @ " (space). Use only letters, numbers, and symbols like !#$%^&*()-_=+
+db_password = "CHANGE_ME_USE_A_STRONG_PASSWORD"
