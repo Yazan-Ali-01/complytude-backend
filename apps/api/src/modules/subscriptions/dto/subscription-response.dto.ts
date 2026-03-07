@@ -72,7 +72,7 @@ export class SubscriptionResponseDto {
     description: 'Additional metadata',
     example: {},
   })
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'Creation date',

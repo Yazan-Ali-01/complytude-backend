@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
@@ -9,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import type { JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { FastifyReply } from 'fastify';
@@ -411,21 +411,21 @@ export class AuthService {
     };
 
     const identityAccessToken = this.jwtService.sign(
-      accessPayload as any,
+      accessPayload as object,
       {
         secret: this.configService.get<string>('jwt.identitySecret'),
         expiresIn: this.configService.get<string>('jwt.identityExpiresIn'),
-      } as any,
+      } as JwtSignOptions,
     );
 
     const identityRefreshToken = this.jwtService.sign(
-      refreshPayload as any,
+      refreshPayload as object,
       {
         secret:
           this.configService.get<string>('jwt.identityRefreshSecret') ||
           this.configService.get<string>('jwt.refreshSecret'),
         expiresIn: this.configService.get<string>('jwt.refreshExpiresIn'),
-      } as any,
+      } as JwtSignOptions,
     );
 
     // Store identity refresh token in database
@@ -460,19 +460,19 @@ export class AuthService {
     };
 
     const tenantAccessToken = this.jwtService.sign(
-      accessPayload as any,
+      accessPayload as object,
       {
         secret: this.configService.get<string>('jwt.accessSecret'),
         expiresIn: this.configService.get<string>('jwt.accessExpiresIn'),
-      } as any,
+      } as JwtSignOptions,
     );
 
     const tenantRefreshToken = this.jwtService.sign(
-      refreshPayload as any,
+      refreshPayload as object,
       {
         secret: this.configService.get<string>('jwt.refreshSecret'),
         expiresIn: this.configService.get<string>('jwt.refreshExpiresIn'),
-      } as any,
+      } as JwtSignOptions,
     );
 
     // Store tenant refresh token in database

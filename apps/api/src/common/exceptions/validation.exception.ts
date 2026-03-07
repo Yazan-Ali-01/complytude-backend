@@ -1,9 +1,10 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
 import { I18nKeys } from '../constants/i18n-keys';
+import type { ValidationDetail } from '../types/validation.types';
 
 export class ValidationException extends HttpException {
-  constructor(details: any[]) {
+  constructor(details: ValidationDetail[]) {
     const i18n = I18nContext.current();
     super(
       {

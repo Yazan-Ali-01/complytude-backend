@@ -39,7 +39,7 @@ export interface Feature {
   creditable: boolean;
   credit_cost?: number | null; // Cost in credits per unit (NULL for non-creditable features)
   is_active: boolean;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }
@@ -54,7 +54,7 @@ export interface Plan {
   billing_period: string;
   is_active: boolean;
   sort_order: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }
@@ -66,7 +66,7 @@ export interface PlanEntitlement {
   value_bool?: boolean;
   value_int?: number;
   value_text?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: Date;
 }
 
@@ -78,7 +78,7 @@ export interface Addon {
   price_monthly: number;
   price_currency: string;
   is_active: boolean;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }
@@ -92,7 +92,7 @@ export interface AddonEntitlement {
   value_bool?: boolean;
   value_int?: number;
   value_text?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: Date;
 }
 
@@ -110,7 +110,7 @@ export interface TenantSubscription {
   current_period_start: Date;
   current_period_end: Date;
   cancelled_at?: Date;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }
@@ -123,7 +123,7 @@ export interface TenantAddon {
   status: string;
   starts_at: Date;
   expires_at?: Date;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }
@@ -165,7 +165,7 @@ export interface UsageLedgerEvent {
   billing_period: string;
   resource_type?: string;
   resource_id?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   idempotency_key?: string;
   recorded_at: Date;
   projected_at?: Date;
@@ -190,7 +190,7 @@ export interface CreditLedgerTransaction {
   reason?: string;
   applied_by?: string;
   expires_at?: Date;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   idempotency_key?: string;
   recorded_at: Date;
 }
@@ -235,8 +235,8 @@ export interface DomainEvent {
   aggregate_id: string;
   actor_id?: string;
   actor_type: string;
-  payload: Record<string, any>;
-  metadata: Record<string, any>;
+  payload: Record<string, unknown>;
+  metadata: Record<string, unknown>;
   sequence_number?: number;
   recorded_at: Date;
 }
@@ -278,7 +278,7 @@ export interface UsageRecordInput {
   billing_period?: string;
   resource_type?: string;
   resource_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   idempotency_key?: string;
 }
 
@@ -291,7 +291,7 @@ export interface CreditTransactionInput {
   reason?: string;
   applied_by?: string;
   expires_at?: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   idempotency_key?: string;
 }
 
@@ -577,18 +577,18 @@ export interface BaseEnforcementFields {
 
 export interface CheckAndRecordInput extends BaseEnforcementFields {
   units?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface EnforceUsageBasedInput extends BaseEnforcementFields {
   entitlement: EffectiveEntitlement;
   units: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface EnforcementContext extends BaseEnforcementFields {
   units: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   subscription: { id: string };
   feature: {
     id: string;
@@ -610,7 +610,7 @@ export interface EnforceUsageUnlimitedInput extends EnforcementContext {
 
 export interface WriteUsageAndCreditsInput extends BaseEnforcementFields {
   units: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   feature: {
     id: string;
     name: string;
@@ -673,7 +673,7 @@ export interface UsageWriteResult {
 export interface CreditPurchaseInput {
   tenantId: string;
   amount: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreditGrantInput {
@@ -682,7 +682,7 @@ export interface CreditGrantInput {
   reason: string;
   expiresAt?: Date;
   appliedBy?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreditDeductInput {
@@ -690,14 +690,14 @@ export interface CreditDeductInput {
   amount: number;
   featureId?: string;
   usageLedgerId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreditRefundInput {
   tenantId: string;
   amount: number;
   reason: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface RecordTransactionInput {
@@ -709,7 +709,7 @@ export interface RecordTransactionInput {
   reason?: string;
   appliedBy?: string;
   expiresAt?: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // === Usage Projection / Repository Inputs ===

@@ -51,7 +51,7 @@ export class TenantAddonsRepository extends BaseRepository<
       status: data.status,
       starts_at: data.starts_at,
       expires_at: data.expires_at ?? undefined,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -130,7 +130,7 @@ export class TenantAddonsRepository extends BaseRepository<
           value_bool: row.value_bool as boolean | undefined,
           value_int: row.value_int as number | undefined,
           value_text: row.value_text as string | undefined,
-          metadata: (row.entitlement_metadata as Record<string, any>) ?? {},
+          metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
           created_at: row.entitlement_created_at as Date,
         };
         addonsMap.get(addonId)!.entitlements.push(entitlement);
@@ -193,7 +193,7 @@ export class TenantAddonsRepository extends BaseRepository<
           value_bool: row.value_bool as boolean | undefined,
           value_int: row.value_int as number | undefined,
           value_text: row.value_text as string | undefined,
-          metadata: (row.entitlement_metadata as Record<string, any>) ?? {},
+          metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
           created_at: row.entitlement_created_at as Date,
         };
         addonsMap.get(addonId)!.entitlements.push(entitlement);
@@ -260,7 +260,7 @@ export class TenantAddonsRepository extends BaseRepository<
         value_bool: row.value_bool as boolean | undefined,
         value_int: row.value_int as number | undefined,
         value_text: row.value_text as string | undefined,
-        metadata: (row.entitlement_metadata as Record<string, any>) ?? {},
+        metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
         created_at: row.entitlement_created_at as Date,
       };
       addonsMap.get(addonId)!.entitlements.push(entitlement);

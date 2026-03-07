@@ -24,5 +24,5 @@ export class MessageWithMetadataResponseDto extends MessageResponseDto {
     example: { affectedRecords: 1 },
     required: false,
   })
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }

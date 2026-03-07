@@ -12,7 +12,7 @@
  * @param source - Object to merge into target
  * @returns New merged object
  */
-export function deepMerge<T extends Record<string, any>>(
+export function deepMerge<T extends Record<string, unknown>>(
   target: T,
   source: Partial<T>,
 ): T {
@@ -31,7 +31,7 @@ export function deepMerge<T extends Record<string, any>>(
     }
 
     if (sourceValue === null) {
-      result[key] = null as any;
+      (result as Record<string, unknown>)[key] = null;
       continue;
     }
 
@@ -48,12 +48,12 @@ export function deepMerge<T extends Record<string, any>>(
       !((sourceValue as unknown) instanceof Date);
 
     if (isTargetPlainObject && isSourcePlainObject) {
-      result[key] = deepMerge(
-        targetValue as Record<string, any>,
-        sourceValue as Record<string, any>,
-      ) as any;
+      (result as Record<string, unknown>)[key] = deepMerge(
+        targetValue as Record<string, unknown>,
+        sourceValue as Record<string, unknown>,
+      );
     } else {
-      result[key] = sourceValue as any;
+      (result as Record<string, unknown>)[key] = sourceValue;
     }
   }
 

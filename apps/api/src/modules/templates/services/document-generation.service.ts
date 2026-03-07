@@ -195,23 +195,27 @@ export class DocumentGenerationService {
       };
 
       // Store document metadata in public.documents table with RLS
-      await this.databaseService.queryWithTenantContext(
-        tenantId,
-        `INSERT INTO public.documents (
-          id, tenant_id, title, content, metadata,
-          template_key, template_version, generation_metadata, created_by, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [
-          uploadResult.key,
-          tenantId,
-          `${template.name || template.key} - Generated Document`,
-          null,
-          JSON.stringify(documentMetadata),
-          template.key,
-          templateVersion.version,
-          JSON.stringify(generationMetadata),
-          userId,
-        ],
+      await this.databaseService.transactionWithTenantContext(
+        { tenantId },
+        async (client) => {
+          await client.query(
+            `INSERT INTO public.documents (
+              id, tenant_id, title, content, metadata,
+              template_key, template_version, generation_metadata, created_by, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            [
+              uploadResult.key,
+              tenantId,
+              `${template.name || template.key} - Generated Document`,
+              null,
+              JSON.stringify(documentMetadata),
+              template.key,
+              templateVersion.version,
+              JSON.stringify(generationMetadata),
+              userId,
+            ],
+          );
+        },
       );
 
       return { documentId: uploadResult.key, downloadUrl };

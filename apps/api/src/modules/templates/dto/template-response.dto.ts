@@ -48,7 +48,7 @@ export class GetTemplateVersionResponseDto {
     description: 'Additional metadata for this version',
     example: { tags: ['employment', 'legal'], reviewedBy: 'legal-team' },
   })
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'Whether this version is active',
@@ -153,7 +153,7 @@ export class GetTemplateResponseDto {
     description: 'Additional metadata',
     example: { tags: ['employment', 'standard'] },
   })
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'ID of user who created this template',

@@ -80,7 +80,7 @@ export class CreateTemplateVersionDto {
   @JsonField()
   @IsObject()
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   @ApiProperty({
     description:
@@ -149,7 +149,7 @@ export class CreateTemplateVersionResponseDto {
     description: 'Additional metadata for this version',
     example: { tags: ['employment', 'updated'] },
   })
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'Created timestamp',

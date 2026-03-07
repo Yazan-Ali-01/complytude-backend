@@ -428,7 +428,7 @@ export class DomainEventsMockController {
 
         // Find the event that matches our usage event
         const matchingEvent = domainEvents.find((e) => {
-          const payload = e.payload as any;
+          const payload = e.payload as { usage_event_id?: string };
           return payload.usage_event_id === usageEvent.id;
         });
 

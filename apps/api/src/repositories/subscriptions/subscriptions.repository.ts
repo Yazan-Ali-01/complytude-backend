@@ -57,7 +57,7 @@ export class SubscriptionsRepository extends BaseRepository<
       current_period_start: data.current_period_start,
       current_period_end: data.current_period_end,
       cancelled_at: data.cancelled_at ?? undefined,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -122,7 +122,7 @@ export class SubscriptionsRepository extends BaseRepository<
       billing_period: row.plan_billing_period as string,
       is_active: row.plan_is_active as boolean,
       sort_order: row.sort_order as number,
-      metadata: (row.plan_metadata as Record<string, any>) ?? {},
+      metadata: (row.plan_metadata as Record<string, unknown>) ?? {},
       created_at: row.plan_created_at as Date,
       updated_at: row.plan_updated_at as Date,
     };

@@ -17,6 +17,7 @@ import {
   Template,
   TemplateWithDetails,
 } from 'src/modules/templates/entities/template.entity';
+import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
 import { I18nKeys } from '../../common/constants/i18n-keys';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { CategoryRepository } from '../../repositories/categories/category.repository';
@@ -601,7 +602,7 @@ export class TemplatesService {
       );
     }
 
-    let versionRecord: any;
+    let versionRecord: TemplateVersion | undefined;
     let fileUrl: string;
 
     try {
@@ -660,9 +661,16 @@ export class TemplatesService {
 
     return {
       ...versionRecord,
-      placeholders_detected: placeholders,
-      validation: validationResult,
-    };
+      placeholdersDetected: placeholders,
+      validation: {
+        isValid:
+          validationResult.unmatchedPlaceholders.length === 0 &&
+          validationResult.unusedFields.length === 0,
+        missingInFields: validationResult.unmatchedPlaceholders,
+        missingInTemplate: validationResult.unusedFields,
+        matches: validationResult.matched,
+      },
+    } as CreateTemplateVersionResponseDto;
   }
 
   /**
@@ -752,13 +760,18 @@ export class TemplatesService {
   /**
    * Parse JSONB fields from database
    */
-  private parseTemplate(template: any): Template {
-    return {
+  private parseTemplate(
+    template: Record<string, unknown> & {
+      metadata?: string | Record<string, unknown>;
+    },
+  ): Template {
+    const parsed = {
       ...template,
       metadata:
         typeof template.metadata === 'string'
-          ? JSON.parse(template.metadata as string)
-          : template.metadata,
+          ? (JSON.parse(template.metadata) as Record<string, unknown>)
+          : (template.metadata ?? {}),
     };
+    return parsed as Template;
   }
 }

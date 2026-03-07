@@ -8,6 +8,8 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { FastifyRequest } from 'fastify';
+import type { EntitlementCheckResult } from 'src/common/types/entitlement.types';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { TrackUsage } from 'src/common/decorators/track-usage.decorator';
@@ -154,7 +156,7 @@ export class EnforcementMockController {
   })
   testDocumentGenerationViaGuard(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     // UsageEnforcementGuard attaches usageResult to request on success
     const usageResult = request.usageResult;
@@ -194,7 +196,7 @@ export class EnforcementMockController {
   })
   testDocumentGenerationWithCreditsViaGuard(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     const usageResult = request.usageResult;
 
@@ -235,7 +237,7 @@ export class EnforcementMockController {
   })
   testBulkDocumentGenerationViaGuard(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     const usageResult = request.usageResult;
 
@@ -276,7 +278,7 @@ export class EnforcementMockController {
   })
   testCombinedGuards(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     const usageResult = request.usageResult;
 
@@ -315,7 +317,7 @@ export class EnforcementMockController {
   })
   testNonCreditableQuotaViaGuard(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     const usageResult = request.usageResult;
 
