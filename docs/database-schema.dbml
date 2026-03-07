@@ -21,13 +21,6 @@ Project Complytude {
 // ENUMS
 // ============================================
 
-Enum tenant_plan {
-  navigator
-  shield
-  general_counsel
-  infrastructure
-}
-
 Enum template_status {
   active
   inactive
@@ -98,7 +91,6 @@ Enum analysis_job_status {
 Table tenants {
   id uuid [pk, default: `gen_random_uuid()`]
   name varchar(255) [note: 'Tenant name (NULL for anonymous tenants)']
-  plan tenant_plan [not null, default: 'navigator']
   logo_url text
   brand_color_primary varchar(7)
   brand_color_secondary varchar(7)
@@ -128,12 +120,14 @@ Table tenants {
   deactivation_reason text
 
   indexes {
-    plan
     slug
     (is_active)
   }
 
-  Note: 'Organizations/companies using the platform'
+  Note: '''
+    Organizations/companies using the platform.
+    Plan is managed via tenant_subscriptions (single source of truth).
+  '''
 }
 
 Table users {
@@ -694,7 +688,11 @@ Table tenant_subscriptions {
     current_period_end
   }
 
-  Note: 'Tenant subscription to a plan with billing period tracking'
+  Note: '''
+    Single source of truth for tenant plan assignment.
+    Unique partial index: one active subscription per tenant.
+    Resolver reads plan from here (not from tenants table).
+  '''
 }
 
 Table tenant_addons {

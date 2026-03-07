@@ -1,6 +1,7 @@
 import { DatabaseService, QueryOptions } from '@lib/database';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -110,103 +111,116 @@ export class SubscriptionsService {
     tenantId: string,
     newPlanKey: PlanKey,
     actorId: string,
+    options?: QueryOptions,
   ): Promise<TenantSubscription> {
     this.logger.log(
       `Changing plan: tenant=${tenantId}, newPlan=${newPlanKey}, actor=${actorId}`,
     );
 
-    // Step 1: Validate new plan
-    const newPlan = await this.plansRepository.findByKey(newPlanKey);
-    if (!newPlan) {
-      throw new NotFoundException(`Plan not found: ${newPlanKey}`);
-    }
+    const execute = async (client: PoolClient) => {
+      // Step 1: Validate new plan
+      const newPlan = await this.plansRepository.findByKey(newPlanKey, {
+        client,
+      });
+      if (!newPlan) {
+        throw new NotFoundException(`Plan not found: ${newPlanKey}`);
+      }
 
-    if (!newPlan.is_active) {
-      throw new BadRequestException(`Plan is not active: ${newPlanKey}`);
-    }
+      if (!newPlan.is_active) {
+        throw new BadRequestException(`Plan is not active: ${newPlanKey}`);
+      }
 
-    // Step 2: Find current subscription
-    const currentSubscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
-
-    // Step 3: If no subscription, create new one
-    if (!currentSubscription) {
-      this.logger.log(
-        `No active subscription found, creating new one for tenant=${tenantId}`,
-      );
-      return this.createSubscription(tenantId, newPlanKey, actorId);
-    }
-
-    // Step 4: Check if already on this plan
-    if (currentSubscription.plan_id === newPlan.id) {
-      throw new BadRequestException(`Tenant is already on plan: ${newPlanKey}`);
-    }
-
-    // Step 5: Update within transaction
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId },
-      async (client) => {
-        // Get old plan for event
-        const oldPlan = await this.plansRepository.findById(
-          currentSubscription.plan_id,
-          { client },
-        );
-
-        // Update plan
-        const updatedSubscription =
-          await this.subscriptionsRepository.updatePlan(
-            currentSubscription.id,
-            newPlan.id,
-            { client },
-          );
-
-        // Invalidate entitlement snapshot
-        await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+      // Step 2: Find current subscription
+      const currentSubscription =
+        await this.subscriptionsRepository.findActiveByTenant(tenantId, {
           client,
         });
 
-        // Emit domain event
-        await this.domainEventsService.emit(
-          {
-            tenant_id: tenantId,
-            event_type: 'subscription.plan_changed',
-            aggregate_type: 'subscription',
-            aggregate_id: updatedSubscription.id,
-            actor_id: actorId,
-            actor_type: 'user',
-            payload: JSON.stringify({
-              old_plan_id: oldPlan?.id,
-              old_plan_key: oldPlan?.key,
-              new_plan_id: newPlan.id,
-              new_plan_key: newPlan.key,
-            }),
-            metadata: JSON.stringify({
-              timestamp: new Date().toISOString(),
-            }),
-          },
-          { client },
-        );
-
+      // Step 3: If no subscription, create new one
+      if (!currentSubscription) {
         this.logger.log(
-          `Plan changed: tenant=${tenantId}, old=${oldPlan?.key}, new=${newPlan.key}`,
+          `No active subscription found, creating new one for tenant=${tenantId}`,
         );
+        return this.createSubscription(tenantId, newPlanKey, actorId, {
+          client,
+        });
+      }
 
-        // TODO: BullMQ - Queue async job for plan change
-        // When BullMQ is available:
-        // await this.subscriptionQueue.add('plan-changed', {
-        //   tenantId,
-        //   subscriptionId: updatedSubscription.id,
-        //   oldPlanKey: oldPlan?.key,
-        //   newPlanKey: newPlan.key,
-        //   actorId,
-        // });
-        // This job would:
-        // 1. Calculate prorated billing adjustment
-        // 2. Send email notification to tenant admin
-        // 3. Update billing provider (Stripe/etc)
+      // Step 4: Check if already on this plan
+      if (currentSubscription.plan_id === newPlan.id) {
+        throw new BadRequestException(
+          `Tenant is already on plan: ${newPlanKey}`,
+        );
+      }
 
-        return updatedSubscription;
-      },
+      // Step 5: Get old plan for event
+      const oldPlan = await this.plansRepository.findById(
+        currentSubscription.plan_id,
+        { client },
+      );
+
+      // Step 6: Update plan
+      const updatedSubscription = await this.subscriptionsRepository.updatePlan(
+        currentSubscription.id,
+        newPlan.id,
+        { client },
+      );
+
+      // Invalidate entitlement snapshot
+      await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+        client,
+      });
+
+      // Emit domain event
+      await this.domainEventsService.emit(
+        {
+          tenant_id: tenantId,
+          event_type: 'subscription.plan_changed',
+          aggregate_type: 'subscription',
+          aggregate_id: updatedSubscription.id,
+          actor_id: actorId,
+          actor_type: 'user',
+          payload: JSON.stringify({
+            old_plan_id: oldPlan?.id,
+            old_plan_key: oldPlan?.key,
+            new_plan_id: newPlan.id,
+            new_plan_key: newPlan.key,
+          }),
+          metadata: JSON.stringify({
+            timestamp: new Date().toISOString(),
+          }),
+        },
+        { client },
+      );
+
+      this.logger.log(
+        `Plan changed: tenant=${tenantId}, old=${oldPlan?.key}, new=${newPlan.key}`,
+      );
+
+      // TODO: BullMQ - Queue async job for plan change
+      // When BullMQ is available:
+      // await this.subscriptionQueue.add('plan-changed', {
+      //   tenantId,
+      //   subscriptionId: updatedSubscription.id,
+      //   oldPlanKey: oldPlan?.key,
+      //   newPlanKey: newPlan.key,
+      //   actorId,
+      // });
+      // This job would:
+      // 1. Calculate prorated billing adjustment
+      // 2. Send email notification to tenant admin
+      // 3. Update billing provider (Stripe/etc)
+
+      return updatedSubscription;
+    };
+
+    if (options?.client) {
+      return execute(options.client);
+    }
+
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
     );
   }
 
@@ -317,7 +331,8 @@ export class SubscriptionsService {
    *
    * @param tenantId - Tenant ID
    * @param planKey - Plan key to subscribe to
-   * @param actorId - User ID performing the creation
+   * @param actorId - User ID performing the creation (null for system-initiated)
+   * @param options - Optional database client for transaction support
    * @returns New subscription
    * @throws BadRequestException if active subscription already exists
    * @throws NotFoundException if plan not found
@@ -325,42 +340,46 @@ export class SubscriptionsService {
   async createSubscription(
     tenantId: string,
     planKey: PlanKey,
-    actorId: string,
+    actorId: string | null,
+    options?: QueryOptions,
   ): Promise<TenantSubscription> {
-    this.logger.log(
-      `Creating subscription: tenant=${tenantId}, plan=${planKey}, actor=${actorId}`,
-    );
-
-    // Step 1: Check no active subscription exists
-    const existingSubscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
-
-    if (existingSubscription) {
-      throw new BadRequestException(
-        `Tenant already has an active subscription. Use changePlan to switch plans.`,
+    const execute = async (client: PoolClient) => {
+      this.logger.log(
+        `Creating subscription: tenant=${tenantId}, plan=${planKey}, actor=${actorId ?? 'system'}`,
       );
-    }
 
-    // Step 2: Find plan
-    const plan = await this.plansRepository.findByKey(planKey);
-    if (!plan) {
-      throw new NotFoundException(`Plan not found: ${planKey}`);
-    }
+      // Step 1: Check no active subscription exists
+      const existingSubscription =
+        await this.subscriptionsRepository.findActiveByTenant(tenantId, {
+          client,
+        });
 
-    if (!plan.is_active) {
-      throw new BadRequestException(`Plan is not active: ${planKey}`);
-    }
+      if (existingSubscription) {
+        throw new BadRequestException(
+          `Tenant already has an active subscription. Use changePlan to switch plans.`,
+        );
+      }
 
-    // Step 3: Calculate billing period
-    const now = new Date();
-    const oneMonthLater = new Date(now);
-    oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+      // Step 2: Find plan
+      const plan = await this.plansRepository.findByKey(planKey, { client });
+      if (!plan) {
+        throw new NotFoundException(`Plan not found: ${planKey}`);
+      }
 
-    // Step 4: Create within transaction
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId },
-      async (client) => {
-        const newSubscription = await this.subscriptionsRepository.upsert(
+      if (!plan.is_active) {
+        throw new BadRequestException(`Plan is not active: ${planKey}`);
+      }
+
+      // Step 3: Calculate billing period
+      const now = new Date();
+      const oneMonthLater = new Date(now);
+      oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+
+      // Step 4: Create subscription (plain INSERT — step 1 already guards against duplicates,
+      // unique partial index provides DB-level race condition safety)
+      let newSubscription: TenantSubscription;
+      try {
+        newSubscription = await this.subscriptionsRepository.create(
           {
             tenant_id: tenantId,
             plan_id: plan.id,
@@ -373,34 +392,55 @@ export class SubscriptionsService {
           },
           { client },
         );
+      } catch (error) {
+        if (error?.code === '23505') {
+          throw new ConflictException(
+            `Tenant already has an active subscription (concurrent creation detected).`,
+          );
+        }
+        throw error;
+      }
 
-        // Emit domain event
-        await this.domainEventsService.emit(
-          {
-            tenant_id: tenantId,
-            event_type: 'subscription.created',
-            aggregate_type: 'subscription',
-            aggregate_id: newSubscription.id,
-            actor_id: actorId,
-            actor_type: 'user',
-            payload: JSON.stringify({
-              subscription_id: newSubscription.id,
-              plan_id: plan.id,
-              plan_key: plan.key,
-            }),
-            metadata: JSON.stringify({
-              timestamp: new Date().toISOString(),
-            }),
-          },
-          { client },
-        );
+      // Invalidate any stale entitlement snapshot (relevant for re-subscription after cancellation)
+      await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+        client,
+      });
 
-        this.logger.log(
-          `Subscription created: tenant=${tenantId}, plan=${planKey}`,
-        );
+      // Emit domain event
+      await this.domainEventsService.emit(
+        {
+          tenant_id: tenantId,
+          event_type: 'subscription.created',
+          aggregate_type: 'subscription',
+          aggregate_id: newSubscription.id,
+          actor_id: actorId ?? undefined,
+          actor_type: actorId ? 'user' : 'system',
+          payload: JSON.stringify({
+            subscription_id: newSubscription.id,
+            plan_id: plan.id,
+            plan_key: plan.key,
+          }),
+          metadata: JSON.stringify({
+            timestamp: new Date().toISOString(),
+          }),
+        },
+        { client },
+      );
 
-        return newSubscription;
-      },
+      this.logger.log(
+        `Subscription created: tenant=${tenantId}, plan=${planKey}`,
+      );
+
+      return newSubscription;
+    };
+
+    if (options?.client) {
+      return execute(options.client);
+    }
+
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
     );
   }
 

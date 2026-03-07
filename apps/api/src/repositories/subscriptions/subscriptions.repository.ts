@@ -91,7 +91,7 @@ export class SubscriptionsRepository extends BaseRepository<
         ts.id, ts.tenant_id, ts.plan_id, ts.status, ts.billing_period_start,
         ts.billing_period_end, ts.current_period_start, ts.current_period_end,
         ts.cancelled_at, ts.metadata, ts.created_at, ts.updated_at,
-        p.id as plan_id_full, p.key as plan_key, p.name as plan_name,
+        p.key as plan_key, p.name as plan_name,
         p.description as plan_description, p.price_monthly, p.price_currency,
         p.billing_period as plan_billing_period, p.is_active as plan_is_active,
         p.sort_order, p.metadata as plan_metadata, p.created_at as plan_created_at,
@@ -113,7 +113,7 @@ export class SubscriptionsRepository extends BaseRepository<
     const subscription = this.mapRow(row);
 
     const plan: Plan = {
-      id: row.plan_id_full as string,
+      id: subscription.plan_id,
       key: row.plan_key as Plan['key'],
       name: row.plan_name as string,
       description: (row.plan_description as string) ?? undefined,

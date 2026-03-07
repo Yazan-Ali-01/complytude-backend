@@ -3,6 +3,7 @@ import { TenantAdminController } from 'src/modules/tenants/admin.controller';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { MockModule } from '../mock/mock.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { TenantInvitationsController } from './invitations.controller';
 import { TenantController } from './tenant.controller';
 import { TenantService } from './tenant.service';
@@ -10,6 +11,7 @@ import { TenantService } from './tenant.service';
 @Module({
   imports: [
     InvitationsModule,
+    SubscriptionsModule,
     MockModule, // ✅ Use mock module
   ],
   controllers: [

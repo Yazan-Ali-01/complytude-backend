@@ -116,9 +116,9 @@ export class UserTenantResponseDto {
  */
 // TODO to use this approach and not follow the lazy approach
 export class TenantInfoResponseDto {
-  constructor(data: Tenant) {
+  constructor(data: Tenant, planKey?: PlanKey) {
     this.id = data.id;
-    this.plan = data.plan;
+    this.planKey = planKey ?? null;
     this.isActive = data.is_active;
     this.createdAt = data.created_at.toISOString();
     this.updatedAt = data.updated_at.toISOString();
@@ -131,11 +131,13 @@ export class TenantInfoResponseDto {
   id: string;
 
   @ApiProperty({
-    description: 'Subscription plan tier',
+    description:
+      'Current subscription plan key (null if no active subscription)',
     enum: ALL_PLAN_KEYS,
     example: 'general_counsel',
+    nullable: true,
   })
-  plan: PlanKey;
+  planKey: PlanKey | null;
 
   @ApiProperty({
     description: 'Whether tenant is active',

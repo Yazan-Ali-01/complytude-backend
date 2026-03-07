@@ -7,7 +7,6 @@ import { TenantOverridesRepository } from 'src/repositories/entitlements/tenant-
 import { FeaturesRepository } from 'src/repositories/features/features.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
-import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from 'src/repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from 'src/repositories/usage/usage-ledger.repository';
@@ -100,9 +99,6 @@ import { UsageProjectionService } from './services/usage-projection.service';
     CreditLedgerRepository,
     EntitlementSnapshotsRepository,
     DomainEventsRepository,
-
-    // Tenant repository (needed by resolver)
-    TenantRepository,
   ],
   exports: [
     // Services
