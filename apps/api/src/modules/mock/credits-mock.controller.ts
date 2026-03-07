@@ -7,7 +7,10 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import type { FeatureKey } from 'src/common/types/entitlement.types';
+import type {
+  FeatureKey,
+  UsageSource,
+} from 'src/common/types/entitlement.types';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
@@ -775,7 +778,17 @@ export class CreditsMockController {
           'license_verifier_lookups',
         ];
 
-        const status: any[] = [];
+        const status: Array<{
+          featureKey: FeatureKey;
+          limit: number | 'unlimited';
+          used: number;
+          remaining: number | 'unlimited';
+          creditable: boolean;
+          creditBalance: number | 'N/A';
+          effectiveRemaining: string | number;
+          source: UsageSource;
+          atLimit: boolean;
+        }> = [];
 
         for (const featureKey of quotaFeatures) {
           const entitlement = entitlements[featureKey];

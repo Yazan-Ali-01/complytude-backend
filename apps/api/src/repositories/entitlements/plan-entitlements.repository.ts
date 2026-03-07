@@ -44,7 +44,7 @@ export class PlanEntitlementsRepository extends BaseRepository<
       value_bool: data.value_bool ?? undefined,
       value_int: data.value_int ?? undefined,
       value_text: data.value_text ?? undefined,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       created_at: data.created_at,
     };
   }

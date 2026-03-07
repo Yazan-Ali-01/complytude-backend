@@ -52,7 +52,7 @@ export class FeaturesRepository extends BaseRepository<
       creditable: data.creditable,
       credit_cost: data.credit_cost ?? undefined,
       is_active: data.is_active,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

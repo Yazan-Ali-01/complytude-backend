@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
@@ -81,7 +80,7 @@ export class UsersService {
     updateProfileDto: UpdateProfileDto,
   ): Promise<User> {
     const updateFields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (updateProfileDto.firstName !== undefined) {
@@ -132,7 +131,7 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const user = result.rows[0];
+    const user = result.rows[0] as { password_hash: string };
 
     // Verify current password
     const isPasswordValid = await bcrypt.compare(
@@ -170,7 +169,7 @@ export class UsersService {
   /**
    * List all users in a tenant (admin/member only)
    */
-  async listTenantUsers(tenantId: string): Promise<any[]> {
+  async listTenantUsers(tenantId: string): Promise<Record<string, unknown>[]> {
     return this.databaseService.transaction(async (client) => {
       await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [
         tenantId,
@@ -207,7 +206,7 @@ export class UsersService {
     tenantId: string,
     creatorId: string,
     createUserDto: CreateUserDto,
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     // Check if email already exists
     const existingUser = await this.databaseService.query(
       'SELECT id FROM public.users WHERE email = $1',
@@ -218,7 +217,7 @@ export class UsersService {
 
     if (existingUser.rows.length > 0) {
       // User exists, check if already in tenant
-      userId = existingUser.rows[0].id;
+      userId = existingUser.rows[0].id as string;
 
       const existingAssociation = await this.databaseService.query(
         'SELECT * FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
@@ -288,15 +287,15 @@ export class UsersService {
 
     const user = userResult.rows[0];
     return {
-      id: user.id,
-      email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      isVerified: user.is_verified,
-      createdAt: user.created_at,
-      role: user.role_key,
-      isActive: user.is_active,
-      joinedAt: user.joined_at,
+      id: user.id as string,
+      email: user.email as string,
+      firstName: user.first_name as string,
+      lastName: user.last_name as string,
+      isVerified: user.is_verified as boolean,
+      createdAt: user.created_at as Date,
+      role: user.role_key as string,
+      isActive: user.is_active as boolean,
+      joinedAt: user.joined_at as Date,
     };
   }
 
@@ -308,7 +307,7 @@ export class UsersService {
     targetUserId: string,
     updaterId: string,
     updateUserDto: UpdateUserDto,
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     // Check if target user exists in tenant
     const existingAssociation = await this.databaseService.query(
       'SELECT * FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
@@ -325,7 +324,7 @@ export class UsersService {
     }
 
     const updateFields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (updateUserDto.role !== undefined) {
@@ -408,7 +407,7 @@ export class UsersService {
   private async getUserInTenant(
     userId: string,
     tenantId: string,
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     const result = await this.databaseService.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
               ut.role_key, r.name as role_name, ut.is_active, ut.joined_at

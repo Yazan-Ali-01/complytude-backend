@@ -60,7 +60,7 @@ export class UsageAllocationsRepository extends BaseRepository<
     }
 
     // Build bulk insert query
-    const values: any[] = [];
+    const values: unknown[] = [];
     const valuePlaceholders: string[] = [];
     let paramIndex = 1;
 

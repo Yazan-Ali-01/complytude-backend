@@ -1,9 +1,7 @@
 ---
 description: >
-  Core NestJS development patterns and conventions for the Complytude Backend.
-  For project structure, see project-structure.mdc
-  For dependencies & versions, see technology-stack.mdc
-alwaysApply: true
+  Core NestJS development patterns, conventions, database/repository patterns, RBAC, auth, audit, entitlements, and queue architecture for the Complytude Backend. Use when implementing features, writing controllers/services/repositories, or working with auth, RBAC, entitlements, or background jobs.
+alwaysApply: false
 ---
 
 # NestJS Development Guidelines
@@ -97,7 +95,6 @@ Import from `@lib/database`.
 - `transactionWithTenantContext({ tenantId, isTenantAdmin?, allowCrossTenantRead? }, callback)` - Transaction with tenant RLS context
 - `transactionWithPlatformAdminContext(callback)` - Transaction with platform admin context (bypasses tenant RLS)
 - `getClient()` - Get PoolClient for manual control
-- `queryWithTenantContext(tenantId, text, params)` - **Deprecated**, wraps transactionWithTenantContext
 
 **Session Context Variables (set automatically by transaction methods):**
 
@@ -501,8 +498,8 @@ audit:
 architecture: "Two-level decorator + interceptor pattern for automatic audit logging"
 module: "AuditModule (src/modules/audit/) — NOT global, import where needed"
 decorators:
-  controller: "@AuditResource('documents') — sets default resource type for all methods"
-  method: "@AuditAction('create') or @AuditAction({ action, subResource?, resourceType? })"
+controller: "@AuditResource('documents') — sets default resource type for all methods"
+method: "@AuditAction('create') or @AuditAction({ action, subResource?, resourceType? })"
 interceptor: "AuditInterceptor (src/common/interceptors/audit.interceptor.ts)"
 
 # How Audit Works
@@ -518,24 +515,23 @@ The audit system uses a two-level decorator + interceptor pattern:
 
 ```typescript
 @Controller('documents')
-@AuditResource('documents')  // Controller-level: all methods default to 'documents' resource
+@AuditResource('documents') // Controller-level: all methods default to 'documents' resource
 export class DocumentsController {
-
   @Post()
-  @AuditAction('create')  // Simple: logs as 'documents:create'
-  async create() { }
+  @AuditAction('create') // Simple: logs as 'documents:create'
+  async create() {}
 
   @Patch('jurisdiction')
-  @AuditAction({ action: 'change', subResource: 'jurisdiction' })  // Structured: logs as 'documents:change_jurisdiction'
-  async changeJurisdiction() { }
+  @AuditAction({ action: 'change', subResource: 'jurisdiction' }) // Structured: logs as 'documents:change_jurisdiction'
+  async changeJurisdiction() {}
 
   @Post('export')
-  @AuditAction({ action: 'export', resourceType: 'reports' })  // Override resource: logs as 'reports:export'
-  async exportDocument() { }
+  @AuditAction({ action: 'export', resourceType: 'reports' }) // Override resource: logs as 'reports:export'
+  async exportDocument() {}
 
   @Get()
   // No @AuditAction — interceptor derives 'documents:read' from GET method
-  async findAll() { }
+  async findAll() {}
 }
 ```
 

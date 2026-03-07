@@ -29,7 +29,6 @@ import { DATABASE_POOL } from './database.constants';
  * Key Points:
  * - SET LOCAL app.current_tenant_id is transaction-scoped (clears on COMMIT/ROLLBACK)
  * - Always pass { client } to repository methods within the transaction
- * - Never use queryWithTenantContext for single queries - wrap in transaction instead
  * - System operations (e.g., sync services) should use transactionWithPlatformAdminContext
  *
  * Why transactions for reads:
@@ -74,9 +73,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * @param params Query parameters
    * @returns Query result
    */
-  async query<T extends QueryResultRow = any>(
+  async query<T extends QueryResultRow = Record<string, unknown>>(
     text: string,
-    params?: any[],
+    params?: unknown[],
   ): Promise<QueryResult<T>> {
     const start = Date.now();
     const client = await this.getClient();
@@ -131,20 +130,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    */
   getPool(): Pool {
     return this.pool;
-  }
-
-  /**
-   * Execute a query within a specific tenant context with RLS
-   * @deprecated Use transactionWithTenantContext for proper RLS context isolation
-   */
-  async queryWithTenantContext<T extends QueryResultRow = any>(
-    tenantId: string,
-    text: string,
-    params?: any[],
-  ): Promise<QueryResult<T>> {
-    return this.transactionWithTenantContext({ tenantId }, async (client) => {
-      return await client.query<T>(text, params);
-    });
   }
 
   /**

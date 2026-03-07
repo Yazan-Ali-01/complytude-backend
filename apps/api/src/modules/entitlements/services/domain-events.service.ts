@@ -307,7 +307,7 @@ export class DomainEventsService {
 
             // Filter to only those that reference this usage event
             const relatedCredits = creditEvents.filter((ce) => {
-              const payload = ce.payload as any;
+              const payload = ce.payload as { usage_ledger_id?: string };
               return payload.usage_ledger_id === resourceId;
             });
 

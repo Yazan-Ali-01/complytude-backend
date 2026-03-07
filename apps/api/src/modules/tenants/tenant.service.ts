@@ -152,7 +152,7 @@ export class TenantService {
    */
   private async updateOrThrow(
     tenantId: string,
-    data: Record<string, any>,
+    data: UpdateTenantDto | Record<string, unknown>,
     client: PoolClient,
   ): Promise<Tenant> {
     const updated = await this.tenantRepository.update(tenantId, data, {

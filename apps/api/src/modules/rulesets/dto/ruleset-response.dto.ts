@@ -55,7 +55,7 @@ export class RulesetSummaryResponseDto {
     description: 'Additional metadata',
     example: { tags: ['employment', 'standard'] },
   })
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'ID of user who created this ruleset',

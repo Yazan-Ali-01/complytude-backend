@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
   PipeTransform,
   Injectable,
@@ -34,18 +33,23 @@ export class FileValidationPipe implements PipeTransform {
     ];
   }
 
-  async transform(file: any): Promise<ValidatedFile> {
-    if (!file) {
+  async transform(file: unknown): Promise<ValidatedFile> {
+    if (!file || typeof file !== 'object') {
       throw new BadRequestException('No file provided');
     }
 
+    const fileObj = file as {
+      buffer?: unknown;
+      originalname?: string;
+      mimetype?: string;
+    };
     // Check if file has required properties
-    if (!file.buffer || !file.originalname) {
+    if (!fileObj.buffer || !fileObj.originalname) {
       throw new BadRequestException('Invalid file format');
     }
 
-    const buffer = file.buffer;
-    const originalName = file.originalname;
+    const buffer = fileObj.buffer as Buffer;
+    const originalName = fileObj.originalname;
     const size = buffer.length;
 
     // Validate file size
@@ -63,12 +67,13 @@ export class FileValidationPipe implements PipeTransform {
     let detectedMimeType: string;
     try {
       const fileTypeResult = await fileTypeFromBuffer(buffer);
-      detectedMimeType = fileTypeResult?.mime || file.mimetype;
+      detectedMimeType =
+        fileTypeResult?.mime || fileObj.mimetype || 'application/octet-stream';
     } catch (error) {
       this.logger.warn(
-        `Failed to detect file type from buffer, using provided mime type: ${error.message}`,
+        `Failed to detect file type from buffer, using provided mime type: ${(error as Error).message}`,
       );
-      detectedMimeType = file.mimetype;
+      detectedMimeType = fileObj.mimetype || 'application/octet-stream';
     }
 
     // Special handling for DOCX files (they may not be detected correctly)
@@ -88,7 +93,7 @@ export class FileValidationPipe implements PipeTransform {
     const extension = originalName.split('.').pop()?.toLowerCase();
     const expectedExtensions = this.getExpectedExtensions(detectedMimeType);
 
-    if (!expectedExtensions.includes(extension)) {
+    if (!expectedExtensions.includes(extension ?? '')) {
       throw new BadRequestException(
         `File extension '.${extension}' does not match file type '${detectedMimeType}'`,
       );

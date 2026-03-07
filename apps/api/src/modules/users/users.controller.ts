@@ -38,7 +38,7 @@ export class UsersController {
   @ApiGetResponses(UserProfileResponseDto, 'User profile')
   getProfile(@CurrentUser() _user: AuthenticatedUser): UserProfileResponseDto {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as UserProfileResponseDto;
   }
 
   /**
@@ -56,7 +56,7 @@ export class UsersController {
     @Body() _dto: UpdateProfileDto,
   ): UserProfileResponseDto {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as UserProfileResponseDto;
   }
 
   /**
@@ -121,6 +121,6 @@ export class UsersController {
     @CurrentUser() _user: AuthenticatedUser,
   ): TenantInfoResponseDto {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as TenantInfoResponseDto;
   }
 }

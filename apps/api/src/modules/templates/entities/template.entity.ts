@@ -12,7 +12,7 @@ export interface Template {
   status: 'active' | 'inactive' | 'draft' | 'deprecated';
   file_url: string | null;
   thumbnail_url: string | null;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;

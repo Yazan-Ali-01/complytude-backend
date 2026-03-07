@@ -79,7 +79,7 @@ export class IsFileUploadedConstraint implements ValidatorConstraintInterface {
  * ```typescript
  * class CreateTemplateDto {
  *   @IsFileUploaded()
- *   file: any;
+ *   file: MulterLikeFile;
  * }
  * ```
  */

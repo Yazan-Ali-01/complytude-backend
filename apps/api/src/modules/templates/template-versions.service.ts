@@ -29,7 +29,7 @@ export class TemplateVersionsService {
     fields: TemplateField[],
     fileUrl: string,
     changelog: string | undefined,
-    metadata: Record<string, any>,
+    metadata: Record<string, unknown>,
     createdBy: string,
     client?: PoolClient,
   ): Promise<TemplateVersion> {

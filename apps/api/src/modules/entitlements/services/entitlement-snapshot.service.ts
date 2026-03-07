@@ -107,8 +107,11 @@ export class EntitlementSnapshotService {
       this.logger.debug(`Serving fresh snapshot for tenant: ${tenantId}`);
 
       // Extract plan key from snapshot metadata
-      const planKey = (snapshot.snapshot_data as any).__plan_key as PlanKey; // Safe: __plan_key set by resolver from subscription plan (validated by FK)
-
+      const planKey = (
+        snapshot.snapshot_data as Record<string, unknown> & {
+          __plan_key?: PlanKey;
+        }
+      ).__plan_key as PlanKey; // Safe: __plan_key set by resolver
       return {
         entitlements: snapshot.snapshot_data as ResolvedEntitlements,
         plan: planKey,

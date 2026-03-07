@@ -108,7 +108,7 @@ export const ApiProtectedResponses = (description?: string) => {
  */
 
 // Create operation (POST)
-export const ApiCreateResponses = <T extends Type<any>>(
+export const ApiCreateResponses = <T extends Type<object>>(
   responseType: T,
   resourceName: string,
 ) => {
@@ -124,7 +124,7 @@ export const ApiCreateResponses = <T extends Type<any>>(
 };
 
 // Read/Get operation (GET single)
-export const ApiGetResponses = <T extends Type<any>>(
+export const ApiGetResponses = <T extends Type<object>>(
   responseType: T,
   resourceName: string,
 ) => {
@@ -140,7 +140,7 @@ export const ApiGetResponses = <T extends Type<any>>(
 };
 
 // List operation (GET multiple)
-export const ApiListResponses = <T extends Type<any>>(
+export const ApiListResponses = <T extends Type<object>>(
   responseType: T,
   resourceName: string,
 ) => {
@@ -172,7 +172,7 @@ export const ApiArrayResponses = <T extends Type<any>>(
 };
 
 // Update operation (PUT/PATCH)
-export const ApiUpdateResponses = <T extends Type<any>>(
+export const ApiUpdateResponses = <T extends Type<object>>(
   responseType: T,
   resourceName: string,
 ) => {

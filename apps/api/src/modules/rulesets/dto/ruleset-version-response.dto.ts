@@ -52,7 +52,7 @@ export class RulesetVersionResponseDto {
     description: 'Additional metadata for this version',
     example: { tags: ['updated', 'compliance'], reviewedBy: 'legal-team' },
   })
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'Whether this version is active',
