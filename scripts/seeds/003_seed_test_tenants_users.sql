@@ -1,5 +1,5 @@
 -- =========================
--- Seed Script 004: Test Tenants and Users (With Logo Testing Support)
+-- Seed Script 003: Test Tenants and Users (With Logo Testing Support)
 -- =========================
 -- Description: Seed test tenants, users, and user-tenant relationships for development/testing
 -- Idempotent: Uses ON CONFLICT DO NOTHING / UPDATE
@@ -14,7 +14,7 @@ BEGIN;
 -- NOTE: logo_url is NULL for clean upload testing
 
 INSERT INTO public.tenants (
-    id, plan, is_active, name, slug, logo_url, settings, onboarding_metadata,
+    id, is_active, name, slug, logo_url, settings, onboarding_metadata,
     brand_color_primary, brand_color_secondary, contact_email, billing_email,
     contact_phone, emirate, city, address_line_1, address_line_2, postal_code,
     trade_license_number, legal_entity_type, tax_registration_number, locale,
@@ -22,7 +22,7 @@ INSERT INTO public.tenants (
     deactivated_at, deactivation_reason
 ) VALUES
     (
-        '11111111-1111-4111-8111-111111111111', 'general_counsel', true, 'Acme Legal LLC', 'acme-legal', NULL,
+        '11111111-1111-4111-8111-111111111111', true, 'Acme Legal LLC', 'acme-legal', NULL,
         '{"notifications": true, "theme": "light"}', '{"step": 1, "completed": false}',
         '#0000FF', '#FFFFFF', 'contact@acme-legal.com', 'billing@acme-legal.com',
         '+1234567890', 'Dubai', 'Dubai', 'PO Box 1234', NULL, '12345',
@@ -30,7 +30,7 @@ INSERT INTO public.tenants (
         NULL, NULL
     ),
     (
-        '22222222-2222-4222-8222-222222222222', 'shield', true, 'Shield Corp', 'shield-corp', NULL,
+        '22222222-2222-4222-8222-222222222222', true, 'Shield Corp', 'shield-corp', NULL,
         '{"notifications": true, "theme": "dark"}', '{"step": 2, "completed": false}',
         '#FF0000', '#000000', 'contact@shield-corp.com', 'billing@shield-corp.com',
         '+0987654321', 'Abu Dhabi', 'Abu Dhabi', 'PO Box 5678', NULL, '54321',
@@ -38,7 +38,7 @@ INSERT INTO public.tenants (
         NULL, NULL
     ),
     (
-        '33333333-2222-4222-8222-333333333333', 'infrastructure', true, 'Infrastructure Inc', 'infra-inc', NULL,
+        '33333333-2222-4222-8222-333333333333', true, 'Infrastructure Inc', 'infra-inc', NULL,
         '{"notifications": false, "theme": "light"}', '{"step": 3, "completed": false}',
         '#00FF00', '#FFFF00', 'contact@infra-inc.com', 'billing@infra-inc.com',
         '+1122334455', 'Sharjah', 'Sharjah', 'PO Box 91011', NULL, '67890',
@@ -46,7 +46,6 @@ INSERT INTO public.tenants (
         NULL, NULL
     )
 ON CONFLICT (id) DO UPDATE SET
-    plan = EXCLUDED.plan,
     is_active = EXCLUDED.is_active,
     name = COALESCE(EXCLUDED.name, tenants.name),
     slug = COALESCE(EXCLUDED.slug, tenants.slug),

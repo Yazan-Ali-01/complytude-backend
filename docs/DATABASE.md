@@ -224,21 +224,46 @@ Tables with tenant isolation:
 
 ### tenants
 
-Organizations using the platform.
+Organizations using the platform. Plan assignment is managed via `tenant_subscriptions` (single source of truth).
 
-| Column       | Type        | Description                                                     |
-| ------------ | ----------- | --------------------------------------------------------------- |
-| `id`         | UUID        | Primary key                                                     |
-| `plan`       | ENUM        | Subscription plan: `early_access`, `basic`, `pro`, `enterprise` |
-| `features`   | JSONB       | Feature flags (e.g., `{"api_access": true}`)                    |
-| `is_active`  | BOOLEAN     | Soft delete flag                                                |
-| `created_at` | TIMESTAMPTZ | Creation timestamp                                              |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp                                           |
+| Column                     | Type         | Description                                                    |
+| -------------------------- | ------------ | -------------------------------------------------------------- |
+| `id`                       | UUID         | Primary key                                                    |
+| `name`                     | VARCHAR(255) | Tenant name (NULL for anonymous tenants)                       |
+| `logo_url`                 | TEXT         | Logo URL                                                       |
+| `brand_color_primary`      | VARCHAR(7)   | Primary brand color hex code                                   |
+| `brand_color_secondary`    | VARCHAR(7)   | Secondary brand color hex code                                 |
+| `contact_email`            | VARCHAR(255) | Contact email                                                  |
+| `billing_email`            | VARCHAR(255) | Billing email                                                  |
+| `contact_phone`            | VARCHAR(50)  | Contact phone                                                  |
+| `emirate`                  | VARCHAR(50)  | UAE emirate                                                    |
+| `city`                     | VARCHAR(100) | City                                                           |
+| `address_line_1`           | VARCHAR(500) | Address line 1                                                 |
+| `address_line_2`           | VARCHAR(500) | Address line 2                                                 |
+| `postal_code`              | VARCHAR(20)  | Postal code                                                    |
+| `trade_license_number`     | VARCHAR(100) | Trade license number                                           |
+| `legal_entity_type`        | VARCHAR(50)  | Legal entity type                                              |
+| `tax_registration_number`  | VARCHAR(100) | Tax registration number                                        |
+| `locale`                   | VARCHAR(50)  | Locale (default: `en`)                                         |
+| `timezone`                 | VARCHAR(50)  | Timezone                                                       |
+| `default_jurisdiction`     | VARCHAR(100) | Default jurisdiction                                           |
+| `settings`                 | JSONB        | Tenant settings (e.g., `{"notifications": true}`)              |
+| `slug`                     | VARCHAR(255) | Unique URL slug                                                |
+| `is_active`                | BOOLEAN      | Soft delete flag                                               |
+| `parent_tenant_id`         | UUID         | FK to tenants (agency/partner hierarchy, MVP+)                 |
+| `onboarding_completed_at`  | TIMESTAMPTZ  | When onboarding was completed                                  |
+| `onboarding_metadata`      | JSONB        | Onboarding progress metadata                                   |
+| `deactivated_at`           | TIMESTAMPTZ  | When tenant was deactivated                                    |
+| `deactivation_reason`      | TEXT         | Reason for deactivation                                        |
+| `created_at`               | TIMESTAMPTZ  | Creation timestamp                                             |
+| `updated_at`               | TIMESTAMPTZ  | Last update timestamp                                          |
 
 **Indexes:**
 
-- `idx_tenants_plan` - Filter by plan
+- `slug` (unique)
 - `idx_tenants_is_active` - Active tenants only (partial)
+
+> **Note:** The `tenants.plan` column and `tenant_plan` ENUM have been removed. Tenant plan assignment is now managed exclusively through `tenant_subscriptions`. See [Entitlement System](#entitlement-tables).
 
 ### users
 

@@ -12,5 +12,5 @@ export class CreateTenantDto {
   })
   @IsEnum(ALL_PLAN_KEYS)
   @IsOptional()
-  plan?: PlanKey;
+  planKey?: PlanKey;
 }
