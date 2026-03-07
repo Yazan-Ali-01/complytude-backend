@@ -123,7 +123,7 @@ COMMIT;
 -- =========================
 -- Run these to verify the seed data:
 
--- Note: Subscriptions are seeded in 003_seed_test_subscriptions.sql
+-- Note: Subscriptions are seeded in 007_seed_test_subscriptions.sql
 
 -- Check add-ons
 -- SELECT 

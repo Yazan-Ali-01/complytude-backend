@@ -181,7 +181,7 @@ export class TenantService {
    *
    * @example
    * ```ts
-   * const tenant = await tenantService.createTenant({ plan: 'general_counsel' });
+   * const tenant = await tenantService.createTenant({ planKey: 'general_counsel' });
    * const tenant = await tenantService.createTenant({}); // Uses default 'navigator' plan
    * ```
    */
@@ -206,7 +206,7 @@ export class TenantService {
         await this.subscriptionsService.createSubscription(
           tenant.id,
           planKey,
-          'system', // System-initiated subscription creation
+          null,
           { client },
         );
 
@@ -220,9 +220,19 @@ export class TenantService {
       if (client) {
         return await tenantCreation(client);
       } else {
-        return await this.databaseService.transaction(tenantCreation);
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          tenantCreation,
+        );
       }
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof ConflictException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
       throw new InternalServerErrorException('Failed to create tenant');
     }

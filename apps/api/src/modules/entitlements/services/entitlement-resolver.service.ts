@@ -218,8 +218,13 @@ export class EntitlementResolverService {
           `No active subscription found for tenant ${tenantId}`,
         );
       }
+      if (!subscription.plan) {
+        throw new NotFoundException(
+          `Plan data missing for active subscription of tenant ${tenantId}`,
+        );
+      }
       // Get all plan entitlements (in-memory)
-      const planKey = subscription.plan!.key;
+      const planKey = subscription.plan.key;
       const planEntitlements = getAllPlanEntitlements(planKey);
       const resolved: ResolvedEntitlements = {} as ResolvedEntitlements;
 

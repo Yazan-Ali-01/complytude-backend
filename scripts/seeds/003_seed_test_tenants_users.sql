@@ -1,5 +1,5 @@
 -- =========================
--- Seed Script 004: Test Tenants and Users (With Logo Testing Support)
+-- Seed Script 003: Test Tenants and Users (With Logo Testing Support)
 -- =========================
 -- Description: Seed test tenants, users, and user-tenant relationships for development/testing
 -- Idempotent: Uses ON CONFLICT DO NOTHING / UPDATE

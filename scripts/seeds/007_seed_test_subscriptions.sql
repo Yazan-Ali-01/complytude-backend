@@ -1,9 +1,9 @@
 -- =========================
--- Seed Script 003: Tenant Subscriptions
+-- Seed Script 007: Tenant Subscriptions
 -- =========================
 -- Description: Create active subscriptions for all tenants
--- Idempotent: Uses ON CONFLICT DO UPDATE
--- Note: Must run AFTER 004 (tenants) and 007 (plans)
+-- Idempotent: Uses ON CONFLICT DO UPDATE on partial unique index (tenant_id) WHERE status = 'active'
+-- Dependencies: Must run AFTER 003 (tenants) and 006 (plans)
 -- =========================
 
 BEGIN;
@@ -16,7 +16,6 @@ BEGIN;
 -- Dates are relative to NOW() for re-seeding compatibility
 
 INSERT INTO public.tenant_subscriptions (
-    id,
     tenant_id,
     plan_id,
     status,
@@ -28,7 +27,6 @@ INSERT INTO public.tenant_subscriptions (
     updated_at
 )
 SELECT
-    gen_random_uuid(),
     t.id,
     p.id,
     'active',
@@ -50,12 +48,17 @@ WHERE
                      '22222222-2222-4222-8222-222222222222',
                      '33333333-2222-4222-8222-333333333333')
         AND p.key = 'navigator')
-ON CONFLICT (id) DO NOTHING;  -- Use id for conflict detection (primary key)
-
-COMMIT;
+ON CONFLICT (tenant_id) WHERE status = 'active'
+DO UPDATE SET
+    plan_id = EXCLUDED.plan_id,
+    billing_period_start = EXCLUDED.billing_period_start,
+    billing_period_end = EXCLUDED.billing_period_end,
+    current_period_start = EXCLUDED.current_period_start,
+    current_period_end = EXCLUDED.current_period_end,
+    updated_at = NOW();
 
 -- =========================
--- Verification Query
+-- Verification
 -- =========================
 
 DO $$
@@ -98,3 +101,5 @@ BEGIN
     END LOOP;
     RAISE NOTICE '=========================';
 END $$;
+
+COMMIT;
