@@ -15,11 +15,12 @@ Quick reference guide to help AI assistants locate and apply the right rules for
 | ------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------- |
 | **implementation-workflow.mdc** | Mandatory workflow: research → clarify → propose → approve → implement  | **CRITICAL**: Start here for ANY implementation task                 | ✅ Yes         |
 | **pre-production.mdc**          | Pre-production guidelines: update migrations, no backward compatibility | **IMPORTANT**: Database changes, breaking changes, refactoring       | ✅ Yes         |
-| **nest-js.mdc**                 | NestJS patterns, architecture, database, repositories, RBAC, entitlements | Working with modules, controllers, services, repositories, DTOs, entitlements | ✅ Yes         |
-| **project-structure.mdc**       | Complete project navigation and file organization                       | Finding files, understanding directory structure, locating modules   | ✅ Yes         |
-| **technology-stack.mdc**        | Dependencies, versions, compatibility, best practices                   | Adding dependencies, checking versions, understanding tech decisions | ✅ Yes         |
-| **cursor-rules.mdc**            | How to create and manage Cursor rules                                   | Creating new rules, understanding rule structure                     | ❌ No          |
-| **self-improvement.mdc**        | When and how to update rules                                            | Noticing patterns that should be standardized                        | ✅ Yes         |
+| **index.mdc**                   | Quick reference index of all rules                                      | Routing table for finding the right rule                             | ✅ Yes         |
+| **nest-js.mdc**                 | NestJS patterns, architecture, database, repositories, RBAC, entitlements | Working with modules, controllers, services, repositories, DTOs, entitlements | 🔄 On demand  |
+| **project-structure.mdc**       | Complete project navigation and file organization                       | Finding files, understanding directory structure, locating modules   | 🔄 On demand  |
+| **technology-stack.mdc**        | Dependencies, versions, compatibility, best practices                   | Adding dependencies, checking versions, understanding tech decisions | 🔄 On demand  |
+| **self-improvement.mdc**        | When and how to update rules                                            | After significant implementations, checking if rules need updating   | 🔄 On demand  |
+| **cursor-rules.mdc**            | How to create and manage Cursor rules                                   | Creating new rules, understanding rule structure                     | 🔄 On demand  |
 
 ---
 
@@ -57,9 +58,9 @@ cursor-rules.mdc ←→ self-improvement.mdc (meta rules)
 
 1. **ALWAYS start with `implementation-workflow.mdc`** for any implementation task
 2. **Project is PRE-PRODUCTION** - see `pre-production.mdc` for migration and compatibility guidelines
-3. Rules marked ✅ are automatically loaded
+3. Rules marked ✅ are always loaded; rules marked 🔄 are loaded on demand by the agent based on task relevance
 4. Follow the workflow: Research → Clarify → Propose → Get Approval → Implement
-5. Cross-reference rules as needed
+5. When implementing features, the agent should pull in `nest-js.mdc` and `project-structure.mdc` as needed
 
 ---
 
@@ -75,4 +76,4 @@ cursor-rules.mdc ←→ self-improvement.mdc (meta rules)
 
 ---
 
-**Last Updated:** 2026-03-04 | **Total Rules:** 8 (7 always applied, 1 requestable) | **Status:** PRE-PRODUCTION
+**Last Updated:** 2026-03-07 | **Total Rules:** 8 (3 always applied, 5 on-demand) | **Status:** PRE-PRODUCTION

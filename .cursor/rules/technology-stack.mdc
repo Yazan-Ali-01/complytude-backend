@@ -1,6 +1,6 @@
 ---
-description: Complete technology stack reference with versions and best practices
-alwaysApply: true
+description: Complete technology stack reference with versions, dependencies, compatibility matrix, and best practices. Use when adding dependencies, checking versions, making tech decisions, or debugging version conflicts.
+alwaysApply: false
 ---
 
 # Technology Stack & Versions

@@ -1,6 +1,6 @@
 ---
-description: Comprehensive guide to the Complytude monorepo project structure, directory organization, and important files
-alwaysApply: true
+description: Comprehensive guide to the Complytude monorepo project structure, directory organization, module layout, and important files. Use when navigating the codebase, creating new modules/files, or understanding where code lives.
+alwaysApply: false
 ---
 
 # Project Structure Guide
