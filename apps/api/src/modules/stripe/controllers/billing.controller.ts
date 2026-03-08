@@ -7,6 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { CREDIT_PACKAGES } from 'src/common/constants/credit-packages.constant';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TENANT_PERMISSIONS } from 'src/common/constants/tenant-permissions.constant';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
@@ -28,6 +29,10 @@ import {
   CheckoutSessionResponseDto,
   CreateCheckoutSessionDto,
 } from '../dto/create-checkout-session.dto';
+import {
+  CreditPackageCatalogItemDto,
+  CreateCreditCheckoutDto,
+} from '../dto/create-credit-checkout.dto';
 import {
   CreatePortalSessionDto,
   PortalSessionResponseDto,
@@ -54,6 +59,8 @@ import { StripeSubscriptionService } from '../services/stripe-subscription.servi
  *   POST /billing/subscription/reactivate — Undo pending cancellation
  *   POST /billing/checkout/subscription — Create Stripe Checkout session
  *   POST /billing/portal/session        — Create Stripe Customer Portal session
+ *   GET  /billing/credits/packages      — List available credit packages
+ *   POST /billing/checkout/credits      — Create Stripe Checkout for credit purchase
  */
 @ApiTags('billing')
 @Controller('billing')
@@ -366,6 +373,63 @@ export class BillingController {
     @Body() dto: CreatePortalSessionDto,
   ): Promise<PortalSessionResponseDto> {
     return this.stripeBillingPortalService.createPortalSession(
+      user.tenantId,
+      dto,
+    );
+  }
+
+  // ============================================================
+  // Credits
+  // ============================================================
+
+  @Get('credits/packages')
+  @ApiOperation({
+    summary: 'List available credit packages',
+    description:
+      'Returns all available one-time credit packages with their prices. ' +
+      'Use the packageKey from this response when creating a credit checkout session.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Available credit packages',
+    type: [CreditPackageCatalogItemDto],
+  })
+  listCreditPackages(): CreditPackageCatalogItemDto[] {
+    return CREDIT_PACKAGES.map((pkg) => ({
+      key: pkg.key,
+      name: pkg.name,
+      credits: pkg.credits,
+      price: pkg.price_aed,
+      currency: 'AED',
+    }));
+  }
+
+  @Post('checkout/credits')
+  @HttpCode(HttpStatus.CREATED)
+  @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
+  @ApiOperation({
+    summary: 'Create a Stripe Checkout Session for a credit purchase',
+    description:
+      'Generates a Stripe-hosted Checkout URL for a one-time credit purchase. ' +
+      'Redirect the user to checkoutUrl to complete payment. ' +
+      'On success Stripe fires a checkout.session.completed webhook which adds credits to the tenant ledger.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Checkout session created — redirect user to checkoutUrl',
+    type: CheckoutSessionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Credit package has no Stripe price configured',
+  })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Credit package not found' })
+  async createCreditCheckout(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+    @Body() dto: CreateCreditCheckoutDto,
+  ): Promise<CheckoutSessionResponseDto> {
+    return this.stripeCheckoutService.createCreditPurchaseCheckout(
       user.tenantId,
       dto,
     );

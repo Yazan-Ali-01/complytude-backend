@@ -2,10 +2,15 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import {
+  CREDIT_PACKAGES,
+  CreditPackageDefinition,
+} from 'src/common/constants/credit-packages.constant';
+import {
   ALL_PLANS,
   PlanDefinition,
 } from 'src/common/constants/plan-entitlements.constant';
 import { Addon, Plan } from 'src/common/types/entitlement.types';
+import { CreditPackagesRepository } from 'src/repositories/credits/credit-packages.repository';
 import { AddonsRepository } from 'src/repositories/entitlements/addons.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { StripeService } from '../stripe.service';
@@ -31,6 +36,7 @@ export class StripeCatalogSyncService implements OnModuleInit {
     private readonly stripeService: StripeService,
     private readonly plansRepository: PlansRepository,
     private readonly addonsRepository: AddonsRepository,
+    private readonly creditPackagesRepository: CreditPackagesRepository,
     private readonly configService: ConfigService,
   ) {}
 
@@ -50,6 +56,7 @@ export class StripeCatalogSyncService implements OnModuleInit {
     try {
       await this.syncPlans();
       await this.syncAddons();
+      await this.syncCreditPackages();
       this.logger.log('Stripe catalog sync completed successfully');
     } catch (error) {
       // Don't crash the app if Stripe is unreachable
@@ -309,6 +316,146 @@ export class StripeCatalogSyncService implements OnModuleInit {
   }
 
   // ---------------------------------------------------------------------------
+  // Credit Packages
+  // ---------------------------------------------------------------------------
+
+  private async syncCreditPackages(): Promise<void> {
+    this.logger.log(
+      `Syncing ${CREDIT_PACKAGES.length} credit packages to Stripe...`,
+    );
+
+    for (const pkg of CREDIT_PACKAGES) {
+      try {
+        await this.syncCreditPackageToStripe(pkg);
+      } catch (error) {
+        this.logger.error(`Failed to sync credit package "${pkg.key}"`, error);
+      }
+    }
+  }
+
+  private async syncCreditPackageToStripe(
+    pkg: CreditPackageDefinition,
+  ): Promise<void> {
+    const dbPkg = await this.creditPackagesRepository.upsertFromConstant(
+      pkg.key,
+      pkg.name,
+      pkg.credits,
+      pkg.price_aed,
+    );
+
+    const stripeProductId = await this.resolveOrCreateProduct({
+      existingStripeProductId: dbPkg.stripe_product_id,
+      key: pkg.key,
+      name: pkg.name,
+      description: `${pkg.credits} credits — one-time purchase`,
+      internalId: dbPkg.id,
+      type: 'credit_package',
+    });
+
+    if (!dbPkg.stripe_product_id) {
+      await this.creditPackagesRepository.updateStripeProductId(
+        dbPkg.id,
+        stripeProductId,
+      );
+    }
+
+    await this.syncCreditPackagePrice(
+      { ...dbPkg, stripe_product_id: stripeProductId },
+      pkg.price_aed,
+    );
+  }
+
+  private async syncCreditPackagePrice(
+    pkg: {
+      id: string;
+      key: string;
+      stripe_product_id: string;
+      stripe_price_id: string | null;
+    },
+    priceAed: number,
+  ): Promise<void> {
+    const amountInFils = Math.round(priceAed * 100);
+
+    if (pkg.stripe_price_id) {
+      const existing = await this.stripeService.client.prices.retrieve(
+        pkg.stripe_price_id,
+      );
+      if (existing.unit_amount !== amountInFils) {
+        this.logger.log(
+          `Price amount changed for credit package "${pkg.key}": ` +
+            `${existing.unit_amount} → ${amountInFils}. Archiving old price and creating new.`,
+        );
+        await this.stripeService.client.prices.update(pkg.stripe_price_id, {
+          active: false,
+        });
+        const newPrice = await this.createCreditPackagePrice(pkg, amountInFils);
+        await this.creditPackagesRepository.updateStripePriceId(
+          pkg.id,
+          newPrice.id,
+        );
+        this.logger.log(
+          `Created new price for credit package "${pkg.key}": ${newPrice.id}`,
+        );
+      } else {
+        this.logger.log(
+          `Price for credit package "${pkg.key}" unchanged: ${pkg.stripe_price_id}`,
+        );
+      }
+      return;
+    }
+
+    const recovered = await this.findExistingActiveOneTimePrice(
+      pkg.stripe_product_id,
+      amountInFils,
+    );
+    if (recovered) {
+      await this.creditPackagesRepository.updateStripePriceId(
+        pkg.id,
+        recovered.id,
+      );
+      this.logger.log(
+        `Recovered existing price for credit package "${pkg.key}": ${recovered.id}`,
+      );
+      return;
+    }
+
+    const price = await this.createCreditPackagePrice(pkg, amountInFils);
+    await this.creditPackagesRepository.updateStripePriceId(pkg.id, price.id);
+    this.logger.log(
+      `Created price for credit package "${pkg.key}": ${price.id}`,
+    );
+  }
+
+  private createCreditPackagePrice(
+    pkg: { key: string; stripe_product_id: string },
+    amountInFils: number,
+  ): Promise<Stripe.Price> {
+    return this.stripeService.client.prices.create({
+      product: pkg.stripe_product_id,
+      unit_amount: amountInFils,
+      currency: 'aed',
+      // No `recurring` — this is a one-time price
+      metadata: {
+        credit_package_key: pkg.key,
+      },
+      tax_behavior: 'exclusive',
+    });
+  }
+
+  private async findExistingActiveOneTimePrice(
+    productId: string,
+    amountInFils: number,
+  ): Promise<Stripe.Price | null> {
+    const prices = await this.stripeService.client.prices.list({
+      product: productId,
+      active: true,
+      type: 'one_time',
+    });
+
+    return prices.data.find((p) => p.unit_amount === amountInFils) ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
   // Shared helpers
   // ---------------------------------------------------------------------------
 
@@ -330,11 +477,20 @@ export class StripeCatalogSyncService implements OnModuleInit {
     name: string;
     description: string | undefined;
     internalId: string;
-    type: 'plan' | 'addon';
+    type: 'plan' | 'addon' | 'credit_package';
   }): Promise<string> {
-    const metadataKey = type === 'plan' ? 'plan_key' : 'addon_key';
+    const metadataKey =
+      type === 'plan'
+        ? 'plan_key'
+        : type === 'addon'
+          ? 'addon_key'
+          : 'credit_package_key';
     const metadataIdKey =
-      type === 'plan' ? 'complytude_plan_id' : 'complytude_addon_id';
+      type === 'plan'
+        ? 'complytude_plan_id'
+        : type === 'addon'
+          ? 'complytude_addon_id'
+          : 'complytude_credit_package_id';
     const metadata = {
       [metadataKey]: key,
       [metadataIdKey]: internalId,

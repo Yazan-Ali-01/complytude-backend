@@ -9,12 +9,14 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PlanKey } from 'src/common/types/entitlement.types';
 import { DatabaseService } from 'src/database/database.service';
+import { CreditPackagesRepository } from 'src/repositories/credits/credit-packages.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
 import {
   CheckoutSessionResponseDto,
   CreateCheckoutSessionDto,
 } from '../dto/create-checkout-session.dto';
+import { CreateCreditCheckoutDto } from '../dto/create-credit-checkout.dto';
 import { StripeCustomerService } from './stripe-customer.service';
 import { StripeService } from '../stripe.service';
 
@@ -27,6 +29,7 @@ export class StripeCheckoutService {
     private readonly stripeCustomerService: StripeCustomerService,
     private readonly plansRepository: PlansRepository,
     private readonly subscriptionsRepository: SubscriptionsRepository,
+    private readonly creditPackagesRepository: CreditPackagesRepository,
     private readonly databaseService: DatabaseService,
     private readonly configService: ConfigService,
   ) {}
@@ -89,6 +92,7 @@ export class StripeCheckoutService {
       cancel_url: dto.cancelUrl,
       metadata: {
         complytude_tenant_id: tenantId,
+        checkout_type: 'subscription_checkout',
         plan_key: dto.planKey,
         interval: dto.interval,
       },
@@ -109,6 +113,73 @@ export class StripeCheckoutService {
 
     this.logger.log(
       `Created Stripe Checkout session ${session.id} for tenant ${tenantId} (plan: ${dto.planKey}, interval: ${dto.interval})`,
+    );
+
+    return {
+      checkoutUrl: session.url!,
+      sessionId: session.id,
+    };
+  }
+
+  /**
+   * Create a Stripe Checkout Session for a one-time credit purchase.
+   *
+   * Flow:
+   * 1. Look up the credit package DB record (has Stripe price ID from catalog sync).
+   * 2. Get or create the Stripe customer for the tenant.
+   * 3. Create a Checkout Session in payment mode (one-time, not subscription).
+   * 4. Return the hosted URL.
+   */
+  async createCreditPurchaseCheckout(
+    tenantId: string,
+    dto: CreateCreditCheckoutDto,
+  ): Promise<CheckoutSessionResponseDto> {
+    const pkg = await this.creditPackagesRepository.findByKey(dto.packageKey);
+    if (!pkg) {
+      throw new NotFoundException(
+        `Credit package not found: ${dto.packageKey}`,
+      );
+    }
+
+    if (!pkg.stripe_price_id) {
+      throw new BadRequestException(
+        `No Stripe price configured for credit package "${dto.packageKey}". ` +
+          'Ensure the catalog sync has run successfully.',
+      );
+    }
+
+    const customerId =
+      await this.stripeCustomerService.getOrCreateCustomer(tenantId);
+
+    if (!customerId) {
+      throw new BadRequestException(
+        `Failed to resolve Stripe customer for tenant ${tenantId}`,
+      );
+    }
+
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      mode: 'payment',
+      customer: customerId,
+      line_items: [{ price: pkg.stripe_price_id, quantity: 1 }],
+      success_url: `${dto.successUrl}${dto.successUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: dto.cancelUrl,
+      payment_method_types: ['card'],
+      metadata: {
+        complytude_tenant_id: tenantId,
+        checkout_type: 'credit_purchase',
+        credit_package_key: dto.packageKey,
+        credits_amount: String(pkg.credits),
+      },
+      ...(this.isTaxEnabled() && {
+        automatic_tax: { enabled: true },
+      }),
+    };
+
+    const session =
+      await this.stripeService.client.checkout.sessions.create(sessionParams);
+
+    this.logger.log(
+      `Created credit purchase Checkout session ${session.id} for tenant ${tenantId} (package: ${dto.packageKey}, credits: ${pkg.credits})`,
     );
 
     return {

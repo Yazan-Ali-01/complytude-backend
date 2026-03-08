@@ -5,13 +5,14 @@ import {
   SubscriptionStatus,
 } from 'src/common/types/entitlement.types';
 import { DatabaseService } from 'src/database/database.service';
+import { CreditLedgerService } from 'src/modules/entitlements/services/credit-ledger.service';
+import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
+import { StripeService } from 'src/modules/stripe/stripe.service';
 import { AddonsRepository } from 'src/repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { TenantAddonsRepository } from 'src/repositories/entitlements/tenant-addons.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
-import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
-import { StripeService } from 'src/modules/stripe/stripe.service';
 import type { PoolClient } from 'pg';
 
 @Injectable()
@@ -27,18 +28,36 @@ export class StripeEventHandlersService {
     private readonly domainEventsService: DomainEventsService,
     private readonly addonsRepository: AddonsRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
+    private readonly creditLedgerService: CreditLedgerService,
   ) {}
 
   async handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
     const session = event.data.object as Stripe.Checkout.Session;
+    const checkoutType = session.metadata?.checkout_type;
 
-    if (session.mode !== 'subscription') {
+    if (checkoutType === 'credit_purchase') {
+      return this.handleCreditPurchaseCheckout(session, event.id);
+    }
+
+    // Route subscription checkouts — accept both the tagged type and legacy
+    // sessions that predate the checkout_type metadata field.
+    if (
+      checkoutType !== 'subscription_checkout' &&
+      session.mode !== 'subscription'
+    ) {
       this.logger.log(
-        `Skipping non-subscription checkout session: ${session.id} (mode: ${session.mode})`,
+        `Skipping unrecognised checkout session: ${session.id} (mode: ${session.mode}, checkout_type: ${checkoutType ?? 'none'})`,
       );
       return;
     }
 
+    return this.handleSubscriptionCheckout(session, event);
+  }
+
+  private async handleSubscriptionCheckout(
+    session: Stripe.Checkout.Session,
+    event: Stripe.Event,
+  ): Promise<void> {
     const tenantId = session.metadata?.complytude_tenant_id;
     const planKey = session.metadata?.plan_key as PlanKey | undefined;
 
@@ -135,6 +154,40 @@ export class StripeEventHandlersService {
 
     this.logger.log(
       `Subscription provisioned via checkout: tenant=${tenantId}, plan=${planKey}, stripe_sub=${subscriptionId}`,
+    );
+  }
+
+  private async handleCreditPurchaseCheckout(
+    session: Stripe.Checkout.Session,
+    eventId: string,
+  ): Promise<void> {
+    const tenantId = session.metadata?.complytude_tenant_id;
+    const creditsAmount = parseInt(session.metadata?.credits_amount ?? '0', 10);
+    const packageKey = session.metadata?.credit_package_key;
+
+    if (!tenantId || !creditsAmount || !packageKey) {
+      throw new Error(
+        `Missing metadata on credit purchase session — ` +
+          `event=${eventId}, session=${session.id}, ` +
+          `tenantId=${tenantId ?? 'null'}, credits=${creditsAmount}, package=${packageKey ?? 'null'}`,
+      );
+    }
+
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null);
+
+    await this.creditLedgerService.purchase(tenantId, creditsAmount, {
+      stripe_checkout_session_id: session.id,
+      stripe_payment_intent_id: paymentIntentId,
+      credit_package_key: packageKey,
+      amount_paid: session.amount_total,
+      currency: session.currency,
+    });
+
+    this.logger.log(
+      `Credits purchased via checkout: tenant=${tenantId}, package=${packageKey}, credits=${creditsAmount}, session=${session.id}`,
     );
   }
 

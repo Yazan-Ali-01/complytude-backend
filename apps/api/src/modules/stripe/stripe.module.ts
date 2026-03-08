@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import stripeConfig from 'src/config/stripe.config';
 import { DatabaseModule } from 'src/database/database.module';
+import { CreditPackagesRepository } from 'src/repositories/credits/credit-packages.repository';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
@@ -43,6 +44,7 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     SubscriptionsService,
     TenantRepository,
     UserTenantRepository,
+    CreditPackagesRepository,
   ],
   exports: [
     StripeService,
