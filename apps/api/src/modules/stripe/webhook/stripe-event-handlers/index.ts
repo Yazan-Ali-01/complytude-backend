@@ -1,9 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
-import {
-  PlanKey,
-  SubscriptionStatus,
-} from 'src/common/types/entitlement.types';
+import { PlanKey } from 'src/common/types/entitlement.types';
+import { mapStripeStatusToInternal } from '../../stripe.utils';
 import { DatabaseService } from 'src/database/database.service';
 import { CreditLedgerService } from 'src/modules/entitlements/services/credit-ledger.service';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
@@ -331,7 +329,7 @@ export class StripeEventHandlersService {
 
     const newPlan =
       await this.plansRepository.findByStripePriceId(currentPriceId);
-    const newStatus = this.mapStripeStatus(stripeSub.status);
+    const newStatus = mapStripeStatusToInternal(stripeSub.status);
 
     await this.databaseService.transactionWithPlatformAdminContext(
       async (client) => {
@@ -774,21 +772,5 @@ export class StripeEventHandlersService {
     return typeof subscriptionRef === 'string'
       ? subscriptionRef
       : subscriptionRef.id;
-  }
-
-  private mapStripeStatus(stripeStatus: string): SubscriptionStatus {
-    switch (stripeStatus) {
-      case 'active':
-        return 'active';
-      case 'trialing':
-        return 'trialing';
-      case 'past_due':
-      case 'unpaid':
-        return 'past_due';
-      case 'canceled':
-        return 'cancelled';
-      default:
-        return 'past_due';
-    }
   }
 }

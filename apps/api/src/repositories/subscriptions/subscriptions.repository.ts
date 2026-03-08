@@ -259,6 +259,24 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   /**
+   * Find all subscriptions with a Stripe subscription ID (active, past_due, trialing).
+   * Used by the reconciliation service to compare our state against Stripe.
+   */
+  async findAllWithStripeId(
+    options?: QueryOptions,
+  ): Promise<TenantSubscription[]> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE stripe_subscription_id IS NOT NULL
+         AND status IN ('active', 'past_due', 'trialing')
+       ORDER BY created_at ASC`,
+      [],
+      options,
+    );
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
    * Find all Navigator (free) subscriptions due for period renewal.
    * Scoped to subscriptions with no Stripe subscription ID — Stripe-backed
    * subscriptions are renewed via the invoice.paid webhook instead.

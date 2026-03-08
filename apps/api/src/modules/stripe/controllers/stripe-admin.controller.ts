@@ -1,12 +1,14 @@
 import {
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { PlatformPermissionsGuard } from '../../../common/guards/platform-permissions.guard';
@@ -16,9 +18,18 @@ import {
   StripeCustomerService,
 } from '../services/stripe-customer.service';
 import {
+  ReconciliationReport,
+  StripeReconciliationService,
+} from '../services/stripe-reconciliation.service';
+import {
   StripeTaxService,
   TaxBackfillResult,
 } from '../services/stripe-tax.service';
+import {
+  RetryResult,
+  StripeWebhookMonitoringService,
+  WebhookStats,
+} from '../services/stripe-webhook-monitoring.service';
 
 @ApiTags('System Admin - Stripe')
 @Controller('admin/stripe')
@@ -31,6 +42,8 @@ export class StripeAdminController {
   constructor(
     private readonly stripeCustomerService: StripeCustomerService,
     private readonly stripeTaxService: StripeTaxService,
+    private readonly stripeReconciliationService: StripeReconciliationService,
+    private readonly stripeWebhookMonitoringService: StripeWebhookMonitoringService,
   ) {}
 
   @Post('backfill-customers')
@@ -91,5 +104,114 @@ export class StripeAdminController {
   async backfillTax(): Promise<TaxBackfillResult> {
     this.logger.log('[ADMIN] Starting Stripe Tax backfill');
     return this.stripeTaxService.backfillCustomerTax();
+  }
+
+  @Post('reconcile')
+  @HttpCode(HttpStatus.OK)
+  @RequireAnyPlatformPermission('entitlements:manage')
+  @ApiOperation({
+    summary: '[ADMIN] Run Stripe state reconciliation',
+    description:
+      'Compares Stripe subscription and add-on state against our DB, detects drift, and auto-fixes mismatches. ' +
+      'Idempotent — safe to run multiple times. Emits domain events for every fix.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reconciliation completed',
+    schema: {
+      type: 'object',
+      properties: {
+        checked: { type: 'number' },
+        in_sync: { type: 'number' },
+        drifted: { type: 'number' },
+        fixed: { type: 'number' },
+        errors: { type: 'array' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Insufficient platform permissions',
+  })
+  async runReconciliation(): Promise<ReconciliationReport> {
+    this.logger.log('[ADMIN] Starting Stripe state reconciliation');
+    return this.stripeReconciliationService.reconcileAll();
+  }
+
+  @Get('webhook-stats')
+  @RequireAnyPlatformPermission('entitlements:manage')
+  @ApiOperation({
+    summary: '[ADMIN] Get webhook event processing stats',
+    description:
+      'Returns event counts by status and type, failed events, and average processing time.',
+  })
+  @ApiQuery({
+    name: 'hours',
+    required: false,
+    type: Number,
+    description: 'Time window in hours (default: 24)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Webhook stats',
+    schema: {
+      type: 'object',
+      properties: {
+        total: { type: 'number' },
+        by_status: { type: 'object' },
+        by_type: { type: 'object' },
+        failed: { type: 'array' },
+        avg_processing_time_ms: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Insufficient platform permissions',
+  })
+  async getWebhookStats(
+    @Query('hours') hours: number = 24,
+  ): Promise<WebhookStats> {
+    return this.stripeWebhookMonitoringService.getWebhookStats(Number(hours));
+  }
+
+  @Post('retry-failed-webhooks')
+  @HttpCode(HttpStatus.OK)
+  @RequireAnyPlatformPermission('entitlements:manage')
+  @ApiOperation({
+    summary: '[ADMIN] Retry failed webhook events',
+    description:
+      'Retries failed webhook events that have not exceeded maxRetries attempts. ' +
+      'Each retry goes through the full processEvent pipeline (idempotency guard included).',
+  })
+  @ApiQuery({
+    name: 'maxRetries',
+    required: false,
+    type: Number,
+    description: 'Max attempts before an event is skipped (default: 3)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Retry run completed',
+    schema: {
+      type: 'object',
+      properties: {
+        attempted: { type: 'number' },
+        retried: { type: 'number' },
+        failed: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Insufficient platform permissions',
+  })
+  async retryFailedWebhooks(
+    @Query('maxRetries') maxRetries: number = 3,
+  ): Promise<RetryResult> {
+    this.logger.log('[ADMIN] Starting failed webhook retry run');
+    return this.stripeWebhookMonitoringService.retryFailedEvents(
+      Number(maxRetries),
+    );
   }
 }

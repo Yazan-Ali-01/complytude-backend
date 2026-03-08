@@ -5,10 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import Stripe from 'stripe';
-import {
-  PlanKey,
-  SubscriptionStatus,
-} from 'src/common/types/entitlement.types';
+import { PlanKey } from 'src/common/types/entitlement.types';
+import { mapStripeStatusToInternal } from '../stripe.utils';
 import { DatabaseService } from 'src/database/database.service';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
@@ -502,20 +500,9 @@ export class StripeSubscriptionService {
 
   /**
    * Maps a Stripe subscription status string to our internal SubscriptionStatus type.
+   * Delegates to the shared utility in stripe.utils.ts.
    */
-  mapStripeStatus(stripeStatus: string): SubscriptionStatus {
-    switch (stripeStatus) {
-      case 'active':
-        return 'active';
-      case 'trialing':
-        return 'trialing';
-      case 'past_due':
-      case 'unpaid':
-        return 'past_due';
-      case 'canceled':
-        return 'cancelled';
-      default:
-        return 'past_due';
-    }
+  mapStripeStatus(stripeStatus: string) {
+    return mapStripeStatusToInternal(stripeStatus);
   }
 }
