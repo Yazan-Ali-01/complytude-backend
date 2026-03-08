@@ -407,27 +407,14 @@ chmod +x scripts/*.sh
 
 ### Migration Fails
 
-**Pre-Production Approach (Easiest):**
-
 1. Check error message
 2. Fix migration file
-3. Drop and recreate database:
+3. Reset the DB and re-run all migrations:
    ```bash
    docker-compose down -v
    docker-compose up -d postgres
    ./scripts/run-migrations.sh
    ```
-
-**Alternative (Keep Data):**
-
-1. Check error message
-2. Fix migration file
-3. Remove from tracking:
-   ```sql
-   DELETE FROM public.schema_migrations
-   WHERE migration_name = 'failed_migration.sql';
-   ```
-4. Re-run: `./scripts/run-migrations.sh`
 
 ### No Sample Data Showing
 
