@@ -30,9 +30,7 @@ elif [ -f .env ]; then
     export $(cat .env | grep -v '^#' | grep -v '^\s*$' | xargs)
     echo "📝 Loaded environment from .env"
 else
-    echo -e "${RED}❌ No .env file found${NC}"
-    echo "Please create apps/api/.env from apps/api/.env.example"
-    exit 1
+    echo -e "${YELLOW}⚠️  No .env file found. Using environment variables from shell.${NC}"
 fi
 
 # Database connection details
