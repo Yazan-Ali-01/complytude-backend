@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import {
   PlanKey,
@@ -17,6 +18,7 @@ import {
   SubscriptionsRepository,
   TenantSubscriptionWithPlan,
 } from 'src/repositories/subscriptions/subscriptions.repository';
+import { CommonI18n } from '../../common/constants/i18n.constants';
 import { DomainEventsService } from '../entitlements/services/domain-events.service';
 
 /**
@@ -49,6 +51,7 @@ export class SubscriptionsService {
     private readonly plansRepository: PlansRepository,
     private readonly entitlementSnapshotsRepository: EntitlementSnapshotsRepository,
     private readonly domainEventsService: DomainEventsService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -70,7 +73,9 @@ export class SubscriptionsService {
         );
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription found for tenant: ${tenantId}`,
+          // SubscriptionsI18n is required but in phase 2 (SubscriptionsI18n.errors.NO_ACTIVE_SUBSCRIPTION)
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `No active subscription found for tenant: ${tenantId}`,
         );
       }
       return subscription;
@@ -123,11 +128,19 @@ export class SubscriptionsService {
         client,
       });
       if (!newPlan) {
-        throw new NotFoundException(`Plan not found: ${newPlanKey}`);
+        throw new NotFoundException(
+          // PlansI18n is required but in phase 2 (PlansI18n.errors.NOT_FOUND)
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `Plan not found: ${newPlanKey}`,
+        );
       }
 
       if (!newPlan.is_active) {
-        throw new BadRequestException(`Plan is not active: ${newPlanKey}`);
+        throw new BadRequestException(
+          // PlansI18n is required but in phase 2 (PlansI18n.errors.NOT_ACTIVE)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Plan is not active: ${newPlanKey}`,
+        );
       }
 
       // Step 2: Find current subscription
@@ -149,7 +162,9 @@ export class SubscriptionsService {
       // Step 4: Check if already on this plan
       if (currentSubscription.plan_id === newPlan.id) {
         throw new BadRequestException(
-          `Tenant is already on plan: ${newPlanKey}`,
+          // SubscriptionsI18n is required but in phase 2 (SubscriptionsI18n.errors.ALREADY_ON_PLAN)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Tenant is already on plan: ${newPlanKey}`,
         );
       }
 
@@ -257,7 +272,9 @@ export class SubscriptionsService {
 
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription found for tenant: ${tenantId}`,
+          // SubscriptionsI18n is required but in phase 2 (SubscriptionsI18n.errors.NO_ACTIVE_SUBSCRIPTION)
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `No active subscription found for tenant: ${tenantId}`,
         );
       }
 
@@ -356,18 +373,28 @@ export class SubscriptionsService {
 
       if (existingSubscription) {
         throw new BadRequestException(
-          `Tenant already has an active subscription. Use changePlan to switch plans.`,
+          // SubscriptionsI18n is required but in phase 2 (SubscriptionsI18n.errors.ALREADY_HAS_ACTIVE_SUBSCRIPTION)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Tenant already has an active subscription. Use changePlan to switch plans.`,
         );
       }
 
       // Step 2: Find plan
       const plan = await this.plansRepository.findByKey(planKey, { client });
       if (!plan) {
-        throw new NotFoundException(`Plan not found: ${planKey}`);
+        throw new NotFoundException(
+          // PlansI18n is required but in phase 2 (PlansI18n.errors.NOT_FOUND)
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `Plan not found: ${planKey}`,
+        );
       }
 
       if (!plan.is_active) {
-        throw new BadRequestException(`Plan is not active: ${planKey}`);
+        throw new BadRequestException(
+          // PlansI18n is required but in phase 2 (PlansI18n.errors.NOT_ACTIVE)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Plan is not active: ${planKey}`,
+        );
       }
 
       // Step 3: Calculate billing period
@@ -395,7 +422,9 @@ export class SubscriptionsService {
       } catch (error) {
         if (error?.code === '23505') {
           throw new ConflictException(
-            `Tenant already has an active subscription (concurrent creation detected).`,
+            // SubscriptionsI18n is required but in phase 2 (SubscriptionsI18n.errors.ALREADY_HAS_ACTIVE_SUBSCRIPTION)
+            this.i18n.t(CommonI18n.errors.CONFLICT) ??
+              `Tenant already has an active subscription (concurrent creation detected).`,
           );
         }
         throw error;
@@ -479,7 +508,9 @@ export class SubscriptionsService {
 
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription found for tenant: ${tenantId}`,
+          // SubscriptionsI18n is required but in phase 2 (SubscriptionsI18n.errors.NO_ACTIVE_SUBSCRIPTION)
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `No active subscription found for tenant: ${tenantId}`,
         );
       }
 
@@ -578,7 +609,9 @@ export class SubscriptionsService {
         renewedCount++;
       } catch (error) {
         this.logger.error(
-          `Failed to renew subscription for tenant=${subscription.tenant_id}: ${error.message}`,
+          // SubscriptionsI18n is required but in phase 2 (SubscriptionsI18n.errors.FAILED_TO_RENEW)
+          this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+            `Failed to renew subscription for tenant=${subscription.tenant_id}: ${error.message}`,
         );
         // Continue with next subscription
       }

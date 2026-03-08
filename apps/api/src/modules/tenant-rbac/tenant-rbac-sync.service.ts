@@ -1,5 +1,7 @@
 import { DatabaseService } from '@lib/database';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../common/constants';
 import { ALL_TENANT_PERMISSIONS } from '../../common/constants/tenant-permissions.constant';
 import { TENANT_SYSTEM_ROLE_PERMISSIONS } from '../../common/constants/tenant-system-roles.constant';
 import { SystemTenantRole } from '../../common/types';
@@ -21,7 +23,10 @@ import { SystemTenantRole } from '../../common/types';
 export class TenantRbacSyncService implements OnModuleInit {
   private readonly logger = new Logger(TenantRbacSyncService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   async onModuleInit() {
     this.logger.log('Starting Tenant RBAC sync...');
@@ -68,7 +73,9 @@ export class TenantRbacSyncService implements OnModuleInit {
           'CRITICAL: ALL_TENANT_PERMISSIONS is empty! This is likely a bug. Aborting sync to prevent data loss.',
         );
         throw new Error(
-          'Cannot sync permissions: ALL_TENANT_PERMISSIONS array is empty. This would delete all permissions from the database.',
+          // TenantRbacSyncI18n is required but in phase 2 (TenantRbacSyncI18n.errors.ALL_TENANT_PERMISSIONS_EMPTY)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'Cannot sync permissions: ALL_TENANT_PERMISSIONS array is empty. This would delete all permissions from the database.',
         );
       }
 

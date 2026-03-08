@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreatePlanEntitlementRow,
   PlanEntitlement,
@@ -27,8 +28,8 @@ export class PlanEntitlementsRepository extends BaseRepository<
   CreatePlanEntitlementRow,
   UpdatePlanEntitlementRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.plan_entitlements');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.plan_entitlements', i18n);
   }
 
   protected getSelectColumns(): string {

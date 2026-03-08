@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../../../apps/api/src/common/constants';
 import {
   DEFAULT_CHUNK_OVERLAP,
   DEFAULT_CHUNK_SIZE,
@@ -8,7 +10,10 @@ import { TokenCounterService } from './token-counter.service';
 
 @Injectable()
 export class TextChunkerService {
-  constructor(private readonly tokenCounter: TokenCounterService) {}
+  constructor(
+    private readonly tokenCounter: TokenCounterService,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   chunk(text: string, options?: ChunkOptions): TextChunk[] {
     const chunkSize = options?.chunkSize ?? DEFAULT_CHUNK_SIZE;
@@ -16,7 +21,9 @@ export class TextChunkerService {
 
     if (chunkOverlap >= chunkSize) {
       throw new Error(
-        `chunkOverlap (${chunkOverlap}) must be less than chunkSize (${chunkSize})`,
+        // TextChunkerServiceI18n is required but in phase 2 (TextChunkerServiceI18n.errors.CHUNK_OVERLAP_MUST_BE_LESS_THAN_CHUNK_SIZE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `chunkOverlap (${chunkOverlap}) must be less than chunkSize (${chunkSize})`,
       );
     }
 

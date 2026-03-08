@@ -7,7 +7,9 @@ import {
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 
+import { CommonI18n } from '../../common/constants';
 import {
   CreateInvitationInput,
   Invitation,
@@ -61,8 +63,8 @@ export class InvitationRepository extends BaseRepository<
   CreateInvitationRow,
   UpdateInvitationRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.invitations');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.invitations', i18n);
   }
 
   /**
@@ -169,7 +171,11 @@ export class InvitationRepository extends BaseRepository<
     // Then fetch with role details
     const invitation = await this.findById(invitationId, options);
     if (!invitation) {
-      throw new Error('Failed to create invitation');
+      throw new Error(
+        // InvitationRepositoryI18n is required but in phase 2 (InvitationRepositoryI18n.errors.FAILED_TO_CREATE_INVITATION)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Failed to create invitation',
+      );
     }
 
     return invitation;

@@ -7,6 +7,7 @@ This guide covers development workflow, module creation, best practices, and cod
 - [Creating a New Module](#creating-a-new-module)
 - [Module Structure](#module-structure)
 - [Best Practices](#best-practices)
+- [Internationalization (i18n)](#internationalization-i18n)
 - [Adding Database Migrations](#adding-database-migrations)
 - [Code Quality Checks](#code-quality-checks)
 
@@ -36,6 +37,8 @@ apps/api/src/modules/your-module/
 ├── your-module.module.ts        # Module definition
 ├── your-module.controller.ts    # HTTP endpoints
 ├── your-module.service.ts       # Business logic
+├── constants/                   # Module constants
+│   └── i18n.constants.ts       # Translation keys (errors/messages)
 ├── dto/                         # Data Transfer Objects
 │   ├── create-your-module.dto.ts
 │   └── update-your-module.dto.ts
@@ -147,6 +150,128 @@ async listDocuments() { }
 | Service    | `{feature}.service.ts`      | `templates.service.ts`    |
 | DTO        | `{action}-{feature}.dto.ts` | `create-template.dto.ts`  |
 | Entity     | `{feature}.entity.ts`       | `template.entity.ts`      |
+
+---
+
+## Internationalization (i18n)
+
+The API uses **nestjs-i18n** with a **per-module organization** strategy for translation keys.
+
+### Quick Start
+
+1. **Define module constants** (if creating a new module):
+
+```typescript
+// modules/your-module/constants/i18n.constants.ts
+export const YourModuleI18n = {
+  errors: {
+    RESOURCE_NOT_FOUND: 'your-module.errors.RESOURCE_NOT_FOUND',
+    CREATION_FAILED: 'your-module.errors.CREATION_FAILED',
+  },
+  messages: {
+    CREATED_SUCCESS: 'your-module.messages.CREATED_SUCCESS',
+    UPDATED_SUCCESS: 'your-module.messages.UPDATED_SUCCESS',
+  },
+} as const;
+```
+
+2. **Add JSON translations** for both languages:
+
+```json
+// i18n/locales/en/your-module.json
+{
+  "errors": {
+    "RESOURCE_NOT_FOUND": "Resource not found",
+    "CREATION_FAILED": "Failed to create resource"
+  },
+  "messages": {
+    "CREATED_SUCCESS": "Resource created successfully",
+    "UPDATED_SUCCESS": "Resource updated successfully"
+  }
+}
+```
+
+```json
+// i18n/locales/ar/your-module.json
+{
+  "errors": {
+    "RESOURCE_NOT_FOUND": "المورد غير موجود",
+    "CREATION_FAILED": "فشل في إنشاء المورد"
+  },
+  "messages": {
+    "CREATED_SUCCESS": "تم إنشاء المورد بنجاح",
+    "UPDATED_SUCCESS": "تم تحديث المورد بنجاح"
+  }
+}
+```
+
+3. **Export from common constants** (for type safety):
+
+```typescript
+// common/constants/i18n.constants.ts
+export { YourModuleI18n } from '../../modules/your-module/constants/i18n.constants';
+
+// Add to I18nKeyType union
+export type I18nKeyType =
+  | DeepValues<typeof CommonI18n>
+  | DeepValues<typeof YourModuleI18n>
+  // ... other modules
+```
+
+4. **Update TranslationNamespace type**:
+
+```typescript
+// i18n/i18n.types.ts
+export type TranslationNamespace =
+  | 'common'
+  | 'your-module'
+  // ... other namespaces
+```
+
+5. **Use in your service**:
+
+```typescript
+import { YourModuleI18n } from './constants/i18n.constants';
+import { CommonI18n } from '../../common/constants/i18n.constants';
+
+@Injectable()
+export class YourModuleService {
+  constructor(@I18n() private readonly i18n: I18nService) {}
+
+  async create(data: CreateDto) {
+    // Use module-specific keys
+    throw new ConflictException(
+      this.i18n.t(YourModuleI18n.errors.CREATION_FAILED)
+    );
+    
+    // Or shared keys
+    throw new NotFoundException(
+      this.i18n.t(CommonI18n.errors.NOT_FOUND)
+    );
+    
+    return {
+      message: this.i18n.t(YourModuleI18n.messages.CREATED_SUCCESS)
+    };
+  }
+}
+```
+
+### Existing Module Constants
+
+- **CommonI18n** - `common/constants/i18n.constants.ts` (VALIDATION_ERROR, NOT_FOUND, UNAUTHORIZED, etc.)
+- **AuthI18n** - `modules/auth/constants/i18n.constants.ts`
+- **TemplatesI18n** - `modules/templates/constants/i18n.constants.ts`
+- **StorageI18n** - `modules/storage/constants/i18n.constants.ts`
+- **TenantsI18n** - `modules/tenants/constants/i18n.constants.ts`
+- **EntitlementsI18n** - `modules/entitlements/constants/i18n.constants.ts`
+
+### Guidelines
+
+- **errors** - Exception messages (validation failures, not found, access denied, etc.)
+- **messages** - Success messages (created, updated, deleted successfully, etc.)
+- **Use CommonI18n for generic errors** (NOT_FOUND, UNAUTHORIZED, VALIDATION_ERROR)
+- **Use module-specific constants for domain-specific messages**
+- **Always provide fallback strings** for resilience: `this.i18n.t(key) ?? 'Fallback message'`
 
 ---
 

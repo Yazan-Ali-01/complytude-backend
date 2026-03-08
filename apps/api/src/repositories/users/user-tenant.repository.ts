@@ -1,6 +1,8 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
+import { CommonI18n } from '../../common/constants';
 import {
   LinkUserTenantInput,
   UserTenantWithUserRow,
@@ -46,8 +48,8 @@ export class UserTenantRepository extends BaseRepository<
   UserTenantCreateInput,
   UserTenantUpdateInput
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.user_tenants');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.user_tenants', i18n);
   }
 
   /**
@@ -105,7 +107,8 @@ export class UserTenantRepository extends BaseRepository<
    */
   findById(_id: string, _options?: QueryOptions): Promise<UserTenant | null> {
     throw new Error(
-      'findById is not supported for UserTenantRepository. Use findByCompositeKey instead.',
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'findById is not supported for UserTenantRepository. Use findByCompositeKey instead.',
     );
   }
 
@@ -149,7 +152,8 @@ export class UserTenantRepository extends BaseRepository<
     _options?: QueryOptions,
   ): Promise<UserTenant> {
     throw new Error(
-      'update is not supported for UserTenantRepository. Use updateByCompositeKey instead.',
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'update is not supported for UserTenantRepository. Use updateByCompositeKey instead.',
     );
   }
 
@@ -173,7 +177,10 @@ export class UserTenantRepository extends BaseRepository<
     );
 
     if (entries.length === 0) {
-      throw new Error('No data provided for update');
+      throw new Error(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'No data provided for update operation',
+      );
     }
 
     const setClause = entries
@@ -216,7 +223,8 @@ export class UserTenantRepository extends BaseRepository<
    */
   delete(_id: string, _options?: QueryOptions): Promise<number> {
     throw new Error(
-      'delete is not supported for UserTenantRepository. Use deleteByCompositeKey instead.',
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'delete is not supported for UserTenantRepository. Use deleteByCompositeKey instead.',
     );
   }
 
@@ -379,7 +387,10 @@ export class UserTenantRepository extends BaseRepository<
 
     const row = result.rows[0];
     if (!row) {
-      throw new Error('Failed to upsert user-tenant relationship');
+      throw new Error(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Failed to upsert user-tenant relationship',
+      );
     }
 
     return {

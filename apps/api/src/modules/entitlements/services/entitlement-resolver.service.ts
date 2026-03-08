@@ -1,6 +1,8 @@
 import { DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { CommonI18n } from '../../../common/constants';
 import {
   getAllPlanEntitlements,
   getFeatureDefinition,
@@ -47,6 +49,7 @@ export class EntitlementResolverService {
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
     private readonly snapshotService: EntitlementSnapshotService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -215,12 +218,14 @@ export class EntitlementResolverService {
         );
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription found for tenant ${tenantId}`,
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `No active subscription found for tenant ${tenantId}`,
         );
       }
       if (!subscription.plan) {
         throw new NotFoundException(
-          `Plan data missing for active subscription of tenant ${tenantId}`,
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `Plan data missing for active subscription of tenant ${tenantId}`,
         );
       }
       // Get all plan entitlements (in-memory)

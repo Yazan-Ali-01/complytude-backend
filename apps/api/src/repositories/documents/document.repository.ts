@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 
 export interface Document {
   id: string;
@@ -55,8 +56,8 @@ export class DocumentRepository extends BaseRepository<
   CreateDocumentRow,
   UpdateDocumentRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.documents');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.documents', i18n);
   }
 
   protected getSelectColumns(): string {

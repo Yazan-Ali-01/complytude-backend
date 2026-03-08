@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateFeatureRow,
   Feature,
@@ -32,8 +33,8 @@ export class FeaturesRepository extends BaseRepository<
   CreateFeatureRow,
   UpdateFeatureRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.features');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.features', i18n);
   }
 
   protected getSelectColumns(): string {

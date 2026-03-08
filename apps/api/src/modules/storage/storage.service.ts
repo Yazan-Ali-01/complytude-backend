@@ -21,7 +21,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { I18n, I18nService } from 'nestjs-i18n';
 import { Readable } from 'stream';
-import { I18nKeys } from '../../common/constants/i18n-keys';
+import { StorageI18n } from './constants/i18n.constants';
 const PAGINATION_DEFAULTS = {
   DEFAULT_LIMIT: 50,
   MAX_LIMIT: 1000,
@@ -138,7 +138,8 @@ export class StorageService {
         `Tenant validation failed: tenantId is required but was ${tenantId === null ? 'null' : tenantId === undefined ? 'undefined' : 'empty'}`,
       );
       throw new BadRequestException(
-        'Tenant ID is required for file operations',
+        this.i18n.t(StorageI18n.errors.FILE_ACCESS_DENIED) ??
+          'Tenant ID is required for file operations',
       );
     }
 
@@ -148,7 +149,9 @@ export class StorageService {
       this.logger.warn(
         `Tenant ${tenantId} attempted to access file outside their scope: ${fileKey}`,
       );
-      throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+      );
     }
   }
 
@@ -276,7 +279,7 @@ export class StorageService {
     } catch (error) {
       this.logger.error(`Failed to upload file: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.FILE_UPLOAD_FAILED),
+        this.i18n.t(StorageI18n.errors.FILE_UPLOAD_FAILED),
       );
     }
   }
@@ -297,7 +300,9 @@ export class StorageService {
       );
 
       if (!response.Body) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+        );
       }
 
       const metadata = this.mapS3MetadataToFileMetadata(response);
@@ -308,12 +313,14 @@ export class StorageService {
       };
     } catch (error) {
       if (this.isNotFoundError(error)) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+        );
       }
 
       this.logger.error(`Failed to get file: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.FILE_DOWNLOAD_FAILED),
+        this.i18n.t(StorageI18n.errors.FILE_DOWNLOAD_FAILED),
       );
     }
   }
@@ -397,7 +404,9 @@ export class StorageService {
         error.name === 'NotFound' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+        );
       }
 
       // Handle bucket not found (404) - occurs when accessing another tenant's files
@@ -407,12 +416,14 @@ export class StorageService {
         error.message?.includes('bucket') ||
         error.message?.includes('does not exist')
       ) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+        );
       }
 
       this.logger.error(`Failed to delete file: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.FILE_DELETE_FAILED),
+        this.i18n.t(StorageI18n.errors.FILE_DELETE_FAILED),
       );
     }
   }
@@ -446,7 +457,7 @@ export class StorageService {
     } catch (error) {
       this.logger.error(`Failed to generate signed URL: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(StorageI18n.errors.TEMPORARY_URL_GENERATION_FAILED),
       );
     }
   }
@@ -504,7 +515,7 @@ export class StorageService {
 
       this.logger.error(`Failed to list files: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.STORAGE_ACCESS_FAILED),
+        this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED),
       );
     }
   }
@@ -575,7 +586,8 @@ export class StorageService {
         return false;
       }
       throw new InternalServerErrorException(
-        `Failed to check bucket: ${error.message}`,
+        this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED) ??
+          `Failed to check bucket: ${error.message}`,
       );
     }
   }
@@ -585,7 +597,8 @@ export class StorageService {
       await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
     } catch (error) {
       throw new InternalServerErrorException(
-        `Failed to create bucket: ${error.message}`,
+        this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED) ??
+          `Failed to create bucket: ${error.message}`,
       );
     }
   }
@@ -622,7 +635,8 @@ export class StorageService {
             `Failed to create templates bucket ${this.templatesBucket}: ${createError.message}`,
           );
           throw new InternalServerErrorException(
-            'Failed to initialize templates storage',
+            this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED) ??
+              'Failed to initialize templates storage',
           );
         }
       } else {
@@ -630,7 +644,8 @@ export class StorageService {
           `Error checking templates bucket ${this.templatesBucket}: ${error.message}`,
         );
         throw new InternalServerErrorException(
-          'Failed to access templates storage',
+          this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED) ??
+            'Failed to access templates storage',
         );
       }
     }
@@ -695,7 +710,7 @@ export class StorageService {
     } catch (error) {
       this.logger.error(`Failed to upload template file: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.FILE_UPLOAD_FAILED),
+        this.i18n.t(StorageI18n.errors.FILE_UPLOAD_FAILED),
       );
     }
   }
@@ -717,7 +732,9 @@ export class StorageService {
       );
 
       if (!response.Body) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+        );
       }
 
       return response.Body as Readable;
@@ -726,12 +743,14 @@ export class StorageService {
         error.name === 'NoSuchKey' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+        );
       }
 
       this.logger.error(`Failed to get template file: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.FILE_DOWNLOAD_FAILED),
+        this.i18n.t(StorageI18n.errors.FILE_DOWNLOAD_FAILED),
       );
     }
   }
@@ -761,7 +780,7 @@ export class StorageService {
         `Failed to generate template signed URL: ${error.message}`,
       );
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(StorageI18n.errors.TEMPORARY_URL_GENERATION_FAILED),
       );
     }
   }
@@ -797,7 +816,9 @@ export class StorageService {
         error.name === 'NotFound' ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+        );
       }
 
       // Handle bucket not found (404)
@@ -807,12 +828,14 @@ export class StorageService {
         error.message?.includes('bucket') ||
         error.message?.includes('does not exist')
       ) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.FILE_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(StorageI18n.errors.FILE_NOT_FOUND),
+        );
       }
 
       this.logger.error(`Failed to delete template file: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.FILE_DELETE_FAILED),
+        this.i18n.t(StorageI18n.errors.FILE_DELETE_FAILED),
       );
     }
   }
@@ -857,7 +880,7 @@ export class StorageService {
 
       this.logger.error(`Failed to list template files: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.STORAGE_ACCESS_FAILED),
+        this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED),
       );
     }
   }

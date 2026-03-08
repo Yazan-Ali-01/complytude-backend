@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import OpenAI from 'openai';
+import { CommonI18n } from '../../../apps/api/src/common/constants';
 import { TokenCounterService } from './chunking/token-counter.service';
 import {
   DEFAULT_DIMENSIONS,
@@ -23,6 +25,7 @@ export class EmbeddingService {
     @Inject(EMBEDDING_MODULE_OPTIONS)
     private readonly config: EmbeddingModuleConfig,
     private readonly tokenCounter: TokenCounterService,
+    @I18n() private readonly i18n: I18nService,
   ) {
     this.client = new OpenAI({
       apiKey: config.apiKey,
@@ -37,7 +40,9 @@ export class EmbeddingService {
 
     if (tokenCount > MAX_INPUT_TOKENS) {
       throw new Error(
-        `Text exceeds maximum token limit of ${MAX_INPUT_TOKENS}. Got ${tokenCount} tokens.`,
+        // EmbeddingServiceI18n is required but in phase 2 (EmbeddingServiceI18n.errors.TEXT_EXCEEDS_MAXIMUM_TOKEN_LIMIT)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Text exceeds maximum token limit of ${MAX_INPUT_TOKENS}. Got ${tokenCount} tokens.`,
       );
     }
 
@@ -63,7 +68,9 @@ export class EmbeddingService {
       const count = this.tokenCounter.countTokens(text);
       if (count > MAX_INPUT_TOKENS) {
         throw new Error(
-          `Text at index ${i} exceeds maximum token limit of ${MAX_INPUT_TOKENS}. Got ${count} tokens.`,
+          // EmbeddingServiceI18n is required but in phase 2 (EmbeddingServiceI18n.errors.TEXT_EXCEEDS_MAXIMUM_TOKEN_LIMIT)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Text at index ${i} exceeds maximum token limit of ${MAX_INPUT_TOKENS}. Got ${count} tokens.`,
         );
       }
       return count;

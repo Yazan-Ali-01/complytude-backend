@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   AuditLog,
   AuditLogFilters,
@@ -12,8 +13,8 @@ export class AuditLogsRepository extends BaseRepository<
   CreateAuditLogInput,
   never
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'audit_logs');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'audit_logs', i18n);
   }
 
   protected mapRow(row: Record<string, unknown>): AuditLog {

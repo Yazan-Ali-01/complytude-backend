@@ -7,10 +7,12 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18n, I18nService } from 'nestjs-i18n';
 import type {
   FeatureKey,
   UsageSource,
 } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
@@ -64,6 +66,7 @@ export class CreditsMockController {
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   // ============================================
@@ -85,7 +88,10 @@ export class CreditsMockController {
     @Body('amount') amount: number,
   ) {
     if (!amount || amount <= 0) {
-      throw new BadRequestException('Amount must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Amount must be greater than 0',
+      );
     }
 
     const transaction = await this.creditLedgerService.purchase({
@@ -98,7 +104,9 @@ export class CreditsMockController {
     });
 
     return {
-      message: `${amount} credits purchased`,
+      message:
+        this.i18n.t(CommonI18n.messages.CREDITS_PURCHASED) ??
+        `${amount} credits purchased`,
       transactionId: transaction.id,
       tenantId: user.tenantId,
       amount,
@@ -129,11 +137,16 @@ export class CreditsMockController {
     @Body('expiresAt') expiresAt?: string,
   ) {
     if (!amount || amount <= 0) {
-      throw new BadRequestException('Amount must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Amount must be greater than 0',
+      );
     }
 
     if (!reason) {
-      throw new BadRequestException('Reason is required');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ?? 'Reason is required',
+      );
     }
 
     const transaction = await this.creditLedgerService.grant({
@@ -148,7 +161,9 @@ export class CreditsMockController {
     });
 
     return {
-      message: `${amount} credits granted`,
+      message:
+        this.i18n.t(CommonI18n.messages.CREDITS_GRANTED) ??
+        `${amount} credits granted`,
       transactionId: transaction.id,
       tenantId: user.tenantId,
       amount,
@@ -281,7 +296,9 @@ export class CreditsMockController {
     });
 
     return {
-      message: 'Usage allowed (within quota)',
+      message:
+        this.i18n.t(CommonI18n.messages.USAGE_ALLOWED_WITHIN_QUOTA) ??
+        'Usage allowed (within quota)',
       tenantId: user.tenantId,
       featureKey: 'documents_per_month',
       result,
@@ -342,7 +359,10 @@ export class CreditsMockController {
             client,
           });
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
 
         const usage = await this.usageProjectionService.getCurrentUsage(
@@ -380,8 +400,10 @@ export class CreditsMockController {
 
     return {
       message: result.allowed
-        ? 'Usage allowed via credit fallback'
-        : 'Usage denied (unexpected)',
+        ? (this.i18n.t(CommonI18n.messages.USAGE_ALLOWED_VIA_CREDIT_FALLBACK) ??
+          'Usage allowed via credit fallback')
+        : (this.i18n.t(CommonI18n.messages.USAGE_DENIED_UNEXPECTED) ??
+          'Usage denied (unexpected)'),
       tenantId: user.tenantId,
       featureKey: 'documents_per_month',
       setup: {
@@ -431,7 +453,10 @@ export class CreditsMockController {
             client,
           });
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
 
         const usage = await this.usageProjectionService.getCurrentUsage(
@@ -468,8 +493,10 @@ export class CreditsMockController {
     );
     return {
       message: result.allowed
-        ? 'Usage allowed (unexpected - should be denied)'
-        : 'Usage denied (quota exceeded, no credits)',
+        ? (this.i18n.t(CommonI18n.messages.USAGE_ALLOWED_UNEXPECTED) ??
+          'Usage allowed (unexpected - should be denied)')
+        : (this.i18n.t(CommonI18n.messages.USAGE_DENIED_QUOTA_EXCEEDED) ??
+          'Usage denied (quota exceeded, no credits)'),
       tenantId: user.tenantId,
       featureKey: 'documents_per_month',
       state: {
@@ -542,7 +569,10 @@ export class CreditsMockController {
             client,
           });
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
 
         const usage = await this.usageProjectionService.getCurrentUsage(
@@ -580,8 +610,10 @@ export class CreditsMockController {
 
     return {
       message: result.allowed
-        ? 'Usage allowed (unexpected - should be denied)'
-        : 'Usage denied (feature not creditable)',
+        ? (this.i18n.t(CommonI18n.messages.USAGE_ALLOWED_UNEXPECTED) ??
+          'Usage allowed (unexpected - should be denied)')
+        : (this.i18n.t(CommonI18n.messages.USAGE_DENIED_QUOTA_EXCEEDED) ??
+          'Usage denied (feature not creditable)'),
       tenantId: user.tenantId,
       featureKey: 'license_verifier_lookups',
       state: {
@@ -653,7 +685,9 @@ export class CreditsMockController {
       },
     );
     return {
-      message: 'Usage allowed (unlimited feature)',
+      message:
+        this.i18n.t(CommonI18n.messages.USAGE_ALLOWED_UNEXPECTED) ??
+        'Usage allowed (unlimited feature)',
       tenantId: user.tenantId,
       featureKey: 'documents_per_month',
       unitsRequested: largeUsage,
@@ -683,7 +717,9 @@ export class CreditsMockController {
     @Body('featureKey') featureKey: FeatureKey,
   ) {
     if (!featureKey) {
-      throw new BadRequestException('featureKey is required');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ?? 'featureKey is required',
+      );
     }
 
     const result = await this.databaseService.transactionWithTenantContext(
@@ -697,7 +733,8 @@ export class CreditsMockController {
 
         if (!entitlement || entitlement.feature_type !== 'boolean') {
           throw new BadRequestException(
-            `${featureKey} is not a boolean feature`,
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              `${featureKey} is not a boolean feature`,
           );
         }
 
@@ -717,8 +754,10 @@ export class CreditsMockController {
     );
     return {
       message: result.allowed
-        ? 'Boolean feature enabled'
-        : 'Boolean feature disabled',
+        ? (this.i18n.t(CommonI18n.messages.USAGE_ALLOWED_UNEXPECTED) ??
+          'Boolean feature enabled')
+        : (this.i18n.t(CommonI18n.messages.USAGE_DENIED_UNEXPECTED) ??
+          'Boolean feature disabled'),
       tenantId: user.tenantId,
       featureKey,
       result,
@@ -757,7 +796,10 @@ export class CreditsMockController {
           });
 
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
 
         const { entitlements, plan } =

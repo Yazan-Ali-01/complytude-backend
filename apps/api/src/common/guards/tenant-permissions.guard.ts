@@ -6,8 +6,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { AuthenticatedTenantUser } from '../../modules/auth/strategies';
 import { TenantRbacService } from '../../modules/tenant-rbac/tenant-rbac.service';
+import { CommonI18n } from '../constants';
 import {
   TENANT_PERMISSIONS_KEY,
   TenantPermissionMetadata,
@@ -28,6 +30,7 @@ export class TenantPermissionsGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private tenantRbacService: TenantRbacService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -53,13 +56,17 @@ export class TenantPermissionsGuard implements CanActivate {
     // Ensure tenant token is present
     if (!tenant) {
       throw new UnauthorizedException(
-        'Tenant token required for permission check',
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Tenant token required for permission check',
       );
     }
 
     // Ensure role is present in tenant token
     if (!tenant.role) {
-      throw new UnauthorizedException('Role not found in tenant token');
+      throw new UnauthorizedException(
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Role not found in tenant token',
+      );
     }
 
     // OPTIMIZATION: Fetch all role permissions once (single query or in-memory)
@@ -78,7 +85,8 @@ export class TenantPermissionsGuard implements CanActivate {
     if (!hasPermission) {
       const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
       throw new ForbiddenException(
-        `Access denied. Required ${logicType} of: ${permissionMetadata.permissions.join(', ')}`,
+        this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+          `Access denied. Required ${logicType} of: ${permissionMetadata.permissions.join(', ')}`,
       );
     }
 

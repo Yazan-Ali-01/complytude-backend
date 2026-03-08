@@ -6,6 +6,7 @@ import {
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { RulesetVersion } from 'src/modules/rulesets/entities/ruleset-version.entity';
 import { RulesetClause } from 'src/modules/rulesets/entities/ruleset.entity';
 
@@ -39,8 +40,8 @@ export class RulesetVersionRepository extends BaseRepository<
   CreateRulesetVersionRow,
   never
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.ruleset_versions');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.ruleset_versions', i18n);
   }
 
   async findByRulesetId(

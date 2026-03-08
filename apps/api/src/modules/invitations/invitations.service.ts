@@ -12,6 +12,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import {
   InvitationItemDto,
@@ -21,14 +22,15 @@ import {
   InvitationInvitedByDto,
   ResolveInvitationResponseDto,
 } from 'src/modules/auth/dto/resolve-invitation-response.dto';
+import type { Invitation } from 'src/repositories/invitations/interfaces/invitation.interface';
 import {
   CreateInvitationInput,
   InvitationStatus,
 } from 'src/repositories/invitations/interfaces/invitation.interface';
-import type { Invitation } from 'src/repositories/invitations/interfaces/invitation.interface';
 import { InvitationRepository } from 'src/repositories/invitations/invitation.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
+import { CommonI18n } from '../../common/constants';
 
 export interface CreateInvitationServiceInput {
   tenantId: string;
@@ -52,6 +54,7 @@ export class InvitationsService {
     private readonly invitationRepository: InvitationRepository,
     private readonly userRepository: UserRepository,
     private readonly userTenantRepository: UserTenantRepository,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -107,12 +110,18 @@ export class InvitationsService {
       );
 
       if (!invitation) {
-        throw new NotFoundException('Invitation not found or expired');
+        throw new NotFoundException(
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            'Invitation not found or expired',
+        );
       }
 
       // Check expiration
       if (new Date() > invitation.expiresAt) {
-        throw new BadRequestException('Invitation has expired');
+        throw new BadRequestException(
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'Invitation has expired',
+        );
       }
 
       // todo: after adding tenant name, add it to the query
@@ -127,11 +136,15 @@ export class InvitationsService {
       ]);
 
       if (!tenant.rows[0]) {
-        throw new NotFoundException('Tenant not found');
+        throw new NotFoundException(
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'Tenant not found',
+        );
       }
 
       if (!inviter) {
-        throw new NotFoundException('Inviter not found');
+        throw new NotFoundException(
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'Inviter not found',
+        );
       }
 
       const inviterInfo: InvitationInvitedByDto = {
@@ -172,19 +185,25 @@ export class InvitationsService {
       );
 
       if (!invitation) {
-        throw new NotFoundException('Invitation not found');
+        throw new NotFoundException(
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'Invitation not found',
+        );
       }
 
       // Validate invitation status
       if (invitation.status !== InvitationStatus.PENDING) {
         throw new BadRequestException(
-          `Invitation is ${invitation.status} and cannot be accepted`,
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Invitation is ${invitation.status} and cannot be accepted`,
         );
       }
 
       // Check expiration
       if (new Date() > invitation.expiresAt) {
-        throw new BadRequestException('Invitation has expired');
+        throw new BadRequestException(
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'Invitation has expired',
+        );
       }
 
       // CRITICAL: Email matching check
@@ -193,7 +212,8 @@ export class InvitationsService {
           `User ${email} attempted to accept invitation for ${invitation.email}`,
         );
         throw new ForbiddenException(
-          'This invitation is not for your email address',
+          this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+            'This invitation is not for your email address',
         );
       }
 
@@ -217,6 +237,7 @@ export class InvitationsService {
         );
         return {
           message:
+            this.i18n.t(CommonI18n.messages.INVITATION_REACTIVATED) ??
             'You were already a member of this tenant. Your membership has been reactivated.',
         };
       }
@@ -225,7 +246,11 @@ export class InvitationsService {
         `User ${userId} accepted invitation ${invitationId} to tenant ${invitation.tenantId}`,
       );
 
-      return { message: 'Invitation accepted successfully' };
+      return {
+        message:
+          this.i18n.t(CommonI18n.messages.INVITATION_ACCEPTED) ??
+          'Invitation accepted successfully',
+      };
     });
   }
 
@@ -246,15 +271,17 @@ export class InvitationsService {
         invitationId,
         { client },
       );
-
       if (!invitation) {
-        throw new NotFoundException('Invitation not found');
+        throw new NotFoundException(
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'Invitation not found',
+        );
       }
 
       // Validate invitation status
       if (invitation.status !== InvitationStatus.PENDING) {
         throw new BadRequestException(
-          `Invitation is ${invitation.status} and cannot be rejected`,
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Invitation is ${invitation.status} and cannot be rejected`,
         );
       }
 
@@ -264,7 +291,8 @@ export class InvitationsService {
           `User ${email} attempted to reject invitation for ${invitation.email}`,
         );
         throw new ForbiddenException(
-          'This invitation is not for your email address',
+          this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+            'This invitation is not for your email address',
         );
       }
 
@@ -273,7 +301,11 @@ export class InvitationsService {
 
       this.logger.log(`User ${userId} rejected invitation ${invitationId}`);
 
-      return { message: 'Invitation rejected successfully' };
+      return {
+        message:
+          this.i18n.t(CommonI18n.messages.INVITATION_REJECTED) ??
+          'Invitation rejected successfully',
+      };
     });
   }
 
@@ -400,7 +432,8 @@ export class InvitationsService {
 
       if (existing) {
         throw new ConflictException(
-          'A pending invitation already exists for this email',
+          this.i18n.t(CommonI18n.errors.CONFLICT) ??
+            'A pending invitation already exists for this email',
         );
       }
 
@@ -423,7 +456,8 @@ export class InvitationsService {
 
         if (existingMembership) {
           throw new ConflictException(
-            'User is already a member of this tenant',
+            this.i18n.t(CommonI18n.errors.CONFLICT) ??
+              'User is already a member of this tenant',
           );
         }
       }
@@ -481,17 +515,23 @@ export class InvitationsService {
       );
 
       if (!invitation) {
-        throw new NotFoundException('Invitation not found');
+        throw new NotFoundException(
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'Invitation not found',
+        );
       }
 
       if (invitation.tenantId !== tenantId) {
         throw new ForbiddenException(
-          'Invitation does not belong to this tenant',
+          this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+            'Invitation does not belong to this tenant',
         );
       }
 
       if (invitation.status !== InvitationStatus.PENDING) {
-        throw new BadRequestException('Can only resend pending invitations');
+        throw new BadRequestException(
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'Can only resend pending invitations',
+        );
       }
 
       // Generate new token
@@ -534,12 +574,15 @@ export class InvitationsService {
       );
 
       if (!invitation) {
-        throw new NotFoundException('Invitation not found');
+        throw new NotFoundException(
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'Invitation not found',
+        );
       }
 
       if (invitation.tenantId !== tenantId) {
         throw new ForbiddenException(
-          'Invitation does not belong to this tenant',
+          this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+            'Invitation does not belong to this tenant',
         );
       }
 
@@ -554,7 +597,11 @@ export class InvitationsService {
         `Invitation ${invitationId} revoked by user ${revokedBy}`,
       );
 
-      return { message: 'Invitation revoked successfully' };
+      return {
+        message:
+          this.i18n.t(CommonI18n.messages.INVITATION_REVOKED) ??
+          'Invitation revoked successfully',
+      };
     });
   }
 

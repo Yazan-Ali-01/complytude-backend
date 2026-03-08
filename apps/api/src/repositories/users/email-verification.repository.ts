@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateEmailVerificationInput,
   EmailVerification,
@@ -27,8 +28,8 @@ export class EmailVerificationRepository extends BaseRepository<
   EmailVerification,
   CreateEmailVerificationRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.email_verifications');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.email_verifications', i18n);
   }
 
   /**

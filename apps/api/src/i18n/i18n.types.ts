@@ -1,4 +1,4 @@
-import { I18nKeys } from '../common/constants/i18n-keys';
+import { I18nKeyType } from '../common/constants/i18n.constants';
 
 /**
  * Translation namespaces used in the application
@@ -8,13 +8,14 @@ export type TranslationNamespace =
   | 'auth'
   | 'templates'
   | 'storage'
-  | 'tenant';
+  | 'tenant'
+  | 'entitlements'; // ← Added this
 
 /**
  * Union type of all translation keys
- * Derived from I18nKeys to ensure type safety
+ * Derived from I18nKeyType to ensure type safety
  */
-export type TranslationKey = (typeof I18nKeys)[keyof typeof I18nKeys];
+export type TranslationKey = I18nKeyType;
 
 /**
  * Translation parameters for interpolation

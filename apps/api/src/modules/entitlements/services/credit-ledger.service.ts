@@ -1,6 +1,8 @@
 import { DatabaseService, QueryOptions } from '@lib/database';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { CommonI18n } from '../../../common/constants';
 import {
   CreditDeductInput,
   CreditGrantInput,
@@ -44,6 +46,7 @@ export class CreditLedgerService {
     private readonly creditLedgerRepository: CreditLedgerRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly domainEventsService: DomainEventsService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   async purchase(
@@ -52,7 +55,10 @@ export class CreditLedgerService {
   ): Promise<CreditLedgerTransaction> {
     const { tenantId, amount, metadata } = input;
     if (amount <= 0) {
-      throw new BadRequestException('Purchase amount must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Purchase amount must be greater than 0',
+      );
     }
 
     this.logger.debug(
@@ -78,7 +84,10 @@ export class CreditLedgerService {
   ): Promise<CreditLedgerTransaction> {
     const { tenantId, amount, reason, expiresAt, appliedBy, metadata } = input;
     if (amount <= 0) {
-      throw new BadRequestException('Grant amount must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Grant amount must be greater than 0',
+      );
     }
 
     this.logger.debug(
@@ -107,7 +116,10 @@ export class CreditLedgerService {
   ): Promise<CreditLedgerTransaction> {
     const { tenantId, amount, featureId, usageLedgerId, metadata } = input;
     if (amount <= 0) {
-      throw new BadRequestException('Deduction amount must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Deduction amount must be greater than 0',
+      );
     }
 
     this.logger.debug(
@@ -136,7 +148,10 @@ export class CreditLedgerService {
   ): Promise<CreditLedgerTransaction> {
     const { tenantId, amount, reason, metadata } = input;
     if (amount <= 0) {
-      throw new BadRequestException('Refund amount must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Refund amount must be greater than 0',
+      );
     }
 
     this.logger.debug(
@@ -229,7 +244,8 @@ export class CreditLedgerService {
 
       if (newBalance < 0) {
         throw new BadRequestException(
-          `Insufficient credits. Current balance: ${currentBalance}, requested: ${Math.abs(amount)}`,
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Insufficient credits. Current balance: ${currentBalance}, requested: ${Math.abs(amount)}`,
         );
       }
 

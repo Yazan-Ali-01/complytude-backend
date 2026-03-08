@@ -12,7 +12,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { CommonI18n } from '../../common/constants';
 import { deepMerge } from '../../common/utils/deep-merge.util';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -67,6 +69,7 @@ export class TenantService {
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
     private readonly subscriptionsService: SubscriptionsService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   // ============================================================================
@@ -141,7 +144,9 @@ export class TenantService {
         error.stack,
       );
       throw new InternalServerErrorException(
-        'An unexpected error occurred during database operation',
+        // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.DATABASE_OPERATION_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'An unexpected error occurred during database operation',
       );
     }
   }
@@ -234,7 +239,11 @@ export class TenantService {
         throw error;
       }
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to create tenant');
+      throw new InternalServerErrorException(
+        // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.FAILED_TO_CREATE_TENANT)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to create tenant',
+      );
     }
   }
 
@@ -265,7 +274,11 @@ export class TenantService {
     if (client) {
       const tenant = await this.tenantRepository.findById(tenantId, { client });
       if (!tenant) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
+        throw new NotFoundException(
+          // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.TENANT_NOT_FOUND)
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `Tenant ${tenantId} not found`,
+        );
       }
       return tenant;
     }
@@ -305,7 +318,11 @@ export class TenantService {
       return this.tenantRepository.findMany({}, cursorOptions);
     } catch (error) {
       this.logger.error(`Failed to fetch tenants: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to fetch tenants');
+      throw new InternalServerErrorException(
+        // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.FAILED_TO_FETCH_TENANTS)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to fetch tenants',
+      );
     }
   }
 
@@ -422,7 +439,9 @@ export class TenantService {
         );
         if (isTaken) {
           throw new ConflictException(
-            `Slug "${dto.slug}" is already taken. Please choose a different slug.`,
+            // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.SLUG_ALREADY_TAKEN)
+            this.i18n.t(CommonI18n.errors.CONFLICT) ??
+              `Slug "${dto.slug}" is already taken. Please choose a different slug.`,
           );
         }
 
@@ -501,7 +520,9 @@ export class TenantService {
   ): Promise<Tenant> {
     if (!dto.brand_color_primary && !dto.brand_color_secondary) {
       throw new BadRequestException(
-        'At least one branding field must be provided',
+        // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.AT_LEAST_ONE_BRANDING_FIELD_MUST_BE_PROVIDED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'At least one branding field must be provided',
       );
     }
 
@@ -631,7 +652,9 @@ export class TenantService {
   ): Promise<Tenant> {
     if (context?.mode !== 'platform') {
       throw new ForbiddenException(
-        'Only platform administrators can deactivate tenants',
+        // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.ONLY_PLATFORM_ADMINISTRATORS_CAN_DEACTIVATE_TENANTS)
+        this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+          'Only platform administrators can deactivate tenants',
       );
     }
 
@@ -639,7 +662,9 @@ export class TenantService {
       const tenant = await this.findById(tenantId, { client });
       if (!tenant.is_active) {
         throw new BadRequestException(
-          `Tenant ${tenantId} is already deactivated`,
+          // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.TENANT_ALREADY_DEACTIVATED)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Tenant ${tenantId} is already deactivated`,
         );
       }
 
@@ -682,14 +707,20 @@ export class TenantService {
   ): Promise<Tenant> {
     if (context?.mode !== 'platform') {
       throw new ForbiddenException(
-        'Only platform administrators can reactivate tenants',
+        // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.ONLY_PLATFORM_ADMINISTRATORS_CAN_REACTIVATE_TENANTS)
+        this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+          'Only platform administrators can reactivate tenants',
       );
     }
 
     return this.executeInTenantScope(tenantId, context, async (client) => {
       const tenant = await this.findById(tenantId, { client });
       if (tenant.is_active) {
-        throw new BadRequestException(`Tenant ${tenantId} is already active`);
+        throw new BadRequestException(
+          // TenantServiceI18n is required but in phase 2 (TenantServiceI18n.errors.TENANT_ALREADY_ACTIVE)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Tenant ${tenantId} is already active`,
+        );
       }
 
       const updated = await this.updateOrThrow(

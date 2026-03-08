@@ -12,9 +12,9 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
-import { I18nKeys } from '../../../common/constants';
 import { MessageResponseDto } from '../../../common/dto';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import { AddAddonDto, TenantAddonResponseDto } from '../dto/tenant-addon.dto';
 import { TenantAddonsService } from '../services/tenant-addons.service';
 import { mapTenantAddonToDto } from '../utils/entitlement-mappers.util';
@@ -124,6 +124,8 @@ export class PlatformAddonsController {
       context: { mode: 'platform' },
     });
 
-    return new MessageResponseDto(this.i18n.t(I18nKeys.ADDON_REMOVE_SUCCESS));
+    return new MessageResponseDto(
+      this.i18n.t(EntitlementsI18n.messages.ADDON_REMOVE_SUCCESS),
+    );
   }
 }

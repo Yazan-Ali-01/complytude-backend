@@ -8,6 +8,8 @@ import {
   QUEUE_NAMES,
 } from '@lib/queue';
 import { Logger } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../../common/constants';
 import { ProjectionUpdateHandler } from './projection-update.handler';
 
 /**
@@ -30,6 +32,7 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
 
   constructor(
     private readonly projectionUpdateHandler: ProjectionUpdateHandler,
+    @I18n() private readonly i18n: I18nService,
     // Future handlers injected here:
     // private readonly snapshotRebuildHandler: SnapshotRebuildHandler,
     // private readonly domainEventFanoutHandler: DomainEventFanoutHandler,
@@ -55,8 +58,9 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
 
       default:
         throw new PermanentError(
-          `No handler registered for job name="${job.name}" — ` +
-            `register a handler in EntitlementQueueProcessor.handle().`,
+          this.i18n.t(CommonI18n.errors.NOT_IMPLEMENTED) ??
+            `No handler registered for job name="${job.name}" — ` +
+              `register a handler in EntitlementQueueProcessor.handle().`,
         );
     }
   }

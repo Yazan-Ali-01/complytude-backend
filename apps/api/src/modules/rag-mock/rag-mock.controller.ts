@@ -8,9 +8,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { CommonI18n } from '../../common/constants';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
@@ -22,7 +24,10 @@ import { SAMPLE_CONTRACTS } from './sample-contracts.constant';
 @AuthOptions({ tenant: true })
 @SwaggerCookieAuth.tenantAccessToken()
 export class RagMockController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   @Get('contracts')
   @ApiOperation({
@@ -65,7 +70,8 @@ export class RagMockController {
   ) {
     if (contractNumber < 1 || contractNumber > SAMPLE_CONTRACTS.length) {
       throw new BadRequestException(
-        `contractNumber must be between 1 and ${SAMPLE_CONTRACTS.length}`,
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `contractNumber must be between 1 and ${SAMPLE_CONTRACTS.length}`,
       );
     }
 

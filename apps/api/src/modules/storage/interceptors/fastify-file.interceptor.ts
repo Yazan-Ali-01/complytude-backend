@@ -1,15 +1,17 @@
 import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
   BadRequestException,
+  CallHandler,
+  ExecutionContext,
+  Injectable,
   mixin,
+  NestInterceptor,
   Type,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
 import { FastifyRequest } from 'fastify';
+import { I18nContext } from 'nestjs-i18n';
+import { Observable } from 'rxjs';
 import type { MulterLikeFile } from 'src/common/interfaces/multer-file.interface';
+import { StorageI18n } from '../constants/i18n.constants';
 
 export function FastifyFileInterceptor(
   _fieldName: string,
@@ -20,13 +22,17 @@ export function FastifyFileInterceptor(
       context: ExecutionContext,
       next: CallHandler,
     ): Promise<Observable<unknown>> {
+      const i18n = I18nContext.current();
       const request = context.switchToHttp().getRequest<FastifyRequest>();
 
       try {
         const data = await request.file();
 
         if (!data) {
-          throw new BadRequestException('No file uploaded');
+          throw new BadRequestException(
+            i18n?.t(StorageI18n.errors.FILE_UPLOAD_FAILED) ??
+              'Failed to process file upload',
+          );
         }
 
         // Convert file stream to buffer
@@ -50,7 +56,10 @@ export function FastifyFileInterceptor(
         if (error instanceof BadRequestException) {
           throw error;
         }
-        throw new BadRequestException('Failed to process file upload');
+        throw new BadRequestException(
+          i18n?.t(StorageI18n.errors.FILE_UPLOAD_FAILED) ??
+            'Failed to process file upload',
+        );
       }
 
       return next.handle();

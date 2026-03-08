@@ -8,10 +8,12 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18n, I18nService } from 'nestjs-i18n';
 import type {
   FeatureKey,
   UsageSource,
 } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { UsageAllocationsRepository } from '../../repositories/usage/usage-allocations.repository';
@@ -62,6 +64,7 @@ export class UsageMockController {
     private readonly usageAllocationsRepository: UsageAllocationsRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   // ============================================
@@ -100,7 +103,9 @@ export class UsageMockController {
     });
 
     return {
-      message: 'Document usage recorded',
+      message:
+        this.i18n.t(CommonI18n.messages.DOCUMENTS_USAGE_RECORDED) ??
+        'Document usage recorded',
       usageEventId: usageEvent.id,
       tenantId: user.tenantId,
       featureKey: 'documents_per_month',
@@ -130,7 +135,10 @@ export class UsageMockController {
     @Body('count') count: number,
   ) {
     if (!count || count <= 0) {
-      throw new BadRequestException('Count must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Count must be greater than 0',
+      );
     }
 
     const usageEvent = await this.usageIngestionService.recordUsage({
@@ -147,7 +155,9 @@ export class UsageMockController {
     });
 
     return {
-      message: `${count} documents usage recorded`,
+      message:
+        this.i18n.t(CommonI18n.messages.DOCUMENTS_USAGE_RECORDED) ??
+        `${count} documents usage recorded`,
       usageEventId: usageEvent.id,
       tenantId: user.tenantId,
       units: count,
@@ -190,7 +200,9 @@ export class UsageMockController {
 
     if (!result.allowed) {
       return {
-        message: 'Usage denied (quota exceeded, no credits available)',
+        message:
+          this.i18n.t(CommonI18n.errors.QUOTA_EXCEEDED) ??
+          'Usage denied (quota exceeded, no credits available)',
         tenantId: user.tenantId,
         featureKey: 'documents_per_month',
         result,
@@ -201,15 +213,20 @@ export class UsageMockController {
     return {
       message:
         result.source === 'credit'
-          ? 'Usage allowed via credit fallback'
-          : 'Usage allowed (within quota)',
+          ? (this.i18n.t(
+              CommonI18n.messages.USAGE_ALLOWED_VIA_CREDIT_FALLBACK,
+            ) ?? 'Usage allowed via credit fallback')
+          : (this.i18n.t(CommonI18n.messages.USAGE_ALLOWED_WITHIN_QUOTA) ??
+            'Usage allowed (within quota)'),
       tenantId: user.tenantId,
       featureKey: 'documents_per_month',
       result,
       note:
         result.source === 'credit'
-          ? 'Credits were automatically deducted'
-          : 'No credits were needed',
+          ? (this.i18n.t(CommonI18n.messages.CREDITS_AUTOMATICALLY_DEDUCTED) ??
+            'Credits were automatically deducted')
+          : (this.i18n.t(CommonI18n.messages.NO_CREDITS_NEEDED) ??
+            'No credits were needed'),
     };
   }
 
@@ -243,7 +260,9 @@ export class UsageMockController {
     });
 
     return {
-      message: 'Contract review usage recorded',
+      message:
+        this.i18n.t(CommonI18n.messages.CONTRACT_REVIEW_USAGE_RECORDED) ??
+        'Contract review usage recorded',
       usageEventId: usageEvent.id,
       featureKey: 'contract_reviews_per_month',
       units: 1,
@@ -278,7 +297,9 @@ export class UsageMockController {
     });
 
     return {
-      message: 'Regulatory query usage recorded',
+      message:
+        this.i18n.t(CommonI18n.messages.REGULATORY_QUERY_USAGE_RECORDED) ??
+        'Regulatory query usage recorded',
       usageEventId: usageEvent.id,
       featureKey: 'regulatory_queries_per_month',
       units: 1,
@@ -306,7 +327,10 @@ export class UsageMockController {
     @Body('idempotencyKey') idempotencyKey: string,
   ) {
     if (!idempotencyKey) {
-      throw new BadRequestException('idempotencyKey is required');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'idempotencyKey is required',
+      );
     }
 
     const usageEvent = await this.usageIngestionService.recordUsage({
@@ -322,7 +346,9 @@ export class UsageMockController {
     });
 
     return {
-      message: 'Usage recorded with idempotency key',
+      message:
+        this.i18n.t(CommonI18n.messages.USAGE_RECORDED_WITH_IDEMPOTENCY_KEY) ??
+        'Usage recorded with idempotency key',
       usageEventId: usageEvent.id,
       idempotencyKey,
       note: 'Calling again with the same key will return this same event',
@@ -355,7 +381,10 @@ export class UsageMockController {
             client,
           });
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
 
         const billingPeriod = this.deriveBillingPeriod(
@@ -421,7 +450,10 @@ export class UsageMockController {
           });
 
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
 
         const billingPeriod = this.deriveBillingPeriod(
@@ -432,7 +464,10 @@ export class UsageMockController {
           client,
         });
         if (!feature) {
-          throw new BadRequestException(`Feature not found: ${featureKey}`);
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              `Feature not found: ${featureKey}`,
+          );
         }
 
         const events =
@@ -500,7 +535,10 @@ export class UsageMockController {
             { client },
           );
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
         const billingPeriod = this.deriveBillingPeriod(
           subscription.current_period_start,
@@ -550,7 +588,10 @@ export class UsageMockController {
             client,
           });
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
         const billingPeriod = this.deriveBillingPeriod(
           subscription.current_period_start,
@@ -559,7 +600,10 @@ export class UsageMockController {
           client,
         });
         if (!feature) {
-          throw new BadRequestException(`Feature not found: ${featureKey}`);
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              `Feature not found: ${featureKey}`,
+          );
         }
         const rebuilt = await this.usageProjectionService.rebuildFromLedger(
           user.tenantId,
@@ -569,7 +613,9 @@ export class UsageMockController {
           { client },
         );
         return {
-          message: 'Projection rebuilt from ledger',
+          message:
+            this.i18n.t(CommonI18n.messages.PROJECTION_REBUILT_FROM_LEDGER) ??
+            'Projection rebuilt from ledger',
           tenantId: user.tenantId,
           subscriptionId: subscription.id,
           featureKey,
@@ -621,7 +667,10 @@ export class UsageMockController {
           );
 
         if (!subscription) {
-          throw new BadRequestException('No active subscription');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription',
+          );
         }
 
         const billingPeriod = this.deriveBillingPeriod(
@@ -715,7 +764,10 @@ export class UsageMockController {
     @Body('units') units: number,
   ) {
     if (!featureKey || !units || units <= 0) {
-      throw new BadRequestException('featureKey and units > 0 required');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'featureKey and units > 0 required',
+      );
     }
 
     // Get current entitlement and usage
@@ -723,7 +775,9 @@ export class UsageMockController {
       user.tenantId,
     );
     if (!subscription) {
-      throw new BadRequestException('No active subscription');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ?? 'No active subscription',
+      );
     }
 
     const entitlement = await this.entitlementResolver.resolveForTenant(
@@ -757,8 +811,10 @@ export class UsageMockController {
 
     return {
       message: wouldExceed
-        ? 'Usage recorded despite exceeding quota (Phase 3 has no enforcement)'
-        : 'Usage recorded within quota',
+        ? (this.i18n.t(CommonI18n.messages.USAGE_RECORDED_EXCEEDING_QUOTA) ??
+          'Usage recorded despite exceeding quota (Phase 3 has no enforcement)')
+        : (this.i18n.t(CommonI18n.messages.USAGE_RECORDED_WITHIN_QUOTA) ??
+          'Usage recorded within quota'),
       usageEventId: usageEvent.id,
       subscriptionId: subscription.id,
       featureKey,
@@ -769,8 +825,10 @@ export class UsageMockController {
       remaining: remaining === Infinity ? 'unlimited' : remaining,
       wouldExceed,
       phase4Behavior: wouldExceed
-        ? 'Would check credit balance and either deduct credits or return 402 Payment Required'
-        : 'Would record usage normally',
+        ? (this.i18n.t(CommonI18n.messages.PHASE_4_BEHAVIOR_EXCEEDING_QUOTA) ??
+          'Would check credit balance and either deduct credits or return 402 Payment Required')
+        : (this.i18n.t(CommonI18n.messages.PHASE_4_BEHAVIOR_WITHIN_QUOTA) ??
+          'Would record usage normally'),
       note: 'Usage is tracked per subscription (not calendar month) - handles mid-month starts correctly',
     };
   }

@@ -15,15 +15,16 @@ import {
 } from '../dto/generate-document.dto';
 
 import { DatabaseService } from '@lib/database';
-import { StorageService } from 'src/modules/storage/storage.service';
-import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
-import { TemplatesService } from 'src/modules/templates/templates.service';
-import { TenantService } from 'src/modules/tenants/tenant.service';
-
+import { I18n, I18nService } from 'nestjs-i18n';
 import { ValidationException } from 'src/common/exceptions/validation.exception';
+import { StorageService } from 'src/modules/storage/storage.service';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from 'src/modules/templates/constants/template.constants';
 import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
 import { Template } from 'src/modules/templates/entities/template.entity';
+import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
+import { TemplatesService } from 'src/modules/templates/templates.service';
+import { TenantService } from 'src/modules/tenants/tenant.service';
+import { CommonI18n } from '../../../common/constants/i18n.constants';
 import { TemplateValidationService } from './template-validation.service';
 @Injectable()
 export class DocumentGenerationService {
@@ -36,6 +37,7 @@ export class DocumentGenerationService {
     private readonly databaseService: DatabaseService,
     private readonly tenantService: TenantService,
     private readonly templateValidationService: TemplateValidationService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -65,7 +67,11 @@ export class DocumentGenerationService {
       await this.templatesService.findByKey(templateKey);
 
     if (template.status !== 'active') {
-      throw new BadRequestException(`Template ${template.key} is not active`);
+      throw new BadRequestException(
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_NOT_ACTIVE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Template ${template.key} is not active`,
+      );
     }
 
     const templateVersion: TemplateVersion | null =
@@ -73,7 +79,9 @@ export class DocumentGenerationService {
 
     if (!templateVersion) {
       throw new NotFoundException(
-        `No active version found for template ${template.key}`,
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_VERSION_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `No active version found for template ${template.key}`,
       );
     }
 
@@ -108,7 +116,10 @@ export class DocumentGenerationService {
         `Failed to fetch template file: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined,
       );
-      throw new NotFoundException('Template file not found');
+      throw new NotFoundException(
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_FILE_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'Template file not found',
+      );
     }
   }
 
@@ -140,7 +151,9 @@ export class DocumentGenerationService {
         error instanceof Error ? error.stack : undefined,
       );
       throw new BadRequestException(
-        'Failed to render document with provided variables',
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.DOCUMENT_RENDER_FAILED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Failed to render document with provided variables',
       );
     }
   }
@@ -237,7 +250,9 @@ export class DocumentGenerationService {
         error instanceof Error ? error.stack : undefined,
       );
       throw new InternalServerErrorException(
-        'Failed to save generated document',
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.DOCUMENT_SAVE_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to save generated document',
       );
     }
   }
@@ -300,10 +315,16 @@ export class DocumentGenerationService {
       }
       // Generic error for everything else
       this.logger.error(
-        'Document generation failed',
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.DOCUMENT_GENERATION_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Document generation failed',
         error instanceof Error ? error.stack : undefined,
       );
-      throw new InternalServerErrorException('Failed to generate document');
+      throw new InternalServerErrorException(
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.DOCUMENT_GENERATION_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to generate document',
+      );
     }
   }
 }

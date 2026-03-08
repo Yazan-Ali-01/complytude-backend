@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   Addon,
   AddonEntitlement,
@@ -58,8 +59,8 @@ export class AddonsRepository extends BaseRepository<
   CreateAddonRow,
   UpdateAddonRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.addons');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.addons', i18n);
   }
 
   protected getSelectColumns(): string {

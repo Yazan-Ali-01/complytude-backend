@@ -6,6 +6,7 @@ import {
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { Category } from 'src/modules/categories/entities/category.entity';
 
 export type CreateCategoryRow = {
@@ -55,8 +56,8 @@ export class CategoryRepository extends BaseRepository<
   CreateCategoryRow,
   UpdateCategoryRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.categories');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.categories', i18n);
   }
 
   async findMany(

@@ -7,6 +7,7 @@ import {
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { User } from 'src/modules/users/entities/user.entity';
 import {
   CreatePasswordResetInput,
@@ -71,8 +72,8 @@ export class UserRepository extends BaseRepository<
   CreateUserRow,
   UpdateUserRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.users');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.users', i18n);
   }
 
   /**

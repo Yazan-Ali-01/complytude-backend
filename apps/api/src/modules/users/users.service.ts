@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../common/constants';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -20,7 +22,10 @@ export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private readonly BCRYPT_ROUNDS = 12;
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   /**
    * Find user by ID
@@ -32,7 +37,10 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.USER_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'User not found',
+      );
     }
 
     return new User(result.rows[0]);
@@ -48,7 +56,10 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.USER_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'User not found',
+      );
     }
 
     return new User(result.rows[0]);
@@ -94,7 +105,10 @@ export class UsersService {
     }
 
     if (updateFields.length === 0) {
-      throw new BadRequestException('No fields to update');
+      throw new BadRequestException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.NO_FIELDS_TO_UPDATE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ?? 'No fields to update',
+      );
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -128,7 +142,10 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.USER_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'User not found',
+      );
     }
 
     const user = result.rows[0] as { password_hash: string };
@@ -140,7 +157,11 @@ export class UsersService {
     );
 
     if (!isPasswordValid) {
-      throw new BadRequestException('Current password is incorrect');
+      throw new BadRequestException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.CURRENT_PASSWORD_IS_INCORRECT)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Current password is incorrect',
+      );
     }
 
     // Hash new password
@@ -225,7 +246,11 @@ export class UsersService {
       );
 
       if (existingAssociation.rows.length > 0) {
-        throw new ConflictException('User already exists in this tenant');
+        throw new ConflictException(
+          // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.USER_ALREADY_EXISTS_IN_TENANT)
+          this.i18n.t(CommonI18n.errors.CONFLICT) ??
+            'User already exists in this tenant',
+        );
       }
     } else {
       // Create new user
@@ -315,12 +340,20 @@ export class UsersService {
     );
 
     if (existingAssociation.rows.length === 0) {
-      throw new NotFoundException('User not found in this tenant');
+      throw new NotFoundException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.USER_NOT_FOUND_IN_TENANT)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          'User not found in this tenant',
+      );
     }
 
     // Prevent users from modifying their own admin status
     if (targetUserId === updaterId && updateUserDto.role) {
-      throw new ForbiddenException('Cannot modify your own role');
+      throw new ForbiddenException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.CANNOT_MODIFY_OWN_ROLE)
+        this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+          'Cannot modify your own role',
+      );
     }
 
     const updateFields: string[] = [];
@@ -338,7 +371,10 @@ export class UsersService {
     }
 
     if (updateFields.length === 0) {
-      throw new BadRequestException('No fields to update');
+      throw new BadRequestException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.NO_FIELDS_TO_UPDATE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ?? 'No fields to update',
+      );
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -371,7 +407,11 @@ export class UsersService {
   ): Promise<void> {
     // Prevent users from removing themselves
     if (targetUserId === removerId) {
-      throw new ForbiddenException('Cannot remove yourself from the tenant');
+      throw new ForbiddenException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.CANNOT_REMOVE_YOURSELF_FROM_TENANT)
+        this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
+          'Cannot remove yourself from the tenant',
+      );
     }
 
     // Check if target user exists in tenant
@@ -381,7 +421,11 @@ export class UsersService {
     );
 
     if (existingAssociation.rows.length === 0) {
-      throw new NotFoundException('User not found in this tenant');
+      throw new NotFoundException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.USER_NOT_FOUND_IN_TENANT)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          'User not found in this tenant',
+      );
     }
 
     // Delete the association
@@ -420,7 +464,10 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found in tenant');
+      throw new NotFoundException(
+        // UsersServiceI18n is required but in phase 2 (UsersServiceI18n.errors.USER_NOT_FOUND_IN_TENANT)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ?? 'User not found in tenant',
+      );
     }
 
     const user = result.rows[0];

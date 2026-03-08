@@ -8,13 +8,15 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { FastifyRequest } from 'fastify';
-import type { EntitlementCheckResult } from 'src/common/types/entitlement.types';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { FastifyRequest } from 'fastify';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { TrackUsage } from 'src/common/decorators/track-usage.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import { UsageEnforcementGuard } from 'src/common/guards/usage-enforcement.guard';
+import type { EntitlementCheckResult } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
@@ -68,6 +70,7 @@ export class EnforcementMockController {
     private readonly creditLedgerService: CreditLedgerService,
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   // ============================================
@@ -359,7 +362,10 @@ export class EnforcementMockController {
           });
 
         if (!subscription) {
-          throw new BadRequestException('No active subscription found');
+          throw new BadRequestException(
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              'No active subscription found',
+          );
         }
 
         // Get usage for key features
@@ -447,7 +453,10 @@ export class EnforcementMockController {
     @Body('amount') amount: number,
   ) {
     if (!amount || amount <= 0) {
-      throw new BadRequestException('Amount must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Amount must be greater than 0',
+      );
     }
 
     const transaction = await this.creditLedgerService.purchase({
@@ -464,7 +473,9 @@ export class EnforcementMockController {
     );
 
     return {
-      message: `✅ ${amount} credits purchased`,
+      message:
+        this.i18n.t(CommonI18n.messages.CREDITS_PURCHASED) ??
+        `${amount} credits purchased`,
       transactionId: transaction.id,
       newBalance,
       note: 'Use this endpoint to add credits before testing credit fallback scenarios.',

@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateTenantSubscriptionRow,
   Plan,
@@ -7,6 +8,7 @@ import {
   TenantSubscription,
   UpdateTenantSubscriptionRow,
 } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 
 type TenantSubscriptionRow = {
   id: string;
@@ -37,8 +39,8 @@ export class SubscriptionsRepository extends BaseRepository<
   CreateTenantSubscriptionRow,
   UpdateTenantSubscriptionRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.tenant_subscriptions');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.tenant_subscriptions', i18n);
   }
 
   protected getSelectColumns(): string {
@@ -208,7 +210,11 @@ export class SubscriptionsRepository extends BaseRepository<
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(`Subscription not found: ${id}`);
+      throw new NotFoundException(
+        // SubscriptionsRepositoryI18n is required but in phase 2 (SubscriptionsRepositoryI18n.errors.SUBSCRIPTION_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `Subscription not found: ${id}`,
+      );
     }
 
     return this.mapRow(result.rows[0]);
@@ -233,7 +239,11 @@ export class SubscriptionsRepository extends BaseRepository<
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(`Subscription not found: ${id}`);
+      throw new NotFoundException(
+        // SubscriptionsRepositoryI18n is required but in phase 2 (SubscriptionsRepositoryI18n.errors.SUBSCRIPTION_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `Subscription not found: ${id}`,
+      );
     }
 
     return this.mapRow(result.rows[0]);
@@ -258,7 +268,11 @@ export class SubscriptionsRepository extends BaseRepository<
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(`Subscription not found: ${id}`);
+      throw new NotFoundException(
+        // SubscriptionsRepositoryI18n is required but in phase 2 (SubscriptionsRepositoryI18n.errors.SUBSCRIPTION_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `Subscription not found: ${id}`,
+      );
     }
 
     return this.mapRow(result.rows[0]);

@@ -61,7 +61,9 @@ architecture:
 
 - Use nestjs-i18n for all user-facing messages
 - Support English (en) and Arabic (ar) locales
-- Translation keys defined in src/common/constants/i18n-keys.ts
+- Translation keys defined per-module in `modules/{module}/constants/i18n.constants.ts`
+- Shared keys in `common/constants/i18n.constants.ts`
+- Keys categorized into `errors` and `messages`
 
 # Naming Conventions
 
@@ -655,8 +657,65 @@ Workers import shared libraries (`@lib/database`, `@lib/queue`, `@lib/redis`, `@
 # Internationalization
 
 - Use nestjs-i18n for all user-facing messages
-- Support both English and Arabic locales
-- Define translation keys in i18n-keys.ts
+- Support both English (en) and Arabic (ar) locales
+- Define translation keys per-module: `modules/{module}/constants/i18n.constants.ts`
+- Shared/common keys: `common/constants/i18n.constants.ts`
+- Keys organized into `errors` and `messages` categories
+- JSON files mirror TypeScript structure with nested errors/messages
+
+**Key Structure:**
+
+```typescript
+// modules/auth/constants/i18n.constants.ts
+export const AuthI18n = {
+  errors: {
+    EMAIL_ALREADY_REGISTERED: 'auth.errors.EMAIL_ALREADY_REGISTERED',
+    INVALID_CREDENTIALS: 'auth.errors.INVALID_CREDENTIALS',
+  },
+  messages: {
+    EMAIL_VERIFIED: 'auth.messages.EMAIL_VERIFIED',
+    SIGNUP_SUCCESS: 'auth.messages.SIGNUP_SUCCESS',
+  },
+} as const;
+```
+
+**JSON Structure:**
+
+```json
+// i18n/locales/en/auth.json
+{
+  "errors": {
+    "EMAIL_ALREADY_REGISTERED": "Email already registered",
+    "INVALID_CREDENTIALS": "Invalid credentials"
+  },
+  "messages": {
+    "EMAIL_VERIFIED": "Email verified successfully",
+    "SIGNUP_SUCCESS": "Signup successful"
+  }
+}
+```
+
+**Usage in Services:**
+
+```typescript
+import { AuthI18n } from './constants/i18n.constants';
+
+throw new ConflictException(this.i18n.t(AuthI18n.errors.EMAIL_ALREADY_REGISTERED));
+return { message: this.i18n.t(AuthI18n.messages.EMAIL_VERIFIED) };
+```
+
+**Module i18n Constants:**
+
+- `common/constants/i18n.constants.ts` - CommonI18n (cross-cutting errors/messages)
+- `modules/auth/constants/i18n.constants.ts` - AuthI18n
+- `modules/templates/constants/i18n.constants.ts` - TemplatesI18n
+- `modules/storage/constants/i18n.constants.ts` - StorageI18n
+- `modules/tenants/constants/i18n.constants.ts` - TenantsI18n
+- `modules/entitlements/constants/i18n.constants.ts` - EntitlementsI18n
+
+**Type Safety:**
+
+All constants are re-exported from `common/constants/i18n.constants.ts` and combined into a union type `I18nKeyType` for type-safe translation key usage.
 
 # Code Quality
 

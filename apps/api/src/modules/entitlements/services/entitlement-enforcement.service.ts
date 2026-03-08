@@ -12,7 +12,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { CommonI18n } from '../../../common/constants';
 import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
 import {
   AllocationResolution,
@@ -95,6 +97,7 @@ export class EntitlementEnforcementService {
     private readonly usageLedgerRepository: UsageLedgerRepository,
     private readonly configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   async checkAndRecord(
@@ -118,7 +121,10 @@ export class EntitlementEnforcementService {
         this.logger.warn(
           `Feature not found: ${featureKey} for tenant ${tenantId}`,
         );
-        throw new NotFoundException(`Feature not found: ${featureKey}`);
+        throw new NotFoundException(
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `Feature not found: ${featureKey}`,
+        );
       }
 
       // Step 2: Handle boolean features (no usage tracking)
@@ -212,7 +218,8 @@ export class EntitlementEnforcementService {
 
     if (!subscription) {
       throw new NotFoundException(
-        `No active subscription for tenant: ${tenantId}`,
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `No active subscription for tenant: ${tenantId}`,
       );
     }
 
@@ -229,10 +236,16 @@ export class EntitlementEnforcementService {
       client,
     });
     if (!feature) {
-      throw new NotFoundException(`Feature not found: ${featureKey}`);
+      throw new NotFoundException(
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `Feature not found: ${featureKey}`,
+      );
     }
     if (!feature.is_active) {
-      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Feature is inactive: ${featureKey}`,
+      );
     }
     const billingPeriod = deriveBillingPeriod(
       subscription.current_period_start,
@@ -769,7 +782,8 @@ export class EntitlementEnforcementService {
       throw new EntitlementDeniedException({
         result: {
           allowed: false,
-          reason: 'quota_exceeded',
+          reason:
+            this.i18n.t(CommonI18n.errors.QUOTA_EXCEEDED) ?? 'quota_exceeded',
           limit,
           used,
         },
@@ -805,7 +819,8 @@ export class EntitlementEnforcementService {
       throw new EntitlementDeniedException({
         result: {
           allowed: false,
-          reason: 'quota_exceeded',
+          reason:
+            this.i18n.t(CommonI18n.errors.QUOTA_EXCEEDED) ?? 'quota_exceeded',
           limit,
           used,
           creditsRemaining: creditBalance,

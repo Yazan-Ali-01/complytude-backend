@@ -1,5 +1,7 @@
 import { DatabaseService } from '@lib/database';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../common/constants';
 import { ALL_PLATFORM_PERMISSIONS } from '../../common/constants/platform-permissions.constant';
 import { PLATFORM_SYSTEM_ROLE_PERMISSIONS } from '../../common/constants/platform-system-roles.constant';
 import { SystemPlatformRole } from '../../common/types';
@@ -19,7 +21,10 @@ import { SystemPlatformRole } from '../../common/types';
 export class PlatformRbacSyncService implements OnModuleInit {
   private readonly logger = new Logger(PlatformRbacSyncService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   async onModuleInit() {
     this.logger.log('Starting platform RBAC sync...');
@@ -57,7 +62,10 @@ export class PlatformRbacSyncService implements OnModuleInit {
         this.logger.error(
           'CRITICAL: ALL_PLATFORM_PERMISSIONS is empty! Aborting sync.',
         );
-        throw new Error('Cannot sync platform permissions: array is empty.');
+        throw new Error(
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'Cannot sync platform permissions: array is empty.',
+        );
       }
 
       const deleteResult = await client.query(
@@ -108,7 +116,10 @@ export class PlatformRbacSyncService implements OnModuleInit {
         );
 
         if (roleResult.rows.length === 0) {
-          this.logger.error(`Platform system role not found: ${role.key}`);
+          this.logger.error(
+            this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+              `Platform system role not found: ${role.key}`,
+          );
           continue;
         }
 

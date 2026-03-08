@@ -5,7 +5,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18n, I18nService } from 'nestjs-i18n';
 import passport from 'passport';
+import { CommonI18n } from '../../../common/constants';
 import { AUTH_OPTIONS_KEY } from '../decorators/auth-options.decorator';
 import {
   JWT_IDENTITY_ACCESS_STRATEGY,
@@ -14,7 +16,10 @@ import {
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Check if route is marked as public
@@ -42,9 +47,14 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     if (authOptions?.tenant && !req.auth.tenant)
-      throw new UnauthorizedException('Tenant token required');
+      throw new UnauthorizedException(
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ?? 'Tenant token required',
+      );
     if (authOptions?.identity && !req.auth.identity)
-      throw new UnauthorizedException('Identity token required');
+      throw new UnauthorizedException(
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Identity token required',
+      );
 
     return true;
   }

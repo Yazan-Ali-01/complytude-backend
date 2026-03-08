@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateEntitlementSnapshotRow,
   EffectiveEntitlement,
@@ -29,8 +30,8 @@ export class EntitlementSnapshotsRepository extends BaseRepository<
   CreateEntitlementSnapshotRow,
   UpdateEntitlementSnapshotRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.entitlement_snapshots');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.entitlement_snapshots', i18n);
   }
 
   protected getSelectColumns(): string {

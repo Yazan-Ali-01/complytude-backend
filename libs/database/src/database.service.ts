@@ -5,7 +5,9 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { CommonI18n } from '../../../apps/api/src/common/constants';
 import { DATABASE_POOL } from './database.constants';
 
 /**
@@ -43,7 +45,10 @@ import { DATABASE_POOL } from './database.constants';
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
 
-  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DATABASE_POOL) private readonly pool: Pool,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   async onModuleInit() {
     try {
@@ -148,7 +153,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   ): Promise<T> {
     if (!params?.tenantId || typeof params.tenantId !== 'string') {
       throw new Error(
-        'tenantId is required and must be a valid string for tenant context',
+        // DatabaseServiceI18n is required but in phase 2 (DatabaseServiceI18n.errors.TENANT_ID_REQUIRED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'tenantId is required and must be a valid string for tenant context',
       );
     }
 

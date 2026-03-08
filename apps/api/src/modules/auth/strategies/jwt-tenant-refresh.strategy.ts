@@ -2,8 +2,10 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { FastifyRequest } from 'fastify';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { Strategy } from 'passport-jwt';
 import { TENANT_REFRESH_TOKEN_COOKIE_NAME } from 'src/common/swagger/common';
+import { CommonI18n } from '../../../common/constants';
 import {
   AuthenticatedTenantRefreshUser,
   TENANT_REFRESH_PAYLOAD_TYPE,
@@ -22,7 +24,10 @@ export class JwtTenantRefreshStrategy extends PassportStrategy(
   Strategy,
   JWT_TENANT_REFRESH_STRATEGY,
 ) {
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    @I18n() private readonly i18n: I18nService,
+  ) {
     super({
       jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
@@ -38,13 +43,16 @@ export class JwtTenantRefreshStrategy extends PassportStrategy(
   ): AuthenticatedTenantRefreshUser {
     // Ensure it's a tenant refresh token
     if (payload.type !== TENANT_REFRESH_PAYLOAD_TYPE) {
-      throw new UnauthorizedException('Invalid token type');
+      throw new UnauthorizedException(
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ?? 'Invalid token type',
+      );
     }
 
     const refreshToken = cookieExtractor(req);
     if (!refreshToken) {
       throw new UnauthorizedException(
-        'Invalid or missing tenant refresh token',
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Invalid or missing tenant refresh token',
       );
     }
 

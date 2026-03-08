@@ -20,12 +20,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { FastifyMultipartInterceptor } from 'src/common/interceptors/fastify-multipart.interceptor';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { CommonI18n } from '../../common/constants';
 import type { MulterLikeFile } from '../../common/interfaces/multer-file.interface';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
@@ -37,7 +39,6 @@ import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UpdateTenantSlugDto } from './dto/update-tenant-slug.dto';
 import { TenantService } from './tenant.service';
-
 /**
  * Tenant self-management controller
  *
@@ -51,7 +52,10 @@ import { TenantService } from './tenant.service';
 export class TenantController {
   private readonly logger = new Logger(TenantController.name);
 
-  constructor(private readonly tenantService: TenantService) {}
+  constructor(
+    private readonly tenantService: TenantService,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   // ============================================================================
   // READ
@@ -321,7 +325,11 @@ export class TenantController {
     @UploadedFile() file: MulterLikeFile,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
-    if (!file) throw new BadRequestException('No file provided');
+    if (!file)
+      throw new BadRequestException(
+        // TenantControllerI18n is required but in phase 2 (TenantControllerI18n.errors.NO_FILE_PROVIDED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ?? 'No file provided',
+      );
 
     const allowedMimeTypes = [
       'image/png',
@@ -331,14 +339,18 @@ export class TenantController {
     ];
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
-        `Invalid file type. Allowed: PNG, JPG, SVG, WebP. Received: ${file.mimetype}`,
+        // TenantControllerI18n is required but in phase 2 (TenantControllerI18n.errors.INVALID_FILE_TYPE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Invalid file type. Allowed: PNG, JPG, SVG, WebP. Received: ${file.mimetype}`,
       );
     }
 
     const maxSize = 2 * 1024 * 1024;
     if (file.size > maxSize) {
       throw new BadRequestException(
-        `File too large. Maximum: 2MB. Received: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        // TenantControllerI18n is required but in phase 2 (TenantControllerI18n.errors.FILE_TOO_LARGE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `File too large. Maximum: 2MB. Received: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
       );
     }
 

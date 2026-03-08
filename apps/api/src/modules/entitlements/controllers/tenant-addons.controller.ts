@@ -13,11 +13,11 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
-import { I18nKeys } from '../../../common/constants/i18n-keys';
 import { MessageResponseDto } from '../../../common/dto';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../../auth/strategies/jwt-payload.interface';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import {
   AddAddonDto,
   TenantAddonResponseDto,
@@ -117,6 +117,8 @@ export class TenantAddonsController {
       context: { mode: 'tenant' },
     });
 
-    return new MessageResponseDto(this.i18n.t(I18nKeys.ADDON_REMOVE_SUCCESS));
+    return new MessageResponseDto(
+      this.i18n.t(EntitlementsI18n.messages.ADDON_REMOVE_SUCCESS),
+    );
   }
 }

@@ -7,6 +7,7 @@ import {
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   TemplateField,
   TemplateVersion,
@@ -65,8 +66,8 @@ export class TemplateVersionRepository extends BaseRepository<
   CreateTemplateVersionRow,
   UpdateTemplateVersionRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.template_versions');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.template_versions', i18n);
   }
 
   /**

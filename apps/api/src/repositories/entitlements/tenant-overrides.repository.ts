@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateTenantOverrideRow,
   FeatureKey,
@@ -36,8 +37,8 @@ export class TenantOverridesRepository extends BaseRepository<
   CreateTenantOverrideRow,
   UpdateTenantOverrideRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.tenant_overrides');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.tenant_overrides', i18n);
   }
 
   protected getSelectColumns(): string {

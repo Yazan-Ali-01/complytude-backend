@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { I18n, I18nService } from 'nestjs-i18n';
 import OpenAI from 'openai';
+import { CommonI18n } from '../../../api/src/common/constants';
 
 export interface ChatCompletionOptions {
   systemPrompt: string;
@@ -28,11 +30,18 @@ export class LlmService {
   private readonly temperature: number;
   private readonly timeout: number;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @I18n() private readonly i18n: I18nService,
+  ) {
     const apiKey = this.configService.get<string>('workerAi.llmApiKey');
 
     if (!apiKey) {
-      throw new Error('WORKER_AI_LLM_API_KEY is required for LlmService');
+      throw new Error(
+        // LlmServiceI18n is required but in phase 2 (LlmServiceI18n.errors.WORKER_AI_LLM_API_KEY_REQUIRED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'WORKER_AI_LLM_API_KEY is required for LlmService',
+      );
     }
 
     this.model = this.configService.get<string>(
@@ -82,13 +91,19 @@ export class LlmService {
     const content = response.choices[0]?.message?.content;
 
     if (!content) {
-      throw new Error('LLM returned empty response content');
+      throw new Error(
+        // LlmServiceI18n is required but in phase 2 (LlmServiceI18n.errors.LLM_RETURNED_EMPTY_RESPONSE_CONTENT)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'LLM returned empty response content',
+      );
     }
 
     const finishReason = response.choices[0].finish_reason;
     if (finishReason === 'length') {
       throw new Error(
-        `LLM response truncated (finish_reason=length). Increase OPENAI_CHAT_MAX_TOKENS or reduce input size.`,
+        // LlmServiceI18n is required but in phase 2 (LlmServiceI18n.errors.LLM_RESPONSE_TRUNCATED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `LLM response truncated (finish_reason=length). Increase OPENAI_CHAT_MAX_TOKENS or reduce input size.`,
       );
     }
 

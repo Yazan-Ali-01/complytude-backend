@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import Docxtemplater from 'docxtemplater';
+import { I18n, I18nService } from 'nestjs-i18n';
 import PizZip from 'pizzip';
+import { CommonI18n } from '../../../common/constants/i18n.constants';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from '../constants/template.constants';
 import { TemplateFieldItemDto } from '../dto/template-field.dto';
 
@@ -31,7 +33,7 @@ export interface PlaceholderValidationResult {
 @Injectable()
 export class DocxPlaceholderExtractionService {
   private readonly logger = new Logger(DocxPlaceholderExtractionService.name);
-
+  constructor(@I18n() private readonly i18n: I18nService) {}
   /**
    * Extracts unique placeholder variables from a DOCX file buffer.
    *
@@ -59,7 +61,11 @@ export class DocxPlaceholderExtractionService {
       this.logger.log('Starting placeholder extraction from DOCX file');
 
       if (!buffer || buffer.length === 0) {
-        throw new BadRequestException('Empty or invalid file buffer provided');
+        throw new BadRequestException(
+          // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.EMPTY_OR_INVALID_FILE_BUFFER_PROVIDED)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'Empty or invalid file buffer provided',
+        );
       }
 
       let zip: PizZip;
@@ -68,7 +74,9 @@ export class DocxPlaceholderExtractionService {
       } catch (error) {
         this.logger.error('Failed to unzip DOCX file', error);
         throw new BadRequestException(
-          'Invalid DOCX file format. The file may be corrupted or not a valid DOCX document.',
+          // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.INVALID_DOCX_FILE_FORMAT)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'Invalid DOCX file format. The file may be corrupted or not a valid DOCX document.',
         );
       }
 
@@ -99,7 +107,9 @@ export class DocxPlaceholderExtractionService {
         error,
       );
       throw new BadRequestException(
-        'Failed to extract placeholders from DOCX file. Please ensure the file is valid.',
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.FAILED_TO_EXTRACT_PLACEHOLDERS)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Failed to extract placeholders from DOCX file. Please ensure the file is valid.',
       );
     }
   }

@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   AuditAction,
   AuditResource,
@@ -27,6 +28,7 @@ import {
   SwaggerCookieAuth,
 } from 'src/common/swagger';
 import { SystemTenantRole } from 'src/common/types';
+import { CommonI18n } from '../../common/constants';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -55,7 +57,10 @@ import {
 export class TenantInvitationsController {
   private readonly logger = new Logger(TenantInvitationsController.name);
 
-  constructor(private readonly invitationsService: InvitationsService) {}
+  constructor(
+    private readonly invitationsService: InvitationsService,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   /**
    * Create a new invitation to join the tenant
@@ -91,7 +96,11 @@ export class TenantInvitationsController {
     );
 
     if (!roleResult) {
-      throw new BadRequestException(`Invalid role: ${roleKey}`);
+      throw new BadRequestException(
+        // TenantInvitationsI18n is required but in phase 2 (TenantInvitationsI18n.errors.INVALID_ROLE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Invalid role: ${roleKey}`,
+      );
     }
 
     const result = await this.invitationsService.createInvitation({

@@ -5,7 +5,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18n, I18nService } from 'nestjs-i18n';
 import passport from 'passport';
+import { CommonI18n } from '../../../common/constants';
 import { AUTH_REFRESH_OPTIONS_KEY } from '../decorators/auth-options.decorator';
 import {
   JWT_IDENTITY_REFRESH_STRATEGY,
@@ -14,7 +16,10 @@ import {
 
 @Injectable()
 export class JwtAuthRefreshGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const authOptions = this.reflector.getAllAndOverride<{
@@ -49,20 +54,27 @@ export class JwtAuthRefreshGuard implements CanActivate {
       !req.auth.identity
     ) {
       throw new UnauthorizedException(
-        'Tenant or Identity refresh token is required',
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Tenant or Identity refresh token is required',
       );
     } else if (
       authOptions.tenant &&
       !req.auth.tenant &&
       !authOptions.identity
     ) {
-      throw new UnauthorizedException('Tenant refresh token required');
+      throw new UnauthorizedException(
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Tenant refresh token required',
+      );
     } else if (
       authOptions.identity &&
       !req.auth.identity &&
       !authOptions.tenant
     ) {
-      throw new UnauthorizedException('Identity refresh token required');
+      throw new UnauthorizedException(
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Identity refresh token required',
+      );
     }
 
     return true;

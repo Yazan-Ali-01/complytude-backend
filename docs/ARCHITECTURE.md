@@ -13,6 +13,7 @@ Comprehensive architecture documentation for the Complytude platform.
 - [Authentication & Authorization](#authentication--authorization)
 - [Storage Architecture](#storage-architecture)
 - [API Design](#api-design)
+- [Internationalization (i18n)](#internationalization-i18n)
 - [Security Architecture](#security-architecture)
 
 ---
@@ -741,6 +742,113 @@ Interactive API docs available at:
 
 - **Development:** http://localhost:3000/docs
 - **Swagger JSON:** http://localhost:3000/docs-json
+
+---
+
+## Internationalization (i18n)
+
+Complytude uses **nestjs-i18n** for multilingual support with a **per-module organization** strategy.
+
+### Supported Languages
+
+- **English (en)** - Default language
+- **Arabic (ar)** - Full RTL support
+
+### Translation Key Organization
+
+Translation keys are organized **per-module** with **errors/messages categorization**:
+
+#### TypeScript Constants Structure
+
+Each module defines its own i18n constants:
+
+```typescript
+// modules/auth/constants/i18n.constants.ts
+export const AuthI18n = {
+  errors: {
+    EMAIL_ALREADY_REGISTERED: 'auth.errors.EMAIL_ALREADY_REGISTERED',
+    INVALID_CREDENTIALS: 'auth.errors.INVALID_CREDENTIALS',
+  },
+  messages: {
+    EMAIL_VERIFIED: 'auth.messages.EMAIL_VERIFIED',
+    SIGNUP_SUCCESS: 'auth.messages.SIGNUP_SUCCESS',
+  },
+} as const;
+```
+
+**Module Constants:**
+
+- `common/constants/i18n.constants.ts` - CommonI18n (shared errors like VALIDATION_ERROR, NOT_FOUND, UNAUTHORIZED)
+- `modules/auth/constants/i18n.constants.ts` - AuthI18n
+- `modules/templates/constants/i18n.constants.ts` - TemplatesI18n
+- `modules/storage/constants/i18n.constants.ts` - StorageI18n
+- `modules/tenants/constants/i18n.constants.ts` - TenantsI18n
+- `modules/entitlements/constants/i18n.constants.ts` - EntitlementsI18n
+
+#### JSON Locale Files Structure
+
+JSON files mirror the TypeScript structure with nested errors/messages:
+
+```json
+// i18n/locales/en/auth.json
+{
+  "errors": {
+    "EMAIL_ALREADY_REGISTERED": "Email already registered",
+    "INVALID_CREDENTIALS": "Invalid credentials"
+  },
+  "messages": {
+    "EMAIL_VERIFIED": "Email verified successfully",
+    "SIGNUP_SUCCESS": "Signup successful"
+  }
+}
+```
+
+**Locale Files:**
+
+- `i18n/locales/en/common.json` + `i18n/locales/ar/common.json`
+- `i18n/locales/en/auth.json` + `i18n/locales/ar/auth.json`
+- `i18n/locales/en/templates.json` + `i18n/locales/ar/templates.json`
+- `i18n/locales/en/storage.json` + `i18n/locales/ar/storage.json`
+- `i18n/locales/en/tenant.json` + `i18n/locales/ar/tenant.json`
+- `i18n/locales/en/entitlements.json` + `i18n/locales/ar/entitlements.json`
+
+### Usage in Services
+
+```typescript
+import { AuthI18n } from './constants/i18n.constants';
+import { CommonI18n } from '../../common/constants/i18n.constants';
+
+// In service
+throw new ConflictException(
+  this.i18n.t(AuthI18n.errors.EMAIL_ALREADY_REGISTERED)
+);
+
+return {
+  message: this.i18n.t(AuthI18n.messages.EMAIL_VERIFIED)
+};
+```
+
+### Type Safety
+
+The `I18nKeyType` union type (in `common/constants/i18n.constants.ts`) combines all module constants for compile-time validation:
+
+```typescript
+export type I18nKeyType =
+  | DeepValues<typeof CommonI18n>
+  | DeepValues<typeof AuthI18n>
+  | DeepValues<typeof TemplatesI18n>
+  | DeepValues<typeof StorageI18n>
+  | DeepValues<typeof TenantsI18n>
+  | DeepValues<typeof EntitlementsI18n>;
+```
+
+### Benefits
+
+- **Module encapsulation** - Each module owns its i18n keys
+- **Reduced merge conflicts** - No single centralized file
+- **Clear intent** - errors vs messages distinction
+- **Direct mapping** - TypeScript key paths mirror JSON structure
+- **Scalability** - Easy to add new modules without touching shared files
 
 ---
 

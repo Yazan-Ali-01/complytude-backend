@@ -5,6 +5,8 @@ import type { RulesetIngestionJobData } from '@lib/queue';
 import { PermanentError, RetryableError } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../../api/src/common/constants';
 import {
   RulesetChunkInsertRow,
   RulesetChunksRepository,
@@ -23,6 +25,7 @@ export class RulesetIngestionService {
     private readonly clauseChunkerService: ClauseChunkerService,
     private readonly embeddingService: EmbeddingService,
     configService: ConfigService,
+    @I18n() private readonly i18n: I18nService,
   ) {
     this.insertBatchSize = configService.get<number>(
       'workerIngestion.batchSize',
@@ -42,14 +45,18 @@ export class RulesetIngestionService {
       .findById(versionId)
       .catch((err: unknown) => {
         throw new RetryableError(
-          `DB error fetching version ${versionId}`,
+          // RulesetIngestionServiceI18n is required but in phase 2 (RulesetIngestionServiceI18n.errors.DB_ERROR_FETCHING_VERSION)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `DB error fetching version ${versionId}`,
           err instanceof Error ? err : undefined,
         );
       });
 
     if (!version) {
       throw new PermanentError(
-        `Ruleset version ${versionId} not found — skipping ingestion`,
+        // RulesetIngestionServiceI18n is required but in phase 2 (RulesetIngestionServiceI18n.errors.VERSION_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Ruleset version ${versionId} not found — skipping ingestion`,
       );
     }
 
@@ -57,14 +64,18 @@ export class RulesetIngestionService {
       .findRulesetWithAuthority(rulesetId)
       .catch((err: unknown) => {
         throw new RetryableError(
-          `DB error fetching ruleset ${rulesetId}`,
+          // RulesetIngestionServiceI18n is required but in phase 2 (RulesetIngestionServiceI18n.errors.DB_ERROR_FETCHING_RULESET)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `DB error fetching ruleset ${rulesetId}`,
           err instanceof Error ? err : undefined,
         );
       });
 
     if (!ruleset) {
       throw new PermanentError(
-        `Ruleset ${rulesetId} not found — skipping ingestion`,
+        // RulesetIngestionServiceI18n is required but in phase 2 (RulesetIngestionServiceI18n.errors.RULESET_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Ruleset ${rulesetId} not found — skipping ingestion`,
       );
     }
 
@@ -91,7 +102,9 @@ export class RulesetIngestionService {
       .generateEmbeddings(texts)
       .catch((err: unknown) => {
         throw new RetryableError(
-          `Embedding API error for ruleset "${ruleset.key}" v${version.version}`,
+          // RulesetIngestionServiceI18n is required but in phase 2 (RulesetIngestionServiceI18n.errors.EMBEDDING_API_ERROR)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Embedding API error for ruleset "${ruleset.key}" v${version.version}`,
           err instanceof Error ? err : undefined,
         );
       });
@@ -135,7 +148,9 @@ export class RulesetIngestionService {
       })
       .catch((err: unknown) => {
         throw new RetryableError(
-          `DB error upserting chunks for ruleset "${ruleset.key}" v${version.version}`,
+          // RulesetIngestionServiceI18n is required but in phase 2 (RulesetIngestionServiceI18n.errors.DB_ERROR_UPSERTING_CHUNKS)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `DB error upserting chunks for ruleset "${ruleset.key}" v${version.version}`,
           err instanceof Error ? err : undefined,
         );
       });

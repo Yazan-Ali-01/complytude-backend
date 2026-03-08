@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateRoleInput,
   Role,
@@ -12,8 +13,8 @@ export class TenantRolesRepository extends BaseRepository<
   CreateRoleInput,
   UpdateRoleInput
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'tenant_roles');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'tenant_roles', i18n);
   }
 
   protected mapRow(row: Record<string, unknown>): Role {

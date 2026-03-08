@@ -6,6 +6,7 @@ import {
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   Ruleset,
   RulesetStatus,
@@ -65,8 +66,8 @@ export class RulesetRepository extends BaseRepository<
   CreateRulesetRow,
   UpdateRulesetRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.rulesets');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.rulesets', i18n);
   }
 
   async findMany(

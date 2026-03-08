@@ -1,6 +1,8 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18n, I18nService } from 'nestjs-i18n';
 import type { FeatureKey, PlanKey } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 import {
   getAllPlanEntitlements,
   getFeatureDefinition,
@@ -27,6 +29,7 @@ export class EntitlementsController {
   constructor(
     private readonly resolver: EntitlementResolverService,
     private readonly plansRepository: PlansRepository,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -129,7 +132,10 @@ export class EntitlementsController {
     const plan = await this.plansRepository.findByKey(key);
 
     if (!plan) {
-      throw new NotFoundException(`Plan not found: ${key}`);
+      throw new NotFoundException(
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `Plan with key "${key}" not found`,
+      );
     }
 
     const planEntitlements = getAllPlanEntitlements(plan.key);

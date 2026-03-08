@@ -1,9 +1,11 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateDomainEventRow,
   DomainEvent,
 } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 
 type DomainEventRow = {
   id: string;
@@ -51,8 +53,8 @@ export class DomainEventsRepository extends BaseRepository<
   CreateDomainEventRow,
   never
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.domain_events');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.domain_events', i18n);
   }
 
   protected getSelectColumns(): string {
@@ -320,13 +322,17 @@ export class DomainEventsRepository extends BaseRepository<
   // Override update/delete to prevent usage (immutable event store)
   update(): Promise<never> {
     throw new Error(
-      'Domain events are immutable. UPDATE operations are not allowed.',
+      // DomainEventsRepositoryI18n is required but in phase 2 (DomainEventsRepositoryI18n.errors.IMMUTABLE_EVENT_STORE)
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'Domain events are immutable. UPDATE operations are not allowed.',
     );
   }
 
   delete(): Promise<never> {
     throw new Error(
-      'Domain events are immutable. DELETE operations are not allowed.',
+      // DomainEventsRepositoryI18n is required but in phase 2 (DomainEventsRepositoryI18n.errors.IMMUTABLE_EVENT_STORE)
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'Domain events are immutable. DELETE operations are not allowed.',
     );
   }
 }

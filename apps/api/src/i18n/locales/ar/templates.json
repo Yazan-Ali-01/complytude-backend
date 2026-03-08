@@ -1,20 +1,24 @@
 {
-  "TEMPLATE_NOT_FOUND": "القالب بالمعرف {{id}} غير موجود",
-  "TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء القالب",
-  "TEMPLATE_FETCH_FAILED": "فشل جلب تفاصيل القالب",
-  "TEMPLATE_UPDATE_FAILED": "فشل تحديث القالب",
-  "TEMPLATE_DELETE_FAILED": "فشل حذف القالب",
-  "TEMPLATE_ALREADY_EXISTS": "يوجد قالب بهذا المفتاح مسبقاً",
-  "INVALID_TEMPLATE_DATA": "البيانات المدخلة للقالب غير صالحة",
-  "TEMPLATE_NAME_REQUIRED": "اسم القالب مطلوب",
-  "TEMPLATE_CONTENT_REQUIRED": "محتوى القالب مطلوب",
-  "TEMPLATE_CATEGORY_REQUIRED": "تصنيف القالب مطلوب",
-  "CATEGORY_NOT_FOUND": "التصنيف غير موجود",
-  "AUTHORITY_NOT_FOUND": "الجهة غير موجودة",
-  "TEMPLATE_ACCESS_DENIED": "ليس لديك صلاحية الوصول إلى هذا القالب",
-  "TEMPLATE_IN_USE": "القالب قيد الاستخدام حالياً ولا يمكن حذفه",
-  "TEMPLATE_VERSION_CONFLICT": "تم اكتشاف تعارض في إصدار القالب",
-  "TEMPLATE_CLONED_SUCCESS": "تم نسخ القالب بنجاح",
-  "TEMPLATE_PUBLISHED_SUCCESS": "تم نشر القالب بنجاح",
-  "TEMPLATE_ARCHIVED_SUCCESS": "تم أرشفة القالب بنجاح"
+  "errors": {
+    "TEMPLATE_NOT_FOUND": "القالب بالمعرف {{id}} غير موجود",
+    "TEMPLATE_FETCH_FAILED": "فشل جلب تفاصيل القالب",
+    "TEMPLATE_UPDATE_FAILED": "فشل تحديث القالب",
+    "TEMPLATE_DELETE_FAILED": "فشل حذف القالب",
+    "TEMPLATE_ALREADY_EXISTS": "يوجد قالب بهذا المفتاح مسبقاً",
+    "INVALID_TEMPLATE_DATA": "البيانات المدخلة للقالب غير صالحة",
+    "TEMPLATE_NAME_REQUIRED": "اسم القالب مطلوب",
+    "TEMPLATE_CONTENT_REQUIRED": "محتوى القالب مطلوب",
+    "TEMPLATE_CATEGORY_REQUIRED": "تصنيف القالب مطلوب",
+    "CATEGORY_NOT_FOUND": "التصنيف غير موجود",
+    "AUTHORITY_NOT_FOUND": "الجهة غير موجودة",
+    "TEMPLATE_ACCESS_DENIED": "ليس لديك صلاحية الوصول إلى هذا القالب",
+    "TEMPLATE_IN_USE": "القالب قيد الاستخدام حالياً ولا يمكن حذفه",
+    "TEMPLATE_VERSION_CONFLICT": "تم اكتشاف تعارض في إصدار القالب",
+    "TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء القالب"
+  },
+  "messages": {
+    "TEMPLATE_CLONED_SUCCESS": "تم نسخ القالب بنجاح",
+    "TEMPLATE_PUBLISHED_SUCCESS": "تم نشر القالب بنجاح",
+    "TEMPLATE_ARCHIVED_SUCCESS": "تم أرشفة القالب بنجاح"
+  }
 }

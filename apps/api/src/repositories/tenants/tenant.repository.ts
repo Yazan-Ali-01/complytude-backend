@@ -7,6 +7,7 @@ import {
   QueryOptions,
 } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { Tenant } from 'src/modules/tenants/entities/tenant.entity';
 
 /**
@@ -103,8 +104,8 @@ export class TenantRepository extends BaseRepository<
 > {
   private readonly tenantLogger = new Logger(TenantRepository.name);
 
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.tenants');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.tenants', i18n);
   }
 
   /**

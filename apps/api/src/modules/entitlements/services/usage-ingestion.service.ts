@@ -5,7 +5,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { CommonI18n } from '../../../common/constants';
 import {
   FeatureKey,
   UsageLedgerEvent,
@@ -45,6 +47,7 @@ export class UsageIngestionService {
     private readonly usageAllocationsRepository: UsageAllocationsRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly subscriptionsRepository: SubscriptionsRepository,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -79,24 +82,34 @@ export class UsageIngestionService {
 
     // Validate units
     if (units <= 0) {
-      throw new BadRequestException('Units must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Units must be greater than 0',
+      );
     }
 
     // Validate allocations
     if (!allocations || allocations.length === 0) {
-      throw new BadRequestException('At least one allocation is required');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'At least one allocation is required',
+      );
     }
 
     const allocationSum = allocations.reduce((sum, a) => sum + a.units, 0);
     if (allocationSum !== units) {
       throw new BadRequestException(
-        `Allocation sum (${allocationSum}) must equal total units (${units})`,
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Allocation sum (${allocationSum}) must equal total units (${units})`,
       );
     }
 
     for (const allocation of allocations) {
       if (allocation.units <= 0) {
-        throw new BadRequestException('Each allocation must have units > 0');
+        throw new BadRequestException(
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'Each allocation must have units greater than 0',
+        );
       }
     }
 
@@ -169,11 +182,17 @@ export class UsageIngestionService {
     );
 
     if (!feature) {
-      throw new NotFoundException(`Feature not found: ${featureKey}`);
+      throw new NotFoundException(
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `Feature not found: ${featureKey}`,
+      );
     }
 
     if (!feature.is_active) {
-      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Feature is inactive: ${featureKey}`,
+      );
     }
 
     return feature.id;
@@ -193,7 +212,8 @@ export class UsageIngestionService {
 
     if (!subscription) {
       throw new NotFoundException(
-        `No active subscription for tenant: ${tenantId}`,
+        this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+          `No active subscription for tenant: ${tenantId}`,
       );
     }
 

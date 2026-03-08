@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreatePermissionInput,
   Permission,
@@ -11,8 +12,8 @@ export class TenantPermissionsRepository extends BaseRepository<
   CreatePermissionInput,
   never
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'tenant_permissions');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'tenant_permissions', i18n);
   }
 
   protected mapRow(row: Record<string, unknown>): Permission {

@@ -7,7 +7,9 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18n, I18nService } from 'nestjs-i18n';
 import type { PlanKey } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
@@ -64,6 +66,7 @@ export class SnapshotMockController {
     private readonly entitlementResolver: EntitlementResolverService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   // ============================================
@@ -290,7 +293,9 @@ export class SnapshotMockController {
     @Body('newPlanKey') newPlanKey?: PlanKey,
   ) {
     if (!newPlanKey) {
-      throw new BadRequestException('newPlanKey is required');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ?? 'newPlanKey is required',
+      );
     }
 
     return this.databaseService.transactionWithTenantContext(
@@ -343,7 +348,9 @@ export class SnapshotMockController {
         );
 
         return {
-          message: 'Plan change flow complete',
+          message:
+            this.i18n.t(CommonI18n.messages.PLAN_CHANGE_FLOW_COMPLETE) ??
+            'Plan change flow complete',
           tenantId: user.tenantId,
           flow: {
             step1_initialPlan: beforePlan,
@@ -421,7 +428,10 @@ export class SnapshotMockController {
         );
 
         return {
-          message: 'Stale snapshot detection test complete',
+          message:
+            this.i18n.t(
+              CommonI18n.messages.STALE_SNAPSHOT_DETECTION_TEST_COMPLETE,
+            ) ?? 'Stale snapshot detection test complete',
           tenantId: user.tenantId,
           test: {
             snapshotCreatedAt: oldDate.toISOString(),
@@ -459,7 +469,9 @@ export class SnapshotMockController {
     const history = await this.snapshotService.getHistory(user.tenantId, 10);
 
     return {
-      message: 'Snapshot history retrieved',
+      message:
+        this.i18n.t(CommonI18n.messages.SNAPSHOT_HISTORY_RETRIEVED) ??
+        'Snapshot history retrieved',
       tenantId: user.tenantId,
       count: history.length,
       history: history.map((s) => ({
@@ -513,7 +525,9 @@ export class SnapshotMockController {
         );
 
         return {
-          message: 'Snapshot rebuilt',
+          message:
+            this.i18n.t(CommonI18n.messages.SNAPSHOT_REBUILT) ??
+            'Snapshot rebuilt',
           tenantId: user.tenantId,
           snapshot: {
             id: snapshot.id,
@@ -572,7 +586,9 @@ export class SnapshotMockController {
         const speedup = (missTime / hitTime).toFixed(1) + 'x';
 
         return {
-          message: 'Hit vs miss comparison complete',
+          message:
+            this.i18n.t(CommonI18n.messages.HIT_VS_MISS_COMPARISON_COMPLETE) ??
+            'Hit vs miss comparison complete',
           tenantId: user.tenantId,
           firstCall: {
             result: 'MISS (cold path)',
@@ -611,7 +627,9 @@ export class SnapshotMockController {
     const count = await this.snapshotService.getActiveCount(user.tenantId);
 
     return {
-      message: 'Active snapshot count retrieved',
+      message:
+        this.i18n.t(CommonI18n.messages.ACTIVE_SNAPSHOT_COUNT_RETRIEVED) ??
+        'Active snapshot count retrieved',
       tenantId: user.tenantId,
       activeCount: count,
       isValid: count === 0 || count === 1,
@@ -645,7 +663,9 @@ export class SnapshotMockController {
 
         if (!cached) {
           return {
-            message: 'No active snapshot',
+            message:
+              this.i18n.t(CommonI18n.messages.NO_ACTIVE_SNAPSHOT) ??
+              'No active snapshot',
             tenantId: user.tenantId,
             snapshot: null,
             note: 'Create a snapshot first via POST /mock/snapshots/create',
@@ -668,7 +688,9 @@ export class SnapshotMockController {
         const isStale = this.snapshotService.isStale(currentSnapshot);
 
         return {
-          message: 'Snapshot age retrieved',
+          message:
+            this.i18n.t(CommonI18n.messages.SNAPSHOT_AGE_RETRIEVED) ??
+            'Snapshot age retrieved',
           tenantId: user.tenantId,
           snapshot: {
             id: currentSnapshot.id,
@@ -724,7 +746,9 @@ export class SnapshotMockController {
         );
 
         return {
-          message: 'Snapshot debug info',
+          message:
+            this.i18n.t(CommonI18n.messages.SNAPSHOT_DEBUG_INFO) ??
+            'Snapshot debug info',
           tenantId: user.tenantId,
           current: cached
             ? {

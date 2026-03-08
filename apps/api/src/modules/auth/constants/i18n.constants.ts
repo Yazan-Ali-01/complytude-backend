@@ -1,0 +1,22 @@
+/**
+ * Auth module i18n translation keys
+ */
+export const AuthI18n = {
+  errors: {
+    EMAIL_ALREADY_REGISTERED: 'auth.errors.EMAIL_ALREADY_REGISTERED',
+    INVALID_CREDENTIALS: 'auth.errors.INVALID_CREDENTIALS',
+    NO_ACTIVE_TENANTS: 'auth.errors.NO_ACTIVE_TENANTS',
+    TENANT_ACCESS_DENIED: 'auth.errors.TENANT_ACCESS_DENIED',
+    INVALID_REFRESH_TOKEN: 'auth.errors.INVALID_REFRESH_TOKEN',
+    INVALID_VERIFICATION_TOKEN: 'auth.errors.INVALID_VERIFICATION_TOKEN',
+    EMAIL_NOT_VERIFIED: 'auth.errors.EMAIL_NOT_VERIFIED',
+    TOKEN_EXPIRED: 'auth.errors.TOKEN_EXPIRED',
+  },
+  messages: {
+    EMAIL_VERIFIED: 'auth.messages.EMAIL_VERIFIED',
+    PASSWORD_RESET_SUCCESS: 'auth.messages.PASSWORD_RESET_SUCCESS',
+    LOGOUT_SUCCESS: 'auth.messages.LOGOUT_SUCCESS',
+    SIGNUP_SUCCESS: 'auth.messages.SIGNUP_SUCCESS',
+    PASSWORD_RESET_EMAIL_SENT: 'auth.messages.PASSWORD_RESET_EMAIL_SENT',
+  },
+} as const;

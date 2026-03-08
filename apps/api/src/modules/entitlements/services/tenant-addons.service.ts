@@ -2,12 +2,13 @@ import { DatabaseService } from '@lib/database';
 import {
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { I18nService } from 'nestjs-i18n';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { I18nKeys } from '../../../common/constants/i18n-keys';
+import { CommonI18n } from '../../../common/constants';
 import {
   Addon,
   TenantAddonWithEntitlements,
@@ -19,6 +20,7 @@ import {
 } from '../../../repositories/entitlements/addons.repository';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { ServiceCallOptions } from '../../tenants/tenant.service';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
 // TODO: TenantContext will evolve to support:
@@ -39,7 +41,7 @@ export class TenantAddonsService {
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly addonsRepository: AddonsRepository,
     private readonly entitlementSnapshotService: EntitlementSnapshotService,
-    private readonly i18n: I18nService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -118,7 +120,9 @@ export class TenantAddonsService {
     // Validate addon exists in catalog
     const addon = await this.addonsRepository.findByKey(addonKey, { client });
     if (!addon) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+      );
     }
 
     // Check for duplicate
@@ -127,7 +131,9 @@ export class TenantAddonsService {
       { client },
     );
     if (existing.some((a) => a.addon_id === addon.id)) {
-      throw new ConflictException(this.i18n.t(I18nKeys.ADDON_ALREADY_ACTIVE));
+      throw new ConflictException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_ALREADY_ACTIVE),
+      );
     }
 
     // Create addon
@@ -156,7 +162,10 @@ export class TenantAddonsService {
     const created = addons.find((a) => a.addon_id === addon.id);
 
     if (!created) {
-      throw new Error('Failed to retrieve created addon');
+      throw new InternalServerErrorException(
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to retrieve created add-on',
+      );
     }
 
     this.logger.log(`Add-on added: tenant=${tenantId}, addon=${addon.id}`);
@@ -214,7 +223,9 @@ export class TenantAddonsService {
         .then((addons) => {
           const addon = addons.find((a) => a.id === tenantAddonId);
           if (!addon) {
-            throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+            throw new NotFoundException(
+              this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+            );
           }
           return addon;
         });
@@ -238,7 +249,9 @@ export class TenantAddonsService {
     const updated = addons.find((a) => a.id === tenantAddonId);
 
     if (!updated) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+      );
     }
 
     this.logger.log(
@@ -282,7 +295,9 @@ export class TenantAddonsService {
       { client },
     );
     if (!existing.some((a) => a.id === tenantAddonId)) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+      );
     }
 
     await this.tenantAddonsRepository.update(

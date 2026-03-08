@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { QueryResult, QueryResultRow } from 'pg';
+import { CommonI18n } from '../../../../apps/api/src/common/constants';
 import { DatabaseService } from '../database.service';
 import {
   ClientQueryOptions,
@@ -30,6 +32,7 @@ export abstract class BaseRepository<
   constructor(
     protected readonly databaseService: DatabaseService,
     protected readonly tableName: string,
+    @I18n() protected readonly i18n: I18nService,
   ) {}
 
   protected abstract mapRow(row: Record<string, unknown>): TEntity;
@@ -145,7 +148,11 @@ export abstract class BaseRepository<
 
     if (keys.length === 0) {
       this.logger.debug(`create: table=${this.tableName} received empty data`);
-      throw new Error('No data provided for create');
+      throw new Error(
+        // BaseRepositoryI18n is required but in phase 2 (BaseRepositoryI18n.errors.NO_DATA_PROVIDED_FOR_CREATE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'No data provided for create operation',
+      );
     }
 
     this.logger.debug(
@@ -177,7 +184,11 @@ export abstract class BaseRepository<
 
     if (entries.length === 0) {
       this.logger.debug(`update: table=${this.tableName} received empty data`);
-      throw new Error('No data provided for update');
+      throw new Error(
+        // BaseRepositoryI18n is required but in phase 2 (BaseRepositoryI18n.errors.NO_DATA_PROVIDED_FOR_UPDATE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'No data provided for update operation',
+      );
     }
 
     this.logger.debug(
@@ -199,7 +210,11 @@ export abstract class BaseRepository<
 
     const result = await this.executeQuery(query, [id, ...values], options);
     if (result.rows.length === 0) {
-      throw new Error(`Record with ID ${id} not found in ${this.tableName}`);
+      throw new Error(
+        // BaseRepositoryI18n is required but in phase 2 (BaseRepositoryI18n.errors.RECORD_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Record with ID ${id} not found in ${this.tableName} for update operation`,
+      );
     }
 
     return this.mapRow(result.rows[0] as Record<string, unknown>);

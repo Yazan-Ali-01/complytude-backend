@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../../apps/api/src/common/constants';
 import { RedisService } from './redis.service';
 
 export interface RedisHealthResult {
@@ -13,7 +15,10 @@ export interface RedisHealthResult {
 export class RedisHealthIndicator {
   private readonly logger = new Logger(RedisHealthIndicator.name);
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    @I18n() private readonly i18n: I18nService,
+  ) {}
 
   /**
    * Check Redis health by performing a ping operation
@@ -36,7 +41,11 @@ export class RedisHealthIndicator {
         };
       }
 
-      throw new Error('Redis ping failed - unexpected response');
+      throw new Error(
+        // RedisHealthIndicatorI18n is required but in phase 2 (RedisHealthIndicatorI18n.errors.REDIS_PING_FAILED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'Redis ping failed - unexpected response',
+      );
     } catch (error) {
       this.logger.error('Redis health check failed', error);
       const errorMessage =

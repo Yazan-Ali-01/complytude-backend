@@ -6,7 +6,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { CommonI18n } from '../../common/constants/i18n.constants';
 import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
 import { TemplateRepository } from '../../repositories/templates/template.repository';
 import {
@@ -21,6 +23,7 @@ export class TemplateVersionsService {
   constructor(
     private readonly templateVersionRepository: TemplateVersionRepository,
     private readonly templateRepository: TemplateRepository,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   async createVersion(
@@ -45,7 +48,9 @@ export class TemplateVersionsService {
 
       if (existing) {
         throw new ConflictException(
-          `Version ${version} already exists for template ${templateId}`,
+          // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.VERSION_ALREADY_EXISTS)
+          this.i18n.t(CommonI18n.errors.CONFLICT) ??
+            `Version ${version} already exists for template ${templateId}`,
         );
       }
 
@@ -75,7 +80,9 @@ export class TemplateVersionsService {
       }
       this.logger.error(`Failed to create template version: ${error.message}`);
       throw new InternalServerErrorException(
-        'Failed to create template version',
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_VERSION_CREATION_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to create template version',
       );
     }
   }
@@ -93,7 +100,11 @@ export class TemplateVersionsService {
       return versions;
     } catch (error) {
       this.logger.error(`Failed to fetch version history: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch version history');
+      throw new InternalServerErrorException(
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_VERSION_HISTORY_FETCH_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to fetch version history',
+      );
     }
   }
 
@@ -123,7 +134,9 @@ export class TemplateVersionsService {
 
       if (!versionRecord) {
         throw new NotFoundException(
-          `Version ${version} not found for template ${templateId}`,
+          // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_VERSION_NOT_FOUND)
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `Version ${version} not found for template ${templateId}`,
         );
       }
 
@@ -134,7 +147,9 @@ export class TemplateVersionsService {
       }
       this.logger.error(`Failed to fetch template version: ${error.message}`);
       throw new InternalServerErrorException(
-        'Failed to fetch template version',
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_VERSION_FETCH_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to fetch template version',
       );
     }
   }
@@ -167,7 +182,11 @@ export class TemplateVersionsService {
       return version;
     } catch (error) {
       this.logger.error(`Failed to fetch current version: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch current version');
+      throw new InternalServerErrorException(
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_CURRENT_VERSION_FETCH_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to fetch current version',
+      );
     }
   }
 
@@ -186,7 +205,9 @@ export class TemplateVersionsService {
 
       if (!versionToActivate) {
         throw new NotFoundException(
-          `Version ${version} not found for template ${templateId}`,
+          // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_VERSION_NOT_FOUND)
+          this.i18n.t(CommonI18n.errors.NOT_FOUND) ??
+            `Version ${version} not found for template ${templateId}`,
         );
       }
 
@@ -216,7 +237,9 @@ export class TemplateVersionsService {
         `Failed to rollback template version: ${error.message}`,
       );
       throw new InternalServerErrorException(
-        'Failed to rollback template version',
+        // TemplatesI18n is required but in phase 2 (TemplatesI18n.errors.TEMPLATE_VERSION_ROLLBACK_FAILED)
+        this.i18n.t(CommonI18n.errors.INTERNAL_SERVER_ERROR) ??
+          'Failed to rollback template version',
       );
     }
   }

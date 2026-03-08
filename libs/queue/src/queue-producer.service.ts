@@ -1,6 +1,8 @@
 import { getQueueToken } from '@nestjs/bullmq';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Job, JobsOptions, Queue } from 'bullmq';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../../apps/api/src/common/constants';
 import { JobDataFor, JobNameFor, QueueName } from './queue-job-map';
 import { QUEUE_NAMES } from './queue.constants';
 
@@ -19,6 +21,7 @@ export class QueueProducerService {
     @Optional()
     @Inject(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING))
     entitlementQueue: Queue | null,
+    @I18n() private readonly i18n: I18nService,
   ) {
     if (aiQueue) this.queues.set(QUEUE_NAMES.AI_PROCESSING, aiQueue);
     if (ingestionQueue)
@@ -35,7 +38,11 @@ export class QueueProducerService {
   ): Promise<Job<JobDataFor<Q, J>>> {
     const queue = this.queues.get(queueName);
     if (!queue) {
-      throw new Error(`Queue "${queueName}" is not registered`);
+      throw new Error(
+        // QueueProducerServiceI18n is required but in phase 2 (QueueProducerServiceI18n.errors.QUEUE_NOT_REGISTERED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Queue "${queueName}" is not registered`,
+      );
     }
     const job = await queue.add(jobName, data, opts);
     this.logger.debug(
@@ -50,7 +57,11 @@ export class QueueProducerService {
   ): Promise<Job<JobDataFor<Q, J>>[]> {
     const queue = this.queues.get(queueName);
     if (!queue) {
-      throw new Error(`Queue "${queueName}" is not registered`);
+      throw new Error(
+        // QueueProducerServiceI18n is required but in phase 2 (QueueProducerServiceI18n.errors.QUEUE_NOT_REGISTERED)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Queue "${queueName}" is not registered`,
+      );
     }
     const result = await queue.addBulk(
       jobs.map((j) => ({ name: j.name, data: j.data, opts: j.opts })),

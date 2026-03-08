@@ -9,6 +9,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../common/constants';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
@@ -56,6 +58,7 @@ export class DomainEventsMockController {
     private readonly domainEventsService: DomainEventsService,
     private readonly usageIngestionService: UsageIngestionService,
     private readonly databaseService: DatabaseService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   // ============================================
@@ -98,7 +101,9 @@ export class DomainEventsMockController {
     );
 
     return {
-      message: 'Domain events retrieved',
+      message:
+        this.i18n.t(CommonI18n.messages.DOMAIN_EVENTS_RETRIEVED) ??
+        'Domain events retrieved',
       tenantId: user.tenantId,
       pagination: {
         total,
@@ -157,7 +162,9 @@ export class DomainEventsMockController {
     );
 
     return {
-      message: `Events filtered by type: ${eventType}`,
+      message:
+        this.i18n.t(CommonI18n.messages.EVENTS_FILTERED_BY_TYPE) ??
+        `Events filtered by type: ${eventType}`,
       tenantId: user.tenantId,
       eventType,
       count: events.length,
@@ -202,7 +209,9 @@ export class DomainEventsMockController {
     );
 
     return {
-      message: `Event history for ${aggregateType}/${aggregateId}`,
+      message:
+        this.i18n.t(CommonI18n.messages.EVENT_HISTORY_FOR_AGGREGATE) ??
+        `Event history for ${aggregateType}/${aggregateId}`,
       tenantId: user.tenantId,
       aggregateType,
       aggregateId,
@@ -243,7 +252,8 @@ export class DomainEventsMockController {
   ) {
     if (!fromDate && !toDate) {
       throw new BadRequestException(
-        'At least one of fromDate or toDate is required',
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'At least one of fromDate or toDate is required',
       );
     }
 
@@ -259,7 +269,9 @@ export class DomainEventsMockController {
     );
 
     return {
-      message: 'Events filtered by date range',
+      message:
+        this.i18n.t(CommonI18n.messages.EVENTS_FILTERED_BY_DATE_RANGE) ??
+        `Events filtered by date range: ${fromDate} to ${toDate}`,
       tenantId: user.tenantId,
       filters: {
         fromDate: fromDate ?? 'none',
@@ -306,7 +318,9 @@ export class DomainEventsMockController {
     );
 
     return {
-      message: 'Events ready for replay',
+      message:
+        this.i18n.t(CommonI18n.messages.EVENTS_READY_FOR_REPLAY) ??
+        'Events ready for replay',
       tenantId: user.tenantId,
       fromDate: fromDate ?? 'beginning',
       count: events.length,
@@ -349,7 +363,10 @@ export class DomainEventsMockController {
     @Body('usageEventId') usageEventId: string,
   ) {
     if (!usageEventId) {
-      throw new BadRequestException('usageEventId is required');
+      throw new BadRequestException(
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          'usageEventId is required',
+      );
     }
 
     const trail = await this.domainEventsService.getAuditTrail(
@@ -359,7 +376,9 @@ export class DomainEventsMockController {
     );
 
     return {
-      message: 'Audit trail retrieved',
+      message:
+        this.i18n.t(CommonI18n.messages.AUDIT_TRAIL_RETRIEVED) ??
+        'Audit trail retrieved',
       tenantId: user.tenantId,
       usageEventId,
       trailLength: trail.length,
@@ -433,7 +452,10 @@ export class DomainEventsMockController {
         });
 
         return {
-          message: 'Usage recorded and domain event observed',
+          message:
+            this.i18n.t(
+              CommonI18n.messages.USAGE_RECORDED_AND_DOMAIN_EVENT_OBSERVED,
+            ) || 'Usage recorded and domain event observed',
           tenantId: user.tenantId,
           usageEvent: {
             id: usageEvent.id,
@@ -484,7 +506,9 @@ export class DomainEventsMockController {
     const total = summary.reduce((sum, s) => sum + s.count, 0);
 
     return {
-      message: 'Event summary retrieved',
+      message:
+        this.i18n.t(CommonI18n.messages.EVENT_SUMMARY_RETRIEVED) ??
+        'Event summary retrieved',
       tenantId: user.tenantId,
       totalEvents: total,
       summary: summary.map((s) => ({
@@ -528,7 +552,9 @@ export class DomainEventsMockController {
     );
 
     return {
-      message: `Events filtered by aggregate type: ${aggregateType}`,
+      message:
+        this.i18n.t(CommonI18n.messages.EVENTS_FILTERED_BY_AGGREGATE_TYPE) ??
+        `Events filtered by aggregate type: ${aggregateType}`,
       tenantId: user.tenantId,
       aggregateType,
       count: events.length,
@@ -592,7 +618,10 @@ export class DomainEventsMockController {
     });
 
     return {
-      message: 'Events filtered with multiple criteria',
+      message:
+        this.i18n.t(
+          CommonI18n.messages.EVENTS_FILTERED_WITH_MULTIPLE_CRITERIA,
+        ) ?? 'Events filtered with multiple criteria',
       tenantId: user.tenantId,
       filters: {
         eventType: eventType ?? 'none',
@@ -653,8 +682,10 @@ export class DomainEventsMockController {
 
         return {
           message: latestEvent
-            ? 'Latest event retrieved'
-            : 'No events found for aggregate',
+            ? (this.i18n.t(CommonI18n.messages.LATEST_EVENT_RETRIEVED) ??
+              'Latest event retrieved')
+            : (this.i18n.t(CommonI18n.messages.NO_EVENTS_FOUND_FOR_AGGREGATE) ??
+              'No events found for aggregate'),
           tenantId: user.tenantId,
           aggregateType,
           aggregateId,
@@ -698,7 +729,10 @@ export class DomainEventsMockController {
 
     if (events.length === 0) {
       return {
-        message: 'No events found to test immutability',
+        message:
+          this.i18n.t(
+            CommonI18n.messages.NO_EVENTS_FOUND_TO_TEST_IMMUTABILITY,
+          ) || 'No events found to test immutability',
         tenantId: user.tenantId,
         note: 'Record some usage or credits first, then try this endpoint.',
       };
@@ -729,17 +763,23 @@ export class DomainEventsMockController {
     }
 
     return {
-      message: 'Immutability test complete',
+      message:
+        this.i18n.t(CommonI18n.messages.IMMUTABILITY_TEST_COMPLETE) ??
+        'Immutability test complete',
       tenantId: user.tenantId,
       testedEventId: testEvent.id,
       results: {
         updateAttempt: updateError
-          ? 'Blocked (as expected)'
-          : 'Allowed (UNEXPECTED - should be blocked)',
+          ? (this.i18n.t(CommonI18n.messages.BLOCKED_AS_EXPECTED) ??
+            'Blocked (as expected)')
+          : (this.i18n.t(CommonI18n.messages.ALLOWED_UNEXPECTED) ??
+            'Allowed (UNEXPECTED - should be blocked)'),
         updateError,
         deleteAttempt: deleteError
-          ? 'Blocked (as expected)'
-          : 'Allowed (UNEXPECTED - should be blocked)',
+          ? (this.i18n.t(CommonI18n.messages.BLOCKED_AS_EXPECTED) ??
+            'Blocked (as expected)')
+          : (this.i18n.t(CommonI18n.messages.ALLOWED_UNEXPECTED) ??
+            'Allowed (UNEXPECTED - should be blocked)'),
         deleteError,
       },
       note: 'Domain events are protected by database RULES. UPDATE and DELETE operations should fail.',

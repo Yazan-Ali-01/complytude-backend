@@ -7,9 +7,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { I18nContext } from 'nestjs-i18n';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { EntitlementResolverService } from '../../modules/entitlements/services/entitlement-resolver.service';
-import { I18nKeys } from '../constants/i18n-keys';
+import { CommonI18n, EntitlementsI18n } from '../constants';
 import {
   ENTITLEMENT_KEY,
   EntitlementRequirement,
@@ -37,6 +37,7 @@ export class EntitlementGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private resolver: EntitlementResolverService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -52,12 +53,12 @@ export class EntitlementGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const tenant = request.auth?.tenant;
-    const i18n = I18nContext.current();
 
     // Ensure tenant context is available
     if (!tenant || !tenant.tenantId) {
       throw new UnauthorizedException(
-        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+        this.i18n.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Tenant token required for entitlement check',
       );
     }
 
@@ -76,7 +77,7 @@ export class EntitlementGuard implements CanActivate {
         );
         throw new ForbiddenException({
           message:
-            i18n?.t(I18nKeys.FORBIDDEN) ??
+            this.i18n.t(EntitlementsI18n.errors.FEATURE_NOT_FOUND) ??
             'You do not have access to this feature',
           feature: requirement.featureKey,
           statusCode: 403,
@@ -90,7 +91,7 @@ export class EntitlementGuard implements CanActivate {
         );
         throw new ForbiddenException({
           message:
-            i18n?.t(I18nKeys.FORBIDDEN) ??
+            this.i18n.t(CommonI18n.errors.FORBIDDEN) ??
             'Your plan does not include this feature',
           feature: requirement.featureKey,
           required: this.getRequirementDescription(requirement),

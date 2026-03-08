@@ -1,9 +1,11 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateUsageLedgerRow,
   UsageLedgerEvent,
 } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 
 type UsageLedgerRow = {
   id: string;
@@ -32,8 +34,8 @@ export class UsageLedgerRepository extends BaseRepository<
   CreateUsageLedgerRow,
   never
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.usage_ledger');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.usage_ledger', i18n);
   }
 
   protected getSelectColumns(): string {
@@ -116,13 +118,17 @@ export class UsageLedgerRepository extends BaseRepository<
   // Override update/delete to prevent usage (immutable ledger)
   update(): Promise<never> {
     throw new Error(
-      'Usage ledger is immutable. UPDATE operations are not allowed.',
+      // UsageLedgerRepositoryI18n is required but in phase 2 (UsageLedgerRepositoryI18n.errors.IMMUTABLE_LEDGER)
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'Usage ledger is immutable. UPDATE operations are not allowed.',
     );
   }
 
   delete(): Promise<never> {
     throw new Error(
-      'Usage ledger is immutable. DELETE operations are not allowed.',
+      // UsageLedgerRepositoryI18n is required but in phase 2 (UsageLedgerRepositoryI18n.errors.IMMUTABLE_LEDGER)
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'Usage ledger is immutable. DELETE operations are not allowed.',
     );
   }
 }

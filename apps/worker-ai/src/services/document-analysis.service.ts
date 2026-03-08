@@ -2,6 +2,8 @@ import { EmbeddingService, TextChunkerService } from '@lib/embedding';
 import type { DocumentAnalysisJobData } from '@lib/queue';
 import { PermanentError, RetryableError } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { CommonI18n } from '../../../api/src/common/constants';
 import { AnalysisResult } from '../interfaces/analysis-result.interface';
 import { AnalysisJobWriteRepository } from '../repositories/analysis-job-write.repository';
 import { DocumentReadRepository } from '../repositories/document-read.repository';
@@ -27,6 +29,7 @@ export class DocumentAnalysisService {
     private readonly embeddingService: EmbeddingService,
     private readonly promptBuilderService: PromptBuilderService,
     private readonly llmService: LlmService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   async analyze(data: DocumentAnalysisJobData): Promise<void> {
@@ -37,20 +40,26 @@ export class DocumentAnalysisService {
       .findById(analysisJobId)
       .catch((err: unknown) => {
         throw new RetryableError(
-          `DB error fetching analysis job ${analysisJobId}`,
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.DB_ERROR_FETCHING_ANALYSIS_JOB)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `DB error fetching analysis job ${analysisJobId}`,
           err instanceof Error ? err : undefined,
         );
       });
 
     if (!job) {
       throw new PermanentError(
-        `Analysis job ${analysisJobId} not found — skipping`,
+        // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.ANALYSIS_JOB_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Analysis job ${analysisJobId} not found — skipping`,
       );
     }
 
     if (job.status !== 'queued' && job.status !== 'processing') {
       throw new PermanentError(
-        `Analysis job ${analysisJobId} is in terminal state '${job.status}' — skipping re-run`,
+        // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.ANALYSIS_JOB_IN_TERMINAL_STATE)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Analysis job ${analysisJobId} is in terminal state '${job.status}' — skipping re-run`,
       );
     }
 
@@ -59,14 +68,18 @@ export class DocumentAnalysisService {
       .markProcessing(analysisJobId)
       .catch((err: unknown) => {
         throw new RetryableError(
-          `DB error marking job ${analysisJobId} as processing`,
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.DB_ERROR_MARKING_JOB_AS_PROCESSING)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `DB error marking job ${analysisJobId} as processing`,
           err instanceof Error ? err : undefined,
         );
       });
 
     if (!claimed) {
       throw new PermanentError(
-        `Analysis job ${analysisJobId} was claimed by another worker — skipping`,
+        // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.ANALYSIS_JOB_CLAIMED_BY_ANOTHER_WORKER)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Analysis job ${analysisJobId} was claimed by another worker — skipping`,
       );
     }
 
@@ -84,7 +97,9 @@ export class DocumentAnalysisService {
         .markFailed(analysisJobId, message)
         .catch((dbErr: unknown) => {
           this.logger.error(
-            `Failed to mark job ${analysisJobId} as failed after pipeline error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
+            // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.FAILED_TO_MARK_JOB_AS_FAILED_AFTER_PIPELINE_ERROR)
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              `Failed to mark job ${analysisJobId} as failed after pipeline error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
           );
         });
 
@@ -101,20 +116,26 @@ export class DocumentAnalysisService {
       .findContentById(documentId)
       .catch((err: unknown) => {
         throw new RetryableError(
-          `DB error fetching document ${documentId}`,
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.DB_ERROR_FETCHING_DOCUMENT)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `DB error fetching document ${documentId}`,
           err instanceof Error ? err : undefined,
         );
       });
 
     if (!document) {
       throw new PermanentError(
-        `Document ${documentId} not found — cannot analyze`,
+        // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.DOCUMENT_NOT_FOUND)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Document ${documentId} not found — cannot analyze`,
       );
     }
 
     if (!document.content?.trim()) {
       throw new PermanentError(
-        `Document ${documentId} has no content — cannot analyze`,
+        // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.DOCUMENT_HAS_NO_CONTENT)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `Document ${documentId} has no content — cannot analyze`,
       );
     }
 
@@ -136,7 +157,9 @@ export class DocumentAnalysisService {
       .generateEmbeddings(chunkTexts)
       .catch((err: unknown) => {
         throw new RetryableError(
-          `Embedding API error for document ${documentId}`,
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.EMBEDDING_API_ERROR)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Embedding API error for document ${documentId}`,
           err instanceof Error ? err : undefined,
         );
       });
@@ -150,7 +173,9 @@ export class DocumentAnalysisService {
       )
       .catch((err: unknown) => {
         throw new RetryableError(
-          'pgvector similarity search error',
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.PGVECTOR_SIMILARITY_SEARCH_ERROR)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            'pgvector similarity search error',
           err instanceof Error ? err : undefined,
         );
       });
@@ -178,7 +203,9 @@ export class DocumentAnalysisService {
       .chatCompletion({ systemPrompt, userMessage })
       .catch((err: unknown) => {
         throw new RetryableError(
-          `LLM API error for job ${analysisJobId}`,
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.LLM_API_ERROR)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `LLM API error for job ${analysisJobId}`,
           err instanceof Error ? err : undefined,
         );
       });
@@ -206,7 +233,9 @@ export class DocumentAnalysisService {
       .markCompleted(analysisJobId, result)
       .catch((err: unknown) => {
         throw new RetryableError(
-          `DB error storing result for job ${analysisJobId}`,
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.DB_ERROR_STORING_RESULT)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `DB error storing result for job ${analysisJobId}`,
           err instanceof Error ? err : undefined,
         );
       });
@@ -223,7 +252,9 @@ export class DocumentAnalysisService {
   ): { findings: AnalysisResult['findings']; summary: string } {
     if (typeof raw !== 'object' || raw === null) {
       throw new PermanentError(
-        `LLM response for job ${jobId} is not a JSON object`,
+        // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.LLM_RESPONSE_NOT_A_JSON_OBJECT)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `LLM response for job ${jobId} is not a JSON object`,
       );
     }
 
@@ -231,20 +262,26 @@ export class DocumentAnalysisService {
 
     if (!Array.isArray(obj.findings)) {
       throw new PermanentError(
-        `LLM response for job ${jobId} missing 'findings' array`,
+        // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.LLM_RESPONSE_MISSING_FINDINGS_ARRAY)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `LLM response for job ${jobId} missing 'findings' array`,
       );
     }
 
     if (typeof obj.summary !== 'string' || !obj.summary.trim()) {
       throw new PermanentError(
-        `LLM response for job ${jobId} missing 'summary' string`,
+        // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.LLM_RESPONSE_MISSING_SUMMARY_STRING)
+        this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+          `LLM response for job ${jobId} missing 'summary' string`,
       );
     }
 
     const findings = obj.findings.map((f: unknown, i: number) => {
       if (typeof f !== 'object' || f === null) {
         throw new PermanentError(
-          `LLM response job ${jobId}: finding[${i}] is not an object`,
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.LLM_RESPONSE_FINDING_NOT_AN_OBJECT)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `LLM response job ${jobId}: finding[${i}] is not an object`,
         );
       }
       const finding = f as Record<string, unknown>;
@@ -261,7 +298,9 @@ export class DocumentAnalysisService {
           !String(finding[field]).trim()
         ) {
           throw new PermanentError(
-            `LLM response job ${jobId}: finding[${i}].${field} is missing or empty`,
+            // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.LLM_RESPONSE_FINDING_FIELD_MISSING_OR_EMPTY)
+            this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+              `LLM response job ${jobId}: finding[${i}].${field} is missing or empty`,
           );
         }
       }
@@ -269,7 +308,9 @@ export class DocumentAnalysisService {
       const riskLevel = finding.riskLevel as string;
       if (!['high', 'medium', 'low'].includes(riskLevel)) {
         throw new PermanentError(
-          `LLM response job ${jobId}: finding[${i}].riskLevel is '${riskLevel}', expected high|medium|low`,
+          // DocumentAnalysisServiceI18n is required but in phase 2 (DocumentAnalysisServiceI18n.errors.LLM_RESPONSE_FINDING_RISK_LEVEL_INVALID)
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `LLM response job ${jobId}: finding[${i}].riskLevel is '${riskLevel}', expected high|medium|low`,
         );
       }
 

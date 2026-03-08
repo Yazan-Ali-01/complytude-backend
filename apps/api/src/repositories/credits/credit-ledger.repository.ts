@@ -1,9 +1,11 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreateCreditLedgerRow,
   CreditLedgerTransaction,
 } from 'src/common/types/entitlement.types';
+import { CommonI18n } from '../../common/constants';
 
 type CreditLedgerRow = {
   id: string;
@@ -33,8 +35,8 @@ export class CreditLedgerRepository extends BaseRepository<
   CreateCreditLedgerRow,
   never
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.credit_ledger');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.credit_ledger', i18n);
   }
 
   protected getSelectColumns(): string {
@@ -186,13 +188,17 @@ export class CreditLedgerRepository extends BaseRepository<
   // Override update/delete to prevent usage (immutable ledger)
   update(): Promise<never> {
     throw new Error(
-      'Credit ledger is immutable. UPDATE operations are not allowed.',
+      // CreditLedgerRepositoryI18n is required but in phase 2 (CreditLedgerRepositoryI18n.errors.IMMUTABLE_LEDGER)
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'Credit ledger is immutable. UPDATE operations are not allowed.',
     );
   }
 
   delete(): Promise<never> {
     throw new Error(
-      'Credit ledger is immutable. DELETE operations are not allowed.',
+      // CreditLedgerRepositoryI18n is required but in phase 2 (CreditLedgerRepositoryI18n.errors.IMMUTABLE_LEDGER)
+      this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+        'Credit ledger is immutable. DELETE operations are not allowed.',
     );
   }
 }

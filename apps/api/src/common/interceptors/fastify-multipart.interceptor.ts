@@ -1,17 +1,19 @@
 import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
   BadRequestException,
+  CallHandler,
+  ExecutionContext,
+  Injectable,
   mixin,
+  NestInterceptor,
   Type,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { FastifyRequest } from 'fastify';
-import { MulterLikeFile } from '../interfaces/multer-file.interface';
-import { JSON_FIELDS_KEY } from '../decorators/json-field.decorator';
 import { Reflector } from '@nestjs/core';
+import { FastifyRequest } from 'fastify';
+import { I18n, I18nService } from 'nestjs-i18n';
+import { Observable } from 'rxjs';
+import { CommonI18n } from '../constants';
+import { JSON_FIELDS_KEY } from '../decorators/json-field.decorator';
+import { MulterLikeFile } from '../interfaces/multer-file.interface';
 
 /**
  * Interceptor that parses multipart/form-data requests into request.body and request.file(s)
@@ -59,7 +61,10 @@ export function FastifyMultipartInterceptor(
 ): Type<NestInterceptor> {
   @Injectable()
   class MixinInterceptor implements NestInterceptor {
-    constructor(private reflector: Reflector) {}
+    constructor(
+      private reflector: Reflector,
+      @I18n() private readonly i18n: I18nService,
+    ) {}
 
     async intercept(
       context: ExecutionContext,
@@ -140,7 +145,8 @@ export function FastifyMultipartInterceptor(
           throw error;
         }
         throw new BadRequestException(
-          `Failed to process multipart request: ${error.message}`,
+          this.i18n.t(CommonI18n.errors.BAD_REQUEST) ??
+            `Failed to process multipart request: ${error.message}`,
         );
       }
 

@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 
 export const ANALYSIS_JOB_STATUSES = {
   QUEUED: 'queued',
@@ -66,8 +67,8 @@ export class AnalysisJobRepository extends BaseRepository<
   CreateAnalysisJobRow,
   UpdateAnalysisJobRow
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'public.analysis_jobs');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'public.analysis_jobs', i18n);
   }
 
   protected getSelectColumns(): string {

@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import {
   CreatePlatformRoleInput,
   PlatformRole,
@@ -12,8 +13,8 @@ export class PlatformRolesRepository extends BaseRepository<
   CreatePlatformRoleInput,
   UpdatePlatformRoleInput
 > {
-  constructor(databaseService: DatabaseService) {
-    super(databaseService, 'platform_roles');
+  constructor(databaseService: DatabaseService, @I18n() i18n: I18nService) {
+    super(databaseService, 'platform_roles', i18n);
   }
 
   protected mapRow(row: Record<string, unknown>): PlatformRole {
