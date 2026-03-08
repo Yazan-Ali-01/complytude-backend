@@ -165,9 +165,15 @@ variable "stripe_catalog_sync_enabled" {
 }
 
 variable "stripe_tax_enabled" {
-  description = "Enable Stripe tax"
+  description = "Enable Stripe Tax"
   type        = string
   default     = "false"
+}
+
+# ---- DNS & SSL ----
+variable "domain_name" {
+  description = "Root domain for the project (e.g. complytude.com)"
+  type        = string
 }
 
 # ---- ECS ----
@@ -193,15 +199,4 @@ variable "ecs_worker_ingestion_desired_count" {
   description = "Desired number of worker-ingestion tasks"
   type        = number
   default     = 1
-}
-
-# ---- DNS & TLS ----
-variable "domain_name" {
-  description = "Root domain (e.g. complytude.com)"
-  type        = string
-}
-
-variable "app_subdomain" {
-  description = "Subdomain for the app (e.g. staging.complytude.com)"
-  type        = string
 }

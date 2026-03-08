@@ -43,6 +43,7 @@ resource "aws_secretsmanager_secret_version" "app" {
     DB_NAME           = var.db_name
     DB_APP_USER       = var.db_app_user
     DB_APP_PASSWORD   = var.db_app_password
+    DB_SSL_ENABLED    = var.db_ssl_enabled
     DB_MAX_CONNECTIONS = "20"
     DB_IDLE_TIMEOUT   = "30000"
     DB_CONNECTION_TIMEOUT = "2000"
@@ -90,6 +91,6 @@ resource "aws_secretsmanager_secret_version" "app" {
     STRIPE_PUBLISHABLE_KEY     = var.stripe_publishable_key
     STRIPE_WEBHOOK_SECRET      = var.stripe_webhook_secret
     STRIPE_CATALOG_SYNC_ENABLED = var.stripe_catalog_sync_enabled
-    STRIPE_TAX_ENABLED          = var.stripe_tax_enabled
+    STRIPE_TAX_ENABLED         = var.stripe_tax_enabled
   })
 }

@@ -7,6 +7,7 @@ locals {
     "DB_NAME",
     "DB_APP_USER",
     "DB_APP_PASSWORD",
+    "DB_SSL_ENABLED",
     "DB_MAX_CONNECTIONS",
     "DB_IDLE_TIMEOUT",
     "DB_CONNECTION_TIMEOUT",

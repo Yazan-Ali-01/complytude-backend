@@ -31,25 +31,6 @@ module "networking" {
   availability_zones = var.availability_zones
 }
 
-# ---- Route 53 (zone only — must exist before ACM) ----
-module "route53" {
-  source = "../../modules/route53"
-
-  project_name  = var.project
-  environment   = var.environment
-  domain_name   = var.domain_name
-}
-
-# ---- ACM (TLS certificate with DNS validation) ----
-module "acm" {
-  source = "../../modules/acm"
-
-  project_name  = var.project
-  environment   = var.environment
-  domain_name   = var.app_subdomain
-  zone_id       = module.route53.zone_id
-}
-
 module "rds" {
   source = "../../modules/rds"
 
@@ -156,7 +137,25 @@ module "secrets" {
   stripe_publishable_key     = var.stripe_publishable_key
   stripe_webhook_secret      = var.stripe_webhook_secret
   stripe_catalog_sync_enabled = var.stripe_catalog_sync_enabled
-  stripe_tax_enabled          = var.stripe_tax_enabled
+  stripe_tax_enabled         = var.stripe_tax_enabled
+}
+
+module "route53" {
+  source = "../../modules/route53"
+
+  project_name = var.project
+  environment  = var.environment
+  domain_name  = var.domain_name
+}
+
+module "acm" {
+  source = "../../modules/acm"
+
+  project_name            = var.project
+  environment             = var.environment
+  domain_name             = var.domain_name
+  subject_alternative_names = ["*.${var.domain_name}"]
+  zone_id                 = module.route53.zone_id
 }
 
 module "ecs" {
@@ -169,8 +168,7 @@ module "ecs" {
   subnet_ids       = module.networking.public_subnet_ids
   ecs_security_group_id = module.networking.ecs_security_group_id
   alb_security_group_id = module.networking.alb_security_group_id
-
-  acm_certificate_arn = module.acm.certificate_arn
+  acm_certificate_arn   = module.acm.certificate_arn
 
   ecr_repository_urls = module.ecr.repository_urls
   image_tag           = var.ecs_image_tag
@@ -197,12 +195,11 @@ module "ecs" {
   worker_ingestion_desired_count = var.ecs_worker_ingestion_desired_count
 }
 
-# ---- Route 53 A record (staging.complytude.com -> ALB) ----
-module "route53_record" {
+module "dns_record" {
   source = "../../modules/route53-record"
 
   zone_id      = module.route53.zone_id
-  record_name = "staging"
+  record_name  = "staging"
   alb_dns_name = module.ecs.alb_dns_name
   alb_zone_id  = module.ecs.alb_zone_id
 }
