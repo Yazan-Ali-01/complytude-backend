@@ -76,7 +76,7 @@ cp terraform.tfvars.example terraform.tfvars
 
 Application secrets (DB, JWT, Redis, S3) are stored in AWS Secrets Manager as a single JSON secret: `complytude/<env>/app`.
 
-**Required tfvars:** `app_db_password`, `jwt_*_secret`, `cors_origins`. For S3, use `s3_access_key`/`s3_secret_key` or leave empty to use ECS task role.
+**Required tfvars:** `app_db_password`, `jwt_*_secret`, `cors_origins`, `alarm_email` (for CloudWatch alarm notifications). For S3, use `s3_access_key`/`s3_secret_key` or leave empty to use ECS task role.
 
 **Using app_login (production-like):** After RDS is up, run `scripts/setup-app-user-role.sql` via bastion SSH tunnel:
 
@@ -124,6 +124,12 @@ aws ecs update-service --cluster complytude-staging --service complytude-staging
 ```
 
 Verify: `http://$(terraform output -raw alb_dns_name)/api/health` should return 200.
+
+## Monitoring (CloudWatch Alarms)
+
+The monitoring module creates CloudWatch alarms for ECS (running tasks, CPU, memory), RDS (connections, storage), and Redis (memory). Alarms send email via SNS.
+
+**After first apply:** Check your `alarm_email` inbox and click the SNS subscription confirmation link — alarms won't notify until confirmed.
 
 ## Adding a new module
 

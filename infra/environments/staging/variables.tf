@@ -200,3 +200,9 @@ variable "ecs_worker_ingestion_desired_count" {
   type        = number
   default     = 1
 }
+
+# ---- Monitoring ----
+variable "alarm_email" {
+  description = "Email for CloudWatch alarm notifications. Set in terraform.tfvars. Must confirm SNS subscription after first apply."
+  type        = string
+}

@@ -203,3 +203,19 @@ module "dns_record" {
   alb_dns_name = module.ecs.alb_dns_name
   alb_zone_id  = module.ecs.alb_zone_id
 }
+
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_name         = var.project
+  environment          = var.environment
+  ecs_cluster_name     = module.ecs.cluster_name
+  ecs_service_names   = [
+    module.ecs.api_service_name,
+    module.ecs.worker_ai_service_name,
+    module.ecs.worker_ingestion_service_name,
+  ]
+  rds_instance_id              = module.rds.instance_id
+  redis_replication_group_id   = module.elasticache.replication_group_id
+  alarm_email                  = var.alarm_email
+}

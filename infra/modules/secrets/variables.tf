@@ -47,12 +47,6 @@ variable "db_ssl_reject_unauthorized" {
   default     = "false"
 }
 
-variable "db_ssl_enabled" {
-  description = "Enable SSL for database connections"
-  type        = string
-  default     = "true"
-}
-
 # ---- Redis (from ElastiCache outputs) ----
 variable "redis_host" {
   description = "Redis hostname — typically from module.elasticache.hostname"
