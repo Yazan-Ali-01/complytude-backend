@@ -1,6 +1,6 @@
 ---
-description: Complete technology stack reference with versions and best practices
-alwaysApply: true
+description: Complete technology stack reference with versions, dependencies, compatibility matrix, and best practices. Use when adding dependencies, checking versions, making tech decisions, or debugging version conflicts.
+alwaysApply: false
 ---
 
 # Technology Stack & Versions
@@ -88,35 +88,39 @@ Complete reference for all major dependencies, versions, and best practices for 
 
 ## Database
 
-### PostgreSQL (via pg driver v8.16.3)
+### PostgreSQL 16 with pgvector (via pg driver v8.16.3)
 
 **Components:**
 
 - `pg`: ^8.16.3
 - `@types/pg`: ^8.15.5 (dev)
+- Docker image: `pgvector/pgvector:pg16`
 
 **Best Practices:**
 
-- Use connection pooling (implemented in DatabaseService)
+- Use connection pooling (implemented in DatabaseService in `libs/database`)
 - Always use parameterized queries to prevent SQL injection
 - Implement Row-Level Security (RLS) for multi-tenancy
 - Use transactions for multi-step operations
 - Set appropriate pool size based on load (default: 20)
 - Use prepared statements for frequently executed queries
+- Use pgvector for embedding storage and similarity search
 
 **Version Notes:**
 
 - pg v8.16.3 is stable and production-ready
 - Native driver (no ORM overhead)
 - Excellent TypeScript support with @types/pg
-- Supports PostgreSQL 12+ features
+- pgvector extension enables vector similarity search for AI features
+- Supports PostgreSQL 16 features
 
 **Architecture:**
 
 - Custom repository pattern (no Prisma/TypeORM)
-- BaseRepository for common CRUD operations
+- BaseRepository in `libs/database/src/base/` for common CRUD operations
 - Explicit column selection for performance
 - Manual row mapping for type safety
+- Vector tables for embedding storage (migrations 013-016)
 
 ## Authentication & Security
 
@@ -370,6 +374,140 @@ Complete reference for all major dependencies, versions, and best practices for 
 - Full JSON Schema draft-07 support
 - Better TypeScript types
 
+## Background Jobs & Message Queue
+
+### BullMQ v5.69.4
+
+**Components:**
+
+- `bullmq`: ^5.69.4
+- `@nestjs/bullmq`: ^11.0.4
+- `@bull-board/api`: ^6.19.0 (dev - queue monitoring UI)
+- `@bull-board/fastify`: ^6.19.0 (dev - Fastify adapter for Bull Board)
+
+**Best Practices:**
+
+- Use BullMQ for all async background processing
+- Define job payloads in `libs/queue/src/interfaces/`
+- Use `QueueProducerService` from `@lib/queue` for type-safe job dispatch
+- Extend `AbstractProcessor` from `@lib/queue` for worker processors
+- Keep job payloads serializable (no class instances)
+- Use separate queues per domain (ai-processing, data-ingestion, entitlement-processing)
+- Configure appropriate retry strategies and backoff
+
+**Version Notes:**
+
+- BullMQ v5 requires ioredis (not node-redis)
+- @nestjs/bullmq v11 integrates with NestJS 11 DI
+- Bull Board provides visual queue monitoring in development
+
+**Architecture:**
+
+- `libs/queue/` - Shared queue module, producer service, job interfaces
+- `apps/api/` - Job producers (dispatch via QueueProducerService)
+- `apps/worker-ai/` - AI processing consumer
+- `apps/worker-ingestion/` - Data ingestion consumer
+- `apps/api/src/modules/entitlements/processors/` - Entitlement async processing
+
+### Redis (via ioredis v5.9.2)
+
+**Components:**
+
+- `ioredis`: ^5.9.2
+
+**Best Practices:**
+
+- Use ioredis (not node-redis) as required by BullMQ
+- Connection management via `libs/redis/` module
+- Use Redis health checks (`redis.health.ts`)
+- Configure appropriate connection timeouts
+- Use `appendonly yes` for persistence in Docker
+
+**Version Notes:**
+
+- ioredis v5 is the most popular Redis client for Node.js
+- Full Redis command support with TypeScript types
+- Built-in connection pooling and reconnection
+
+**Architecture:**
+
+- `libs/redis/` - Shared Redis module, service, health indicator
+- Used as BullMQ backend for all queue operations
+- Docker service: `redis:7-alpine` with AOF persistence
+
+## AI & Machine Learning
+
+### OpenAI SDK v6.22.0
+
+**Components:**
+
+- `openai`: ^6.22.0
+
+**Best Practices:**
+
+- Use for document analysis and AI-powered features
+- Implement proper error handling for API rate limits
+- Use streaming responses where appropriate
+- Keep API keys in environment variables, never in code
+
+**Version Notes:**
+
+- OpenAI SDK v6 is the latest with improved TypeScript support
+- Supports GPT-4, GPT-4o, and other model variants
+- Built-in retry logic and error handling
+
+**Architecture:**
+
+- `apps/worker-ai/src/services/llm.service.ts` - LLM API integration
+- `apps/worker-ai/src/services/prompt-builder.service.ts` - Prompt construction
+- `apps/worker-ai/src/services/document-analysis.service.ts` - Analysis orchestration
+
+### tiktoken v1.0.22
+
+**Components:**
+
+- `tiktoken`: ^1.0.22
+
+**Best Practices:**
+
+- Use for accurate token counting before API calls
+- Count tokens to stay within model context windows
+- Use in chunking services to create appropriately-sized chunks
+
+**Version Notes:**
+
+- tiktoken is the official OpenAI tokenizer
+- Supports all GPT model encodings
+
+**Architecture:**
+
+- `libs/embedding/src/chunking/token-counter.service.ts` - Token counting service
+- Used by chunking services to create model-appropriate text chunks
+
+## Embedding & Vector Search
+
+### Embedding Library (`libs/embedding/`)
+
+**Components:**
+
+- Uses OpenAI embeddings API (via `openai` package)
+- pgvector for vector storage and similarity search
+
+**Best Practices:**
+
+- Use clause-level chunking for legal/regulatory documents
+- Count tokens before embedding to respect API limits
+- Store embeddings in pgvector columns for efficient similarity search
+- Use cosine similarity for search queries
+
+**Architecture:**
+
+- `libs/embedding/src/embedding.service.ts` - OpenAI embedding generation
+- `libs/embedding/src/chunking/` - Text chunking strategies
+- Vector tables in PostgreSQL (migrations 013-016)
+- `apps/worker-ingestion/` - Ingestion pipeline (chunk → embed → store)
+- `apps/worker-ai/src/repositories/ruleset-chunk-search.repository.ts` - Vector similarity search
+
 ## Utilities
 
 ### UUID v13.0.0
@@ -459,13 +597,42 @@ Complete reference for all major dependencies, versions, and best practices for 
 - lint-staged v16 includes better performance
 - Commitlint v20 supports latest commit conventions
 
-### Build Tools
+### Testing
+
+**Components:**
+
+- `jest`: ^30.2.0
+- `@types/jest`: ^30.0.0
+- `@swc/core`: ^1.15.18
+- `@swc/jest`: ^0.2.39
+- `@nestjs/testing`: ^11.1.14
+- `testcontainers`: ^11.12.0
+- `@testcontainers/postgresql`: ^11.12.0
+
+**Best Practices:**
+
+- Use Jest 30 as test runner
+- Use SWC for fast test transpilation (instead of ts-jest)
+- Use Testcontainers for integration tests with real PostgreSQL
+- Use @nestjs/testing for module-level test setup
+- Run unit and integration tests separately via `--selectProjects`
+
+**Version Notes:**
+
+- Jest 30 is the latest major version with improved performance
+- SWC transpiles TypeScript ~20x faster than ts-jest
+- Testcontainers spins up real Docker containers for integration tests
+
+### Build & Dev Tools
 
 **Components:**
 
 - `ts-node`: ^10.9.2
 - `ts-loader`: ^9.5.2
 - `tsconfig-paths`: ^4.2.0
+- `concurrently`: ^9.2.1
+- `madge`: ^8.0.0
+- `dotenv`: ^17.3.1
 
 **Best Practices:**
 
@@ -473,6 +640,8 @@ Complete reference for all major dependencies, versions, and best practices for 
 - Configure path aliases in tsconfig.json
 - Use tsconfig-paths for module resolution
 - Enable incremental compilation for faster builds
+- Use concurrently for running multiple apps in parallel (`pnpm dev:all`)
+- Use madge for detecting circular dependencies
 
 ## Dependency Management
 
@@ -569,7 +738,8 @@ Complete reference for all major dependencies, versions, and best practices for 
 | Component      | Minimum Version | Recommended Version | Notes                                            |
 | -------------- | --------------- | ------------------- | ------------------------------------------------ |
 | Node.js        | 22.16.0         | 22.x LTS            | Required for Fastify v5 and project dependencies |
-| PostgreSQL     | 12.0            | 15.x or 16.x        | Required for RLS features                        |
+| PostgreSQL     | 15.0            | 16.x (pgvector)     | Required for RLS + pgvector                      |
+| Redis          | 7.0             | 7.x (Alpine)        | Required for BullMQ queues                       |
 | TypeScript     | 5.0.0           | 5.7.3               | Required for NestJS 11                           |
 | PNPM           | 8.0.0           | 9.x                 | For workspace features                           |
 | Docker         | 20.10.0         | Latest              | For development environment                      |
@@ -581,16 +751,18 @@ Complete reference for all major dependencies, versions, and best practices for 
 
 - Node.js 22.16.0 or higher (LTS recommended)
 - PNPM 9.x
-- PostgreSQL 15+ (via Docker)
+- PostgreSQL 16+ with pgvector (via Docker: `pgvector/pgvector:pg16`)
+- Redis 7+ (via Docker: `redis:7-alpine`)
+- MinIO (S3-compatible, via Docker)
 - Docker & Docker Compose
 - Git 2.x
 
 ### Production
 
 - Node.js 22.16.0 or higher (LTS recommended)
-- PostgreSQL 15+ (managed service recommended)
+- PostgreSQL 16+ with pgvector extension (managed service recommended)
+- Redis 7+ (managed service recommended)
 - S3-compatible storage
-- Redis (for caching, if implemented)
 - Load balancer (for horizontal scaling)
 
 ## Security Considerations
@@ -626,10 +798,11 @@ Complete reference for all major dependencies, versions, and best practices for 
 - Compression middleware (should be added)
 - Rate limiting (should be added)
 
-### Caching
+### Caching & Queues
 
-- Consider adding Redis for session storage
-- Implement query result caching for read-heavy operations
+- Redis is deployed for BullMQ queue backend
+- Entitlement snapshots provide caching for entitlement resolution
+- Consider Redis caching for read-heavy operations
 - Use ETags for conditional requests
 
 ## Recommended Additions
@@ -637,18 +810,16 @@ Complete reference for all major dependencies, versions, and best practices for 
 ### Missing but Recommended Dependencies
 
 1. **@nestjs/throttler** - Rate limiting
-2. **@nestjs/cache-manager** - Caching layer
-3. **helmet** - Security headers (Fastify equivalent: @fastify/helmet)
-4. **compression** - Response compression (Fastify equivalent: @fastify/compress)
-5. **winston** or **pino** - Structured logging (Pino recommended for Fastify)
+2. **@nestjs/cache-manager** - Caching layer (Redis-backed)
+3. **@fastify/helmet** - Security headers
+4. **@fastify/compress** - Response compression
+5. **pino** - Structured logging (recommended for Fastify, native integration)
 
 ### Future Considerations
 
-1. **Redis:** For caching and session storage
-2. **Bull/BullMQ:** For background job processing
-3. **OpenTelemetry:** For observability and tracing
-4. **Sentry:** For error tracking
-5. **Prometheus:** For metrics collection
+1. **OpenTelemetry:** For observability and tracing
+2. **Sentry:** For error tracking
+3. **Prometheus:** For metrics collection
 
 ## Migration Notes
 
@@ -695,14 +866,18 @@ Complete reference for all major dependencies, versions, and best practices for 
 - [NestJS Documentation](https://docs.nestjs.com/)
 - [Fastify Documentation](https://fastify.dev/)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [pgvector Documentation](https://github.com/pgvector/pgvector)
 - [TypeScript Documentation](https://www.typescriptlang.org/docs/)
 - [AWS SDK v3 Documentation](https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/)
+- [BullMQ Documentation](https://docs.bullmq.io/)
+- [ioredis Documentation](https://github.com/redis/ioredis)
+- [OpenAI API Documentation](https://platform.openai.com/docs)
 
 ## Metadata
 
-- **Last Updated:** 2026-02-01
+- **Last Updated:** 2026-03-04
 - **Project:** Complytude Backend
-- **Stack Version:** 1.0
+- **Stack Version:** 2.0
 - **Node Version:** 22.16.0+
 - **NestJS Version:** 11.0.1
 - **Fastify Version:** 5.2.1

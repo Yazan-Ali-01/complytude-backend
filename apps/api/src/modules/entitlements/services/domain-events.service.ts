@@ -1,4 +1,4 @@
-import { QueryOptions } from '@lib/database';
+import { DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -7,7 +7,6 @@ import {
   DomainEventFilters,
   DomainEventSummary,
 } from '../../../common/types/entitlement.types';
-import { DatabaseService } from '../../../database/database.service';
 import { DomainEventsRepository } from '../../../repositories/domain-events/domain-events.repository';
 
 /**
@@ -308,7 +307,7 @@ export class DomainEventsService {
 
             // Filter to only those that reference this usage event
             const relatedCredits = creditEvents.filter((ce) => {
-              const payload = ce.payload as any;
+              const payload = ce.payload as { usage_ledger_id?: string };
               return payload.usage_ledger_id === resourceId;
             });
 

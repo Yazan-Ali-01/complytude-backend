@@ -1,10 +1,9 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreateUsageAllocationRow,
   UsageAllocation,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type UsageAllocationRow = {
   id: string;
@@ -61,7 +60,7 @@ export class UsageAllocationsRepository extends BaseRepository<
     }
 
     // Build bulk insert query
-    const values: any[] = [];
+    const values: unknown[] = [];
     const valuePlaceholders: string[] = [];
     let paramIndex = 1;
 

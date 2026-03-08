@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Injectable,
@@ -14,7 +15,6 @@ import {
   TenantOverride,
   UpdateTenantOverrideRow,
 } from '../../../common/types/entitlement.types';
-import { DatabaseService } from '../../../database/database.service';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { ServiceCallOptions } from '../../tenants/tenant.service';
@@ -64,7 +64,7 @@ export class TenantOverridesService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: context.canManageSettings ?? false },
+      { tenantId, isTenantAdmin: true },
       (client) =>
         this.tenantOverridesRepository.findActiveByTenant(tenantId, { client }),
     );

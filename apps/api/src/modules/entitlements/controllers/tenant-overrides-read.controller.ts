@@ -34,7 +34,7 @@ export class TenantOverridesReadController {
     const overrides = await this.tenantOverridesService.listOverrides(
       user.tenantId,
       {
-        context: { mode: 'tenant', canManageSettings: true },
+        context: { mode: 'tenant' },
       },
     );
 

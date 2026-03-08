@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PlanKey } from 'src/common/types/entitlement.types';
 import {
@@ -8,7 +9,6 @@ import {
   PLAN_CATALOG,
   PLAN_ENTITLEMENTS,
 } from '../../../common/constants/plan-entitlements.constant';
-import { DatabaseService } from '../../../database/database.service';
 import { PlanEntitlementsRepository } from '../../../repositories/entitlements/plan-entitlements.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { PlansRepository } from '../../../repositories/plans/plans.repository';
@@ -88,7 +88,6 @@ export class EntitlementSyncService implements OnModuleInit {
         RETURNING key
         `,
         codeKeys,
-        true, // bypassRLS
       );
 
       if (deactivateResult.rows.length > 0) {
@@ -101,7 +100,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Features synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 
   /**
@@ -144,7 +143,6 @@ export class EntitlementSyncService implements OnModuleInit {
         RETURNING key
         `,
         codeKeys,
-        true, // bypassRLS
       );
 
       if (deactivateResult.rows.length > 0) {
@@ -157,7 +155,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Plans synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 
   /**
@@ -245,7 +243,6 @@ export class EntitlementSyncService implements OnModuleInit {
           RETURNING id
           `,
           allSyncedEntitlementIds,
-          true, // bypassRLS
         );
 
         if (deleteResult.rows.length > 0) {
@@ -256,6 +253,6 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Plan entitlements synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 }

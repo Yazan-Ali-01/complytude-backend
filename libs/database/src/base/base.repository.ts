@@ -64,7 +64,7 @@ export abstract class BaseRepository<
       );
     }
 
-    return this.databaseService.query<T>(query, params, isAuthflow);
+    return this.databaseService.query<T>(query, params);
   }
 
   private async runWithClient<T extends QueryResultRow = QueryResultRow>(

@@ -1,11 +1,17 @@
+import { DatabaseService } from '@lib/database';
 import { AI_JOB_NAMES, QUEUE_NAMES, QueueProducerService } from '@lib/queue';
-import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  NotImplementedException,
+} from '@nestjs/common';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
-import { DatabaseService } from '../../database/database.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
 import type {
+  AnalysisJobResponseDto,
   AnalyzeDocumentDto,
   AnalyzeDocumentResponseDto,
   DeleteDocumentResponseDto,
@@ -74,6 +80,80 @@ export class DocumentsService {
     );
 
     return { documentId, analysisJobId };
+  }
+
+  /**
+   * Get the latest analysis job for a document.
+   * Tenant-scoped via RLS; returns 404 if document or job not found.
+   */
+  async getLatestAnalysis(
+    documentId: string,
+    user: AuthenticatedTenantUser,
+  ): Promise<AnalysisJobResponseDto> {
+    const tenantContext = {
+      tenantId: user.tenantId,
+      schema: 'public' as const,
+    };
+
+    const document = await this.documentRepository.findById(documentId, {
+      tenant: tenantContext,
+    });
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    const job = await this.analysisJobRepository.findLatestByDocument(
+      documentId,
+      { tenant: tenantContext },
+    );
+    if (!job) {
+      throw new NotFoundException('No analysis job found for this document');
+    }
+
+    return this.mapAnalysisJobToDto(job);
+  }
+
+  /**
+   * Get a specific analysis job by ID.
+   * Tenant-scoped via RLS; returns 404 if not found.
+   */
+  async getAnalysisJobById(
+    analysisJobId: string,
+    user: AuthenticatedTenantUser,
+  ): Promise<AnalysisJobResponseDto> {
+    const tenantContext = {
+      tenantId: user.tenantId,
+      schema: 'public' as const,
+    };
+
+    const job = await this.analysisJobRepository.findById(analysisJobId, {
+      tenant: tenantContext,
+    });
+    if (!job) {
+      throw new NotFoundException('Analysis job not found');
+    }
+
+    return this.mapAnalysisJobToDto(job);
+  }
+
+  private mapAnalysisJobToDto(job: {
+    id: string;
+    document_id: string;
+    status: string;
+    result: Record<string, unknown> | null;
+    error: string | null;
+    started_at: Date | null;
+    completed_at: Date | null;
+  }): AnalysisJobResponseDto {
+    return {
+      id: job.id,
+      status: job.status as AnalysisJobResponseDto['status'],
+      documentId: job.document_id,
+      startedAt: job.started_at?.toISOString() ?? null,
+      completedAt: job.completed_at?.toISOString() ?? null,
+      result: job.result ?? null,
+      error: job.error ?? null,
+    };
   }
 
   /**

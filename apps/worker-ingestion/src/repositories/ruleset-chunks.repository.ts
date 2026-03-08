@@ -26,7 +26,7 @@ export class RulesetChunksRepository {
     const query = `DELETE FROM public.ruleset_chunks WHERE ruleset_version_id = $1`;
     const result = client
       ? await client.query(query, [versionId])
-      : await this.databaseService.query(query, [versionId], true);
+      : await this.databaseService.query(query, [versionId]);
 
     return result.rowCount ?? 0;
   }
@@ -79,7 +79,7 @@ export class RulesetChunksRepository {
     if (client) {
       await client.query(query, params);
     } else {
-      await this.databaseService.query(query, params, true);
+      await this.databaseService.query(query, params);
     }
   }
 }

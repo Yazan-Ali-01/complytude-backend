@@ -3,19 +3,17 @@ import {
   CursorPaginationHelper,
   CursorPaginationOptions,
   CursorPaginationResult,
+  DatabaseService,
   QueryOptions,
 } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
-import { PlanKey } from 'src/common/types/entitlement.types';
 import { Tenant } from 'src/modules/tenants/entities/tenant.entity';
-import { DatabaseService } from '../../database/database.service';
 
 /**
  * Type for creating a new tenant row in the database.
  */
 export type CreateTenantRow = {
   id?: string;
-  plan?: PlanKey;
   is_active?: boolean;
   parent_tenant_id?: string;
   name?: string | null;
@@ -32,7 +30,6 @@ export type CreateTenantRow = {
  * Type for updating an existing tenant row in the database.
  */
 export type UpdateTenantRow = {
-  plan?: PlanKey;
   is_active?: boolean;
   parent_tenant_id?: string;
   name?: string | null;
@@ -64,7 +61,6 @@ export type UpdateTenantRow = {
 
 type TenantRow = {
   id: string;
-  plan: PlanKey;
   is_active: boolean;
   parent_tenant_id?: string;
   name?: string | null;
@@ -234,7 +230,6 @@ export class TenantRepository extends BaseRepository<
   protected getSelectColumns(): string {
     return [
       'id',
-      'plan',
       'is_active',
       'parent_tenant_id',
       'name',
@@ -276,7 +271,6 @@ export class TenantRepository extends BaseRepository<
     const data = row as TenantRow;
     return {
       id: data.id,
-      plan: data.plan,
       is_active: data.is_active,
       parent_tenant_id: data.parent_tenant_id,
       name: data.name ?? null,

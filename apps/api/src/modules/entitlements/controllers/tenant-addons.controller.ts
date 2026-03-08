@@ -48,7 +48,7 @@ export class TenantAddonsController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantAddonResponseDto[]> {
     const addons = await this.tenantAddonsService.listAddons(user.tenantId, {
-      context: { mode: 'tenant', canManageSettings: true },
+      context: { mode: 'tenant' },
     });
 
     return addons.map((addon) => mapTenantAddonToDto(addon, addon.addon_name));
@@ -70,7 +70,7 @@ export class TenantAddonsController {
       user.tenantId,
       dto.addonKey,
       dto.quantity ?? 1,
-      { context: { mode: 'tenant', canManageSettings: true } },
+      { context: { mode: 'tenant' } },
     );
 
     return mapTenantAddonToDto(created, created.addon_name);
@@ -94,7 +94,7 @@ export class TenantAddonsController {
       user.tenantId,
       id,
       dto,
-      { context: { mode: 'tenant', canManageSettings: true } },
+      { context: { mode: 'tenant' } },
     );
 
     return mapTenantAddonToDto(updated, updated.addon_name);
@@ -114,7 +114,7 @@ export class TenantAddonsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<MessageResponseDto> {
     await this.tenantAddonsService.removeAddon(user.tenantId, id, {
-      context: { mode: 'tenant', canManageSettings: true },
+      context: { mode: 'tenant' },
     });
 
     return new MessageResponseDto(this.i18n.t(I18nKeys.ADDON_REMOVE_SUCCESS));

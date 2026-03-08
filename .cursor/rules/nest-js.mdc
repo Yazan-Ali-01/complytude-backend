@@ -1,9 +1,7 @@
 ---
 description: >
-  Core NestJS development patterns and conventions for the Complytude Backend.
-  For project structure, see project-structure.mdc
-  For dependencies & versions, see technology-stack.mdc
-alwaysApply: true
+  Core NestJS development patterns, conventions, database/repository patterns, RBAC, auth, audit, entitlements, and queue architecture for the Complytude Backend. Use when implementing features, writing controllers/services/repositories, or working with auth, RBAC, entitlements, or background jobs.
+alwaysApply: false
 ---
 
 # NestJS Development Guidelines
@@ -80,33 +78,42 @@ architecture:
 # ========================================
 
 database:
-driver: "pg (native PostgreSQL driver)"
-architecture: "Repository pattern with BaseRepository"
+driver: "pg (native PostgreSQL driver) + pgvector"
+architecture: "Repository pattern with BaseRepository (in libs/database)"
 multi_tenancy: "Row-Level Security (RLS) via session context"
 status: "PRE-PRODUCTION - see pre-production.mdc for migration guidelines"
 
-# DatabaseService (Global Module)
+# DatabaseService (Shared Library - `@lib/database`)
 
-The DatabaseService provides all database operations:
+The DatabaseService lives in `libs/database/src/database.service.ts` and provides all database operations.
+Import from `@lib/database`.
 
 **Key Methods:**
 
-- `query(text, params, bypassRLS)` - Execute parameterized queries
-- `transaction(callback, bypassRLS)` - Run operations in transaction
-- `queryWithTenantContext(tenantId, text, params)` - Query with tenant context
-- `transactionWithTenantContext(tenantId, callback)` - Transaction with tenant context
+- `query(text, params)` - Execute parameterized queries (no RLS context — use for global/non-tenant data)
+- `transaction(callback)` - Run operations in a transaction (no RLS context)
+- `transactionWithTenantContext({ tenantId, isTenantAdmin?, allowCrossTenantRead? }, callback)` - Transaction with tenant RLS context
+- `transactionWithPlatformAdminContext(callback)` - Transaction with platform admin context (bypasses tenant RLS)
 - `getClient()` - Get PoolClient for manual control
+
+**Session Context Variables (set automatically by transaction methods):**
+
+- `app.tenant_id` - Current tenant UUID (set by transactionWithTenantContext)
+- `app.is_tenant_admin` - Whether current user is tenant admin (set by transactionWithTenantContext)
+- `app.allow_cross_tenant_read` - Allow cross-tenant SELECT (set by transactionWithTenantContext)
+- `app.platform_role` - Platform admin flag (set by transactionWithPlatformAdminContext)
 
 **Features:**
 
 - Connection pooling (pg.Pool)
 - Parameterized queries (SQL injection prevention)
 - Transaction support with automatic rollback
-- Tenant context management for RLS
+- Tenant context management for RLS (transaction-scoped via SET LOCAL)
+- Platform admin context for system-wide operations
 
 # Repository Pattern
 
-All repositories extend `BaseRepository<TEntity, TCreate, TUpdate>`:
+All repositories extend `BaseRepository<TEntity, TCreate, TUpdate>` from `libs/database/src/base/base.repository.ts`:
 
 **Required Implementations:**
 
@@ -117,7 +124,8 @@ All repositories extend `BaseRepository<TEntity, TCreate, TUpdate>`:
 
 - Inject DatabaseService via constructor
 - Use `executeQuery()` for all database operations
-- Support tenant context and RLS bypass options
+- Use `transactionWithTenantContext` for tenant-scoped data access
+- Use `transactionWithPlatformAdminContext` for system-wide operations
 - Use explicit column selection for performance
 
 **Example Repository:**
@@ -171,9 +179,12 @@ export class UserRepository extends BaseRepository<
 
 **Row-Level Security Implementation:**
 
-- Set tenant context: `await db.query('SELECT set_config($1, $2, true)', ['app.current_tenant_id', tenantId])`
-- RLS policies automatically filter data by tenant_id
-- Use `bypassRLS: true` for system admin operations
+- Use `transactionWithTenantContext({ tenantId }, callback)` for all tenant-scoped operations
+- Session variable `app.tenant_id` is set automatically (transaction-scoped via SET LOCAL)
+- RLS policies use `current_tenant_id_or_null()` to filter data by tenant
+- Use `transactionWithPlatformAdminContext(callback)` for system admin operations (sets `app.platform_role`)
+- Pass `{ isTenantAdmin: true }` when the user is a tenant admin (for update/delete RLS policies)
+- Pass `{ allowCrossTenantRead: true }` for cross-tenant reads (e.g., slug uniqueness checks)
 
 # Database Migrations (Pre-Production)
 
@@ -270,8 +281,8 @@ async create() { }
 rbac:
 architecture: "Dual-level RBAC system"
 levels:
-  tenant: "Tenant-scoped authorization (documents, team, settings)"
-  platform: "Platform-wide authorization (tenant management, system admin)"
+tenant: "Tenant-scoped authorization (documents, team, settings)"
+platform: "Platform-wide authorization (tenant management, system admin)"
 strategy: "Permission-based with wildcard support"
 system_roles: "In-memory permission sets for performance"
 custom_roles: "Database-backed (MVP+)"
@@ -279,14 +290,14 @@ sync: "Auto-sync services run on app startup (TenantRbacSyncService, PlatformRba
 
 # Tenant RBAC vs Platform RBAC
 
-| Aspect | Tenant RBAC | Platform RBAC |
-|--------|-------------|---------------|
-| **Scope** | Tenant-specific operations | Platform-wide operations |
-| **Authentication** | Tenant token (`tenantAccessToken`) | Identity token (`identityAccessToken`) |
-| **Use Cases** | Documents, team, settings | Tenant management, global templates, system admin |
-| **Guard** | `TenantPermissionsGuard` | `PlatformPermissionsGuard` |
-| **Decorators** | `@RequireAnyTenantPermission()` | `@RequireAnyPlatformPermission()` |
-| **Roles** | `tenant_admin`, `legal_counsel`, `member`, `viewer` | `system_admin`, `support`, `auditor` |
+| Aspect             | Tenant RBAC                                         | Platform RBAC                                     |
+| ------------------ | --------------------------------------------------- | ------------------------------------------------- |
+| **Scope**          | Tenant-specific operations                          | Platform-wide operations                          |
+| **Authentication** | Tenant token (`tenantAccessToken`)                  | Identity token (`identityAccessToken`)            |
+| **Use Cases**      | Documents, team, settings                           | Tenant management, global templates, system admin |
+| **Guard**          | `TenantPermissionsGuard`                            | `PlatformPermissionsGuard`                        |
+| **Decorators**     | `@RequireAnyTenantPermission()`                     | `@RequireAnyPlatformPermission()`                 |
+| **Roles**          | `tenant_admin`, `legal_counsel`, `member`, `viewer` | `system_admin`, `support`, `auditor`              |
 
 # ========================================
 
@@ -306,12 +317,12 @@ sync: "EntitlementSyncService syncs features/plans from constants to DB on start
 
 ## Tenant System Roles
 
-| Role | Key | Permissions | Description |
-|------|-----|-------------|-------------|
-| Tenant Admin | `tenant_admin` | `*:*` | Full access to all tenant features |
-| Legal Counsel | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query` | AI drafting, analysis, templates |
-| Member | `member` | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation |
-| Viewer | `viewer` | `documents:read`, `regulatory:query` | Read-only access |
+| Role          | Key             | Permissions                                                               | Description                        |
+| ------------- | --------------- | ------------------------------------------------------------------------- | ---------------------------------- |
+| Tenant Admin  | `tenant_admin`  | `*:*`                                                                     | Full access to all tenant features |
+| Legal Counsel | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`           | AI drafting, analysis, templates   |
+| Member        | `member`        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation            |
+| Viewer        | `viewer`        | `documents:read`, `regulatory:query`                                      | Read-only access                   |
 
 ## Tenant Permission Examples
 
@@ -319,8 +330,8 @@ sync: "EntitlementSyncService syncs features/plans from constants to DB on start
 import {
   RequireAllTenantPermissions,
   RequireAnyTenantPermission,
-} from 'src/common/decorators/permissions.decorator';
-import { TenantPermissionsGuard } from 'src/common/guards/permissions.guard';
+} from 'src/common/decorators/tenant-permissions.decorator';
+import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 
 // Tenant-scoped endpoint
 @AuthOptions({ tenant: true })
@@ -353,11 +364,11 @@ async bulkOperation(@CurrentUserTenant() user: AuthenticatedTenantUser) { }
 
 ## Platform System Roles
 
-| Role | Key | Permissions | Description |
-|------|-----|-------------|-------------|
-| System Admin | `system_admin` | `*:*` | Full access to all platform features |
-| Support | `support` | Read-only permissions | Customer support access |
-| Auditor | `auditor` | Audit-focused permissions | Audit and compliance access |
+| Role         | Key            | Permissions               | Description                          |
+| ------------ | -------------- | ------------------------- | ------------------------------------ |
+| System Admin | `system_admin` | `*:*`                     | Full access to all platform features |
+| Support      | `support`      | Read-only permissions     | Customer support access              |
+| Auditor      | `auditor`      | Audit-focused permissions | Audit and compliance access          |
 
 ## Platform Permission Examples
 
@@ -394,22 +405,24 @@ async createGlobalTemplate(@CurrentUserIdentity() identity: AuthenticatedIdentit
 
 # When to Use Which RBAC System
 
-| Scenario | Use | Authentication | Example |
-|----------|-----|----------------|---------|
-| User creates document | Tenant RBAC | Tenant Token | `@RequireAnyTenantPermission('documents:create')` |
-| User manages team | Tenant RBAC | Tenant Token | `@RequireAnyTenantPermission('team:manage')` |
-| System admin creates tenant | Platform RBAC | Identity Token | `@RequireAnyPlatformPermission('tenants:create')` |
-| Support views all tenants | Platform RBAC | Identity Token | `@RequireAnyPlatformPermission('tenants:read')` |
+| Scenario                              | Use           | Authentication | Example                                             |
+| ------------------------------------- | ------------- | -------------- | --------------------------------------------------- |
+| User creates document                 | Tenant RBAC   | Tenant Token   | `@RequireAnyTenantPermission('documents:create')`   |
+| User manages team                     | Tenant RBAC   | Tenant Token   | `@RequireAnyTenantPermission('team:manage')`        |
+| System admin creates tenant           | Platform RBAC | Identity Token | `@RequireAnyPlatformPermission('tenants:create')`   |
+| Support views all tenants             | Platform RBAC | Identity Token | `@RequireAnyPlatformPermission('tenants:read')`     |
 | System admin manages global templates | Platform RBAC | Identity Token | `@RequireAnyPlatformPermission('templates:manage')` |
 
 # Adding New Permissions
 
 **Tenant Permissions:**
+
 1. Add to `TENANT_PERMISSIONS` object in `tenant-permissions.constant.ts` (single source of truth)
 2. The `ALL_TENANT_PERMISSIONS` array is automatically derived from the object
 3. Restart app - `TenantRbacSyncService` handles database update
 
 **Platform Permissions:**
+
 1. Add to `PLATFORM_PERMISSIONS` object in `platform-permissions.constant.ts` (single source of truth)
 2. The `ALL_PLATFORM_PERMISSIONS` array is automatically derived from the object
 3. Restart app - `PlatformRbacSyncService` handles database update
@@ -417,8 +430,9 @@ async createGlobalTemplate(@CurrentUserIdentity() identity: AuthenticatedIdentit
 # Key RBAC Files
 
 **Tenant RBAC:**
-- `src/common/decorators/permissions.decorator.ts` - Tenant permission decorators
-- `src/common/guards/permissions.guard.ts` - Tenant permission guard
+
+- `src/common/decorators/tenant-permissions.decorator.ts` - Tenant permission decorators
+- `src/common/guards/tenant-permissions.guard.ts` - Tenant permission guard
 - `src/common/constants/tenant-permissions.constant.ts` - Tenant permissions (source of truth)
 - `src/common/constants/tenant-system-roles.constant.ts` - Tenant system role permissions
 - `src/modules/tenant-rbac/tenant-rbac.service.ts` - Tenant RBAC business logic
@@ -427,6 +441,7 @@ async createGlobalTemplate(@CurrentUserIdentity() identity: AuthenticatedIdentit
 - `src/repositories/tenant-rbac/tenant-permissions.repository.ts` - Tenant permissions data access
 
 **Platform RBAC:**
+
 - `src/common/decorators/platform-permissions.decorator.ts` - Platform permission decorators
 - `src/common/guards/platform-permissions.guard.ts` - Platform permission guard
 - `src/common/constants/platform-permissions.constant.ts` - Platform permissions (source of truth)
@@ -435,6 +450,7 @@ async createGlobalTemplate(@CurrentUserIdentity() identity: AuthenticatedIdentit
 - `src/modules/platform-rbac/platform-rbac-sync.service.ts` - Platform RBAC sync service
 
 **Shared:**
+
 - `src/common/utils/permission-matcher.util.ts` - Wildcard matching utilities (shared)
 
 # Global Module Architecture
@@ -474,6 +490,132 @@ export class MyModule {}
 
 # ========================================
 
+# Audit System
+
+# ========================================
+
+audit:
+architecture: "Two-level decorator + interceptor pattern for automatic audit logging"
+module: "AuditModule (src/modules/audit/) — NOT global, import where needed"
+decorators:
+controller: "@AuditResource('documents') — sets default resource type for all methods"
+method: "@AuditAction('create') or @AuditAction({ action, subResource?, resourceType? })"
+interceptor: "AuditInterceptor (src/common/interceptors/audit.interceptor.ts)"
+
+# How Audit Works
+
+The audit system uses a two-level decorator + interceptor pattern:
+
+1. `@AuditResource('documents')` on the **controller** sets the default resource type for all endpoints
+2. `@AuditAction('create')` on **methods** sets or overrides the action (optional — falls back to HTTP method mapping)
+3. `AuditInterceptor` runs after the handler, reads decorator metadata, and fires `AuditService.log()` asynchronously (fire-and-forget)
+4. `AuditService` persists to `audit_logs` table via `AuditLogsRepository` — errors are caught and logged, never thrown
+
+**Decorator Usage:**
+
+```typescript
+@Controller('documents')
+@AuditResource('documents') // Controller-level: all methods default to 'documents' resource
+export class DocumentsController {
+  @Post()
+  @AuditAction('create') // Simple: logs as 'documents:create'
+  async create() {}
+
+  @Patch('jurisdiction')
+  @AuditAction({ action: 'change', subResource: 'jurisdiction' }) // Structured: logs as 'documents:change_jurisdiction'
+  async changeJurisdiction() {}
+
+  @Post('export')
+  @AuditAction({ action: 'export', resourceType: 'reports' }) // Override resource: logs as 'reports:export'
+  async exportDocument() {}
+
+  @Get()
+  // No @AuditAction — interceptor derives 'documents:read' from GET method
+  async findAll() {}
+}
+```
+
+**What the interceptor captures:**
+
+- `tenantId`, `userId`, `userRole` from the tenant JWT context
+- `action` from `@AuditAction` or HTTP method mapping (GET→read, POST→create, PATCH/PUT→update, DELETE→delete)
+- `resourceType` from `@AuditAction.resourceType` > `@AuditResource` > URL path segment
+- `resourceId` best-effort extracted from response body (`response.id` or `response.data.id`)
+- `ipAddress` from `X-Forwarded-For` header or `request.ip`
+- `userAgent` from request headers
+- Both successes and errors are logged
+
+**Key Files:**
+
+- `src/common/decorators/audit.decorator.ts` - `@AuditResource()` and `@AuditAction()` decorators
+- `src/common/interceptors/audit.interceptor.ts` - Intercepts requests, reads metadata, fires audit log
+- `src/modules/audit/audit.service.ts` - `log()`, `getAuditLogs()`, `getUserAuditLogs()`, `countAuditLogs()`
+- `src/modules/audit/audit.module.ts` - AuditModule (exports AuditService)
+- `src/repositories/audit/audit-logs.repository.ts` - Audit data access
+
+# ========================================
+
+# Background Job Processing
+
+# ========================================
+
+queue:
+library: "BullMQ via @nestjs/bullmq"
+backend: "Redis (ioredis)"
+shared_lib: "libs/queue/ (@lib/queue)"
+producers: "API application dispatches jobs"
+consumers: "Worker applications process jobs"
+
+# Queue Architecture
+
+The system uses a producer-consumer pattern with BullMQ:
+
+**Producer (API):**
+
+- Import `QueueModule` and use `QueueProducerService` to dispatch jobs
+- Job payloads defined in `libs/queue/src/interfaces/`
+- Type-safe dispatch: `queueProducer.addJob('ai-processing', 'analyze-document', payload)`
+
+**Consumer (Workers):**
+
+- Extend `AbstractProcessor` from `@lib/queue`
+- Register processors with `@Processor('queue-name')` decorator
+- Each worker app is a separate NestJS application
+
+**Queues:**
+
+- `ai-processing` - Document analysis jobs (consumed by worker-ai)
+- `data-ingestion` - Ruleset chunking + embedding (consumed by worker-ingestion)
+- `entitlement-processing` - Async entitlement operations (consumed by API)
+
+**Key Files:**
+
+- `libs/queue/src/queue.module.ts` - Queue module registration
+- `libs/queue/src/queue-producer.service.ts` - Type-safe job dispatch
+- `libs/queue/src/queue.constants.ts` - Queue name constants
+- `libs/queue/src/interfaces/` - Job payload interfaces
+- `libs/queue/src/abstract-processor.ts` - Base processor class
+
+# Worker Application Pattern
+
+Workers are separate NestJS applications under `apps/`:
+
+```
+apps/worker-{name}/
+├── src/
+│   ├── main.ts                    # Bootstrap with Fastify
+│   ├── worker-{name}.module.ts    # Root module (imports libs)
+│   ├── config/                    # Worker-specific config
+│   ├── processors/                # BullMQ processors
+│   ├── services/                  # Business logic
+│   └── repositories/              # Worker-specific data access
+└── package.json
+```
+
+Workers import shared libraries (`@lib/database`, `@lib/queue`, `@lib/redis`, `@lib/embedding`) but have their own repositories and services.
+
+# ========================================
+
 # Best Practices
 
 # ========================================
@@ -487,10 +629,12 @@ export class MyModule {}
 
 # Database
 
+- Import DatabaseService from `@lib/database`
 - Use DatabaseService for all operations (never instantiate pg.Pool directly)
 - Always use parameterized queries to prevent SQL injection
 - Repositories handle data access; services handle business logic
-- Set tenant context for RLS-protected queries
+- Use `transactionWithTenantContext` for all tenant-scoped data access (sets RLS context)
+- Use `transactionWithPlatformAdminContext` for system-wide operations
 - Use transactions for multi-step operations
 - Use explicit column selection (no SELECT \*)
 
@@ -529,8 +673,11 @@ export class MyModule {}
 # Daily Development
 
 ```bash
-pnpm dev                # Start development (auto-starts services + hot-reload)
-pnpm start:dev          # Start with watch mode only
+pnpm dev                # Start API development (auto-starts services + hot-reload)
+pnpm dev:all            # Start all apps (API + worker-ai + worker-ingestion)
+pnpm start:api          # Start API only with watch mode
+pnpm start:worker-ai    # Start AI worker with watch mode
+pnpm start:worker-ingestion  # Start ingestion worker with watch mode
 ```
 
 # Database Operations
@@ -538,7 +685,17 @@ pnpm start:dev          # Start with watch mode only
 ```bash
 pnpm db:migrate         # Run database migrations
 pnpm db:seed            # Seed database with initial data
-pnpm docker:start       # Start PostgreSQL + MinIO
+pnpm docker:start       # Start PostgreSQL + Redis + MinIO
+pnpm docker:reset       # Full reset: down -v + start + migrate
+```
+
+# Docker (Multi-environment)
+
+```bash
+pnpm docker:dev         # Start with dev overlay (hot-reload in Docker)
+pnpm docker:prod        # Start with production overlay
+pnpm docker:services    # Start infrastructure services only
+pnpm docker:services:tools  # Start with pgAdmin
 ```
 
 # Code Quality
@@ -547,6 +704,15 @@ pnpm docker:start       # Start PostgreSQL + MinIO
 pnpm lint               # ESLint with auto-fix
 pnpm format             # Prettier formatting
 pnpm type-check         # TypeScript validation
+```
+
+# Testing
+
+```bash
+pnpm test               # Run all tests
+pnpm test:unit          # Run unit tests only
+pnpm test:integration   # Run integration tests only
+pnpm test:coverage      # Run tests with coverage
 ```
 
 # ========================================
@@ -626,11 +792,12 @@ export class CreateFeatureDto {
 
 metadata:
 project: "Complytude Backend"
-version: "2.2"
-updated: "2026-02-03"
+version: "3.0"
+updated: "2026-03-04"
 note: >
 Focused on core NestJS patterns and conventions.
 See project-structure.mdc for project layout.
 See technology-stack.mdc for dependencies and versions.
 See docs/API_CONTRACTS.md for detailed authentication flows.
 See docs/ARCHITECTURE.md for RBAC architecture.
+See docs/RBAC.md for comprehensive RBAC guide.

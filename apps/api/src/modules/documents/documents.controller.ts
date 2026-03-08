@@ -1,25 +1,43 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { FastifyReply } from 'fastify';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiAuthErrors,
   ApiForbiddenError,
+  ApiNotFoundError,
   ApiValidationError,
 } from 'src/common/swagger/decorators';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
 import { DocumentsService } from './documents.service';
-import { AnalyzeDocumentDto, AnalyzeDocumentResponseDto } from './dto';
+import {
+  AnalysisJobResponseDto,
+  AnalyzeDocumentDto,
+  AnalyzeDocumentResponseDto,
+} from './dto';
+
+const RETRY_AFTER_SECONDS = 5;
+
+function setRetryAfterIfPending(reply: FastifyReply, status: string): void {
+  if (status === 'queued' || status === 'processing') {
+    reply.header('Retry-After', String(RETRY_AFTER_SECONDS));
+  }
+}
 
 @ApiTags('Documents')
 @Controller('documents')
@@ -27,6 +45,37 @@ import { AnalyzeDocumentDto, AnalyzeDocumentResponseDto } from './dto';
 @SwaggerCookieAuth.tenantAccessToken()
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
+
+  @Get(':documentId/analysis')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:read')
+  @ApiOperation({
+    summary: 'Get latest analysis job for document',
+    description:
+      'Returns the latest analysis job for the given document. Poll this endpoint for status and results.',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Latest analysis job (queued, processing, completed, or failed)',
+    type: AnalysisJobResponseDto,
+  })
+  @ApiNotFoundError('Document or analysis job')
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to read documents')
+  async getLatestAnalysis(
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<AnalysisJobResponseDto> {
+    const result = await this.documentsService.getLatestAnalysis(
+      documentId,
+      user,
+    );
+    setRetryAfterIfPending(reply, result.status);
+    return result;
+  }
 
   @Post('analyze')
   @UseGuards(TenantPermissionsGuard)

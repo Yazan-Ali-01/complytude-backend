@@ -156,15 +156,22 @@ export class StorageService {
    * Check if an error represents a "not found" condition
    * Handles both file not found and bucket not found errors
    */
-  private isNotFoundError(error: any): boolean {
+  private isNotFoundError(error: unknown): boolean {
+    const err = error as Record<string, unknown> & {
+      name?: string;
+      Code?: string;
+      $metadata?: { httpStatusCode?: number };
+      message?: string;
+    };
     return (
-      error.name === 'NoSuchKey' ||
-      error.name === 'NotFound' ||
-      error.name === 'NoSuchBucket' ||
-      error.Code === 'NoSuchBucket' ||
-      error.$metadata?.httpStatusCode === 404 ||
-      error.message?.includes('bucket') ||
-      error.message?.includes('does not exist')
+      err.name === 'NoSuchKey' ||
+      err.name === 'NotFound' ||
+      err.name === 'NoSuchBucket' ||
+      err.Code === 'NoSuchBucket' ||
+      err.$metadata?.httpStatusCode === 404 ||
+      (typeof err.message === 'string' && err.message.includes('bucket')) ||
+      (typeof err.message === 'string' &&
+        err.message.includes('does not exist'))
     );
   }
 

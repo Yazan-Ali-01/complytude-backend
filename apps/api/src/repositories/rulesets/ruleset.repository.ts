@@ -1,5 +1,6 @@
 import {
   BaseRepository,
+  DatabaseService,
   OffsetPaginationOptions,
   OffsetPaginationResult,
   QueryOptions,
@@ -9,7 +10,6 @@ import {
   Ruleset,
   RulesetStatus,
 } from 'src/modules/rulesets/entities/ruleset.entity';
-import { DatabaseService } from '../../database/database.service';
 
 export type CreateRulesetRow = {
   key: string;

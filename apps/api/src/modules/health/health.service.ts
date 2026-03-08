@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import { QUEUE_NAMES } from '@lib/queue';
 import { RedisHealthIndicator } from '@lib/redis/redis.health';
 // eslint-disable-next-line no-restricted-imports
@@ -5,7 +6,6 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 // eslint-disable-next-line no-restricted-imports
 import { Queue } from 'bullmq';
-import { DatabaseService } from 'src/database/database.service';
 
 export interface HealthCheckResult {
   status: string;
