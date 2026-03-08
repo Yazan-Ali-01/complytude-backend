@@ -1,1 +1,9 @@
-# Input variables for the s3 module.
+variable "project_name" {
+  description = "Project name used for resource naming"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name (staging, production)"
+  type        = string
+}

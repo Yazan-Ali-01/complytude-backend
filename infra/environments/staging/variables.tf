@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region to deploy resources into"
   type        = string
-  default     = "me-central-1"
+  default     = "eu-central-1"
 }
 
 variable "environment" {
@@ -25,7 +25,7 @@ variable "vpc_cidr" {
 variable "availability_zones" {
   description = "List of AZs to deploy subnets into"
   type        = list(string)
-  default     = ["me-central-1a", "me-central-1c"]
+  default     = ["eu-central-1a", "eu-central-1b"]
 }
 
 variable "db_password" {
@@ -37,4 +37,160 @@ variable "db_password" {
     condition     = !can(regex("[\\/@\" ]", var.db_password))
     error_message = "RDS password cannot contain: / @ \" (space). Use only letters, numbers, and symbols like !#$%^&*()-_=+"
   }
+}
+
+variable "bastion_key_name" {
+  description = "EC2 key pair name for bastion SSH access"
+  type        = string
+}
+
+variable "bastion_ssh_allowed_cidrs" {
+  description = "CIDR blocks allowed to SSH to bastion (e.g. [\"YOUR_IP/32\"]). Get your IP: curl -s ifconfig.me"
+  type        = list(string)
+}
+
+# ---- Secrets Manager (application secrets) ----
+variable "app_db_user" {
+  description = "Application DB user — use app_login (run setup-app-user-role.sql first) or postgres for quick dev"
+  type        = string
+  default     = "app_login"
+}
+
+variable "app_db_password" {
+  description = "Application DB password — same as db_password when using postgres user"
+  type        = string
+  sensitive   = true
+}
+
+variable "redis_password" {
+  description = "Redis auth token — empty when transit_encryption_enabled is false"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "redis_tls" {
+  description = "Whether Redis uses TLS"
+  type        = bool
+  default     = false
+}
+
+variable "jwt_access_secret" {
+  description = "JWT access token signing secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "jwt_refresh_secret" {
+  description = "JWT refresh token signing secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "jwt_identity_secret" {
+  description = "JWT identity token signing secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "jwt_identity_refresh_secret" {
+  description = "JWT identity refresh token signing secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "jwt_refresh_hash_secret" {
+  description = "JWT refresh token hash secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "s3_access_key" {
+  description = "S3 access key — create IAM user with S3 permissions, or leave empty for ECS task role"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "s3_secret_key" {
+  description = "S3 secret key"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "s3_endpoint" {
+  description = "S3 endpoint URL — empty for AWS S3"
+  type        = string
+  default     = ""
+}
+
+variable "cors_origins" {
+  description = "CORS allowed origins (comma-separated)"
+  type        = string
+}
+
+variable "openai_api_key" {
+  description = "OpenAI API key — required for worker-ai and worker-ingestion"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# ---- Stripe ----
+variable "stripe_secret_key" {
+  description = "Stripe secret key"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "stripe_publishable_key" {
+  description = "Stripe publishable key"
+  type        = string
+  default     = ""
+}
+
+variable "stripe_webhook_secret" {
+  description = "Stripe webhook signing secret"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "stripe_catalog_sync_enabled" {
+  description = "Enable Stripe catalog sync"
+  type        = string
+  default     = "false"
+}
+
+variable "stripe_tax_enabled" {
+  description = "Enable Stripe tax"
+  type        = string
+  default     = "false"
+}
+
+# ---- ECS ----
+variable "ecs_image_tag" {
+  description = "Docker image tag to deploy (e.g. latest, v1.0.0)"
+  type        = string
+  default     = "latest"
+}
+
+variable "ecs_api_desired_count" {
+  description = "Desired number of API tasks"
+  type        = number
+  default     = 1
+}
+
+variable "ecs_worker_ai_desired_count" {
+  description = "Desired number of worker-ai tasks"
+  type        = number
+  default     = 1
+}
+
+variable "ecs_worker_ingestion_desired_count" {
+  description = "Desired number of worker-ingestion tasks"
+  type        = number
+  default     = 1
 }

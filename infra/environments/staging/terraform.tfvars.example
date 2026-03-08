@@ -1,12 +1,50 @@
 # Copy this file to terraform.tfvars and fill in the values.
 # terraform.tfvars is gitignored — never commit it.
 
-aws_region         = "me-central-1"
+aws_region         = "eu-central-1"
 environment        = "staging"
 project            = "complytude"
 vpc_cidr           = "10.0.0.0/16"
-availability_zones = ["me-central-1a", "me-central-1c"]
+availability_zones = ["eu-central-1a", "eu-central-1b"]
 
 # RDS — never commit your actual password, set it only in terraform.tfvars
 # RDS does NOT allow: / @ " (space). Use only letters, numbers, and symbols like !#$%^&*()-_=+
 db_password = "CHANGE_ME_USE_A_STRONG_PASSWORD"
+
+# Bastion — for SSH tunnel to RDS from your machine
+# Create a key pair in EC2 → Key Pairs if needed
+bastion_key_name          = "your-key-pair-name"
+bastion_ssh_allowed_cidrs = ["YOUR_IP/32"]  # curl -s ifconfig.me to get your IP
+
+# ---- Secrets Manager (application secrets) ----
+# App DB: use app_login (production-like) — run setup-app-user-role.sql via bastion first
+app_db_user     = "app_login"
+app_db_password = "CHANGE_ME_APP_LOGIN_PASSWORD"
+
+# Redis: empty when transit_encryption_enabled is false
+redis_password = ""
+redis_tls      = false
+
+# JWT — generate with: openssl rand -base64 64
+jwt_access_secret           = "CHANGE_ME_GENERATE_WITH_OPENSSL"
+jwt_refresh_secret         = "CHANGE_ME_GENERATE_WITH_OPENSSL"
+jwt_identity_secret        = "CHANGE_ME_GENERATE_WITH_OPENSSL"
+jwt_identity_refresh_secret = "CHANGE_ME_GENERATE_WITH_OPENSSL"
+jwt_refresh_hash_secret    = "CHANGE_ME_GENERATE_WITH_OPENSSL"
+
+# S3 — create IAM user with S3 permissions, or leave empty for ECS task role
+s3_access_key = ""
+s3_secret_key = ""
+s3_endpoint   = ""  # Empty for AWS S3
+
+# CORS — comma-separated origins
+cors_origins = "https://staging.complytude.com"
+
+# OpenAI — required for worker-ai and worker-ingestion
+openai_api_key = "sk-..."
+
+# ECS — image tag and desired counts
+ecs_image_tag                  = "latest"
+ecs_api_desired_count          = 1
+ecs_worker_ai_desired_count    = 1
+ecs_worker_ingestion_desired_count = 1

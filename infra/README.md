@@ -14,6 +14,7 @@ infra/
 │   ├── ecr/          # Container registries
 │   ├── ecs/          # ECS cluster, services, task definitions
 │   ├── alb/          # Application load balancer
+│   ├── secrets/      # AWS Secrets Manager for application secrets
 │   └── monitoring/   # CloudWatch alarms and dashboards
 └── environments/
     ├── staging/      # Staging environment
@@ -26,18 +27,19 @@ Modules are reusable building blocks. Environments wire them together with real 
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.5.0
 - [AWS CLI](https://aws.amazon.com/cli/) configured with `complytude-admin` credentials
-- AWS region: `me-central-1`
+- AWS region: `eu-central-1` (Spain)
 
 ## Remote State
 
 State is stored in S3 with DynamoDB locking — both were created manually (one-time bootstrap):
 
-| Resource | Name |
-|---|---|
-| S3 bucket | `complytude-terraform-state` |
+| Resource       | Name                         |
+| -------------- | ---------------------------- |
+| S3 bucket      | `complytude-terraform-state` |
 | DynamoDB table | `complytude-terraform-locks` |
 
 Each environment has its own state key:
+
 - Staging: `staging/terraform.tfstate`
 - Production: `production/terraform.tfstate`
 
@@ -69,6 +71,59 @@ cp terraform.tfvars.example terraform.tfvars
 ```
 
 > `terraform.tfvars` is gitignored. Never commit it — it may contain secrets.
+
+## Secrets Manager
+
+Application secrets (DB, JWT, Redis, S3) are stored in AWS Secrets Manager as a single JSON secret: `complytude/<env>/app`.
+
+**Required tfvars:** `app_db_password`, `jwt_*_secret`, `cors_origins`. For S3, use `s3_access_key`/`s3_secret_key` or leave empty to use ECS task role.
+
+**Using app_login (production-like):** After RDS is up, run `scripts/setup-app-user-role.sql` via bastion SSH tunnel:
+
+```bash
+PGPASSWORD=$DB_PASSWORD psql -h localhost -p 5432 -U postgres -d complytude \
+  -v app_user="'app_login'" -v app_password="'YOUR_APP_PASSWORD'" -v db_name="complytude" \
+  -f scripts/setup-app-user-role.sql
+```
+
+Use the same `app_password` as `app_db_password` in tfvars.
+
+**ECS integration:** The ECS module attaches `ecs_secrets_policy_arn` to the task execution role and injects all app secrets via the task definition `secrets` block (format: `valueFrom = "${secret_arn}:KEY::"`).
+
+**Rotation:** Update the secret in AWS Console or via `aws secretsmanager put-secret-value`. Terraform will overwrite on next apply — for rotation, use AWS Console or a separate rotation Lambda.
+
+## ECS Deployment (Build, Push, Apply)
+
+After `terraform apply` creates the ECS cluster and services, push Docker images to ECR and ECS will pull them:
+
+```bash
+# Get AWS account ID and region
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+AWS_REGION=eu-central-1
+ECR_BASE=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+# Login to ECR
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_BASE
+
+# Build and push API
+docker build -f apps/api/Dockerfile -t $ECR_BASE/complytude/api:latest --target production .
+docker push $ECR_BASE/complytude/api:latest
+
+# Build and push worker-ai
+docker build -f apps/worker-ai/Dockerfile -t $ECR_BASE/complytude/worker-ai:latest --target production .
+docker push $ECR_BASE/complytude/worker-ai:latest
+
+# Build and push worker-ingestion
+docker build -f apps/worker-ingestion/Dockerfile -t $ECR_BASE/complytude/worker-ingestion:latest --target production .
+docker push $ECR_BASE/complytude/worker-ingestion:latest
+
+# Force ECS to pull new images (or wait for next deploy)
+aws ecs update-service --cluster complytude-staging --service complytude-staging-api --force-new-deployment
+aws ecs update-service --cluster complytude-staging --service complytude-staging-worker-ai --force-new-deployment
+aws ecs update-service --cluster complytude-staging --service complytude-staging-worker-ingestion --force-new-deployment
+```
+
+Verify: `http://$(terraform output -raw alb_dns_name)/api/health` should return 200.
 
 ## Adding a new module
 
