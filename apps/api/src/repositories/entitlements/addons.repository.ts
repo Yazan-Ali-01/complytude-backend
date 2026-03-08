@@ -135,6 +135,22 @@ export class AddonsRepository extends BaseRepository<
   }
 
   /**
+   * Find add-on by Stripe price ID
+   */
+  async findByStripePriceId(
+    priceId: string,
+    options?: QueryOptions,
+  ): Promise<Addon | null> {
+    const result = await this.executeQuery<AddonRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE stripe_price_id = $1`,
+      [priceId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Update the Stripe price ID for an add-on
    */
   async updateStripePriceId(

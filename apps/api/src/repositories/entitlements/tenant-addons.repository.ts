@@ -207,6 +207,25 @@ export class TenantAddonsRepository extends BaseRepository<
   }
 
   /**
+   * Find a tenant add-on by Stripe subscription item ID (any status).
+   * Used during webhook reconciliation to detect existing records before creating duplicates.
+   */
+  async findByStripeSubscriptionItemId(
+    stripeSubscriptionItemId: string,
+    options?: QueryOptions,
+  ): Promise<TenantAddon | null> {
+    const result = await this.executeQuery<TenantAddonRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE stripe_subscription_item_id = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [stripeSubscriptionItemId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Find a single tenant add-on by its ID, scoped to the given tenant.
    * Returns null if not found or belongs to a different tenant.
    */
