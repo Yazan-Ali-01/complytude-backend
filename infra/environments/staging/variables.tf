@@ -194,3 +194,14 @@ variable "ecs_worker_ingestion_desired_count" {
   type        = number
   default     = 1
 }
+
+# ---- DNS & TLS ----
+variable "domain_name" {
+  description = "Root domain (e.g. complytude.com)"
+  type        = string
+}
+
+variable "app_subdomain" {
+  description = "Subdomain for the app (e.g. staging.complytude.com)"
+  type        = string
+}

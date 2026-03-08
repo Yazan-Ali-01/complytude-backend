@@ -33,6 +33,11 @@ variable "alb_security_group_id" {
   type        = string
 }
 
+variable "acm_certificate_arn" {
+  description = "ARN of ACM certificate for HTTPS listener"
+  type        = string
+}
+
 variable "ecr_repository_urls" {
   description = "Map of app name to ECR repository URL"
   type        = map(string)

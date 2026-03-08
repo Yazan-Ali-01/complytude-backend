@@ -112,3 +112,13 @@ output "alb_dns_name" {
   description = "ALB DNS name — use http://<dns>/api/health to verify"
   value       = module.ecs.alb_dns_name
 }
+
+output "route53_name_servers" {
+  description = "Set these nameservers in Namecheap to delegate DNS to Route 53"
+  value       = module.route53.name_servers
+}
+
+output "app_url" {
+  description = "HTTPS URL for the staging API"
+  value       = "https://${module.route53_record.app_fqdn}"
+}
