@@ -35,6 +35,18 @@ variable "db_app_password" {
   sensitive   = true
 }
 
+variable "db_ssl_enabled" {
+  description = "Enable SSL for database connections"
+  type        = string
+  default     = "true"
+}
+
+variable "db_ssl_reject_unauthorized" {
+  description = "Reject self-signed DB certs. Set to false for AWS RDS (uses self-signed cert)"
+  type        = string
+  default     = "false"
+}
+
 # ---- Redis (from ElastiCache outputs) ----
 variable "redis_host" {
   description = "Redis hostname — typically from module.elasticache.hostname"

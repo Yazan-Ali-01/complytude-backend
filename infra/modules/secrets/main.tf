@@ -43,6 +43,9 @@ resource "aws_secretsmanager_secret_version" "app" {
     DB_NAME           = var.db_name
     DB_APP_USER       = var.db_app_user
     DB_APP_PASSWORD   = var.db_app_password
+    DB_SSL_ENABLED    = var.db_ssl_enabled
+        DB_SSL_REJECT_UNAUTHORIZED = var.db_ssl_reject_unauthorized
+
     DB_MAX_CONNECTIONS = "20"
     DB_IDLE_TIMEOUT   = "30000"
     DB_CONNECTION_TIMEOUT = "2000"
