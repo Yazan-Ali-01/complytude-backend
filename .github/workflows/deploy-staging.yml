@@ -65,6 +65,11 @@ jobs:
             --query 'SecurityGroups[0].GroupId' \
             --output text)
 
+          RDS_SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=tag:Name,Values=complytude-staging-rds-sg" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+
           DB_HOST=$(echo "$SECRET" | jq -r .DB_HOST)
           DB_APP_USER=$(echo "$SECRET" | jq -r .DB_APP_USER)
           DB_APP_PASSWORD=$(echo "$SECRET" | jq -r .DB_APP_PASSWORD)
@@ -73,6 +78,7 @@ jobs:
 
           echo "bastion_ip=$BASTION_IP" >> $GITHUB_OUTPUT
           echo "bastion_sg_id=$BASTION_SG_ID" >> $GITHUB_OUTPUT
+          echo "rds_sg_id=$RDS_SG_ID" >> $GITHUB_OUTPUT
           echo "db_host=$DB_HOST" >> $GITHUB_OUTPUT
           echo "db_app_user=$DB_APP_USER" >> $GITHUB_OUTPUT
           echo "db_app_password=$DB_APP_PASSWORD" >> $GITHUB_OUTPUT
@@ -88,6 +94,14 @@ jobs:
             --protocol tcp \
             --port 22 \
             --cidr ${{ steps.runner-ip.outputs.ip }}/32
+
+      - name: Allow bastion access to RDS
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ steps.infra.outputs.rds_sg_id }} \
+            --protocol tcp \
+            --port 5432 \
+            --source-group ${{ steps.infra.outputs.bastion_sg_id }}
 
       - name: Open SSH tunnel to RDS
         run: |
@@ -142,6 +156,12 @@ jobs:
             --protocol tcp \
             --port 22 \
             --cidr ${{ steps.runner-ip.outputs.ip }}/32 || true
+
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ steps.infra.outputs.rds_sg_id }} \
+            --protocol tcp \
+            --port 5432 \
+            --source-group ${{ steps.infra.outputs.bastion_sg_id }} || true
 
   build-and-push:
     runs-on: ubuntu-latest
