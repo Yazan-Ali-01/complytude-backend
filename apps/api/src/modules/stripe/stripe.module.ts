@@ -11,6 +11,7 @@ import { StripeBillingPortalService } from './services/stripe-billing-portal.ser
 import { StripeCatalogSyncService } from './services/stripe-catalog-sync.service';
 import { StripeCheckoutService } from './services/stripe-checkout.service';
 import { StripeCustomerService } from './services/stripe-customer.service';
+import { StripeSubscriptionService } from './services/stripe-subscription.service';
 import { StripeTaxService } from './services/stripe-tax.service';
 import { StripeService } from './stripe.service';
 import { StripeEventHandlersService } from './webhook/stripe-event-handlers';
@@ -35,9 +36,15 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     StripeCheckoutService,
     StripeBillingPortalService,
     StripeTaxService,
+    StripeSubscriptionService,
     TenantRepository,
     UserTenantRepository,
   ],
-  exports: [StripeService, StripeCustomerService, StripeTaxService],
+  exports: [
+    StripeService,
+    StripeCustomerService,
+    StripeTaxService,
+    StripeSubscriptionService,
+  ],
 })
 export class StripeModule {}

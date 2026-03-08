@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
-import { PlanKey } from 'src/common/types/entitlement.types';
+import {
+  PlanKey,
+  SubscriptionStatus,
+} from 'src/common/types/entitlement.types';
 import { DatabaseService } from 'src/database/database.service';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
@@ -130,8 +133,163 @@ export class StripeEventHandlersService {
     );
   }
 
-  handleSubscriptionChange(event: Stripe.Event): void {
-    this.logger.log(`[STUB] ${event.type} — id: ${event.id}`);
+  async handleSubscriptionChange(event: Stripe.Event): Promise<void> {
+    const stripeSub = event.data.object as Stripe.Subscription;
+
+    const subscription =
+      await this.subscriptionsRepository.findByStripeSubscriptionId(
+        stripeSub.id,
+      );
+
+    if (!subscription) {
+      this.logger.warn(
+        `${event.type}: no local subscription found for stripe_subscription_id=${stripeSub.id} (event=${event.id})`,
+      );
+      return;
+    }
+
+    const tenantId = subscription.tenant_id;
+
+    if (event.type === 'customer.subscription.deleted') {
+      await this.databaseService.transactionWithPlatformAdminContext(
+        async (client) => {
+          await this.subscriptionsRepository.update(
+            subscription.id,
+            {
+              status: 'cancelled',
+              stripe_status: stripeSub.status,
+              cancelled_at: new Date(),
+              stripe_schedule_id: null,
+            },
+            { client },
+          );
+
+          await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+            client,
+          });
+
+          await this.domainEventsService.emit(
+            {
+              tenant_id: tenantId,
+              event_type: 'subscription.cancelled',
+              aggregate_type: 'subscription',
+              aggregate_id: subscription.id,
+              actor_type: 'stripe',
+              payload: JSON.stringify({
+                stripe_status: stripeSub.status,
+                source: 'stripe_webhook',
+              }),
+              metadata: JSON.stringify({
+                timestamp: new Date().toISOString(),
+                stripe_event_id: event.id,
+              }),
+            },
+            { client },
+          );
+        },
+      );
+
+      this.logger.log(
+        `Subscription cancelled via Stripe: tenant=${tenantId}, stripe_sub=${stripeSub.id}`,
+      );
+      return;
+    }
+
+    // customer.subscription.created or customer.subscription.updated
+    const firstItem = stripeSub.items.data[0];
+    if (!firstItem) {
+      this.logger.warn(
+        `${event.type}: stripe subscription ${stripeSub.id} has no items (event=${event.id})`,
+      );
+      return;
+    }
+
+    const currentPriceId =
+      typeof firstItem.price === 'string'
+        ? firstItem.price
+        : firstItem.price.id;
+
+    // Period dates moved to SubscriptionItem in Stripe API 2026-02-25
+    const periodStart =
+      firstItem.current_period_start ??
+      (stripeSub as unknown as { current_period_start?: number })
+        .current_period_start;
+    const periodEnd =
+      firstItem.current_period_end ??
+      (stripeSub as unknown as { current_period_end?: number })
+        .current_period_end;
+
+    const newPlan =
+      await this.plansRepository.findByStripePriceId(currentPriceId);
+    const newStatus = this.mapStripeStatus(stripeSub.status);
+
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const oldPlanId = subscription.plan_id;
+        const planChanged = newPlan && newPlan.id !== oldPlanId;
+
+        await this.subscriptionsRepository.update(
+          subscription.id,
+          {
+            ...(newPlan ? { plan_id: newPlan.id } : {}),
+            status: newStatus,
+            stripe_status: stripeSub.status,
+            ...(periodStart
+              ? { current_period_start: new Date(periodStart * 1000) }
+              : {}),
+            ...(periodEnd
+              ? {
+                  current_period_end: new Date(periodEnd * 1000),
+                  stripe_current_period_end: new Date(periodEnd * 1000),
+                }
+              : {}),
+            stripe_schedule_id: null, // clear any pending schedule
+          },
+          { client },
+        );
+
+        if (planChanged || newStatus !== subscription.status) {
+          await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+            client,
+          });
+        }
+
+        if (planChanged) {
+          const oldPlan = await this.plansRepository.findById(oldPlanId, {
+            client,
+          });
+
+          await this.domainEventsService.emit(
+            {
+              tenant_id: tenantId,
+              event_type: 'subscription.plan_changed',
+              aggregate_type: 'subscription',
+              aggregate_id: subscription.id,
+              actor_type: 'stripe',
+              payload: JSON.stringify({
+                old_plan_key: oldPlan?.key ?? null,
+                new_plan_key: newPlan.key,
+                stripe_status: stripeSub.status,
+                source: 'scheduled_change',
+              }),
+              metadata: JSON.stringify({
+                timestamp: new Date().toISOString(),
+                stripe_event_id: event.id,
+              }),
+            },
+            { client },
+          );
+
+          this.logger.log(
+            `Plan changed via Stripe schedule: tenant=${tenantId}, new=${newPlan.key}, stripe_sub=${stripeSub.id}`,
+          );
+        } else {
+          this.logger.log(
+            `Subscription updated: tenant=${tenantId}, status=${stripeSub.status}, stripe_sub=${stripeSub.id}`,
+          );
+        }
+      },
+    );
   }
 
   handleInvoicePaid(event: Stripe.Event): void {
@@ -140,5 +298,21 @@ export class StripeEventHandlersService {
 
   handleInvoicePaymentFailed(event: Stripe.Event): void {
     this.logger.log(`[STUB] invoice.payment_failed — id: ${event.id}`);
+  }
+
+  private mapStripeStatus(stripeStatus: string): SubscriptionStatus {
+    switch (stripeStatus) {
+      case 'active':
+        return 'active';
+      case 'trialing':
+        return 'trialing';
+      case 'past_due':
+      case 'unpaid':
+        return 'past_due';
+      case 'canceled':
+        return 'cancelled';
+      default:
+        return 'past_due';
+    }
   }
 }

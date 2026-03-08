@@ -179,6 +179,24 @@ export class PlansRepository extends BaseRepository<
   }
 
   /**
+   * Find plan by Stripe price ID (monthly or annual)
+   */
+  async findByStripePriceId(
+    stripePriceId: string,
+    options?: QueryOptions,
+  ): Promise<Plan | null> {
+    const result = await this.executeQuery<PlanRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE stripe_price_id_monthly = $1 OR stripe_price_id_annual = $1
+       LIMIT 1`,
+      [stripePriceId],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Upsert plan by key (for sync service)
    */
   async upsertByKey(

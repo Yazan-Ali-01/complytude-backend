@@ -196,6 +196,22 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   /**
+   * Find subscription by Stripe subscription ID
+   */
+  async findByStripeSubscriptionId(
+    stripeSubscriptionId: string,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription | null> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE stripe_subscription_id = $1 LIMIT 1`,
+      [stripeSubscriptionId],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Find all subscriptions due for renewal (Phase 6)
    * Returns subscriptions where current_period_end <= now() and status = 'active'
    */

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
@@ -8,7 +16,13 @@ import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
-import { ChangePlanDto, SubscriptionResponseDto } from './dto';
+import {
+  ChangePlanDto,
+  PendingPlanChangeResponseDto,
+  SchedulePlanChangeResponseDto,
+  SubscriptionResponseDto,
+} from './dto';
+import { StripeSubscriptionService } from '../stripe/services/stripe-subscription.service';
 import { SubscriptionsService } from './subscriptions.service';
 
 /**
@@ -31,7 +45,10 @@ import { SubscriptionsService } from './subscriptions.service';
 @AuthOptions({ tenant: true })
 @ApiTags('subscriptions')
 export class SubscriptionsController {
-  constructor(private readonly subscriptionsService: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptionsService: SubscriptionsService,
+    private readonly stripeSubscriptionService: StripeSubscriptionService,
+  ) {}
 
   /**
    * Get current subscription with plan details
@@ -193,5 +210,105 @@ export class SubscriptionsController {
     );
 
     return SubscriptionResponseDto.fromEntity(renewedSubscription);
+  }
+
+  /**
+   * Schedule a plan change to take effect at the end of the current billing period.
+   *
+   * Uses Stripe Subscription Schedules so the current plan remains active until
+   * the billing period ends. The new plan activates automatically at period end.
+   *
+   * Requires: billing:manage permission and an active Stripe subscription.
+   */
+  @Post('plan/change')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('billing:manage')
+  @ApiOperation({
+    summary: 'Schedule a plan change at period end',
+    description:
+      'Schedules an upgrade or downgrade to take effect at the end of the current billing period. ' +
+      'Uses Stripe Subscription Schedules. Requires billing:manage permission.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Plan change scheduled',
+    type: SchedulePlanChangeResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'No active Stripe subscription, already on this plan, or plan has no Stripe price',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Missing billing:manage permission',
+  })
+  @ApiResponse({ status: 404, description: 'Plan not found' })
+  async schedulePlanChange(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+    @Body() dto: ChangePlanDto,
+  ): Promise<SchedulePlanChangeResponseDto> {
+    return this.stripeSubscriptionService.schedulePlanChange(
+      user.tenantId,
+      dto.planKey,
+      user.userId,
+    );
+  }
+
+  /**
+   * Cancel a pending scheduled plan change.
+   *
+   * Releases the Stripe Subscription Schedule so the current plan continues
+   * beyond the period end without changing.
+   *
+   * Requires: billing:manage permission.
+   */
+  @Post('plan/cancel-change')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('billing:manage')
+  @ApiOperation({
+    summary: 'Cancel a pending plan change',
+    description:
+      'Cancels a scheduled plan change so the subscription continues on the current plan. ' +
+      'Requires billing:manage permission.',
+  })
+  @ApiResponse({ status: 204, description: 'Pending plan change cancelled' })
+  @ApiResponse({
+    status: 400,
+    description: 'No pending plan change to cancel',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Missing billing:manage permission',
+  })
+  async cancelScheduledPlanChange(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<void> {
+    await this.stripeSubscriptionService.cancelScheduledPlanChange(
+      user.tenantId,
+    );
+  }
+
+  /**
+   * Get info about any pending scheduled plan change.
+   */
+  @Get('plan/pending-change')
+  @ApiOperation({
+    summary: 'Get pending plan change',
+    description:
+      'Returns info about any scheduled plan change for the tenant. ' +
+      'Returns { hasPendingChange: false } when none exists.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pending plan change info',
+    type: PendingPlanChangeResponseDto,
+  })
+  async getPendingPlanChange(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<PendingPlanChangeResponseDto> {
+    return this.stripeSubscriptionService.getPendingPlanChange(user.tenantId);
   }
 }
