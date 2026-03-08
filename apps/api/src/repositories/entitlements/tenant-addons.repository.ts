@@ -207,6 +207,24 @@ export class TenantAddonsRepository extends BaseRepository<
   }
 
   /**
+   * Find a single tenant add-on by its ID, scoped to the given tenant.
+   * Returns null if not found or belongs to a different tenant.
+   */
+  async findByIdAndTenant(
+    id: string,
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<TenantAddon | null> {
+    const result = await this.executeQuery<TenantAddonRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Find active add-ons for a specific feature (JOIN to avoid N+1)
    */
   async findActiveByTenantAndFeature(

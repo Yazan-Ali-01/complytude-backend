@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -17,6 +18,7 @@ import { I18nKeys } from '../../../common/constants/i18n-keys';
 import { MessageResponseDto } from '../../../common/dto';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../../auth/decorators/current-user.decorator';
+import { StripeAddonService } from '../../stripe/services/stripe-addon.service';
 import type { AuthenticatedTenantUser } from '../../auth/strategies/jwt-payload.interface';
 import {
   AddAddonDto,
@@ -33,6 +35,7 @@ import { mapTenantAddonToDto } from '../utils/entitlement-mappers.util';
 export class TenantAddonsController {
   constructor(
     private readonly tenantAddonsService: TenantAddonsService,
+    private readonly stripeAddonService: StripeAddonService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -59,18 +62,17 @@ export class TenantAddonsController {
   @ApiOperation({ summary: 'Add an add-on to tenant subscription' })
   @ApiResponse({
     status: 201,
-    description: 'Add-on activated successfully',
+    description: 'Add-on activated and Stripe subscription item created',
     type: TenantAddonResponseDto,
   })
   async addAddon(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
     @Body() dto: AddAddonDto,
   ): Promise<TenantAddonResponseDto> {
-    const created = await this.tenantAddonsService.addAddon(
+    const created = await this.stripeAddonService.addAddon(
       user.tenantId,
       dto.addonKey,
       dto.quantity ?? 1,
-      { context: { mode: 'tenant', canManageSettings: true } },
     );
 
     return mapTenantAddonToDto(created, created.addon_name);
@@ -78,11 +80,11 @@ export class TenantAddonsController {
 
   @Patch(':id')
   @RequireAnyTenantPermission('billing:manage')
-  @ApiOperation({ summary: 'Update tenant add-on quantity or status' })
+  @ApiOperation({ summary: 'Update tenant add-on quantity' })
   @ApiParam({ name: 'id', description: 'Tenant add-on ID' })
   @ApiResponse({
     status: 200,
-    description: 'Add-on updated successfully',
+    description: 'Add-on quantity updated in Stripe',
     type: TenantAddonResponseDto,
   })
   async updateAddon(
@@ -90,11 +92,16 @@ export class TenantAddonsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAddonDto,
   ): Promise<TenantAddonResponseDto> {
-    const updated = await this.tenantAddonsService.updateAddon(
+    if (dto.quantity === undefined) {
+      throw new BadRequestException(
+        'quantity is required to update a Stripe add-on',
+      );
+    }
+
+    const updated = await this.stripeAddonService.updateAddonQuantity(
       user.tenantId,
       id,
-      dto,
-      { context: { mode: 'tenant', canManageSettings: true } },
+      dto.quantity,
     );
 
     return mapTenantAddonToDto(updated, updated.addon_name);
@@ -106,16 +113,14 @@ export class TenantAddonsController {
   @ApiParam({ name: 'id', description: 'Tenant add-on ID' })
   @ApiResponse({
     status: 200,
-    description: 'Add-on removed successfully',
+    description: 'Add-on removed from Stripe subscription',
     type: MessageResponseDto,
   })
   async removeAddon(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<MessageResponseDto> {
-    await this.tenantAddonsService.removeAddon(user.tenantId, id, {
-      context: { mode: 'tenant', canManageSettings: true },
-    });
+    await this.stripeAddonService.removeAddon(user.tenantId, id);
 
     return new MessageResponseDto(this.i18n.t(I18nKeys.ADDON_REMOVE_SUCCESS));
   }

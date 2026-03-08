@@ -3,9 +3,7 @@ import { IsEnum, IsNotEmpty } from 'class-validator';
 import type { PlanKey } from 'src/common/types/entitlement.types';
 
 /**
- * Change Plan DTO
- *
- * Used for POST /subscriptions/change-plan endpoint
+ * Change Plan DTO — used by POST /billing/plan/change
  */
 export class ChangePlanDto {
   @ApiProperty({

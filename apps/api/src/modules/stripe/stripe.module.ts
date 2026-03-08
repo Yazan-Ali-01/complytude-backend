@@ -5,8 +5,10 @@ import { DatabaseModule } from 'src/database/database.module';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { StripeAdminController } from './controllers/stripe-admin.controller';
-import { StripeCheckoutController } from './controllers/stripe-checkout.controller';
+import { BillingController } from './controllers/billing.controller';
+import { StripeAddonService } from './services/stripe-addon.service';
 import { StripeBillingPortalService } from './services/stripe-billing-portal.service';
 import { StripeCatalogSyncService } from './services/stripe-catalog-sync.service';
 import { StripeCheckoutService } from './services/stripe-checkout.service';
@@ -24,7 +26,7 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
   controllers: [
     StripeWebhookController,
     StripeAdminController,
-    StripeCheckoutController,
+    BillingController,
   ],
   providers: [
     StripeService,
@@ -37,6 +39,8 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     StripeBillingPortalService,
     StripeTaxService,
     StripeSubscriptionService,
+    StripeAddonService,
+    SubscriptionsService,
     TenantRepository,
     UserTenantRepository,
   ],
@@ -45,6 +49,8 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     StripeCustomerService,
     StripeTaxService,
     StripeSubscriptionService,
+    StripeAddonService,
+    SubscriptionsService,
   ],
 })
 export class StripeModule {}

@@ -252,9 +252,11 @@ export class EntitlementEnforcementService {
     metadata: Record<string, any> | undefined,
     client: PoolClient,
   ): Promise<EnforceResult> {
-    const subscription = await this.subscriptionsRepository.findActiveByTenant(
+    const subscription = await this.subscriptionsRepository.findCurrentByTenant(
       tenantId,
-      { client },
+      {
+        client,
+      },
     );
 
     if (!subscription) {

@@ -89,17 +89,64 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   /**
+   * Find current (non-cancelled) subscription for a tenant.
+   * Returns active, past_due, or trialing subscriptions — any subscription
+   * that should still grant access (possibly degraded for past_due).
+   */
+  async findCurrentByTenant(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription | null> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE tenant_id = $1 AND status IN ('active', 'past_due', 'trialing')
+       ORDER BY created_at DESC LIMIT 1`,
+      [tenantId],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Find active subscription with plan details (JOIN to avoid N+1)
+   * Matches status = 'active' only.
    */
   async findActiveByTenantWithPlan(
     tenantId: string,
+    options?: QueryOptions,
+  ): Promise<TenantSubscriptionWithPlan | null> {
+    return this.findByTenantWithPlan(tenantId, `ts.status = 'active'`, options);
+  }
+
+  /**
+   * Find current (non-cancelled) subscription with plan details.
+   * Returns active, past_due, or trialing subscriptions — any subscription
+   * that should still grant access.
+   */
+  async findCurrentByTenantWithPlan(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<TenantSubscriptionWithPlan | null> {
+    return this.findByTenantWithPlan(
+      tenantId,
+      `ts.status IN ('active', 'past_due', 'trialing')`,
+      options,
+    );
+  }
+
+  private async findByTenantWithPlan(
+    tenantId: string,
+    statusFilter: string,
     options?: QueryOptions,
   ): Promise<TenantSubscriptionWithPlan | null> {
     const query = `
       SELECT
         ts.id, ts.tenant_id, ts.plan_id, ts.status, ts.billing_period_start,
         ts.billing_period_end, ts.current_period_start, ts.current_period_end,
-        ts.cancelled_at, ts.metadata, ts.created_at, ts.updated_at,
+        ts.cancelled_at, ts.metadata, ts.stripe_subscription_id,
+        ts.stripe_schedule_id, ts.stripe_current_period_end, ts.stripe_status,
+        ts.created_at, ts.updated_at,
         p.id as plan_id_full, p.key as plan_key, p.name as plan_name,
         p.description as plan_description, p.price_monthly, p.price_currency,
         p.billing_period as plan_billing_period, p.is_active as plan_is_active,
@@ -107,7 +154,7 @@ export class SubscriptionsRepository extends BaseRepository<
         p.updated_at as plan_updated_at
       FROM ${this.tableName} ts
       JOIN public.plans p ON p.id = ts.plan_id
-      WHERE ts.tenant_id = $1 AND ts.status = 'active'
+      WHERE ts.tenant_id = $1 AND ${statusFilter}
       ORDER BY ts.created_at DESC
       LIMIT 1
     `;
@@ -212,8 +259,9 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   /**
-   * Find all subscriptions due for renewal (Phase 6)
-   * Returns subscriptions where current_period_end <= now() and status = 'active'
+   * Find all Navigator (free) subscriptions due for period renewal.
+   * Scoped to subscriptions with no Stripe subscription ID — Stripe-backed
+   * subscriptions are renewed via the invoice.paid webhook instead.
    */
   async findAllDueForRenewal(
     options?: QueryOptions,
@@ -221,37 +269,15 @@ export class SubscriptionsRepository extends BaseRepository<
     const result = await this.executeQuery<TenantSubscriptionRow>(
       `SELECT ${this.getSelectColumns()}
        FROM ${this.tableName}
-       WHERE status = 'active' AND current_period_end <= now()
+       WHERE status = 'active'
+         AND current_period_end <= now()
+         AND stripe_subscription_id IS NULL
        ORDER BY current_period_end ASC`,
       [],
       options,
     );
 
     return result.rows.map((row) => this.mapRow(row));
-  }
-
-  /**
-   * Update plan for a subscription (Phase 6)
-   */
-  async updatePlan(
-    id: string,
-    planId: string,
-    options?: QueryOptions,
-  ): Promise<TenantSubscription> {
-    const result = await this.executeQuery<TenantSubscriptionRow>(
-      `UPDATE ${this.tableName}
-       SET plan_id = $1, updated_at = now()
-       WHERE id = $2
-       RETURNING ${this.getSelectColumns()}`,
-      [planId, id],
-      options,
-    );
-
-    if (result.rows.length === 0) {
-      throw new NotFoundException(`Subscription not found: ${id}`);
-    }
-
-    return this.mapRow(result.rows[0]);
   }
 
   /**
