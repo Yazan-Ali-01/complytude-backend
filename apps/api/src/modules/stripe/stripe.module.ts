@@ -7,6 +7,7 @@ import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { StripeAdminController } from './controllers/stripe-admin.controller';
 import { StripeCheckoutController } from './controllers/stripe-checkout.controller';
+import { StripeBillingPortalService } from './services/stripe-billing-portal.service';
 import { StripeCatalogSyncService } from './services/stripe-catalog-sync.service';
 import { StripeCheckoutService } from './services/stripe-checkout.service';
 import { StripeCustomerService } from './services/stripe-customer.service';
@@ -32,6 +33,7 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     StripeCatalogSyncService,
     StripeCustomerService,
     StripeCheckoutService,
+    StripeBillingPortalService,
     StripeTaxService,
     TenantRepository,
     UserTenantRepository,

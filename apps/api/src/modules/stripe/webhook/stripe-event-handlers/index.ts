@@ -77,51 +77,53 @@ export class StripeEventHandlersService {
     const periodStart = new Date(firstItem.current_period_start * 1000);
     const periodEnd = new Date(firstItem.current_period_end * 1000);
 
-    await this.databaseService.transactionWithPlatformAdminContext(async (client) => {
-      const subscription = await this.subscriptionsRepository.upsert(
-        {
-          tenant_id: tenantId,
-          plan_id: plan.id,
-          status: 'active',
-          billing_period_start: periodStart,
-          billing_period_end: periodEnd,
-          current_period_start: periodStart,
-          current_period_end: periodEnd,
-          stripe_subscription_id: subscriptionId,
-          stripe_current_period_end: periodEnd,
-          stripe_status: stripeSub.status,
-          metadata: JSON.stringify({ source: 'stripe_checkout' }),
-        },
-        { client },
-      );
-
-      await this.entitlementSnapshotsRepository.invalidate(tenantId, {
-        client,
-      });
-
-      await this.domainEventsService.emit(
-        {
-          tenant_id: tenantId,
-          event_type: 'subscription.created',
-          aggregate_type: 'subscription',
-          aggregate_id: subscription.id,
-          actor_type: 'system',
-          payload: JSON.stringify({
-            subscription_id: subscription.id,
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const subscription = await this.subscriptionsRepository.upsert(
+          {
+            tenant_id: tenantId,
             plan_id: plan.id,
-            plan_key: plan.key,
+            status: 'active',
+            billing_period_start: periodStart,
+            billing_period_end: periodEnd,
+            current_period_start: periodStart,
+            current_period_end: periodEnd,
             stripe_subscription_id: subscriptionId,
-            source: 'stripe_checkout',
-          }),
-          metadata: JSON.stringify({
-            timestamp: new Date().toISOString(),
-            stripe_event_id: event.id,
-            stripe_session_id: session.id,
-          }),
-        },
-        { client },
-      );
-    }); // platform admin context — webhook has no user context
+            stripe_current_period_end: periodEnd,
+            stripe_status: stripeSub.status,
+            metadata: JSON.stringify({ source: 'stripe_checkout' }),
+          },
+          { client },
+        );
+
+        await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+          client,
+        });
+
+        await this.domainEventsService.emit(
+          {
+            tenant_id: tenantId,
+            event_type: 'subscription.created',
+            aggregate_type: 'subscription',
+            aggregate_id: subscription.id,
+            actor_type: 'system',
+            payload: JSON.stringify({
+              subscription_id: subscription.id,
+              plan_id: plan.id,
+              plan_key: plan.key,
+              stripe_subscription_id: subscriptionId,
+              source: 'stripe_checkout',
+            }),
+            metadata: JSON.stringify({
+              timestamp: new Date().toISOString(),
+              stripe_event_id: event.id,
+              stripe_session_id: session.id,
+            }),
+          },
+          { client },
+        );
+      },
+    ); // platform admin context — webhook has no user context
 
     this.logger.log(
       `Subscription provisioned via checkout: tenant=${tenantId}, plan=${planKey}, stripe_sub=${subscriptionId}`,
