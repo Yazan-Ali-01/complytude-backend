@@ -434,7 +434,7 @@ export interface UpdateTenantSubscriptionRow {
   billing_period_end?: Date;
   current_period_start?: Date;
   current_period_end?: Date;
-  cancelled_at?: Date;
+  cancelled_at?: Date | null;
   metadata?: string; // Stringified JSON
   stripe_subscription_id?: string | null;
   stripe_schedule_id?: string | null;

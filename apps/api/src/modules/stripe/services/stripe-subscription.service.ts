@@ -355,6 +355,152 @@ export class StripeSubscriptionService {
   }
 
   /**
+   * Schedule subscription cancellation at end of current billing period.
+   * Tenant retains access until the period ends; Stripe fires customer.subscription.deleted
+   * when the period actually expires, which triggers the Navigator downgrade.
+   */
+  async cancelSubscription(
+    tenantId: string,
+    actorId: string,
+  ): Promise<{ cancelsAt: Date }> {
+    const subscription =
+      await this.subscriptionsRepository.findActiveByTenant(tenantId);
+
+    if (!subscription?.stripe_subscription_id) {
+      throw new BadRequestException('No active Stripe subscription to cancel');
+    }
+
+    const stripeSubscription =
+      await this.stripeService.client.subscriptions.update(
+        subscription.stripe_subscription_id,
+        { cancel_at_period_end: true },
+      );
+
+    const firstItem = stripeSubscription.items.data[0];
+    const periodEndTimestamp =
+      firstItem?.current_period_end ??
+      (stripeSubscription as unknown as { current_period_end?: number })
+        .current_period_end;
+
+    if (!periodEndTimestamp) {
+      throw new BadRequestException(
+        'Could not determine cancellation date from Stripe subscription',
+      );
+    }
+
+    const cancelsAt = new Date(periodEndTimestamp * 1000);
+
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        await this.subscriptionsRepository.update(
+          subscription.id,
+          {
+            stripe_status: stripeSubscription.status,
+            cancelled_at: new Date(),
+            metadata: JSON.stringify({
+              ...(subscription.metadata ?? {}),
+              cancel_at_period_end: true,
+            }),
+          },
+          { client },
+        );
+
+        await this.domainEventsService.emit(
+          {
+            tenant_id: tenantId,
+            event_type: 'subscription.cancellation_scheduled',
+            aggregate_type: 'subscription',
+            aggregate_id: subscription.id,
+            actor_id: actorId,
+            actor_type: 'user',
+            payload: JSON.stringify({
+              cancels_at: cancelsAt.toISOString(),
+              stripe_subscription_id: stripeSubscription.id,
+            }),
+            metadata: JSON.stringify({
+              timestamp: new Date().toISOString(),
+            }),
+          },
+          { client },
+        );
+      },
+    );
+
+    this.logger.log(
+      `Subscription cancellation scheduled: tenant=${tenantId}, cancels_at=${cancelsAt.toISOString()}, stripe_sub=${stripeSubscription.id}`,
+    );
+
+    return { cancelsAt };
+  }
+
+  /**
+   * Remove a pending end-of-period cancellation. The subscription continues unchanged.
+   * Only valid before the period end; after customer.subscription.deleted fires, the
+   * subscription is gone and cannot be reactivated through this flow.
+   */
+  async reactivateSubscription(
+    tenantId: string,
+    actorId: string,
+  ): Promise<void> {
+    const subscription =
+      await this.subscriptionsRepository.findActiveByTenant(tenantId);
+
+    if (!subscription?.stripe_subscription_id) {
+      throw new BadRequestException('No active subscription to reactivate');
+    }
+
+    const metadata = subscription.metadata ?? {};
+    if (!metadata.cancel_at_period_end) {
+      throw new BadRequestException(
+        'Subscription does not have a pending cancellation',
+      );
+    }
+
+    await this.stripeService.client.subscriptions.update(
+      subscription.stripe_subscription_id,
+      { cancel_at_period_end: false },
+    );
+
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        await this.subscriptionsRepository.update(
+          subscription.id,
+          {
+            cancelled_at: null,
+            metadata: JSON.stringify({
+              ...metadata,
+              cancel_at_period_end: false,
+            }),
+          },
+          { client },
+        );
+
+        await this.domainEventsService.emit(
+          {
+            tenant_id: tenantId,
+            event_type: 'subscription.cancellation_revoked',
+            aggregate_type: 'subscription',
+            aggregate_id: subscription.id,
+            actor_id: actorId,
+            actor_type: 'user',
+            payload: JSON.stringify({
+              stripe_subscription_id: subscription.stripe_subscription_id,
+            }),
+            metadata: JSON.stringify({
+              timestamp: new Date().toISOString(),
+            }),
+          },
+          { client },
+        );
+      },
+    );
+
+    this.logger.log(
+      `Subscription reactivated: tenant=${tenantId}, stripe_sub=${subscription.stripe_subscription_id}`,
+    );
+  }
+
+  /**
    * Maps a Stripe subscription status string to our internal SubscriptionStatus type.
    */
   mapStripeStatus(stripeStatus: string): SubscriptionStatus {

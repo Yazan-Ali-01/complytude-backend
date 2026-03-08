@@ -153,6 +153,7 @@ export class StripeEventHandlersService {
     if (event.type === 'customer.subscription.deleted') {
       await this.databaseService.transactionWithPlatformAdminContext(
         async (client) => {
+          // Mark the paid subscription as cancelled
           await this.subscriptionsRepository.update(
             subscription.id,
             {
@@ -160,6 +161,37 @@ export class StripeEventHandlersService {
               stripe_status: stripeSub.status,
               cancelled_at: new Date(),
               stripe_schedule_id: null,
+            },
+            { client },
+          );
+
+          // Downgrade to Navigator (free) plan — no Stripe subscription required
+          const navigatorPlan = await this.plansRepository.findByKey(
+            'navigator',
+            { client },
+          );
+
+          if (!navigatorPlan) {
+            throw new Error(
+              `Navigator plan not found in DB — catalog sync may not have run (event: ${event.id})`,
+            );
+          }
+
+          const now = new Date();
+          const oneMonthLater = new Date(now);
+          oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+
+          await this.subscriptionsRepository.upsert(
+            {
+              tenant_id: tenantId,
+              plan_id: navigatorPlan.id,
+              status: 'active',
+              stripe_subscription_id: null,
+              billing_period_start: now,
+              billing_period_end: oneMonthLater,
+              current_period_start: now,
+              current_period_end: oneMonthLater,
+              metadata: JSON.stringify({ downgraded_from_stripe: true }),
             },
             { client },
           );
@@ -176,8 +208,10 @@ export class StripeEventHandlersService {
               aggregate_id: subscription.id,
               actor_type: 'stripe',
               payload: JSON.stringify({
+                old_plan_id: subscription.plan_id,
+                downgraded_to: 'navigator',
+                stripe_subscription_id: stripeSub.id,
                 stripe_status: stripeSub.status,
-                source: 'stripe_webhook',
               }),
               metadata: JSON.stringify({
                 timestamp: new Date().toISOString(),
@@ -190,7 +224,7 @@ export class StripeEventHandlersService {
       );
 
       this.logger.log(
-        `Subscription cancelled via Stripe: tenant=${tenantId}, stripe_sub=${stripeSub.id}`,
+        `Subscription cancelled and downgraded to Navigator: tenant=${tenantId}, stripe_sub=${stripeSub.id}`,
       );
       return;
     }

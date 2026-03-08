@@ -14,6 +14,7 @@ import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../../auth/strategies/jwt-payload.interface';
+import { CancelSubscriptionResponseDto } from '../dto/cancel-subscription.dto';
 import {
   CheckoutSessionResponseDto,
   CreateCheckoutSessionDto,
@@ -24,6 +25,7 @@ import {
 } from '../dto/create-portal-session.dto';
 import { StripeBillingPortalService } from '../services/stripe-billing-portal.service';
 import { StripeCheckoutService } from '../services/stripe-checkout.service';
+import { StripeSubscriptionService } from '../services/stripe-subscription.service';
 
 @ApiTags('billing')
 @Controller('tenants/billing')
@@ -34,6 +36,7 @@ export class StripeCheckoutController {
   constructor(
     private readonly stripeCheckoutService: StripeCheckoutService,
     private readonly stripeBillingPortalService: StripeBillingPortalService,
+    private readonly stripeSubscriptionService: StripeSubscriptionService,
   ) {}
 
   @Post('checkout')
@@ -66,6 +69,62 @@ export class StripeCheckoutController {
     @Body() dto: CreateCheckoutSessionDto,
   ): Promise<CheckoutSessionResponseDto> {
     return this.stripeCheckoutService.createCheckoutSession(user.tenantId, dto);
+  }
+
+  @Post('subscription/cancel')
+  @HttpCode(HttpStatus.OK)
+  @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
+  @ApiOperation({
+    summary: 'Cancel subscription at end of current billing period',
+    description:
+      'Schedules the Stripe subscription to cancel when the current period ends. ' +
+      'The tenant retains full access until that date. ' +
+      'Use `POST /billing/subscription/reactivate` to undo before the period ends.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cancellation scheduled — returns the date access will end',
+    type: CancelSubscriptionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No active Stripe subscription to cancel',
+  })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  async cancelSubscription(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<CancelSubscriptionResponseDto> {
+    return this.stripeSubscriptionService.cancelSubscription(
+      user.tenantId,
+      user.userId,
+    );
+  }
+
+  @Post('subscription/reactivate')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
+  @ApiOperation({
+    summary: 'Undo a pending end-of-period subscription cancellation',
+    description:
+      'Removes the `cancel_at_period_end` flag from Stripe and clears the pending cancellation. ' +
+      'Only valid while the subscription is still active (before the period end date).',
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Cancellation revoked — subscription continues unchanged',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No active subscription or no pending cancellation',
+  })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  async reactivateSubscription(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<void> {
+    return this.stripeSubscriptionService.reactivateSubscription(
+      user.tenantId,
+      user.userId,
+    );
   }
 
   @Post('portal/session')
