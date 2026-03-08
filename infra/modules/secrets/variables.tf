@@ -47,6 +47,12 @@ variable "db_ssl_reject_unauthorized" {
   default     = "false"
 }
 
+variable "db_ssl_enabled" {
+  description = "Enable SSL for database connections"
+  type        = string
+  default     = "true"
+}
+
 # ---- Redis (from ElastiCache outputs) ----
 variable "redis_host" {
   description = "Redis hostname — typically from module.elasticache.hostname"
@@ -180,7 +186,7 @@ variable "stripe_catalog_sync_enabled" {
 }
 
 variable "stripe_tax_enabled" {
-  description = "Enable Stripe tax"
+  description = "Enable Stripe Tax"
   type        = string
   default     = "false"
 }

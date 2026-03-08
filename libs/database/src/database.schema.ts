@@ -9,4 +9,7 @@ export const databaseEnvSchema = {
   DB_MAX_CONNECTIONS: Joi.number().default(20),
   DB_IDLE_TIMEOUT: Joi.number().default(30000),
   DB_CONNECTION_TIMEOUT: Joi.number().default(2000),
+  DB_SSL_ENABLED: Joi.string()
+    .valid('true', 'false', '1', '0')
+    .default('false'),
 };
