@@ -326,12 +326,236 @@ export class StripeEventHandlersService {
     );
   }
 
-  handleInvoicePaid(event: Stripe.Event): void {
-    this.logger.log(`[STUB] invoice.paid — id: ${event.id}`);
+  async handleInvoicePaid(event: Stripe.Event): Promise<void> {
+    const invoice = event.data.object as Stripe.Invoice;
+
+    const stripeSubscriptionId = this.extractSubscriptionId(invoice);
+    if (!stripeSubscriptionId) {
+      this.logger.log(
+        `invoice.paid: skipping non-subscription invoice ${invoice.id} (event: ${event.id})`,
+      );
+      return;
+    }
+
+    const subscription =
+      await this.subscriptionsRepository.findByStripeSubscriptionId(
+        stripeSubscriptionId,
+      );
+
+    if (!subscription) {
+      this.logger.warn(
+        `invoice.paid: no local subscription found for stripe_subscription_id=${stripeSubscriptionId} (event: ${event.id})`,
+      );
+      return;
+    }
+
+    const tenantId = subscription.tenant_id;
+
+    const stripeSub =
+      await this.stripeService.client.subscriptions.retrieve(
+        stripeSubscriptionId,
+      );
+
+    const firstItem = stripeSub.items.data[0];
+    if (!firstItem?.current_period_start || !firstItem?.current_period_end) {
+      throw new Error(
+        `invoice.paid: stripe subscription ${stripeSubscriptionId} has no items or missing billing period (event: ${event.id})`,
+      );
+    }
+
+    const periodStart = new Date(firstItem.current_period_start * 1000);
+    const periodEnd = new Date(firstItem.current_period_end * 1000);
+
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        await this.subscriptionsRepository.update(
+          subscription.id,
+          {
+            status: 'active',
+            stripe_status: stripeSub.status,
+            current_period_start: periodStart,
+            current_period_end: periodEnd,
+            stripe_current_period_end: periodEnd,
+          },
+          { client },
+        );
+
+        // Invalidate snapshot — period advanced, usage counters reset context changes
+        await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+          client,
+        });
+
+        await this.domainEventsService.emit(
+          {
+            tenant_id: tenantId,
+            event_type: 'subscription.renewed',
+            aggregate_type: 'subscription',
+            aggregate_id: subscription.id,
+            actor_type: 'stripe',
+            payload: JSON.stringify({
+              invoice_id: invoice.id,
+              amount_paid: invoice.amount_paid,
+              currency: invoice.currency,
+              new_period_start: periodStart,
+              new_period_end: periodEnd,
+            }),
+            metadata: JSON.stringify({
+              timestamp: new Date().toISOString(),
+              stripe_event_id: event.id,
+            }),
+          },
+          { client },
+        );
+      },
+    );
+
+    this.logger.log(
+      `Subscription renewed via invoice.paid: tenant=${tenantId}, stripe_sub=${stripeSubscriptionId}, period_end=${periodEnd.toISOString()}`,
+    );
   }
 
-  handleInvoicePaymentFailed(event: Stripe.Event): void {
-    this.logger.log(`[STUB] invoice.payment_failed — id: ${event.id}`);
+  async handleInvoicePaymentFailed(event: Stripe.Event): Promise<void> {
+    const invoice = event.data.object as Stripe.Invoice;
+
+    const stripeSubscriptionId = this.extractSubscriptionId(invoice);
+    if (!stripeSubscriptionId) {
+      this.logger.log(
+        `invoice.payment_failed: skipping non-subscription invoice ${invoice.id} (event: ${event.id})`,
+      );
+      return;
+    }
+
+    const subscription =
+      await this.subscriptionsRepository.findByStripeSubscriptionId(
+        stripeSubscriptionId,
+      );
+
+    if (!subscription) {
+      this.logger.warn(
+        `invoice.payment_failed: no local subscription found for stripe_subscription_id=${stripeSubscriptionId} (event: ${event.id})`,
+      );
+      return;
+    }
+
+    const tenantId = subscription.tenant_id;
+
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        await this.subscriptionsRepository.update(
+          subscription.id,
+          {
+            status: 'past_due',
+            stripe_status: 'past_due',
+            metadata: JSON.stringify({
+              ...(subscription.metadata ?? {}),
+              last_payment_failure: {
+                invoice_id: invoice.id,
+                amount: invoice.amount_due,
+                attempt_count: invoice.attempt_count,
+                next_attempt: invoice.next_payment_attempt
+                  ? new Date(invoice.next_payment_attempt * 1000)
+                  : null,
+                failed_at: new Date(),
+              },
+            }),
+          },
+          { client },
+        );
+
+        await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+          client,
+        });
+
+        await this.domainEventsService.emit(
+          {
+            tenant_id: tenantId,
+            event_type: 'subscription.payment_failed',
+            aggregate_type: 'subscription',
+            aggregate_id: subscription.id,
+            actor_type: 'stripe',
+            payload: JSON.stringify({
+              invoice_id: invoice.id,
+              amount_due: invoice.amount_due,
+              attempt_count: invoice.attempt_count,
+              next_attempt: invoice.next_payment_attempt,
+            }),
+            metadata: JSON.stringify({
+              timestamp: new Date().toISOString(),
+              stripe_event_id: event.id,
+            }),
+          },
+          { client },
+        );
+      },
+    );
+
+    this.logger.warn(
+      `Payment failed: tenant=${tenantId}, stripe_sub=${stripeSubscriptionId}, attempt=${invoice.attempt_count}, invoice=${invoice.id}`,
+    );
+    // TODO: Send notification to tenant admin (email/in-app)
+    // TODO: Queue BullMQ job for dunning email sequence
+  }
+
+  async handlePaymentActionRequired(event: Stripe.Event): Promise<void> {
+    const invoice = event.data.object as Stripe.Invoice;
+
+    const stripeSubscriptionId = this.extractSubscriptionId(invoice);
+    if (!stripeSubscriptionId) {
+      this.logger.log(
+        `invoice.payment_action_required: skipping non-subscription invoice ${invoice.id} (event: ${event.id})`,
+      );
+      return;
+    }
+
+    const subscription =
+      await this.subscriptionsRepository.findByStripeSubscriptionId(
+        stripeSubscriptionId,
+      );
+
+    if (!subscription) {
+      this.logger.warn(
+        `invoice.payment_action_required: no local subscription found for stripe_subscription_id=${stripeSubscriptionId} (event: ${event.id})`,
+      );
+      return;
+    }
+
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        await this.subscriptionsRepository.update(
+          subscription.id,
+          {
+            metadata: JSON.stringify({
+              ...(subscription.metadata ?? {}),
+              payment_action_required: {
+                invoice_url: invoice.hosted_invoice_url,
+                amount: invoice.amount_due,
+                invoice_id: invoice.id,
+                required_at: new Date(),
+              },
+            }),
+          },
+          { client },
+        );
+      },
+    );
+
+    this.logger.warn(
+      `Payment action required: tenant=${subscription.tenant_id}, stripe_sub=${stripeSubscriptionId}, invoice_url=${invoice.hosted_invoice_url}`,
+    );
+    // TODO: Notify tenant admin with the invoice URL
+  }
+
+  /**
+   * Stripe API 2026-02-25 moved `invoice.subscription` to
+   * `invoice.parent.subscription_details.subscription`.
+   * Returns the subscription ID string, or null for non-subscription invoices.
+   */
+  private extractSubscriptionId(invoice: Stripe.Invoice): string | null {
+    const subscriptionRef = invoice.parent?.subscription_details?.subscription;
+    if (!subscriptionRef) return null;
+    return typeof subscriptionRef === 'string'
+      ? subscriptionRef
+      : subscriptionRef.id;
   }
 
   private mapStripeStatus(stripeStatus: string): SubscriptionStatus {

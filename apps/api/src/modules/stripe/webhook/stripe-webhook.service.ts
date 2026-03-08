@@ -56,6 +56,9 @@ export class StripeWebhookService {
       case STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_FAILED:
         return this.handlers.handleInvoicePaymentFailed(event);
 
+      case STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_ACTION_REQUIRED:
+        return this.handlers.handlePaymentActionRequired(event);
+
       default:
         this.logger.log(
           `Unhandled Stripe event type: ${event.type} (id: ${event.id})`,

@@ -408,6 +408,11 @@ export class SubscriptionsService {
   /**
    * Renew billing period for a tenant
    *
+   * @deprecated For Stripe-backed subscriptions, renewals are driven by the
+   * `invoice.paid` webhook handler in StripeEventHandlersService, which advances
+   * the period using authoritative dates from Stripe. This method is only used
+   * for Navigator (free) subscriptions that have no Stripe subscription.
+   *
    * Flow:
    * 1. Find active subscription
    * 2. Set current_period_start = old current_period_end
@@ -510,6 +515,12 @@ export class SubscriptionsService {
 
   /**
    * Batch renewal for all subscriptions due for renewal
+   *
+   * @deprecated For Stripe-backed subscriptions, renewals are driven by the
+   * `invoice.paid` webhook. This cron-based approach is only relevant for
+   * Navigator (free) subscriptions with no Stripe subscription. Safe to call
+   * for free-plan tenants but will be a no-op for any Stripe-managed subscription
+   * whose period Stripe has already advanced.
    *
    * Finds all subscriptions where current_period_end <= now() and status = 'active',
    * then calls renewPeriod() for each.
