@@ -32,11 +32,11 @@ export const validationSchema = Joi.object({
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
 
   // S3/MinIO Storage
-  S3_ENDPOINT: Joi.string().allow('').default(''),
+  S3_ENDPOINT: Joi.string().required(),
   S3_REGION: Joi.string().default('us-east-1'),
-  S3_ACCESS_KEY: Joi.string().allow('').default(''),
-  S3_SECRET_KEY: Joi.string().allow('').default(''),
-  S3_FORCE_PATH_STYLE: Joi.boolean().default(false),
+  S3_ACCESS_KEY: Joi.string().required(),
+  S3_SECRET_KEY: Joi.string().required(),
+  S3_FORCE_PATH_STYLE: Joi.boolean().default(true),
 
   // Storage Buckets
   COMPLYTUDE_FILES_BUCKET_NAME: Joi.string().default('complytude-files'),

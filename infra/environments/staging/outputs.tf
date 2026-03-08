@@ -120,5 +120,5 @@ output "route53_name_servers" {
 
 output "app_url" {
   description = "HTTPS URL for the staging API"
-  value       = "https://${module.route53_record.app_fqdn}"
+  value       = "https://${module.dns_record.app_fqdn}"
 }

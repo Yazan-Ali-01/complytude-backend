@@ -39,6 +39,7 @@ export class DatabaseModule {
           );
         }
 
+        const sslEnabled = configService.get<boolean>('database.sslEnabled');
         return {
           host,
           port,
@@ -51,6 +52,9 @@ export class DatabaseModule {
           connectionTimeoutMillis:
             configService.get<number>('database.connectionTimeoutMillis') ??
             2000,
+          ...(sslEnabled && {
+            ssl: { rejectUnauthorized: true },
+          }),
         };
       },
     });
