@@ -17,13 +17,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { I18n, I18nService } from 'nestjs-i18n';
-import { I18nKeys } from 'src/common/constants/i18n-keys';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { RulesetVersionRepository } from '../../repositories/rulesets/ruleset-version.repository';
 import {
   RulesetFilters,
   RulesetRepository,
 } from '../../repositories/rulesets/ruleset.repository';
+import { RulesetsI18n } from './constants/i18n.constants';
 import { CreateRulesetVersionDto } from './dto/create-ruleset-version.dto';
 import { CreateRulesetDto } from './dto/create-ruleset.dto';
 import { UpdateRulesetDto } from './dto/update-ruleset.dto';
@@ -56,7 +56,7 @@ export class RulesetsService {
       const existing = await this.rulesetRepository.findByKey(dto.key);
       if (existing) {
         throw new ConflictException(
-          this.i18n.t(I18nKeys.RULESET_ALREADY_EXISTS),
+          this.i18n.t(RulesetsI18n.errors.RULESET_ALREADY_EXISTS),
         );
       }
 
@@ -125,14 +125,16 @@ export class RulesetsService {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.RULESET_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+        );
       }
 
       const activeVersion =
         await this.rulesetVersionRepository.findActiveByRulesetId(ruleset.id);
       if (!activeVersion) {
         throw new InternalServerErrorException(
-          this.i18n.t(I18nKeys.RULESET_NO_ACTIVE_VERSION),
+          this.i18n.t(RulesetsI18n.errors.RULESET_NO_ACTIVE_VERSION),
         );
       }
 
@@ -157,7 +159,9 @@ export class RulesetsService {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.RULESET_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+        );
       }
 
       if (dto.authority_id !== undefined) {
@@ -183,7 +187,7 @@ export class RulesetsService {
         await this.rulesetVersionRepository.findActiveByRulesetId(updated.id);
       if (!activeVersion) {
         throw new InternalServerErrorException(
-          this.i18n.t(I18nKeys.RULESET_NO_ACTIVE_VERSION),
+          this.i18n.t(RulesetsI18n.errors.RULESET_NO_ACTIVE_VERSION),
         );
       }
 
@@ -198,7 +202,9 @@ export class RulesetsService {
     try {
       const result = await this.rulesetRepository.deactivateByKey(key);
       if (!result) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.RULESET_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+        );
       }
       this.logger.log(`Deactivated ruleset "${key}"`);
     } catch (error) {
@@ -214,7 +220,9 @@ export class RulesetsService {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.RULESET_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+        );
       }
 
       const existingVersion =
@@ -224,7 +232,7 @@ export class RulesetsService {
         );
       if (existingVersion) {
         throw new ConflictException(
-          this.i18n.t(I18nKeys.VERSION_ALREADY_EXISTS),
+          this.i18n.t(RulesetsI18n.errors.VERSION_ALREADY_EXISTS),
         );
       }
 
@@ -255,7 +263,9 @@ export class RulesetsService {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.RULESET_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+        );
       }
 
       return await this.rulesetVersionRepository.findByRulesetId(
@@ -271,7 +281,9 @@ export class RulesetsService {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.RULESET_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+        );
       }
 
       const rulesetVersion =
@@ -280,7 +292,9 @@ export class RulesetsService {
           version,
         );
       if (!rulesetVersion) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.VERSION_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.VERSION_NOT_FOUND),
+        );
       }
 
       return rulesetVersion;
@@ -299,7 +313,9 @@ export class RulesetsService {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.RULESET_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+        );
       }
 
       const source =
@@ -308,7 +324,9 @@ export class RulesetsService {
           sourceVersion,
         );
       if (!source) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.VERSION_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.VERSION_NOT_FOUND),
+        );
       }
 
       const existingNew =
@@ -318,7 +336,7 @@ export class RulesetsService {
         );
       if (existingNew) {
         throw new ConflictException(
-          this.i18n.t(I18nKeys.VERSION_ALREADY_EXISTS),
+          this.i18n.t(RulesetsI18n.errors.VERSION_ALREADY_EXISTS),
         );
       }
 
@@ -352,14 +370,16 @@ export class RulesetsService {
   ): Promise<{ jobId: string | undefined; versionId: string }> {
     const ruleset = await this.rulesetRepository.findByKey(key);
     if (!ruleset) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.RULESET_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+      );
     }
 
     const activeVersion =
       await this.rulesetVersionRepository.findActiveByRulesetId(ruleset.id);
     if (!activeVersion) {
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.RULESET_NO_ACTIVE_VERSION),
+        this.i18n.t(RulesetsI18n.errors.RULESET_NO_ACTIVE_VERSION),
       );
     }
 
@@ -405,7 +425,9 @@ export class RulesetsService {
   private async validateAuthorityExists(authorityId: string): Promise<void> {
     const authority = await this.authorityRepository.findById(authorityId);
     if (!authority) {
-      throw new BadRequestException(this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND));
+      throw new BadRequestException(
+        this.i18n.t(RulesetsI18n.errors.AUTHORITY_NOT_FOUND),
+      );
     }
   }
 

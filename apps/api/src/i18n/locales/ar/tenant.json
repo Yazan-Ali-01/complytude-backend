@@ -1,15 +1,20 @@
 {
   "errors": {
-    "TENANT_NOT_FOUND": "المستأجر غير موجود",
+    "TENANT_NOT_FOUND": "المستأجر {tenantId} غير موجود",
     "TENANT_CREATION_FAILED": "فشل في إنشاء المستأجر",
     "TENANT_UPDATE_FAILED": "فشل في تحديث المستأجر",
     "TENANT_DELETE_FAILED": "فشل في حذف المستأجر",
+    "TENANT_FETCH_FAILED": "فشل في جلب المستأجرين",
     "TENANT_ALREADY_EXISTS": "المستأجر بهذا الاسم موجود بالفعل",
     "TENANT_ACCESS_DENIED": "ليس لديك إذن للوصول إلى هذا المستأجر",
     "INVALID_TENANT_DATA": "بيانات المستأجر المقدمة غير صالحة",
     "TENANT_NAME_REQUIRED": "اسم المستأجر مطلوب",
     "TENANT_SUSPENDED": "حساب المستأجر معلق",
     "TENANT_INACTIVE": "المستأجر غير نشط",
+    "TENANT_ALREADY_DEACTIVATED": "المستأجر {tenantId} معطل بالفعل",
+    "TENANT_ALREADY_ACTIVE": "المستأجر {tenantId} نشط بالفعل",
+    "SLUG_TAKEN": "الاسم المختصر '{slug}' مستخدم بالفعل من قبل مستأجر آخر",
+    "AT_LEAST_ONE_BRANDING_FIELD_REQUIRED": "مطلوب حقل علامة تجارية واحد على الأقل (اللون الأساسي أو الثانوي)",
     "DOCUMENT_LIMIT_EXCEEDED": "تم تجاوز حد تحميل المستندات لخطتك"
   },
   "messages": {}

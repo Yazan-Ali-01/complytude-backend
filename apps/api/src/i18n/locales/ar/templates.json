@@ -1,7 +1,7 @@
 {
   "errors": {
     "TEMPLATE_NOT_FOUND": "القالب بالمعرف {id} غير موجود",
-    "TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء القالب",
+    "TEMPLATE_TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء القالب",
     "TEMPLATE_FETCH_FAILED": "فشل جلب تفاصيل القالب",
     "TEMPLATE_UPDATE_FAILED": "فشل تحديث القالب",
     "TEMPLATE_DELETE_FAILED": "فشل حذف القالب",
@@ -12,9 +12,11 @@
     "TEMPLATE_CATEGORY_REQUIRED": "تصنيف القالب مطلوب",
     "CATEGORY_NOT_FOUND": "التصنيف غير موجود",
     "AUTHORITY_NOT_FOUND": "الجهة غير موجودة",
+    "RULESET_NOT_FOUND": "واحد أو أكثر من مجموعات القواعد غير موجودة",
     "TEMPLATE_ACCESS_DENIED": "ليس لديك صلاحية الوصول إلى هذا القالب",
     "TEMPLATE_IN_USE": "القالب قيد الاستخدام حالياً ولا يمكن حذفه",
-    "TEMPLATE_VERSION_CONFLICT": "تم اكتشاف تعارض في إصدار القالب"
+    "TEMPLATE_VERSION_CONFLICT": "تم اكتشاف تعارض في إصدار القالب",
+    "INVALID_VERSION_FORMAT": "صيغة الإصدار غير صالحة. الصيغة المتوقعة (x.y.z)"
   },
   "messages": {
     "TEMPLATE_CLONED_SUCCESS": "تم نسخ القالب بنجاح",

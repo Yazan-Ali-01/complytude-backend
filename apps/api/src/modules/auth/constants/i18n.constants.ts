@@ -11,6 +11,8 @@ export const AuthI18n = {
     INVALID_VERIFICATION_TOKEN: 'auth.errors.INVALID_VERIFICATION_TOKEN',
     EMAIL_NOT_VERIFIED: 'auth.errors.EMAIL_NOT_VERIFIED',
     TOKEN_EXPIRED: 'auth.errors.TOKEN_EXPIRED',
+    FAILED_TO_REVOKE_REFRESH_TOKEN:
+      'auth.errors.FAILED_TO_REVOKE_REFRESH_TOKEN',
   },
   messages: {
     EMAIL_VERIFIED: 'auth.messages.EMAIL_VERIFIED',

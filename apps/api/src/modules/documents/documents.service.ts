@@ -7,11 +7,11 @@ import {
   NotImplementedException,
 } from '@nestjs/common';
 import { I18n, I18nService } from 'nestjs-i18n';
-import { I18nKeys } from 'src/common/constants/i18n-keys';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
+import { DocumentsI18n } from './constants/i18n.constants';
 import type {
   AnalysisJobResponseDto,
   AnalyzeDocumentDto,
@@ -102,7 +102,9 @@ export class DocumentsService {
       tenant: tenantContext,
     });
     if (!document) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.DOCUMENT_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+      );
     }
 
     const job = await this.analysisJobRepository.findLatestByDocument(
@@ -111,7 +113,7 @@ export class DocumentsService {
     );
     if (!job) {
       throw new NotFoundException(
-        this.i18n.t(I18nKeys.NO_ANALYSIS_JOB_FOR_DOCUMENT),
+        this.i18n.t(DocumentsI18n.errors.NO_ANALYSIS_JOB_FOR_DOCUMENT),
       );
     }
 
@@ -135,7 +137,9 @@ export class DocumentsService {
       tenant: tenantContext,
     });
     if (!job) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.ANALYSIS_JOB_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.ANALYSIS_JOB_NOT_FOUND),
+      );
     }
 
     return this.mapAnalysisJobToDto(job);
@@ -169,7 +173,7 @@ export class DocumentsService {
     _user: AuthenticatedUser,
   ): Promise<PreviewDocumentResponseDto> {
     throw new NotImplementedException(
-      this.i18n.t(I18nKeys.PREVIEW_NOT_IMPLEMENTED),
+      this.i18n.t(DocumentsI18n.errors.PREVIEW_NOT_IMPLEMENTED),
     );
   }
 
@@ -181,7 +185,7 @@ export class DocumentsService {
     _user: AuthenticatedUser,
   ): Promise<GenerateDocumentResponseDto> {
     throw new NotImplementedException(
-      this.i18n.t(I18nKeys.GENERATION_NOT_IMPLEMENTED),
+      this.i18n.t(DocumentsI18n.errors.GENERATION_NOT_IMPLEMENTED),
     );
   }
 
@@ -193,7 +197,7 @@ export class DocumentsService {
     _user: AuthenticatedUser,
   ): Promise<DocumentListResponseDto> {
     throw new NotImplementedException(
-      this.i18n.t(I18nKeys.LISTING_NOT_IMPLEMENTED),
+      this.i18n.t(DocumentsI18n.errors.LISTING_NOT_IMPLEMENTED),
     );
   }
 
@@ -202,7 +206,7 @@ export class DocumentsService {
    */
   findOne(_id: string, _user: AuthenticatedUser): Promise<DocumentResponseDto> {
     throw new NotImplementedException(
-      this.i18n.t(I18nKeys.RETRIEVAL_NOT_IMPLEMENTED),
+      this.i18n.t(DocumentsI18n.errors.RETRIEVAL_NOT_IMPLEMENTED),
     );
   }
 
@@ -214,7 +218,7 @@ export class DocumentsService {
     _user: AuthenticatedUser,
   ): Promise<DeleteDocumentResponseDto> {
     throw new NotImplementedException(
-      this.i18n.t(I18nKeys.DELETION_NOT_IMPLEMENTED),
+      this.i18n.t(DocumentsI18n.errors.DELETION_NOT_IMPLEMENTED),
     );
   }
 }

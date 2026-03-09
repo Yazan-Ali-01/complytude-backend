@@ -1,15 +1,20 @@
 {
   "errors": {
-    "TENANT_NOT_FOUND": "Tenant not found",
+    "TENANT_NOT_FOUND": "Tenant {tenantId} not found",
     "TENANT_CREATION_FAILED": "Failed to create tenant",
     "TENANT_UPDATE_FAILED": "Failed to update tenant",
     "TENANT_DELETE_FAILED": "Failed to delete tenant",
+    "TENANT_FETCH_FAILED": "Failed to fetch tenants",
     "TENANT_ALREADY_EXISTS": "Tenant with this name already exists",
     "TENANT_ACCESS_DENIED": "You do not have permission to access this tenant",
     "INVALID_TENANT_DATA": "Invalid tenant data provided",
     "TENANT_NAME_REQUIRED": "Tenant name is required",
     "TENANT_SUSPENDED": "Tenant account is suspended",
     "TENANT_INACTIVE": "Tenant is inactive",
+    "TENANT_ALREADY_DEACTIVATED": "Tenant {tenantId} is already deactivated",
+    "TENANT_ALREADY_ACTIVE": "Tenant {tenantId} is already active",
+    "SLUG_TAKEN": "Slug '{slug}' is already taken by another tenant",
+    "AT_LEAST_ONE_BRANDING_FIELD_REQUIRED": "At least one branding field (primary or secondary color) is required",
     "DOCUMENT_LIMIT_EXCEEDED": "Document upload limit exceeded for your plan"
   },
   "messages": {}

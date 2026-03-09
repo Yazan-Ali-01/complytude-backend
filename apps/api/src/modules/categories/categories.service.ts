@@ -7,11 +7,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { I18n, I18nService } from 'nestjs-i18n';
-import { I18nKeys } from '../../common/constants/i18n-keys';
 import {
   CategoryFilters,
   CategoryRepository,
 } from '../../repositories/categories/category.repository';
+import { CategoriesI18n } from './constants/i18n.constants';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { Category } from './entities/category.entity';
 
@@ -33,7 +33,7 @@ export class CategoriesService {
 
       if (existing) {
         throw new ConflictException(
-          this.i18n.t(I18nKeys.CATEGORY_ALREADY_EXISTS, {
+          this.i18n.t(CategoriesI18n.errors.CATEGORY_ALREADY_EXISTS, {
             args: { code: createCategoryDto.code },
           }),
         );
@@ -44,7 +44,7 @@ export class CategoriesService {
       this.logger.log(`Created category: ${category.code}`);
       return category;
     } catch (error) {
-      this.handleError(error, I18nKeys.CATEGORY_CREATE_FAILED);
+      this.handleError(error, CategoriesI18n.errors.CATEGORY_CREATE_FAILED);
     }
   }
 
@@ -55,7 +55,7 @@ export class CategoriesService {
     try {
       return await this.categoryRepository.findMany(filters, pagination);
     } catch (error) {
-      this.handleError(error, I18nKeys.CATEGORIES_FETCH_FAILED);
+      this.handleError(error, CategoriesI18n.errors.CATEGORIES_FETCH_FAILED);
     }
   }
 
@@ -65,13 +65,15 @@ export class CategoriesService {
 
       if (!category) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.CATEGORY_NOT_FOUND_BY_ID, { args: { id } }),
+          this.i18n.t(CategoriesI18n.errors.CATEGORY_NOT_FOUND_BY_ID, {
+            args: { id },
+          }),
         );
       }
 
       return category;
     } catch (error) {
-      this.handleError(error, I18nKeys.CATEGORY_FETCH_FAILED);
+      this.handleError(error, CategoriesI18n.errors.CATEGORY_FETCH_FAILED);
     }
   }
 
@@ -93,13 +95,15 @@ export class CategoriesService {
 
       if (!category) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.CATEGORY_NOT_FOUND_BY_CODE, { args: { code } }),
+          this.i18n.t(CategoriesI18n.errors.CATEGORY_NOT_FOUND_BY_CODE, {
+            args: { code },
+          }),
         );
       }
 
       return category;
     } catch (error) {
-      this.handleError(error, I18nKeys.CATEGORY_FETCH_FAILED);
+      this.handleError(error, CategoriesI18n.errors.CATEGORY_FETCH_FAILED);
     }
   }
 
@@ -118,7 +122,7 @@ export class CategoriesService {
       this.logger.log(`Updated category: ${id}`);
       return category;
     } catch (error) {
-      this.handleError(error, I18nKeys.CATEGORY_UPDATE_FAILED);
+      this.handleError(error, CategoriesI18n.errors.CATEGORY_UPDATE_FAILED);
     }
   }
 
@@ -127,13 +131,15 @@ export class CategoriesService {
       const result = await this.categoryRepository.deactivate(id);
       if (!result) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.CATEGORY_NOT_FOUND_BY_ID, { args: { id } }),
+          this.i18n.t(CategoriesI18n.errors.CATEGORY_NOT_FOUND_BY_ID, {
+            args: { id },
+          }),
         );
       }
 
       this.logger.log(`Deactivated category: ${id}`);
     } catch (error) {
-      this.handleError(error, I18nKeys.CATEGORY_DEACTIVATE_FAILED);
+      this.handleError(error, CategoriesI18n.errors.CATEGORY_DEACTIVATE_FAILED);
     }
   }
 

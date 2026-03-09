@@ -7,8 +7,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import type { JwtSignOptions } from '@nestjs/jwt';
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { FastifyReply } from 'fastify';
@@ -24,13 +24,14 @@ import {
 } from 'src/common/swagger/common';
 import { User } from 'src/modules/users/entities/user.entity';
 import { TokenType } from 'src/repositories/users/interfaces/refresh-token.interfaces';
-import { I18nKeys } from '../../common/constants/i18n-keys';
 import { EmailVerificationRepository } from '../../repositories/users/email-verification.repository';
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { UserRepository } from '../../repositories/users/user.repository';
 import { InvitationsService } from '../invitations/invitations.service';
 import { TenantService } from '../tenants/tenant.service';
+import { UsersI18n } from '../users/constants/i18n.constants';
+import { AuthI18n } from './constants/i18n.constants';
 import {
   ForgotPasswordDto,
   InvitationListResponseDto,
@@ -217,7 +218,7 @@ export class AuthService {
     });
     if (existingUser) {
       throw new ConflictException(
-        this.i18n.t(I18nKeys.EMAIL_ALREADY_REGISTERED),
+        this.i18n.t(AuthI18n.errors.EMAIL_ALREADY_REGISTERED),
       );
     }
 
@@ -274,7 +275,7 @@ export class AuthService {
       );
 
       const result = {
-        message: this.i18n.t(I18nKeys.SIGNUP_SUCCESS),
+        message: this.i18n.t(AuthI18n.messages.SIGNUP_SUCCESS),
       } as unknown as MessageResponseDto & { verificationToken: string };
 
       if (this.configService.get<string>('NODE_ENV') !== 'production') {
@@ -302,7 +303,9 @@ export class AuthService {
 
     // Check if user is verified
     if (!user.is_verified) {
-      throw new UnauthorizedException(this.i18n.t(I18nKeys.EMAIL_NOT_VERIFIED));
+      throw new UnauthorizedException(
+        this.i18n.t(AuthI18n.errors.EMAIL_NOT_VERIFIED),
+      );
     }
 
     const platformRole = user.platform_role_key ?? null;
@@ -369,7 +372,7 @@ export class AuthService {
     });
     if (!user) {
       throw new UnauthorizedException(
-        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+        this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
       );
     }
 
@@ -377,7 +380,7 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
       throw new UnauthorizedException(
-        this.i18n.t(I18nKeys.INVALID_CREDENTIALS),
+        this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
       );
     }
 
@@ -576,20 +579,24 @@ export class AuthService {
 
     if (!validToken) {
       throw new UnauthorizedException(
-        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+        this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
       );
     }
 
     // Revoke old refresh token
     const revoked = await this.refreshTokenRepository.revokeById(validToken.id);
     if (!revoked) {
-      throw new UnauthorizedException('Failed to revoke refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t(AuthI18n.errors.FAILED_TO_REVOKE_REFRESH_TOKEN),
+      );
     }
 
     // Get user to check system admin status
     const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new UnauthorizedException(this.i18n.t(I18nKeys.NOT_FOUND));
+      throw new UnauthorizedException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND),
+      );
     }
 
     const platformRole = user.platform_role_key ?? null;
@@ -625,14 +632,16 @@ export class AuthService {
 
     if (!validToken) {
       throw new UnauthorizedException(
-        this.i18n.t(I18nKeys.INVALID_REFRESH_TOKEN),
+        this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
       );
     }
 
     // Revoke old refresh token
     const revoked = await this.refreshTokenRepository.revokeById(validToken.id);
     if (!revoked) {
-      throw new UnauthorizedException('Failed to revoke refresh token');
+      throw new UnauthorizedException(
+        this.i18n.t(AuthI18n.errors.FAILED_TO_REVOKE_REFRESH_TOKEN),
+      );
     }
 
     // Get user's tenant membership to verify they still have access
@@ -647,7 +656,7 @@ export class AuthService {
 
     if (!userTenant || !userTenant.is_active) {
       throw new UnauthorizedException(
-        this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
+        this.i18n.t(AuthI18n.errors.TENANT_ACCESS_DENIED),
       );
     }
 
@@ -685,7 +694,7 @@ export class AuthService {
     this.logger.log(
       `User ${userId} logged out (identity tokens revoked, tenant tokens revoked)`,
     );
-    return { message: this.i18n.t(I18nKeys.LOGOUT_SUCCESS) };
+    return { message: this.i18n.t(AuthI18n.messages.LOGOUT_SUCCESS) };
   }
 
   private async revokeRefreshToken(userId: string, refreshToken: string) {
@@ -724,7 +733,7 @@ export class AuthService {
 
     if (!verification) {
       throw new BadRequestException(
-        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
+        this.i18n.t(AuthI18n.errors.INVALID_VERIFICATION_TOKEN),
       );
     }
 
@@ -742,7 +751,7 @@ export class AuthService {
 
     this.logger.log(`Email verified for user ${verification.userId}`);
 
-    return { message: this.i18n.t(I18nKeys.EMAIL_VERIFIED) };
+    return { message: this.i18n.t(AuthI18n.messages.EMAIL_VERIFIED) };
   }
 
   /**
@@ -758,7 +767,7 @@ export class AuthService {
     if (!user) {
       // Don't reveal if email exists
       return {
-        message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
+        message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
       };
     }
 
@@ -780,7 +789,7 @@ export class AuthService {
     this.logger.log(`Password reset token for ${email}: ${resetToken}`);
 
     const result = {
-      message: this.i18n.t(I18nKeys.PASSWORD_RESET_EMAIL_SENT),
+      message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
     };
 
     if (this.configService.get<string>('NODE_ENV') !== 'production') {
@@ -802,7 +811,7 @@ export class AuthService {
       await this.userRepository.findPasswordResetByToken(hashedToken);
     if (!reset) {
       throw new BadRequestException(
-        this.i18n.t(I18nKeys.INVALID_VERIFICATION_TOKEN),
+        this.i18n.t(AuthI18n.errors.INVALID_VERIFICATION_TOKEN),
       );
     }
 
@@ -829,7 +838,7 @@ export class AuthService {
 
     this.logger.log(`Password reset for user ${reset.userId}`);
 
-    return { message: this.i18n.t(I18nKeys.PASSWORD_RESET_SUCCESS) };
+    return { message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_SUCCESS) };
   }
 
   /**
@@ -855,7 +864,7 @@ export class AuthService {
 
       if (!userTenant || !userTenant.is_active) {
         throw new UnauthorizedException(
-          this.i18n.t(I18nKeys.TENANT_ACCESS_DENIED),
+          this.i18n.t(AuthI18n.errors.TENANT_ACCESS_DENIED),
         );
       }
 

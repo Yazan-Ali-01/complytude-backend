@@ -7,11 +7,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { I18n, I18nService } from 'nestjs-i18n';
-import { I18nKeys } from '../../common/constants/i18n-keys';
 import {
   AuthorityFilters,
   AuthorityRepository,
 } from '../../repositories/authorities/authority.repository';
+import { AuthoritiesI18n } from './constants/i18n.constants';
 import {
   CreateAuthorityDto,
   UpdateAuthorityDto,
@@ -36,7 +36,7 @@ export class AuthoritiesService {
 
       if (existing) {
         throw new ConflictException(
-          this.i18n.t(I18nKeys.AUTHORITY_ALREADY_EXISTS, {
+          this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_ALREADY_EXISTS, {
             args: { code: createAuthorityDto.code },
           }),
         );
@@ -53,7 +53,7 @@ export class AuthoritiesService {
       }
       this.logger.error(`Failed to create authority: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.AUTHORITY_CREATE_FAILED),
+        this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_CREATE_FAILED),
       );
     }
   }
@@ -67,7 +67,7 @@ export class AuthoritiesService {
     } catch (error) {
       this.logger.error(`Failed to fetch authorities: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.AUTHORITIES_FETCH_FAILED),
+        this.i18n.t(AuthoritiesI18n.errors.AUTHORITIES_FETCH_FAILED),
       );
     }
   }
@@ -78,7 +78,9 @@ export class AuthoritiesService {
 
       if (!authority) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND_BY_ID, { args: { id } }),
+          this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_NOT_FOUND_BY_ID, {
+            args: { id },
+          }),
         );
       }
 
@@ -89,7 +91,7 @@ export class AuthoritiesService {
       }
       this.logger.error(`Failed to fetch authority: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.AUTHORITY_FETCH_FAILED),
+        this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_FETCH_FAILED),
       );
     }
   }
@@ -103,7 +105,9 @@ export class AuthoritiesService {
 
       if (!authority) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND_BY_CODE, { args: { code } }),
+          this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_NOT_FOUND_BY_CODE, {
+            args: { code },
+          }),
         );
       }
 
@@ -114,7 +118,7 @@ export class AuthoritiesService {
       }
       this.logger.error(`Failed to fetch authority: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.AUTHORITY_FETCH_FAILED),
+        this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_FETCH_FAILED),
       );
     }
   }
@@ -138,7 +142,7 @@ export class AuthoritiesService {
       }
       this.logger.error(`Failed to update authority: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.AUTHORITY_UPDATE_FAILED),
+        this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_UPDATE_FAILED),
       );
     }
   }
@@ -150,7 +154,9 @@ export class AuthoritiesService {
       const deleted = await this.authorityRepository.delete(id);
       if (deleted === 0) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND_BY_ID, { args: { id } }),
+          this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_NOT_FOUND_BY_ID, {
+            args: { id },
+          }),
         );
       }
 
@@ -161,7 +167,7 @@ export class AuthoritiesService {
       }
       this.logger.error(`Failed to delete authority: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.AUTHORITY_DELETE_FAILED),
+        this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_DELETE_FAILED),
       );
     }
   }

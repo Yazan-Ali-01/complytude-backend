@@ -8,7 +8,7 @@ The API uses the **nestjs-i18n** library with the following structure:
 
 - **Translation keys** are defined in module-specific constants: `modules/{module}/constants/i18n.constants.ts`
 - **Locale files** (JSON) store actual translations: `i18n/locales/{lang}/{module}.json`
-- **Type-safe keys** are exported from `common/constants/i18n-keys.ts` for use throughout the application
+- **Direct imports** from module constants ensure type safety and eliminate circular dependencies
 
 ## Architecture
 
@@ -16,15 +16,14 @@ The API uses the **nestjs-i18n** library with the following structure:
 
 1. **Module-Based Organization**: Each feature module has its own i18n constants and translations
 2. **Nested Structure**: Keys are organized under `errors` and `messages` categories
-3. **Type Safety**: `I18nKeyType` union ensures all keys are valid at compile time
-4. **Backward Compatibility**: Legacy `I18nKeys` flat object is maintained but deprecated
+3. **Type Safety**: TypeScript constants ensure all keys are valid at compile time
+4. **Direct Imports**: Import `{Module}I18n` directly from module constants (e.g., `AuthI18n`, `UsersI18n`)
+5. **Parameter Support**: All error messages support dynamic parameters using single-brace syntax `{param}`
 
 ### Directory Structure
 
 ```
 apps/api/src/
-├── common/constants/
-│   └── i18n-keys.ts                      # Main i18n entry point (re-exports + type definitions)
 ├── i18n/
 │   ├── i18n.module.ts                    # nestjs-i18n configuration
 │   └── locales/
@@ -108,32 +107,17 @@ Create `i18n/locales/en/{module}.json`:
 
 Create the same structure in `i18n/locales/ar/{module}.json` with Arabic translations.
 
-### Step 3: Update i18n-keys.ts
+### Step 3: Verify Synchronization
 
-Add the new module to `common/constants/i18n-keys.ts`:
+Ensure all locale files are synchronized:
 
-```typescript
-// Import
-import { AuthI18n } from '../../modules/auth/constants/i18n.constants';
-
-// Export
-export {
-  AuthI18n,
-  // ... other modules
-};
-
-// Add to I18nKeys legacy object
-export const I18nKeys = {
-  // ... existing keys
-  EMAIL_ALREADY_REGISTERED: 'auth.errors.EMAIL_ALREADY_REGISTERED',
-  INVALID_CREDENTIALS: 'auth.errors.INVALID_CREDENTIALS',
-};
-
-// Add to I18nKeyType union
-export type I18nKeyType =
-  | ExtractValues<typeof AuthI18n>
-  | ExtractValues<typeof OtherI18n>;
+```bash
+# Check that both English and Arabic have the same keys
+diff <(jq -S 'keys' i18n/locales/en/{module}.json) \
+     <(jq -S 'keys' i18n/locales/ar/{module}.json)
 ```
+
+**Important:** Every key in the constants file MUST exist in both `en/` and `ar/` locale files.
 
 ## Using Translations in Services
 
@@ -141,7 +125,7 @@ export type I18nKeyType =
 
 ```typescript
 import { I18n, I18nService } from 'nestjs-i18n';
-import { I18nKeys } from 'src/common/constants/i18n-keys';
+import { AuthI18n } from './constants/i18n.constants';
 
 @Injectable()
 export class AuthService {
@@ -157,7 +141,7 @@ export class AuthService {
 
 ```typescript
 throw new NotFoundException(
-  this.i18n.t(I18nKeys.EMAIL_NOT_VERIFIED),
+  this.i18n.t(AuthI18n.errors.EMAIL_NOT_VERIFIED),
 );
 ```
 
@@ -165,7 +149,7 @@ throw new NotFoundException(
 
 ```typescript
 throw new BadRequestException(
-  this.i18n.t(I18nKeys.USER_NOT_FOUND, {
+  this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
     args: { userId: user.id },
   }),
 );
@@ -183,39 +167,28 @@ JSON file (with placeholder syntax using single braces):
 
 ### Error Handling Pattern
 
-**Option 1: Direct Translation (Simple Errors)**
+**Standard Pattern (Recommended):**
 
 ```typescript
+import { UsersI18n } from './constants/i18n.constants';
+
 async updateUser(userId: string) {
   const user = await this.usersRepository.findById(userId);
   if (!user) {
-    throw new NotFoundException(this.i18n.t(I18nKeys.USER_NOT_FOUND));
+    throw new NotFoundException(
+      this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
+        args: { userId },
+      }),
+    );
   }
 }
 ```
 
-**Option 2: Abstracted Error Handler (Complex Logic)**
-
-Used in services like `CategoriesService` for more complex error scenarios:
-
-```typescript
-private async handleError(i18nKey: string, context?: string): never {
-  this.logger.error(`Operation failed: ${context}`);
-  throw new BadRequestException(this.i18n.t(i18nKey));
-}
-
-// Usage in methods:
-try {
-  // ... operation ...
-} catch (error) {
-  this.handleError(I18nKeys.OPERATION_FAILED, 'creating category');
-}
-```
-
-**When to use the abstracted pattern:**
-- Multiple related errors in the same method
-- Error handler needs additional logic (logging, metrics)
-- Reducing code duplication across similar operations
+**Key Guidelines:**
+- Always import the module's i18n constants at the top of the service
+- Use the full path: `{Module}I18n.errors.ERROR_NAME` or `{Module}I18n.messages.MESSAGE_NAME`
+- Pass dynamic values using the `args` object
+- Keep error messages user-friendly and actionable
 
 ## Parametrized Messages
 
@@ -224,7 +197,7 @@ Messages can accept dynamic parameters using single-brace placeholders:
 **TypeScript:**
 
 ```typescript
-this.i18n.t(I18nKeys.INVITATION_WRONG_STATUS, {
+this.i18n.t(InvitationsI18n.errors.INVITATION_WRONG_STATUS, {
   args: { status: 'pending', action: 'accept' },
 });
 ```
@@ -258,20 +231,24 @@ To add a new language:
 ### DO ✅
 
 - ✅ Define keys in module constants before using them
-- ✅ Use `I18nKeys` for type safety (avoids typos at runtime)
+- ✅ Import module i18n constants directly (e.g., `import { UsersI18n } from './constants/i18n.constants'`)
 - ✅ Keep error messages user-friendly and non-technical
-- ✅ Use parametrized messages for dynamic content
+- ✅ Use parametrized messages for dynamic content with `{param}` syntax
+- ✅ Always pass parameters using `{ args: { key: value } }`
 - ✅ Maintain consistency in error message tone across modules
 - ✅ Test translations in both languages before committing
 - ✅ Keep JSON locale files well-organized under `errors`/`messages`
+- ✅ Ensure both English and Arabic locales have identical key structures
 
 ### DON'T ❌
 
 - ❌ Use hardcoded strings in exceptions (always use `i18n.t()`)
 - ❌ Create keys inline without adding them to constants
-- ❌ Mix double braces (`{{var}}`) and single braces (`{var}`) in JSON
+- ❌ Mix double braces (`{{var}}`) and single braces (`{var}`) in JSON (always use single braces)
 - ❌ Translate technical terms or API field names
 - ❌ Forget to add both English and Arabic translations
+- ❌ Add parameters to locale files without passing them in the service
+- ❌ Pass parameters that aren't defined in the locale file
 
 ## Common Patterns
 
@@ -281,37 +258,76 @@ To add a new language:
 const user = await this.usersRepository.findById(userId);
 if (!user) {
   throw new NotFoundException(
-    this.i18n.t(I18nKeys.USER_NOT_FOUND, {
+    this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
       args: { userId },
     }),
   );
 }
 ```
 
-### Pattern 2: Already Exists + Name
+**Locale file:**
+```json
+{
+  "errors": {
+    "USER_NOT_FOUND": "User {userId} not found"
+  }
+}
+```
+
+### Pattern 2: Already Exists + Parameter
 
 ```typescript
 const existing = await this.repository.findByKey(key);
 if (existing) {
   throw new ConflictException(
-    this.i18n.t(I18nKeys.ITEM_ALREADY_EXISTS, {
-      args: { name: key },
-    }),
+    this.i18n.t(TemplatesI18n.errors.TEMPLATE_ALREADY_EXISTS),
   );
 }
 ```
 
-### Pattern 3: Permission Denied + Context
+### Pattern 3: Slug/Unique Field Conflict
 
 ```typescript
-if (!hasPermission) {
-  throw new ForbiddenException(
-    this.i18n.t(I18nKeys.ACCESS_DENIED, {
-      args: { resource: 'categories' },
+const isTaken = await this.tenantRepository.isSlugTaken(slug, tenantId);
+if (isTaken) {
+  throw new ConflictException(
+    this.i18n.t(TenantsI18n.errors.SLUG_TAKEN, {
+      args: { slug },
     }),
   );
 }
 ```
+
+**Locale file:**
+```json
+{
+  "errors": {
+    "SLUG_TAKEN": "Slug '{slug}' is already taken by another tenant"
+  }
+}
+```
+
+### Pattern 4: Multiple Optional Parameters
+
+When a message can receive different parameters (e.g., `userId` OR `email`):
+
+```typescript
+// Service can pass either userId or email
+this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
+  args: { userId }, // OR args: { email }
+});
+```
+
+**Locale file (both parameters in template):**
+```json
+{
+  "errors": {
+    "USER_NOT_FOUND": "User {userId}{email} not found"
+  }
+}
+```
+
+This displays whichever parameter is provided.
 
 ## Migration from Hardcoded Strings
 
@@ -341,32 +357,38 @@ export const UsersI18n = {
   }
 }
 
-// 3. Update i18n-keys.ts and service
+// 3. Update service
+import { UsersI18n } from './constants/i18n.constants';
+
 throw new NotFoundException(
-  this.i18n.t(I18nKeys.USER_NOT_FOUND),
+  this.i18n.t(UsersI18n.errors.USER_NOT_FOUND),
 );
 ```
 
 ## Architecture Considerations
 
-### Current Structure vs. Future Scalability
+### Current Structure: Module-Based Direct Imports
 
-**Current approach:** Single flat `I18nKeys` object in `common/constants/i18n-keys.ts`
+**Current approach:** Import i18n constants directly from each module
 
 **Pros:**
-- Simple to use
-- Type-safe through `I18nKeyType` union
-- Easy to search all keys in one place
+- ✅ No central file bottleneck
+- ✅ Type-safe through TypeScript constants
+- ✅ Clear module ownership
+- ✅ No circular dependency issues
+- ✅ Easy to locate and update translations per module
 
 **Cons:**
-- File grows with each new module
-- Can become difficult to maintain as codebase scales
+- ⚠️ Requires importing from each module separately
+- ⚠️ No single source to view all keys (use grep/search instead)
 
-**Future improvement option:** Split into per-module key files when:
-- The `i18n-keys.ts` file exceeds 500 lines
-- Team prefers importing directly from module files: `import { AuthI18n } from 'modules/auth/constants/i18n.constants'`
+**Key Design Decision:**
+We removed the centralized `common/constants/i18n-keys.ts` file to eliminate:
+- Maintenance overhead of keeping a central registry
+- Risk of circular dependencies
+- Merge conflicts in a single large file
 
-This is tracked as a potential optimization but not required for the current phase.
+Each module is now self-contained with its own i18n constants.
 
 ## Testing Translations
 
@@ -383,7 +405,7 @@ describe('AuthService', () => {
       // ... trigger error ...
     } catch (error) {
       expect(i18nService.t).toHaveBeenCalledWith(
-        I18nKeys.INVALID_CREDENTIALS,
+        AuthI18n.errors.INVALID_CREDENTIALS,
       );
     }
   });
@@ -395,9 +417,10 @@ describe('AuthService', () => {
 ### Issue: Translation not showing
 
 **Solution:** Verify:
-- Key exists in locale JSON file
+- Key exists in module's `i18n.constants.ts` file
+- Key exists in locale JSON file for both `en/` and `ar/`
 - JSON syntax is valid (use JSON validator)
-- Module is imported in `i18n-keys.ts`
+- Module constant is imported in the service
 - Language file exists (e.g., both `en/` and `ar/`)
 
 ### Issue: Parameter not replaced
@@ -407,11 +430,44 @@ describe('AuthService', () => {
 - Placeholder name matches: `i18n.t(key, { args: { param: value } })`
 - No typos in placeholder names
 
-### Issue: Circular imports
+### Issue: Missing parameter in translation
+
+**Symptoms:**
+- Parameter shows as literal `{userId}` instead of the actual value
+- Translation displays `User {userId} not found` instead of `User 123 not found`
 
 **Solution:**
-- Don't import `I18nKeys` in module constants
-- Import module constants in `i18n-keys.ts` instead
+- Ensure you're passing the parameter: `this.i18n.t(key, { args: { userId: '123' } })`
+- Check parameter name matches exactly between service and locale file
+- Verify you're using single braces `{param}` not double braces `{{param}}`
+
+### Issue: Key mismatch between constants and locales
+
+**Solution:**
+- Run a consistency check across all modules
+- Ensure every key in `i18n.constants.ts` exists in both `en/{module}.json` and `ar/{module}.json`
+- Use the same key names (case-sensitive) across all files
+
+## Module Status Reference
+
+All modules have synchronized i18n constants and locale files:
+
+| Module | Constants File | EN Locale | AR Locale | Status |
+|--------|---------------|-----------|-----------|--------|
+| auth | ✅ | ✅ | ✅ | Synced |
+| users | ✅ | ✅ | ✅ | Synced |
+| tenants | ✅ | ✅ | ✅ | Synced |
+| templates | ✅ | ✅ | ✅ | Synced |
+| authorities | ✅ | ✅ | ✅ | Synced |
+| categories | ✅ | ✅ | ✅ | Synced |
+| documents | ✅ | ✅ | ✅ | Synced |
+| entitlements | ✅ | ✅ | ✅ | Synced |
+| invitations | ✅ | ✅ | ✅ | Synced |
+| rulesets | ✅ | ✅ | ✅ | Synced |
+| storage | ✅ | ✅ | ✅ | Synced |
+| subscriptions | ✅ | ✅ | ✅ | Synced |
+
+**Last Updated:** 2026-03-09
 
 ---
 

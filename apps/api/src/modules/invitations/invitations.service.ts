@@ -14,7 +14,6 @@ import {
 import * as crypto from 'crypto';
 import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { I18nKeys } from 'src/common/constants/i18n-keys';
 import {
   InvitationItemDto,
   InvitationListResponseDto,
@@ -31,6 +30,7 @@ import {
 import { InvitationRepository } from 'src/repositories/invitations/invitation.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
+import { InvitationsI18n } from './constants/i18n.constants';
 
 export interface CreateInvitationServiceInput {
   tenantId: string;
@@ -111,13 +111,15 @@ export class InvitationsService {
 
       if (!invitation) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.INVITATION_NOT_FOUND_OR_EXPIRED),
+          this.i18n.t(InvitationsI18n.errors.INVITATION_NOT_FOUND_OR_EXPIRED),
         );
       }
 
       // Check expiration
       if (new Date() > invitation.expiresAt) {
-        throw new BadRequestException(this.i18n.t(I18nKeys.INVITATION_EXPIRED));
+        throw new BadRequestException(
+          this.i18n.t(InvitationsI18n.errors.INVITATION_EXPIRED),
+        );
       }
 
       // todo: after adding tenant name, add it to the query
@@ -132,11 +134,15 @@ export class InvitationsService {
       ]);
 
       if (!tenant.rows[0]) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.TENANT_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(InvitationsI18n.errors.TENANT_NOT_FOUND),
+        );
       }
 
       if (!inviter) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.INVITER_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(InvitationsI18n.errors.INVITER_NOT_FOUND),
+        );
       }
 
       const inviterInfo: InvitationInvitedByDto = {
@@ -177,13 +183,15 @@ export class InvitationsService {
       );
 
       if (!invitation) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.INVITATION_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(InvitationsI18n.errors.INVITATION_NOT_FOUND),
+        );
       }
 
       // Validate invitation status
       if (invitation.status !== InvitationStatus.PENDING) {
         throw new BadRequestException(
-          this.i18n.t(I18nKeys.INVITATION_WRONG_STATUS, {
+          this.i18n.t(InvitationsI18n.errors.INVITATION_WRONG_STATUS, {
             args: { status: invitation.status, action: 'accepted' },
           }),
         );
@@ -191,7 +199,9 @@ export class InvitationsService {
 
       // Check expiration
       if (new Date() > invitation.expiresAt) {
-        throw new BadRequestException(this.i18n.t(I18nKeys.INVITATION_EXPIRED));
+        throw new BadRequestException(
+          this.i18n.t(InvitationsI18n.errors.INVITATION_EXPIRED),
+        );
       }
 
       // CRITICAL: Email matching check
@@ -200,7 +210,7 @@ export class InvitationsService {
           `User ${email} attempted to accept invitation for ${invitation.email}`,
         );
         throw new ForbiddenException(
-          this.i18n.t(I18nKeys.INVITATION_EMAIL_MISMATCH),
+          this.i18n.t(InvitationsI18n.errors.INVITATION_EMAIL_MISMATCH),
         );
       }
 
@@ -223,7 +233,9 @@ export class InvitationsService {
           `User ${userId} was already a member of tenant ${invitation.tenantId}, reactivated membership`,
         );
         return {
-          message: this.i18n.t(I18nKeys.INVITATION_ALREADY_MEMBER_REACTIVATED),
+          message: this.i18n.t(
+            InvitationsI18n.messages.ALREADY_MEMBER_REACTIVATED,
+          ),
         };
       }
 
@@ -232,7 +244,7 @@ export class InvitationsService {
       );
 
       return {
-        message: this.i18n.t(I18nKeys.INVITATION_ACCEPTED_SUCCESSFULLY),
+        message: this.i18n.t(InvitationsI18n.messages.ACCEPTED_SUCCESSFULLY),
       };
     });
   }
@@ -256,13 +268,15 @@ export class InvitationsService {
       );
 
       if (!invitation) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.INVITATION_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(InvitationsI18n.errors.INVITATION_NOT_FOUND),
+        );
       }
 
       // Validate invitation status
       if (invitation.status !== InvitationStatus.PENDING) {
         throw new BadRequestException(
-          this.i18n.t(I18nKeys.INVITATION_WRONG_STATUS, {
+          this.i18n.t(InvitationsI18n.errors.INVITATION_WRONG_STATUS, {
             args: { status: invitation.status, action: 'rejected' },
           }),
         );
@@ -274,7 +288,7 @@ export class InvitationsService {
           `User ${email} attempted to reject invitation for ${invitation.email}`,
         );
         throw new ForbiddenException(
-          this.i18n.t(I18nKeys.INVITATION_EMAIL_MISMATCH),
+          this.i18n.t(InvitationsI18n.errors.INVITATION_EMAIL_MISMATCH),
         );
       }
 
@@ -284,7 +298,7 @@ export class InvitationsService {
       this.logger.log(`User ${userId} rejected invitation ${invitationId}`);
 
       return {
-        message: this.i18n.t(I18nKeys.INVITATION_REJECTED_SUCCESSFULLY),
+        message: this.i18n.t(InvitationsI18n.messages.REJECTED_SUCCESSFULLY),
       };
     });
   }
@@ -412,7 +426,7 @@ export class InvitationsService {
 
       if (existing) {
         throw new ConflictException(
-          this.i18n.t(I18nKeys.INVITATION_ALREADY_EXISTS),
+          this.i18n.t(InvitationsI18n.errors.INVITATION_ALREADY_EXISTS),
         );
       }
 
@@ -435,7 +449,7 @@ export class InvitationsService {
 
         if (existingMembership) {
           throw new ConflictException(
-            this.i18n.t(I18nKeys.USER_ALREADY_MEMBER),
+            this.i18n.t(InvitationsI18n.errors.USER_ALREADY_MEMBER),
           );
         }
       }
@@ -493,18 +507,20 @@ export class InvitationsService {
       );
 
       if (!invitation) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.INVITATION_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(InvitationsI18n.errors.INVITATION_NOT_FOUND),
+        );
       }
 
       if (invitation.tenantId !== tenantId) {
         throw new ForbiddenException(
-          this.i18n.t(I18nKeys.INVITATION_WRONG_TENANT),
+          this.i18n.t(InvitationsI18n.errors.INVITATION_WRONG_TENANT),
         );
       }
 
       if (invitation.status !== InvitationStatus.PENDING) {
         throw new BadRequestException(
-          this.i18n.t(I18nKeys.CAN_ONLY_RESEND_PENDING),
+          this.i18n.t(InvitationsI18n.errors.CAN_ONLY_RESEND_PENDING),
         );
       }
 
@@ -548,12 +564,14 @@ export class InvitationsService {
       );
 
       if (!invitation) {
-        throw new NotFoundException(this.i18n.t(I18nKeys.INVITATION_NOT_FOUND));
+        throw new NotFoundException(
+          this.i18n.t(InvitationsI18n.errors.INVITATION_NOT_FOUND),
+        );
       }
 
       if (invitation.tenantId !== tenantId) {
         throw new ForbiddenException(
-          this.i18n.t(I18nKeys.INVITATION_WRONG_TENANT),
+          this.i18n.t(InvitationsI18n.errors.INVITATION_WRONG_TENANT),
         );
       }
 
@@ -569,7 +587,7 @@ export class InvitationsService {
       );
 
       return {
-        message: this.i18n.t(I18nKeys.INVITATION_REVOKED_SUCCESSFULLY),
+        message: this.i18n.t(InvitationsI18n.messages.REVOKED_SUCCESSFULLY),
       };
     });
   }

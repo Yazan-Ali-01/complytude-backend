@@ -13,17 +13,17 @@ import {
 } from '@nestjs/common';
 import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
 import {
   Template,
   TemplateWithDetails,
 } from 'src/modules/templates/entities/template.entity';
-import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
-import { I18nKeys } from '../../common/constants/i18n-keys';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { CategoryRepository } from '../../repositories/categories/category.repository';
 import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
 import { TemplateRepository } from '../../repositories/templates/template.repository';
 import { StorageService } from '../storage/storage.service';
+import { TemplatesI18n } from './constants/i18n.constants';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,
@@ -75,7 +75,7 @@ export class TemplatesService {
 
       if (existing) {
         throw new ConflictException(
-          this.i18n.t(I18nKeys.TEMPLATE_ALREADY_EXISTS),
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_ALREADY_EXISTS),
         );
       }
 
@@ -86,7 +86,7 @@ export class TemplatesService {
         );
         if (!categoryExists) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.CATEGORY_NOT_FOUND),
+            this.i18n.t(TemplatesI18n.errors.CATEGORY_NOT_FOUND),
           );
         }
       }
@@ -98,7 +98,7 @@ export class TemplatesService {
         );
         if (!authorityExists) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
+            this.i18n.t(TemplatesI18n.errors.AUTHORITY_NOT_FOUND),
           );
         }
       }
@@ -113,7 +113,7 @@ export class TemplatesService {
         );
         if (rulesets.length !== createTemplateDto.ruleset_keys.length) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
+            this.i18n.t(TemplatesI18n.errors.RULESET_NOT_FOUND),
           );
         }
       }
@@ -145,7 +145,9 @@ export class TemplatesService {
           error.stack,
         );
         throw new InternalServerErrorException(
-          this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
+          this.i18n.t(
+            TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
+          ),
         );
       }
 
@@ -248,7 +250,9 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to create template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(
+          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
+        ),
       );
     }
   }
@@ -275,7 +279,9 @@ export class TemplatesService {
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(
+          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
+        ),
       );
     }
   }
@@ -286,7 +292,7 @@ export class TemplatesService {
     } catch (error) {
       this.logger.error(`Failed to fetch active templates: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_FETCH_FAILED),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_FETCH_FAILED),
       );
     }
   }
@@ -297,7 +303,9 @@ export class TemplatesService {
 
       if (!template) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.TEMPLATE_NOT_FOUND, { args: { id } }),
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_NOT_FOUND, {
+            args: { id },
+          }),
         );
       }
 
@@ -308,7 +316,9 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(
+          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
+        ),
       );
     }
   }
@@ -338,7 +348,9 @@ export class TemplatesService {
 
       if (!template) {
         throw new NotFoundException(
-          this.i18n.t(I18nKeys.TEMPLATE_NOT_FOUND, { args: { id: key } }),
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_NOT_FOUND, {
+            args: { id: key },
+          }),
         );
       }
 
@@ -349,7 +361,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_FETCH_FAILED),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_FETCH_FAILED),
       );
     }
   }
@@ -407,7 +419,7 @@ export class TemplatesService {
         `Failed to fetch template with details: ${error.message}`,
       );
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_FETCH_FAILED),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_FETCH_FAILED),
       );
     }
   }
@@ -427,7 +439,7 @@ export class TemplatesService {
         );
         if (!categoryExists) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.CATEGORY_NOT_FOUND),
+            this.i18n.t(TemplatesI18n.errors.CATEGORY_NOT_FOUND),
           );
         }
       }
@@ -439,7 +451,7 @@ export class TemplatesService {
         );
         if (!authorityExists) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
+            this.i18n.t(TemplatesI18n.errors.AUTHORITY_NOT_FOUND),
           );
         }
       }
@@ -454,7 +466,7 @@ export class TemplatesService {
         );
         if (rulesets.length !== updateTemplateDto.ruleset_keys.length) {
           throw new BadRequestException(
-            this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND),
+            this.i18n.t(TemplatesI18n.errors.RULESET_NOT_FOUND),
           );
         }
       }
@@ -506,7 +518,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to update template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_UPDATE_FAILED),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_UPDATE_FAILED),
       );
     }
   }
@@ -530,7 +542,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to deactivate template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_UPDATE_FAILED),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_UPDATE_FAILED),
       );
     }
   }
@@ -550,7 +562,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to delete template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_DELETE_FAILED),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_DELETE_FAILED),
       );
     }
   }
@@ -573,7 +585,7 @@ export class TemplatesService {
     );
     if (existingVersion.rows.length > 0) {
       throw new ConflictException(
-        this.i18n.t(I18nKeys.TEMPLATE_VERSION_CONFLICT),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_VERSION_CONFLICT),
       );
     }
 
@@ -598,7 +610,9 @@ export class TemplatesService {
         error.stack,
       );
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(
+          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
+        ),
       );
     }
 
@@ -714,7 +728,9 @@ export class TemplatesService {
   ): Promise<TemplateDownloadResponseDto> {
     // Validate version format (semver: x.y.z) before any DB calls
     if (version && !/^\d+\.\d+\.\d+$/.test(version)) {
-      throw new BadRequestException(this.i18n.t(I18nKeys.AUTHORITY_NOT_FOUND));
+      throw new BadRequestException(
+        this.i18n.t(TemplatesI18n.errors.INVALID_VERSION_FORMAT),
+      );
     }
 
     try {
@@ -752,7 +768,9 @@ export class TemplatesService {
         `Failed to generate download URL for template "${key}": ${error.message}`,
       );
       throw new InternalServerErrorException(
-        this.i18n.t(I18nKeys.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED),
+        this.i18n.t(
+          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
+        ),
       );
     }
   }

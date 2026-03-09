@@ -1,7 +1,7 @@
 {
   "errors": {
     "TEMPLATE_NOT_FOUND": "Template with ID {id} not found",
-    "TEMPORARY_URL_GENERATION_FAILED": "Failed to create template",
+    "TEMPLATE_TEMPORARY_URL_GENERATION_FAILED": "Failed to create template",
     "TEMPLATE_FETCH_FAILED": "Failed to fetch template details",
     "TEMPLATE_UPDATE_FAILED": "Failed to update template",
     "TEMPLATE_DELETE_FAILED": "Failed to delete template",
@@ -12,9 +12,11 @@
     "TEMPLATE_CATEGORY_REQUIRED": "Template category is required",
     "CATEGORY_NOT_FOUND": "Category not found",
     "AUTHORITY_NOT_FOUND": "Authority not found",
+    "RULESET_NOT_FOUND": "One or more rulesets not found",
     "TEMPLATE_ACCESS_DENIED": "You do not have permission to access this template",
     "TEMPLATE_IN_USE": "Template is currently in use and cannot be deleted",
-    "TEMPLATE_VERSION_CONFLICT": "Template version conflict detected"
+    "TEMPLATE_VERSION_CONFLICT": "Template version conflict detected",
+    "INVALID_VERSION_FORMAT": "Invalid version format. Expected semver format (x.y.z)"
   },
   "messages": {
     "TEMPLATE_CLONED_SUCCESS": "Template cloned successfully",

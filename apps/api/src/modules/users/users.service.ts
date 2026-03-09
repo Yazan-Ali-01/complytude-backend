@@ -10,7 +10,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { I18n, I18nService } from 'nestjs-i18n';
-import { I18nKeys } from '../../common/constants/i18n-keys';
+import { UsersI18n } from './constants/i18n.constants';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -37,7 +37,11 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.USER_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
+          args: { userId },
+        }),
+      );
     }
 
     return new User(result.rows[0]);
@@ -53,7 +57,11 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.USER_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
+          args: { email },
+        }),
+      );
     }
 
     return new User(result.rows[0]);
@@ -99,7 +107,9 @@ export class UsersService {
     }
 
     if (updateFields.length === 0) {
-      throw new BadRequestException(this.i18n.t(I18nKeys.NO_FIELDS_TO_UPDATE));
+      throw new BadRequestException(
+        this.i18n.t(UsersI18n.errors.NO_FIELDS_TO_UPDATE),
+      );
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -133,7 +143,11 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.USER_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
+          args: { userId },
+        }),
+      );
     }
 
     const user = result.rows[0] as { password_hash: string };
@@ -146,7 +160,7 @@ export class UsersService {
 
     if (!isPasswordValid) {
       throw new BadRequestException(
-        this.i18n.t(I18nKeys.CURRENT_PASSWORD_INCORRECT),
+        this.i18n.t(UsersI18n.errors.CURRENT_PASSWORD_INCORRECT),
       );
     }
 
@@ -233,7 +247,7 @@ export class UsersService {
 
       if (existingAssociation.rows.length > 0) {
         throw new ConflictException(
-          this.i18n.t(I18nKeys.USER_ALREADY_EXISTS_IN_TENANT),
+          this.i18n.t(UsersI18n.errors.USER_ALREADY_EXISTS_IN_TENANT),
         );
       }
     } else {
@@ -325,14 +339,14 @@ export class UsersService {
 
     if (existingAssociation.rows.length === 0) {
       throw new NotFoundException(
-        this.i18n.t(I18nKeys.USER_NOT_FOUND_IN_TENANT),
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_IN_TENANT),
       );
     }
 
     // Prevent users from modifying their own admin status
     if (targetUserId === updaterId && updateUserDto.role) {
       throw new ForbiddenException(
-        this.i18n.t(I18nKeys.CANNOT_MODIFY_OWN_ROLE),
+        this.i18n.t(UsersI18n.errors.CANNOT_MODIFY_OWN_ROLE),
       );
     }
 
@@ -351,7 +365,9 @@ export class UsersService {
     }
 
     if (updateFields.length === 0) {
-      throw new BadRequestException(this.i18n.t(I18nKeys.NO_FIELDS_TO_UPDATE));
+      throw new BadRequestException(
+        this.i18n.t(UsersI18n.errors.NO_FIELDS_TO_UPDATE),
+      );
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -385,7 +401,7 @@ export class UsersService {
     // Prevent users from removing themselves
     if (targetUserId === removerId) {
       throw new ForbiddenException(
-        this.i18n.t(I18nKeys.CANNOT_REMOVE_YOURSELF),
+        this.i18n.t(UsersI18n.errors.CANNOT_REMOVE_YOURSELF),
       );
     }
 
@@ -397,7 +413,7 @@ export class UsersService {
 
     if (existingAssociation.rows.length === 0) {
       throw new NotFoundException(
-        this.i18n.t(I18nKeys.USER_NOT_FOUND_IN_TENANT),
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_IN_TENANT),
       );
     }
 
@@ -438,7 +454,7 @@ export class UsersService {
 
     if (result.rows.length === 0) {
       throw new NotFoundException(
-        this.i18n.t(I18nKeys.USER_NOT_FOUND_IN_TENANT),
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_IN_TENANT),
       );
     }
 
