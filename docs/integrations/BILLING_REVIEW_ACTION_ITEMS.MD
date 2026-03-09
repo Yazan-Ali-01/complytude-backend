@@ -49,6 +49,7 @@ Consolidated action items from the comprehensive billing system review.
 **What was done:** Added `BillingSchedulerService` that schedules a daily BullMQ cron job to run `StripeReconciliationService.reconcileAll()` at 3 AM. The job is automatically enabled in production and can be enabled in development via `BILLING_SCHEDULE_ENABLED=true`. Added manual testing endpoint for verification.
 
 **Files changed:**
+
 - `apps/api/src/modules/billing/services/billing-scheduler.service.ts` — New scheduled job service
 - `apps/api/src/modules/billing/billing.module.ts` — Added scheduler service and StripeModule import
 - `apps/api/src/config/env.schema.ts` — Added `BILLING_SCHEDULE_ENABLED` environment variable
@@ -71,11 +72,12 @@ Consolidated action items from the comprehensive billing system review.
 **Decision:** Email dunning sequence via BullMQ
 **Status:** ✅ **COMPLETED** in commit `05e3bd9` (2026-03-09)
 **Implementation:** Complete automated dunning system with:
+
 - Day 0 (immediate), Day 3, Day 5 email sequence via BullMQ
 - AWS SES integration with multi-language templates (EN/AR)
 - Subscription status `past_due` support for UI banners
 - Terraform infrastructure with SES domain identity and IAM policies
-**Key files:**
+  **Key files:**
 
 - ✅ `apps/api/src/modules/stripe/webhook/stripe-event-handlers/index.ts` (queueDunningEmailSequence method)
 - ✅ `apps/api/src/modules/billing/processors/dunning-job.processor.ts` (job processor)
@@ -106,19 +108,22 @@ Consolidated action items from the comprehensive billing system review.
 **Decision:** Extract shared `AddonSyncEngine`
 **Status:** COMPLETED
 **What was done:** Created a shared `AddonSyncEngine` service that provides:
+
 - `analyzeSync()` - Pure analysis of Stripe vs DB state, returns mutations
-- `executeMutations()` - Applies mutations to database with detailed logging  
+- `executeMutations()` - Applies mutations to database with detailed logging
 - `syncAddons()` - Convenience method combining analysis + execution
 
 Both webhook handler and reconciliation service now use the shared engine, eliminating ~200 lines of duplicated code.
 
 **Files changed:**
+
 - **NEW:** `apps/api/src/modules/stripe/services/addon-sync-engine.service.ts` - Shared sync engine
 - `apps/api/src/modules/stripe/webhook/stripe-event-handlers/index.ts` - Uses shared engine
-- `apps/api/src/modules/stripe/services/stripe-reconciliation.service.ts` - Uses shared engine  
+- `apps/api/src/modules/stripe/services/stripe-reconciliation.service.ts` - Uses shared engine
 - `apps/api/src/modules/stripe/stripe.module.ts` - Registers AddonSyncEngine provider
 
 **Benefits:**
+
 - Single source of truth for addon sync logic
 - Consistent behavior between webhook and reconciliation
 - Better testability (engine can be unit tested independently)
@@ -126,17 +131,36 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 
 ---
 
-### ✅ DONE (Quick Fix) — Issue 6: StripeModule imports SubscriptionsService directly
+### ✅ DONE — Issue 6: StripeModule monolith refactor
 
-**Priority:** P1 (quick fix)
-**Status:** Quick fix completed
-**What was done:** Fixed encapsulation violation by importing `SubscriptionsModule` instead of directly providing `SubscriptionsService`. Removed `SubscriptionsService` from providers array and added `SubscriptionsModule` to imports array.
+**Priority:** P3
+**Status:** Completed
+**What was done:** Split the monolithic StripeModule into focused, single-responsibility modules:
+
+- `StripeWebhookModule` (Global) - Webhook handling and event processing
+- `StripeBillingModule` (Global) - Billing operations (checkout, portal, subscriptions) 
+- `StripeCatalogModule` - Catalog synchronization
+- `StripeAdminModule` - Admin operations (reconciliation, monitoring)
+
+The main `StripeModule` now aggregates these modules and is no longer `@Global()`. Core services (`StripeService`, `StripeCustomerService`, etc.) remain globally available through `StripeBillingModule` and `StripeWebhookModule`.
 
 **Files changed:**
-- `apps/api/src/modules/stripe/stripe.module.ts` — Fixed module imports and dependency injection
 
-**Remaining work:**
-- **Full refactor (P3, 4 hours):** Split into `StripeWebhookModule`, `StripeBillingModule`, `StripeCatalogModule`, `StripeAdminModule`. Remove `@Global()`.
+- **NEW:** `apps/api/src/modules/stripe/modules/stripe-webhook.module.ts` - Webhook handling module (Global)
+- **NEW:** `apps/api/src/modules/stripe/modules/stripe-billing.module.ts` - Billing operations module (Global)  
+- **NEW:** `apps/api/src/modules/stripe/modules/stripe-catalog.module.ts` - Catalog sync module
+- **NEW:** `apps/api/src/modules/stripe/modules/stripe-admin.module.ts` - Admin operations module
+- **NEW:** `apps/api/src/modules/stripe/modules/index.ts` - Module exports
+- `apps/api/src/modules/stripe/stripe.module.ts` - Refactored to aggregate sub-modules, removed @Global()
+- `apps/api/src/modules/billing/billing.module.ts` - Updated to import specific Stripe modules
+
+**Benefits:**
+
+- Clear separation of concerns (webhook vs billing vs admin vs catalog)
+- Better maintainability and testability
+- Reduced coupling between unrelated Stripe functionality
+- Easier to understand module dependencies
+- Follows single-responsibility principle
 
 ---
 
@@ -162,9 +186,10 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 **What was done:** Created centralized `getSubscriptionPeriod()` utility function in `stripe.utils.ts` that handles Stripe API 2026-02-25 change where `current_period_start/end` moved from subscription root to `items.data[0]`. Replaced 4+ inline fallback patterns across webhook handlers, subscription service, and reconciliation service.
 
 **Files changed:**
+
 - `apps/api/src/modules/stripe/stripe.utils.ts` — Added `getSubscriptionPeriod()` utility function
 - `apps/api/src/modules/stripe/webhook/stripe-event-handlers/index.ts` — Replaced 3 inline patterns
-- `apps/api/src/modules/stripe/services/stripe-subscription.service.ts` — Replaced 2 inline patterns  
+- `apps/api/src/modules/stripe/services/stripe-subscription.service.ts` — Replaced 2 inline patterns
 - `apps/api/src/modules/stripe/services/stripe-reconciliation.service.ts` — Replaced 1 inline pattern
 
 ---
@@ -214,15 +239,18 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 **What was done:** Refactored `reconcileAll()` to use single-pass reconciliation. Each Stripe subscription is now fetched once and used for both subscription and add-on reconciliation. This reduces API calls by 50% and improves reconciliation performance.
 
 **Implementation details:**
+
 - Combined `reconcileSubscriptions()` and `reconcileAddons()` into `reconcileSubscriptionsAndAddons()`
 - Created `reconcileSubscriptionAndAddons()` method that fetches Stripe subscription once
 - Split logic into `reconcileSubscriptionData()` and `reconcileAddonsData()` methods
 - Both methods now use the same Stripe API response
 
 **Files changed:**
+
 - `apps/api/src/modules/stripe/services/stripe-reconciliation.service.ts` — Single-pass reconciliation implementation
 
 **Benefits:**
+
 - 50% reduction in Stripe API calls during reconciliation
 - Faster reconciliation execution time
 - Reduced risk of hitting Stripe API rate limits
@@ -237,6 +265,7 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 **What was done:** Implemented in-memory caching for subscription and feature lookups with TTL-based expiration and webhook-based cache invalidation. This reduces database round-trips from 4-6 to 1-2 per request for cached data.
 
 **Implementation details:**
+
 - Created `EntitlementCacheService` with separate caches for subscriptions (60s TTL) and features (300s TTL)
 - Added cache-first lookup in `EntitlementEnforcementService.enforceUsageBasedFeature()`
 - Implemented webhook-based cache invalidation in Stripe event handlers
@@ -244,6 +273,7 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 - Added configurable TTL settings via environment variables
 
 **Files changed:**
+
 - **NEW:** `apps/api/src/modules/entitlements/services/entitlement-cache.service.ts` — Core caching service
 - **NEW:** `apps/api/src/modules/entitlements/services/entitlement-cache-cleanup.service.ts` — Periodic cleanup
 - `apps/api/src/modules/entitlements/services/entitlement-enforcement.service.ts` — Cache integration
@@ -253,6 +283,7 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 - `apps/api/.env.example` — Environment variable documentation
 
 **Benefits:**
+
 - Reduces DB queries from 4-6 to 1-2 per entitlement check for cached data
 - Subscription cache: 60s TTL (changes monthly on billing cycles)
 - Feature cache: 300s TTL (changes only on app restart during feature sync)
@@ -261,6 +292,7 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 - Automatic cleanup prevents memory leaks
 
 **Configuration:**
+
 - `ENTITLEMENT_SUBSCRIPTION_CACHE_TTL_SECONDS=60` (default)
 - `ENTITLEMENT_FEATURE_CACHE_TTL_SECONDS=300` (default)
 - `ENTITLEMENT_CACHE_CLEANUP_INTERVAL_SECONDS=300` (default)
@@ -311,7 +343,7 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 | ✅    | Issue 14: In-memory caching                         | Done     | Latency                        |
 | 1     | Issue 15: Async webhook processing                  | 4 hours  | Reliability at scale           |
 | 2     | Issue 4: Move catalog sync to CLI                   | 2 hours  | Operational safety             |
-| 3     | Issue 7: Extract currency constants                 | 2 hours  | Future-proofing                |
-| 4     | Issue 6 (full): Split StripeModule                  | 4 hours  | Maintainability                |
+| ✅    | Issue 7: Extract currency constants                 | 2 hours  | Future-proofing                |
+| ✅    | Issue 6 (full): Split StripeModule                  | Done     | Maintainability                |
 | 5     | Issue 16: Verify credit ledger index                | 15 min   | Quick win                      |
 | 6     | Issues 9-12: Test coverage                          | 5-7 days | Launch readiness               |

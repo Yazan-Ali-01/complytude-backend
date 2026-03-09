@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { EmailModule } from '../email/email.module';
-import { StripeModule } from '../stripe/stripe.module';
+import { StripeWebhookModule, StripeAdminModule } from '../stripe/modules';
 import { DunningJobProcessor } from './processors/dunning-job.processor';
 import { DunningEmailHandler } from './handlers/dunning-email.handler';
 import { StripeReconciliationHandler } from './handlers/stripe-reconciliation.handler';
@@ -8,7 +8,7 @@ import { StripeWebhookProcessingHandler } from './handlers/stripe-webhook-proces
 import { BillingSchedulerService } from './services/billing-scheduler.service';
 
 @Module({
-  imports: [EmailModule, StripeModule],
+  imports: [EmailModule, StripeWebhookModule, StripeAdminModule],
   providers: [
     DunningJobProcessor,
     DunningEmailHandler,
