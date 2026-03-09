@@ -20,6 +20,7 @@ import {
   DunningEmailJobData,
 } from '@lib/queue';
 import type { PoolClient } from 'pg';
+import { AddonSyncEngine } from '../../services/addon-sync-engine.service';
 
 @Injectable()
 export class StripeEventHandlersService {
@@ -38,6 +39,7 @@ export class StripeEventHandlersService {
     private readonly userTenantRepository: UserTenantRepository,
     private readonly tenantsRepository: TenantRepository,
     private readonly queueProducer: QueueProducerService,
+    private readonly addonSyncEngine: AddonSyncEngine,
   ) {}
 
   async handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
@@ -422,14 +424,8 @@ export class StripeEventHandlersService {
   /**
    * Reconcile tenant_addons with the current Stripe subscription items.
    *
-   * Iterates all items on the Stripe subscription, identifies which are add-ons
-   * (by matching stripe_price_id against our addon catalog), then:
-   *   - Creates DB records for items present in Stripe but absent from our DB
-   *   - Reactivates/updates records for items that previously existed but were cancelled
-   *   - Updates quantity for items where it has changed
-   *   - Cancels DB records for active add-ons whose Stripe item no longer exists
-   *
-   * Returns true if any change was made (caller should invalidate the snapshot).
+   * Uses the shared AddonSyncEngine to eliminate code duplication with
+   * the reconciliation service. Returns true if any change was made.
    *
    * Note: This runs inside an existing platform-admin transaction — all mutations
    * share the same client and will roll back together on failure.
@@ -440,117 +436,12 @@ export class StripeEventHandlersService {
     eventId: string,
     client: PoolClient,
   ): Promise<boolean> {
-    // Build a price_id → addon catalog map (global table, no RLS)
-    const allAddons = await this.addonsRepository.findAllActive({ client });
-    const addonByPriceId = new Map(
-      allAddons
-        .filter((a) => a.stripe_price_id != null)
-        .map((a) => [a.stripe_price_id!, a]),
-    );
-
-    // Filter Stripe items to only the ones that correspond to add-ons
-    const addonStripeItems = stripeSub.items.data.filter((item) => {
-      const priceId =
-        typeof item.price === 'string' ? item.price : item.price.id;
-      return addonByPriceId.has(priceId);
-    });
-
-    const stripeItemIds = new Set(addonStripeItems.map((i) => i.id));
-
-    // Current active add-ons in DB for this tenant
-    const activeDbAddons = await this.tenantAddonsRepository.findActiveByTenant(
+    return this.addonSyncEngine.syncAddons(tenantId, stripeSub, {
       tenantId,
-      { client },
-    );
-    const activeDbByItemId = new Map(
-      activeDbAddons
-        .filter((a) => a.stripe_subscription_item_id != null)
-        .map((a) => [a.stripe_subscription_item_id!, a]),
-    );
-
-    let changed = false;
-
-    // Items in Stripe not in DB → create (or reactivate if previously cancelled)
-    for (const stripeItem of addonStripeItems) {
-      const priceId =
-        typeof stripeItem.price === 'string'
-          ? stripeItem.price
-          : stripeItem.price.id;
-      const addon = addonByPriceId.get(priceId)!;
-      const quantity = stripeItem.quantity ?? 1;
-
-      if (activeDbByItemId.has(stripeItem.id)) {
-        // Already active — sync quantity if it drifted
-        const existing = activeDbByItemId.get(stripeItem.id)!;
-        if (existing.quantity !== quantity) {
-          await this.tenantAddonsRepository.update(
-            existing.id,
-            { quantity },
-            { client },
-          );
-          changed = true;
-          this.logger.log(
-            `Webhook addon sync: updated quantity addon=${addon.key} item=${stripeItem.id} ` +
-              `${existing.quantity}→${quantity} tenant=${tenantId} event=${eventId}`,
-          );
-        }
-        continue;
-      }
-
-      // Check if a record already exists with this item ID (could be cancelled)
-      const existingAny =
-        await this.tenantAddonsRepository.findByStripeSubscriptionItemId(
-          stripeItem.id,
-          { client },
-        );
-
-      if (existingAny) {
-        // Reactivate the cancelled record and sync quantity
-        await this.tenantAddonsRepository.update(
-          existingAny.id,
-          { status: 'active', quantity },
-          { client },
-        );
-        changed = true;
-        this.logger.log(
-          `Webhook addon sync: reactivated addon=${addon.key} item=${stripeItem.id} tenant=${tenantId} event=${eventId}`,
-        );
-      } else {
-        // Brand new — create
-        await this.tenantAddonsRepository.create(
-          {
-            tenant_id: tenantId,
-            addon_id: addon.id,
-            quantity,
-            status: 'active',
-            starts_at: new Date(),
-            stripe_subscription_item_id: stripeItem.id,
-          },
-          { client },
-        );
-        changed = true;
-        this.logger.log(
-          `Webhook addon sync: created addon=${addon.key} item=${stripeItem.id} tenant=${tenantId} event=${eventId}`,
-        );
-      }
-    }
-
-    // Active DB add-ons whose Stripe item is gone → cancel
-    for (const [itemId, dbAddon] of activeDbByItemId) {
-      if (!stripeItemIds.has(itemId)) {
-        await this.tenantAddonsRepository.update(
-          dbAddon.id,
-          { status: 'cancelled' },
-          { client },
-        );
-        changed = true;
-        this.logger.log(
-          `Webhook addon sync: cancelled item=${itemId} tenant=${tenantId} event=${eventId}`,
-        );
-      }
-    }
-
-    return changed;
+      client,
+      context: 'webhook',
+      eventId,
+    });
   }
 
   async handleInvoicePaid(event: Stripe.Event): Promise<void> {

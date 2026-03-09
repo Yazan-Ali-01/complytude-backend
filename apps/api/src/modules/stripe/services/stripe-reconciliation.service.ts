@@ -1,6 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import Stripe from 'stripe';
-import type { PoolClient } from 'pg';
 import { TenantSubscription } from 'src/common/types/entitlement.types';
 import { DatabaseService } from 'src/database/database.service';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
@@ -15,6 +13,10 @@ import {
   RECONCILIATION_BATCH_SIZE,
   RECONCILIATION_BATCH_DELAY_MS,
 } from '../stripe.utils';
+import {
+  AddonSyncEngine,
+  AddonSyncMutation as _AddonSyncMutation,
+} from './addon-sync-engine.service';
 
 export interface ReconciliationError {
   type: string;
@@ -46,6 +48,7 @@ export class StripeReconciliationService {
     private readonly domainEventsService: DomainEventsService,
     private readonly addonsRepository: AddonsRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
+    private readonly addonSyncEngine: AddonSyncEngine,
   ) {}
 
   async reconcileAll(): Promise<ReconciliationReport> {
@@ -262,108 +265,36 @@ export class StripeReconciliationService {
         sub.stripe_subscription_id!,
       );
 
-      const allAddons = await this.addonsRepository.findAllActive();
-      const addonByPriceId = new Map(
-        allAddons
-          .filter((a) => a.stripe_price_id != null)
-          .map((a) => [a.stripe_price_id!, a]),
-      );
+      // Use shared engine to analyze drift
+      const { mutations, addonCatalog, stripeItemMap } =
+        await this.addonSyncEngine.analyzeSync(sub.tenant_id, stripeSub);
 
+      // Count items checked and in sync for reporting
       const addonStripeItems = stripeSub.items.data.filter((item) => {
         const priceId =
           typeof item.price === 'string' ? item.price : item.price.id;
-        return addonByPriceId.has(priceId);
+        return addonCatalog.has(priceId);
       });
 
-      const stripeItemIds = new Set(addonStripeItems.map((i) => i.id));
+      report.checked += addonStripeItems.length;
+      report.in_sync += addonStripeItems.length - mutations.length;
 
-      const activeDbAddons =
-        await this.tenantAddonsRepository.findActiveByTenant(sub.tenant_id);
-      const activeDbByItemId = new Map(
-        activeDbAddons
-          .filter((a) => a.stripe_subscription_item_id != null)
-          .map((a) => [a.stripe_subscription_item_id!, a]),
-      );
+      if (mutations.length === 0) return;
 
-      const driftedItems: Array<{
-        type: 'create' | 'reactivate' | 'update_quantity' | 'cancel';
-        stripeItemId: string;
-        addonKey?: string;
-        dbAddonId?: string;
-        quantity?: number;
-      }> = [];
-
-      for (const stripeItem of addonStripeItems) {
-        report.checked++;
-        const priceId =
-          typeof stripeItem.price === 'string'
-            ? stripeItem.price
-            : stripeItem.price.id;
-        const addon = addonByPriceId.get(priceId)!;
-        const quantity = stripeItem.quantity ?? 1;
-
-        if (activeDbByItemId.has(stripeItem.id)) {
-          const existing = activeDbByItemId.get(stripeItem.id)!;
-          if (existing.quantity !== quantity) {
-            driftedItems.push({
-              type: 'update_quantity',
-              stripeItemId: stripeItem.id,
-              addonKey: addon.key,
-              dbAddonId: existing.id,
-              quantity,
-            });
-          } else {
-            report.in_sync++;
-          }
-          continue;
-        }
-
-        // Check if a cancelled record exists for this item
-        const existingAny =
-          await this.tenantAddonsRepository.findByStripeSubscriptionItemId(
-            stripeItem.id,
-          );
-        if (existingAny) {
-          driftedItems.push({
-            type: 'reactivate',
-            stripeItemId: stripeItem.id,
-            addonKey: addon.key,
-            dbAddonId: existingAny.id,
-            quantity,
-          });
-        } else {
-          driftedItems.push({
-            type: 'create',
-            stripeItemId: stripeItem.id,
-            addonKey: addon.key,
-            quantity,
-          });
-        }
-      }
-
-      // Active DB add-ons whose Stripe item is gone → cancel
-      for (const [itemId, dbAddon] of activeDbByItemId) {
-        if (!stripeItemIds.has(itemId)) {
-          driftedItems.push({
-            type: 'cancel',
-            stripeItemId: itemId,
-            dbAddonId: dbAddon.id,
-          });
-        }
-      }
-
-      if (driftedItems.length === 0) return;
-
-      report.drifted += driftedItems.length;
+      report.drifted += mutations.length;
 
       await this.databaseService.transactionWithPlatformAdminContext(
         async (client) => {
-          await this.applyAddonDrift(
-            sub,
-            stripeSub,
-            driftedItems,
-            addonByPriceId,
-            client,
+          // Execute mutations using shared engine
+          await this.addonSyncEngine.executeMutations(
+            mutations,
+            addonCatalog,
+            stripeItemMap,
+            {
+              tenantId: sub.tenant_id,
+              client,
+              context: 'reconciliation',
+            },
           );
 
           await this.entitlementSnapshotsRepository.invalidate(sub.tenant_id, {
@@ -378,10 +309,10 @@ export class StripeReconciliationService {
               aggregate_id: sub.id,
               actor_type: 'system',
               payload: JSON.stringify({
-                fixes: driftedItems.map((d) => ({
-                  type: d.type,
-                  stripe_item_id: d.stripeItemId,
-                  addon_key: d.addonKey,
+                fixes: mutations.map((m) => ({
+                  type: m.type,
+                  stripe_item_id: m.stripeItemId,
+                  addon_key: m.addonKey,
                 })),
               }),
               metadata: JSON.stringify({
@@ -394,10 +325,10 @@ export class StripeReconciliationService {
         },
       );
 
-      report.fixed += driftedItems.length;
+      report.fixed += mutations.length;
       this.logger.log(
-        `Add-on reconciliation: tenant=${sub.tenant_id} fixes=${driftedItems.length} ` +
-          `(${driftedItems.map((d) => d.type).join(', ')})`,
+        `Add-on reconciliation: tenant=${sub.tenant_id} fixes=${mutations.length} ` +
+          `(${mutations.map((m) => m.type).join(', ')})`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -411,88 +342,6 @@ export class StripeReconciliationService {
         stripe_id: sub.stripe_subscription_id!,
         error: message,
       });
-    }
-  }
-
-  private async applyAddonDrift(
-    sub: TenantSubscription,
-    stripeSub: Stripe.Subscription,
-    driftedItems: Array<{
-      type: 'create' | 'reactivate' | 'update_quantity' | 'cancel';
-      stripeItemId: string;
-      addonKey?: string;
-      dbAddonId?: string;
-      quantity?: number;
-    }>,
-    addonByPriceId: Map<string, { id: string; key: string }>,
-    client: PoolClient,
-  ): Promise<void> {
-    const stripeItemMap = new Map(
-      stripeSub.items.data.map((item) => [item.id, item]),
-    );
-
-    for (const drift of driftedItems) {
-      switch (drift.type) {
-        case 'update_quantity':
-          await this.tenantAddonsRepository.update(
-            drift.dbAddonId!,
-            { quantity: drift.quantity! },
-            { client },
-          );
-          this.logger.log(
-            `Addon reconcile: updated quantity addon=${drift.addonKey} item=${drift.stripeItemId} ` +
-              `→ quantity=${drift.quantity} tenant=${sub.tenant_id}`,
-          );
-          break;
-
-        case 'reactivate':
-          await this.tenantAddonsRepository.update(
-            drift.dbAddonId!,
-            { status: 'active', quantity: drift.quantity! },
-            { client },
-          );
-          this.logger.log(
-            `Addon reconcile: reactivated addon=${drift.addonKey} item=${drift.stripeItemId} tenant=${sub.tenant_id}`,
-          );
-          break;
-
-        case 'create': {
-          const stripeItem = stripeItemMap.get(drift.stripeItemId);
-          if (!stripeItem) break;
-          const priceId =
-            typeof stripeItem.price === 'string'
-              ? stripeItem.price
-              : stripeItem.price.id;
-          const addon = addonByPriceId.get(priceId);
-          if (!addon) break;
-          await this.tenantAddonsRepository.create(
-            {
-              tenant_id: sub.tenant_id,
-              addon_id: addon.id,
-              quantity: drift.quantity!,
-              status: 'active',
-              starts_at: new Date(),
-              stripe_subscription_item_id: drift.stripeItemId,
-            },
-            { client },
-          );
-          this.logger.log(
-            `Addon reconcile: created addon=${addon.key} item=${drift.stripeItemId} tenant=${sub.tenant_id}`,
-          );
-          break;
-        }
-
-        case 'cancel':
-          await this.tenantAddonsRepository.update(
-            drift.dbAddonId!,
-            { status: 'cancelled' },
-            { client },
-          );
-          this.logger.log(
-            `Addon reconcile: cancelled item=${drift.stripeItemId} tenant=${sub.tenant_id}`,
-          );
-          break;
-      }
     }
   }
 

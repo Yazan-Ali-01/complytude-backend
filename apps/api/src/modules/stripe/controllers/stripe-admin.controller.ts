@@ -30,6 +30,7 @@ import {
   StripeWebhookMonitoringService,
   WebhookStats,
 } from '../services/stripe-webhook-monitoring.service';
+import { StripeCatalogSyncService } from '../services/stripe-catalog-sync.service';
 
 @ApiTags('System Admin - Stripe')
 @Controller('admin/stripe')
@@ -44,6 +45,7 @@ export class StripeAdminController {
     private readonly stripeTaxService: StripeTaxService,
     private readonly stripeReconciliationService: StripeReconciliationService,
     private readonly stripeWebhookMonitoringService: StripeWebhookMonitoringService,
+    private readonly stripeCatalogSyncService: StripeCatalogSyncService,
   ) {}
 
   @Post('backfill-customers')
@@ -213,5 +215,50 @@ export class StripeAdminController {
     return this.stripeWebhookMonitoringService.retryFailedEvents(
       Number(maxRetries),
     );
+  }
+
+  @Post('sync-catalog')
+  @HttpCode(HttpStatus.OK)
+  @RequireAnyPlatformPermission('entitlements:manage')
+  @ApiOperation({
+    summary: '[ADMIN] Sync catalog to Stripe',
+    description:
+      'Manually syncs plans, add-ons, and credit packages from code constants to Stripe Products and Prices. ' +
+      'Idempotent — safe to run multiple times. Requires STRIPE_CATALOG_SYNC_ENABLED=true.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Catalog sync completed',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        details: {
+          type: 'object',
+          properties: {
+            plans: { type: 'number' },
+            addons: { type: 'number' },
+            creditPackages: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Insufficient platform permissions',
+  })
+  async syncCatalog(): Promise<{
+    success: boolean;
+    message: string;
+    details?: {
+      plans: number;
+      addons: number;
+      creditPackages: number;
+    };
+  }> {
+    this.logger.log('[ADMIN] Starting manual Stripe catalog sync');
+    return this.stripeCatalogSyncService.syncCatalog();
   }
 }

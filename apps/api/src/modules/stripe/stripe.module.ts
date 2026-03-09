@@ -10,6 +10,7 @@ import { QueueModule } from '@lib/queue';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { StripeAdminController } from './controllers/stripe-admin.controller';
 import { BillingController } from './controllers/billing.controller';
+import { AddonSyncEngine } from './services/addon-sync-engine.service';
 import { StripeAddonService } from './services/stripe-addon.service';
 import { StripeBillingPortalService } from './services/stripe-billing-portal.service';
 import { StripeCatalogSyncService } from './services/stripe-catalog-sync.service';
@@ -37,6 +38,7 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
     StripeWebhookService,
     StripeWebhookEventsRepository,
     StripeEventHandlersService,
+    AddonSyncEngine,
     StripeCatalogSyncService,
     StripeCustomerService,
     StripeCheckoutService,

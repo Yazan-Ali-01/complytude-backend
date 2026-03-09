@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import {
@@ -18,10 +18,10 @@ import { StripeService } from '../stripe.service';
 /**
  * StripeCatalogSyncService
  *
- * Syncs the plan and add-on catalog from code constants to Stripe Products and Prices
- * on every app startup. This ensures Stripe always mirrors our source of truth.
+ * Syncs the plan and add-on catalog from code constants to Stripe Products and Prices.
+ * This ensures Stripe always mirrors our source of truth.
  *
- * Run order: runs AFTER EntitlementSyncService (StripeModule loads after EntitlementsModule).
+ * Trigger manually via admin endpoint or CLI command.
  * Enable via: STRIPE_CATALOG_SYNC_ENABLED=true
  *
  * Idempotency:
@@ -29,7 +29,7 @@ import { StripeService } from '../stripe.service';
  * - Prices: Stripe prices are immutable — archive and recreate if amount changed.
  */
 @Injectable()
-export class StripeCatalogSyncService implements OnModuleInit {
+export class StripeCatalogSyncService {
   private readonly logger = new Logger(StripeCatalogSyncService.name);
 
   constructor(
@@ -40,30 +40,55 @@ export class StripeCatalogSyncService implements OnModuleInit {
     private readonly configService: ConfigService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  /**
+   * Manually sync all catalog items to Stripe.
+   * Can be triggered via admin endpoint or CLI command.
+   */
+  async syncCatalog(): Promise<{
+    success: boolean;
+    message: string;
+    details?: {
+      plans: number;
+      addons: number;
+      creditPackages: number;
+    };
+  }> {
     const enabled = this.configService.get<boolean>(
       'STRIPE_CATALOG_SYNC_ENABLED',
       false,
     );
     if (!enabled) {
-      this.logger.log(
-        'Stripe catalog sync disabled (STRIPE_CATALOG_SYNC_ENABLED=false)',
-      );
-      return;
+      const message =
+        'Stripe catalog sync disabled (STRIPE_CATALOG_SYNC_ENABLED=false)';
+      this.logger.log(message);
+      return { success: false, message };
     }
 
-    this.logger.log('Starting Stripe catalog sync...');
+    this.logger.log('Starting manual Stripe catalog sync...');
     try {
       await this.syncPlans();
       await this.syncAddons();
       await this.syncCreditPackages();
-      this.logger.log('Stripe catalog sync completed successfully');
+
+      const paidPlans = ALL_PLANS.filter((p) => p.key !== 'navigator');
+      const addons = await this.addonsRepository.findAllActive();
+
+      const message = 'Stripe catalog sync completed successfully';
+      this.logger.log(message);
+
+      return {
+        success: true,
+        message,
+        details: {
+          plans: paidPlans.length,
+          addons: addons.length,
+          creditPackages: CREDIT_PACKAGES.length,
+        },
+      };
     } catch (error) {
-      // Don't crash the app if Stripe is unreachable
-      this.logger.error(
-        'Stripe catalog sync failed — app will continue without complete sync',
-        error,
-      );
+      const message = 'Stripe catalog sync failed';
+      this.logger.error(message, error);
+      return { success: false, message: `${message}: ${error.message}` };
     }
   }
 

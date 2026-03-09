@@ -61,6 +61,8 @@
     "db:setup": "pnpm docker:start && pnpm db:wait && pnpm db:setup:roles && pnpm db:migrate",
     "db:setup:full": "bash scripts/setup-database.sh",
     "db:wait": "bash scripts/wait-for-db.sh",
+    "// === 💳 Stripe ===": "",
+    "stripe:sync": "node scripts/stripe-catalog-sync.js",
     "// === 🎨 Code Quality ===": "",
     "lint": "eslint \"{apps,libs}/**/*.ts\" --fix",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
