@@ -65,16 +65,24 @@ Consolidated action items from the comprehensive billing system review.
 
 ---
 
-### Issue 3: No dunning automation (failed payment recovery)
+### Issue 3: No dunning automation (failed payment recovery) ✅ COMPLETED
 
 **Priority:** P1
 **Decision:** Email dunning sequence via BullMQ
-**What to do:** On `invoice.payment_failed` webhook, queue a BullMQ job that sends 3 emails: Day 0 ("card declined, update at {hosted_invoice_url}"), Day 3 ("reminder"), Day 5 ("last chance"). The `hosted_invoice_url` is already captured in metadata. Also surface a banner in the UI when subscription status is `past_due`.
-**Effort:** ~1-2 days
+**Status:** ✅ **COMPLETED** in commit `05e3bd9` (2026-03-09)
+**Implementation:** Complete automated dunning system with:
+- Day 0 (immediate), Day 3, Day 5 email sequence via BullMQ
+- AWS SES integration with multi-language templates (EN/AR)
+- Subscription status `past_due` support for UI banners
+- Terraform infrastructure with SES domain identity and IAM policies
 **Key files:**
 
-- `apps/api/src/modules/stripe/webhook/stripe-event-handlers/index.ts` (lines 711-712, 761 — existing TODOs)
-- New: dunning job processor, email templates
+- ✅ `apps/api/src/modules/stripe/webhook/stripe-event-handlers/index.ts` (queueDunningEmailSequence method)
+- ✅ `apps/api/src/modules/billing/processors/dunning-job.processor.ts` (job processor)
+- ✅ `apps/api/src/modules/billing/handlers/dunning-email.handler.ts` (email handler)
+- ✅ `apps/api/src/modules/email/email.service.ts` (SES integration + templates)
+- ✅ `libs/queue/src/interfaces/billing-processing.jobs.ts` (job types)
+- ✅ `infra/modules/ses/` (Terraform SES infrastructure)
 
 ---
 
