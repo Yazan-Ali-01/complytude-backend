@@ -4,3 +4,6 @@
 aws_region  = "me-central-1"
 environment = "production"
 project     = "complytude"
+
+# Billing Scheduler — enables daily Stripe reconciliation at 3 AM
+billing_schedule_enabled = true

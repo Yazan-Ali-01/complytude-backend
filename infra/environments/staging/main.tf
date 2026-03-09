@@ -149,6 +149,9 @@ module "secrets" {
   stripe_catalog_sync_enabled = var.stripe_catalog_sync_enabled
   stripe_tax_enabled         = var.stripe_tax_enabled
 
+  # Billing Scheduler
+  billing_schedule_enabled = var.billing_schedule_enabled
+
   # Email (AWS SES)
   aws_region    = var.aws_region
   from_email    = var.from_email

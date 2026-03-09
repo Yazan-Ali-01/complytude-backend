@@ -62,6 +62,9 @@ export const validationSchema = Joi.object({
   STRIPE_CATALOG_SYNC_ENABLED: Joi.boolean().default(false),
   STRIPE_TAX_ENABLED: Joi.boolean().default(false),
 
+  // Billing Scheduler
+  BILLING_SCHEDULE_ENABLED: Joi.boolean().default(false),
+
   // Email (AWS SES)
   AWS_REGION: Joi.string().default('eu-central-1'),
   FROM_EMAIL: Joi.string().email().required(),

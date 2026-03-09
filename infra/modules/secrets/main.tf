@@ -95,6 +95,9 @@ resource "aws_secretsmanager_secret_version" "app" {
     STRIPE_CATALOG_SYNC_ENABLED = var.stripe_catalog_sync_enabled
     STRIPE_TAX_ENABLED         = var.stripe_tax_enabled
 
+    # Billing Scheduler
+    BILLING_SCHEDULE_ENABLED = tostring(var.billing_schedule_enabled)
+
     # Email (AWS SES)
     AWS_REGION     = var.aws_region
     FROM_EMAIL     = var.from_email

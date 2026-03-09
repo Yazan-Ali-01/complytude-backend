@@ -45,6 +45,7 @@ locals {
     "STRIPE_WEBHOOK_SECRET",
     "STRIPE_CATALOG_SYNC_ENABLED",
     "STRIPE_TAX_ENABLED",
+    "BILLING_SCHEDULE_ENABLED",
   ]
   secrets = [for k in local.secret_keys : { name = k, valueFrom = "${var.secret_arn}:${k}::" }]
 }
