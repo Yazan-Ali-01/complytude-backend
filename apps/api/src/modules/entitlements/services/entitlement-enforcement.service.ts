@@ -197,17 +197,16 @@ export class EntitlementEnforcementService {
         );
       }
 
-      // Step 4: Handle rate_limit features (future implementation)
+      // Step 4: Handle rate_limit features — deny until implemented
+      // Previously treated as unlimited (revenue risk). Now explicitly denied.
       if (entitlement.feature_type === 'rate_limit') {
-        // TODO: Implement rate limit enforcement
-        // For now, treat as unlimited
         this.logger.warn(
-          `Rate limit enforcement not yet implemented for ${featureKey}`,
+          `Rate limit enforcement not yet implemented for ${featureKey} — denying access`,
         );
         return {
           result: {
-            allowed: true,
-            source: entitlement.source,
+            allowed: false,
+            reason: 'rate_limit_not_implemented',
           },
         };
       }
@@ -315,6 +314,7 @@ export class EntitlementEnforcementService {
       throw new BadRequestException(`Feature is inactive: ${featureKey}`);
     }
 
+    /* eslint-disable @typescript-eslint/no-unsafe-argument -- subscription/feature from findCurrentByTenantWithPlan */
     const usage = await this.usageProjectionService.getCurrentUsage(
       tenantId,
       subscription.id,
@@ -325,7 +325,7 @@ export class EntitlementEnforcementService {
     const limit = entitlement.value_int ?? 0;
     const used = usage?.total_units ?? 0;
     const billingPeriod = deriveBillingPeriod(
-      subscription.current_period_start,
+      subscription.current_period_start as Date,
     );
 
     // Unlimited -> always async path (no strict CAS needed).
@@ -380,6 +380,7 @@ export class EntitlementEnforcementService {
       limit,
       used,
     );
+    /* eslint-enable @typescript-eslint/no-unsafe-argument */
   }
 
   /**
@@ -1073,7 +1074,24 @@ export class EntitlementEnforcementService {
       { client },
     );
 
-    // TODO: BullMQ - Emit quota.exceeded event to queue for async notification
-    // (email/webhook to tenant admin with upgrade prompt)
+    try {
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED,
+        {
+          tenantId,
+          featureKey,
+          requestedUnits: units,
+          limit,
+          used,
+          reason,
+        },
+        { attempts: 3, backoff: { type: 'exponential', delay: 500 } },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[quota.exceeded] Failed to enqueue notification: tenant=${tenantId} feature=${featureKey} — ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 }

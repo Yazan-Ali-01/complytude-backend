@@ -1,14 +1,22 @@
 import {
   AbstractProcessor,
   ENTITLEMENT_JOB_NAMES,
+  EntitlementCreditNotificationJobData,
+  EntitlementDomainEventFanoutJobData,
   EntitlementProjectionUpdateJobData,
+  EntitlementQuotaExceededJobData,
+  EntitlementSnapshotRebuildJobData,
   Job,
   PermanentError,
   Processor,
   QUEUE_NAMES,
 } from '@lib/queue';
 import { Logger } from '@nestjs/common';
+import { CreditNotificationHandler } from './credit-notification.handler';
+import { DomainEventFanoutHandler } from './domain-event-fanout.handler';
 import { ProjectionUpdateHandler } from './projection-update.handler';
+import { QuotaExceededHandler } from './quota-exceeded.handler';
+import { SnapshotRebuildHandler } from './snapshot-rebuild.handler';
 
 /**
  * Entitlement Queue Processor
@@ -30,10 +38,10 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
 
   constructor(
     private readonly projectionUpdateHandler: ProjectionUpdateHandler,
-    // Future handlers injected here:
-    // private readonly snapshotRebuildHandler: SnapshotRebuildHandler,
-    // private readonly domainEventFanoutHandler: DomainEventFanoutHandler,
-    // private readonly creditEventHandler: CreditEventHandler,
+    private readonly snapshotRebuildHandler: SnapshotRebuildHandler,
+    private readonly domainEventFanoutHandler: DomainEventFanoutHandler,
+    private readonly creditNotificationHandler: CreditNotificationHandler,
+    private readonly quotaExceededHandler: QuotaExceededHandler,
   ) {
     super();
   }
@@ -45,13 +53,25 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
           job as Job<EntitlementProjectionUpdateJobData>,
         );
 
-      // Future job handlers:
-      // case ENTITLEMENT_JOB_NAMES.SNAPSHOT_REBUILD:
-      //   return this.snapshotRebuildHandler.execute(job);
-      // case ENTITLEMENT_JOB_NAMES.DOMAIN_EVENT_FANOUT:
-      //   return this.domainEventFanoutHandler.execute(job);
-      // case ENTITLEMENT_JOB_NAMES.CREDIT_EVENT:
-      //   return this.creditEventHandler.execute(job);
+      case ENTITLEMENT_JOB_NAMES.SNAPSHOT_REBUILD:
+        return this.snapshotRebuildHandler.execute(
+          job as Job<EntitlementSnapshotRebuildJobData>,
+        );
+
+      case ENTITLEMENT_JOB_NAMES.DOMAIN_EVENT_FANOUT:
+        return this.domainEventFanoutHandler.execute(
+          job as Job<EntitlementDomainEventFanoutJobData>,
+        );
+
+      case ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION:
+        return this.creditNotificationHandler.execute(
+          job as Job<EntitlementCreditNotificationJobData>,
+        );
+
+      case ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED:
+        return this.quotaExceededHandler.execute(
+          job as Job<EntitlementQuotaExceededJobData>,
+        );
 
       default:
         throw new PermanentError(

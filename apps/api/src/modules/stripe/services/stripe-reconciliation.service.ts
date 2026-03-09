@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import Stripe from 'stripe';
 import { TenantSubscription } from 'src/common/types/entitlement.types';
 import { DatabaseService } from 'src/database/database.service';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
@@ -52,6 +53,15 @@ export class StripeReconciliationService {
   ) {}
 
   async reconcileAll(): Promise<ReconciliationReport> {
+    return this.reconcile(undefined);
+  }
+
+  /**
+   * Reconcile Stripe data for a specific tenant or all tenants.
+   *
+   * @param tenantId - Optional. If provided, only reconcile subscriptions for this tenant.
+   */
+  async reconcile(tenantId?: string): Promise<ReconciliationReport> {
     const report: ReconciliationReport = {
       checked: 0,
       in_sync: 0,
@@ -60,11 +70,12 @@ export class StripeReconciliationService {
       errors: [],
     };
 
-    await this.reconcileSubscriptionsAndAddons(report);
+    await this.reconcileSubscriptionsAndAddons(report, tenantId);
 
     this.logger.log(
       `Reconciliation complete: checked=${report.checked} in_sync=${report.in_sync} ` +
-        `drifted=${report.drifted} fixed=${report.fixed} errors=${report.errors.length}`,
+        `drifted=${report.drifted} fixed=${report.fixed} errors=${report.errors.length}` +
+        (tenantId ? ` (tenant=${tenantId})` : ' (all tenants)'),
     );
 
     return report;
@@ -74,12 +85,14 @@ export class StripeReconciliationService {
 
   private async reconcileSubscriptionsAndAddons(
     report: ReconciliationReport,
+    tenantId?: string,
   ): Promise<void> {
     const subscriptions =
-      await this.subscriptionsRepository.findAllWithStripeId();
+      await this.subscriptionsRepository.findAllWithStripeId(tenantId);
 
     this.logger.log(
-      `Reconciling ${subscriptions.length} subscription(s) and add-ons with Stripe IDs (single-pass)`,
+      `Reconciling ${subscriptions.length} subscription(s) and add-ons with Stripe IDs (single-pass)` +
+        (tenantId ? ` for tenant=${tenantId}` : ''),
     );
 
     for (let i = 0; i < subscriptions.length; i += RECONCILIATION_BATCH_SIZE) {
@@ -110,7 +123,6 @@ export class StripeReconciliationService {
 
       // Reconcile add-ons using the same Stripe response
       await this.reconcileAddonsData(sub, stripeSub, report);
-
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -128,7 +140,7 @@ export class StripeReconciliationService {
 
   private async reconcileSubscriptionData(
     sub: TenantSubscription,
-    stripeSub: any, // Stripe.Subscription type
+    stripeSub: Stripe.Subscription,
     report: ReconciliationReport,
   ): Promise<void> {
     // Stripe API 2026-02-25: period dates live on items.data[0], not root.
@@ -196,7 +208,7 @@ export class StripeReconciliationService {
                   stripe_current_period_end: stripeEndDate,
                 }
               : {}),
-              ...(planDrift && expectedPlan ? { plan_id: expectedPlan.id } : {}),
+            ...(planDrift && expectedPlan ? { plan_id: expectedPlan.id } : {}),
           },
           { client },
         );
@@ -251,7 +263,7 @@ export class StripeReconciliationService {
 
   private async reconcileAddonsData(
     sub: TenantSubscription,
-    stripeSub: any, // Stripe.Subscription type
+    stripeSub: Stripe.Subscription,
     report: ReconciliationReport,
   ): Promise<void> {
     try {

@@ -203,7 +203,6 @@ export class TenantAddonsService {
     updates: UpdateTenantAddonRow,
     client: PoolClient,
   ): Promise<TenantAddonWithEntitlements> {
-    // TODO: Remove undefined values from updates object before continuing (future enhancement)
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates ?? {}).filter(([_, value]) => value !== undefined),
     );
@@ -220,7 +219,7 @@ export class TenantAddonsService {
         });
     }
 
-    await this.tenantAddonsRepository.update(tenantAddonId, updates, {
+    await this.tenantAddonsRepository.update(tenantAddonId, filteredUpdates, {
       client,
     });
 

@@ -59,6 +59,28 @@ export class AggregatedUsageRepository extends BaseRepository<
   }
 
   /**
+   * Get distinct subscription IDs that have aggregated_usage rows.
+   * Used for orphan detection — find subscriptions with projections but no ledger.
+   *
+   * @param tenantId - Optional. If provided, only return subscriptions for this tenant.
+   */
+  async findSubscriptionIdsWithProjections(
+    tenantId?: string,
+    options?: QueryOptions,
+  ): Promise<string[]> {
+    const conditions = tenantId ? ['tenant_id = $1'] : [];
+    const params = tenantId ? [tenantId] : [];
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await this.executeQuery<{ subscription_id: string }>(
+      `SELECT DISTINCT subscription_id FROM ${this.tableName} ${whereClause}`,
+      params,
+      options,
+    );
+    return result.rows.map((r) => r.subscription_id);
+  }
+
+  /**
    * Batch-fetch all aggregated usage rows for a set of subscription IDs.
    * Used by ProjectionReconciliationService to avoid N+1 queries.
    */

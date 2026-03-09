@@ -18,13 +18,11 @@ export class StripeReconciliationHandler {
     );
 
     try {
-      // For now, always reconcile all tenants
-      // TODO: Add single tenant reconciliation method to StripeReconciliationService
-      await this.stripeReconciliationService.reconcileAll();
+      await this.stripeReconciliationService.reconcile(data.tenantId);
 
       if (data.tenantId) {
         this.logger.log(
-          `Stripe reconciliation completed (all tenants, requested for: ${data.tenantId})`,
+          `Stripe reconciliation completed for tenant=${data.tenantId}`,
         );
       } else {
         this.logger.log('Stripe reconciliation completed for all tenants');

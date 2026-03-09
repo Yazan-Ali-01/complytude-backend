@@ -58,13 +58,20 @@ export abstract class BaseRepository<
     if (tenant) {
       return this.databaseService.transactionWithTenantContext(
         { tenantId: tenant.tenantId },
-        async (client) => {
-          return await client.query<T>(query, params);
+        async (txClient) => {
+          return await txClient.query<T>(query, params);
         },
       );
     }
 
-    return this.databaseService.query<T>(query, params, isAuthflow);
+    if (isAuthflow) {
+      return this.databaseService.transaction(async (txClient) => {
+        await txClient.query("SET LOCAL app.is_auth_flow = 'true'");
+        return await txClient.query<T>(query, params);
+      });
+    }
+
+    return this.databaseService.query<T>(query, params);
   }
 
   private async runWithClient<T extends QueryResultRow = QueryResultRow>(

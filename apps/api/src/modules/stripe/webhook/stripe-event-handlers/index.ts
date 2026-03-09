@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
 import { DEFAULT_CURRENCY_LOWERCASE } from 'src/common/constants/billing.constant';
 import { PlanKey } from 'src/common/types/entitlement.types';
-import { mapStripeStatusToInternal } from '../../stripe.utils';
+import {
+  getSubscriptionPeriod,
+  mapStripeStatusToInternal,
+} from '../../stripe.utils';
 import { DatabaseService } from 'src/database/database.service';
 import { CreditLedgerService } from 'src/modules/entitlements/services/credit-ledger.service';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
@@ -20,6 +23,7 @@ import {
   QUEUE_NAMES,
   BILLING_JOB_NAMES,
   DunningEmailJobData,
+  PaymentActionRequiredJobData,
 } from '@lib/queue';
 import type { PoolClient } from 'pg';
 import { AddonSyncEngine } from '../../services/addon-sync-engine.service';
@@ -105,18 +109,15 @@ export class StripeEventHandlersService {
       );
     }
 
-    // As of Stripe API 2026-02-25.clover, current_period_start/end moved from
-    // the Subscription root to SubscriptionItem (items.data[0]).
-    const firstItem = stripeSub.items.data[0];
-    if (!firstItem?.current_period_start || !firstItem?.current_period_end) {
+    const period = getSubscriptionPeriod(stripeSub);
+    if (!period) {
       throw new Error(
         `Stripe subscription ${subscriptionId} has no items or missing billing period — ` +
           `(event: ${event.id})`,
       );
     }
 
-    const periodStart = new Date(firstItem.current_period_start * 1000);
-    const periodEnd = new Date(firstItem.current_period_end * 1000);
+    const { start: periodStart, end: periodEnd } = period;
 
     await this.databaseService.transactionWithPlatformAdminContext(
       async (client) => {
@@ -212,8 +213,10 @@ export class StripeEventHandlersService {
     const stripeSub = event.data.object as Stripe.Subscription;
 
     const subscription =
-      await this.subscriptionsRepository.findByStripeSubscriptionId(
-        stripeSub.id,
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.subscriptionsRepository.findByStripeSubscriptionId(stripeSub.id, {
+          client,
+        }),
       );
 
     if (!subscription) {
@@ -228,7 +231,6 @@ export class StripeEventHandlersService {
     if (event.type === 'customer.subscription.deleted') {
       await this.databaseService.transactionWithPlatformAdminContext(
         async (client) => {
-          // Mark the paid subscription as cancelled
           await this.subscriptionsRepository.update(
             subscription.id,
             {
@@ -240,7 +242,6 @@ export class StripeEventHandlersService {
             { client },
           );
 
-          // Cancel all active add-ons — subscription is gone, add-ons are gone too
           const activeAddons =
             await this.tenantAddonsRepository.findActiveByTenant(tenantId, {
               client,
@@ -258,7 +259,6 @@ export class StripeEventHandlersService {
             );
           }
 
-          // Downgrade to Navigator (free) plan — no Stripe subscription required
           const navigatorPlan = await this.plansRepository.findByKey(
             'navigator',
             { client },
@@ -293,7 +293,6 @@ export class StripeEventHandlersService {
             client,
           });
 
-          // Invalidate subscription cache since subscription changed
           this.entitlementCache.invalidateSubscription(tenantId);
 
           await this.domainEventsService.emit(
@@ -339,22 +338,17 @@ export class StripeEventHandlersService {
         ? firstItem.price
         : firstItem.price.id;
 
-    // Period dates moved to SubscriptionItem in Stripe API 2026-02-25
-    const periodStart =
-      firstItem.current_period_start ??
-      (stripeSub as unknown as { current_period_start?: number })
-        .current_period_start;
-    const periodEnd =
-      firstItem.current_period_end ??
-      (stripeSub as unknown as { current_period_end?: number })
-        .current_period_end;
+    const period = getSubscriptionPeriod(stripeSub);
 
-    const newPlan =
-      await this.plansRepository.findByStripePriceId(currentPriceId);
     const newStatus = mapStripeStatusToInternal(stripeSub.status);
 
     await this.databaseService.transactionWithPlatformAdminContext(
       async (client) => {
+        const newPlan = await this.plansRepository.findByStripePriceId(
+          currentPriceId,
+          { client },
+        );
+
         const oldPlanId = subscription.plan_id;
         const planChanged = newPlan && newPlan.id !== oldPlanId;
 
@@ -364,21 +358,18 @@ export class StripeEventHandlersService {
             ...(newPlan ? { plan_id: newPlan.id } : {}),
             status: newStatus,
             stripe_status: stripeSub.status,
-            ...(periodStart
-              ? { current_period_start: new Date(periodStart * 1000) }
-              : {}),
-            ...(periodEnd
+            ...(period
               ? {
-                  current_period_end: new Date(periodEnd * 1000),
-                  stripe_current_period_end: new Date(periodEnd * 1000),
+                  current_period_start: period.start,
+                  current_period_end: period.end,
+                  stripe_current_period_end: period.end,
                 }
               : {}),
-            stripe_schedule_id: null, // clear any pending schedule
+            stripe_schedule_id: null,
           },
           { client },
         );
 
-        // Reconcile add-on subscription items with Stripe
         const addonsChanged = await this.syncAddonItems(
           tenantId,
           stripeSub,
@@ -390,8 +381,7 @@ export class StripeEventHandlersService {
           await this.entitlementSnapshotsRepository.invalidate(tenantId, {
             client,
           });
-          
-          // Invalidate subscription cache since subscription changed
+
           this.entitlementCache.invalidateSubscription(tenantId);
         }
 
@@ -468,8 +458,11 @@ export class StripeEventHandlersService {
     }
 
     const subscription =
-      await this.subscriptionsRepository.findByStripeSubscriptionId(
-        stripeSubscriptionId,
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.subscriptionsRepository.findByStripeSubscriptionId(
+          stripeSubscriptionId,
+          { client },
+        ),
       );
 
     if (!subscription) {
@@ -486,15 +479,14 @@ export class StripeEventHandlersService {
         stripeSubscriptionId,
       );
 
-    const firstItem = stripeSub.items.data[0];
-    if (!firstItem?.current_period_start || !firstItem?.current_period_end) {
+    const period = getSubscriptionPeriod(stripeSub);
+    if (!period) {
       throw new Error(
         `invoice.paid: stripe subscription ${stripeSubscriptionId} has no items or missing billing period (event: ${event.id})`,
       );
     }
 
-    const periodStart = new Date(firstItem.current_period_start * 1000);
-    const periodEnd = new Date(firstItem.current_period_end * 1000);
+    const { start: periodStart, end: periodEnd } = period;
 
     await this.databaseService.transactionWithPlatformAdminContext(
       async (client) => {
@@ -510,7 +502,6 @@ export class StripeEventHandlersService {
           { client },
         );
 
-        // Invalidate snapshot — period advanced, usage counters reset context changes
         await this.entitlementSnapshotsRepository.invalidate(tenantId, {
           client,
         });
@@ -556,8 +547,11 @@ export class StripeEventHandlersService {
     }
 
     const subscription =
-      await this.subscriptionsRepository.findByStripeSubscriptionId(
-        stripeSubscriptionId,
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.subscriptionsRepository.findByStripeSubscriptionId(
+          stripeSubscriptionId,
+          { client },
+        ),
       );
 
     if (!subscription) {
@@ -643,8 +637,11 @@ export class StripeEventHandlersService {
     }
 
     const subscription =
-      await this.subscriptionsRepository.findByStripeSubscriptionId(
-        stripeSubscriptionId,
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.subscriptionsRepository.findByStripeSubscriptionId(
+          stripeSubscriptionId,
+          { client },
+        ),
       );
 
     if (!subscription) {
@@ -677,7 +674,78 @@ export class StripeEventHandlersService {
     this.logger.warn(
       `Payment action required: tenant=${subscription.tenant_id}, stripe_sub=${stripeSubscriptionId}, invoice_url=${invoice.hosted_invoice_url}`,
     );
-    // TODO: Notify tenant admin with the invoice URL
+
+    await this.queuePaymentActionRequiredEmail(
+      subscription.tenant_id,
+      stripeSubscriptionId,
+      invoice,
+    );
+  }
+
+  /**
+   * Queue payment action required email (3D Secure, etc.) to tenant admin.
+   */
+  private async queuePaymentActionRequiredEmail(
+    tenantId: string,
+    stripeSubscriptionId: string,
+    invoice: Stripe.Invoice,
+  ): Promise<void> {
+    try {
+      const [tenantAdminEmail, tenant] = await Promise.all([
+        this.databaseService.transactionWithPlatformAdminContext((client) =>
+          this.userTenantRepository.findTenantAdminEmail(tenantId, { client }),
+        ),
+        this.databaseService.transactionWithPlatformAdminContext((client) =>
+          this.tenantsRepository.findById(tenantId, { client }),
+        ),
+      ]);
+
+      if (!tenantAdminEmail) {
+        this.logger.warn(
+          `No tenant admin email found for tenant ${tenantId}, skipping payment action required email`,
+        );
+        return;
+      }
+
+      if (!invoice.hosted_invoice_url) {
+        this.logger.warn(
+          `No hosted invoice URL for invoice ${invoice.id}, skipping payment action required email`,
+        );
+        return;
+      }
+
+      const jobData: PaymentActionRequiredJobData = {
+        tenantId,
+        tenantAdminEmail,
+        stripeSubscriptionId,
+        invoiceId: invoice.id,
+        hostedInvoiceUrl: invoice.hosted_invoice_url,
+        amount: invoice.amount_due || 0,
+        currency: invoice.currency || DEFAULT_CURRENCY_LOWERCASE,
+        tenantName: tenant?.name || undefined,
+      };
+
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.BILLING_PROCESSING,
+        BILLING_JOB_NAMES.PAYMENT_ACTION_REQUIRED,
+        jobData,
+        {
+          delay: 0,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2000 },
+        },
+      );
+
+      this.logger.log(
+        `Payment action required email queued for tenant ${tenantId}, invoice ${invoice.id}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue payment action required email for tenant ${tenantId}, invoice ${invoice.id}`,
+        error.stack,
+      );
+      // Don't re-throw - webhook processing should not fail due to email issues
+    }
   }
 
   /**
@@ -703,11 +771,13 @@ export class StripeEventHandlersService {
     invoice: Stripe.Invoice,
   ): Promise<void> {
     try {
-      // Get tenant admin email and tenant info
-      // Note: These queries run without tenant context since this is a system webhook
       const [tenantAdminEmail, tenant] = await Promise.all([
-        this.userTenantRepository.findTenantAdminEmail(tenantId),
-        this.tenantsRepository.findById(tenantId),
+        this.databaseService.transactionWithPlatformAdminContext((client) =>
+          this.userTenantRepository.findTenantAdminEmail(tenantId, { client }),
+        ),
+        this.databaseService.transactionWithPlatformAdminContext((client) =>
+          this.tenantsRepository.findById(tenantId, { client }),
+        ),
       ]);
 
       if (!tenantAdminEmail) {

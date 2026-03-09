@@ -16,6 +16,7 @@ import {
 import { DatabaseService } from '../../../database/database.service';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
+import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { TenantRepository } from '../../../repositories/tenants/tenant.repository';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
@@ -45,6 +46,7 @@ export class EntitlementResolverService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
+    private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
     private readonly snapshotService: EntitlementSnapshotService,
@@ -216,8 +218,16 @@ export class EntitlementResolverService {
         throw new NotFoundException(`Tenant ${tenantId} not found`);
       }
 
+      // Plan is derived from tenant_subscriptions (source of truth), default to navigator
+      const subscription =
+        await this.subscriptionsRepository.findCurrentByTenantWithPlan(
+          tenantId,
+          { client },
+        );
+      const planKey: PlanKey = subscription?.plan?.key ?? 'navigator';
+
       // Get all plan entitlements (in-memory)
-      const planEntitlements = getAllPlanEntitlements(tenant.plan);
+      const planEntitlements = getAllPlanEntitlements(planKey);
       const resolved: ResolvedEntitlements = {} as ResolvedEntitlements;
 
       // Convert plan entitlements to EffectiveEntitlement format
@@ -299,7 +309,7 @@ export class EntitlementResolverService {
         };
       }
 
-      return { entitlements: resolved, plan: tenant.plan };
+      return { entitlements: resolved, plan: planKey };
     };
 
     if (options?.client) {

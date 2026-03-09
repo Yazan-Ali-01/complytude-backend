@@ -1,16 +1,7 @@
 import { QueryOptions } from '@lib/database';
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import {
-  PlanKey,
-  TenantSubscription,
-} from 'src/common/types/entitlement.types';
-import { PlansRepository } from 'src/repositories/plans/plans.repository';
+import { TenantSubscription } from 'src/common/types/entitlement.types';
 import {
   SubscriptionsRepository,
   TenantSubscriptionWithPlan,
@@ -26,7 +17,6 @@ import { DomainEventsService } from '../entitlements/services/domain-events.serv
  *
  * Responsibilities:
  * - Read current subscription (populated by Stripe webhooks for paid plans)
- * - Create subscription row (internal — called by webhook handler on checkout.session.completed)
  * - Renew billing period for Navigator (free) subscriptions
  * - Batch renewal cron for Navigator-only subscriptions
  */
@@ -37,7 +27,6 @@ export class SubscriptionsService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly subscriptionsRepository: SubscriptionsRepository,
-    private readonly plansRepository: PlansRepository,
     private readonly domainEventsService: DomainEventsService,
   ) {}
 
@@ -72,91 +61,6 @@ export class SubscriptionsService {
     return this.databaseService.transactionWithTenantContext(
       { tenantId },
       execute,
-    );
-  }
-
-  /**
-   * Create new subscription for a tenant.
-   * Internal — called by StripeEventHandlersService on checkout.session.completed,
-   * and on tenant creation for the Navigator (free) plan.
-   *
-   * @throws BadRequestException if active subscription already exists
-   * @throws NotFoundException if plan not found
-   */
-  async createSubscription(
-    tenantId: string,
-    planKey: PlanKey,
-    actorId: string,
-  ): Promise<TenantSubscription> {
-    this.logger.log(
-      `Creating subscription: tenant=${tenantId}, plan=${planKey}, actor=${actorId}`,
-    );
-
-    const existingSubscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
-
-    if (existingSubscription) {
-      throw new BadRequestException(
-        `Tenant already has an active subscription. Use the plan change flow to switch plans.`,
-      );
-    }
-
-    const plan = await this.plansRepository.findByKey(planKey);
-    if (!plan) {
-      throw new NotFoundException(`Plan not found: ${planKey}`);
-    }
-
-    if (!plan.is_active) {
-      throw new BadRequestException(`Plan is not active: ${planKey}`);
-    }
-
-    const now = new Date();
-    const oneMonthLater = new Date(now);
-    oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
-
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId },
-      async (client) => {
-        const newSubscription = await this.subscriptionsRepository.upsert(
-          {
-            tenant_id: tenantId,
-            plan_id: plan.id,
-            status: 'active',
-            billing_period_start: now,
-            billing_period_end: oneMonthLater,
-            current_period_start: now,
-            current_period_end: oneMonthLater,
-            metadata: '{}',
-          },
-          { client },
-        );
-
-        await this.domainEventsService.emit(
-          {
-            tenant_id: tenantId,
-            event_type: 'subscription.created',
-            aggregate_type: 'subscription',
-            aggregate_id: newSubscription.id,
-            actor_id: actorId,
-            actor_type: 'user',
-            payload: JSON.stringify({
-              subscription_id: newSubscription.id,
-              plan_id: plan.id,
-              plan_key: plan.key,
-            }),
-            metadata: JSON.stringify({
-              timestamp: new Date().toISOString(),
-            }),
-          },
-          { client },
-        );
-
-        this.logger.log(
-          `Subscription created: tenant=${tenantId}, plan=${planKey}`,
-        );
-
-        return newSubscription;
-      },
     );
   }
 

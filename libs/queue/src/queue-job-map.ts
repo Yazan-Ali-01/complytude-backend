@@ -8,6 +8,7 @@ import {
 import {
   BILLING_JOB_NAMES,
   DunningEmailJobData,
+  PaymentActionRequiredJobData,
   StripeReconciliationJobData,
   StripeWebhookProcessingJobData,
 } from './interfaces/billing-processing.jobs';
@@ -21,6 +22,7 @@ import {
   EntitlementCreditNotificationJobData,
   EntitlementDomainEventFanoutJobData,
   EntitlementProjectionUpdateJobData,
+  EntitlementQuotaExceededJobData,
   EntitlementSnapshotRebuildJobData,
   EntitlementSubscriptionRenewalJobData,
 } from './interfaces/entitlement-processing.jobs';
@@ -33,6 +35,7 @@ export interface QueueJobMap {
   };
   [QUEUE_NAMES.BILLING_PROCESSING]: {
     [BILLING_JOB_NAMES.DUNNING_EMAIL]: DunningEmailJobData;
+    [BILLING_JOB_NAMES.PAYMENT_ACTION_REQUIRED]: PaymentActionRequiredJobData;
     [BILLING_JOB_NAMES.STRIPE_RECONCILIATION]: StripeReconciliationJobData;
     [BILLING_JOB_NAMES.STRIPE_WEBHOOK_PROCESSING]: StripeWebhookProcessingJobData;
   };
@@ -46,6 +49,7 @@ export interface QueueJobMap {
     [ENTITLEMENT_JOB_NAMES.PROJECTION_UPDATE]: EntitlementProjectionUpdateJobData;
     [ENTITLEMENT_JOB_NAMES.SUBSCRIPTION_RENEWAL]: EntitlementSubscriptionRenewalJobData;
     [ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION]: EntitlementCreditNotificationJobData;
+    [ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED]: EntitlementQuotaExceededJobData;
   };
 }
 

@@ -62,6 +62,7 @@ export class DatabaseModule {
         {
           provide: DATABASE_POOL,
           useFactory: async (...args: any[]) => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- NestJS useFactory injects
             const config = await options.useFactory(...args);
 
             DatabaseModule.logger.log(

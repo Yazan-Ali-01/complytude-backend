@@ -80,6 +80,10 @@ export const validationSchema = Joi.object({
   // Billing Scheduler
   BILLING_SCHEDULE_ENABLED: Joi.boolean().default(false),
 
+  // Bull Board — when set, /admin/queues requires Authorization: Bearer <secret>
+  // In production, this MUST be set. In development, omit to allow unauthenticated access.
+  BULL_BOARD_ADMIN_SECRET: Joi.string().optional().allow(''),
+
   // Email (AWS SES)
   AWS_REGION: Joi.string().default('eu-central-1'),
   FROM_EMAIL: Joi.string().email().required(),

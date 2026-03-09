@@ -3,6 +3,7 @@ import {
   BILLING_JOB_NAMES,
   DunningEmailJobData,
   Job,
+  PaymentActionRequiredJobData,
   Processor,
   QUEUE_NAMES,
   StripeReconciliationJobData,
@@ -10,6 +11,7 @@ import {
 } from '@lib/queue';
 import { Logger } from '@nestjs/common';
 import { DunningEmailHandler } from '../handlers/dunning-email.handler';
+import { PaymentActionRequiredHandler } from '../handlers/payment-action-required.handler';
 import { StripeReconciliationHandler } from '../handlers/stripe-reconciliation.handler';
 import { StripeWebhookProcessingHandler } from '../handlers/stripe-webhook-processing.handler';
 
@@ -30,6 +32,7 @@ export class DunningJobProcessor extends AbstractProcessor<unknown> {
 
   constructor(
     private readonly dunningEmailHandler: DunningEmailHandler,
+    private readonly paymentActionRequiredHandler: PaymentActionRequiredHandler,
     private readonly stripeReconciliationHandler: StripeReconciliationHandler,
     private readonly stripeWebhookProcessingHandler: StripeWebhookProcessingHandler,
   ) {
@@ -41,6 +44,11 @@ export class DunningJobProcessor extends AbstractProcessor<unknown> {
       case BILLING_JOB_NAMES.DUNNING_EMAIL:
         return this.dunningEmailHandler.execute(
           job as Job<DunningEmailJobData>,
+        );
+
+      case BILLING_JOB_NAMES.PAYMENT_ACTION_REQUIRED:
+        return this.paymentActionRequiredHandler.execute(
+          job as Job<PaymentActionRequiredJobData>,
         );
 
       case BILLING_JOB_NAMES.STRIPE_RECONCILIATION:

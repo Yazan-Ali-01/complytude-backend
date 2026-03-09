@@ -4,7 +4,7 @@ import { EntitlementCacheService } from './entitlement-cache.service';
 
 /**
  * Entitlement Cache Cleanup Service
- * 
+ *
  * Periodically cleans up expired cache entries to prevent memory leaks.
  * Runs cleanup every 5 minutes by default.
  */
@@ -18,10 +18,11 @@ export class EntitlementCacheCleanupService implements OnModuleInit {
     private readonly entitlementCache: EntitlementCacheService,
     private readonly configService: ConfigService,
   ) {
-    this.cleanupIntervalMs = this.configService.get<number>(
-      'app.entitlement.cacheCleanupIntervalSeconds',
-      300, // 5 minutes default
-    ) * 1000;
+    this.cleanupIntervalMs =
+      this.configService.get<number>(
+        'app.entitlement.cacheCleanupIntervalSeconds',
+        300, // 5 minutes default
+      ) * 1000;
   }
 
   onModuleInit() {
@@ -60,9 +61,10 @@ export class EntitlementCacheCleanupService implements OnModuleInit {
   /**
    * Manual cache cleanup for testing or admin operations
    */
-  async manualCleanup(): Promise<void> {
+  manualCleanup(): Promise<void> {
     this.logger.log('Manual cache cleanup triggered');
     this.entitlementCache.cleanupExpiredEntries();
+    return Promise.resolve();
   }
 
   /**

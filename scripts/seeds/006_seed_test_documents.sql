@@ -254,12 +254,14 @@ END $$;
 
 -- Display seeded documents grouped by tenant
 SELECT 
-    t.plan as tenant_plan,
+    p.key as tenant_plan,
     d.title as document_title,
     d.metadata->>'status' as status,
     u.email as created_by_email,
     d.created_at
 FROM public.documents d
 JOIN public.tenants t ON d.tenant_id = t.id
+LEFT JOIN public.tenant_subscriptions ts ON ts.tenant_id = t.id AND ts.status = 'active'
+LEFT JOIN public.plans p ON p.id = ts.plan_id
 JOIN public.users u ON d.created_by = u.id
-ORDER BY t.plan, d.created_at;
+ORDER BY p.key, d.created_at;

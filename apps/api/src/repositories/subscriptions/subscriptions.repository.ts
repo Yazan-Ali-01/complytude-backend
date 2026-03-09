@@ -261,16 +261,27 @@ export class SubscriptionsRepository extends BaseRepository<
   /**
    * Find all subscriptions with a Stripe subscription ID (active, past_due, trialing).
    * Used by the reconciliation service to compare our state against Stripe.
+   *
+   * @param tenantId - Optional. If provided, only return subscriptions for this tenant.
    */
   async findAllWithStripeId(
+    tenantId?: string,
     options?: QueryOptions,
   ): Promise<TenantSubscription[]> {
+    const params: unknown[] = [];
+    const conditions = [
+      'stripe_subscription_id IS NOT NULL',
+      "status IN ('active', 'past_due', 'trialing')",
+    ];
+    if (tenantId) {
+      params.push(tenantId);
+      conditions.push(`tenant_id = $${params.length}`);
+    }
     const result = await this.executeQuery<TenantSubscriptionRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
-       WHERE stripe_subscription_id IS NOT NULL
-         AND status IN ('active', 'past_due', 'trialing')
+       WHERE ${conditions.join(' AND ')}
        ORDER BY created_at ASC`,
-      [],
+      params,
       options,
     );
     return result.rows.map((row) => this.mapRow(row));

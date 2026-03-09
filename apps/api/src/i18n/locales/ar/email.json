@@ -1,4 +1,11 @@
 {
+  "payment_action_required": {
+    "subject": "إجراء دفع مطلوب - أكمل دفعتك لـ {tenantName}",
+    "title": "إجراء دفع مطلوب",
+    "greeting": "مرحباً {tenantName}،",
+    "body": "يتطلب دفعتك تحققاً إضافياً (مثل 3D Secure). يرجى إكمال الدفع لتجنب انقطاع الخدمة.",
+    "cta": "إكمال الدفع"
+  },
   "dunning": {
     "day0": {
       "subject": "فشل الدفع - إجراء مطلوب لـ {tenantName}",

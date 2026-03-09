@@ -1,4 +1,9 @@
 import { QueryOptions } from '@lib/database';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -60,6 +65,7 @@ export class EntitlementSnapshotService {
     private readonly snapshotsRepository: EntitlementSnapshotsRepository,
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly domainEventsService: DomainEventsService,
+    private readonly queueProducer: QueueProducerService,
   ) {}
 
   /**
@@ -270,11 +276,18 @@ export class EntitlementSnapshotService {
 
       this.logger.log(`Snapshot invalidated: tenant=${tenantId}`);
 
-      // TODO: BullMQ - Queue background rebuild for warm cache
-      // await this.snapshotQueue.add('rebuild-snapshot', {
-      //   tenantId,
-      //   reason: reason ?? 'invalidated',
-      // });
+      try {
+        await this.queueProducer.enqueue(
+          QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+          ENTITLEMENT_JOB_NAMES.SNAPSHOT_REBUILD,
+          { tenantId, reason: 'invalidation' },
+          { attempts: 3, backoff: { type: 'exponential', delay: 1000 } },
+        );
+      } catch (error) {
+        this.logger.warn(
+          `[snapshot.rebuild] Failed to enqueue: tenant=${tenantId} — ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     };
 
     if (options?.client) {

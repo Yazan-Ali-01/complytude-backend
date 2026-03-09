@@ -1,4 +1,9 @@
 import { QueryOptions } from '@lib/database';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -40,6 +45,7 @@ export class CreditLedgerService {
     private readonly creditLedgerRepository: CreditLedgerRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly domainEventsService: DomainEventsService,
+    private readonly queueProducer: QueueProducerService,
   ) {}
 
   /**
@@ -69,7 +75,7 @@ export class CreditLedgerService {
       `Purchasing credits: tenant=${tenantId}, amount=${amount}`,
     );
 
-    return this.recordTransaction(
+    const tx = await this.recordTransaction(
       tenantId,
       'purchase',
       amount,
@@ -82,7 +88,13 @@ export class CreditLedgerService {
       options,
     );
 
-    // TODO: BullMQ - Emit credit.purchased event to queue for async notification
+    await this.enqueueCreditNotification(
+      tenantId,
+      'purchased',
+      amount,
+      tx.balance_after,
+    );
+    return tx;
   }
 
   /**
@@ -118,7 +130,7 @@ export class CreditLedgerService {
       `Granting credits: tenant=${tenantId}, amount=${amount}, reason=${reason}`,
     );
 
-    return this.recordTransaction(
+    const tx = await this.recordTransaction(
       tenantId,
       'grant',
       amount,
@@ -131,7 +143,13 @@ export class CreditLedgerService {
       options,
     );
 
-    // TODO: BullMQ - Emit credit.granted event to queue for async notification
+    await this.enqueueCreditNotification(
+      tenantId,
+      'granted',
+      amount,
+      tx.balance_after,
+    );
+    return tx;
   }
 
   /**
@@ -166,7 +184,7 @@ export class CreditLedgerService {
       `Deducting credits: tenant=${tenantId}, amount=${amount}, metadata=${JSON.stringify(metadata)}`,
     );
 
-    return this.recordTransaction(
+    const tx = await this.recordTransaction(
       tenantId,
       'deduction',
       -amount, // Store as negative
@@ -179,8 +197,13 @@ export class CreditLedgerService {
       options,
     );
 
-    // TODO: BullMQ - Emit credit.deducted event to queue for async notification
-    // (email alert when balance is low)
+    await this.enqueueCreditNotification(
+      tenantId,
+      'deducted',
+      amount,
+      tx.balance_after,
+    );
+    return tx;
   }
 
   /**
@@ -212,7 +235,7 @@ export class CreditLedgerService {
       `Refunding credits: tenant=${tenantId}, amount=${amount}`,
     );
 
-    return this.recordTransaction(
+    const tx = await this.recordTransaction(
       tenantId,
       'refund',
       amount,
@@ -224,6 +247,14 @@ export class CreditLedgerService {
       metadata,
       options,
     );
+
+    await this.enqueueCreditNotification(
+      tenantId,
+      'refunded',
+      amount,
+      tx.balance_after,
+    );
+    return tx;
   }
 
   /**
@@ -358,6 +389,34 @@ export class CreditLedgerService {
       { tenantId },
       execute,
     );
+  }
+
+  /**
+   * Enqueue credit notification for async processing (email, webhooks)
+   */
+  private async enqueueCreditNotification(
+    tenantId: string,
+    transactionType: 'purchased' | 'granted' | 'deducted' | 'refunded',
+    amount: number,
+    remainingBalance: number,
+  ): Promise<void> {
+    try {
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION,
+        {
+          tenantId,
+          transactionType,
+          amount,
+          remainingBalance,
+        },
+        { attempts: 3, backoff: { type: 'exponential', delay: 500 } },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[credit.${transactionType}] Failed to enqueue notification: tenant=${tenantId} — ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**

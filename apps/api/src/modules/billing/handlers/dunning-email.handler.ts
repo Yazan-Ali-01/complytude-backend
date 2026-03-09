@@ -1,12 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DunningEmailJobData, Job } from '@lib/queue';
+import { DatabaseService } from '../../../database/database.service';
+import { TenantRepository } from '../../../repositories/tenants/tenant.repository';
 import { EmailService } from '../../email/email.service';
 
 @Injectable()
 export class DunningEmailHandler {
   private readonly logger = new Logger(DunningEmailHandler.name);
 
-  constructor(private readonly emailService: EmailService) {}
+  constructor(
+    private readonly emailService: EmailService,
+    private readonly databaseService: DatabaseService,
+    private readonly tenantRepository: TenantRepository,
+  ) {}
 
   async execute(job: Job<DunningEmailJobData>): Promise<void> {
     const data = job.data;
@@ -14,6 +20,8 @@ export class DunningEmailHandler {
     this.logger.log(
       `Processing dunning email job: tenant=${data.tenantId}, sequence=${data.dunningSequence}, email=${data.tenantAdminEmail}`,
     );
+
+    const locale = await this.getTenantLocale(data.tenantId);
 
     try {
       await this.emailService.sendDunningEmail(
@@ -29,7 +37,7 @@ export class DunningEmailHandler {
           dueDate: data.dueDate,
           supportEmail: process.env.SUPPORT_EMAIL || 'support@complytude.com',
         },
-        'en', // TODO: Get tenant locale from database
+        locale,
       );
 
       this.logger.log(
@@ -41,6 +49,22 @@ export class DunningEmailHandler {
         error.stack,
       );
       throw error; // Re-throw to trigger BullMQ retry
+    }
+  }
+
+  private async getTenantLocale(tenantId: string): Promise<string> {
+    try {
+      const tenant =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) =>
+            this.tenantRepository.findById(tenantId, { client }),
+        );
+      return tenant?.locale ?? 'en';
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch tenant locale for ${tenantId}, using 'en': ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return 'en';
     }
   }
 }

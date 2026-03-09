@@ -20,6 +20,16 @@ export interface DunningEmailData {
   supportEmail: string;
 }
 
+export interface PaymentActionRequiredEmailData {
+  tenantAdminEmail: string;
+  tenantName?: string;
+  invoiceId: string;
+  hostedInvoiceUrl: string;
+  amount: number;
+  currency: string;
+  supportEmail: string;
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -34,6 +44,117 @@ export class EmailService {
     this.sesClient = new SESClient({
       region: this.config.awsRegion,
     });
+  }
+
+  async sendPaymentActionRequiredEmail(
+    data: PaymentActionRequiredEmailData,
+    locale: string = 'en',
+  ): Promise<void> {
+    const tenantName = data.tenantName || 'Your Organization';
+    const subject = this.i18n.t('email.payment_action_required.subject', {
+      lang: locale,
+      args: { tenantName },
+    });
+    const htmlBody = this.renderPaymentActionRequiredHtml(data, locale);
+    const textBody = this.renderPaymentActionRequiredText(data, locale);
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+        Destination: {
+          ToAddresses: [data.tenantAdminEmail],
+        },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            Text: { Data: textBody, Charset: 'UTF-8' },
+          },
+        },
+        Tags: [
+          { Name: 'EmailType', Value: 'payment_action_required' },
+          { Name: 'InvoiceId', Value: data.invoiceId },
+        ],
+      });
+
+      await this.sesClient.send(command);
+      this.logger.log(
+        `Payment action required email sent: email=${data.tenantAdminEmail}, invoice=${data.invoiceId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send payment action required email: email=${data.tenantAdminEmail}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  private renderPaymentActionRequiredHtml(
+    data: PaymentActionRequiredEmailData,
+    locale: string,
+  ): string {
+    const tenantName = data.tenantName || 'Your Organization';
+    const formattedAmount = this.formatCurrency(data.amount, data.currency);
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t('email.payment_action_required.title', { lang: locale })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #e7f3ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #b3d9ff; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+        .info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t('email.payment_action_required.title', { lang: locale })}</h1>
+    </div>
+    <div class="content">
+        <p>${this.i18n.t('email.payment_action_required.greeting', { lang: locale, args: { tenantName } })}</p>
+        <div class="info">
+            <p>${this.i18n.t('email.payment_action_required.body', { lang: locale })}</p>
+            <p><strong>${this.i18n.t('email.dunning.common.amount', { lang: locale })}:</strong> ${formattedAmount}</p>
+        </div>
+        <a href="${data.hostedInvoiceUrl}" class="cta-button">
+            ${this.i18n.t('email.payment_action_required.cta', { lang: locale })}
+        </a>
+    </div>
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}</p>
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderPaymentActionRequiredText(
+    data: PaymentActionRequiredEmailData,
+    locale: string,
+  ): string {
+    const tenantName = data.tenantName || 'Your Organization';
+    const formattedAmount = this.formatCurrency(data.amount, data.currency);
+    return `
+${this.i18n.t('email.payment_action_required.title', { lang: locale })}
+
+${this.i18n.t('email.payment_action_required.greeting', { lang: locale, args: { tenantName } })}
+
+${this.i18n.t('email.payment_action_required.body', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmount}
+
+${this.i18n.t('email.payment_action_required.cta', { lang: locale })}: ${data.hostedInvoiceUrl}
+
+${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
   }
 
   async sendDunningEmail(

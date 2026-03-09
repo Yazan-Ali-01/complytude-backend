@@ -217,13 +217,15 @@ export class StorageService {
     this.logger.log(`[MOCK] Delete: ${fileKey} for tenant ${tenantId}`);
   }
 
-  async generateSignedUrl(
+  generateSignedUrl(
     tenantId: string,
     fileKey: string,
     expiresIn?: number,
   ): Promise<string> {
     this.validateTenantOwnership(tenantId, fileKey);
-    return `https://mock-storage.test/signed/${fileKey}?expires=${expiresIn || 900}`;
+    return Promise.resolve(
+      `https://mock-storage.test/signed/${fileKey}?expires=${expiresIn || 900}`,
+    );
   }
 
   async listFiles(
@@ -327,11 +329,13 @@ export class StorageService {
     });
   }
 
-  async generateTemplateSignedUrl(
+  generateTemplateSignedUrl(
     fileKey: string,
     expiresIn?: number,
   ): Promise<string> {
-    return `https://mock-storage.test/signed/${fileKey}?expires=${expiresIn || 900}`;
+    return Promise.resolve(
+      `https://mock-storage.test/signed/${fileKey}?expires=${expiresIn || 900}`,
+    );
   }
 
   async deleteTemplateFile(fileKey: string): Promise<void> {

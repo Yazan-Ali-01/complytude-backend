@@ -7,7 +7,10 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { CREDIT_PACKAGES, CREDIT_PACKAGE_CURRENCY } from 'src/common/constants/credit-packages.constant';
+import {
+  CREDIT_PACKAGES,
+  CREDIT_PACKAGE_CURRENCY,
+} from 'src/common/constants/credit-packages.constant';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TENANT_PERMISSIONS } from 'src/common/constants/tenant-permissions.constant';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';

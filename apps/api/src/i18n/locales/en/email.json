@@ -1,4 +1,11 @@
 {
+  "payment_action_required": {
+    "subject": "Payment Action Required - Complete Your Payment for {tenantName}",
+    "title": "Payment Action Required",
+    "greeting": "Hello {tenantName},",
+    "body": "Your payment requires additional verification (e.g. 3D Secure). Please complete the payment to avoid service interruption.",
+    "cta": "Complete Payment"
+  },
   "dunning": {
     "day0": {
       "subject": "Payment Failed - Action Required for {tenantName}",

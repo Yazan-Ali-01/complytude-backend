@@ -11,7 +11,11 @@ import {
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import Stripe from 'stripe';
-import { BILLING_JOB_NAMES, QueueProducerService, QUEUE_NAMES } from '@lib/queue';
+import {
+  BILLING_JOB_NAMES,
+  QueueProducerService,
+  QUEUE_NAMES,
+} from '@lib/queue';
 import { StripeService } from '../stripe.service';
 import { StripeWebhookService } from './stripe-webhook.service';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
@@ -68,23 +72,20 @@ export class StripeWebhookController {
     );
 
     if (existing?.processingStatus === 'completed') {
-      this.logger.log(`Duplicate event acknowledged — stripe_event_id: ${event.id}`);
+      this.logger.log(
+        `Duplicate event acknowledged — stripe_event_id: ${event.id}`,
+      );
       return { received: true };
     }
 
     // Store event as 'pending' (will be updated to 'processing' by the job)
     await this.webhookEventsRepository.upsertEvent(event, 'pending');
 
-    // Queue the processing job
+    // Queue the processing job — pass only stripeEventId; handler fetches from DB
     await this.queueProducer.enqueue(
       QUEUE_NAMES.BILLING_PROCESSING,
       BILLING_JOB_NAMES.STRIPE_WEBHOOK_PROCESSING,
-      {
-        stripeEventId: event.id,
-        eventType: event.type,
-        eventData: event.data,
-        attempt: 1,
-      },
+      { stripeEventId: event.id },
       {
         // Configure retry strategy
         attempts: 5,

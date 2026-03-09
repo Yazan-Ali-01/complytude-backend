@@ -113,7 +113,9 @@ async function bootstrap() {
   );
 
   // Bull Board — queue monitoring dashboard at /admin/queues
-  // TODO: Protect with platform RBAC or basic auth before production
+  const bullBoardAdminSecret = configService.get<string | null>(
+    'app.bullBoardAdminSecret',
+  );
   const bullBoardAdapter = new BullBoardFastifyAdapter();
   bullBoardAdapter.setBasePath('/admin/queues');
 
@@ -128,9 +130,34 @@ async function bootstrap() {
     serverAdapter: bullBoardAdapter,
   });
 
-  await app.register(bullBoardAdapter.registerPlugin(), {
-    prefix: '/admin/queues',
-  });
+  // Protect Bull Board when BULL_BOARD_ADMIN_SECRET is set
+  const bullBoardPlugin = bullBoardAdapter.registerPlugin();
+  if (bullBoardAdminSecret) {
+    const wrappedPlugin = async (instance: any) => {
+      instance.addHook('onRequest', async (request: any, reply: any) => {
+        const authHeader = request.headers?.authorization;
+        const bearer = authHeader?.startsWith('Bearer ')
+          ? authHeader.slice(7)
+          : null;
+        const headerSecret = request.headers?.['x-admin-secret'];
+        const valid =
+          bearer === bullBoardAdminSecret ||
+          headerSecret === bullBoardAdminSecret;
+        if (!valid) {
+          await reply.status(401).send({
+            statusCode: 401,
+            error: 'Unauthorized',
+            message:
+              'Bull Board requires Authorization: Bearer <BULL_BOARD_ADMIN_SECRET> or X-Admin-Secret header',
+          });
+        }
+      });
+      await instance.register(bullBoardPlugin);
+    };
+    await app.register(wrappedPlugin, { prefix: '/admin/queues' });
+  } else {
+    await app.register(bullBoardPlugin, { prefix: '/admin/queues' });
+  }
 
   // Setup Swagger documentation
   const config = new DocumentBuilder()

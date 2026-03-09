@@ -1,5 +1,6 @@
 export const BILLING_JOB_NAMES = {
   DUNNING_EMAIL: 'dunning-email',
+  PAYMENT_ACTION_REQUIRED: 'payment-action-required',
   STRIPE_RECONCILIATION: 'stripe-reconciliation',
   STRIPE_WEBHOOK_PROCESSING: 'stripe-webhook-processing',
 } as const;
@@ -21,6 +22,17 @@ export interface DunningEmailJobData {
   tenantName?: string;
 }
 
+export interface PaymentActionRequiredJobData {
+  tenantId: string;
+  tenantAdminEmail: string;
+  stripeSubscriptionId: string;
+  invoiceId: string;
+  hostedInvoiceUrl: string;
+  amount: number;
+  currency: string;
+  tenantName?: string;
+}
+
 export interface StripeReconciliationJobData {
   tenantId?: string; // Optional - if provided, reconcile only this tenant
   reason: 'scheduled' | 'manual' | 'webhook_failure';
@@ -28,7 +40,4 @@ export interface StripeReconciliationJobData {
 
 export interface StripeWebhookProcessingJobData {
   stripeEventId: string;
-  eventType: string;
-  eventData: Record<string, any>;
-  attempt: number;
 }

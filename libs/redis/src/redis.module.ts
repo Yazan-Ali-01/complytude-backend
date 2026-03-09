@@ -92,6 +92,7 @@ export class RedisModule {
         {
           provide: REDIS_CLIENT,
           useFactory: async (...args: any[]) => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- NestJS useFactory injects
             const config = await options.useFactory(...args);
 
             RedisModule.logger.log(

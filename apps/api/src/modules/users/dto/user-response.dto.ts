@@ -114,7 +114,6 @@ export class UserTenantResponseDto {
 export class TenantInfoResponseDto {
   constructor(data: Tenant) {
     this.id = data.id;
-    this.plan = data.plan;
     this.isActive = data.is_active;
     this.createdAt = data.created_at.toISOString();
     this.updatedAt = data.updated_at.toISOString();
@@ -125,13 +124,6 @@ export class TenantInfoResponseDto {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   id: string;
-
-  @ApiProperty({
-    description: 'Subscription plan tier',
-    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
-    example: 'general_counsel',
-  })
-  plan: 'navigator' | 'shield' | 'general_counsel' | 'infrastructure';
 
   @ApiProperty({
     description: 'Whether tenant is active',

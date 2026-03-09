@@ -78,7 +78,7 @@ export class TenantService {
    * 📝 Creates a tenant record with default plan and active status.
    * Does NOT require RLS context since it's inserting a new row (RLS policies typically allow INSERT).
    *
-   * @param createTenantDto - Tenant configuration including plan selection
+   * @param createTenantDto - Tenant configuration (plan is derived from tenant_subscriptions)
    * @param options - Optional database client for transaction support (used by parent transactions).
    *   `creatorEmail` and `creatorUserId` are forwarded to Stripe customer creation.
    *   TODO: Wire creatorEmail/creatorUserId from the signup flow once tenant creation is
@@ -86,11 +86,6 @@ export class TenantService {
    * @returns The created Tenant entity with generated ID and timestamps
    *
    * @throws InternalServerErrorException - If database operation fails
-   *
-   * @example
-   * ```ts
-   * const tenant = await tenantService.createTenant({ plan: 'general_counsel' });
-   * ```
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
@@ -108,7 +103,6 @@ export class TenantService {
       const tenantCreation = async (client: PoolClient) => {
         return await this.tenantRepository.create(
           {
-            plan: createTenantDto.plan ?? 'navigator',
             is_active: true,
           },
           { client },

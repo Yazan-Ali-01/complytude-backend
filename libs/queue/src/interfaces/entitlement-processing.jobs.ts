@@ -5,6 +5,7 @@ export const ENTITLEMENT_JOB_NAMES = {
   PROJECTION_UPDATE: 'projection-update',
   SUBSCRIPTION_RENEWAL: 'subscription-renewal',
   CREDIT_NOTIFICATION: 'credit-notification',
+  QUOTA_EXCEEDED: 'quota-exceeded',
 } as const;
 
 export type EntitlementJobName =
@@ -70,4 +71,13 @@ export interface EntitlementCreditNotificationJobData {
   transactionType: 'purchased' | 'granted' | 'deducted' | 'refunded';
   amount: number;
   remainingBalance: number;
+}
+
+export interface EntitlementQuotaExceededJobData {
+  tenantId: string;
+  featureKey: string;
+  requestedUnits: number;
+  limit: number;
+  used: number;
+  reason: string;
 }

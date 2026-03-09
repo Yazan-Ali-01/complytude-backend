@@ -11,7 +11,6 @@ BEGIN;
 -- ENUMS
 -- =========================
 
-CREATE TYPE tenant_plan AS ENUM ('navigator', 'shield', 'general_counsel', 'infrastructure');
 CREATE TYPE invitation_status AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'REVOKED', 'EXPIRED');
 CREATE TYPE refresh_token_type AS ENUM ('identity', 'tenant');
 
@@ -21,7 +20,6 @@ CREATE TYPE refresh_token_type AS ENUM ('identity', 'tenant');
 CREATE TABLE public.tenants (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name             VARCHAR(255) DEFAULT NULL,
-    plan             tenant_plan NOT NULL DEFAULT 'navigator',
     logo_url         TEXT DEFAULT NULL,
     brand_color_primary VARCHAR(7) DEFAULT NULL,
     brand_color_secondary VARCHAR(7) DEFAULT NULL,
@@ -62,7 +60,6 @@ COMMENT ON TABLE public.tenants IS 'Organizations/companies using the platform';
 COMMENT ON COLUMN public.tenants.id IS 'Unique tenant identifier (UUID)';
 COMMENT ON COLUMN public.tenants.name IS 'Tenant name (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.stripe_customer_id IS 'Stripe customer ID (cus_xxx), NULL until billing is set up';
-COMMENT ON COLUMN public.tenants.plan IS 'Subscription plan: navigator, shield, general_counsel, or infrastructure';
 COMMENT ON COLUMN public.tenants.logo_url IS 'Tenant logo URL (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.brand_color_primary IS 'Tenant brand color primary (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.brand_color_secondary IS 'Tenant brand color secondary (NULL for anonymous tenants)';
@@ -887,7 +884,6 @@ DROP TABLE IF EXISTS public.tenants;
 -- Drop ENUMs
 DROP TYPE IF EXISTS refresh_token_type;
 DROP TYPE IF EXISTS invitation_status;
-DROP TYPE IF EXISTS tenant_plan;
 
 COMMIT;
 */

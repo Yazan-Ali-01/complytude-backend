@@ -1,8 +1,5 @@
-import { PlanKey } from 'src/common/types/entitlement.types';
-
 export interface Tenant {
   id: string;
-  plan: PlanKey;
   is_active: boolean;
   parent_tenant_id?: string | null;
 

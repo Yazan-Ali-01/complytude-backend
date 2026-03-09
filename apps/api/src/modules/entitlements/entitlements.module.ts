@@ -21,8 +21,12 @@ import { TenantAddonsController } from './controllers/tenant-addons.controller';
 import { TenantOverridesReadController } from './controllers/tenant-overrides-read.controller';
 import { TenantOverridesController } from './controllers/tenant-overrides.controller';
 import { EntitlementsController } from './entitlements.controller';
+import { CreditNotificationHandler } from './processors/credit-notification.handler';
+import { DomainEventFanoutHandler } from './processors/domain-event-fanout.handler';
 import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
 import { ProjectionUpdateHandler } from './processors/projection-update.handler';
+import { QuotaExceededHandler } from './processors/quota-exceeded.handler';
+import { SnapshotRebuildHandler } from './processors/snapshot-rebuild.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
@@ -85,6 +89,10 @@ import { UsageProjectionService } from './services/usage-projection.service';
     // Queue processor + handlers
     EntitlementQueueProcessor,
     ProjectionUpdateHandler,
+    SnapshotRebuildHandler,
+    DomainEventFanoutHandler,
+    CreditNotificationHandler,
+    QuotaExceededHandler,
 
     // Catalog repositories
     FeaturesRepository,

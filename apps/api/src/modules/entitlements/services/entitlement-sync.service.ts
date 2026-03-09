@@ -83,7 +83,6 @@ export class EntitlementSyncService implements OnModuleInit {
         RETURNING key
         `,
         codeKeys,
-        true, // bypassRLS
       );
 
       if (deactivateResult.rows.length > 0) {
@@ -96,7 +95,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Features synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 
   /**
@@ -138,7 +137,6 @@ export class EntitlementSyncService implements OnModuleInit {
         RETURNING key
         `,
         codeKeys,
-        true, // bypassRLS
       );
 
       if (deactivateResult.rows.length > 0) {
@@ -151,7 +149,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Plans synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 
   /**
@@ -239,7 +237,6 @@ export class EntitlementSyncService implements OnModuleInit {
           RETURNING id
           `,
           allSyncedEntitlementIds,
-          true, // bypassRLS
         );
 
         if (deleteResult.rows.length > 0) {
@@ -250,6 +247,6 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Plan entitlements synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 }

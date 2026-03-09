@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { PoolClient } from 'pg';
 import { DatabaseService } from 'src/database/database.service';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
@@ -75,26 +76,40 @@ export class StripeCustomerService {
    * operations (subscriptions, invoices, etc.).
    */
   async getOrCreateCustomer(tenantId: string): Promise<string | null> {
-    const tenant =
-      await this.databaseService.transactionWithPlatformAdminContext((client) =>
-        this.tenantRepository.findById(tenantId, { client }),
-      );
+    return this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const tenant = await this.tenantRepository.findById(tenantId, {
+          client,
+        });
 
-    if (!tenant) {
-      this.logger.warn(`getOrCreateCustomer: tenant ${tenantId} not found`);
-      return null;
-    }
+        if (!tenant) {
+          this.logger.warn(`getOrCreateCustomer: tenant ${tenantId} not found`);
+          return null;
+        }
 
-    if (tenant.stripe_customer_id) {
-      return tenant.stripe_customer_id;
-    }
+        if (tenant.stripe_customer_id) {
+          return tenant.stripe_customer_id;
+        }
 
-    const adminEmail =
-      await this.databaseService.transactionWithPlatformAdminContext((client) =>
-        this.userTenantRepository.findTenantAdminEmail(tenantId, { client }),
-      );
+        const adminEmail = await this.userTenantRepository.findTenantAdminEmail(
+          tenantId,
+          {
+            client,
+          },
+        );
 
-    return this.createCustomerForTenant(tenant, adminEmail ?? undefined);
+        return this.createStripeCustomerAndPersist(
+          tenant,
+          {
+            email: adminEmail ?? undefined,
+            metadata: {
+              complytude_tenant_id: tenant.id,
+            },
+          },
+          client,
+        );
+      },
+    );
   }
 
   /**
@@ -129,21 +144,26 @@ export class StripeCustomerService {
 
     for (const tenant of tenants) {
       try {
-        const adminEmail =
-          await this.databaseService.transactionWithPlatformAdminContext(
-            (client) =>
-              this.userTenantRepository.findTenantAdminEmail(tenant.id, {
+        await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            const adminEmail =
+              await this.userTenantRepository.findTenantAdminEmail(tenant.id, {
                 client,
-              }),
-          );
+              });
 
-        await this.createStripeCustomerAndPersist(tenant, {
-          email: adminEmail ?? undefined,
-          metadata: {
-            complytude_tenant_id: tenant.id,
-            backfilled: 'true',
+            await this.createStripeCustomerAndPersist(
+              tenant,
+              {
+                email: adminEmail ?? undefined,
+                metadata: {
+                  complytude_tenant_id: tenant.id,
+                  backfilled: 'true',
+                },
+              },
+              client,
+            );
           },
-        });
+        );
 
         this.logger.log(`Backfilled Stripe customer for tenant ${tenant.id}`);
         result.created++;
@@ -168,12 +188,16 @@ export class StripeCustomerService {
    * tenant row. Runs the DB write in a platform admin context so RLS permits
    * the UPDATE.
    *
+   * When `client` is provided, uses that client (caller's transaction).
+   * Otherwise starts a new platform admin transaction.
+   *
    * After persisting, fires a non-blocking tax sync so the customer's UAE address
    * and TRN are registered with Stripe Tax immediately.
    */
   private async createStripeCustomerAndPersist(
     tenant: Tenant,
     options: CreateStripeCustomerOptions,
+    client?: PoolClient,
   ): Promise<string> {
     const customer: Stripe.Customer =
       await this.stripeService.client.customers.create({
@@ -182,11 +206,21 @@ export class StripeCustomerService {
         metadata: options.metadata ?? {},
       });
 
-    await this.databaseService.transactionWithPlatformAdminContext((client) =>
-      this.tenantRepository.updateStripeCustomerId(tenant.id, customer.id, {
-        client,
-      }),
-    );
+    if (client) {
+      await this.tenantRepository.updateStripeCustomerId(
+        tenant.id,
+        customer.id,
+        {
+          client,
+        },
+      );
+    } else {
+      await this.databaseService.transactionWithPlatformAdminContext((c) =>
+        this.tenantRepository.updateStripeCustomerId(tenant.id, customer.id, {
+          client: c,
+        }),
+      );
+    }
 
     void this.stripeTaxService.syncCustomerTax(customer.id, tenant);
 

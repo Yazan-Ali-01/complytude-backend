@@ -13,6 +13,16 @@ export class StripeWebhookService {
     private readonly handlers: StripeEventHandlersService,
   ) {}
 
+  /**
+   * Fetch a stored webhook event by Stripe event ID.
+   * Returns the full Stripe.Event from the data column (single source of truth).
+   */
+  async getEventById(stripeEventId: string): Promise<Stripe.Event | null> {
+    const stored =
+      await this.webhookEventsRepository.findByStripeEventId(stripeEventId);
+    return stored?.data ?? null;
+  }
+
   async processEvent(event: Stripe.Event): Promise<void> {
     const existing = await this.webhookEventsRepository.findByStripeEventId(
       event.id,
