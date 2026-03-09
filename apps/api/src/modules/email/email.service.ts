@@ -2,6 +2,10 @@ import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
+import {
+  CURRENCY_UTILS,
+  DEFAULT_CURRENCY_LOWERCASE,
+} from 'src/common/constants/billing.constant';
 import { emailConfig, EmailConfig } from 'src/config/email.config';
 
 export interface DunningEmailData {
@@ -438,7 +442,9 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
   private formatCurrency(amount: number, currency: string): string {
     // Convert from smallest currency unit (fils for AED) to major unit
     const majorAmount =
-      currency.toLowerCase() === 'aed' ? amount / 100 : amount;
+      currency.toLowerCase() === DEFAULT_CURRENCY_LOWERCASE
+        ? CURRENCY_UTILS.filsToAed(amount)
+        : amount;
 
     return new Intl.NumberFormat('en-AE', {
       style: 'currency',

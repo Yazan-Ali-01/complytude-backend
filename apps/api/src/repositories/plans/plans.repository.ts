@@ -9,6 +9,7 @@ import {
   UpdatePlanRow,
 } from 'src/common/types/entitlement.types';
 import { DatabaseService } from '../../database/database.service';
+import { DEFAULT_CURRENCY } from 'src/common/constants/billing.constant';
 
 type PlanRow = {
   id: string;
@@ -224,7 +225,7 @@ export class PlansRepository extends BaseRepository<
         plan.name,
         plan.description ?? null,
         plan.price_monthly ?? 0,
-        plan.price_currency ?? 'AED',
+        plan.price_currency ?? DEFAULT_CURRENCY,
         plan.billing_period ?? 'monthly',
         plan.is_active ?? true,
         plan.sort_order ?? 0,

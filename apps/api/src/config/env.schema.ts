@@ -14,6 +14,21 @@ export const validationSchema = Joi.object({
     .min(1)
     .max(50)
     .default(5),
+  ENTITLEMENT_SUBSCRIPTION_CACHE_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(10)
+    .max(3600)
+    .default(60),
+  ENTITLEMENT_FEATURE_CACHE_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(30)
+    .max(7200)
+    .default(300),
+  ENTITLEMENT_CACHE_CLEANUP_INTERVAL_SECONDS: Joi.number()
+    .integer()
+    .min(60)
+    .max(3600)
+    .default(300),
 
   // Database
   ...databaseEnvSchema,

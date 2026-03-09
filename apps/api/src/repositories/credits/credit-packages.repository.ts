@@ -7,7 +7,8 @@ export interface CreditPackage {
   key: string;
   name: string;
   credits: number;
-  price_aed: number;
+  /** Price in the default currency (AED) */
+  price: number;
   stripe_product_id: string | null;
   stripe_price_id: string | null;
   is_active: boolean;
@@ -19,7 +20,8 @@ type CreateCreditPackageRow = {
   key: string;
   name: string;
   credits: number;
-  price_aed: number;
+  /** Price in the default currency (AED) */
+  price: number;
   stripe_product_id?: string | null;
   stripe_price_id?: string | null;
   is_active?: boolean;
@@ -28,7 +30,8 @@ type CreateCreditPackageRow = {
 type UpdateCreditPackageRow = {
   name?: string;
   credits?: number;
-  price_aed?: number;
+  /** Price in the default currency (AED) */
+  price?: number;
   stripe_product_id?: string | null;
   stripe_price_id?: string | null;
   is_active?: boolean;
@@ -39,7 +42,7 @@ type CreditPackageRow = {
   key: string;
   name: string;
   credits: number;
-  price_aed: string; // NUMERIC comes back as string from pg
+  price: string; // NUMERIC comes back as string from pg
   stripe_product_id: string | null;
   stripe_price_id: string | null;
   is_active: boolean;
@@ -58,7 +61,7 @@ export class CreditPackagesRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, credits, price_aed, stripe_product_id, stripe_price_id, is_active, created_at, updated_at';
+    return 'id, key, name, credits, price, stripe_product_id, stripe_price_id, is_active, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): CreditPackage {
@@ -68,7 +71,7 @@ export class CreditPackagesRepository extends BaseRepository<
       key: data.key,
       name: data.name,
       credits: data.credits,
-      price_aed: parseFloat(data.price_aed),
+      price: parseFloat(data.price),
       stripe_product_id: data.stripe_product_id,
       stripe_price_id: data.stripe_price_id,
       is_active: data.is_active,
@@ -79,7 +82,7 @@ export class CreditPackagesRepository extends BaseRepository<
 
   async findAll(options?: QueryOptions): Promise<CreditPackage[]> {
     const result = await this.executeQuery<CreditPackageRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ORDER BY price_aed ASC`,
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ORDER BY price ASC`,
       [],
       options,
     );
@@ -88,7 +91,7 @@ export class CreditPackagesRepository extends BaseRepository<
 
   async findAllActive(options?: QueryOptions): Promise<CreditPackage[]> {
     const result = await this.executeQuery<CreditPackageRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE is_active = true ORDER BY price_aed ASC`,
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE is_active = true ORDER BY price ASC`,
       [],
       options,
     );
@@ -111,19 +114,19 @@ export class CreditPackagesRepository extends BaseRepository<
     key: string,
     name: string,
     credits: number,
-    priceAed: number,
+    price: number,
     options?: QueryOptions,
   ): Promise<CreditPackage> {
     const result = await this.executeQuery<CreditPackageRow>(
-      `INSERT INTO ${this.tableName} (key, name, credits, price_aed)
+      `INSERT INTO ${this.tableName} (key, name, credits, price)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (key) DO UPDATE SET
          name = EXCLUDED.name,
          credits = EXCLUDED.credits,
-         price_aed = EXCLUDED.price_aed,
+         price = EXCLUDED.price,
          updated_at = now()
        RETURNING ${this.getSelectColumns()}`,
-      [key, name, credits, priceAed],
+      [key, name, credits, price],
       options,
     );
     return this.mapRow(result.rows[0]);

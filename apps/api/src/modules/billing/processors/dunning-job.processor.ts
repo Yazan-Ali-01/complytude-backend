@@ -6,10 +6,12 @@ import {
   Processor,
   QUEUE_NAMES,
   StripeReconciliationJobData,
+  StripeWebhookProcessingJobData,
 } from '@lib/queue';
 import { Logger } from '@nestjs/common';
 import { DunningEmailHandler } from '../handlers/dunning-email.handler';
 import { StripeReconciliationHandler } from '../handlers/stripe-reconciliation.handler';
+import { StripeWebhookProcessingHandler } from '../handlers/stripe-webhook-processing.handler';
 
 /**
  * Billing Queue Processor
@@ -20,6 +22,7 @@ import { StripeReconciliationHandler } from '../handlers/stripe-reconciliation.h
  * Handles:
  * - Dunning email sequences (day0, day3, day5)
  * - Stripe reconciliation jobs (scheduled and manual)
+ * - Stripe webhook processing (async webhook handling)
  */
 @Processor(QUEUE_NAMES.BILLING_PROCESSING)
 export class DunningJobProcessor extends AbstractProcessor<unknown> {
@@ -28,6 +31,7 @@ export class DunningJobProcessor extends AbstractProcessor<unknown> {
   constructor(
     private readonly dunningEmailHandler: DunningEmailHandler,
     private readonly stripeReconciliationHandler: StripeReconciliationHandler,
+    private readonly stripeWebhookProcessingHandler: StripeWebhookProcessingHandler,
   ) {
     super();
   }
@@ -42,6 +46,11 @@ export class DunningJobProcessor extends AbstractProcessor<unknown> {
       case BILLING_JOB_NAMES.STRIPE_RECONCILIATION:
         return this.stripeReconciliationHandler.execute(
           job as Job<StripeReconciliationJobData>,
+        );
+
+      case BILLING_JOB_NAMES.STRIPE_WEBHOOK_PROCESSING:
+        return this.stripeWebhookProcessingHandler.execute(
+          job as Job<StripeWebhookProcessingJobData>,
         );
 
       default:

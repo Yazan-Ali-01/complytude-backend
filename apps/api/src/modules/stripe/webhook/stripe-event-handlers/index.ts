@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
+import { DEFAULT_CURRENCY_LOWERCASE } from 'src/common/constants/billing.constant';
 import { PlanKey } from 'src/common/types/entitlement.types';
 import { mapStripeStatusToInternal } from '../../stripe.utils';
 import { DatabaseService } from 'src/database/database.service';
 import { CreditLedgerService } from 'src/modules/entitlements/services/credit-ledger.service';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
+import { EntitlementCacheService } from 'src/modules/entitlements/services/entitlement-cache.service';
 import { StripeService } from 'src/modules/stripe/stripe.service';
 import { AddonsRepository } from 'src/repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
@@ -40,6 +42,7 @@ export class StripeEventHandlersService {
     private readonly tenantsRepository: TenantRepository,
     private readonly queueProducer: QueueProducerService,
     private readonly addonSyncEngine: AddonSyncEngine,
+    private readonly entitlementCache: EntitlementCacheService,
   ) {}
 
   async handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
@@ -137,6 +140,9 @@ export class StripeEventHandlersService {
         await this.entitlementSnapshotsRepository.invalidate(tenantId, {
           client,
         });
+
+        // Invalidate subscription cache since new subscription was created
+        this.entitlementCache.invalidateSubscription(tenantId);
 
         await this.domainEventsService.emit(
           {
@@ -287,6 +293,9 @@ export class StripeEventHandlersService {
             client,
           });
 
+          // Invalidate subscription cache since subscription changed
+          this.entitlementCache.invalidateSubscription(tenantId);
+
           await this.domainEventsService.emit(
             {
               tenant_id: tenantId,
@@ -381,6 +390,9 @@ export class StripeEventHandlersService {
           await this.entitlementSnapshotsRepository.invalidate(tenantId, {
             client,
           });
+          
+          // Invalidate subscription cache since subscription changed
+          this.entitlementCache.invalidateSubscription(tenantId);
         }
 
         if (planChanged) {
@@ -720,7 +732,7 @@ export class StripeEventHandlersService {
         hostedInvoiceUrl: invoice.hosted_invoice_url,
         attemptCount: invoice.attempt_count || 1,
         amount: invoice.amount_due || 0,
-        currency: invoice.currency || 'aed',
+        currency: invoice.currency || DEFAULT_CURRENCY_LOWERCASE,
         dueDate: invoice.due_date
           ? new Date(invoice.due_date * 1000).toISOString()
           : new Date().toISOString(),

@@ -1,6 +1,7 @@
 export const BILLING_JOB_NAMES = {
   DUNNING_EMAIL: 'dunning-email',
   STRIPE_RECONCILIATION: 'stripe-reconciliation',
+  STRIPE_WEBHOOK_PROCESSING: 'stripe-webhook-processing',
 } as const;
 
 export type BillingJobName =
@@ -23,4 +24,11 @@ export interface DunningEmailJobData {
 export interface StripeReconciliationJobData {
   tenantId?: string; // Optional - if provided, reconcile only this tenant
   reason: 'scheduled' | 'manual' | 'webhook_failure';
+}
+
+export interface StripeWebhookProcessingJobData {
+  stripeEventId: string;
+  eventType: string;
+  eventData: Record<string, any>;
+  attempt: number;
 }

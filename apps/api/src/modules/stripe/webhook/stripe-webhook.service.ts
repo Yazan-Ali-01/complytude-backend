@@ -23,6 +23,7 @@ export class StripeWebhookService {
       return;
     }
 
+    // Update status to 'processing' (handles both new events and retries)
     await this.webhookEventsRepository.upsertEvent(event, 'processing');
 
     try {

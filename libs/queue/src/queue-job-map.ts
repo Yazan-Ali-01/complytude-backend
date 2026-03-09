@@ -9,6 +9,7 @@ import {
   BILLING_JOB_NAMES,
   DunningEmailJobData,
   StripeReconciliationJobData,
+  StripeWebhookProcessingJobData,
 } from './interfaces/billing-processing.jobs';
 import {
   DocumentIngestionJobData,
@@ -33,6 +34,7 @@ export interface QueueJobMap {
   [QUEUE_NAMES.BILLING_PROCESSING]: {
     [BILLING_JOB_NAMES.DUNNING_EMAIL]: DunningEmailJobData;
     [BILLING_JOB_NAMES.STRIPE_RECONCILIATION]: StripeReconciliationJobData;
+    [BILLING_JOB_NAMES.STRIPE_WEBHOOK_PROCESSING]: StripeWebhookProcessingJobData;
   };
   [QUEUE_NAMES.DATA_INGESTION]: {
     [INGESTION_JOB_NAMES.DOCUMENT_INGESTION]: DocumentIngestionJobData;

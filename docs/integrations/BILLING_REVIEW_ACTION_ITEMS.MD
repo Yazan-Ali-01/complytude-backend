@@ -207,52 +207,93 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 
 ## Performance
 
-### Issue 13: Reconciliation makes 2x Stripe API calls per subscription
+### ✅ DONE — Issue 13: Reconciliation makes 2x Stripe API calls per subscription
 
 **Priority:** P2
-**Decision:** Single-pass reconciliation
-**What to do:** Refactor `reconcileAll()` to fetch each Stripe subscription once and run both subscription and add-on reconciliation on the same response. This halves API calls and reconciliation time.
-**Effort:** ~2 hours
-**Key files:**
+**Status:** Completed
+**What was done:** Refactored `reconcileAll()` to use single-pass reconciliation. Each Stripe subscription is now fetched once and used for both subscription and add-on reconciliation. This reduces API calls by 50% and improves reconciliation performance.
 
-- `apps/api/src/modules/stripe/services/stripe-reconciliation.service.ts`
+**Implementation details:**
+- Combined `reconcileSubscriptions()` and `reconcileAddons()` into `reconcileSubscriptionsAndAddons()`
+- Created `reconcileSubscriptionAndAddons()` method that fetches Stripe subscription once
+- Split logic into `reconcileSubscriptionData()` and `reconcileAddonsData()` methods
+- Both methods now use the same Stripe API response
+
+**Files changed:**
+- `apps/api/src/modules/stripe/services/stripe-reconciliation.service.ts` — Single-pass reconciliation implementation
+
+**Benefits:**
+- 50% reduction in Stripe API calls during reconciliation
+- Faster reconciliation execution time
+- Reduced risk of hitting Stripe API rate limits
+- Cleaner, more maintainable code structure
 
 ---
 
-### Issue 14: Entitlement enforcement does 4-6 DB round-trips per request
+### ✅ DONE — Issue 14: Entitlement enforcement does 4-6 DB round-trips per request
 
 **Priority:** P3
-**Decision:** Add in-memory caching for subscription + feature lookups
-**What to do:** Cache `subscription` and `feature` records per tenant with a short TTL (30-60s). These change at most once a month (subscription renewal) or on app restart (feature sync). Invalidate on subscription change webhook.
-**Effort:** ~3 hours
-**Key files:**
+**Status:** Completed
+**What was done:** Implemented in-memory caching for subscription and feature lookups with TTL-based expiration and webhook-based cache invalidation. This reduces database round-trips from 4-6 to 1-2 per request for cached data.
 
-- `apps/api/src/modules/entitlements/services/entitlement-enforcement.service.ts`
+**Implementation details:**
+- Created `EntitlementCacheService` with separate caches for subscriptions (60s TTL) and features (300s TTL)
+- Added cache-first lookup in `EntitlementEnforcementService.enforceUsageBasedFeature()`
+- Implemented webhook-based cache invalidation in Stripe event handlers
+- Added periodic cache cleanup service to prevent memory leaks
+- Added configurable TTL settings via environment variables
+
+**Files changed:**
+- **NEW:** `apps/api/src/modules/entitlements/services/entitlement-cache.service.ts` — Core caching service
+- **NEW:** `apps/api/src/modules/entitlements/services/entitlement-cache-cleanup.service.ts` — Periodic cleanup
+- `apps/api/src/modules/entitlements/services/entitlement-enforcement.service.ts` — Cache integration
+- `apps/api/src/modules/entitlements/entitlements.module.ts` — Service registration
+- `apps/api/src/modules/stripe/webhook/stripe-event-handlers/index.ts` — Cache invalidation
+- `apps/api/src/config/env.schema.ts` — Cache configuration
+- `apps/api/.env.example` — Environment variable documentation
+
+**Benefits:**
+- Reduces DB queries from 4-6 to 1-2 per entitlement check for cached data
+- Subscription cache: 60s TTL (changes monthly on billing cycles)
+- Feature cache: 300s TTL (changes only on app restart during feature sync)
+- Webhook-based invalidation ensures cache consistency on subscription changes
+- Configurable TTL settings for different environments
+- Automatic cleanup prevents memory leaks
+
+**Configuration:**
+- `ENTITLEMENT_SUBSCRIPTION_CACHE_TTL_SECONDS=60` (default)
+- `ENTITLEMENT_FEATURE_CACHE_TTL_SECONDS=300` (default)
+- `ENTITLEMENT_CACHE_CLEANUP_INTERVAL_SECONDS=300` (default)
 
 ---
 
 ### Issue 15: Synchronous webhook processing risks Stripe timeout
 
-**Priority:** P2
+**Priority:** P2 ✅ **COMPLETED**
 **Decision:** Acknowledge immediately, process async via BullMQ
 **What to do:** Return `{ received: true }` immediately after signature verification + idempotency check. Queue the actual processing as a BullMQ job. Reuse existing retry-failed-webhooks admin endpoint for error recovery.
 **Effort:** ~4 hours
 **Key files:**
 
-- `apps/api/src/modules/stripe/webhook/stripe-webhook.controller.ts`
-- `apps/api/src/modules/stripe/webhook/stripe-webhook.service.ts`
+- `apps/api/src/modules/stripe/webhook/stripe-webhook.controller.ts` ✅
+- `apps/api/src/modules/stripe/webhook/stripe-webhook.service.ts` ✅
+- `libs/queue/src/interfaces/billing-processing.jobs.ts` ✅ (added STRIPE_WEBHOOK_PROCESSING job)
+- `apps/api/src/modules/billing/handlers/stripe-webhook-processing.handler.ts` ✅ (new handler)
+- `apps/api/src/modules/billing/processors/dunning-job.processor.ts` ✅ (updated processor)
 
 ---
 
 ### Issue 16: Credit balance query — verify index exists
 
-**Priority:** P3
+**Priority:** P3 ✅ **COMPLETED**
 **Decision:** Verify index, add if missing
 **What to do:** Check `009_entitlement_tables.sql` for an index on `credit_ledger(tenant_id, created_at DESC)`. If missing, add it.
 **Effort:** ~15 minutes
 **Key files:**
 
-- `scripts/migrations/009_entitlement_tables.sql`
+- `scripts/migrations/009_entitlement_tables.sql` ✅ (index already exists: `idx_credit_ledger_tenant_recorded ON public.credit_ledger(tenant_id, recorded_at DESC)` at line 605)
+
+**Note:** The column name is `recorded_at` (not `created_at`) and the index already exists and is properly used by the credit ledger repository.
 
 ---
 
@@ -264,13 +305,13 @@ Both webhook handler and reconciliation service now use the shared engine, elimi
 | ✅    | Issue 8: Extract Stripe period utility              | Done     | Quick win, reduces fragility   |
 | ✅    | Issue 6 (quick fix): Fix SubscriptionsModule import | Done     | Quick win, fixes encapsulation |
 | ✅    | Issue 1: Scheduled reconciliation                   | Done     | Reliability                    |
-| 1     | Issue 3: Dunning automation                         | 1-2 days | Revenue protection             |
-| 2     | Issue 5: Addon sync DRY refactor                    | 3 hours  | DRY                            |
-| 3     | Issue 15: Async webhook processing                  | 4 hours  | Reliability at scale           |
-| 4     | Issue 13: Single-pass reconciliation                | 2 hours  | API efficiency                 |
-| 5     | Issue 4: Move catalog sync to CLI                   | 2 hours  | Operational safety             |
-| 6     | Issue 7: Extract currency constants                 | 2 hours  | Future-proofing                |
-| 7     | Issue 6 (full): Split StripeModule                  | 4 hours  | Maintainability                |
-| 8     | Issue 14: In-memory caching                         | 3 hours  | Latency                        |
-| 9     | Issue 16: Verify credit ledger index                | 15 min   | Quick win                      |
-| 10    | Issues 9-12: Test coverage                          | 5-7 days | Launch readiness               |
+| ✅    | Issue 3: Dunning automation                         | Done     | Revenue protection             |
+| ✅    | Issue 5: Addon sync DRY refactor                    | Done     | DRY                            |
+| ✅    | Issue 13: Single-pass reconciliation                | Done     | API efficiency                 |
+| ✅    | Issue 14: In-memory caching                         | Done     | Latency                        |
+| 1     | Issue 15: Async webhook processing                  | 4 hours  | Reliability at scale           |
+| 2     | Issue 4: Move catalog sync to CLI                   | 2 hours  | Operational safety             |
+| 3     | Issue 7: Extract currency constants                 | 2 hours  | Future-proofing                |
+| 4     | Issue 6 (full): Split StripeModule                  | 4 hours  | Maintainability                |
+| 5     | Issue 16: Verify credit ledger index                | 15 min   | Quick win                      |
+| 6     | Issues 9-12: Test coverage                          | 5-7 days | Launch readiness               |

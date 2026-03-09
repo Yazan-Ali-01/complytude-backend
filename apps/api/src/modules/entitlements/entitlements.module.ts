@@ -26,6 +26,8 @@ import { ProjectionUpdateHandler } from './processors/projection-update.handler'
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
+import { EntitlementCacheService } from './services/entitlement-cache.service';
+import { EntitlementCacheCleanupService } from './services/entitlement-cache-cleanup.service';
 import { EntitlementEnforcementService } from './services/entitlement-enforcement.service';
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
 import { EntitlementSnapshotService } from './services/entitlement-snapshot.service';
@@ -66,6 +68,8 @@ import { UsageProjectionService } from './services/usage-projection.service';
     // Core services
     EntitlementResolverService,
     EntitlementSyncService,
+    EntitlementCacheService, // Performance optimization for enforcement
+    EntitlementCacheCleanupService, // Periodic cache cleanup
     UsageIngestionService, // Phase 3
     UsageProjectionService, // Phase 3
     EntitlementEnforcementService, // Phase 4
@@ -108,6 +112,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
   exports: [
     // Services
     EntitlementResolverService,
+    EntitlementCacheService, // Performance optimization for enforcement
     UsageIngestionService, // Phase 3
     UsageProjectionService, // Phase 3
     EntitlementEnforcementService, // Phase 4

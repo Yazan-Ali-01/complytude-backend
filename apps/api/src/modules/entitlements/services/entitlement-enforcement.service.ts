@@ -30,6 +30,7 @@ import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.
 import { buildUsageRecordedEvent } from '../utils/usage-event-payload.util';
 import { CreditLedgerService } from './credit-ledger.service';
 import { DomainEventsService } from './domain-events.service';
+import { EntitlementCacheService } from './entitlement-cache.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
@@ -118,6 +119,7 @@ export class EntitlementEnforcementService {
     private readonly usageLedgerRepository: UsageLedgerRepository,
     private readonly configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
+    private readonly entitlementCache: EntitlementCacheService,
   ) {}
 
   /**
@@ -252,17 +254,65 @@ export class EntitlementEnforcementService {
     metadata: Record<string, any> | undefined,
     client: PoolClient,
   ): Promise<EnforceResult> {
-    const subscription = await this.subscriptionsRepository.findCurrentByTenant(
-      tenantId,
-      {
-        client,
-      },
-    );
+    // Try to get subscription from cache first
+    const cachedSubscription = this.entitlementCache.getSubscription(tenantId);
+    let subscription;
+    if (!cachedSubscription) {
+      // Cache miss - fetch from database and cache
+      const dbSubscription =
+        await this.subscriptionsRepository.findCurrentByTenant(tenantId, {
+          client,
+        });
+      if (!dbSubscription) {
+        throw new NotFoundException(
+          `No active subscription for tenant: ${tenantId}`,
+        );
+      }
 
-    if (!subscription) {
-      throw new NotFoundException(
-        `No active subscription for tenant: ${tenantId}`,
-      );
+      // Cache the subscription
+      this.entitlementCache.setSubscription(tenantId, {
+        id: dbSubscription.id,
+        tenant_id: dbSubscription.tenant_id,
+        plan_id: dbSubscription.plan_id,
+        status: dbSubscription.status,
+        current_period_start: dbSubscription.current_period_start,
+        current_period_end: dbSubscription.current_period_end,
+      });
+      subscription = dbSubscription;
+    } else {
+      // Use cached subscription data
+      subscription = cachedSubscription;
+    }
+
+    // Try to get feature from cache first
+    const cachedFeature = this.entitlementCache.getFeature(featureKey);
+    let feature;
+    if (!cachedFeature) {
+      // Cache miss - fetch from database and cache
+      const dbFeature = await this.featuresRepository.findByKey(featureKey, {
+        client,
+      });
+      if (!dbFeature) {
+        throw new NotFoundException(`Feature not found: ${featureKey}`);
+      }
+
+      // Cache the feature
+      this.entitlementCache.setFeature(featureKey, {
+        id: dbFeature.id,
+        key: featureKey,
+        name: dbFeature.name,
+        feature_type: dbFeature.feature_type,
+        is_active: dbFeature.is_active,
+        credit_cost: dbFeature.credit_cost,
+      });
+      feature = dbFeature;
+    } else {
+      // Use cached feature data
+      feature = cachedFeature;
+    }
+
+    if (!feature.is_active) {
+      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
     }
 
     const usage = await this.usageProjectionService.getCurrentUsage(
@@ -274,15 +324,6 @@ export class EntitlementEnforcementService {
 
     const limit = entitlement.value_int ?? 0;
     const used = usage?.total_units ?? 0;
-    const feature = await this.featuresRepository.findByKey(featureKey, {
-      client,
-    });
-    if (!feature) {
-      throw new NotFoundException(`Feature not found: ${featureKey}`);
-    }
-    if (!feature.is_active) {
-      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
-    }
     const billingPeriod = deriveBillingPeriod(
       subscription.current_period_start,
     );

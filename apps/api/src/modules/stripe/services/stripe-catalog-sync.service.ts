@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import {
+  ANNUAL_BILLING,
+  CURRENCY_UTILS,
+  DEFAULT_CURRENCY_LOWERCASE,
+} from 'src/common/constants/billing.constant';
+import {
   CREDIT_PACKAGES,
   CreditPackageDefinition,
 } from 'src/common/constants/credit-packages.constant';
@@ -139,7 +144,7 @@ export class StripeCatalogSyncService {
 
     await this.syncPlanPrice(planWithProductId, 'monthly', plan.price_monthly);
 
-    const annualAmount = plan.price_monthly * 10; // 10 months = 2 months free
+    const annualAmount = plan.price_monthly * ANNUAL_BILLING.CHARGED_MONTHS;
     await this.syncPlanPrice(planWithProductId, 'annual', annualAmount);
   }
 
@@ -155,7 +160,7 @@ export class StripeCatalogSyncService {
 
     const stripeInterval: 'month' | 'year' =
       interval === 'monthly' ? 'month' : 'year';
-    const amountInFils = Math.round(amount * 100);
+    const amountInFils = CURRENCY_UTILS.aedToFils(amount);
 
     if (existingPriceId) {
       const existing =
@@ -229,7 +234,7 @@ export class StripeCatalogSyncService {
     return this.stripeService.client.prices.create({
       product: plan.stripe_product_id!,
       unit_amount: amountInFils,
-      currency: 'aed',
+      currency: DEFAULT_CURRENCY_LOWERCASE,
       recurring: { interval: stripeInterval },
       metadata: {
         plan_key: plan.key,
@@ -278,7 +283,7 @@ export class StripeCatalogSyncService {
   }
 
   private async syncAddonPrice(addon: Addon): Promise<void> {
-    const amountInFils = Math.round(addon.price_monthly * 100);
+    const amountInFils = CURRENCY_UTILS.aedToFils(addon.price_monthly);
 
     if (addon.stripe_price_id) {
       const existing = await this.stripeService.client.prices.retrieve(
@@ -330,7 +335,7 @@ export class StripeCatalogSyncService {
     return this.stripeService.client.prices.create({
       product: addon.stripe_product_id!,
       unit_amount: amountInFils,
-      currency: 'aed',
+      currency: DEFAULT_CURRENCY_LOWERCASE,
       recurring: { interval: 'month' },
       metadata: {
         addon_key: addon.key,
@@ -365,7 +370,7 @@ export class StripeCatalogSyncService {
       pkg.key,
       pkg.name,
       pkg.credits,
-      pkg.price_aed,
+      pkg.price,
     );
 
     const stripeProductId = await this.resolveOrCreateProduct({
@@ -386,7 +391,7 @@ export class StripeCatalogSyncService {
 
     await this.syncCreditPackagePrice(
       { ...dbPkg, stripe_product_id: stripeProductId },
-      pkg.price_aed,
+      pkg.price,
     );
   }
 
@@ -399,7 +404,7 @@ export class StripeCatalogSyncService {
     },
     priceAed: number,
   ): Promise<void> {
-    const amountInFils = Math.round(priceAed * 100);
+    const amountInFils = CURRENCY_UTILS.aedToFils(priceAed);
 
     if (pkg.stripe_price_id) {
       const existing = await this.stripeService.client.prices.retrieve(
@@ -458,7 +463,7 @@ export class StripeCatalogSyncService {
     return this.stripeService.client.prices.create({
       product: pkg.stripe_product_id,
       unit_amount: amountInFils,
-      currency: 'aed',
+      currency: DEFAULT_CURRENCY_LOWERCASE,
       // No `recurring` — this is a one-time price
       metadata: {
         credit_package_key: pkg.key,

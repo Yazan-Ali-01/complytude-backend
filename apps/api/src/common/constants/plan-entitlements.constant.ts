@@ -8,6 +8,7 @@
  */
 
 import { FeatureKey, FeatureType, PlanKey } from '../types/entitlement.types';
+import { DEFAULT_CURRENCY } from './billing.constant';
 
 // =========================
 // FEATURE DEFINITIONS
@@ -179,7 +180,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     name: 'Navigator',
     description: 'Lead magnet — Regulatory Watch + basic Chat with Law',
     price_monthly: 0,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 1,
   },
@@ -188,7 +189,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     name: 'Shield',
     description: 'Solo entrepreneurs — Essential templates + basic analysis',
     price_monthly: 349,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 2,
   },
@@ -197,7 +198,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     name: 'General Counsel',
     description: 'Active SMEs — Full library + Jais-native Arabic + redlining',
     price_monthly: 599,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 3,
   },
@@ -206,7 +207,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     name: 'Infrastructure',
     description: 'Agencies — Silo isolation + custom playbooks + white-label',
     price_monthly: 2499,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 4,
   },

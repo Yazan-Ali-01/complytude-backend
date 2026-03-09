@@ -60,8 +60,7 @@ export class StripeReconciliationService {
       errors: [],
     };
 
-    await this.reconcileSubscriptions(report);
-    await this.reconcileAddons(report);
+    await this.reconcileSubscriptionsAndAddons(report);
 
     this.logger.log(
       `Reconciliation complete: checked=${report.checked} in_sync=${report.in_sync} ` +
@@ -71,22 +70,22 @@ export class StripeReconciliationService {
     return report;
   }
 
-  // ─── Subscription reconciliation ──────────────────────────────────────────
+  // ─── Single-pass subscription and add-on reconciliation ───────────────────
 
-  private async reconcileSubscriptions(
+  private async reconcileSubscriptionsAndAddons(
     report: ReconciliationReport,
   ): Promise<void> {
     const subscriptions =
       await this.subscriptionsRepository.findAllWithStripeId();
 
     this.logger.log(
-      `Reconciling ${subscriptions.length} subscription(s) with Stripe IDs`,
+      `Reconciling ${subscriptions.length} subscription(s) and add-ons with Stripe IDs (single-pass)`,
     );
 
     for (let i = 0; i < subscriptions.length; i += RECONCILIATION_BATCH_SIZE) {
       const batch = subscriptions.slice(i, i + RECONCILIATION_BATCH_SIZE);
       await Promise.all(
-        batch.map((sub) => this.reconcileSubscription(sub, report)),
+        batch.map((sub) => this.reconcileSubscriptionAndAddons(sub, report)),
       );
       if (i + RECONCILIATION_BATCH_SIZE < subscriptions.length) {
         await this.delay(RECONCILIATION_BATCH_DELAY_MS);
@@ -94,140 +93,28 @@ export class StripeReconciliationService {
     }
   }
 
-  private async reconcileSubscription(
+  private async reconcileSubscriptionAndAddons(
     sub: TenantSubscription,
     report: ReconciliationReport,
   ): Promise<void> {
     report.checked++;
 
     try {
+      // Single Stripe API call for both subscription and add-on reconciliation
       const stripeSub = await this.stripeService.client.subscriptions.retrieve(
         sub.stripe_subscription_id!,
       );
 
-      // Stripe API 2026-02-25: period dates live on items.data[0], not root.
-      const firstItem = stripeSub.items.data[0];
-      if (!firstItem?.current_period_start || !firstItem?.current_period_end) {
-        report.errors.push({
-          type: 'missing_period',
-          tenant_id: sub.tenant_id,
-          stripe_id: sub.stripe_subscription_id!,
-          error: 'Stripe subscription has no items or missing billing period',
-        });
-        return;
-      }
+      // Reconcile subscription data
+      await this.reconcileSubscriptionData(sub, stripeSub, report);
 
-      const stripeStartDate = new Date(firstItem.current_period_start * 1000);
-      const stripeEndDate = new Date(firstItem.current_period_end * 1000);
+      // Reconcile add-ons using the same Stripe response
+      await this.reconcileAddonsData(sub, stripeSub, report);
 
-      const expectedStatus = mapStripeStatusToInternal(stripeSub.status);
-      const statusDrift = sub.status !== expectedStatus;
-
-      const periodDrift =
-        Math.abs(sub.current_period_end.getTime() - stripeEndDate.getTime()) >
-        60_000;
-
-      const currentPriceId =
-        typeof firstItem.price === 'string'
-          ? firstItem.price
-          : firstItem.price.id;
-      const expectedPlan =
-        await this.plansRepository.findByStripePriceId(currentPriceId);
-      const planDrift = expectedPlan != null && sub.plan_id !== expectedPlan.id;
-
-      const hasDrift = statusDrift || periodDrift || planDrift;
-
-      if (!hasDrift) {
-        report.in_sync++;
-        return;
-      }
-
-      if (statusDrift) {
-        report.drifted++;
-        report.errors.push({
-          type: 'status_mismatch',
-          tenant_id: sub.tenant_id,
-          stripe_id: sub.stripe_subscription_id!,
-          expected: expectedStatus,
-          actual: sub.status,
-        });
-      }
-      if (periodDrift) report.drifted++;
-      if (planDrift) report.drifted++;
-
-      await this.databaseService.transactionWithPlatformAdminContext(
-        async (client) => {
-          await this.subscriptionsRepository.update(
-            sub.id,
-            {
-              ...(statusDrift
-                ? { status: expectedStatus, stripe_status: stripeSub.status }
-                : {}),
-              ...(periodDrift
-                ? {
-                    current_period_start: stripeStartDate,
-                    current_period_end: stripeEndDate,
-                    stripe_current_period_end: stripeEndDate,
-                  }
-                : {}),
-              ...(planDrift && expectedPlan
-                ? { plan_id: expectedPlan.id }
-                : {}),
-            },
-            { client },
-          );
-
-          if (planDrift) {
-            await this.entitlementSnapshotsRepository.invalidate(
-              sub.tenant_id,
-              { client },
-            );
-          }
-
-          await this.domainEventsService.emit(
-            {
-              tenant_id: sub.tenant_id,
-              event_type: 'subscription.reconciled',
-              aggregate_type: 'subscription',
-              aggregate_id: sub.id,
-              actor_type: 'system',
-              payload: JSON.stringify({
-                fixes: {
-                  ...(statusDrift
-                    ? { status: { old: sub.status, new: expectedStatus } }
-                    : {}),
-                  ...(periodDrift
-                    ? {
-                        period_end: {
-                          old: sub.current_period_end,
-                          new: stripeEndDate,
-                        },
-                      }
-                    : {}),
-                  ...(planDrift && expectedPlan
-                    ? { plan_id: { old: sub.plan_id, new: expectedPlan.id } }
-                    : {}),
-                },
-              }),
-              metadata: JSON.stringify({
-                timestamp: new Date().toISOString(),
-                source: 'stripe_reconciliation',
-              }),
-            },
-            { client },
-          );
-        },
-      );
-
-      report.fixed++;
-      this.logger.log(
-        `Subscription reconciled: tenant=${sub.tenant_id} stripe_sub=${sub.stripe_subscription_id} ` +
-          `fixes=${JSON.stringify({ statusDrift, periodDrift, planDrift })}`,
-      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `Failed to reconcile subscription for tenant=${sub.tenant_id} stripe_sub=${sub.stripe_subscription_id}: ${message}`,
+        `Failed to reconcile subscription and add-ons for tenant=${sub.tenant_id} stripe_sub=${sub.stripe_subscription_id}: ${message}`,
         error instanceof Error ? error.stack : undefined,
       );
       report.errors.push({
@@ -239,33 +126,136 @@ export class StripeReconciliationService {
     }
   }
 
-  // ─── Add-on reconciliation ─────────────────────────────────────────────────
-
-  private async reconcileAddons(report: ReconciliationReport): Promise<void> {
-    const subscriptions =
-      await this.subscriptionsRepository.findAllWithStripeId();
-
-    for (let i = 0; i < subscriptions.length; i += RECONCILIATION_BATCH_SIZE) {
-      const batch = subscriptions.slice(i, i + RECONCILIATION_BATCH_SIZE);
-      await Promise.all(
-        batch.map((sub) => this.reconcileAddonsForSubscription(sub, report)),
-      );
-      if (i + RECONCILIATION_BATCH_SIZE < subscriptions.length) {
-        await this.delay(RECONCILIATION_BATCH_DELAY_MS);
-      }
+  private async reconcileSubscriptionData(
+    sub: TenantSubscription,
+    stripeSub: any, // Stripe.Subscription type
+    report: ReconciliationReport,
+  ): Promise<void> {
+    // Stripe API 2026-02-25: period dates live on items.data[0], not root.
+    const firstItem = stripeSub.items.data[0];
+    if (!firstItem?.current_period_start || !firstItem?.current_period_end) {
+      report.errors.push({
+        type: 'missing_period',
+        tenant_id: sub.tenant_id,
+        stripe_id: sub.stripe_subscription_id!,
+        error: 'Stripe subscription has no items or missing billing period',
+      });
+      return;
     }
+
+    const stripeStartDate = new Date(firstItem.current_period_start * 1000);
+    const stripeEndDate = new Date(firstItem.current_period_end * 1000);
+
+    const expectedStatus = mapStripeStatusToInternal(stripeSub.status);
+    const statusDrift = sub.status !== expectedStatus;
+
+    const periodDrift =
+      Math.abs(sub.current_period_end.getTime() - stripeEndDate.getTime()) >
+      60_000;
+
+    const currentPriceId =
+      typeof firstItem.price === 'string'
+        ? firstItem.price
+        : firstItem.price.id;
+    const expectedPlan =
+      await this.plansRepository.findByStripePriceId(currentPriceId);
+    const planDrift = expectedPlan != null && sub.plan_id !== expectedPlan.id;
+
+    const hasDrift = statusDrift || periodDrift || planDrift;
+
+    if (!hasDrift) {
+      report.in_sync++;
+      return;
+    }
+
+    if (statusDrift) {
+      report.drifted++;
+      report.errors.push({
+        type: 'status_mismatch',
+        tenant_id: sub.tenant_id,
+        stripe_id: sub.stripe_subscription_id!,
+        expected: expectedStatus,
+        actual: sub.status,
+      });
+    }
+    if (periodDrift) report.drifted++;
+    if (planDrift) report.drifted++;
+
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        await this.subscriptionsRepository.update(
+          sub.id,
+          {
+            ...(statusDrift
+              ? { status: expectedStatus, stripe_status: stripeSub.status }
+              : {}),
+            ...(periodDrift
+              ? {
+                  current_period_start: stripeStartDate,
+                  current_period_end: stripeEndDate,
+                  stripe_current_period_end: stripeEndDate,
+                }
+              : {}),
+              ...(planDrift && expectedPlan ? { plan_id: expectedPlan.id } : {}),
+          },
+          { client },
+        );
+
+        if (planDrift) {
+          await this.entitlementSnapshotsRepository.invalidate(sub.tenant_id, {
+            client,
+          });
+        }
+
+        await this.domainEventsService.emit(
+          {
+            tenant_id: sub.tenant_id,
+            event_type: 'subscription.reconciled',
+            aggregate_type: 'subscription',
+            aggregate_id: sub.id,
+            actor_type: 'system',
+            payload: JSON.stringify({
+              fixes: {
+                ...(statusDrift
+                  ? { status: { old: sub.status, new: expectedStatus } }
+                  : {}),
+                ...(periodDrift
+                  ? {
+                      period_end: {
+                        old: sub.current_period_end,
+                        new: stripeEndDate,
+                      },
+                    }
+                  : {}),
+                ...(planDrift && expectedPlan
+                  ? { plan_id: { old: sub.plan_id, new: expectedPlan.id } }
+                  : {}),
+              },
+            }),
+            metadata: JSON.stringify({
+              timestamp: new Date().toISOString(),
+              source: 'stripe_reconciliation',
+            }),
+          },
+          { client },
+        );
+      },
+    );
+
+    report.fixed++;
+    this.logger.log(
+      `Subscription reconciled: tenant=${sub.tenant_id} stripe_sub=${sub.stripe_subscription_id} ` +
+        `fixes=${JSON.stringify({ statusDrift, periodDrift, planDrift })}`,
+    );
   }
 
-  private async reconcileAddonsForSubscription(
+  private async reconcileAddonsData(
     sub: TenantSubscription,
+    stripeSub: any, // Stripe.Subscription type
     report: ReconciliationReport,
   ): Promise<void> {
     try {
-      const stripeSub = await this.stripeService.client.subscriptions.retrieve(
-        sub.stripe_subscription_id!,
-      );
-
-      // Use shared engine to analyze drift
+      // Use shared engine to analyze drift (no additional Stripe API call needed)
       const { mutations, addonCatalog, stripeItemMap } =
         await this.addonSyncEngine.analyzeSync(sub.tenant_id, stripeSub);
 

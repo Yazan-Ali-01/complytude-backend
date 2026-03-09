@@ -7,7 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { CREDIT_PACKAGES } from 'src/common/constants/credit-packages.constant';
+import { CREDIT_PACKAGES, CREDIT_PACKAGE_CURRENCY } from 'src/common/constants/credit-packages.constant';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TENANT_PERMISSIONS } from 'src/common/constants/tenant-permissions.constant';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
@@ -399,8 +399,8 @@ export class BillingController {
       key: pkg.key,
       name: pkg.name,
       credits: pkg.credits,
-      price: pkg.price_aed,
-      currency: 'AED',
+      price: pkg.price,
+      currency: CREDIT_PACKAGE_CURRENCY,
     }));
   }
 
