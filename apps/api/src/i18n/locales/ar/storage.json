@@ -1,14 +1,17 @@
 {
-  "FILE_NOT_FOUND": "الملف غير موجود",
-  "FILE_UPLOAD_FAILED": "فشل رفع الملف",
-  "FILE_DELETE_FAILED": "فشل حذف الملف",
-  "FILE_ACCESS_DENIED": "ليس لديك صلاحية الوصول إلى هذا الملف",
-  "FILE_TOO_LARGE": "حجم الملف يتجاوز الحد الأقصى المسموح",
-  "INVALID_FILE_TYPE": "نوع الملف غير مدعوم",
-  "STORAGE_ACCESS_FAILED": "فشل الوصول إلى مساحة التخزين",
-  "STORAGE_QUOTA_EXCEEDED": "تم تجاوز حصة التخزين المتاحة",
-  "FILE_ALREADY_EXISTS": "يوجد ملف بهذا الاسم مسبقاً",
-  "INVALID_FILE_NAME": "اسم الملف غير صالح",
-  "FILE_DOWNLOAD_FAILED": "فشل تنزيل الملف",
-  "TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء الرابط المؤقت"
+  "errors": {
+    "FILE_NOT_FOUND": "الملف غير موجود",
+    "FILE_UPLOAD_FAILED": "فشل رفع الملف",
+    "FILE_DELETE_FAILED": "فشل حذف الملف",
+    "FILE_ACCESS_DENIED": "ليس لديك صلاحية الوصول إلى هذا الملف",
+    "FILE_TOO_LARGE": "حجم الملف يتجاوز الحد الأقصى المسموح",
+    "INVALID_FILE_TYPE": "نوع الملف غير مدعوم",
+    "STORAGE_ACCESS_FAILED": "فشل الوصول إلى مساحة التخزين",
+    "STORAGE_QUOTA_EXCEEDED": "تم تجاوز حصة التخزين المتاحة",
+    "FILE_ALREADY_EXISTS": "يوجد ملف بهذا الاسم مسبقاً",
+    "INVALID_FILE_NAME": "اسم الملف غير صالح",
+    "FILE_DOWNLOAD_FAILED": "فشل تنزيل الملف",
+    "TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء الرابط المؤقت"
+  },
+  "messages": {}
 }

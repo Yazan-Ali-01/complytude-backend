@@ -6,7 +6,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18n, I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { I18nKeys } from 'src/common/constants/i18n-keys';
 import {
   PlanKey,
   TenantSubscription,
@@ -49,6 +51,7 @@ export class SubscriptionsService {
     private readonly plansRepository: PlansRepository,
     private readonly entitlementSnapshotsRepository: EntitlementSnapshotsRepository,
     private readonly domainEventsService: DomainEventsService,
+    @I18n() private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -123,11 +126,11 @@ export class SubscriptionsService {
         client,
       });
       if (!newPlan) {
-        throw new NotFoundException(`Plan not found: ${newPlanKey}`);
+        throw new NotFoundException(this.i18n.t(I18nKeys.PLAN_NOT_FOUND));
       }
 
       if (!newPlan.is_active) {
-        throw new BadRequestException(`Plan is not active: ${newPlanKey}`);
+        throw new BadRequestException(this.i18n.t(I18nKeys.PLAN_NOT_ACTIVE));
       }
 
       // Step 2: Find current subscription
@@ -148,9 +151,7 @@ export class SubscriptionsService {
 
       // Step 4: Check if already on this plan
       if (currentSubscription.plan_id === newPlan.id) {
-        throw new BadRequestException(
-          `Tenant is already on plan: ${newPlanKey}`,
-        );
+        throw new BadRequestException(this.i18n.t(I18nKeys.ALREADY_ON_PLAN));
       }
 
       // Step 5: Get old plan for event
@@ -257,7 +258,7 @@ export class SubscriptionsService {
 
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription found for tenant: ${tenantId}`,
+          this.i18n.t(I18nKeys.SUBSCRIPTION_NOT_FOUND),
         );
       }
 
@@ -356,18 +357,18 @@ export class SubscriptionsService {
 
       if (existingSubscription) {
         throw new BadRequestException(
-          `Tenant already has an active subscription. Use changePlan to switch plans.`,
+          this.i18n.t(I18nKeys.SUBSCRIPTION_ALREADY_EXISTS),
         );
       }
 
       // Step 2: Find plan
       const plan = await this.plansRepository.findByKey(planKey, { client });
       if (!plan) {
-        throw new NotFoundException(`Plan not found: ${planKey}`);
+        throw new NotFoundException(this.i18n.t(I18nKeys.PLAN_NOT_FOUND));
       }
 
       if (!plan.is_active) {
-        throw new BadRequestException(`Plan is not active: ${planKey}`);
+        throw new BadRequestException(this.i18n.t(I18nKeys.PLAN_NOT_ACTIVE));
       }
 
       // Step 3: Calculate billing period
@@ -395,7 +396,7 @@ export class SubscriptionsService {
       } catch (error) {
         if (error?.code === '23505') {
           throw new ConflictException(
-            `Tenant already has an active subscription (concurrent creation detected).`,
+            this.i18n.t(I18nKeys.SUBSCRIPTION_ALREADY_EXISTS),
           );
         }
         throw error;
@@ -479,7 +480,7 @@ export class SubscriptionsService {
 
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription found for tenant: ${tenantId}`,
+          this.i18n.t(I18nKeys.SUBSCRIPTION_NOT_FOUND),
         );
       }
 

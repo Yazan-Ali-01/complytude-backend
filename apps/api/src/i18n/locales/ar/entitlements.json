@@ -1,15 +1,15 @@
 {
-  "addon": {
-    "not_found": "الإضافة غير موجودة",
-    "already_active": "هذه الإضافة نشطة بالفعل لمؤسستك",
-    "add_success": "تم تفعيل الإضافة بنجاح",
-    "remove_success": "تمت إزالة الإضافة بنجاح"
+  "errors": {
+    "ADDON_NOT_FOUND": "الإضافة غير موجودة",
+    "ADDON_ALREADY_ACTIVE": "هذه الإضافة نشطة بالفعل لمؤسستك",
+    "OVERRIDE_NOT_FOUND": "التجاوز غير موجود",
+    "OVERRIDE_FEATURE_NOT_FOUND": "الميزة غير موجودة: {featureKey}",
+    "OVERRIDE_INVALID_VALUE": "يجب توفير واحد فقط من valueBool أو valueInt أو valueText"
   },
-  "override": {
-    "not_found": "التجاوز غير موجود",
-    "feature_not_found": "الميزة غير موجودة: {featureKey}",
-    "apply_success": "تم تطبيق التجاوز بنجاح",
-    "revoke_success": "تم إلغاء التجاوز بنجاح",
-    "invalid_value": "يجب توفير واحد فقط من valueBool أو valueInt أو valueText"
+  "messages": {
+    "ADDON_ADD_SUCCESS": "تم تفعيل الإضافة بنجاح",
+    "ADDON_REMOVE_SUCCESS": "تمت إزالة الإضافة بنجاح",
+    "OVERRIDE_APPLY_SUCCESS": "تم تطبيق التجاوز بنجاح",
+    "OVERRIDE_REVOKE_SUCCESS": "تم إلغاء التجاوز بنجاح"
   }
 }

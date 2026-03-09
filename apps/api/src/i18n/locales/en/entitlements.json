@@ -1,15 +1,15 @@
 {
-  "addon": {
-    "not_found": "Add-on not found",
-    "already_active": "This add-on is already active for your tenant",
-    "add_success": "Add-on activated successfully",
-    "remove_success": "Add-on removed successfully"
+  "errors": {
+    "ADDON_NOT_FOUND": "Add-on not found",
+    "ADDON_ALREADY_ACTIVE": "This add-on is already active for your tenant",
+    "OVERRIDE_NOT_FOUND": "Override not found",
+    "OVERRIDE_FEATURE_NOT_FOUND": "Feature not found: {featureKey}",
+    "OVERRIDE_INVALID_VALUE": "Exactly one of valueBool, valueInt, or valueText must be provided"
   },
-  "override": {
-    "not_found": "Override not found",
-    "feature_not_found": "Feature not found: {featureKey}",
-    "apply_success": "Override applied successfully",
-    "revoke_success": "Override revoked successfully",
-    "invalid_value": "Exactly one of valueBool, valueInt, or valueText must be provided"
+  "messages": {
+    "ADDON_ADD_SUCCESS": "Add-on activated successfully",
+    "ADDON_REMOVE_SUCCESS": "Add-on removed successfully",
+    "OVERRIDE_APPLY_SUCCESS": "Override applied successfully",
+    "OVERRIDE_REVOKE_SUCCESS": "Override revoked successfully"
   }
 }

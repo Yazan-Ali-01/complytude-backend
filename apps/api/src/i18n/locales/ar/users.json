@@ -1,0 +1,12 @@
+{
+  "errors": {
+    "USER_NOT_FOUND": "المستخدم غير موجود",
+    "USER_NOT_FOUND_IN_TENANT": "المستخدم غير موجود في هذه المؤسسة",
+    "NO_FIELDS_TO_UPDATE": "لا توجد حقول للتحديث",
+    "CURRENT_PASSWORD_INCORRECT": "كلمة المرور الحالية غير صحيحة",
+    "USER_ALREADY_EXISTS_IN_TENANT": "المستخدم موجود بالفعل في هذه المؤسسة",
+    "CANNOT_MODIFY_OWN_ROLE": "لا يمكنك تعديل دورك الخاص",
+    "CANNOT_REMOVE_YOURSELF": "لا يمكنك إزالة نفسك من المؤسسة"
+  },
+  "messages": {}
+}

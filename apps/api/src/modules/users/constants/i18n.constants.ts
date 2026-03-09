@@ -1,0 +1,15 @@
+/**
+ * Users module i18n translation keys
+ */
+export const UsersI18n = {
+  errors: {
+    USER_NOT_FOUND: 'users.errors.USER_NOT_FOUND',
+    USER_NOT_FOUND_IN_TENANT: 'users.errors.USER_NOT_FOUND_IN_TENANT',
+    NO_FIELDS_TO_UPDATE: 'users.errors.NO_FIELDS_TO_UPDATE',
+    CURRENT_PASSWORD_INCORRECT: 'users.errors.CURRENT_PASSWORD_INCORRECT',
+    USER_ALREADY_EXISTS_IN_TENANT: 'users.errors.USER_ALREADY_EXISTS_IN_TENANT',
+    CANNOT_MODIFY_OWN_ROLE: 'users.errors.CANNOT_MODIFY_OWN_ROLE',
+    CANNOT_REMOVE_YOURSELF: 'users.errors.CANNOT_REMOVE_YOURSELF',
+  },
+  messages: {},
+} as const;
