@@ -17,6 +17,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import redisConfig from './config/redis-config';
 import { I18nModule } from './i18n/i18n.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -47,6 +48,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     RedisModule.forRoot(),
     QueueModule.forRoot([
       QUEUE_NAMES.AI_PROCESSING,
+      QUEUE_NAMES.BILLING_PROCESSING,
       QUEUE_NAMES.DATA_INGESTION,
       QUEUE_NAMES.ENTITLEMENT_PROCESSING,
     ]),
@@ -65,6 +67,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     RulesetsModule,
     DocumentsModule,
     StripeModule,
+    BillingModule,
     TenantRbacModule,
     PlatformRbacModule,
     AuditModule,

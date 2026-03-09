@@ -1,0 +1,36 @@
+{
+  "dunning": {
+    "day0": {
+      "subject": "Payment Failed - Action Required for {tenantName}",
+      "title": "Payment Failed - Immediate Action Required",
+      "greeting": "Hello {tenantName},",
+      "payment_failed": "Your recent payment attempt has failed and requires immediate attention.",
+      "action_required": "Please update your payment method to avoid service interruption. Your invoice is available below:",
+      "consequences": "If payment is not received within 7 days, your service may be suspended to prevent additional charges."
+    },
+    "day3": {
+      "subject": "Payment Reminder - {tenantName}",
+      "title": "Payment Reminder - Urgent Action Required",
+      "greeting": "Hello {tenantName},",
+      "reminder": "This is a reminder that your payment is still outstanding.",
+      "urgency": "Please resolve this payment issue as soon as possible to avoid service interruption.",
+      "consequences": "If payment is not received within 2 days, your service will be suspended."
+    },
+    "day5": {
+      "subject": "Final Notice - Service Suspension Imminent for {tenantName}",
+      "title": "Final Notice - Service Suspension Imminent",
+      "greeting": "Hello {tenantName},",
+      "final_notice": "This is your final notice regarding the outstanding payment.",
+      "last_chance": "This is your last opportunity to resolve this payment issue before service suspension.",
+      "consequences": "If payment is not received immediately, your service will be suspended within 24 hours."
+    },
+    "common": {
+      "amount": "Amount Due",
+      "due_date": "Due Date",
+      "attempt": "Payment Attempt",
+      "update_payment": "Update Payment Method",
+      "questions": "If you have any questions, please contact our support team at {supportEmail}.",
+      "signature": "Best regards,\nThe Complytude Team"
+    }
+  }
+}

@@ -11,6 +11,14 @@ import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/en
 import { TenantAddonsRepository } from 'src/repositories/entitlements/tenant-addons.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
+import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
+import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
+import {
+  QueueProducerService,
+  QUEUE_NAMES,
+  BILLING_JOB_NAMES,
+  DunningEmailJobData,
+} from '@lib/queue';
 import type { PoolClient } from 'pg';
 
 @Injectable()
@@ -27,6 +35,9 @@ export class StripeEventHandlersService {
     private readonly addonsRepository: AddonsRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly creditLedgerService: CreditLedgerService,
+    private readonly userTenantRepository: UserTenantRepository,
+    private readonly tenantsRepository: TenantRepository,
+    private readonly queueProducer: QueueProducerService,
   ) {}
 
   async handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
@@ -708,8 +719,13 @@ export class StripeEventHandlersService {
     this.logger.warn(
       `Payment failed: tenant=${tenantId}, stripe_sub=${stripeSubscriptionId}, attempt=${invoice.attempt_count}, invoice=${invoice.id}`,
     );
-    // TODO: Send notification to tenant admin (email/in-app)
-    // TODO: Queue BullMQ job for dunning email sequence
+
+    // Queue dunning email sequence
+    await this.queueDunningEmailSequence(
+      tenantId,
+      stripeSubscriptionId,
+      invoice,
+    );
   }
 
   async handlePaymentActionRequired(event: Stripe.Event): Promise<void> {
@@ -772,5 +788,117 @@ export class StripeEventHandlersService {
     return typeof subscriptionRef === 'string'
       ? subscriptionRef
       : subscriptionRef.id;
+  }
+
+  /**
+   * Queue dunning email sequence for failed payment.
+   * Schedules emails for Day 0 (immediate), Day 3, and Day 5.
+   */
+  private async queueDunningEmailSequence(
+    tenantId: string,
+    stripeSubscriptionId: string,
+    invoice: Stripe.Invoice,
+  ): Promise<void> {
+    try {
+      // Get tenant admin email and tenant info
+      // Note: These queries run without tenant context since this is a system webhook
+      const [tenantAdminEmail, tenant] = await Promise.all([
+        this.userTenantRepository.findTenantAdminEmail(tenantId),
+        this.tenantsRepository.findById(tenantId),
+      ]);
+
+      if (!tenantAdminEmail) {
+        this.logger.warn(
+          `No tenant admin email found for tenant ${tenantId}, skipping dunning emails`,
+        );
+        return;
+      }
+
+      if (!invoice.hosted_invoice_url) {
+        this.logger.warn(
+          `No hosted invoice URL for invoice ${invoice.id}, skipping dunning emails`,
+        );
+        return;
+      }
+
+      const baseJobData: Omit<DunningEmailJobData, 'dunningSequence'> = {
+        tenantId,
+        tenantAdminEmail,
+        stripeSubscriptionId,
+        invoiceId: invoice.id,
+        hostedInvoiceUrl: invoice.hosted_invoice_url,
+        attemptCount: invoice.attempt_count || 1,
+        amount: invoice.amount_due || 0,
+        currency: invoice.currency || 'aed',
+        dueDate: invoice.due_date
+          ? new Date(invoice.due_date * 1000).toISOString()
+          : new Date().toISOString(),
+        tenantName: tenant?.name || undefined,
+      };
+
+      // Day 0: Send immediately
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.BILLING_PROCESSING,
+        BILLING_JOB_NAMES.DUNNING_EMAIL,
+        {
+          ...baseJobData,
+          dunningSequence: 'day0' as const,
+        },
+        {
+          delay: 0, // Send immediately
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+        },
+      );
+
+      // Day 3: Send after 3 days
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.BILLING_PROCESSING,
+        BILLING_JOB_NAMES.DUNNING_EMAIL,
+        {
+          ...baseJobData,
+          dunningSequence: 'day3' as const,
+        },
+        {
+          delay: 3 * 24 * 60 * 60 * 1000, // 3 days in milliseconds
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+        },
+      );
+
+      // Day 5: Send after 5 days
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.BILLING_PROCESSING,
+        BILLING_JOB_NAMES.DUNNING_EMAIL,
+        {
+          ...baseJobData,
+          dunningSequence: 'day5' as const,
+        },
+        {
+          delay: 5 * 24 * 60 * 60 * 1000, // 5 days in milliseconds
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+        },
+      );
+
+      this.logger.log(
+        `Dunning email sequence queued for tenant ${tenantId}, invoice ${invoice.id}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue dunning email sequence for tenant ${tenantId}, invoice ${invoice.id}`,
+        error.stack,
+      );
+      // Don't re-throw - we don't want webhook processing to fail due to dunning email issues
+    }
   }
 }

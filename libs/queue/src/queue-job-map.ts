@@ -6,6 +6,11 @@ import {
   TemplateAnalysisJobData,
 } from './interfaces/ai-processing.jobs';
 import {
+  BILLING_JOB_NAMES,
+  DunningEmailJobData,
+  StripeReconciliationJobData,
+} from './interfaces/billing-processing.jobs';
+import {
   DocumentIngestionJobData,
   INGESTION_JOB_NAMES,
 } from './interfaces/data-ingestion.jobs';
@@ -24,6 +29,10 @@ export interface QueueJobMap {
     [AI_JOB_NAMES.DOCUMENT_GENERATION]: DocumentGenerationJobData;
     [AI_JOB_NAMES.TEMPLATE_ANALYSIS]: TemplateAnalysisJobData;
     [AI_JOB_NAMES.ARABIC_TRANSLATION]: ArabicTranslationJobData;
+  };
+  [QUEUE_NAMES.BILLING_PROCESSING]: {
+    [BILLING_JOB_NAMES.DUNNING_EMAIL]: DunningEmailJobData;
+    [BILLING_JOB_NAMES.STRIPE_RECONCILIATION]: StripeReconciliationJobData;
   };
   [QUEUE_NAMES.DATA_INGESTION]: {
     [INGESTION_JOB_NAMES.DOCUMENT_INGESTION]: DocumentIngestionJobData;

@@ -12,12 +12,15 @@ export class QueueProducerService {
   constructor(
     @InjectQueue(QUEUE_NAMES.AI_PROCESSING)
     private readonly aiQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.BILLING_PROCESSING)
+    private readonly billingQueue: Queue,
     @InjectQueue(QUEUE_NAMES.DATA_INGESTION)
     private readonly ingestionQueue: Queue,
     @InjectQueue(QUEUE_NAMES.ENTITLEMENT_PROCESSING)
     private readonly entitlementQueue: Queue,
   ) {
     this.queues.set(QUEUE_NAMES.AI_PROCESSING, this.aiQueue);
+    this.queues.set(QUEUE_NAMES.BILLING_PROCESSING, this.billingQueue);
     this.queues.set(QUEUE_NAMES.DATA_INGESTION, this.ingestionQueue);
     this.queues.set(QUEUE_NAMES.ENTITLEMENT_PROCESSING, this.entitlementQueue);
   }

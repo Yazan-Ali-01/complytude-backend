@@ -1,0 +1,247 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [development]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.eu-central-1.amazonaws.com
+  ECS_CLUSTER: complytude-staging
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm type-check
+
+  migrate-and-seed:
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get install -y postgresql-client
+
+      - name: Fetch infrastructure details
+        id: infra
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id complytude/staging/app \
+            --query SecretString \
+            --output text)
+
+          BASTION_IP=$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Name,Values=complytude-staging-bastion" \
+              "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+
+          BASTION_SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=tag:Name,Values=complytude-staging-bastion-sg" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+
+          RDS_SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=tag:Name,Values=complytude-staging-rds-sg" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+
+          DB_HOST=$(echo "$SECRET" | jq -r .DB_HOST)
+          DB_APP_USER=$(echo "$SECRET" | jq -r .DB_APP_USER)
+          DB_APP_PASSWORD=$(echo "$SECRET" | jq -r .DB_APP_PASSWORD)
+
+          echo "::add-mask::$DB_APP_PASSWORD"
+
+          echo "bastion_ip=$BASTION_IP" >> $GITHUB_OUTPUT
+          echo "bastion_sg_id=$BASTION_SG_ID" >> $GITHUB_OUTPUT
+          echo "rds_sg_id=$RDS_SG_ID" >> $GITHUB_OUTPUT
+          echo "db_host=$DB_HOST" >> $GITHUB_OUTPUT
+          echo "db_app_user=$DB_APP_USER" >> $GITHUB_OUTPUT
+          echo "db_app_password=$DB_APP_PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Get runner public IP
+        id: runner-ip
+        run: echo "ip=$(curl -s https://checkip.amazonaws.com)" >> $GITHUB_OUTPUT
+
+      - name: Allow runner SSH access to bastion
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ steps.infra.outputs.bastion_sg_id }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.runner-ip.outputs.ip }}/32
+
+      - name: Allow bastion access to RDS
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ steps.infra.outputs.rds_sg_id }} \
+            --protocol tcp \
+            --port 5432 \
+            --source-group ${{ steps.infra.outputs.bastion_sg_id }}
+
+      - name: Open SSH tunnel to RDS
+        run: |
+          echo "${{ secrets.BASTION_SSH_KEY }}" > /tmp/bastion_key
+          chmod 600 /tmp/bastion_key
+
+          ssh -i /tmp/bastion_key \
+            -fNL 15432:${{ steps.infra.outputs.db_host }}:5432 \
+            ec2-user@${{ steps.infra.outputs.bastion_ip }} \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30
+
+          sleep 2
+
+      - name: Setup database roles
+        env:
+          DB_HOST: localhost
+          DB_PORT: '15432'
+          DB_NAME: complytude
+          DB_USER: postgres
+          DB_PASSWORD: ${{ secrets.STAGING_DB_ADMIN_PASSWORD }}
+          DB_APP_USER: ${{ steps.infra.outputs.db_app_user }}
+          DB_APP_PASSWORD: ${{ steps.infra.outputs.db_app_password }}
+        run: bash scripts/setup-roles.sh
+
+      - name: Run migrations
+        env:
+          DB_HOST: localhost
+          DB_PORT: '15432'
+          DB_NAME: complytude
+          DB_USER: postgres
+          DB_PASSWORD: ${{ secrets.STAGING_DB_ADMIN_PASSWORD }}
+        run: bash scripts/run-migrations.sh
+
+      - name: Run seeds
+        env:
+          DB_HOST: localhost
+          DB_PORT: '15432'
+          DB_NAME: complytude
+          DB_USER: postgres
+          DB_PASSWORD: ${{ secrets.STAGING_DB_ADMIN_PASSWORD }}
+        run: bash scripts/run-seeds.sh staging
+
+      - name: Cleanup
+        if: always()
+        run: |
+          pkill -f "ssh.*15432" || true
+          rm -f /tmp/bastion_key
+
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ steps.infra.outputs.bastion_sg_id }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.runner-ip.outputs.ip }}/32 || true
+
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ steps.infra.outputs.rds_sg_id }} \
+            --protocol tcp \
+            --port 5432 \
+            --source-group ${{ steps.infra.outputs.bastion_sg_id }} || true
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: quality
+    strategy:
+      matrix:
+        app: [api, worker-ai, worker-ingestion]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          target: production
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/complytude/${{ matrix.app }}:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/complytude/${{ matrix.app }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build-and-push, migrate-and-seed]
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update ECS services
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service complytude-staging-api \
+            --force-new-deployment
+
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service complytude-staging-worker-ai \
+            --force-new-deployment
+
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service complytude-staging-worker-ingestion \
+            --force-new-deployment
+
+      - name: Wait for all services to stabilize
+        run: |
+          echo "Waiting for API service..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services complytude-staging-api
+          echo "API service is stable!"
+
+          echo "Waiting for Worker AI service..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services complytude-staging-worker-ai
+          echo "Worker AI service is stable!"
+
+          echo "Waiting for Worker Ingestion service..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services complytude-staging-worker-ingestion
+          echo "Worker Ingestion service is stable!"

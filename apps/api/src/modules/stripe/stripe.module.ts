@@ -6,6 +6,7 @@ import { CreditPackagesRepository } from 'src/repositories/credits/credit-packag
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
+import { QueueModule } from '@lib/queue';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { StripeAdminController } from './controllers/stripe-admin.controller';
 import { BillingController } from './controllers/billing.controller';
@@ -25,7 +26,7 @@ import { StripeWebhookService } from './webhook/stripe-webhook.service';
 
 @Global()
 @Module({
-  imports: [ConfigModule.forFeature(stripeConfig), DatabaseModule],
+  imports: [ConfigModule.forFeature(stripeConfig), DatabaseModule, QueueModule],
   controllers: [
     StripeWebhookController,
     StripeAdminController,

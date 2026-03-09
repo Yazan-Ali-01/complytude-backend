@@ -61,4 +61,10 @@ export const validationSchema = Joi.object({
   STRIPE_PUBLISHABLE_KEY: Joi.string().required(),
   STRIPE_CATALOG_SYNC_ENABLED: Joi.boolean().default(false),
   STRIPE_TAX_ENABLED: Joi.boolean().default(false),
+
+  // Email (AWS SES)
+  AWS_REGION: Joi.string().default('eu-central-1'),
+  FROM_EMAIL: Joi.string().email().required(),
+  FROM_NAME: Joi.string().default('Complytude Billing'),
+  SUPPORT_EMAIL: Joi.string().email().required(),
 });

@@ -32,6 +32,7 @@ This directory contains documentation that applies across all applications:
 | [ENTITLEMENTS.md](ENTITLEMENTS.md)           | Entitlement system, plans, usage tracking, credits |
 | [database-schema.dbml](database-schema.dbml) | Visual database schema (DBML format)               |
 | [DEPLOYMENT.md](DEPLOYMENT.md)               | Deployment instructions for all apps               |
+| [integrations/](integrations/)               | Frontend integration guides and UI documentation   |
 
 ---
 
@@ -91,6 +92,7 @@ Each application has its own documentation:
 - **Working with the database?** See [Database Schema](DATABASE.md) and [Scripts Guide](../scripts/README.md) for migration guides.
 - **Implementing authorization?** See [RBAC Guide](RBAC.md) for tenant and platform role-based access control.
 - **Implementing entitlements?** See [Entitlement System](ENTITLEMENTS.md) for plans, usage tracking, and credit system.
+- **Building frontend integrations?** See [Integration Guides](integrations/) for UI implementation patterns.
 - **Deploying?** Check [DEPLOYMENT.md](DEPLOYMENT.md) for deployment instructions.
 - **Understanding the architecture?** See [ARCHITECTURE.md](ARCHITECTURE.md) for system design.
 
