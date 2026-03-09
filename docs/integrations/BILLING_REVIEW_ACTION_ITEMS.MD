@@ -100,17 +100,29 @@ Consolidated action items from the comprehensive billing system review.
 
 ## Code Quality
 
-### Issue 5: Add-on sync logic duplicated (webhook + reconciliation)
+### Issue 5: Add-on sync logic duplicated (webhook + reconciliation) ✅
 
 **Priority:** P2
 **Decision:** Extract shared `AddonSyncEngine`
-**What to do:** Create a single function/service that takes a Stripe subscription and tenant ID, diffs against the DB, and returns a list of mutations. Both the webhook handler's `syncAddonItems` and the reconciliation's `reconcileAddonsForSubscription` call the same engine.
-**Effort:** ~3 hours
-**Key files:**
+**Status:** COMPLETED
+**What was done:** Created a shared `AddonSyncEngine` service that provides:
+- `analyzeSync()` - Pure analysis of Stripe vs DB state, returns mutations
+- `executeMutations()` - Applies mutations to database with detailed logging  
+- `syncAddons()` - Convenience method combining analysis + execution
 
-- `apps/api/src/modules/stripe/webhook/stripe-event-handlers/index.ts` (lines 426-543)
-- `apps/api/src/modules/stripe/services/stripe-reconciliation.service.ts` (lines 241-497)
-- New: shared addon sync utility
+Both webhook handler and reconciliation service now use the shared engine, eliminating ~200 lines of duplicated code.
+
+**Files changed:**
+- **NEW:** `apps/api/src/modules/stripe/services/addon-sync-engine.service.ts` - Shared sync engine
+- `apps/api/src/modules/stripe/webhook/stripe-event-handlers/index.ts` - Uses shared engine
+- `apps/api/src/modules/stripe/services/stripe-reconciliation.service.ts` - Uses shared engine  
+- `apps/api/src/modules/stripe/stripe.module.ts` - Registers AddonSyncEngine provider
+
+**Benefits:**
+- Single source of truth for addon sync logic
+- Consistent behavior between webhook and reconciliation
+- Better testability (engine can be unit tested independently)
+- Easier maintenance and bug fixes
 
 ---
 
