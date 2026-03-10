@@ -6,7 +6,12 @@ import multipart from '@fastify/multipart';
 import { QUEUE_NAMES } from '@lib/queue';
 // eslint-disable-next-line no-restricted-imports
 import { getQueueToken } from '@nestjs/bullmq';
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import {
+  Logger,
+  RequestMethod,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -65,12 +70,21 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Set global prefix
+  // Set global prefix for all routes, excluding infrastructure endpoints
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: [
+      { path: 'health/(.*)', method: RequestMethod.ALL },
+      { path: 'health', method: RequestMethod.ALL },
+    ],
+  });
+
+  // Enable URI-based API versioning (/api/v1/...)
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
-    prefix: `${apiPrefix}/v`,
+    prefix: 'v',
   });
+
   // Enable validation globally
   app.useGlobalPipes(
     new ValidationPipe({

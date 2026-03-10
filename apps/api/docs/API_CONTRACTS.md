@@ -2,7 +2,7 @@
 
 > **Purpose:** Define standards and conventions for API contract definition across all modules
 
-**Last Updated:** March 9, 2026
+**Last Updated:** March 10, 2026
 **Status:** Foundation Complete
 
 ---
@@ -75,7 +75,7 @@ Some endpoints are **version-neutral** and do not include the version prefix:
 | `/health/queues` | Queue health          | Infrastructure endpoint, stable contract    |
 | `/docs`          | Swagger documentation | Documentation always reflects current state |
 | `/admin/queues`  | Bull Board dashboard  | Admin tool, not part of public API          |
-| `/` (root)       | API root              | Simple welcome/info endpoint                |
+| `/api/` (root)   | API root              | Simple welcome/info endpoint                |
 
 ### Default Versioning Behavior
 
@@ -175,15 +175,28 @@ export class UsersV2Controller { ... }
 
 ### Configuration
 
-Versioning is configured in `apps/api/src/main.ts`:
+Versioning is configured in `apps/api/src/main.ts` using both a global prefix and URI versioning:
 
 ```typescript
+// Global prefix for all routes, excluding infrastructure endpoints
+app.setGlobalPrefix(apiPrefix, {
+  exclude: [
+    { path: 'health/(.*)', method: RequestMethod.ALL },
+    { path: 'health', method: RequestMethod.ALL },
+  ],
+});
+
+// URI-based versioning (/api/v1/...)
 app.enableVersioning({
   type: VersioningType.URI,
   defaultVersion: '1',
-  prefix: 'api/v',
+  prefix: 'v',
 });
 ```
+
+- `setGlobalPrefix` adds the `/api` prefix to all business routes while excluding infrastructure endpoints (health checks)
+- `enableVersioning` adds the `/v1` version segment after the global prefix
+- Combined result: `/api/v1/{resource}` for business endpoints, `/health` for infrastructure
 
 ---
 
