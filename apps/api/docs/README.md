@@ -16,7 +16,7 @@ Welcome to the Complytude API documentation. This directory contains all documen
 
 - **Building APIs?** See [API_CONTRACTS.md](API_CONTRACTS.md) for contract standards and [API_CONTRACTS_QUICK_REFERENCE.md](API_CONTRACTS_QUICK_REFERENCE.md) for templates.
 - **Creating modules?** Check [DEVELOPMENT.md](DEVELOPMENT.md) for module creation patterns.
-- **Handling errors with i18n?** See [I18N_GUIDE.md](I18N_GUIDE.md) for translations and localization.
+- **Handling errors with i18n?** See [DEVELOPMENT.md](DEVELOPMENT.md#error-handling--internationalization) for translations and localization.
 - **API Documentation**: Available at `http://localhost:3000/docs` when running the server
 
 ### Monorepo-Wide Documentation

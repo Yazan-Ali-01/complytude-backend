@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { I18n, I18nService } from 'nestjs-i18n';
+import { I18nService } from 'nestjs-i18n';
 import {
   AuthorityFilters,
   AuthorityRepository,
@@ -24,7 +24,7 @@ export class AuthoritiesService {
 
   constructor(
     private readonly authorityRepository: AuthorityRepository,
-    @I18n() private readonly i18n: I18nService,
+    private readonly i18n: I18nService,
   ) {}
 
   async create(createAuthorityDto: CreateAuthorityDto): Promise<Authority> {

@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { I18n, I18nService } from 'nestjs-i18n';
+import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import {
   PlanKey,
@@ -51,7 +51,7 @@ export class SubscriptionsService {
     private readonly plansRepository: PlansRepository,
     private readonly entitlementSnapshotsRepository: EntitlementSnapshotsRepository,
     private readonly domainEventsService: DomainEventsService,
-    @I18n() private readonly i18n: I18nService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**

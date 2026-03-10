@@ -11,7 +11,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { I18n, I18nService } from 'nestjs-i18n';
+import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
 import {
@@ -53,7 +53,7 @@ export class TemplatesService {
     private readonly templateVersionsService: TemplateVersionsService,
     private readonly placeholderExtractionService: DocxPlaceholderExtractionService,
     private readonly storageService: StorageService,
-    @I18n() private readonly i18n: I18nService,
+    private readonly i18n: I18nService,
     private readonly categoryRepository: CategoryRepository,
     private readonly authorityRepository: AuthorityRepository,
     private readonly rulesetRepository: RulesetRepository,
@@ -250,9 +250,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to create template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(
-          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
-        ),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_CREATE_FAILED),
       );
     }
   }
@@ -279,9 +277,7 @@ export class TemplatesService {
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(
-          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
-        ),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_FETCH_FAILED),
       );
     }
   }
@@ -316,9 +312,7 @@ export class TemplatesService {
       }
       this.logger.error(`Failed to fetch template: ${error.message}`);
       throw new InternalServerErrorException(
-        this.i18n.t(
-          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
-        ),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_FETCH_FAILED),
       );
     }
   }
@@ -610,9 +604,7 @@ export class TemplatesService {
         error.stack,
       );
       throw new InternalServerErrorException(
-        this.i18n.t(
-          TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
-        ),
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_FILE_PROCESSING_FAILED),
       );
     }
 

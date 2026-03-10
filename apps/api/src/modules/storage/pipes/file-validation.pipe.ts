@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { fileTypeFromBuffer } from 'file-type';
+import { I18nService } from 'nestjs-i18n';
+import { StorageI18n } from '../constants/i18n.constants';
 
 export interface ValidatedFile {
   buffer: Buffer;
@@ -20,7 +22,10 @@ export class FileValidationPipe implements PipeTransform {
   private readonly maxFileSize: number;
   private readonly allowedMimeTypes: string[];
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly i18n: I18nService,
+  ) {
     this.maxFileSize =
       this.configService.get('storage.upload.maxFileSize') || 10485760;
     this.allowedMimeTypes = this.configService.get(
@@ -35,7 +40,9 @@ export class FileValidationPipe implements PipeTransform {
 
   async transform(file: unknown): Promise<ValidatedFile> {
     if (!file || typeof file !== 'object') {
-      throw new BadRequestException('No file provided');
+      throw new BadRequestException(
+        this.i18n.t(StorageI18n.errors.NO_FILE_PROVIDED),
+      );
     }
 
     const fileObj = file as {
@@ -45,7 +52,9 @@ export class FileValidationPipe implements PipeTransform {
     };
     // Check if file has required properties
     if (!fileObj.buffer || !fileObj.originalname) {
-      throw new BadRequestException('Invalid file format');
+      throw new BadRequestException(
+        this.i18n.t(StorageI18n.errors.INVALID_FILE_FORMAT),
+      );
     }
 
     const buffer = fileObj.buffer as Buffer;
@@ -55,12 +64,16 @@ export class FileValidationPipe implements PipeTransform {
     // Validate file size
     if (size > this.maxFileSize) {
       throw new BadRequestException(
-        `File size exceeds maximum allowed size of ${this.maxFileSize / 1024 / 1024}MB`,
+        this.i18n.t(StorageI18n.errors.FILE_SIZE_EXCEEDS_MAX, {
+          args: {
+            maxSizeMb: (this.maxFileSize / 1024 / 1024).toString(),
+          },
+        }),
       );
     }
 
     if (size === 0) {
-      throw new BadRequestException('File is empty');
+      throw new BadRequestException(this.i18n.t(StorageI18n.errors.FILE_EMPTY));
     }
 
     // Detect actual MIME type from file buffer
@@ -85,7 +98,12 @@ export class FileValidationPipe implements PipeTransform {
     // Validate MIME type
     if (!this.allowedMimeTypes.includes(detectedMimeType)) {
       throw new BadRequestException(
-        `File type '${detectedMimeType}' is not allowed. Allowed types: ${this.allowedMimeTypes.join(', ')}`,
+        this.i18n.t(StorageI18n.errors.FILE_TYPE_NOT_ALLOWED, {
+          args: {
+            mimeType: detectedMimeType,
+            allowedTypes: this.allowedMimeTypes.join(', '),
+          },
+        }),
       );
     }
 
@@ -95,7 +113,12 @@ export class FileValidationPipe implements PipeTransform {
 
     if (!expectedExtensions.includes(extension ?? '')) {
       throw new BadRequestException(
-        `File extension '.${extension}' does not match file type '${detectedMimeType}'`,
+        this.i18n.t(StorageI18n.errors.FILE_EXTENSION_MISMATCH, {
+          args: {
+            extension: extension ?? '',
+            mimeType: detectedMimeType,
+          },
+        }),
       );
     }
 

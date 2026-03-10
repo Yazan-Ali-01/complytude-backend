@@ -15,7 +15,10 @@
     "TENANT_ALREADY_ACTIVE": "Tenant {tenantId} is already active",
     "SLUG_TAKEN": "Slug '{slug}' is already taken by another tenant",
     "AT_LEAST_ONE_BRANDING_FIELD_REQUIRED": "At least one branding field (primary or secondary color) is required",
-    "DOCUMENT_LIMIT_EXCEEDED": "Document upload limit exceeded for your plan"
+    "DOCUMENT_LIMIT_EXCEEDED": "Document upload limit exceeded for your plan",
+    "NO_FILE_PROVIDED": "No file provided",
+    "INVALID_FILE_TYPE_FOR_LOGO": "Invalid file type. Allowed: PNG, JPG, SVG, WebP. Received: {mimeType}",
+    "FILE_TOO_LARGE_FOR_LOGO": "File too large. Maximum: 2MB. Received: {sizeMb}MB"
   },
   "messages": {}
 }

@@ -1,7 +1,9 @@
 {
   "errors": {
     "TEMPLATE_NOT_FOUND": "Template with ID {id} not found",
-    "TEMPLATE_TEMPORARY_URL_GENERATION_FAILED": "Failed to create template",
+    "TEMPLATE_TEMPORARY_URL_GENERATION_FAILED": "Failed to generate template URL",
+    "TEMPLATE_CREATE_FAILED": "Failed to create template",
+    "TEMPLATE_FILE_PROCESSING_FAILED": "Failed to process template file",
     "TEMPLATE_FETCH_FAILED": "Failed to fetch template details",
     "TEMPLATE_UPDATE_FAILED": "Failed to update template",
     "TEMPLATE_DELETE_FAILED": "Failed to delete template",
@@ -16,7 +18,19 @@
     "TEMPLATE_ACCESS_DENIED": "You do not have permission to access this template",
     "TEMPLATE_IN_USE": "Template is currently in use and cannot be deleted",
     "TEMPLATE_VERSION_CONFLICT": "Template version conflict detected",
-    "INVALID_VERSION_FORMAT": "Invalid version format. Expected semver format (x.y.z)"
+    "INVALID_VERSION_FORMAT": "Invalid version format. Expected semver format (x.y.z)",
+    "TEMPLATE_FILE_NOT_FOUND": "Template file not found",
+    "FAILED_TO_GENERATE_DOCUMENT": "Failed to generate document",
+    "FAILED_TO_RENDER_DOCUMENT": "Failed to render document with provided variables",
+    "FAILED_TO_SAVE_GENERATED_DOCUMENT": "Failed to save generated document",
+    "EMPTY_OR_INVALID_FILE_BUFFER": "Empty or invalid file buffer provided",
+    "INVALID_DOCX_FORMAT": "Invalid DOCX file format. The file may be corrupted or not a valid DOCX document.",
+    "FAILED_TO_EXTRACT_PLACEHOLDERS": "Failed to extract placeholders from DOCX file. Please ensure the file is valid.",
+    "FAILED_TO_FETCH_VERSION_HISTORY": "Failed to fetch version history",
+    "FAILED_TO_FETCH_CURRENT_VERSION": "Failed to fetch current version",
+    "FAILED_TO_CREATE_TEMPLATE_VERSION": "Failed to create template version",
+    "FAILED_TO_FETCH_TEMPLATE_VERSION": "Failed to fetch template version",
+    "FAILED_TO_ROLLBACK_TEMPLATE_VERSION": "Failed to rollback template version"
   },
   "messages": {
     "TEMPLATE_CLONED_SUCCESS": "Template cloned successfully",

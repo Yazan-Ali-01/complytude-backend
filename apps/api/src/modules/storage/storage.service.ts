@@ -19,7 +19,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { I18n, I18nService } from 'nestjs-i18n';
+import { I18nService } from 'nestjs-i18n';
 import { Readable } from 'stream';
 import { StorageI18n } from './constants/i18n.constants';
 const PAGINATION_DEFAULTS = {
@@ -89,7 +89,7 @@ export class StorageService {
 
   constructor(
     private readonly configService: ConfigService,
-    @I18n() private readonly i18n: I18nService,
+    private readonly i18n: I18nService,
   ) {
     const s3Config = this.configService.get('storage.s3');
     this.templatesBucket =

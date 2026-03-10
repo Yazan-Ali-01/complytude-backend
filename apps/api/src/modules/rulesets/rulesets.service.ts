@@ -16,7 +16,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { I18n, I18nService } from 'nestjs-i18n';
+import { I18nService } from 'nestjs-i18n';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { RulesetVersionRepository } from '../../repositories/rulesets/ruleset-version.repository';
 import {
@@ -45,7 +45,7 @@ export class RulesetsService {
     private readonly rulesetVersionRepository: RulesetVersionRepository,
     private readonly authorityRepository: AuthorityRepository,
     private readonly queueProducerService: QueueProducerService,
-    @I18n() private readonly i18n: I18nService,
+    private readonly i18n: I18nService,
   ) {}
 
   async create(

@@ -6,7 +6,7 @@ import {
   NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
-import { I18n, I18nService } from 'nestjs-i18n';
+import { I18nService } from 'nestjs-i18n';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
@@ -35,7 +35,7 @@ export class DocumentsService {
     private readonly documentRepository: DocumentRepository,
     private readonly analysisJobRepository: AnalysisJobRepository,
     private readonly queueProducerService: QueueProducerService,
-    @I18n() private readonly i18n: I18nService,
+    private readonly i18n: I18nService,
   ) {}
 
   async analyze(

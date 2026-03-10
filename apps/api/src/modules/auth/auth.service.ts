@@ -12,7 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { FastifyReply } from 'fastify';
-import { I18n, I18nService } from 'nestjs-i18n';
+import { I18nService } from 'nestjs-i18n';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
   COOKIE_PATH,
@@ -66,7 +66,7 @@ export class AuthService {
     private readonly userTenantRepository: UserTenantRepository,
     private readonly databaseService: DatabaseService,
     private readonly invitationsService: InvitationsService,
-    @I18n() private readonly i18n: I18nService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -595,7 +595,9 @@ export class AuthService {
     const user = await this.userRepository.findById(userId);
     if (!user) {
       throw new UnauthorizedException(
-        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND),
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+          args: { userId },
+        }),
       );
     }
 

@@ -11,7 +11,15 @@
     "FILE_ALREADY_EXISTS": "يوجد ملف بهذا الاسم مسبقاً",
     "INVALID_FILE_NAME": "اسم الملف غير صالح",
     "FILE_DOWNLOAD_FAILED": "فشل تنزيل الملف",
-    "TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء الرابط المؤقت"
+    "TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء الرابط المؤقت",
+    "NO_FILE_UPLOADED": "لم يتم رفع أي ملف",
+    "FAILED_TO_PROCESS_FILE_UPLOAD": "فشل معالجة رفع الملف",
+    "NO_FILE_PROVIDED": "لم يتم توفير ملف",
+    "INVALID_FILE_FORMAT": "تنسيق الملف غير صالح",
+    "FILE_EMPTY": "الملف فارغ",
+    "FILE_SIZE_EXCEEDS_MAX": "حجم الملف يتجاوز الحد الأقصى المسموح ({maxSizeMb} ميجابايت)",
+    "FILE_TYPE_NOT_ALLOWED": "نوع الملف '{mimeType}' غير مسموح. الأنواع المسموحة: {allowedTypes}",
+    "FILE_EXTENSION_MISMATCH": "امتداد الملف '.{extension}' لا يتطابق مع نوع الملف '{mimeType}'"
   },
   "messages": {}
 }

@@ -3,7 +3,8 @@
  */
 export const UsersI18n = {
   errors: {
-    USER_NOT_FOUND: 'users.errors.USER_NOT_FOUND',
+    USER_NOT_FOUND_BY_ID: 'users.errors.USER_NOT_FOUND_BY_ID',
+    USER_NOT_FOUND_BY_EMAIL: 'users.errors.USER_NOT_FOUND_BY_EMAIL',
     USER_NOT_FOUND_IN_TENANT: 'users.errors.USER_NOT_FOUND_IN_TENANT',
     NO_FIELDS_TO_UPDATE: 'users.errors.NO_FIELDS_TO_UPDATE',
     CURRENT_PASSWORD_INCORRECT: 'users.errors.CURRENT_PASSWORD_INCORRECT',

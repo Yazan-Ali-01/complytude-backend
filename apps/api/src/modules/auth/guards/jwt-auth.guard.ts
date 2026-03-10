@@ -5,7 +5,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18nContext } from 'nestjs-i18n';
 import passport from 'passport';
+import { AuthI18n } from '../constants/i18n.constants';
 import { AUTH_OPTIONS_KEY } from '../decorators/auth-options.decorator';
 import {
   JWT_IDENTITY_ACCESS_STRATEGY,
@@ -41,10 +43,16 @@ export class JwtAuthGuard implements CanActivate {
       await this.tryAuth(context, JWT_IDENTITY_ACCESS_STRATEGY, 'identity');
     }
 
+    const i18n = I18nContext.current();
     if (authOptions?.tenant && !req.auth.tenant)
-      throw new UnauthorizedException('Tenant token required');
+      throw new UnauthorizedException(
+        i18n?.t(AuthI18n.errors.TENANT_TOKEN_REQUIRED) ?? 'Tenant token required',
+      );
     if (authOptions?.identity && !req.auth.identity)
-      throw new UnauthorizedException('Identity token required');
+      throw new UnauthorizedException(
+        i18n?.t(AuthI18n.errors.IDENTITY_TOKEN_REQUIRED) ??
+          'Identity token required',
+      );
 
     return true;
   }

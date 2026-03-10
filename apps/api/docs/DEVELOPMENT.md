@@ -146,19 +146,19 @@ All error messages must be translated using the i18n system. Never use hardcoded
 **Basic error:**
 
 ```typescript
-import { I18n, I18nService } from 'nestjs-i18n';
-import { I18nKeys } from 'src/common/constants/i18n-keys';
+import { I18nService } from 'nestjs-i18n';
+import { YourModuleI18n } from './constants/i18n.constants';
 
 @Injectable()
 export class YourService {
-  constructor(
-    @I18n() private readonly i18n: I18nService,
-  ) {}
+  constructor(private readonly i18n: I18nService) {}
 
   async findOne(id: string) {
     const item = await this.repository.findById(id);
     if (!item) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.ITEM_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(YourModuleI18n.errors.ITEM_NOT_FOUND),
+      );
     }
   }
 }
@@ -168,38 +168,25 @@ export class YourService {
 
 ```typescript
 throw new BadRequestException(
-  this.i18n.t(I18nKeys.USER_NOT_FOUND, {
+  this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
     args: { userId: id },
   }),
 );
 ```
 
-**Complex error handling (abstracted pattern):**
-
-Used when multiple related errors exist in a single method:
-
-```typescript
-private async handleError(i18nKey: string, operation: string): never {
-  this.logger.error(`Operation failed: ${operation}`);
-  throw new BadRequestException(this.i18n.t(i18nKey));
-}
-
-// Usage:
-try {
-  // ... operation ...
-} catch (error) {
-  this.handleError(I18nKeys.OPERATION_FAILED, 'creating item');
-}
-```
-
 **Creating i18n Keys for a New Module:**
 
 1. Create `modules/{module}/constants/i18n.constants.ts` with `errors` and `messages` categories
-2. Create locale files: `i18n/locales/en/{module}.json` and `i18n/locales/ar/{module}.json`
-3. Update `common/constants/i18n-keys.ts` to import and re-export module constants
-4. Add module to `I18nKeyType` union for type safety
+2. Create locale files: `i18n/locales/en/{module}.json` and `i18n/locales/ar/{module}.json` with matching structure:
 
-For detailed instructions, see [I18N_GUIDE.md](I18N_GUIDE.md).
+```json
+{
+  "errors": { "KEY_NAME": "Error message" },
+  "messages": { "KEY_NAME": "Success message" }
+}
+```
+
+Use single braces `{param}` for interpolation. Add keys to both `en/` and `ar/`.
 
 ### Naming Conventions
 
@@ -210,73 +197,6 @@ For detailed instructions, see [I18N_GUIDE.md](I18N_GUIDE.md).
 | Service    | `{feature}.service.ts`      | `templates.service.ts`    |
 | DTO        | `{action}-{feature}.dto.ts` | `create-template.dto.ts`  |
 | Entity     | `{feature}.entity.ts`       | `template.entity.ts`      |
-
----
-
-## Error Handling & Internationalization
-
-### Handling Errors with i18n
-
-All error messages must be translated using the i18n system. Never use hardcoded strings in exceptions.
-
-**Basic error:**
-
-```typescript
-import { I18n, I18nService } from 'nestjs-i18n';
-import { I18nKeys } from 'src/common/constants/i18n-keys';
-
-@Injectable()
-export class YourService {
-  constructor(
-    @I18n() private readonly i18n: I18nService,
-  ) {}
-
-  async findOne(id: string) {
-    const item = await this.repository.findById(id);
-    if (!item) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.ITEM_NOT_FOUND));
-    }
-  }
-}
-```
-
-**With parameters:**
-
-```typescript
-throw new BadRequestException(
-  this.i18n.t(I18nKeys.USER_NOT_FOUND, {
-    args: { userId: id },
-  }),
-);
-```
-
-**Complex error handling (abstracted pattern):**
-
-Used when multiple related errors exist in a single method:
-
-```typescript
-private async handleError(i18nKey: string, operation: string): never {
-  this.logger.error(`Operation failed: ${operation}`);
-  throw new BadRequestException(this.i18n.t(i18nKey));
-}
-
-// Usage:
-try {
-  // ... operation ...
-} catch (error) {
-  this.handleError(I18nKeys.OPERATION_FAILED, 'creating item');
-}
-```
-
-### Creating i18n Keys for a New Module
-
-1. **Create module constants:** `modules/{module}/constants/i18n.constants.ts`
-2. **Define keys** under `errors` and `messages` categories
-3. **Add locale files:** `i18n/locales/{lang}/{module}.json` (for both `en` and `ar`)
-4. **Update `i18n-keys.ts`** to import and re-export the module constants
-5. **Add to `I18nKeyType` union** for type safety
-
-For detailed instructions, see [I18N_GUIDE.md](I18N_GUIDE.md).
 
 ---
 

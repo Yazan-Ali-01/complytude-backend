@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { I18n, I18nService } from 'nestjs-i18n';
+import { I18nService } from 'nestjs-i18n';
 import { UsersI18n } from './constants/i18n.constants';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -24,7 +24,7 @@ export class UsersService {
 
   constructor(
     private readonly databaseService: DatabaseService,
-    @I18n() private readonly i18n: I18nService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -38,7 +38,7 @@ export class UsersService {
 
     if (result.rows.length === 0) {
       throw new NotFoundException(
-        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
           args: { userId },
         }),
       );
@@ -58,7 +58,7 @@ export class UsersService {
 
     if (result.rows.length === 0) {
       throw new NotFoundException(
-        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_EMAIL, {
           args: { email },
         }),
       );
@@ -144,7 +144,7 @@ export class UsersService {
 
     if (result.rows.length === 0) {
       throw new NotFoundException(
-        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND, {
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
           args: { userId },
         }),
       );

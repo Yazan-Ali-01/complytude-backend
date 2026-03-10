@@ -16,6 +16,15 @@ export const StorageI18n = {
     FILE_DOWNLOAD_FAILED: 'storage.errors.FILE_DOWNLOAD_FAILED',
     TEMPORARY_URL_GENERATION_FAILED:
       'storage.errors.TEMPORARY_URL_GENERATION_FAILED',
+    NO_FILE_UPLOADED: 'storage.errors.NO_FILE_UPLOADED',
+    FAILED_TO_PROCESS_FILE_UPLOAD:
+      'storage.errors.FAILED_TO_PROCESS_FILE_UPLOAD',
+    NO_FILE_PROVIDED: 'storage.errors.NO_FILE_PROVIDED',
+    INVALID_FILE_FORMAT: 'storage.errors.INVALID_FILE_FORMAT',
+    FILE_EMPTY: 'storage.errors.FILE_EMPTY',
+    FILE_SIZE_EXCEEDS_MAX: 'storage.errors.FILE_SIZE_EXCEEDS_MAX',
+    FILE_TYPE_NOT_ALLOWED: 'storage.errors.FILE_TYPE_NOT_ALLOWED',
+    FILE_EXTENSION_MISMATCH: 'storage.errors.FILE_EXTENSION_MISMATCH',
   },
   messages: {},
 } as const;

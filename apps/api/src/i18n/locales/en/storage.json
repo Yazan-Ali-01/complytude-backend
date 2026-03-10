@@ -11,7 +11,15 @@
     "FILE_ALREADY_EXISTS": "File with this name already exists",
     "INVALID_FILE_NAME": "Invalid file name",
     "FILE_DOWNLOAD_FAILED": "Failed to download file",
-    "TEMPORARY_URL_GENERATION_FAILED": "Failed to generate temporary URL"
+    "TEMPORARY_URL_GENERATION_FAILED": "Failed to generate temporary URL",
+    "NO_FILE_UPLOADED": "No file uploaded",
+    "FAILED_TO_PROCESS_FILE_UPLOAD": "Failed to process file upload",
+    "NO_FILE_PROVIDED": "No file provided",
+    "INVALID_FILE_FORMAT": "Invalid file format",
+    "FILE_EMPTY": "File is empty",
+    "FILE_SIZE_EXCEEDS_MAX": "File size exceeds maximum allowed size of {maxSizeMb}MB",
+    "FILE_TYPE_NOT_ALLOWED": "File type '{mimeType}' is not allowed. Allowed types: {allowedTypes}",
+    "FILE_EXTENSION_MISMATCH": "File extension '.{extension}' does not match file type '{mimeType}'"
   },
   "messages": {}
 }

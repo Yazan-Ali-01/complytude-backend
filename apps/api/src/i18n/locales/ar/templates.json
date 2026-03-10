@@ -1,7 +1,9 @@
 {
   "errors": {
     "TEMPLATE_NOT_FOUND": "القالب بالمعرف {id} غير موجود",
-    "TEMPLATE_TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء القالب",
+    "TEMPLATE_TEMPORARY_URL_GENERATION_FAILED": "فشل إنشاء رابط القالب",
+    "TEMPLATE_CREATE_FAILED": "فشل إنشاء القالب",
+    "TEMPLATE_FILE_PROCESSING_FAILED": "فشل معالجة ملف القالب",
     "TEMPLATE_FETCH_FAILED": "فشل جلب تفاصيل القالب",
     "TEMPLATE_UPDATE_FAILED": "فشل تحديث القالب",
     "TEMPLATE_DELETE_FAILED": "فشل حذف القالب",
@@ -16,7 +18,19 @@
     "TEMPLATE_ACCESS_DENIED": "ليس لديك صلاحية الوصول إلى هذا القالب",
     "TEMPLATE_IN_USE": "القالب قيد الاستخدام حالياً ولا يمكن حذفه",
     "TEMPLATE_VERSION_CONFLICT": "تم اكتشاف تعارض في إصدار القالب",
-    "INVALID_VERSION_FORMAT": "صيغة الإصدار غير صالحة. الصيغة المتوقعة (x.y.z)"
+    "INVALID_VERSION_FORMAT": "صيغة الإصدار غير صالحة. الصيغة المتوقعة (x.y.z)",
+    "TEMPLATE_FILE_NOT_FOUND": "ملف القالب غير موجود",
+    "FAILED_TO_GENERATE_DOCUMENT": "فشل إنشاء المستند",
+    "FAILED_TO_RENDER_DOCUMENT": "فشل عرض المستند بالمتغيرات المقدمة",
+    "FAILED_TO_SAVE_GENERATED_DOCUMENT": "فشل حفظ المستند المُنشأ",
+    "EMPTY_OR_INVALID_FILE_BUFFER": "تم توفير مخزن مؤقت للملف فارغ أو غير صالح",
+    "INVALID_DOCX_FORMAT": "تنسيق ملف DOCX غير صالح. قد يكون الملف تالفاً أو ليس مستند DOCX صالحاً.",
+    "FAILED_TO_EXTRACT_PLACEHOLDERS": "فشل استخراج العناصر النائبة من ملف DOCX. يرجى التأكد من صحة الملف.",
+    "FAILED_TO_FETCH_VERSION_HISTORY": "فشل جلب سجل الإصدارات",
+    "FAILED_TO_FETCH_CURRENT_VERSION": "فشل جلب الإصدار الحالي",
+    "FAILED_TO_CREATE_TEMPLATE_VERSION": "فشل إنشاء إصدار القالب",
+    "FAILED_TO_FETCH_TEMPLATE_VERSION": "فشل جلب إصدار القالب",
+    "FAILED_TO_ROLLBACK_TEMPLATE_VERSION": "فشل التراجع عن إصدار القالب"
   },
   "messages": {
     "TEMPLATE_CLONED_SUCCESS": "تم نسخ القالب بنجاح",

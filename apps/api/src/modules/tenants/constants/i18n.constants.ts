@@ -20,6 +20,9 @@ export const TenantsI18n = {
     AT_LEAST_ONE_BRANDING_FIELD_REQUIRED:
       'tenant.errors.AT_LEAST_ONE_BRANDING_FIELD_REQUIRED',
     DOCUMENT_LIMIT_EXCEEDED: 'tenant.errors.DOCUMENT_LIMIT_EXCEEDED',
+    NO_FILE_PROVIDED: 'tenant.errors.NO_FILE_PROVIDED',
+    INVALID_FILE_TYPE_FOR_LOGO: 'tenant.errors.INVALID_FILE_TYPE_FOR_LOGO',
+    FILE_TOO_LARGE_FOR_LOGO: 'tenant.errors.FILE_TOO_LARGE_FOR_LOGO',
   },
   messages: {},
 } as const;

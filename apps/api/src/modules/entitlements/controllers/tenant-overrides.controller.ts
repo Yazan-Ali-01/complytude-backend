@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
-import { I18nKeys } from 'src/common/constants/i18n-keys';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
 import { MessageResponseDto } from '../../../common/dto';
@@ -123,7 +123,7 @@ export class TenantOverridesController {
     });
 
     return new MessageResponseDto(
-      this.i18n.t(I18nKeys.OVERRIDE_REVOKE_SUCCESS),
+      this.i18n.t(EntitlementsI18n.messages.OVERRIDE_REVOKE_SUCCESS),
     );
   }
 }
