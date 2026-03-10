@@ -61,7 +61,7 @@ architecture:
 
 - Use nestjs-i18n for all user-facing messages
 - Support English (en) and Arabic (ar) locales
-- Translation keys defined in src/common/constants/i18n-keys.ts
+- Translation keys in modules: `modules/{module}/constants/i18n.constants.ts` (errors/messages). Common keys in `common/constants/i18n.constants.ts`
 
 # Naming Conventions
 
@@ -656,7 +656,7 @@ Workers import shared libraries (`@lib/database`, `@lib/queue`, `@lib/redis`, `@
 
 - Use nestjs-i18n for all user-facing messages
 - Support both English and Arabic locales
-- Define translation keys in i18n-keys.ts
+- Define translation keys in `modules/{module}/constants/i18n.constants.ts` under errors/messages
 
 # Code Quality
 

@@ -7,6 +7,7 @@ This guide covers development workflow, module creation, best practices, and cod
 - [Creating a New Module](#creating-a-new-module)
 - [Module Structure](#module-structure)
 - [Best Practices](#best-practices)
+- [Error Handling & Internationalization](#error-handling--internationalization)
 - [Adding Database Migrations](#adding-database-migrations)
 - [Code Quality Checks](#code-quality-checks)
 
@@ -138,6 +139,55 @@ async listDocuments() { }
 | `TenantPermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
 | `RolesGuard`             | Simple role verification       | Check if user is `tenant_admin`        |
 
+### Error Handling & Internationalization
+
+All error messages must be translated using the i18n system. Never use hardcoded strings in exceptions.
+
+**Basic error:**
+
+```typescript
+import { I18nService } from 'nestjs-i18n';
+import { YourModuleI18n } from './constants/i18n.constants';
+
+@Injectable()
+export class YourService {
+  constructor(private readonly i18n: I18nService) {}
+
+  async findOne(id: string) {
+    const item = await this.repository.findById(id);
+    if (!item) {
+      throw new NotFoundException(
+        this.i18n.t(YourModuleI18n.errors.ITEM_NOT_FOUND),
+      );
+    }
+  }
+}
+```
+
+**With parameters:**
+
+```typescript
+throw new BadRequestException(
+  this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+    args: { userId: id },
+  }),
+);
+```
+
+**Creating i18n Keys for a New Module:**
+
+1. Create `modules/{module}/constants/i18n.constants.ts` with `errors` and `messages` categories
+2. Create locale files: `i18n/locales/en/{module}.json` and `i18n/locales/ar/{module}.json` with matching structure:
+
+```json
+{
+  "errors": { "KEY_NAME": "Error message" },
+  "messages": { "KEY_NAME": "Success message" }
+}
+```
+
+Use single braces `{param}` for interpolation. Add keys to both `en/` and `ar/`.
+
 ### Naming Conventions
 
 | Type       | Convention                  | Example                   |
@@ -149,8 +199,6 @@ async listDocuments() { }
 | Entity     | `{feature}.entity.ts`       | `template.entity.ts`      |
 
 ---
-
-## Adding Database Migrations
 
 ### Migration Workflow
 

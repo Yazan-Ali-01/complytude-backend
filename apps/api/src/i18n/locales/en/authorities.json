@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "AUTHORITY_NOT_FOUND_BY_ID": "Authority with ID {id} not found",
+    "AUTHORITY_NOT_FOUND_BY_CODE": "Authority with code {code} not found",
+    "AUTHORITY_ALREADY_EXISTS": "Authority with code {code} already exists",
+    "AUTHORITY_CREATE_FAILED": "Failed to create authority",
+    "AUTHORITIES_FETCH_FAILED": "Failed to fetch authorities",
+    "AUTHORITY_FETCH_FAILED": "Failed to fetch authority",
+    "AUTHORITY_UPDATE_FAILED": "Failed to update authority",
+    "AUTHORITY_DELETE_FAILED": "Failed to delete authority"
+  },
+  "messages": {}
+}

@@ -5,7 +5,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18nContext } from 'nestjs-i18n';
 import passport from 'passport';
+import { AuthI18n } from '../constants/i18n.constants';
 import { AUTH_REFRESH_OPTIONS_KEY } from '../decorators/auth-options.decorator';
 import {
   JWT_IDENTITY_REFRESH_STRATEGY,
@@ -42,6 +44,7 @@ export class JwtAuthRefreshGuard implements CanActivate {
 
     // if both are required and one both are missing, deny access (for logout scenario)
     // if only one is required and is missing while the other is not required, deny access (single token refresh scenario)
+    const i18n = I18nContext.current();
     if (
       authOptions.tenant &&
       authOptions.identity &&
@@ -49,20 +52,27 @@ export class JwtAuthRefreshGuard implements CanActivate {
       !req.auth.identity
     ) {
       throw new UnauthorizedException(
-        'Tenant or Identity refresh token is required',
+        i18n?.t(AuthI18n.errors.TENANT_OR_IDENTITY_REFRESH_TOKEN_REQUIRED) ??
+          'Tenant or Identity refresh token is required',
       );
     } else if (
       authOptions.tenant &&
       !req.auth.tenant &&
       !authOptions.identity
     ) {
-      throw new UnauthorizedException('Tenant refresh token required');
+      throw new UnauthorizedException(
+        i18n?.t(AuthI18n.errors.TENANT_REFRESH_TOKEN_REQUIRED) ??
+          'Tenant refresh token required',
+      );
     } else if (
       authOptions.identity &&
       !req.auth.identity &&
       !authOptions.tenant
     ) {
-      throw new UnauthorizedException('Identity refresh token required');
+      throw new UnauthorizedException(
+        i18n?.t(AuthI18n.errors.IDENTITY_REFRESH_TOKEN_REQUIRED) ??
+          'Identity refresh token required',
+      );
     }
 
     return true;

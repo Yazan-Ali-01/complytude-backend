@@ -267,7 +267,7 @@ Complete reference for all major dependencies, versions, and best practices for 
 **Best Practices:**
 
 - Support multiple locales (en, ar)
-- Use translation keys consistently (defined in i18n-keys.ts)
+- Use translation keys consistently (per-module: `modules/{module}/constants/i18n.constants.ts`)
 - Organize translations by feature
 - Use interpolation for dynamic values
 - Provide fallback language (English)

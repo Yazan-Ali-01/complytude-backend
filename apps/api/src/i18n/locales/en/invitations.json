@@ -1,0 +1,21 @@
+{
+  "errors": {
+    "INVITATION_NOT_FOUND": "Invitation not found",
+    "INVITATION_NOT_FOUND_OR_EXPIRED": "Invitation not found or expired",
+    "INVITATION_EXPIRED": "Invitation has expired",
+    "INVITATION_WRONG_STATUS": "Invitation is {status} and cannot be {action}",
+    "INVITATION_EMAIL_MISMATCH": "This invitation is not for your email address",
+    "INVITATION_ALREADY_EXISTS": "A pending invitation already exists for this email",
+    "USER_ALREADY_MEMBER": "User is already a member of this tenant",
+    "INVITATION_WRONG_TENANT": "Invitation does not belong to this tenant",
+    "CAN_ONLY_RESEND_PENDING": "Can only resend pending invitations",
+    "TENANT_NOT_FOUND": "Tenant not found",
+    "INVITER_NOT_FOUND": "Inviter not found"
+  },
+  "messages": {
+    "ACCEPTED_SUCCESSFULLY": "Invitation accepted successfully",
+    "ALREADY_MEMBER_REACTIVATED": "You were already a member of this tenant. Your membership has been reactivated.",
+    "REJECTED_SUCCESSFULLY": "Invitation rejected successfully",
+    "REVOKED_SUCCESSFULLY": "Invitation revoked successfully"
+  }
+}

@@ -1,15 +1,31 @@
 {
-  "addon": {
-    "not_found": "الإضافة غير موجودة",
-    "already_active": "هذه الإضافة نشطة بالفعل لمؤسستك",
-    "add_success": "تم تفعيل الإضافة بنجاح",
-    "remove_success": "تمت إزالة الإضافة بنجاح"
+  "errors": {
+    "ADDON_NOT_FOUND": "الإضافة غير موجودة",
+    "ADDON_ALREADY_ACTIVE": "هذه الإضافة نشطة بالفعل لمؤسستك",
+    "OVERRIDE_NOT_FOUND": "التجاوز غير موجود",
+    "OVERRIDE_FEATURE_NOT_FOUND": "الميزة غير موجودة: {featureKey}",
+    "OVERRIDE_INVALID_VALUE": "يجب توفير واحد فقط من valueBool أو valueInt أو valueText",
+    "UNITS_MUST_BE_GREATER_THAN_ZERO": "يجب أن تكون الوحدات أكبر من 0",
+    "AT_LEAST_ONE_ALLOCATION_REQUIRED": "مطلوب تخصيص واحد على الأقل",
+    "ALLOCATION_SUM_MUST_EQUAL_UNITS": "مجموع التخصيص ({allocationSum}) يجب أن يساوي إجمالي الوحدات ({units})",
+    "EACH_ALLOCATION_MUST_HAVE_UNITS_GT_ZERO": "يجب أن يكون لكل تخصيص وحدات > 0",
+    "FEATURE_NOT_FOUND": "الميزة غير موجودة: {featureKey}",
+    "FEATURE_IS_INACTIVE": "الميزة غير نشطة: {featureKey}",
+    "NO_ACTIVE_SUBSCRIPTION": "لا يوجد اشتراك نشط للمؤسسة: {tenantId}",
+    "PURCHASE_AMOUNT_MUST_BE_GT_ZERO": "يجب أن يكون مبلغ الشراء أكبر من 0",
+    "GRANT_AMOUNT_MUST_BE_GT_ZERO": "يجب أن يكون مبلغ المنح أكبر من 0",
+    "DEDUCTION_AMOUNT_MUST_BE_GT_ZERO": "يجب أن يكون مبلغ الخصم أكبر من 0",
+    "REFUND_AMOUNT_MUST_BE_GT_ZERO": "يجب أن يكون مبلغ الاسترداد أكبر من 0",
+    "INSUFFICIENT_CREDITS": "رصيد غير كافٍ. الرصيد الحالي: {currentBalance}، المطلوب: {requested}",
+    "QUOTA_EXCEEDED": "تم تجاوز الحصة لـ {featureKey}",
+    "ENTITLEMENT_FEATURE_NOT_FOUND": "ليس لديك صلاحية الوصول إلى هذه الميزة",
+    "ENTITLEMENT_ACCESS_DENIED": "خطتك لا تتضمن هذه الميزة",
+    "ENTITLEMENT_REQUIREMENT_NOT_MET": "خطتك لا تتضمن هذه الميزة"
   },
-  "override": {
-    "not_found": "التجاوز غير موجود",
-    "feature_not_found": "الميزة غير موجودة: {featureKey}",
-    "apply_success": "تم تطبيق التجاوز بنجاح",
-    "revoke_success": "تم إلغاء التجاوز بنجاح",
-    "invalid_value": "يجب توفير واحد فقط من valueBool أو valueInt أو valueText"
+  "messages": {
+    "ADDON_ADD_SUCCESS": "تم تفعيل الإضافة بنجاح",
+    "ADDON_REMOVE_SUCCESS": "تمت إزالة الإضافة بنجاح",
+    "OVERRIDE_APPLY_SUCCESS": "تم تطبيق التجاوز بنجاح",
+    "OVERRIDE_REVOKE_SUCCESS": "تم إلغاء التجاوز بنجاح"
   }
 }

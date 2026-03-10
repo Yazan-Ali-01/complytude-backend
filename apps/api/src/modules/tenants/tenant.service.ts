@@ -12,10 +12,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import { deepMerge } from '../../common/utils/deep-merge.util';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { TenantsI18n } from './constants/i18n.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
@@ -67,6 +69,7 @@ export class TenantService {
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly i18n: I18nService,
   ) {}
 
   // ============================================================================
@@ -141,7 +144,7 @@ export class TenantService {
         error.stack,
       );
       throw new InternalServerErrorException(
-        'An unexpected error occurred during database operation',
+        this.i18n.t(TenantsI18n.errors.TENANT_CREATION_FAILED),
       );
     }
   }
@@ -234,7 +237,9 @@ export class TenantService {
         throw error;
       }
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to create tenant');
+      throw new InternalServerErrorException(
+        this.i18n.t(TenantsI18n.errors.TENANT_CREATION_FAILED),
+      );
     }
   }
 
@@ -265,7 +270,11 @@ export class TenantService {
     if (client) {
       const tenant = await this.tenantRepository.findById(tenantId, { client });
       if (!tenant) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
+        throw new NotFoundException(
+          this.i18n.t(TenantsI18n.errors.TENANT_NOT_FOUND, {
+            args: { tenantId },
+          }),
+        );
       }
       return tenant;
     }
@@ -305,7 +314,9 @@ export class TenantService {
       return this.tenantRepository.findMany({}, cursorOptions);
     } catch (error) {
       this.logger.error(`Failed to fetch tenants: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to fetch tenants');
+      throw new InternalServerErrorException(
+        this.i18n.t(TenantsI18n.errors.TENANT_FETCH_FAILED),
+      );
     }
   }
 
@@ -422,7 +433,9 @@ export class TenantService {
         );
         if (isTaken) {
           throw new ConflictException(
-            `Slug "${dto.slug}" is already taken. Please choose a different slug.`,
+            this.i18n.t(TenantsI18n.errors.SLUG_TAKEN, {
+              args: { slug: dto.slug },
+            }),
           );
         }
 
@@ -501,7 +514,7 @@ export class TenantService {
   ): Promise<Tenant> {
     if (!dto.brand_color_primary && !dto.brand_color_secondary) {
       throw new BadRequestException(
-        'At least one branding field must be provided',
+        this.i18n.t(TenantsI18n.errors.AT_LEAST_ONE_BRANDING_FIELD_REQUIRED),
       );
     }
 
@@ -639,7 +652,9 @@ export class TenantService {
       const tenant = await this.findById(tenantId, { client });
       if (!tenant.is_active) {
         throw new BadRequestException(
-          `Tenant ${tenantId} is already deactivated`,
+          this.i18n.t(TenantsI18n.errors.TENANT_ALREADY_DEACTIVATED, {
+            args: { tenantId },
+          }),
         );
       }
 
@@ -689,7 +704,11 @@ export class TenantService {
     return this.executeInTenantScope(tenantId, context, async (client) => {
       const tenant = await this.findById(tenantId, { client });
       if (tenant.is_active) {
-        throw new BadRequestException(`Tenant ${tenantId} is already active`);
+        throw new BadRequestException(
+          this.i18n.t(TenantsI18n.errors.TENANT_ALREADY_ACTIVE, {
+            args: { tenantId },
+          }),
+        );
       }
 
       const updated = await this.updateOrThrow(

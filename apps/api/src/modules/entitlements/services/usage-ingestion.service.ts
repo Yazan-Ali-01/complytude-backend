@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import {
   FeatureKey,
@@ -16,6 +17,7 @@ import { FeaturesRepository } from '../../../repositories/features/features.repo
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { UsageAllocationsRepository } from '../../../repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 
 /**
  * Usage Ingestion Service
@@ -45,6 +47,7 @@ export class UsageIngestionService {
     private readonly usageAllocationsRepository: UsageAllocationsRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly subscriptionsRepository: SubscriptionsRepository,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -79,24 +82,37 @@ export class UsageIngestionService {
 
     // Validate units
     if (units <= 0) {
-      throw new BadRequestException('Units must be greater than 0');
+      throw new BadRequestException(
+        this.i18n.t(EntitlementsI18n.errors.UNITS_MUST_BE_GREATER_THAN_ZERO),
+      );
     }
 
     // Validate allocations
     if (!allocations || allocations.length === 0) {
-      throw new BadRequestException('At least one allocation is required');
+      throw new BadRequestException(
+        this.i18n.t(EntitlementsI18n.errors.AT_LEAST_ONE_ALLOCATION_REQUIRED),
+      );
     }
 
     const allocationSum = allocations.reduce((sum, a) => sum + a.units, 0);
     if (allocationSum !== units) {
       throw new BadRequestException(
-        `Allocation sum (${allocationSum}) must equal total units (${units})`,
+        this.i18n.t(EntitlementsI18n.errors.ALLOCATION_SUM_MUST_EQUAL_UNITS, {
+          args: {
+            allocationSum: allocationSum.toString(),
+            units: units.toString(),
+          },
+        }),
       );
     }
 
     for (const allocation of allocations) {
       if (allocation.units <= 0) {
-        throw new BadRequestException('Each allocation must have units > 0');
+        throw new BadRequestException(
+          this.i18n.t(
+            EntitlementsI18n.errors.EACH_ALLOCATION_MUST_HAVE_UNITS_GT_ZERO,
+          ),
+        );
       }
     }
 
@@ -169,11 +185,19 @@ export class UsageIngestionService {
     );
 
     if (!feature) {
-      throw new NotFoundException(`Feature not found: ${featureKey}`);
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.FEATURE_NOT_FOUND, {
+          args: { featureKey },
+        }),
+      );
     }
 
     if (!feature.is_active) {
-      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
+      throw new BadRequestException(
+        this.i18n.t(EntitlementsI18n.errors.FEATURE_IS_INACTIVE, {
+          args: { featureKey },
+        }),
+      );
     }
 
     return feature.id;
@@ -193,7 +217,9 @@ export class UsageIngestionService {
 
     if (!subscription) {
       throw new NotFoundException(
-        `No active subscription for tenant: ${tenantId}`,
+        this.i18n.t(EntitlementsI18n.errors.NO_ACTIVE_SUBSCRIPTION, {
+          args: { tenantId },
+        }),
       );
     }
 

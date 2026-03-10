@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import { I18nContext } from 'nestjs-i18n';
+import { AuthI18n } from '../constants/i18n.constants';
 import { FastifyRequest } from 'fastify';
 import { Strategy } from 'passport-jwt';
 import { IDENTITY_REFRESH_TOKEN_COOKIE_NAME } from 'src/common/swagger/common';
@@ -38,14 +40,18 @@ export class JwtIdentityRefreshStrategy extends PassportStrategy(
     payload: IdentityRefreshPayload,
   ): AuthenticatedIdentityRefreshUser {
     // Ensure it's an identity refresh token
+    const i18n = I18nContext.current();
     if (payload.type !== IDENTITY_REFRESH_PAYLOAD_TYPE) {
-      throw new UnauthorizedException('Invalid token type');
+      throw new UnauthorizedException(
+        i18n?.t(AuthI18n.errors.INVALID_TOKEN_TYPE) ?? 'Invalid token type',
+      );
     }
 
     const refreshToken = cookieExtractor(req);
     if (!refreshToken) {
       throw new UnauthorizedException(
-        'Invalid or missing identity refresh token',
+        i18n?.t(AuthI18n.errors.INVALID_OR_MISSING_IDENTITY_REFRESH_TOKEN) ??
+          'Invalid or missing identity refresh token',
       );
     }
 

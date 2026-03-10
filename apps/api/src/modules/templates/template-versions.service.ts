@@ -7,6 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
+import { I18nService } from 'nestjs-i18n';
+import { TemplatesI18n } from './constants/i18n.constants';
 import { TemplateVersionRepository } from '../../repositories/templates/template-version.repository';
 import { TemplateRepository } from '../../repositories/templates/template.repository';
 import {
@@ -21,6 +23,7 @@ export class TemplateVersionsService {
   constructor(
     private readonly templateVersionRepository: TemplateVersionRepository,
     private readonly templateRepository: TemplateRepository,
+    private readonly i18n: I18nService,
   ) {}
 
   async createVersion(
@@ -75,7 +78,7 @@ export class TemplateVersionsService {
       }
       this.logger.error(`Failed to create template version: ${error.message}`);
       throw new InternalServerErrorException(
-        'Failed to create template version',
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_CREATE_TEMPLATE_VERSION),
       );
     }
   }
@@ -93,7 +96,9 @@ export class TemplateVersionsService {
       return versions;
     } catch (error) {
       this.logger.error(`Failed to fetch version history: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch version history');
+      throw new InternalServerErrorException(
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_FETCH_VERSION_HISTORY),
+      );
     }
   }
 
@@ -134,7 +139,7 @@ export class TemplateVersionsService {
       }
       this.logger.error(`Failed to fetch template version: ${error.message}`);
       throw new InternalServerErrorException(
-        'Failed to fetch template version',
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_FETCH_TEMPLATE_VERSION),
       );
     }
   }
@@ -167,7 +172,9 @@ export class TemplateVersionsService {
       return version;
     } catch (error) {
       this.logger.error(`Failed to fetch current version: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch current version');
+      throw new InternalServerErrorException(
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_FETCH_CURRENT_VERSION),
+      );
     }
   }
 
@@ -216,7 +223,7 @@ export class TemplateVersionsService {
         `Failed to rollback template version: ${error.message}`,
       );
       throw new InternalServerErrorException(
-        'Failed to rollback template version',
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_ROLLBACK_TEMPLATE_VERSION),
       );
     }
   }
