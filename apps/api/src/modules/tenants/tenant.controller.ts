@@ -37,6 +37,8 @@ import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UpdateTenantSlugDto } from './dto/update-tenant-slug.dto';
 import { TenantService } from './tenant.service';
+import { I18nService } from 'nestjs-i18n';
+import { TenantsI18n } from './constants/i18n.constants';
 
 /**
  * Tenant self-management controller
@@ -51,7 +53,10 @@ import { TenantService } from './tenant.service';
 export class TenantController {
   private readonly logger = new Logger(TenantController.name);
 
-  constructor(private readonly tenantService: TenantService) {}
+  constructor(
+    private readonly tenantService: TenantService,
+    private readonly i18n: I18nService,
+  ) {}
 
   // ============================================================================
   // READ
@@ -321,7 +326,10 @@ export class TenantController {
     @UploadedFile() file: MulterLikeFile,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantResponseDto> {
-    if (!file) throw new BadRequestException('No file provided');
+    if (!file)
+      throw new BadRequestException(
+        this.i18n.t(TenantsI18n.errors.NO_FILE_PROVIDED),
+      );
 
     const allowedMimeTypes = [
       'image/png',
@@ -331,14 +339,20 @@ export class TenantController {
     ];
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
-        `Invalid file type. Allowed: PNG, JPG, SVG, WebP. Received: ${file.mimetype}`,
+        this.i18n.t(TenantsI18n.errors.INVALID_FILE_TYPE_FOR_LOGO, {
+          args: { mimeType: file.mimetype },
+        }),
       );
     }
 
     const maxSize = 2 * 1024 * 1024;
     if (file.size > maxSize) {
       throw new BadRequestException(
-        `File too large. Maximum: 2MB. Received: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        this.i18n.t(TenantsI18n.errors.FILE_TOO_LARGE_FOR_LOGO, {
+          args: {
+            sizeMb: (file.size / 1024 / 1024).toFixed(2),
+          },
+        }),
       );
     }
 

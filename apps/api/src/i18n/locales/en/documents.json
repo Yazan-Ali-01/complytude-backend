@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "DOCUMENT_NOT_FOUND": "Document not found",
+    "ANALYSIS_JOB_NOT_FOUND": "Analysis job not found",
+    "NO_ANALYSIS_JOB_FOR_DOCUMENT": "No analysis job found for this document",
+    "PREVIEW_NOT_IMPLEMENTED": "Document preview generation not yet implemented",
+    "GENERATION_NOT_IMPLEMENTED": "Document generation not yet implemented",
+    "LISTING_NOT_IMPLEMENTED": "Document listing not yet implemented",
+    "RETRIEVAL_NOT_IMPLEMENTED": "Document retrieval not yet implemented",
+    "DELETION_NOT_IMPLEMENTED": "Document deletion not yet implemented"
+  },
+  "messages": {}
+}

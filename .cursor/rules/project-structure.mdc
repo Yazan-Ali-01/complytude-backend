@@ -350,7 +350,7 @@ Data access layer with repository pattern. All repositories extend `BaseReposito
 
 #### Constants (`constants/`)
 
-- **i18n-keys.ts** - Internationalization key constants
+- **i18n.constants.ts** - Common i18n keys (UNAUTHORIZED, FORBIDDEN, etc.). Per-module keys live in `modules/{module}/constants/i18n.constants.ts`
 - **entitlement-constants.ts** - Entitlement system constants
 - **tenant-permissions.constant.ts** - Tenant RBAC permission definitions (source of truth)
 - **tenant-system-roles.constant.ts** - Tenant system role permission sets (in-memory)

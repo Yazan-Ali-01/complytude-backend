@@ -1,15 +1,31 @@
 {
-  "addon": {
-    "not_found": "Add-on not found",
-    "already_active": "This add-on is already active for your tenant",
-    "add_success": "Add-on activated successfully",
-    "remove_success": "Add-on removed successfully"
+  "errors": {
+    "ADDON_NOT_FOUND": "Add-on not found",
+    "ADDON_ALREADY_ACTIVE": "This add-on is already active for your tenant",
+    "OVERRIDE_NOT_FOUND": "Override not found",
+    "OVERRIDE_FEATURE_NOT_FOUND": "Feature not found: {featureKey}",
+    "OVERRIDE_INVALID_VALUE": "Exactly one of valueBool, valueInt, or valueText must be provided",
+    "UNITS_MUST_BE_GREATER_THAN_ZERO": "Units must be greater than 0",
+    "AT_LEAST_ONE_ALLOCATION_REQUIRED": "At least one allocation is required",
+    "ALLOCATION_SUM_MUST_EQUAL_UNITS": "Allocation sum ({allocationSum}) must equal total units ({units})",
+    "EACH_ALLOCATION_MUST_HAVE_UNITS_GT_ZERO": "Each allocation must have units > 0",
+    "FEATURE_NOT_FOUND": "Feature not found: {featureKey}",
+    "FEATURE_IS_INACTIVE": "Feature is inactive: {featureKey}",
+    "NO_ACTIVE_SUBSCRIPTION": "No active subscription for tenant: {tenantId}",
+    "PURCHASE_AMOUNT_MUST_BE_GT_ZERO": "Purchase amount must be greater than 0",
+    "GRANT_AMOUNT_MUST_BE_GT_ZERO": "Grant amount must be greater than 0",
+    "DEDUCTION_AMOUNT_MUST_BE_GT_ZERO": "Deduction amount must be greater than 0",
+    "REFUND_AMOUNT_MUST_BE_GT_ZERO": "Refund amount must be greater than 0",
+    "INSUFFICIENT_CREDITS": "Insufficient credits. Current balance: {currentBalance}, requested: {requested}",
+    "QUOTA_EXCEEDED": "Quota exceeded for {featureKey}",
+    "ENTITLEMENT_FEATURE_NOT_FOUND": "You do not have access to this feature",
+    "ENTITLEMENT_ACCESS_DENIED": "Your plan does not include this feature",
+    "ENTITLEMENT_REQUIREMENT_NOT_MET": "Your plan does not include this feature"
   },
-  "override": {
-    "not_found": "Override not found",
-    "feature_not_found": "Feature not found: {featureKey}",
-    "apply_success": "Override applied successfully",
-    "revoke_success": "Override revoked successfully",
-    "invalid_value": "Exactly one of valueBool, valueInt, or valueText must be provided"
+  "messages": {
+    "ADDON_ADD_SUCCESS": "Add-on activated successfully",
+    "ADDON_REMOVE_SUCCESS": "Add-on removed successfully",
+    "OVERRIDE_APPLY_SUCCESS": "Override applied successfully",
+    "OVERRIDE_REVOKE_SUCCESS": "Override revoked successfully"
   }
 }

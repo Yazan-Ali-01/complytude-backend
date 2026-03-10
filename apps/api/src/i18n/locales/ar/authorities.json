@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "AUTHORITY_NOT_FOUND_BY_ID": "الجهة بالمعرف {id} غير موجودة",
+    "AUTHORITY_NOT_FOUND_BY_CODE": "الجهة بالرمز {code} غير موجودة",
+    "AUTHORITY_ALREADY_EXISTS": "الجهة بالرمز {code} موجودة بالفعل",
+    "AUTHORITY_CREATE_FAILED": "فشل إنشاء الجهة",
+    "AUTHORITIES_FETCH_FAILED": "فشل جلب الجهات",
+    "AUTHORITY_FETCH_FAILED": "فشل جلب الجهة",
+    "AUTHORITY_UPDATE_FAILED": "فشل تحديث الجهة",
+    "AUTHORITY_DELETE_FAILED": "فشل حذف الجهة"
+  },
+  "messages": {}
+}

@@ -1,8 +1,11 @@
 {
-  "VALIDATION_ERROR": "خطأ في التحقق من البيانات",
-  "NOT_FOUND": "المورد المطلوب غير موجود",
-  "INTERNAL_SERVER_ERROR": "خطأ داخلي في الخادم",
-  "UNAUTHORIZED": "يجب تسجيل الدخول للمتابعة",
-  "FORBIDDEN": "ليس لديك صلاحية الوصول",
-  "BAD_REQUEST": "الطلب غير صحيح"
+  "errors": {
+    "VALIDATION_ERROR": "خطأ في التحقق من البيانات",
+    "NOT_FOUND": "المورد المطلوب غير موجود",
+    "INTERNAL_SERVER_ERROR": "خطأ داخلي في الخادم",
+    "UNAUTHORIZED": "يجب تسجيل الدخول للمتابعة",
+    "FORBIDDEN": "ليس لديك صلاحية الوصول",
+    "BAD_REQUEST": "الطلب غير صحيح"
+  },
+  "messages": {}
 }

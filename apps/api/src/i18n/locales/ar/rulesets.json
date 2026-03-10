@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "RULESET_NOT_FOUND": "لم يتم العثور على مجموعة القواعد",
+    "RULESET_ALREADY_EXISTS": "مجموعة القواعد موجودة بالفعل",
+    "RULESET_NO_ACTIVE_VERSION": "مجموعة القواعد ليس لديها نسخة نشطة",
+    "VERSION_ALREADY_EXISTS": "النسخة موجودة بالفعل لمجموعة القواعس هذه",
+    "VERSION_NOT_FOUND": "لم يتم العثور على النسخة",
+    "AUTHORITY_NOT_FOUND": "لم يتم العثور على السلطة"
+  },
+  "messages": {}
+}

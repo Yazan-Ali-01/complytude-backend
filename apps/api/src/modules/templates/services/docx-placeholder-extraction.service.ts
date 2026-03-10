@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
+import { I18nService } from 'nestjs-i18n';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from '../constants/template.constants';
+import { TemplatesI18n } from '../constants/i18n.constants';
 import { TemplateFieldItemDto } from '../dto/template-field.dto';
 
 /**
@@ -32,6 +34,8 @@ export interface PlaceholderValidationResult {
 export class DocxPlaceholderExtractionService {
   private readonly logger = new Logger(DocxPlaceholderExtractionService.name);
 
+  constructor(private readonly i18n: I18nService) {}
+
   /**
    * Extracts unique placeholder variables from a DOCX file buffer.
    *
@@ -59,7 +63,9 @@ export class DocxPlaceholderExtractionService {
       this.logger.log('Starting placeholder extraction from DOCX file');
 
       if (!buffer || buffer.length === 0) {
-        throw new BadRequestException('Empty or invalid file buffer provided');
+        throw new BadRequestException(
+          this.i18n.t(TemplatesI18n.errors.EMPTY_OR_INVALID_FILE_BUFFER),
+        );
       }
 
       let zip: PizZip;
@@ -68,7 +74,7 @@ export class DocxPlaceholderExtractionService {
       } catch (error) {
         this.logger.error('Failed to unzip DOCX file', error);
         throw new BadRequestException(
-          'Invalid DOCX file format. The file may be corrupted or not a valid DOCX document.',
+          this.i18n.t(TemplatesI18n.errors.INVALID_DOCX_FORMAT),
         );
       }
 
@@ -99,7 +105,7 @@ export class DocxPlaceholderExtractionService {
         error,
       );
       throw new BadRequestException(
-        'Failed to extract placeholders from DOCX file. Please ensure the file is valid.',
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_EXTRACT_PLACEHOLDERS),
       );
     }
   }
