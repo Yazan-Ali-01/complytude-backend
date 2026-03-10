@@ -24,6 +24,7 @@ import {
   RulesetRepository,
 } from '../../repositories/rulesets/ruleset.repository';
 import { RulesetsI18n } from './constants/i18n.constants';
+import { IngestionStatus } from './constants/ingestion-status.constants';
 import { CreateRulesetVersionDto } from './dto/create-ruleset-version.dto';
 import { CreateRulesetDto } from './dto/create-ruleset.dto';
 import { UpdateRulesetDto } from './dto/update-ruleset.dto';
@@ -51,7 +52,7 @@ export class RulesetsService {
   async create(
     dto: CreateRulesetDto,
     createdBy: string,
-  ): Promise<RulesetWithVersion> {
+  ): Promise<RulesetWithVersion & { ingestionStatus: IngestionStatus }> {
     try {
       const existing = await this.rulesetRepository.findByKey(dto.key);
       if (existing) {
@@ -97,14 +98,14 @@ export class RulesetsService {
         return { ruleset, currentVersionData: version };
       });
 
-      await this.enqueueIngestion(
+      const ingestionStatus = await this.enqueueIngestion(
         result.ruleset.id,
         result.currentVersionData.id,
         dto.key,
         '1.0.0',
       );
 
-      return result;
+      return { ...result, ingestionStatus };
     } catch (error) {
       this.handleError(error, `create ruleset "${dto.key}"`);
     }
@@ -216,7 +217,7 @@ export class RulesetsService {
     key: string,
     dto: CreateRulesetVersionDto,
     createdBy: string,
-  ): Promise<RulesetVersion> {
+  ): Promise<RulesetVersion & { ingestionStatus: IngestionStatus }> {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
@@ -248,9 +249,14 @@ export class RulesetsService {
 
       this.logger.log(`Created version "${dto.version}" for ruleset "${key}"`);
 
-      await this.enqueueIngestion(ruleset.id, version.id, key, dto.version);
+      const ingestionStatus = await this.enqueueIngestion(
+        ruleset.id,
+        version.id,
+        key,
+        dto.version,
+      );
 
-      return version;
+      return { ...version, ingestionStatus };
     } catch (error) {
       this.handleError(error, `create version for ruleset "${key}"`);
     }
@@ -309,7 +315,7 @@ export class RulesetsService {
     newVersion: string,
     changelog: string | undefined,
     createdBy: string,
-  ): Promise<RulesetVersion> {
+  ): Promise<RulesetVersion & { ingestionStatus: IngestionStatus }> {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
@@ -354,9 +360,14 @@ export class RulesetsService {
         `Rolled back ruleset "${key}" from v${sourceVersion} → v${newVersion}`,
       );
 
-      await this.enqueueIngestion(ruleset.id, version.id, key, newVersion);
+      const ingestionStatus = await this.enqueueIngestion(
+        ruleset.id,
+        version.id,
+        key,
+        newVersion,
+      );
 
-      return version;
+      return { ...version, ingestionStatus };
     } catch (error) {
       this.handleError(
         error,
@@ -368,33 +379,40 @@ export class RulesetsService {
   async enqueueIngestionForActiveVersion(
     key: string,
   ): Promise<{ jobId: string | undefined; versionId: string }> {
-    const ruleset = await this.rulesetRepository.findByKey(key);
-    if (!ruleset) {
-      throw new NotFoundException(
-        this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+    try {
+      const ruleset = await this.rulesetRepository.findByKey(key);
+      if (!ruleset) {
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+        );
+      }
+
+      const activeVersion =
+        await this.rulesetVersionRepository.findActiveByRulesetId(ruleset.id);
+      if (!activeVersion) {
+        throw new ConflictException(
+          this.i18n.t(RulesetsI18n.errors.RULESET_NO_ACTIVE_VERSION),
+        );
+      }
+
+      // Manual /ingest endpoint: no jobId (allow re-ingestion for testing/backfill)
+      const job = await this.queueProducerService.enqueue(
+        QUEUE_NAMES.DATA_INGESTION,
+        INGESTION_JOB_NAMES.RULESET_INGESTION,
+        { rulesetId: ruleset.id, versionId: activeVersion.id },
+      );
+
+      this.logger.log(
+        `Manually enqueued ingestion job for ruleset "${key}" v${activeVersion.version} (jobId=${job.id})`,
+      );
+
+      return { jobId: job.id, versionId: activeVersion.id };
+    } catch (error) {
+      this.handleError(
+        error,
+        `enqueue ingestion for active version of ruleset "${key}"`,
       );
     }
-
-    const activeVersion =
-      await this.rulesetVersionRepository.findActiveByRulesetId(ruleset.id);
-    if (!activeVersion) {
-      throw new InternalServerErrorException(
-        this.i18n.t(RulesetsI18n.errors.RULESET_NO_ACTIVE_VERSION),
-      );
-    }
-
-    // Manual /ingest endpoint: no jobId (allow re-ingestion for testing/backfill)
-    const job = await this.queueProducerService.enqueue(
-      QUEUE_NAMES.DATA_INGESTION,
-      INGESTION_JOB_NAMES.RULESET_INGESTION,
-      { rulesetId: ruleset.id, versionId: activeVersion.id },
-    );
-
-    this.logger.log(
-      `Manually enqueued ingestion job for ruleset "${key}" v${activeVersion.version} (jobId=${job.id})`,
-    );
-
-    return { jobId: job.id, versionId: activeVersion.id };
   }
 
   private async enqueueIngestion(
@@ -402,7 +420,7 @@ export class RulesetsService {
     versionId: string,
     key: string,
     version: string,
-  ): Promise<void> {
+  ): Promise<IngestionStatus> {
     try {
       await this.queueProducerService.enqueue(
         QUEUE_NAMES.DATA_INGESTION,
@@ -413,12 +431,14 @@ export class RulesetsService {
       this.logger.log(
         `Enqueued ingestion job for ruleset "${key}" v${version} (versionId=${versionId})`,
       );
+      return 'enqueued';
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
         `Failed to enqueue ingestion job for ruleset "${key}" v${version}: ${message}. ` +
           `Use POST /rulesets/${key}/ingest to retry.`,
       );
+      return 'failed';
     }
   }
 

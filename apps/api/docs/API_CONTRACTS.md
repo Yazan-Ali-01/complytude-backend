@@ -554,7 +554,8 @@ All errors use `ErrorResponseDto`:
 | Code    | Type         | When to Use                        | DTO                      |
 | ------- | ------------ | ---------------------------------- | ------------------------ |
 | **200** | Success      | Successful GET, PUT, PATCH, DELETE | Resource DTO             |
-| **201** | Created      | Successful POST                    | Resource DTO             |
+| **201** | Created      | POST that creates a resource       | Resource DTO             |
+| **202** | Accepted     | POST that enqueues async work      | DTO with jobId, etc.     |
 | **400** | Bad Request  | Validation failed                  | `ValidationErrorDto`     |
 | **401** | Unauthorized | Missing/invalid authentication     | `UnauthorizedErrorDto`   |
 | **403** | Forbidden    | Insufficient permissions           | `ForbiddenErrorDto`      |
@@ -577,6 +578,21 @@ All errors use `ErrorResponseDto`:
 @ApiProtectedResponses() // 401, 403, 500
 async create(@Body() dto: CreateTemplateDto) { ... }
 ```
+
+For async endpoints (job enqueued, processing elsewhere):
+
+```typescript
+@Post(':key/ingest')
+@HttpCode(HttpStatus.ACCEPTED)
+@ApiResponse({
+  status: 202,
+  description: 'Ingestion job enqueued',
+  schema: { properties: { message: {}, jobId: {}, versionId: {} } },
+})
+async ingest(@Param() params: RulesetKeyParamDto) { ... }
+```
+
+For create/update responses that trigger background ingestion (e.g. ruleset create, version create, rollback), include `ingestionStatus: 'enqueued' | 'failed'` so callers know if the job was enqueued. Creation still succeeds on enqueue failure; use the manual ingest endpoint to retry.
 
 ---
 

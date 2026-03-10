@@ -1,4 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  INGESTION_STATUSES,
+  type IngestionStatus,
+} from '../constants/ingestion-status.constants';
 import { RulesetVersionResponseDto } from './ruleset-version-response.dto';
 
 /**
@@ -91,4 +95,12 @@ export class RulesetResponseDto extends RulesetSummaryResponseDto {
     type: RulesetVersionResponseDto,
   })
   currentVersionData: RulesetVersionResponseDto;
+
+  @ApiProperty({
+    description:
+      'Whether the ingestion job was enqueued. Only present on create/update responses that trigger ingestion.',
+    enum: INGESTION_STATUSES,
+    required: false,
+  })
+  ingestionStatus?: IngestionStatus;
 }

@@ -147,6 +147,7 @@ export class RulesetIngestionService {
   }
 
   private mapClauses(clauses: unknown[]): ClauseInput[] {
+    // Runtime guard: clauses comes from DB JSONB and can be null, undefined, or malformed
     if (!Array.isArray(clauses)) return [];
 
     const mapped = clauses

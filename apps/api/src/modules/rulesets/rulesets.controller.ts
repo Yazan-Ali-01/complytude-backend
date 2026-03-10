@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -35,6 +37,7 @@ import {
 import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
 import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
 import type { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
+import { IngestionStatus } from './constants/ingestion-status.constants';
 import {
   CreateRulesetDto,
   CreateRulesetVersionDto,
@@ -206,7 +209,7 @@ export class RulesetsController {
     @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
   ): Promise<RulesetResponseDto> {
     const result = await this.rulesetsService.create(dto, identity.userId);
-    return this.mapRulesetWithVersionToResponse(result);
+    return this.mapRulesetWithVersionToResponse(result, result.ingestionStatus);
   }
 
   @Patch(':key')
@@ -277,7 +280,7 @@ export class RulesetsController {
       dto,
       identity.userId,
     );
-    return this.mapVersionToResponse(version);
+    return this.mapVersionToResponse(version, version.ingestionStatus);
   }
 
   @Post(':key/versions/:version/rollback')
@@ -315,10 +318,11 @@ export class RulesetsController {
       dto.changelog,
       identity.userId,
     );
-    return this.mapVersionToResponse(version);
+    return this.mapVersionToResponse(version, version.ingestionStatus);
   }
 
   @Post(':key/ingest')
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -332,7 +336,7 @@ export class RulesetsController {
     example: 'dmcc_employment_rules_v1',
   })
   @ApiResponse({
-    status: 201,
+    status: 202,
     description: 'Ingestion job enqueued',
     schema: {
       type: 'object',
@@ -378,15 +382,18 @@ export class RulesetsController {
 
   private mapRulesetWithVersionToResponse(
     result: RulesetWithVersion,
+    ingestionStatus?: IngestionStatus,
   ): RulesetResponseDto {
     return {
       ...this.mapRulesetToSummary(result.ruleset),
       currentVersionData: this.mapVersionToResponse(result.currentVersionData),
+      ...(ingestionStatus !== undefined && { ingestionStatus }),
     };
   }
 
   private mapVersionToResponse(
     version: RulesetVersion,
+    ingestionStatus?: IngestionStatus,
   ): RulesetVersionResponseDto {
     return {
       id: version.id,
@@ -398,6 +405,7 @@ export class RulesetsController {
       isActive: version.isActive,
       createdBy: version.createdBy,
       createdAt: version.createdAt.toISOString(),
+      ...(ingestionStatus !== undefined && { ingestionStatus }),
     };
   }
 }
