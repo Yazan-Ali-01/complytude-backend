@@ -55,6 +55,30 @@ resource "aws_iam_role" "ecs_task" {
   }
 }
 
+# Textract access for document text extraction
+resource "aws_iam_role_policy" "ecs_textract" {
+  name = "textract-access"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "textract:DetectDocumentText",
+          "textract:AnalyzeDocument",
+          "textract:StartDocumentTextDetection",
+          "textract:StartDocumentAnalysis",
+          "textract:GetDocumentTextDetection",
+          "textract:GetDocumentAnalysis"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # S3 access for application (files, templates)
 resource "aws_iam_role_policy" "ecs_s3" {
   name = "s3-access"
