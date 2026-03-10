@@ -108,7 +108,16 @@ export async function createTestApp(
       const queues = queueNames.map((name) =>
         moduleRef.get<Queue>(getQueueToken(name)),
       );
+
+      // Grab the shared BullMQ Redis connection before closing queues
+      const sharedConnection = await queues[0].client;
+
       await Promise.all(queues.map((q) => q.close().catch(() => {})));
+
+      // Force-disconnect prevents ioredis retryStrategy from firing,
+      // which would keep the event loop alive and block Jest exit
+      sharedConnection.disconnect();
+
       await app.close();
     },
   };

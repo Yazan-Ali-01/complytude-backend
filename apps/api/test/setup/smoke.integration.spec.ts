@@ -39,7 +39,7 @@ describe('Smoke Test - Test Infrastructure', () => {
 
   it('truncate works', async () => {
     await app.databaseService.query(
-      `INSERT INTO public.tenants (name, plan) VALUES ('smoke-test-tenant', 'navigator')`,
+      `INSERT INTO public.tenants (name) VALUES ('smoke-test-tenant')`,
       [],
     );
     const before = await app.databaseService.query<{ count: string }>(

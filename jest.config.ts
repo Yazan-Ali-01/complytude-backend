@@ -1,5 +1,3 @@
-import type { Config } from 'jest';
-
 const swcTransformConfig = {
   jsc: {
     parser: {
@@ -24,21 +22,27 @@ const sharedProjectConfig = {
   },
   moduleNameMapper: {
     '^file-type$': '<rootDir>/test/mocks/file-type.mock.ts',
+    '^@nestjs/bullmq$':
+      '<rootDir>/../../node_modules/@nestjs/bullmq/dist/index.js',
     '^src/(.*)$': '<rootDir>/src/$1',
-    '^@lib/database$': '<rootDir>/../../libs/database/src',
+    '^@lib/database$': '<rootDir>/../../libs/database/src/index.ts',
     '^@lib/database/(.*)$': '<rootDir>/../../libs/database/src/$1',
-    '^@lib/queue$': '<rootDir>/../../libs/queue/src',
+    '^@lib/queue$': '<rootDir>/../../libs/queue/src/index.ts',
     '^@lib/queue/(.*)$': '<rootDir>/../../libs/queue/src/$1',
-    '^@lib/redis$': '<rootDir>/../../libs/redis/src',
+    '^@lib/redis$': '<rootDir>/../../libs/redis/src/index.ts',
     '^@lib/redis/(.*)$': '<rootDir>/../../libs/redis/src/$1',
-    '^@lib/embedding$': '<rootDir>/../../libs/embedding/src',
+    '^@lib/embedding$': '<rootDir>/../../libs/embedding/src/index.ts',
     '^@lib/embedding/(.*)$': '<rootDir>/../../libs/embedding/src/$1',
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
   testEnvironment: 'node',
 };
 
-const config: Config = {
+const skipIntegrationBootstrap =
+  process.env.JEST_SKIP_INTEGRATION_BOOTSTRAP === '1';
+
+const config = {
+  watchman: false,
   projects: [
     {
       ...sharedProjectConfig,
@@ -51,12 +55,27 @@ const config: Config = {
       ...sharedProjectConfig,
       displayName: 'integration',
       rootDir: '<rootDir>/apps/api',
+      roots: ['<rootDir>', '<rootDir>/../../libs'],
+      moduleDirectories: ['node_modules', '<rootDir>', '<rootDir>/../../libs'],
+      transform: {
+        '^.+\\.(t|j)s$': [
+          'ts-jest',
+          {
+            tsconfig: '<rootDir>/../../tsconfig.json',
+          },
+        ],
+      },
       testMatch: ['<rootDir>/**/*.integration.spec.ts'],
       // Runs via ts-node (package.json ts-node config). Required for .ts files outside Jest transform.
-      globalSetup: '<rootDir>/test/setup/global-setup.ts',
-      globalTeardown: '<rootDir>/test/setup/global-teardown.ts',
-      setupFiles: ['<rootDir>/test/setup/jest.setup.ts'],
-      testTimeout: 30000,
+      globalSetup: skipIntegrationBootstrap
+        ? undefined
+        : '<rootDir>/test/setup/global-setup.ts',
+      globalTeardown: skipIntegrationBootstrap
+        ? undefined
+        : '<rootDir>/test/setup/global-teardown.ts',
+      setupFiles: skipIntegrationBootstrap
+        ? []
+        : ['<rootDir>/test/setup/jest.setup.ts'],
       // Cap workers at 16 — each worker uses one Redis DB (0-15), Redis default limit
       maxWorkers: 16,
     },
