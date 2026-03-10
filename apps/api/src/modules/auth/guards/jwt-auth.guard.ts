@@ -46,7 +46,8 @@ export class JwtAuthGuard implements CanActivate {
     const i18n = I18nContext.current();
     if (authOptions?.tenant && !req.auth.tenant)
       throw new UnauthorizedException(
-        i18n?.t(AuthI18n.errors.TENANT_TOKEN_REQUIRED) ?? 'Tenant token required',
+        i18n?.t(AuthI18n.errors.TENANT_TOKEN_REQUIRED) ??
+          'Tenant token required',
       );
     if (authOptions?.identity && !req.auth.identity)
       throw new UnauthorizedException(
