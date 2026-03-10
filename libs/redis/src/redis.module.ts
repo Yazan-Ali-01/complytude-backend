@@ -48,6 +48,7 @@ export class RedisModule {
       db: config.db,
       tls: config.tls,
       keyPrefix: config.keyPrefix,
+      disableClientInfo: true,
       maxRetriesPerRequest: config.maxRetriesPerRequest,
       connectTimeout: config.connectTimeout,
       retryStrategy: (times) => {
