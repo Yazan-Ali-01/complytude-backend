@@ -24,8 +24,14 @@ process.env.DB_NAME = `test_w${workerId}`;
 
 process.env.REDIS_HOST = testConfig.redis.host;
 process.env.REDIS_PORT = String(testConfig.redis.port);
-// Use same Redis DB for cache and queue so one FLUSHDB clears both (required for resetTestState)
-const redisDb = (workerId - 1) * 2;
+// One Redis DB per worker. Cache and queue share the same DB so FLUSHDB clears both (resetTestState).
+// Redis default is 16 DBs (0-15) — jest.config.ts caps integration maxWorkers at 16.
+const redisDb = workerId - 1;
+if (redisDb < 0 || redisDb > 15) {
+  throw new Error(
+    `Jest worker ${workerId} → Redis DB ${redisDb} out of range (0-15). Ensure integration maxWorkers ≤ 16.`,
+  );
+}
 process.env.REDIS_DB = String(redisDb);
 process.env.REDIS_QUEUE_DB = String(redisDb);
 
