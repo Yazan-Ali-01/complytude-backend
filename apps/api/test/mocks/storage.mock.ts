@@ -1,17 +1,20 @@
-import { Readable } from 'stream';
-import type {
-  DownloadableFile,
-  FileWithMetadata,
-  PaginatedFileList,
-  UploadResult,
+import {
+  StorageService,
+  type DownloadableFile,
+  type FileWithMetadata,
+  type PaginatedFileList,
+  type UploadResult,
 } from 'src/modules/storage/storage.service';
+import { Readable } from 'stream';
 
-/**
- * Mock StorageService for integration tests — no S3, returns sensible defaults.
- */
-export class MockStorageService {
+type PublicApi<T> = Pick<T, keyof T>;
+
+export class MockStorageService implements PublicApi<StorageService> {
   normalizeFileName(filename: string): string {
-    return filename.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
+    return filename
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9._-]/g, '')
+      .toLowerCase();
   }
 
   async uploadFile(
@@ -90,7 +93,10 @@ export class MockStorageService {
     };
   }
 
-  async getTemplateFile(_templateId: string, _version: string): Promise<Readable> {
+  async getTemplateFile(
+    _templateId: string,
+    _version: string,
+  ): Promise<Readable> {
     return Readable.from(Buffer.from('mock'));
   }
 

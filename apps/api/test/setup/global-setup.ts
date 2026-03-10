@@ -1,14 +1,16 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
-import { GenericContainer } from 'testcontainers';
 import * as fs from 'fs';
-
-const TEST_CONFIG_PATH = '/tmp/complytude-test-config.json';
+import { GenericContainer } from 'testcontainers';
+import { TEST_CONFIG_PATH } from '../helpers/test-config';
 
 declare global {
-  // eslint-disable-next-line no-var
-  var __PG_CONTAINER__: Awaited<ReturnType<PostgreSqlContainer['start']>> | undefined;
-  // eslint-disable-next-line no-var
-  var __REDIS_CONTAINER__: Awaited<ReturnType<GenericContainer['start']>> | undefined;
+  var __PG_CONTAINER__:
+    | Awaited<ReturnType<PostgreSqlContainer['start']>>
+    | undefined;
+
+  var __REDIS_CONTAINER__:
+    | Awaited<ReturnType<GenericContainer['start']>>
+    | undefined;
 }
 
 /**
@@ -25,7 +27,8 @@ export default async function globalSetup(): Promise<void> {
   const startedPg = await pgContainer.start();
   globalThis.__PG_CONTAINER__ = startedPg;
 
-  // 2. Create app_user NOLOGIN role (required by grant migrations 002, 008, 010, 014)
+  // Roles are cluster-wide in PostgreSQL — creating in 'postgres' makes it available in all worker DBs
+  // Required by grant migrations 002, 008, 010, 014
   const createRoleSql = `DO $$ BEGIN CREATE ROLE app_user NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;
   const execResult = await startedPg.exec([
     'psql',
@@ -43,7 +46,9 @@ export default async function globalSetup(): Promise<void> {
   }
 
   // 3. Start Redis
-  const redisContainer = new GenericContainer('redis:7-alpine').withExposedPorts(6379);
+  const redisContainer = new GenericContainer(
+    'redis:7-alpine',
+  ).withExposedPorts(6379);
   const startedRedis = await redisContainer.start();
   globalThis.__REDIS_CONTAINER__ = startedRedis;
 

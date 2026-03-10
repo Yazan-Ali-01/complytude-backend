@@ -1,17 +1,15 @@
-import { Client } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Client } from 'pg';
+import { TEST_CONFIG_PATH, TestContainerConfig } from '../helpers/test-config';
 
-const TEST_CONFIG_PATH = '/tmp/complytude-test-config.json';
 // From apps/api/test/setup: ../../.. = project root when rootDir is apps/api
-const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../scripts/migrations');
+const MIGRATIONS_DIR = path.resolve(
+  __dirname,
+  '../../../../scripts/migrations',
+);
 
 let initialized = false;
-
-interface TestContainerConfig {
-  postgres: { host: string; port: number; user: string; password: string };
-  redis: { host: string; port: number };
-}
 
 /**
  * Ensures the worker-specific database exists and has all migrations applied.
@@ -47,7 +45,10 @@ export async function ensureWorkerDatabase(): Promise<void> {
   try {
     await adminClient.query(`CREATE DATABASE "${dbName}"`);
   } catch (err: unknown) {
-    const code = err && typeof err === 'object' && 'code' in err ? (err as { code: string }).code : '';
+    const code =
+      err && typeof err === 'object' && 'code' in err
+        ? (err as { code: string }).code
+        : '';
     if (code !== '42P04') {
       // 42P04 = duplicate_database
       throw err;
@@ -69,15 +70,6 @@ export async function ensureWorkerDatabase(): Promise<void> {
   await workerClient.connect();
 
   try {
-    // Create schema_migrations table (matches run-migrations.sh)
-    await workerClient.query(`
-      CREATE TABLE IF NOT EXISTS public.schema_migrations (
-        id SERIAL PRIMARY KEY,
-        migration_name VARCHAR(255) UNIQUE NOT NULL,
-        executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
     const migrationFiles = fs
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql'))

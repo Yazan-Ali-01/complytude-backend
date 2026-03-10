@@ -1,15 +1,13 @@
-import { getQueueToken } from '@nestjs/bullmq';
-import { AI_JOB_NAMES, QUEUE_NAMES } from '@lib/queue';
-import type { Queue } from 'bullmq';
-import { createTestApp } from './test-app.factory';
+import type { Queue } from '@lib/queue';
+import { AI_JOB_NAMES, QUEUE_NAMES, getQueueToken } from '@lib/queue';
 import { resetTestState } from '../helpers/redis-flush.helper';
+import { createTestApp } from './test-app.factory';
 
 describe('Smoke Test - Test Infrastructure', () => {
-  const testApp = createTestApp();
   let app: Awaited<ReturnType<typeof createTestApp>>;
 
   beforeAll(async () => {
-    app = await testApp;
+    app = await createTestApp();
   }, 60000);
 
   beforeEach(async () => {
@@ -18,13 +16,12 @@ describe('Smoke Test - Test Infrastructure', () => {
 
   afterAll(async () => {
     if (app) await app.cleanup();
-  });
+  }, 30000);
 
   it('DB connection works', async () => {
     const result = await app.databaseService.query<{ ok: number }>(
       'SELECT 1 as ok',
       [],
-      true,
     );
     expect(result.rows[0]?.ok).toBe(1);
   });
@@ -36,7 +33,6 @@ describe('Smoke Test - Test Infrastructure', () => {
         WHERE table_schema = 'public' AND table_name = 'tenants'
       ) as exists`,
       [],
-      true,
     );
     expect(result.rows[0]?.exists).toBe(true);
   });
@@ -45,12 +41,10 @@ describe('Smoke Test - Test Infrastructure', () => {
     await app.databaseService.query(
       `INSERT INTO public.tenants (name, plan) VALUES ('smoke-test-tenant', 'navigator')`,
       [],
-      true,
     );
     const before = await app.databaseService.query<{ count: string }>(
       'SELECT COUNT(*)::text as count FROM public.tenants WHERE name = $1',
       ['smoke-test-tenant'],
-      true,
     );
     expect(before.rows[0]?.count).toBe('1');
 
@@ -59,7 +53,6 @@ describe('Smoke Test - Test Infrastructure', () => {
     const after = await app.databaseService.query<{ count: string }>(
       'SELECT COUNT(*)::text as count FROM public.tenants',
       [],
-      true,
     );
     expect(after.rows[0]?.count).toBe('0');
   });
@@ -69,7 +62,6 @@ describe('Smoke Test - Test Infrastructure', () => {
     const result = await app.databaseService.query<{ count: string }>(
       'SELECT COUNT(*)::text as count FROM public.plans',
       [],
-      true,
     );
     expect(parseInt(result.rows[0]?.count ?? '0', 10)).toBeGreaterThan(0);
   });
@@ -78,24 +70,24 @@ describe('Smoke Test - Test Infrastructure', () => {
     const queryResult = await app.databaseService.query<{ n: number }>(
       'SELECT 42 as n',
       [],
-      true,
     );
     expect(queryResult.rows[0]?.n).toBe(42);
 
     const txResult = await app.databaseService.transaction(async (client) => {
       const r = await client.query<{ n: number }>('SELECT 99 as n');
       return r.rows[0]?.n ?? 0;
-    }, true);
+    });
     expect(txResult).toBe(99);
 
     const tenantId = '00000000-0000-0000-0000-000000000001';
-    const tenantTxResult = await app.databaseService.transactionWithTenantContext(
-      { tenantId },
-      async (client) => {
-        const r = await client.query<{ n: number }>('SELECT 123 as n');
-        return r.rows[0]?.n ?? 0;
-      },
-    );
+    const tenantTxResult =
+      await app.databaseService.transactionWithTenantContext(
+        { tenantId },
+        async (client) => {
+          const r = await client.query<{ n: number }>('SELECT 123 as n');
+          return r.rows[0]?.n ?? 0;
+        },
+      );
     expect(tenantTxResult).toBe(123);
   });
 

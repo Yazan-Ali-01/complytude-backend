@@ -1,18 +1,21 @@
 import path from 'path';
 import * as fs from 'fs';
 import { config } from 'dotenv';
-
-const TEST_CONFIG_PATH = '/tmp/complytude-test-config.json';
+import { TEST_CONFIG_PATH, TestContainerConfig } from '../helpers/test-config';
 
 // Load .env.test first (dotenv does not override existing process.env)
 config({ path: path.resolve(__dirname, '../../.env.test') });
 
 // Override with testcontainer config (written by globalSetup)
-const configJson = fs.readFileSync(TEST_CONFIG_PATH, 'utf-8');
-const testConfig = JSON.parse(configJson) as {
-  postgres: { host: string; port: number; user: string; password: string };
-  redis: { host: string; port: number };
-};
+let configJson: string;
+try {
+  configJson = fs.readFileSync(TEST_CONFIG_PATH, 'utf-8');
+} catch {
+  throw new Error(
+    `Test config not found at ${TEST_CONFIG_PATH}. Did globalSetup complete successfully? Ensure Docker is running.`,
+  );
+}
+const testConfig: TestContainerConfig = JSON.parse(configJson);
 
 const workerId = parseInt(process.env.JEST_WORKER_ID ?? '1', 10);
 

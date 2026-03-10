@@ -1,9 +1,8 @@
 import { DatabaseService } from '@lib/database';
 import { REDIS_CLIENT } from '@lib/redis/redis.constants';
 import { RedisService } from '@lib/redis';
-import { QUEUE_NAMES, QueueProducerService } from '@lib/queue';
-import { getQueueToken } from '@nestjs/bullmq';
-import type { Queue } from 'bullmq';
+import { QUEUE_NAMES, QueueProducerService, getQueueToken } from '@lib/queue';
+import type { Queue } from '@lib/queue';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   FastifyAdapter,
@@ -17,12 +16,18 @@ import { AuditService } from 'src/modules/audit/audit.service';
 import { MockStorageService } from '../mocks/storage.mock';
 import { ensureWorkerDatabase } from './worker-database.setup';
 
-const noOpAuditService = {
-  log: async (): Promise<void> => {},
-  getAuditLogs: async (): Promise<unknown> => [],
-  getUserAuditLogs: async (): Promise<unknown> => [],
-  countAuditLogs: async (): Promise<number> => 0,
-};
+class MockAuditService {
+  async log(): Promise<void> {}
+  async getAuditLogs(): Promise<unknown[]> {
+    return [];
+  }
+  async getUserAuditLogs(): Promise<unknown[]> {
+    return [];
+  }
+  async countAuditLogs(): Promise<number> {
+    return 0;
+  }
+}
 
 export interface TestApp {
   app: INestApplication;
@@ -56,7 +61,7 @@ export async function createTestApp(
     .overrideProvider(StorageService)
     .useClass(MockStorageService)
     .overrideProvider(AuditService)
-    .useValue(noOpAuditService);
+    .useClass(MockAuditService);
 
   for (const override of options?.providers ?? []) {
     if (override.useValue !== undefined) {
@@ -95,8 +100,6 @@ export async function createTestApp(
     redisClient,
     queueProducerService,
     cleanup: async () => {
-      // Explicitly close BullMQ queues and disconnect before app.close() to reduce shutdown race
-      // (BullMQ #3546 — use disconnect() instead of quit() to avoid "Connection is closed" errors)
       const queueNames = [
         QUEUE_NAMES.AI_PROCESSING,
         QUEUE_NAMES.DATA_INGESTION,
@@ -105,11 +108,7 @@ export async function createTestApp(
       const queues = queueNames.map((name) =>
         moduleRef.get<Queue>(getQueueToken(name)),
       );
-      const bullConnection = (queues[0] as Queue & { connection: Redis })
-        .connection;
       await Promise.all(queues.map((q) => q.close().catch(() => {})));
-      bullConnection.disconnect();
-      await new Promise((r) => setTimeout(r, 150));
       await app.close();
     },
   };

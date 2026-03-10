@@ -1,6 +1,5 @@
 import * as fs from 'fs';
-
-const TEST_CONFIG_PATH = '/tmp/complytude-test-config.json';
+import { TEST_CONFIG_PATH } from '../helpers/test-config';
 
 /**
  * Global teardown — runs once after all integration test workers finish.
@@ -9,8 +8,11 @@ const TEST_CONFIG_PATH = '/tmp/complytude-test-config.json';
  */
 export default async function globalTeardown(): Promise<void> {
   try {
-    const pgContainer = (globalThis as unknown as { __PG_CONTAINER__?: { stop: () => Promise<unknown> } })
-      .__PG_CONTAINER__;
+    const pgContainer = (
+      globalThis as unknown as {
+        __PG_CONTAINER__?: { stop: () => Promise<unknown> };
+      }
+    ).__PG_CONTAINER__;
     if (pgContainer) {
       await pgContainer.stop();
     }
@@ -19,8 +21,11 @@ export default async function globalTeardown(): Promise<void> {
   }
 
   try {
-    const redisContainer = (globalThis as unknown as { __REDIS_CONTAINER__?: { stop: () => Promise<unknown> } })
-      .__REDIS_CONTAINER__;
+    const redisContainer = (
+      globalThis as unknown as {
+        __REDIS_CONTAINER__?: { stop: () => Promise<unknown> };
+      }
+    ).__REDIS_CONTAINER__;
     if (redisContainer) {
       await redisContainer.stop();
     }
