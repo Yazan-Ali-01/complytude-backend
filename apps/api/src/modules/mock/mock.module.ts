@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../../database/database.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { CreditsMockController } from './credits-mock.controller';
 import { DomainEventsMockController } from './domain-events-mock.controller';
@@ -8,7 +7,6 @@ import { EntitlementsMockController } from './entitlements-mock.controller';
 import { QueueTestMockController } from './queue-test-mock.controller';
 import { RbacMockController } from './rbac-mock.controller';
 import { SnapshotMockController } from './snapshot-mock.controller';
-import { StorageService } from './storage-mock.service';
 import { UsageMockController } from './usage-mock.controller';
 
 /**
@@ -39,8 +37,6 @@ import { UsageMockController } from './usage-mock.controller';
     SnapshotMockController,
     QueueTestMockController,
   ],
-  providers: [StorageService],
-  exports: [StorageService],
-  imports: [SubscriptionsModule, DatabaseModule],
+  imports: [SubscriptionsModule],
 })
 export class MockModule {}

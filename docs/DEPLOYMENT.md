@@ -29,8 +29,10 @@ Complytude is a **NestJS monorepo** with multiple applications and shared librar
 
 | Library | Path | Purpose |
 |---------|------|---------|
+| **Database** | `libs/database` | PostgreSQL connection, service, base repository |
+| **Embedding** | `libs/embedding` | OpenAI embedding + text chunking services |
+| **Queue** | `libs/queue` | BullMQ queue definitions and producers |
 | **Redis** | `libs/redis` | Redis connection and configuration |
-| **Queue** | `libs/queue` | BullMQ queue definitions and processors |
 
 ### Infrastructure Services
 

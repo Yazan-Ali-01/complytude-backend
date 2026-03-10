@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Body,
@@ -8,7 +9,6 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { DatabaseService } from '../../database/database.service';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
@@ -428,7 +428,7 @@ export class DomainEventsMockController {
 
         // Find the event that matches our usage event
         const matchingEvent = domainEvents.find((e) => {
-          const payload = e.payload as any;
+          const payload = e.payload as { usage_event_id?: string };
           return payload.usage_event_id === usageEvent.id;
         });
 

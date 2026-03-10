@@ -83,7 +83,7 @@ export class TemplateFieldItemDto {
     description: 'Default field value',
   })
   @IsOptional()
-  default_value?: any;
+  default_value?: unknown;
 
   @ApiPropertyOptional({
     example: 'Enter employee full name',

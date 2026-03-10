@@ -1,7 +1,7 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
-import { I18nKeys } from '../../../common/constants';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import {
   AddonCatalogDetailResponseDto,
   AddonCatalogResponseDto,
@@ -66,7 +66,9 @@ export class AddonCatalogController {
     const addon = await this.tenantAddonsService.getCatalogByKey(key);
 
     if (!addon) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.ADDON_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+      );
     }
     return mapAddonToCatalogDetailDto(addon);
   }

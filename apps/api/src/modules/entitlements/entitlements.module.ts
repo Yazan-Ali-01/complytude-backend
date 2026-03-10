@@ -1,5 +1,4 @@
 import { Global, Module } from '@nestjs/common';
-import { DatabaseModule } from 'src/database/database.module';
 import { CreditLedgerRepository } from 'src/repositories/credits/credit-ledger.repository';
 import { DomainEventsRepository } from 'src/repositories/domain-events/domain-events.repository';
 import { PlanEntitlementsRepository } from 'src/repositories/entitlements/plan-entitlements.repository';
@@ -8,7 +7,6 @@ import { TenantOverridesRepository } from 'src/repositories/entitlements/tenant-
 import { FeaturesRepository } from 'src/repositories/features/features.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
-import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from 'src/repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from 'src/repositories/usage/usage-ledger.repository';
@@ -53,7 +51,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
  */
 @Global()
 @Module({
-  imports: [DatabaseModule, I18nModule],
+  imports: [I18nModule],
   controllers: [
     EntitlementsController,
     AddonCatalogController,
@@ -101,9 +99,6 @@ import { UsageProjectionService } from './services/usage-projection.service';
     CreditLedgerRepository,
     EntitlementSnapshotsRepository,
     DomainEventsRepository,
-
-    // Tenant repository (needed by resolver)
-    TenantRepository,
   ],
   exports: [
     // Services

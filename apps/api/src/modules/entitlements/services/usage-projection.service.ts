@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   AggregatedUsage,
   FeatureKey,
-  UsageSource,
+  IncrementUsageInput,
 } from '../../../common/types/entitlement.types';
 import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from '../../../repositories/usage/usage-allocations.repository';
@@ -37,47 +37,25 @@ export class UsageProjectionService {
     private readonly usageAllocationsRepository: UsageAllocationsRepository,
   ) {}
 
-  /**
-   * Atomically increment usage counters for a feature with multi-source allocations
-   *
-   * Called by ProjectionUpdateHandler when processing PROJECTION_UPDATE jobs.
-   * Also used by EntitlementEnforcementService sync fallback when BullMQ is unavailable.
-   *
-   * Using subscription_id ensures:
-   * - Each billing period gets its own projection (unambiguous)
-   * - Quota enforcement checks the correct subscription
-   * - Works for any billing cycle (monthly, yearly, custom)
-   *
-   * @param tenantId - Tenant ID
-   * @param subscriptionId - Subscription ID (source of truth for billing period)
-   * @param featureId - Feature UUID
-   * @param billingPeriod - Billing period (YYYY-MM format, for analytics)
-   * @param allocations - Array of { source, units } allocations
-   * @param options - Query options (client for transactions)
-   * @returns Updated aggregated usage
-   */
   async incrementUsage(
-    tenantId: string,
-    subscriptionId: string,
-    featureId: string,
-    billingPeriod: string,
-    allocations: Array<{
-      source: Exclude<UsageSource, 'mixed'>;
-      units: number;
-    }>,
+    input: IncrementUsageInput,
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
+    const { tenantId, subscriptionId, featureId, billingPeriod, allocations } =
+      input;
     const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
     this.logger.debug(
       `Incrementing usage: tenant=${tenantId}, subscription=${subscriptionId}, feature=${featureId}, period=${billingPeriod}, units=${totalUnits}, allocations=${JSON.stringify(allocations)}`,
     );
 
     return this.aggregatedUsageRepository.increment(
-      tenantId,
-      subscriptionId,
-      featureId,
-      billingPeriod,
-      allocations,
+      {
+        tenantId,
+        subscriptionId,
+        featureId,
+        billingPeriod,
+        allocations,
+      },
       options,
     );
   }

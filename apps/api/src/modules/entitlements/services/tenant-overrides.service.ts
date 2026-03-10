@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Injectable,
@@ -8,16 +9,15 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { I18nKeys } from '../../../common/constants/i18n-keys';
 import { getFeatureStorageType } from '../../../common/constants/plan-entitlements.constant';
 import {
   TenantOverride,
   UpdateTenantOverrideRow,
 } from '../../../common/types/entitlement.types';
-import { DatabaseService } from '../../../database/database.service';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { ServiceCallOptions } from '../../tenants/tenant.service';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import {
   ApplyOverrideDto,
   OverrideValueValidationDto,
@@ -64,7 +64,7 @@ export class TenantOverridesService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: context.canManageSettings ?? false },
+      { tenantId, isTenantAdmin: true },
       (client) =>
         this.tenantOverridesRepository.findActiveByTenant(tenantId, { client }),
     );
@@ -114,7 +114,7 @@ export class TenantOverridesService {
     });
     if (!feature) {
       throw new NotFoundException(
-        this.i18n.t(I18nKeys.OVERRIDE_FEATURE_NOT_FOUND, {
+        this.i18n.t(EntitlementsI18n.errors.OVERRIDE_FEATURE_NOT_FOUND, {
           args: { featureKey: dto.featureKey },
         }),
       );
@@ -206,7 +206,9 @@ export class TenantOverridesService {
       .then((overrides) => overrides.find((o) => o.id === overrideId));
 
     if (!existing) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.OVERRIDE_NOT_FOUND),
+      );
     }
 
     if (dto.value !== undefined) {
@@ -258,7 +260,9 @@ export class TenantOverridesService {
     const updated = enriched.find((o) => o.id === overrideId);
 
     if (!updated) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.OVERRIDE_NOT_FOUND),
+      );
     }
 
     this.logger.log(
@@ -302,7 +306,9 @@ export class TenantOverridesService {
       { client },
     );
     if (!overrides.some((o) => o.id === overrideId)) {
-      throw new NotFoundException(this.i18n.t(I18nKeys.OVERRIDE_NOT_FOUND));
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.OVERRIDE_NOT_FOUND),
+      );
     }
 
     await this.tenantOverridesRepository.update(

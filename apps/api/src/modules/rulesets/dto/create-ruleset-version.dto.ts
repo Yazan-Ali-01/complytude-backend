@@ -65,5 +65,5 @@ export class CreateRulesetVersionDto {
   })
   @IsObject()
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }

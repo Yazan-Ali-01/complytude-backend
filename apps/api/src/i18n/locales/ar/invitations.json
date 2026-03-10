@@ -1,0 +1,21 @@
+{
+  "errors": {
+    "INVITATION_NOT_FOUND": "الدعوة غير موجودة",
+    "INVITATION_NOT_FOUND_OR_EXPIRED": "الدعوة غير موجودة أو منتهية الصلاحية",
+    "INVITATION_EXPIRED": "انتهت صلاحية الدعوة",
+    "INVITATION_WRONG_STATUS": "الدعوة {status} ولا يمكن {action}",
+    "INVITATION_EMAIL_MISMATCH": "هذه الدعوة ليست لعنوان بريدك الإلكتروني",
+    "INVITATION_ALREADY_EXISTS": "يوجد دعوة معلقة بالفعل لهذا البريد الإلكتروني",
+    "USER_ALREADY_MEMBER": "المستخدم عضو بالفعل في هذه المؤسسة",
+    "INVITATION_WRONG_TENANT": "الدعوة لا تنتمي إلى هذه المؤسسة",
+    "CAN_ONLY_RESEND_PENDING": "يمكن فقط إعادة إرسال الدعوات المعلقة",
+    "TENANT_NOT_FOUND": "المؤسسة غير موجودة",
+    "INVITER_NOT_FOUND": "المُدعي غير موجود"
+  },
+  "messages": {
+    "ACCEPTED_SUCCESSFULLY": "تم قبول الدعوة بنجاح",
+    "ALREADY_MEMBER_REACTIVATED": "أنت بالفعل عضو في هذه المؤسسة. تم إعادة تفعيل عضويتك.",
+    "REJECTED_SUCCESSFULLY": "تم رفض الدعوة بنجاح",
+    "REVOKED_SUCCESSFULLY": "تم إلغاء الدعوة بنجاح"
+  }
+}

@@ -4,6 +4,7 @@ import type {
   SubscriptionStatus,
   TenantSubscription,
 } from 'src/common/types/entitlement.types';
+import { SUBSCRIPTION_STATUSES } from '../../../common/constants/entitlement-constants';
 
 /**
  * Subscription Response DTO
@@ -31,7 +32,7 @@ export class SubscriptionResponseDto {
 
   @ApiProperty({
     description: 'Subscription status',
-    enum: ['active', 'cancelled', 'past_due', 'trialing'],
+    enum: SUBSCRIPTION_STATUSES,
     example: 'active',
   })
   status: SubscriptionStatus;
@@ -71,7 +72,7 @@ export class SubscriptionResponseDto {
     description: 'Additional metadata',
     example: {},
   })
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'Creation date',

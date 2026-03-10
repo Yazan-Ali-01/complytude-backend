@@ -473,10 +473,10 @@ export class ResourceIdParamDto {
 
 ## Response Status Codes
 
-| Method    | Success | Error Scenarios         |
-| --------- | ------- | ----------------------- |
-| GET       | 200     | 401, 403, 404, 500      |
-| POST      | 201     | 400, 401, 403, 409, 500 |
+| Method    | Success    | Error Scenarios         |
+| --------- | ---------- | ----------------------- |
+| GET       | 200        | 401, 403, 404, 500      |
+| POST      | 201 or 202 | 400, 401, 403, 409, 500 |
 | PUT/PATCH | 200     | 400, 401, 403, 404, 500 |
 | DELETE    | 200     | 401, 403, 404, 500      |
 

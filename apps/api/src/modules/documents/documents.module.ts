@@ -1,23 +1,13 @@
+import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
+import { DocumentRepository } from 'src/repositories/documents/document.repository';
 import { Module } from '@nestjs/common';
-// import { DocumentsController } from './documents.controller';
+import { AnalysisJobsController } from './analysis-jobs.controller';
+import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 
-/**
- * Documents Module
- *
- * Handles document preview, generation, listing, retrieval, and soft-deletion.
- *
- * This module is currently in contract-only mode with stub service implementations.
- * Business logic will be added in the implementation phase.
- */
 @Module({
-  imports: [
-    // DatabaseModule will be added during implementation
-    // StorageModule will be added during implementation
-    // TemplatesModule will be added during implementation
-  ],
-  controllers: [],
-  providers: [DocumentsService],
+  controllers: [DocumentsController, AnalysisJobsController],
+  providers: [DocumentsService, DocumentRepository, AnalysisJobRepository],
   exports: [DocumentsService],
 })
 export class DocumentsModule {}

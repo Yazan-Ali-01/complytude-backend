@@ -35,6 +35,30 @@ export interface CursorPaginationResult<T> {
 }
 
 /**
+ * Options for offset-based pagination queries.
+ */
+export interface OffsetPaginationOptions {
+  page: number;
+  limit: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Response structure for offset-based pagination.
+ * Includes total count and page navigation metadata.
+ */
+export interface OffsetPaginationResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+/**
  * Options that control how queries are executed.
  * - client: existing PoolClient for transactional flow.
  * - tenant: tenant context to set search_path and RLS variables.

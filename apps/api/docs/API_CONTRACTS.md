@@ -2,7 +2,7 @@
 
 > **Purpose:** Define standards and conventions for API contract definition across all modules
 
-**Last Updated:** February 23, 2026
+**Last Updated:** March 10, 2026
 **Status:** Foundation Complete
 
 ---
@@ -10,6 +10,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [API Versioning](#api-versioning)
 - [Authentication Strategy](#authentication-strategy)
 - [Request Contracts](#request-contracts)
 - [Response Contracts](#response-contracts)
@@ -36,6 +37,166 @@ This document defines the standards for API contract definition in the Complytud
 2. **Explicit Over Implicit** - Every field, constraint, and response must be documented
 3. **Standard Errors** - Use consistent error response shapes
 4. **No Business Logic** - Controllers are thin routing layers only
+
+---
+
+## API Versioning
+
+### Overview
+
+The API uses **URI-based versioning** to provide a clear, explicit versioning strategy. All API endpoints are prefixed with a version identifier.
+
+**Current Version:** `v1`
+
+### URL Structure
+
+```
+https://api.complytude.com/api/v1/{resource}
+```
+
+**Examples:**
+
+```
+POST   /api/v1/auth/login
+GET    /api/v1/users/profile
+POST   /api/v1/documents
+GET    /api/v1/tenants
+```
+
+### Version-Neutral Endpoints
+
+Some endpoints are **version-neutral** and do not include the version prefix:
+
+| Endpoint         | Purpose               | Reason                                      |
+| ---------------- | --------------------- | ------------------------------------------- |
+| `/health`        | Health check          | Infrastructure endpoint, stable contract    |
+| `/health/db`     | Database health       | Infrastructure endpoint, stable contract    |
+| `/health/redis`  | Redis health          | Infrastructure endpoint, stable contract    |
+| `/health/queues` | Queue health          | Infrastructure endpoint, stable contract    |
+| `/docs`          | Swagger documentation | Documentation always reflects current state |
+| `/admin/queues`  | Bull Board dashboard  | Admin tool, not part of public API          |
+| `/api/` (root)   | API root              | Simple welcome/info endpoint                |
+
+### Default Versioning Behavior
+
+- **Default Version:** All controllers without explicit version configuration automatically use `v1`
+- **No Migration Needed:** Existing controllers are automatically versioned as `v1` without code changes
+
+### Controller Versioning
+
+#### Standard Versioned Controller (Default Behavior)
+
+Most controllers automatically use version `v1`:
+
+```typescript
+@Controller('users')
+export class UsersController {
+  // Accessible at /api/v1/users
+}
+```
+
+#### Version-Neutral Controller
+
+For infrastructure or admin endpoints:
+
+```typescript
+import { Controller, VERSION_NEUTRAL } from '@nestjs/common';
+
+@Controller({ path: 'health', version: VERSION_NEUTRAL })
+export class HealthController {
+  // Accessible at /health (no version prefix)
+}
+```
+
+#### Explicit Version Controller
+
+For future versioning (when v2 is needed):
+
+```typescript
+@Controller({ path: 'users', version: '2' })
+export class UsersV2Controller {
+  // Accessible at /api/v2/users
+}
+```
+
+### Method-Level Versioning
+
+You can also version individual methods within a controller:
+
+```typescript
+import { Controller, Get, Version } from '@nestjs/common';
+
+@Controller('users')
+export class UsersController {
+  @Get()
+  @Version('1')
+  getUsersV1() {
+    // Accessible at /api/v1/users
+  }
+
+  @Get()
+  @Version('2')
+  getUsersV2() {
+    // Accessible at /api/v2/users
+  }
+}
+```
+
+### Future Versioning Strategy
+
+When breaking changes are needed:
+
+1. **Create a new controller** for the new version (e.g., `UsersV2Controller`)
+2. **Keep the old controller** active for backward compatibility
+3. **Document deprecation** in Swagger annotations
+4. **Set sunset date** for old version
+5. **Remove old version** after sunset period (in production)
+
+**Example:**
+
+```typescript
+// apps/api/src/modules/users/users-v1.controller.ts
+@Controller({ path: 'users', version: '1' })
+@ApiDeprecated('Use /api/v2/users instead. Sunset date: 2027-01-01')
+export class UsersV1Controller { ... }
+
+// apps/api/src/modules/users/users-v2.controller.ts
+@Controller({ path: 'users', version: '2' })
+export class UsersV2Controller { ... }
+```
+
+### Best Practices
+
+1. **Default Version:** Let controllers use the default version unless you need explicit control
+2. **Version-Neutral Sparingly:** Only use for true infrastructure endpoints
+3. **Document Versions:** Always note the version in Swagger `@ApiTags`
+4. **Batch Changes:** When creating v2, make all breaking changes at once
+5. **Test Both Versions:** Ensure v1 and v2 coexist without conflicts during transition
+
+### Configuration
+
+Versioning is configured in `apps/api/src/main.ts` using both a global prefix and URI versioning:
+
+```typescript
+// Global prefix for all routes, excluding infrastructure endpoints
+app.setGlobalPrefix(apiPrefix, {
+  exclude: [
+    { path: 'health/(.*)', method: RequestMethod.ALL },
+    { path: 'health', method: RequestMethod.ALL },
+  ],
+});
+
+// URI-based versioning (/api/v1/...)
+app.enableVersioning({
+  type: VersioningType.URI,
+  defaultVersion: '1',
+  prefix: 'v',
+});
+```
+
+- `setGlobalPrefix` adds the `/api` prefix to all business routes while excluding infrastructure endpoints (health checks)
+- `enableVersioning` adds the `/v1` version segment after the global prefix
+- Combined result: `/api/v1/{resource}` for business endpoints, `/health` for infrastructure
 
 ---
 
@@ -92,12 +253,12 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
 
 ### Endpoint Authentication
 
-| Decorator | When to Use | Status Codes |
-|-----------|-------------|--------------|
-| No decorator | Public endpoints (no auth required) | - |
-| `@AuthOptions({ identity: true })` | Identity-based auth (tenant selection, platform operations) | 401 if unauthenticated |
-| `@AuthOptions({ tenant: true })` | Tenant-scoped endpoints (tenant operations) | 401 if unauthenticated |
-| `@AuthOptions({ identity: true, tenant: true })` | Requires both identity and tenant tokens | 401 if unauthenticated |
+| Decorator                                        | When to Use                                                 | Status Codes           |
+| ------------------------------------------------ | ----------------------------------------------------------- | ---------------------- |
+| No decorator                                     | Public endpoints (no auth required)                         | -                      |
+| `@AuthOptions({ identity: true })`               | Identity-based auth (tenant selection, platform operations) | 401 if unauthenticated |
+| `@AuthOptions({ tenant: true })`                 | Tenant-scoped endpoints (tenant operations)                 | 401 if unauthenticated |
+| `@AuthOptions({ identity: true, tenant: true })` | Requires both identity and tenant tokens                    | 401 if unauthenticated |
 
 ### Authorization Guards
 
@@ -105,20 +266,21 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
 
 **Tenant RBAC (Tenant-Scoped Operations):**
 
-| Guard + Decorator | When to Use | Example |
-|-------------------|-------------|---------|
-| `TenantPermissionsGuard` + `@RequireAnyTenantPermission()` | Permission-based access within tenant | `@RequireAnyTenantPermission('documents:create')` |
+| Guard + Decorator                                           | When to Use                               | Example                                                              |
+| ----------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------- |
+| `TenantPermissionsGuard` + `@RequireAnyTenantPermission()`  | Permission-based access within tenant     | `@RequireAnyTenantPermission('documents:create')`                    |
 | `TenantPermissionsGuard` + `@RequireAllTenantPermissions()` | Multiple permissions required (AND logic) | `@RequireAllTenantPermissions('documents:read', 'documents:delete')` |
-| `RolesGuard` + `@Roles()` | Simple role check | `@Roles('tenant_admin')` |
+| `RolesGuard` + `@Roles()`                                   | Simple role check                         | `@Roles('tenant_admin')`                                             |
 
 **Platform RBAC (Platform-Wide Operations):**
 
-| Guard + Decorator | When to Use | Example |
-|-------------------|-------------|---------|
-| `PlatformPermissionsGuard` + `@RequireAnyPlatformPermission()` | Platform permission check | `@RequireAnyPlatformPermission('tenants:create')` |
+| Guard + Decorator                                               | When to Use                               | Example                                                        |
+| --------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------- |
+| `PlatformPermissionsGuard` + `@RequireAnyPlatformPermission()`  | Platform permission check                 | `@RequireAnyPlatformPermission('tenants:create')`              |
 | `PlatformPermissionsGuard` + `@RequireAllPlatformPermissions()` | Multiple platform permissions (AND logic) | `@RequireAllPlatformPermissions('tenants:read', 'users:read')` |
 
 **Status Codes:**
+
 - `401 Unauthorized` - Missing or invalid authentication token
 - `403 Forbidden` - Insufficient permissions for the operation
 
@@ -392,7 +554,8 @@ All errors use `ErrorResponseDto`:
 | Code    | Type         | When to Use                        | DTO                      |
 | ------- | ------------ | ---------------------------------- | ------------------------ |
 | **200** | Success      | Successful GET, PUT, PATCH, DELETE | Resource DTO             |
-| **201** | Created      | Successful POST                    | Resource DTO             |
+| **201** | Created      | POST that creates a resource       | Resource DTO             |
+| **202** | Accepted     | POST that enqueues async work      | DTO with jobId, etc.     |
 | **400** | Bad Request  | Validation failed                  | `ValidationErrorDto`     |
 | **401** | Unauthorized | Missing/invalid authentication     | `UnauthorizedErrorDto`   |
 | **403** | Forbidden    | Insufficient permissions           | `ForbiddenErrorDto`      |
@@ -415,6 +578,21 @@ All errors use `ErrorResponseDto`:
 @ApiProtectedResponses() // 401, 403, 500
 async create(@Body() dto: CreateTemplateDto) { ... }
 ```
+
+For async endpoints (job enqueued, processing elsewhere):
+
+```typescript
+@Post(':key/ingest')
+@HttpCode(HttpStatus.ACCEPTED)
+@ApiResponse({
+  status: 202,
+  description: 'Ingestion job enqueued',
+  schema: { properties: { message: {}, jobId: {}, versionId: {} } },
+})
+async ingest(@Param() params: RulesetKeyParamDto) { ... }
+```
+
+For create/update responses that trigger background ingestion (e.g. ruleset create, version create, rollback), include `ingestionStatus: 'enqueued' | 'failed'` so callers know if the job was enqueued. Creation still succeeds on enqueue failure; use the manual ingest endpoint to retry.
 
 ---
 

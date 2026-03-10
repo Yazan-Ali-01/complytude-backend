@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Body,
@@ -7,12 +8,13 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { FastifyRequest } from 'fastify';
+import type { EntitlementCheckResult } from 'src/common/types/entitlement.types';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { TrackUsage } from 'src/common/decorators/track-usage.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import { UsageEnforcementGuard } from 'src/common/guards/usage-enforcement.guard';
-import { DatabaseService } from '../../database/database.service';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
@@ -154,7 +156,7 @@ export class EnforcementMockController {
   })
   testDocumentGenerationViaGuard(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     // UsageEnforcementGuard attaches usageResult to request on success
     const usageResult = request.usageResult;
@@ -194,7 +196,7 @@ export class EnforcementMockController {
   })
   testDocumentGenerationWithCreditsViaGuard(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     const usageResult = request.usageResult;
 
@@ -235,7 +237,7 @@ export class EnforcementMockController {
   })
   testBulkDocumentGenerationViaGuard(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     const usageResult = request.usageResult;
 
@@ -276,7 +278,7 @@ export class EnforcementMockController {
   })
   testCombinedGuards(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     const usageResult = request.usageResult;
 
@@ -315,7 +317,7 @@ export class EnforcementMockController {
   })
   testNonCreditableQuotaViaGuard(
     @CurrentUserTenant() user: AuthenticatedTenantUser,
-    @Req() request: any,
+    @Req() request: FastifyRequest & { usageResult: EntitlementCheckResult },
   ) {
     const usageResult = request.usageResult;
 
@@ -448,14 +450,14 @@ export class EnforcementMockController {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
-    const transaction = await this.creditLedgerService.purchase(
-      user.tenantId,
+    const transaction = await this.creditLedgerService.purchase({
+      tenantId: user.tenantId,
       amount,
-      {
+      metadata: {
         test_scenario: 'debug_purchase',
         user_id: user.userId,
       },
-    );
+    });
 
     const newBalance = await this.creditBalanceService.getAvailableBalance(
       user.tenantId,

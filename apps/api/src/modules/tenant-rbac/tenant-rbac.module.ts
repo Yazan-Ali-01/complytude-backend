@@ -1,6 +1,5 @@
 import { Global, Module } from '@nestjs/common';
 import { TenantPermissionsGuard } from '../../common/guards/tenant-permissions.guard';
-import { DatabaseModule } from '../../database/database.module';
 import { TenantPermissionsRepository } from '../../repositories/tenant-rbac/tenant-permissions.repository';
 import { TenantRolesRepository } from '../../repositories/tenant-rbac/tenant-roles.repository';
 import { TenantRbacSyncService } from './tenant-rbac-sync.service';
@@ -30,7 +29,7 @@ import { TenantRbacService } from './tenant-rbac.service';
  */
 @Global()
 @Module({
-  imports: [DatabaseModule],
+  imports: [],
   providers: [
     TenantRbacService,
     TenantRbacSyncService,

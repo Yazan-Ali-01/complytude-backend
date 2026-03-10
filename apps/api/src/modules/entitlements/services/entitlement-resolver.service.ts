@@ -1,4 +1,4 @@
-import { QueryOptions } from '@lib/database';
+import { DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -13,10 +13,9 @@ import {
   PlanKey,
   ResolvedEntitlements,
 } from '../../../common/types/entitlement.types';
-import { DatabaseService } from '../../../database/database.service';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
-import { TenantRepository } from '../../../repositories/tenants/tenant.repository';
+import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
 /**
@@ -44,7 +43,7 @@ export class EntitlementResolverService {
 
   constructor(
     private readonly databaseService: DatabaseService,
-    private readonly tenantRepository: TenantRepository,
+    private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
     private readonly snapshotService: EntitlementSnapshotService,
@@ -209,15 +208,24 @@ export class EntitlementResolverService {
     options?: QueryOptions,
   ): Promise<{ entitlements: ResolvedEntitlements; plan: PlanKey }> {
     const execute = async (client: PoolClient) => {
-      const tenant = await this.tenantRepository.findById(tenantId, {
-        client,
-      });
-      if (!tenant) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
+      const subscription =
+        await this.subscriptionsRepository.findActiveByTenantWithPlan(
+          tenantId,
+          { client },
+        );
+      if (!subscription) {
+        throw new NotFoundException(
+          `No active subscription found for tenant ${tenantId}`,
+        );
       }
-
+      if (!subscription.plan) {
+        throw new NotFoundException(
+          `Plan data missing for active subscription of tenant ${tenantId}`,
+        );
+      }
       // Get all plan entitlements (in-memory)
-      const planEntitlements = getAllPlanEntitlements(tenant.plan);
+      const planKey = subscription.plan.key;
+      const planEntitlements = getAllPlanEntitlements(planKey);
       const resolved: ResolvedEntitlements = {} as ResolvedEntitlements;
 
       // Convert plan entitlements to EffectiveEntitlement format
@@ -299,7 +307,7 @@ export class EntitlementResolverService {
         };
       }
 
-      return { entitlements: resolved, plan: tenant.plan };
+      return { entitlements: resolved, plan: planKey };
     };
 
     if (options?.client) {

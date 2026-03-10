@@ -10,7 +10,8 @@ import {
 import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
 import { EntitlementEnforcementService } from '../../modules/entitlements/services/entitlement-enforcement.service';
-import { I18nKeys } from '../constants/i18n-keys';
+import { EntitlementsI18n } from '../../modules/entitlements/constants/i18n.constants';
+import { CommonI18n } from '../constants/i18n.constants';
 import {
   TRACK_USAGE_KEY,
   TrackUsageOptions,
@@ -76,7 +77,7 @@ export class UsageEnforcementGuard implements CanActivate {
     // Ensure tenant context is available
     if (!tenant || !tenant.tenantId) {
       throw new UnauthorizedException(
-        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+        i18n?.t(CommonI18n.errors.UNAUTHORIZED) ?? 'Unauthorized',
       );
     }
 
@@ -85,16 +86,16 @@ export class UsageEnforcementGuard implements CanActivate {
     const { featureKey, units } = trackUsageOptions;
 
     // Check entitlement and record usage
-    const result = await this.enforcementService.checkAndRecord(
+    const result = await this.enforcementService.checkAndRecord({
       tenantId,
       featureKey,
       userId,
       units,
-      {
+      metadata: {
         endpoint: request.url,
         method: request.method,
       },
-    );
+    });
 
     // If allowed, attach result to request and proceed
     if (result.allowed) {
@@ -116,7 +117,10 @@ export class UsageEnforcementGuard implements CanActivate {
     throw new HttpException(
       {
         statusCode: HttpStatus.PAYMENT_REQUIRED,
-        message: `Quota exceeded for ${featureKey}`,
+        message:
+          i18n?.t(EntitlementsI18n.errors.QUOTA_EXCEEDED, {
+            args: { featureKey },
+          }) ?? `Quota exceeded for ${featureKey}`,
         feature: featureKey,
         limit: result.limit,
         used: result.used,

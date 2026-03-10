@@ -7,16 +7,16 @@
  * Pattern follows tenant-system-roles.constant.ts (RBAC system).
  */
 
-import { FeatureKey, FeatureType, PlanKey } from '../types/entitlement.types';
+import { FeatureType } from '../constants/entitlement-constants';
 
 // =========================
 // FEATURE DEFINITIONS
 // =========================
 
-export type FeatureStorageType = 'bool' | 'int' | 'text';
+export const FEATURE_STORAGE_TYPES = ['bool', 'int', 'text'] as const;
+export type FeatureStorageType = (typeof FEATURE_STORAGE_TYPES)[number];
 
-export interface FeatureDefinition {
-  key: FeatureKey;
+export interface FeatureCatalogEntry {
   name: string;
   feature_type: FeatureType;
   /**
@@ -35,9 +35,8 @@ export interface FeatureDefinition {
  * Complete feature catalog (source of truth).
  * Synced to public.features table on app startup.
  */
-export const ALL_FEATURES: FeatureDefinition[] = [
-  {
-    key: 'documents_per_month',
+export const FEATURE_CATALOG = {
+  documents_per_month: {
     name: 'Documents Per Month',
     feature_type: 'quota',
     storage_type: 'int',
@@ -46,23 +45,20 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     credit_cost: 5, // 5 credits per document
     description: 'Number of documents that can be generated per billing period',
   },
-  {
-    key: 'template_library',
+  template_library: {
     name: 'Template Library',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'essential' | 'full'
     description: 'Access to template library (essential or full)',
   },
-  {
-    key: 'bilingual_quality',
+  bilingual_quality: {
     name: 'Bilingual Quality',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'standard' | 'jais_native'
     description:
       'Quality of bilingual document generation (standard or jais_native)',
   },
-  {
-    key: 'contract_reviews_per_month',
+  contract_reviews_per_month: {
     name: 'Contract Reviews Per Month',
     feature_type: 'quota',
     storage_type: 'int',
@@ -70,36 +66,31 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     creditable: false,
     description: 'Number of AI contract reviews per billing period',
   },
-  {
-    key: 'risk_analysis_level',
+  risk_analysis_level: {
     name: 'Risk Analysis Level',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'none' | 'critical_only' | 'full'
     description: 'Level of risk analysis (none, critical_only, or full)',
   },
-  {
-    key: 'redlining_enabled',
+  redlining_enabled: {
     name: 'AI Redlining',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'AI suggests alternative compliant wording',
   },
-  {
-    key: 'localizer_check',
+  localizer_check: {
     name: 'Localizer Check',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'Flags governing law / jurisdiction mismatches',
   },
-  {
-    key: 'regulatory_hub_access',
+  regulatory_hub_access: {
     name: 'Regulatory Hub Access',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'Access to compliance dashboard',
   },
-  {
-    key: 'regulatory_queries_per_month',
+  regulatory_queries_per_month: {
     name: 'Regulatory Queries',
     feature_type: 'quota',
     storage_type: 'int',
@@ -108,8 +99,7 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     credit_cost: 3, // 3 credits per query
     description: 'Chat-with-Law queries per billing period',
   },
-  {
-    key: 'license_verifier_lookups',
+  license_verifier_lookups: {
     name: 'License Verifier Lookups',
     feature_type: 'quota',
     storage_type: 'int',
@@ -117,50 +107,51 @@ export const ALL_FEATURES: FeatureDefinition[] = [
     creditable: false,
     description: 'DED API lookups per billing period',
   },
-  {
-    key: 'jurisdictions',
+  jurisdictions: {
     name: 'Jurisdictions',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'single' | 'all'
     description: 'Access to jurisdictions (single or all)',
   },
-  {
-    key: 'user_seats',
+  user_seats: {
     name: 'User Seats',
     feature_type: 'capacity',
     storage_type: 'int',
     unit: 'seats',
     description: 'Maximum number of users in tenant',
   },
-  {
-    key: 'data_isolation',
+  data_isolation: {
     name: 'Data Isolation',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'shared' | 'row_level' | 'silo'
     description: 'Level of data isolation (shared, row_level, or silo)',
   },
-  {
-    key: 'custom_playbooks',
+  custom_playbooks: {
     name: 'Custom Playbooks',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'Upload company-specific negotiating positions',
   },
-  {
-    key: 'white_label_exports',
+  white_label_exports: {
     name: 'White Label Exports',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'Export reports with tenant branding',
   },
-];
+} as const satisfies Record<string, FeatureCatalogEntry>;
+
+export type FeatureKey = keyof typeof FEATURE_CATALOG;
+
+/**
+ * Runtime array for DTO validators / @IsEnum() / @ApiProperty()
+ */
+export const ALL_FEATURE_KEYS = Object.keys(FEATURE_CATALOG) as FeatureKey[]; // Safe: Object.keys returns string[], but catalog keys are FeatureKey
 
 // =========================
 // PLAN DEFINITIONS
 // =========================
 
-export interface PlanDefinition {
-  key: PlanKey;
+export interface PlanCatalogEntry {
   name: string;
   description: string;
   price_monthly: number;
@@ -173,9 +164,8 @@ export interface PlanDefinition {
  * Plan catalog (source of truth).
  * Synced to public.plans table on app startup.
  */
-export const ALL_PLANS: PlanDefinition[] = [
-  {
-    key: 'navigator',
+export const PLAN_CATALOG = {
+  navigator: {
     name: 'Navigator',
     description: 'Lead magnet — Regulatory Watch + basic Chat with Law',
     price_monthly: 0,
@@ -183,8 +173,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     billing_period: 'monthly',
     sort_order: 1,
   },
-  {
-    key: 'shield',
+  shield: {
     name: 'Shield',
     description: 'Solo entrepreneurs — Essential templates + basic analysis',
     price_monthly: 249,
@@ -192,8 +181,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     billing_period: 'monthly',
     sort_order: 2,
   },
-  {
-    key: 'general_counsel',
+  general_counsel: {
     name: 'General Counsel',
     description: 'Active SMEs — Full library + Jais-native Arabic + redlining',
     price_monthly: 599,
@@ -201,8 +189,7 @@ export const ALL_PLANS: PlanDefinition[] = [
     billing_period: 'monthly',
     sort_order: 3,
   },
-  {
-    key: 'infrastructure',
+  infrastructure: {
     name: 'Infrastructure',
     description: 'Agencies — Silo isolation + custom playbooks + white-label',
     price_monthly: 2499,
@@ -210,7 +197,14 @@ export const ALL_PLANS: PlanDefinition[] = [
     billing_period: 'monthly',
     sort_order: 4,
   },
-];
+} as const satisfies Record<string, PlanCatalogEntry>;
+
+export type PlanKey = keyof typeof PLAN_CATALOG;
+
+/**
+ * Runtime array of all plan keys (for DTO validators)
+ */
+export const ALL_PLAN_KEYS = Object.keys(PLAN_CATALOG) as PlanKey[]; // Safe: Object.keys returns string[], but catalog keys are PlanKey
 
 // =========================
 // PLAN ENTITLEMENTS
@@ -327,7 +321,7 @@ export function getAllPlanEntitlements(
 export function isValidFeatureKey(
   featureKey: string,
 ): featureKey is FeatureKey {
-  return ALL_FEATURES.some((f) => f.key === featureKey);
+  return featureKey in FEATURE_CATALOG;
 }
 
 /**
@@ -335,20 +329,15 @@ export function isValidFeatureKey(
  */
 export function getFeatureDefinition(
   featureKey: FeatureKey,
-): FeatureDefinition | undefined {
-  return ALL_FEATURES.find((f) => f.key === featureKey);
+): FeatureCatalogEntry | undefined {
+  return FEATURE_CATALOG[featureKey] as FeatureCatalogEntry | undefined;
 }
 
 /**
  * Helper: Get the DB storage type for a feature key.
- * Throws if the feature key is unknown (programmer error).
  */
 export function getFeatureStorageType(
   featureKey: FeatureKey,
 ): FeatureStorageType {
-  const feature = ALL_FEATURES.find((f) => f.key === featureKey);
-  if (!feature) {
-    throw new Error(`Unknown feature key: ${featureKey}`);
-  }
-  return feature.storage_type;
+  return FEATURE_CATALOG[featureKey].storage_type;
 }

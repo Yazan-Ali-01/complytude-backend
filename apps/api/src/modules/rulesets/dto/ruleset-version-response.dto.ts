@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ClauseItemDto } from './clause.dto';
+import {
+  INGESTION_STATUSES,
+  type IngestionStatus,
+} from '../constants/ingestion-status.constants';
 
 /**
  * Ruleset version response DTO
@@ -52,7 +56,7 @@ export class RulesetVersionResponseDto {
     description: 'Additional metadata for this version',
     example: { tags: ['updated', 'compliance'], reviewedBy: 'legal-team' },
   })
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'Whether this version is active',
@@ -74,4 +78,12 @@ export class RulesetVersionResponseDto {
     format: 'date-time',
   })
   createdAt: string;
+
+  @ApiProperty({
+    description:
+      'Whether the ingestion job was enqueued. Only present on create/rollback responses that trigger ingestion.',
+    enum: INGESTION_STATUSES,
+    required: false,
+  })
+  ingestionStatus?: IngestionStatus;
 }

@@ -1,11 +1,14 @@
+import { DatabaseService } from '@lib/database';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PlanKey } from 'src/common/types/entitlement.types';
 import {
-  ALL_FEATURES,
-  ALL_PLANS,
+  ALL_FEATURE_KEYS,
+  ALL_PLAN_KEYS,
+  FEATURE_CATALOG,
+  FeatureKey,
+  PLAN_CATALOG,
   PLAN_ENTITLEMENTS,
 } from '../../../common/constants/plan-entitlements.constant';
-import { DatabaseService } from '../../../database/database.service';
 import { PlanEntitlementsRepository } from '../../../repositories/entitlements/plan-entitlements.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { PlansRepository } from '../../../repositories/plans/plans.repository';
@@ -50,19 +53,21 @@ export class EntitlementSyncService implements OnModuleInit {
    */
   private async syncFeatures(): Promise<void> {
     await this.databaseService.transaction(async (client) => {
-      this.logger.log(`Syncing ${ALL_FEATURES.length} features to database...`);
+      this.logger.log(
+        `Syncing ${ALL_FEATURE_KEYS.length} features to database...`,
+      );
 
       // 1. Upsert each feature from code
-      for (const feature of ALL_FEATURES) {
+      for (const [featureKey, feature] of Object.entries(FEATURE_CATALOG)) {
         await this.featuresRepository.upsertByKey(
           {
-            key: feature.key,
+            key: featureKey as FeatureKey, // Safe: Object.entries() returns string, but featureKey is from FEATURE_CATALOG keys
             name: feature.name,
             description: feature.description,
             feature_type: feature.feature_type,
-            unit: feature.unit,
-            creditable: feature.creditable ?? false,
-            credit_cost: feature.credit_cost ?? null,
+            unit: 'unit' in feature ? feature.unit : undefined,
+            creditable: 'creditable' in feature ? feature.creditable : false,
+            credit_cost: 'credit_cost' in feature ? feature.credit_cost : null,
             is_active: true,
             metadata: '{}',
           },
@@ -71,7 +76,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       // 2. Soft-delete features removed from code (set is_active = false)
-      const codeKeys = ALL_FEATURES.map((f) => f.key);
+      const codeKeys = ALL_FEATURE_KEYS;
       const placeholders = codeKeys.map((_, i) => `$${i + 1}`).join(', ');
 
       const deactivateResult = await this.databaseService.query(
@@ -83,7 +88,6 @@ export class EntitlementSyncService implements OnModuleInit {
         RETURNING key
         `,
         codeKeys,
-        true, // bypassRLS
       );
 
       if (deactivateResult.rows.length > 0) {
@@ -96,7 +100,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Features synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 
   /**
@@ -105,13 +109,14 @@ export class EntitlementSyncService implements OnModuleInit {
    */
   private async syncPlans(): Promise<void> {
     await this.databaseService.transaction(async (client) => {
-      this.logger.log(`Syncing ${ALL_PLANS.length} plans to database...`);
+      const planEntries = Object.entries(PLAN_CATALOG);
+      this.logger.log(`Syncing ${planEntries.length} plans to database...`);
 
       // 1. Upsert each plan from code
-      for (const plan of ALL_PLANS) {
+      for (const [planKey, plan] of planEntries) {
         await this.plansRepository.upsertByKey(
           {
-            key: plan.key,
+            key: planKey as PlanKey, // Safe: Object.entries() returns string, but planKey is from PLAN_CATALOG keys
             name: plan.name,
             description: plan.description,
             price_monthly: plan.price_monthly,
@@ -126,7 +131,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       // 2. Soft-delete plans removed from code (set is_active = false)
-      const codeKeys = ALL_PLANS.map((p) => p.key);
+      const codeKeys = ALL_PLAN_KEYS;
       const placeholders = codeKeys.map((_, i) => `$${i + 1}`).join(', ');
 
       const deactivateResult = await this.databaseService.query(
@@ -138,7 +143,6 @@ export class EntitlementSyncService implements OnModuleInit {
         RETURNING key
         `,
         codeKeys,
-        true, // bypassRLS
       );
 
       if (deactivateResult.rows.length > 0) {
@@ -151,7 +155,7 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Plans synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 
   /**
@@ -160,7 +164,7 @@ export class EntitlementSyncService implements OnModuleInit {
    */
   private async syncPlanEntitlements(): Promise<void> {
     await this.databaseService.transaction(async (client) => {
-      const planKeys = Object.keys(PLAN_ENTITLEMENTS) as PlanKey[];
+      const planKeys = Object.keys(PLAN_ENTITLEMENTS) as PlanKey[]; // Safe: Object.keys returns string[], but PLAN_ENTITLEMENTS keys are PlanKey
       this.logger.log(
         `Syncing plan entitlements for ${planKeys.length} plans...`,
       );
@@ -239,7 +243,6 @@ export class EntitlementSyncService implements OnModuleInit {
           RETURNING id
           `,
           allSyncedEntitlementIds,
-          true, // bypassRLS
         );
 
         if (deleteResult.rows.length > 0) {
@@ -250,6 +253,6 @@ export class EntitlementSyncService implements OnModuleInit {
       }
 
       this.logger.log('Plan entitlements synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 }

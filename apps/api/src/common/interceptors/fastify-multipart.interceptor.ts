@@ -55,7 +55,7 @@ import { Reflector } from '@nestjs/core';
  * ```
  */
 export function FastifyMultipartInterceptor(
-  dtoClass: new () => any,
+  dtoClass: new () => object,
 ): Type<NestInterceptor> {
   @Injectable()
   class MixinInterceptor implements NestInterceptor {
@@ -64,7 +64,7 @@ export function FastifyMultipartInterceptor(
     async intercept(
       context: ExecutionContext,
       next: CallHandler,
-    ): Promise<Observable<any>> {
+    ): Promise<Observable<unknown>> {
       const request = context.switchToHttp().getRequest<FastifyRequest>();
 
       try {
@@ -74,7 +74,7 @@ export function FastifyMultipartInterceptor(
           return next.handle();
         }
 
-        const body: Record<string, any> = {};
+        const body: Record<string, unknown> = {};
 
         const jsonFields: string[] =
           (dtoClass &&
@@ -116,7 +116,7 @@ export function FastifyMultipartInterceptor(
           } else {
             // Handle field part
             const fieldname = part.fieldname;
-            const value = (part as any).value as string;
+            const value = (part as { value: string }).value;
 
             // Try to parse JSON fields
             if (jsonFields.includes(fieldname)) {

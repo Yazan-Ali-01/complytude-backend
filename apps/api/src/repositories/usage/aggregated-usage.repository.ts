@@ -1,11 +1,12 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   AggregatedUsage,
+  ConditionalIncrementInput,
   CreateAggregatedUsageRow,
+  IncrementUsageInput,
   UpdateAggregatedUsageRow,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type AggregatedUsageRow = {
   id: string;
@@ -186,16 +187,11 @@ export class AggregatedUsageRepository extends BaseRepository<
    * @returns Updated aggregated usage
    */
   async increment(
-    tenantId: string,
-    subscriptionId: string,
-    featureId: string,
-    billingPeriod: string,
-    allocations: Array<{
-      source: 'plan' | 'addon' | 'credit' | 'override';
-      units: number;
-    }>,
+    input: IncrementUsageInput,
     options?: QueryOptions,
   ): Promise<AggregatedUsage> {
+    const { tenantId, subscriptionId, featureId, billingPeriod, allocations } =
+      input;
     // Compute deltas from allocations
     const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
     const planUnits = allocations
@@ -249,17 +245,17 @@ export class AggregatedUsageRepository extends BaseRepository<
    * another concurrent request consumed the remaining quota.
    */
   async conditionalIncrement(
-    tenantId: string,
-    subscriptionId: string,
-    featureId: string,
-    billingPeriod: string,
-    allocations: Array<{
-      source: 'plan' | 'addon' | 'credit' | 'override';
-      units: number;
-    }>,
-    limit: number,
+    input: ConditionalIncrementInput,
     options?: QueryOptions,
   ): Promise<AggregatedUsage | null> {
+    const {
+      tenantId,
+      subscriptionId,
+      featureId,
+      billingPeriod,
+      allocations,
+      limit,
+    } = input;
     const totalUnits = allocations.reduce((sum, a) => sum + a.units, 0);
     const planUnits = allocations
       .filter((a) => a.source === 'plan')

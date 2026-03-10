@@ -1,12 +1,11 @@
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, QueryOptions } from '@lib/database';
 import {
   Addon,
   AddonEntitlement,
   FeatureKey,
   FeatureType,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 // Row types for BaseRepository (not used for reads but required by interface)
 type CreateAddonRow = {
@@ -77,7 +76,7 @@ export class AddonsRepository extends BaseRepository<
       price_monthly: data.price_monthly,
       price_currency: data.price_currency,
       is_active: data.is_active,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -148,12 +147,12 @@ export class AddonsRepository extends BaseRepository<
           id: row.entitlement_id as string,
           addon_id: row.id as string,
           feature_id: row.feature_id as string,
-          feature_key: row.feature_key as FeatureKey,
-          feature_type: row.feature_type as FeatureType,
+          feature_key: row.feature_key as FeatureKey, // Safe: from addon_entitlements JOIN features (validated by FK)
+          feature_type: row.feature_type as FeatureType, // Safe: from addon_entitlements JOIN features (validated by FK)
           value_bool: row.value_bool as boolean | undefined,
           value_int: row.value_int as number | undefined,
           value_text: row.value_text as string | undefined,
-          metadata: (row.entitlement_metadata as Record<string, any>) ?? {},
+          metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
           created_at: row.entitlement_created_at as Date,
         });
       }

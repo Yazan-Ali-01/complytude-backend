@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsTimeZone,
+} from 'class-validator';
 
 export class UpdateTenantSettingsDto {
   @ApiProperty({
@@ -18,6 +24,7 @@ export class UpdateTenantSettingsDto {
     required: false,
   })
   @IsString()
+  @IsTimeZone()
   @IsOptional()
   timezone?: string;
 

@@ -1,12 +1,17 @@
-import cookie from '@fastify/cookie';
-import multipart from '@fastify/multipart';
 import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { FastifyAdapter as BullBoardFastifyAdapter } from '@bull-board/fastify';
+import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import { QUEUE_NAMES } from '@lib/queue';
 // eslint-disable-next-line no-restricted-imports
 import { getQueueToken } from '@nestjs/bullmq';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import {
+  Logger,
+  RequestMethod,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -65,8 +70,20 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Set global prefix
-  app.setGlobalPrefix(apiPrefix);
+  // Set global prefix for all routes, excluding infrastructure endpoints
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: [
+      { path: 'health/(.*)', method: RequestMethod.ALL },
+      { path: 'health', method: RequestMethod.ALL },
+    ],
+  });
+
+  // Enable URI-based API versioning (/api/v1/...)
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+    prefix: 'v',
+  });
 
   // Enable validation globally
   app.useGlobalPipes(
@@ -127,6 +144,7 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+  // Swagger docs remain unversioned at /docs for convenience
   SwaggerModule.setup('docs', app, document);
 
   // Enable graceful shutdown — fires onModuleDestroy on SIGTERM/SIGINT,
@@ -137,7 +155,7 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   logger.log(
-    `🚀 Application is running on: http://localhost:${port}/${apiPrefix}`,
+    `🚀 Application is running on: http://localhost:${port}/${apiPrefix}/v1`,
   );
   logger.log(`📚 Swagger documentation: http://localhost:${port}/docs`);
   logger.log(`🌍 Environment: ${environment}`);

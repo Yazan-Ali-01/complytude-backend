@@ -7,11 +7,12 @@ import {
   QueryResolver,
 } from 'nestjs-i18n';
 import * as path from 'path';
+import { SupportedLanguages } from './i18n.types';
 
 @Module({
   imports: [
     NestI18nModule.forRoot({
-      fallbackLanguage: 'en',
+      fallbackLanguage: SupportedLanguages.ENGLISH,
       loaderOptions: {
         path: path.join(__dirname, 'locales'),
         watch: process.env.NODE_ENV !== 'production',

@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "RULESET_NOT_FOUND": "Ruleset not found",
+    "RULESET_ALREADY_EXISTS": "Ruleset already exists",
+    "RULESET_NO_ACTIVE_VERSION": "Ruleset has no active version",
+    "VERSION_ALREADY_EXISTS": "Version already exists for this ruleset",
+    "VERSION_NOT_FOUND": "Version not found",
+    "AUTHORITY_NOT_FOUND": "Authority not found"
+  },
+  "messages": {}
+}

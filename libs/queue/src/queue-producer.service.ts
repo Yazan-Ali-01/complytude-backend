@@ -1,5 +1,5 @@
-import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Logger } from '@nestjs/common';
+import { getQueueToken } from '@nestjs/bullmq';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Job, JobsOptions, Queue } from 'bullmq';
 import { JobDataFor, JobNameFor, QueueName } from './queue-job-map';
 import { QUEUE_NAMES } from './queue.constants';
@@ -10,16 +10,21 @@ export class QueueProducerService {
   private readonly queues = new Map<string, Queue>();
 
   constructor(
-    @InjectQueue(QUEUE_NAMES.AI_PROCESSING)
-    private readonly aiQueue: Queue,
-    @InjectQueue(QUEUE_NAMES.DATA_INGESTION)
-    private readonly ingestionQueue: Queue,
-    @InjectQueue(QUEUE_NAMES.ENTITLEMENT_PROCESSING)
-    private readonly entitlementQueue: Queue,
+    @Optional()
+    @Inject(getQueueToken(QUEUE_NAMES.AI_PROCESSING))
+    aiQueue: Queue | null,
+    @Optional()
+    @Inject(getQueueToken(QUEUE_NAMES.DATA_INGESTION))
+    ingestionQueue: Queue | null,
+    @Optional()
+    @Inject(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING))
+    entitlementQueue: Queue | null,
   ) {
-    this.queues.set(QUEUE_NAMES.AI_PROCESSING, this.aiQueue);
-    this.queues.set(QUEUE_NAMES.DATA_INGESTION, this.ingestionQueue);
-    this.queues.set(QUEUE_NAMES.ENTITLEMENT_PROCESSING, this.entitlementQueue);
+    if (aiQueue) this.queues.set(QUEUE_NAMES.AI_PROCESSING, aiQueue);
+    if (ingestionQueue)
+      this.queues.set(QUEUE_NAMES.DATA_INGESTION, ingestionQueue);
+    if (entitlementQueue)
+      this.queues.set(QUEUE_NAMES.ENTITLEMENT_PROCESSING, entitlementQueue);
   }
 
   async enqueue<Q extends QueueName, J extends JobNameFor<Q>>(

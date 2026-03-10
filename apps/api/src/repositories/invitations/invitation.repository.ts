@@ -3,10 +3,10 @@ import {
   CursorPaginationHelper,
   CursorPaginationOptions,
   CursorPaginationResult,
+  DatabaseService,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service';
 
 import {
   CreateInvitationInput,

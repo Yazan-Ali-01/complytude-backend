@@ -1,8 +1,8 @@
+import { DatabaseService } from '@lib/database';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ALL_TENANT_PERMISSIONS } from '../../common/constants/tenant-permissions.constant';
 import { TENANT_SYSTEM_ROLE_PERMISSIONS } from '../../common/constants/tenant-system-roles.constant';
 import { SystemTenantRole } from '../../common/types';
-import { DatabaseService } from '../../database/database.service';
 
 /**
  * RBAC Sync Service
@@ -89,7 +89,7 @@ export class TenantRbacSyncService implements OnModuleInit {
       }
 
       this.logger.log('Permissions synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 
   /**
@@ -184,7 +184,7 @@ export class TenantRbacSyncService implements OnModuleInit {
       }
 
       this.logger.log('System roles synced successfully');
-    }, true); // bypassRLS: true for system operations
+    });
   }
 
   /**

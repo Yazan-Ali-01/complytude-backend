@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Body,
@@ -11,7 +12,6 @@ import type {
   FeatureKey,
   UsageSource,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 import { FeaturesRepository } from '../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../repositories/subscriptions/subscriptions.repository';
 import { UsageAllocationsRepository } from '../../repositories/usage/usage-allocations.repository';
@@ -177,16 +177,16 @@ export class UsageMockController {
   })
   async recordAtLimit(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     // Phase 4: Use EntitlementEnforcementService for quota enforcement
-    const result = await this.enforcementService.checkAndRecord(
-      user.tenantId,
-      'documents_per_month',
-      user.userId,
-      1,
-      {
+    const result = await this.enforcementService.checkAndRecord({
+      tenantId: user.tenantId,
+      featureKey: 'documents_per_month',
+      userId: user.userId,
+      units: 1,
+      metadata: {
         test_scenario: 'at_limit',
         note: 'Phase 4 enforcement is now active',
       },
-    );
+    });
 
     if (!result.allowed) {
       return {
