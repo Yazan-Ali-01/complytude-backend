@@ -6,10 +6,12 @@ import {
   NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
+import { DocumentsI18n } from './constants/i18n.constants';
 import type {
   AnalysisJobResponseDto,
   AnalyzeDocumentDto,
@@ -33,6 +35,7 @@ export class DocumentsService {
     private readonly documentRepository: DocumentRepository,
     private readonly analysisJobRepository: AnalysisJobRepository,
     private readonly queueProducerService: QueueProducerService,
+    private readonly i18n: I18nService,
   ) {}
 
   async analyze(
@@ -99,7 +102,9 @@ export class DocumentsService {
       tenant: tenantContext,
     });
     if (!document) {
-      throw new NotFoundException('Document not found');
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+      );
     }
 
     const job = await this.analysisJobRepository.findLatestByDocument(
@@ -107,7 +112,9 @@ export class DocumentsService {
       { tenant: tenantContext },
     );
     if (!job) {
-      throw new NotFoundException('No analysis job found for this document');
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.NO_ANALYSIS_JOB_FOR_DOCUMENT),
+      );
     }
 
     return this.mapAnalysisJobToDto(job);
@@ -130,7 +137,9 @@ export class DocumentsService {
       tenant: tenantContext,
     });
     if (!job) {
-      throw new NotFoundException('Analysis job not found');
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.ANALYSIS_JOB_NOT_FOUND),
+      );
     }
 
     return this.mapAnalysisJobToDto(job);
@@ -164,7 +173,7 @@ export class DocumentsService {
     _user: AuthenticatedUser,
   ): Promise<PreviewDocumentResponseDto> {
     throw new NotImplementedException(
-      'Document preview generation not yet implemented',
+      this.i18n.t(DocumentsI18n.errors.PREVIEW_NOT_IMPLEMENTED),
     );
   }
 
@@ -176,7 +185,7 @@ export class DocumentsService {
     _user: AuthenticatedUser,
   ): Promise<GenerateDocumentResponseDto> {
     throw new NotImplementedException(
-      'Document generation not yet implemented',
+      this.i18n.t(DocumentsI18n.errors.GENERATION_NOT_IMPLEMENTED),
     );
   }
 
@@ -187,14 +196,18 @@ export class DocumentsService {
     _query: ListDocumentsQueryDto,
     _user: AuthenticatedUser,
   ): Promise<DocumentListResponseDto> {
-    throw new NotImplementedException('Document listing not yet implemented');
+    throw new NotImplementedException(
+      this.i18n.t(DocumentsI18n.errors.LISTING_NOT_IMPLEMENTED),
+    );
   }
 
   /**
    * @deprecated stub — will be implemented in a later ticket
    */
   findOne(_id: string, _user: AuthenticatedUser): Promise<DocumentResponseDto> {
-    throw new NotImplementedException('Document retrieval not yet implemented');
+    throw new NotImplementedException(
+      this.i18n.t(DocumentsI18n.errors.RETRIEVAL_NOT_IMPLEMENTED),
+    );
   }
 
   /**
@@ -204,6 +217,8 @@ export class DocumentsService {
     _id: string,
     _user: AuthenticatedUser,
   ): Promise<DeleteDocumentResponseDto> {
-    throw new NotImplementedException('Document deletion not yet implemented');
+    throw new NotImplementedException(
+      this.i18n.t(DocumentsI18n.errors.DELETION_NOT_IMPLEMENTED),
+    );
   }
 }

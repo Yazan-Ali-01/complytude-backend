@@ -6,10 +6,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import {
-  CategoryRepository,
   CategoryFilters,
+  CategoryRepository,
 } from '../../repositories/categories/category.repository';
+import { CategoriesI18n } from './constants/i18n.constants';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto';
 import { Category } from './entities/category.entity';
 
@@ -17,7 +19,10 @@ import { Category } from './entities/category.entity';
 export class CategoriesService {
   private readonly logger = new Logger(CategoriesService.name);
 
-  constructor(private readonly categoryRepository: CategoryRepository) {}
+  constructor(
+    private readonly categoryRepository: CategoryRepository,
+    private readonly i18n: I18nService,
+  ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     try {
@@ -28,7 +33,9 @@ export class CategoriesService {
 
       if (existing) {
         throw new ConflictException(
-          `Category with code "${createCategoryDto.code}" already exists`,
+          this.i18n.t(CategoriesI18n.errors.CATEGORY_ALREADY_EXISTS, {
+            args: { code: createCategoryDto.code },
+          }),
         );
       }
 
@@ -37,7 +44,11 @@ export class CategoriesService {
       this.logger.log(`Created category: ${category.code}`);
       return category;
     } catch (error) {
-      this.handleError(error, 'create category');
+      this.handleError(
+        error,
+        CategoriesI18n.errors.CATEGORY_CREATE_FAILED,
+        'create category',
+      );
     }
   }
 
@@ -48,7 +59,11 @@ export class CategoriesService {
     try {
       return await this.categoryRepository.findMany(filters, pagination);
     } catch (error) {
-      this.handleError(error, 'list categories');
+      this.handleError(
+        error,
+        CategoriesI18n.errors.CATEGORIES_FETCH_FAILED,
+        'list categories',
+      );
     }
   }
 
@@ -57,12 +72,20 @@ export class CategoriesService {
       const category = await this.categoryRepository.findById(id);
 
       if (!category) {
-        throw new NotFoundException(`Category with ID "${id}" not found`);
+        throw new NotFoundException(
+          this.i18n.t(CategoriesI18n.errors.CATEGORY_NOT_FOUND_BY_ID, {
+            args: { id },
+          }),
+        );
       }
 
       return category;
     } catch (error) {
-      this.handleError(error, `find category "${id}"`);
+      this.handleError(
+        error,
+        CategoriesI18n.errors.CATEGORY_FETCH_FAILED,
+        `find category "${id}"`,
+      );
     }
   }
 
@@ -83,12 +106,20 @@ export class CategoriesService {
       });
 
       if (!category) {
-        throw new NotFoundException(`Category with code "${code}" not found`);
+        throw new NotFoundException(
+          this.i18n.t(CategoriesI18n.errors.CATEGORY_NOT_FOUND_BY_CODE, {
+            args: { code },
+          }),
+        );
       }
 
       return category;
     } catch (error) {
-      this.handleError(error, `find category by code "${code}"`);
+      this.handleError(
+        error,
+        CategoriesI18n.errors.CATEGORY_FETCH_FAILED,
+        `find category by code "${code}"`,
+      );
     }
   }
 
@@ -107,7 +138,11 @@ export class CategoriesService {
       this.logger.log(`Updated category: ${id}`);
       return category;
     } catch (error) {
-      this.handleError(error, `update category "${id}"`);
+      this.handleError(
+        error,
+        CategoriesI18n.errors.CATEGORY_UPDATE_FAILED,
+        `update category "${id}"`,
+      );
     }
   }
 
@@ -115,16 +150,24 @@ export class CategoriesService {
     try {
       const result = await this.categoryRepository.deactivate(id);
       if (!result) {
-        throw new NotFoundException(`Category with ID "${id}" not found`);
+        throw new NotFoundException(
+          this.i18n.t(CategoriesI18n.errors.CATEGORY_NOT_FOUND_BY_ID, {
+            args: { id },
+          }),
+        );
       }
 
       this.logger.log(`Deactivated category: ${id}`);
     } catch (error) {
-      this.handleError(error, `deactivate category "${id}"`);
+      this.handleError(
+        error,
+        CategoriesI18n.errors.CATEGORY_DEACTIVATE_FAILED,
+        `deactivate category "${id}"`,
+      );
     }
   }
 
-  private handleError(error: unknown, context: string): never {
+  private handleError(error: unknown, i18nKey: string, context: string): never {
     if (
       error instanceof ConflictException ||
       error instanceof NotFoundException
@@ -134,6 +177,6 @@ export class CategoriesService {
 
     const message = error instanceof Error ? error.message : 'Unknown error';
     this.logger.error(`Failed to ${context}: ${message}`);
-    throw new InternalServerErrorException(`Failed to ${context}`);
+    throw new InternalServerErrorException(this.i18n.t(i18nKey));
   }
 }

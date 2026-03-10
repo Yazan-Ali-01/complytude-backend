@@ -9,7 +9,8 @@ import {
 import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
 import { EntitlementResolverService } from '../../modules/entitlements/services/entitlement-resolver.service';
-import { I18nKeys } from '../constants/i18n-keys';
+import { EntitlementsI18n } from '../../modules/entitlements/constants/i18n.constants';
+import { CommonI18n } from '../constants/i18n.constants';
 import {
   ENTITLEMENT_KEY,
   EntitlementRequirement,
@@ -57,7 +58,7 @@ export class EntitlementGuard implements CanActivate {
     // Ensure tenant context is available
     if (!tenant || !tenant.tenantId) {
       throw new UnauthorizedException(
-        i18n?.t(I18nKeys.UNAUTHORIZED) ?? 'Unauthorized',
+        i18n?.t(CommonI18n.errors.UNAUTHORIZED) ?? 'Unauthorized',
       );
     }
 
@@ -76,7 +77,7 @@ export class EntitlementGuard implements CanActivate {
         );
         throw new ForbiddenException({
           message:
-            i18n?.t(I18nKeys.FORBIDDEN) ??
+            i18n?.t(CommonI18n.errors.FORBIDDEN) ??
             'You do not have access to this feature',
           feature: requirement.featureKey,
           statusCode: 403,
@@ -90,7 +91,7 @@ export class EntitlementGuard implements CanActivate {
         );
         throw new ForbiddenException({
           message:
-            i18n?.t(I18nKeys.FORBIDDEN) ??
+            i18n?.t(EntitlementsI18n.errors.ENTITLEMENT_REQUIREMENT_NOT_MET) ??
             'Your plan does not include this feature',
           feature: requirement.featureKey,
           required: this.getRequirementDescription(requirement),

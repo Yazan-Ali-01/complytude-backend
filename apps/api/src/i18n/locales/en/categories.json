@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "CATEGORY_NOT_FOUND_BY_ID": "Category with ID {id} not found",
+    "CATEGORY_NOT_FOUND_BY_CODE": "Category with code {code} not found",
+    "CATEGORY_ALREADY_EXISTS": "Category with code {code} already exists",
+    "CATEGORY_CREATE_FAILED": "Failed to create category",
+    "CATEGORIES_FETCH_FAILED": "Failed to list categories",
+    "CATEGORY_FETCH_FAILED": "Failed to find category",
+    "CATEGORY_UPDATE_FAILED": "Failed to update category",
+    "CATEGORY_DEACTIVATE_FAILED": "Failed to deactivate category"
+  },
+  "messages": {}
+}

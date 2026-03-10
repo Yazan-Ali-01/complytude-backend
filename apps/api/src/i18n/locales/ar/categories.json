@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "CATEGORY_NOT_FOUND_BY_ID": "التصنيف بالمعرف {id} غير موجود",
+    "CATEGORY_NOT_FOUND_BY_CODE": "التصنيف بالرمز {code} غير موجود",
+    "CATEGORY_ALREADY_EXISTS": "التصنيف بالرمز {code} موجود بالفعل",
+    "CATEGORY_CREATE_FAILED": "فشل إنشاء التصنيف",
+    "CATEGORIES_FETCH_FAILED": "فشل جلب التصنيفات",
+    "CATEGORY_FETCH_FAILED": "فشل جلب التصنيف",
+    "CATEGORY_UPDATE_FAILED": "فشل تحديث التصنيف",
+    "CATEGORY_DEACTIVATE_FAILED": "فشل إلغاء تفعيل التصنيف"
+  },
+  "messages": {}
+}

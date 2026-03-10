@@ -19,8 +19,10 @@ import { StorageService } from 'src/modules/storage/storage.service';
 import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
 import { TemplatesService } from 'src/modules/templates/templates.service';
 import { TenantService } from 'src/modules/tenants/tenant.service';
+import { I18nService } from 'nestjs-i18n';
 
 import { ValidationException } from 'src/common/exceptions/validation.exception';
+import { TemplatesI18n } from '../constants/i18n.constants';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from 'src/modules/templates/constants/template.constants';
 import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
 import { Template } from 'src/modules/templates/entities/template.entity';
@@ -36,6 +38,7 @@ export class DocumentGenerationService {
     private readonly databaseService: DatabaseService,
     private readonly tenantService: TenantService,
     private readonly templateValidationService: TemplateValidationService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -108,7 +111,9 @@ export class DocumentGenerationService {
         `Failed to fetch template file: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined,
       );
-      throw new NotFoundException('Template file not found');
+      throw new NotFoundException(
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_FILE_NOT_FOUND),
+      );
     }
   }
 
@@ -140,7 +145,7 @@ export class DocumentGenerationService {
         error instanceof Error ? error.stack : undefined,
       );
       throw new BadRequestException(
-        'Failed to render document with provided variables',
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_RENDER_DOCUMENT),
       );
     }
   }
@@ -237,7 +242,7 @@ export class DocumentGenerationService {
         error instanceof Error ? error.stack : undefined,
       );
       throw new InternalServerErrorException(
-        'Failed to save generated document',
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_SAVE_GENERATED_DOCUMENT),
       );
     }
   }
@@ -303,7 +308,9 @@ export class DocumentGenerationService {
         'Document generation failed',
         error instanceof Error ? error.stack : undefined,
       );
-      throw new InternalServerErrorException('Failed to generate document');
+      throw new InternalServerErrorException(
+        this.i18n.t(TemplatesI18n.errors.FAILED_TO_GENERATE_DOCUMENT),
+      );
     }
   }
 }
