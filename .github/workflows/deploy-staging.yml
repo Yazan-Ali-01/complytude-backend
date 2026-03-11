@@ -93,7 +93,7 @@ jobs:
             --group-id ${{ steps.infra.outputs.bastion_sg_id }} \
             --protocol tcp \
             --port 22 \
-            --cidr ${{ steps.runner-ip.outputs.ip }}/32
+            --cidr ${{ steps.runner-ip.outputs.ip }}/32 || true
 
       - name: Allow bastion access to RDS
         run: |
@@ -101,7 +101,7 @@ jobs:
             --group-id ${{ steps.infra.outputs.rds_sg_id }} \
             --protocol tcp \
             --port 5432 \
-            --source-group ${{ steps.infra.outputs.bastion_sg_id }}
+            --source-group ${{ steps.infra.outputs.bastion_sg_id }} || true
 
       - name: Open SSH tunnel to RDS
         run: |
