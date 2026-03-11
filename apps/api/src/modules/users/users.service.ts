@@ -225,7 +225,6 @@ export class UsersService {
    */
   async createUser(
     tenantId: string,
-    creatorId: string,
     createUserDto: CreateUserDto,
   ): Promise<Record<string, unknown>> {
     // Check if email already exists
@@ -294,9 +293,7 @@ export class UsersService {
       [userId, tenantId, createUserDto.role],
     );
 
-    this.logger.log(
-      `User ${userId} added to tenant ${tenantId} by ${creatorId}`,
-    );
+    this.logger.log(`User ${userId} added to tenant ${tenantId}`);
 
     // Return user info
     const userResult = await this.databaseService.query(

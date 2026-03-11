@@ -12,7 +12,7 @@ describe('Smoke Test - Test Infrastructure', () => {
 
   beforeEach(async () => {
     await resetTestState(app.databaseService, app.redisClient);
-  });
+  }, 15000);
 
   afterAll(async () => {
     if (app) await app.cleanup();
