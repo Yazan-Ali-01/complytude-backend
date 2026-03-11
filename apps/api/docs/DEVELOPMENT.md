@@ -270,6 +270,86 @@ For detailed migration and seeding documentation, see [scripts/README.md](../../
 
 ---
 
+## Testing
+
+### Test Scripts
+
+```bash
+pnpm test                     # Run all tests (unit + integration)
+pnpm test:unit                # Run unit tests only
+pnpm test:integration         # Run integration tests only
+pnpm test:integration:watch   # Run integration tests in watch mode
+pnpm test:coverage            # Generate coverage report
+```
+
+### CI Requirements
+
+Integration tests use [testcontainers](https://node.testcontainers.org/) to spin up ephemeral Postgres (pgvector) and Redis containers. This has implications for CI environments.
+
+#### Docker Requirement
+
+Testcontainers **requires a running Docker daemon**. Any CI runner must have Docker available.
+
+- **Minimum Docker version:** 20.10+ (testcontainers v11 requirement)
+- **Recommended:** Docker 24.x or later (matches local dev prerequisites)
+- Rootless Docker and Podman are supported by testcontainers but may need extra config — see [testcontainers docs](https://node.testcontainers.org/supported-container-runtimes/)
+
+#### Environment Variables
+
+- `.env.test` is **committed to the repository** — no CI secrets are needed for test environment variables
+- `DB_*` and `REDIS_*` values in `.env.test` are placeholders — `globalSetup` overrides them at runtime with testcontainer connection details
+- JWT secrets, S3 keys, etc. in `.env.test` are hardcoded test values (not real credentials)
+
+#### GitHub Actions Considerations
+
+GitHub Actions hosted runners (`ubuntu-latest`) include Docker by default, so testcontainers works out of the box. No `services` block or Docker-in-Docker is needed — testcontainers manages its own containers.
+
+**Example workflow snippet** (reference only — not yet implemented):
+
+```yaml
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm type-check
+      - run: pnpm test:unit
+      - run: pnpm test:integration
+```
+
+> **Note:** Self-hosted runners must have Docker installed and the runner user must have permission to access the Docker socket (`/var/run/docker.sock`).
+
+#### Testcontainers Architecture
+
+The global setup (`apps/api/test/setup/global-setup.ts`) runs once before all workers:
+
+1. Starts a **PostgreSQL container** (`pgvector/pgvector:pg16`) with a `test` superuser
+2. Creates the `app_user` role (needed by migration grants)
+3. Starts a **Redis container** (`redis:7-alpine`)
+4. Writes connection config to a temp file for worker processes
+
+Each Jest worker then:
+
+1. Creates its own database (`test_w{workerId}`)
+2. Runs all migrations against that database
+3. Gets its own Redis DB index (0–15, capped by `maxWorkers: 16`)
+
+This ensures full worker isolation — tests can run in parallel without conflicts.
+
+For detailed test infrastructure documentation, see [test/README.md](../test/README.md).
+
+---
+
 ## Code Quality Checks
 
 ### Before Committing

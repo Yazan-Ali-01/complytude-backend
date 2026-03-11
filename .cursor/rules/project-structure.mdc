@@ -208,7 +208,14 @@ apps/api/
 │   ├── config/                # Configuration
 │   ├── repositories/          # Data access layer
 │   └── i18n/                  # Internationalization
+├── test/                      # Integration test infrastructure
+│   ├── setup/                 # Global setup/teardown, worker DB setup
+│   ├── factories/             # Test data builders (createTestTenant, etc.)
+│   ├── helpers/               # Shared test utilities (truncate, RLS context)
+│   ├── mocks/                 # Shared mocks (storage, file-type)
+│   └── README.md              # Comprehensive test documentation
 ├── docs/                      # API documentation
+├── .env.test                  # Test environment variables (committed)
 ├── Dockerfile                 # API container definition
 ├── .env.example               # Environment template
 └── package.json               # API dependencies
@@ -775,6 +782,7 @@ apps/api/src/repositories/
 5. **docs/ENTITLEMENTS.md** - Entitlement system
 6. **apps/api/docs/API_CONTRACTS.md** - API specifications
 7. **apps/api/docs/DEVELOPMENT.md** - API development guide
+8. **apps/api/test/README.md** - Test infrastructure and conventions
 
 ### Critical Scripts
 
@@ -894,4 +902,5 @@ apps/api/src/repositories/
 2. Architecture decisions → docs/ARCHITECTURE.md
 3. Database schema → docs/DATABASE.md
 4. Setup instructions → apps/api/docs/DEVELOPMENT.md
-5. Code comments → For complex business logic only
+5. Test conventions → apps/api/test/README.md
+6. Code comments → For complex business logic only

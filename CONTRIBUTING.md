@@ -12,6 +12,7 @@ Thank you for your interest in contributing to Complytude! This guide will help 
 - [Commit Message Standards](#commit-message-standards)
 - [Pull Request Process](#pull-request-process)
 - [Code Quality Requirements](#code-quality-requirements)
+- [Testing](#testing)
 
 ---
 
@@ -427,6 +428,103 @@ pnpm build           # Full build with type checking
 - ✅ Keep module boundaries clear - avoid circular imports
 
 For detailed development guidelines, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+---
+
+## Testing
+
+### Running Tests
+
+```bash
+pnpm test                     # Run all tests (unit + integration)
+pnpm test:unit                # Run unit tests only
+pnpm test:integration         # Run integration tests only
+pnpm test:integration:watch   # Run integration tests in watch mode
+pnpm test:coverage            # Generate coverage report
+```
+
+### Prerequisites for Integration Tests
+
+Integration tests use [testcontainers](https://node.testcontainers.org/) to spin up real Postgres and Redis instances. **Docker must be running** before you execute integration tests.
+
+```bash
+# Verify Docker is available
+docker info
+
+# Run integration tests (Docker containers start automatically)
+pnpm test:integration
+```
+
+No manual `docker-compose up` is needed — testcontainers manages container lifecycle automatically.
+
+### Test Naming Convention
+
+| Convention | Location | Example |
+| --- | --- | --- |
+| `*.spec.ts` | `apps/api/src/**/*.spec.ts` | Unit tests, co-located with source |
+| `*.integration.spec.ts` | `apps/api/test/**/*.integration.spec.ts` | Integration tests, in test directory |
+
+Jest uses two project configurations to separate them:
+
+- **`unit`** project: matches `src/**/*.spec.ts`, excludes `*.integration.spec.ts`
+- **`integration`** project: matches `**/*.integration.spec.ts` anywhere under `apps/api/`
+
+### Test Directory Structure
+
+```
+apps/api/test/
+├── setup/                          # Test infrastructure
+│   ├── global-setup.ts             # Starts Postgres + Redis testcontainers (runs once)
+│   ├── global-teardown.ts          # Stops containers, cleans temp files (runs once)
+│   ├── jest.setup.ts               # Per-worker env setup (loads .env.test, overrides DB/Redis config)
+│   ├── worker-database.setup.ts    # Creates per-worker database + runs migrations
+│   └── smoke.integration.spec.ts   # Verifies test infrastructure works
+├── factories/                      # Test data builders
+│   ├── index.ts                    # Barrel export
+│   ├── tenant.factory.ts           # Creates test tenants
+│   ├── user.factory.ts             # Creates test users
+│   ├── subscription.factory.ts     # Creates test subscriptions
+│   └── factories.integration.spec.ts  # Tests for the factories themselves
+├── helpers/                        # Shared test utilities
+│   ├── test-config.ts              # Testcontainer config path + types
+│   ├── truncate.helper.ts          # Truncates transactional tables (preserves reference data)
+│   ├── redis-flush.helper.ts       # Flushes Redis DB + resetTestState()
+│   └── tenant-context.helper.ts    # withTenantContext() / withPlatformAdminContext()
+└── mocks/                          # Shared mocks
+    ├── storage.mock.ts             # MockStorageService (S3/MinIO)
+    └── file-type.mock.ts           # file-type ESM compatibility mock
+```
+
+### Writing Integration Tests
+
+Integration tests boot the full NestJS app against real databases. Use `createTestApp()` and `resetTestState()`:
+
+```typescript
+import { resetTestState } from '../helpers/redis-flush.helper';
+import { createTestApp, TestApp } from '../setup/test-app.factory';
+
+describe('YourFeature', () => {
+  let app: TestApp;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  }, 60000);
+
+  beforeEach(async () => {
+    await resetTestState(app.databaseService, app.redisClient);
+  }, 15000);
+
+  afterAll(async () => {
+    if (app) await app.cleanup();
+  }, 30000);
+
+  it('should do something', async () => {
+    // Use app.databaseService, app.module, app.redisClient, etc.
+  });
+});
+```
+
+For comprehensive testing documentation, see [apps/api/test/README.md](apps/api/test/README.md).
 
 ---
 

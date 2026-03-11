@@ -11,6 +11,7 @@ Core patterns, conventions, and best practices for NestJS development in the Com
 **Related Rules:**
 
 - [project-structure.mdc](mdc:project-structure.mdc) - Complete project navigation guide
+- [testing.mdc](mdc:testing.mdc) - Testing conventions, factories, helpers, CI
 - [technology-stack.mdc](mdc:technology-stack.mdc) - Dependencies, versions, and compatibility
 - [cursor-rules.mdc](mdc:cursor-rules.mdc) - How to maintain these rules
 - [self-improvement.mdc](mdc:self-improvement.mdc) - When to update rules
@@ -707,6 +708,8 @@ pnpm type-check         # TypeScript validation
 ```
 
 # Testing
+
+> **📖 Complete Testing Guidelines:** See [testing.mdc](mdc:testing.mdc) for conventions, factories, helpers, and CI requirements
 
 ```bash
 pnpm test               # Run all tests
