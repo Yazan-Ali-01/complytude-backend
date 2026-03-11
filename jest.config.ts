@@ -78,6 +78,8 @@ const config = {
         : ['<rootDir>/test/setup/jest.setup.ts'],
       // Cap workers at 16 — each worker uses one Redis DB (0-15), Redis default limit
       maxWorkers: 16,
+      // Integration tests hit real DBs and include resetTestState; 30s is a realistic per-test budget
+      slowTestThreshold: 30000,
     },
   ],
   coverageDirectory: 'coverage',

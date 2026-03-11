@@ -1,31 +1,33 @@
 import { DatabaseService } from '@lib/database';
-import { REDIS_CLIENT } from '@lib/redis/redis.constants';
-import { RedisService } from '@lib/redis';
-import { QUEUE_NAMES, QueueProducerService, getQueueToken } from '@lib/queue';
 import type { Queue } from '@lib/queue';
-import { Test, TestingModule } from '@nestjs/testing';
+import { QUEUE_NAMES, QueueProducerService, getQueueToken } from '@lib/queue';
+import { RedisService } from '@lib/redis';
+import { REDIS_CLIENT } from '@lib/redis/redis.constants';
+import { INestApplication } from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import { Test, TestingModule } from '@nestjs/testing';
 import Redis from 'ioredis';
-import { INestApplication } from '@nestjs/common';
 import { AppModule } from 'src/app.module';
-import { StorageService } from 'src/modules/storage/storage.service';
 import { AuditService } from 'src/modules/audit/audit.service';
+import { StorageService } from 'src/modules/storage/storage.service';
 import { MockStorageService } from '../mocks/storage.mock';
 import { ensureWorkerDatabase } from './worker-database.setup';
 
 class MockAuditService {
-  async log(): Promise<void> {}
-  async getAuditLogs(): Promise<unknown[]> {
-    return [];
+  log(): Promise<void> {
+    return Promise.resolve();
   }
-  async getUserAuditLogs(): Promise<unknown[]> {
-    return [];
+  getAuditLogs(): Promise<unknown[]> {
+    return Promise.resolve([]);
   }
-  async countAuditLogs(): Promise<number> {
-    return 0;
+  getUserAuditLogs(): Promise<unknown[]> {
+    return Promise.resolve([]);
+  }
+  countAuditLogs(): Promise<number> {
+    return Promise.resolve(0);
   }
 }
 
