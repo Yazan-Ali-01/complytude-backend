@@ -411,6 +411,52 @@ Request → JWT Validation → Extract tenant_id → transactionWithTenantContex
 | **Global**        | authorities, categories, templates, features, plans, addons              | ❌ No  | Shared across all tenants |
 | **Tenant-Scoped** | documents, tenant_subscriptions, tenant_addons, tenant_overrides, usage_ledger, credit_ledger, etc. | ✅ Yes | Isolated per tenant |
 
+### Tenant Creation Flow
+
+When a new tenant is created (via `POST /tenants` or during signup), the system orchestrates multiple operations in a single transaction:
+
+```typescript
+// TenantService.createTenantForUser()
+await this.executeInTenantScope('', { mode: 'platform' }, async (client) => {
+  // 1. Create tenant record
+  const tenant = await this.tenantRepository.create({ name, is_active: true }, { client });
+  
+  // 2. Link user as tenant_admin
+  await this.userTenantRepository.linkUserToTenant({
+    userId, tenantId: tenant.id, roleKey: 'tenant_admin'
+  }, { client });
+  
+  // 3. Create subscription (defaults to 'navigator' plan)
+  await this.subscriptionsService.createSubscription(
+    tenant.id, planKey ?? 'navigator', userId, { client }
+  );
+  
+  return tenant;
+});
+```
+
+**Key Points:**
+
+- **Platform Admin Context:** Runs with `app.platform_role = 'true'` to bypass RLS policies
+- **Atomic Transaction:** All operations succeed or fail together
+- **Subscription Required:** Every tenant must have an active subscription for entitlement resolution
+- **Default Plan:** Navigator (free tier) if not specified
+- **RBAC Setup:** System roles are synced on app startup, not per-tenant
+- **Entitlement Snapshot:** Created lazily on first access by `EntitlementResolverService`
+
+**RLS Policy Requirements:**
+
+For tenant creation to work, the `tenant_insert` policy must allow platform admins:
+
+```sql
+CREATE POLICY tenant_insert ON public.tenants
+FOR INSERT WITH CHECK (
+    is_auth_flow() OR is_platform_admin()
+);
+```
+
+> **📖 For complete entitlement system details including subscription management, see [ENTITLEMENTS.md](ENTITLEMENTS.md)**
+
 ---
 
 ## Authentication & Authorization

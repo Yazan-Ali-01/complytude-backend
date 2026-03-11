@@ -39,6 +39,7 @@ import { TenantRbacService } from './tenant-rbac.service';
   ],
   exports: [
     TenantRbacService,
+    TenantRbacSyncService,
     TenantRolesRepository,
     TenantPermissionsRepository,
     TenantPermissionsGuard,

@@ -20,6 +20,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { I18nService } from 'nestjs-i18n';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
@@ -28,8 +29,17 @@ import { FastifyMultipartInterceptor } from 'src/common/interceptors/fastify-mul
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import type { MulterLikeFile } from '../../common/interfaces/multer-file.interface';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
-import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedTenantUser } from '../auth/strategies';
+import {
+  CurrentUserIdentity,
+  CurrentUserTenant,
+} from '../auth/decorators/current-user.decorator';
+import { VerifiedUserGuard } from '../auth/guards/verified-user.guard';
+import type {
+  AuthenticatedIdentityUser,
+  AuthenticatedTenantUser,
+} from '../auth/strategies';
+import { TenantsI18n } from './constants/i18n.constants';
+import { CreateTenantDto } from './dto/create-tenant.dto';
 import { TenantResponseDto } from './dto/tenant-response.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
@@ -37,8 +47,6 @@ import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UpdateTenantSlugDto } from './dto/update-tenant-slug.dto';
 import { TenantService } from './tenant.service';
-import { I18nService } from 'nestjs-i18n';
-import { TenantsI18n } from './constants/i18n.constants';
 
 /**
  * Tenant self-management controller
@@ -61,6 +69,80 @@ export class TenantController {
   // ============================================================================
   // READ
   // ============================================================================
+
+  // ============================================================================
+  // SELF-SERVICE TENANT CREATION
+  // ============================================================================
+
+  /**
+   * Create a new tenant (self-service signup)
+   *
+   * Flow:
+   * 1. User signs up (POST /auth/signup)
+   * 2. User verifies email (POST /auth/verify-email)
+   * 3. User logs in (POST /auth/login) → gets identity token, tenants = []
+   * 4. User creates tenant (POST /tenants) ← THIS ENDPOINT
+   * 5. User switches to tenant (POST /auth/tenant-switch) → gets tenant token
+   *
+   * Requirements:
+   * - Identity token (user must be logged in)
+   * - Email must be verified (enforced by VerifiedUserGuard)
+   *
+   * What this endpoint does:
+   * - Creates tenant with optional name (defaults to "{email}'s Organization")
+   * - Creates subscription with specified plan (defaults to 'navigator')
+   * - Links user as tenant_admin in user_tenants table
+   * - Returns created tenant
+   *
+   * @throws ForbiddenException if user email not verified
+   * @throws ConflictException if user already owns a tenant or tenant name is taken
+   * @throws NotFoundException if specified plan not found
+   * @throws BadRequestException if specified plan not active
+   */
+  @Post()
+  @AuthOptions({ identity: true, tenant: false })
+  @UseGuards(VerifiedUserGuard)
+  @SwaggerCookieAuth.identityAccessToken()
+  @ApiOperation({
+    summary: 'Create a new tenant (organization)',
+    description:
+      'Self-service tenant creation for verified users. Creates tenant, subscription, and links user as tenant_admin. User must have identity token (logged in) and verified email.',
+  })
+  @ApiBody({ type: CreateTenantDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Tenant created successfully',
+    type: TenantResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'User already has a tenant or tenant name is taken',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Specified plan not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Specified plan is not active',
+  })
+  async createTenant(
+    @Body() createTenantDto: CreateTenantDto,
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
+  ): Promise<TenantResponseDto> {
+    this.logger.log(
+      `User ${identityUser.email} creating tenant with plan ${createTenantDto.planKey ?? 'navigator'}`,
+    );
+
+    const tenant = await this.tenantService.createTenantForUser(
+      identityUser.userId,
+      identityUser.email,
+      createTenantDto,
+      { mode: 'platform' }, // TODO replace with tenant mode
+    );
+
+    return new TenantResponseDto(tenant);
+  }
 
   /**
    * Get authenticated user's tenant profile

@@ -29,7 +29,7 @@ CREATE POLICY tenant_insert
 ON public.tenants
 FOR INSERT
 WITH CHECK (
-    is_auth_flow()
+    is_auth_flow() OR is_platform_admin()
 );
 
 -- Tenant admins can update their tenant; platform admins can update any tenant
@@ -111,19 +111,19 @@ BEGIN
     DELETE FROM public.refresh_tokens
     WHERE revoked_at IS NOT NULL
       AND revoked_at < NOW() - INTERVAL '30 days';
-    
+
     -- Delete refresh tokens that expired 30+ days ago
     DELETE FROM public.refresh_tokens
     WHERE expires_at < NOW() - INTERVAL '30 days';
-    
+
     -- Delete email verification tokens that expired 7+ days ago
     DELETE FROM public.email_verifications
     WHERE expires_at < NOW() - INTERVAL '7 days';
-    
+
     -- Delete password reset tokens that expired 7+ days ago
     DELETE FROM public.password_resets
     WHERE expires_at < NOW() - INTERVAL '7 days';
-    
+
     RAISE NOTICE 'Cleanup completed: expired tokens removed';
 END;
 $$;
@@ -144,9 +144,9 @@ BEGIN
         updated_at = NOW()
     WHERE status = 'PENDING'
       AND expires_at < NOW();
-    
+
     GET DIAGNOSTICS affected_rows = ROW_COUNT;
-    
+
     RETURN affected_rows;
 END;
 $$;

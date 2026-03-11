@@ -180,15 +180,16 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 The system uses a **dual-mode enforcement strategy** that balances performance (async projection updates) with correctness (strict mode near limits):
 
-| Mode | Condition | Projection Update | Concurrency Safety |
-|------|-----------|-------------------|-------------------|
-| **Async** | `remaining > threshold` | BullMQ job (async) with sync fallback | Eventual consistency (safe: far from limit) |
-| **Strict** | `remaining ≤ threshold` | CAS (`conditionalIncrement`) in-transaction | Strong consistency (prevents over-quota) |
-| **Unlimited** | `limit = -1` | BullMQ job (async) | N/A (no quota) |
+| Mode          | Condition               | Projection Update                           | Concurrency Safety                          |
+| ------------- | ----------------------- | ------------------------------------------- | ------------------------------------------- |
+| **Async**     | `remaining > threshold` | BullMQ job (async) with sync fallback       | Eventual consistency (safe: far from limit) |
+| **Strict**    | `remaining ≤ threshold` | CAS (`conditionalIncrement`) in-transaction | Strong consistency (prevents over-quota)    |
+| **Unlimited** | `limit = -1`            | BullMQ job (async)                          | N/A (no quota)                              |
 
 **Threshold:** Configurable via `app.entitlement.strictThresholdPercent` (default: 5% of limit, minimum 3 units).
 
 **Async Path Details:**
+
 - Usage is written to the append-only ledger within the main transaction
 - After commit, a `PROJECTION_UPDATE` job is enqueued to BullMQ
 - `ProjectionUpdateHandler` processes the job: claims event via `projected_at` CAS, increments `aggregated_usage`, emits domain event
@@ -196,6 +197,7 @@ The system uses a **dual-mode enforcement strategy** that balances performance (
 - Idempotency: `claimForProjection()` uses CAS on `projected_at` column — prevents double-projection on retries
 
 **Strict Path Details:**
+
 - Uses PostgreSQL savepoints for atomic rollback on CAS failure
 - `conditionalIncrement()` atomically increments `aggregated_usage` only if current total hasn't exceeded the limit
 - If CAS returns null (concurrent request consumed remaining quota), the savepoint is rolled back and the request is denied with `concurrent_quota_race` reason
@@ -370,6 +372,32 @@ The system uses a **dual-mode enforcement strategy** that balances performance (
 ---
 
 ## How It Works
+
+### 0. Subscription Creation (Tenant Setup)
+
+**Every tenant must have an active subscription.** When a tenant is created via `POST /tenants` or during signup, the system automatically creates a subscription:
+
+```typescript
+// TenantService.createTenantForUser()
+await this.subscriptionsService.createSubscription(
+  tenant.id,
+  planKey ?? 'navigator', // Defaults to free Navigator plan
+  userId,
+  { client }, // Reuses transaction client
+);
+```
+
+**Created Subscription:**
+
+- `plan_id` — Resolved from plan key via `PlansRepository.findByKey()`
+- `status` — `'active'`
+- `current_period_start` — NOW()
+- `current_period_end` — NOW() + 1 month
+- `tenant_id` — From newly created tenant
+
+**Important:** Without an active subscription, `EntitlementResolverService.resolveForTenant()` will throw `NotFoundException`. The subscription is created within the same transaction as the tenant to ensure atomicity.
+
+> **📖 For complete tenant creation flow including RLS context setup, see [ARCHITECTURE.md](ARCHITECTURE.md#tenant-creation-flow)**
 
 ### 1. Entitlement Resolution
 
