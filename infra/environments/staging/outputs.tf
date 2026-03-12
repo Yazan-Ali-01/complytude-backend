@@ -122,3 +122,9 @@ output "app_url" {
   description = "HTTPS URL for the staging API"
   value       = "https://${module.dns_record.app_fqdn}"
 }
+
+output "developer_access_keys" {
+  description = "AWS access keys for each developer. Retrieve with: terraform output -json developer_access_keys"
+  sensitive   = true
+  value       = module.developers.access_keys
+}

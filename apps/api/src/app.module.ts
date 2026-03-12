@@ -1,7 +1,8 @@
 import { databaseConfig, DatabaseModule } from '@lib/database';
+import { LoggerModule } from '@lib/logger';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
 import { redisConfig, RedisModule } from '@lib/redis';
-import { Module } from '@nestjs/common';
+import { Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import appConfig from 'src/config/app.config';
@@ -42,6 +43,13 @@ import { TenantModule } from './modules/tenants/tenant.module';
         allowUnknown: true,
         abortEarly: false,
       },
+    }),
+    LoggerModule.forRoot({
+      serviceName: 'gateway',
+      excludeRoutes: [
+        { path: 'health', method: RequestMethod.ALL },
+        { path: 'health/(.*)', method: RequestMethod.ALL },
+      ],
     }),
     RedisModule.forRoot(),
     QueueModule.forRoot([

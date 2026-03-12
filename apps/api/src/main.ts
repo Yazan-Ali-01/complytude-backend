@@ -6,7 +6,11 @@ import multipart from '@fastify/multipart';
 import { QUEUE_NAMES } from '@lib/queue';
 // eslint-disable-next-line no-restricted-imports
 import { getQueueToken } from '@nestjs/bullmq';
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import {
+  Logger as NestLogger,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -14,6 +18,8 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino';
+import { randomUUID } from 'node:crypto';
 import { AppModule } from './app.module';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import {
@@ -22,19 +28,26 @@ import {
 } from './common/swagger/common';
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
+  const fastifyAdapter = new FastifyAdapter({
+    requestIdHeader: 'x-request-id',
+    genReqId: (req) => {
+      return (
+        (req.headers['x-request-id'] as string) ??
+        (req.headers['x-trace-id'] as string) ??
+        randomUUID()
+      );
+    },
+  });
 
-  // Create Fastify adapter
-  const fastifyAdapter = new FastifyAdapter();
-
-  // Create Fastify application
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     fastifyAdapter,
-    {
-      logger: ['error', 'warn', 'log', 'debug', 'verbose'],
-    },
+    { bufferLogs: true },
   );
+
+  app.useLogger(app.get(Logger));
+
+  const logger = new NestLogger('Bootstrap');
 
   // Get config service
   const configService = app.get(ConfigService);

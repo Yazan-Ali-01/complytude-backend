@@ -1,14 +1,14 @@
-import { Logger } from '@nestjs/common';
+import { Logger as NestLogger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 import { WorkerAiModule } from './worker-ai.module';
 
 async function bootstrap() {
-  const logger = new Logger('WorkerAI');
+  const app = await NestFactory.create(WorkerAiModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
 
-  const app = await NestFactory.create(WorkerAiModule, {
-    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
-  });
+  const logger = new NestLogger('WorkerAI');
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('workerAi.port') || 3001;
