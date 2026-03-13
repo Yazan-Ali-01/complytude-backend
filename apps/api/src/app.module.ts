@@ -17,7 +17,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { I18nModule } from './i18n/i18n.module';
-import { AuditModule } from './modules/audit/audit.module';
+import { AuditModule } from '@lib/audit';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -75,7 +75,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     DocumentsModule,
     TenantRbacModule,
     PlatformRbacModule,
-    AuditModule,
+    AuditModule.forRoot(),
     MockModule,
     RagMockModule,
   ],

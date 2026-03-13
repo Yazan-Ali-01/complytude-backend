@@ -52,6 +52,12 @@
       "@lib/context/*": [
         "libs/context/src/*"
       ],
+      "@lib/audit": [
+        "libs/audit/src"
+      ],
+      "@lib/audit/*": [
+        "libs/audit/src/*"
+      ],
       "@lib/logger": [
         "libs/logger/src"
       ],

@@ -5,12 +5,10 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { CLS_TRACE_ID } from '@lib/context';
+import { AuditService } from '@lib/audit';
 import { FastifyRequest } from 'fastify';
-import { ClsService } from 'nestjs-cls';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { AuditService } from '../../modules/audit/audit.service';
 import {
   AuthenticatedIdentityUser,
   AuthenticatedTenantUser,
@@ -26,7 +24,6 @@ export class AuditInterceptor implements NestInterceptor {
   constructor(
     private readonly auditService: AuditService,
     private readonly reflector: Reflector,
-    private readonly cls: ClsService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -44,7 +41,6 @@ export class AuditInterceptor implements NestInterceptor {
     const url = request.url;
     const ipAddress = this.getIpAddress(request);
     const userAgent = request.headers['user-agent'] || undefined;
-    const traceId = this.cls.get<string>(CLS_TRACE_ID) || undefined;
 
     return next.handle().pipe(
       tap({
@@ -70,7 +66,6 @@ export class AuditInterceptor implements NestInterceptor {
               aiModelUsed: undefined,
               ipAddress,
               userAgent,
-              traceId,
             });
           }
         },
@@ -94,7 +89,6 @@ export class AuditInterceptor implements NestInterceptor {
               },
               ipAddress,
               userAgent,
-              traceId,
             });
           }
         },
