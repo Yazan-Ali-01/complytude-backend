@@ -1,6 +1,8 @@
 import { OnWorkerEvent, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger, Optional } from '@nestjs/common';
 import { Job, UnrecoverableError } from 'bullmq';
+import { PinoLogger } from 'nestjs-pino';
+import { JobMetadata } from './interfaces/job-metadata.interface';
 
 export class RetryableError extends Error {
   constructor(
@@ -28,6 +30,10 @@ export abstract class AbstractProcessor<
 > extends WorkerHost {
   protected abstract readonly logger: Logger;
 
+  @Optional()
+  @Inject(PinoLogger)
+  protected readonly pinoLogger?: PinoLogger;
+
   abstract handle(job: Job<TData>): Promise<TResult>;
 
   async process(job: Job<TData>): Promise<TResult> {
@@ -37,6 +43,19 @@ export abstract class AbstractProcessor<
       jobName: job.name,
       attempt: job.attemptsMade + 1,
     };
+
+    const metadata = (job.data as Record<string, unknown>)?._metadata as
+      | JobMetadata
+      | undefined;
+
+    if (this.pinoLogger && metadata) {
+      const logContext: Record<string, string> = {};
+      if (metadata.traceId) logContext.trace_id = metadata.traceId;
+      if (metadata.tenantId) logContext.tenant_id = metadata.tenantId;
+      if (Object.keys(logContext).length > 0) {
+        this.pinoLogger.assign(logContext);
+      }
+    }
 
     this.logger.log(
       `Job started [${meta.jobName}] id=${meta.jobId} attempt=${meta.attempt}`,
