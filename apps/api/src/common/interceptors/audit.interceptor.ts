@@ -4,6 +4,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
+import { PATH_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { AuditService } from '@lib/audit';
 import { FastifyRequest } from 'fastify';
@@ -13,11 +14,8 @@ import {
   AuthenticatedIdentityUser,
   AuthenticatedTenantUser,
 } from '../../modules/auth/strategies';
-import {
-  AUDIT_ACTION_KEY,
-  AUDIT_RESOURCE_KEY,
-  AuditActionConfig,
-} from '../decorators/audit.decorator';
+import { AUDIT_KEY, AuditConfig } from '../decorators/audit.decorator';
+import { sanitizeBody } from '../utils/audit-sanitize.util';
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -27,6 +25,15 @@ export class AuditInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const auditConfig = this.reflector.get<AuditConfig | undefined>(
+      AUDIT_KEY,
+      context.getHandler(),
+    );
+
+    if (!auditConfig) {
+      return next.handle();
+    }
+
     const request = context.switchToHttp().getRequest<
       FastifyRequest & {
         auth: {
@@ -37,63 +44,97 @@ export class AuditInterceptor implements NestInterceptor {
     >();
     const tenant = request.auth?.tenant;
 
-    const method = request.method;
-    const url = request.url;
-    const ipAddress = this.getIpAddress(request);
-    const userAgent = request.headers['user-agent'] || undefined;
+    if (!tenant) {
+      return next.handle();
+    }
 
     return next.handle().pipe(
       tap({
         next: (response) => {
-          if (tenant) {
-            const resourceType = this.getResourceType(context, url);
-            const action = this.getAction(context, method, url, resourceType);
-            const resourceId = this.deriveResourceId(response);
+          const resourceType = this.resolveResourceType(auditConfig, context);
+          const resourceId = this.resolveResourceId(
+            auditConfig,
+            request,
+            response,
+          );
+          const ipAddress = this.getIpAddress(request);
+          const userAgent = request.headers['user-agent'] || undefined;
 
-            void this.auditService.log({
-              tenantId: tenant.tenantId,
-              actorId: tenant.userId,
-              actorType: 'user',
-              userRole: tenant.role,
-              action,
-              resourceType: resourceType ?? 'unknown',
-              resourceId,
-              details: {
-                method,
-                url,
-                statusCode: 200,
-              },
-              aiModelUsed: undefined,
-              ipAddress,
-              userAgent,
-            });
-          }
-        },
-        error: (error) => {
-          if (tenant) {
-            const resourceType = this.getResourceType(context, url);
-            const action = this.getAction(context, method, url, resourceType);
+          const details: Record<string, unknown> = {
+            method: request.method,
+            url: request.url,
+          };
 
-            void this.auditService.log({
-              tenantId: tenant.tenantId,
-              actorId: tenant.userId,
-              actorType: 'user',
-              userRole: tenant.role,
-              action,
-              resourceType: resourceType ?? 'unknown',
-              details: {
-                method,
-                url,
-                statusCode: error.status || 500,
-                error: error.message,
-              },
-              ipAddress,
-              userAgent,
-            });
+          if (auditConfig.options.includeBody && request.body) {
+            details.body = sanitizeBody(request.body);
           }
+
+          void this.auditService.log({
+            tenantId: tenant.tenantId,
+            actorId: tenant.userId,
+            actorType: 'user',
+            userRole: tenant.role,
+            action: auditConfig.event,
+            resourceType: resourceType ?? 'unknown',
+            resourceId,
+            details,
+            ipAddress,
+            userAgent,
+          });
         },
       }),
     );
+  }
+
+  /**
+   * Priority: explicit option > controller @Controller() path > undefined
+   */
+  private resolveResourceType(
+    config: AuditConfig,
+    context: ExecutionContext,
+  ): string | undefined {
+    if (config.options.resourceType) {
+      return config.options.resourceType;
+    }
+
+    const controllerPath = this.reflector.get<string>(
+      PATH_METADATA,
+      context.getClass(),
+    );
+    if (controllerPath) {
+      const firstSegment = controllerPath.split('/').filter(Boolean)[0];
+      return firstSegment || undefined;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Primary: route params (via resourceIdParam).
+   * Fallback: response body (response.id or response.data.id).
+   */
+  private resolveResourceId(
+    config: AuditConfig,
+    request: FastifyRequest,
+    response: unknown,
+  ): string | undefined {
+    if (config.options.resourceIdParam) {
+      const paramValue = (request.params as Record<string, string>)?.[
+        config.options.resourceIdParam
+      ];
+      if (paramValue) return paramValue;
+    }
+
+    if (response && typeof response === 'object') {
+      const obj = response as Record<string, unknown>;
+      if (obj.id && typeof obj.id === 'string') return obj.id;
+      if (obj.data && typeof obj.data === 'object') {
+        const data = obj.data as Record<string, unknown>;
+        if (data.id && typeof data.id === 'string') return data.id;
+      }
+    }
+
+    return undefined;
   }
 
   private getIpAddress(request: FastifyRequest): string | undefined {
@@ -105,102 +146,5 @@ export class AuditInterceptor implements NestInterceptor {
       return ips.trim();
     }
     return request.ip || undefined;
-  }
-
-  /**
-   * Priority: @AuditAction resourceType override > @AuditResource > URL parsing
-   */
-  private getResourceType(
-    context: ExecutionContext,
-    url: string,
-  ): string | undefined {
-    const actionConfig = this.reflector.get<AuditActionConfig | undefined>(
-      AUDIT_ACTION_KEY,
-      context.getHandler(),
-    );
-    if (actionConfig?.resourceType) {
-      return actionConfig.resourceType;
-    }
-
-    const controllerResource = this.reflector.get<string | undefined>(
-      AUDIT_RESOURCE_KEY,
-      context.getClass(),
-    );
-    if (controllerResource) {
-      return controllerResource;
-    }
-
-    return this.deriveResourceTypeFromUrl(url);
-  }
-
-  /**
-   * Priority: @AuditAction > HTTP method mapping
-   */
-  private getAction(
-    context: ExecutionContext,
-    method: string,
-    url: string,
-    resourceType: string | undefined,
-  ): string {
-    const actionConfig = this.reflector.get<AuditActionConfig | undefined>(
-      AUDIT_ACTION_KEY,
-      context.getHandler(),
-    );
-
-    if (actionConfig) {
-      const resource = actionConfig.resourceType || resourceType || 'unknown';
-      const action = actionConfig.subResource
-        ? `${actionConfig.action}_${actionConfig.subResource}`
-        : actionConfig.action;
-      return `${resource}:${action}`;
-    }
-
-    return this.deriveActionFromMethod(method, resourceType || 'unknown');
-  }
-
-  /**
-   * Handles: /api/documents, /api/v1/documents, /documents
-   */
-  private deriveResourceTypeFromUrl(url: string): string | undefined {
-    const pathSegments = url.split('/').filter(Boolean);
-
-    let startIndex = 0;
-    if (pathSegments[0] === 'api') {
-      startIndex = 1;
-      if (pathSegments[1]?.match(/^v\d+$/)) {
-        startIndex = 2;
-      }
-    }
-
-    return pathSegments[startIndex] || undefined;
-  }
-
-  private deriveActionFromMethod(method: string, resource: string): string {
-    const actionMap: Record<string, string> = {
-      GET: 'read',
-      POST: 'create',
-      PUT: 'update',
-      PATCH: 'update',
-      DELETE: 'delete',
-    };
-
-    const action = actionMap[method] || 'unknown';
-    return `${resource}:${action}`;
-  }
-
-  private deriveResourceId(response: unknown): string | undefined {
-    if (response && typeof response === 'object') {
-      const obj = response as Record<string, unknown>;
-      if (obj.id && typeof obj.id === 'string') {
-        return obj.id;
-      }
-      if (obj.data && typeof obj.data === 'object') {
-        const data = obj.data as Record<string, unknown>;
-        if (data.id && typeof data.id === 'string') {
-          return data.id;
-        }
-      }
-    }
-    return undefined;
   }
 }
