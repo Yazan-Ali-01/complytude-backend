@@ -1,4 +1,4 @@
-import { ContextModule } from '@lib/context';
+import { ContextModule, TracingInterceptor } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
 import { LoggerModule } from '@lib/logger';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
@@ -85,6 +85,10 @@ import { TenantModule } from './modules/tenants/tenant.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TracingInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

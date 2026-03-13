@@ -5,7 +5,7 @@ import {
   Module,
   NestModule,
 } from '@nestjs/common';
-import { ClsModule } from 'nestjs-cls';
+import { ClsMiddleware, ClsModule } from 'nestjs-cls';
 import { TracingMiddleware } from './tracing.middleware';
 
 export interface ContextModuleOptions {
@@ -32,7 +32,6 @@ export class ContextModule implements NestModule {
       imports: [
         ClsModule.forRoot({
           global: true,
-          middleware: { mount: true },
         }),
       ],
     };
@@ -40,7 +39,7 @@ export class ContextModule implements NestModule {
 
   configure(consumer: MiddlewareConsumer) {
     if (ContextModule.httpTracing) {
-      consumer.apply(TracingMiddleware).forRoutes('*');
+      consumer.apply(ClsMiddleware, TracingMiddleware).forRoutes('*');
     }
   }
 }
