@@ -1,3 +1,4 @@
+import { ContextModule } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
 import { embeddingConfig, EmbeddingModule } from '@lib/embedding';
 import { LoggerModule } from '@lib/logger';
@@ -31,6 +32,7 @@ import { WorkerIngestionService } from './worker-ingestion.service';
       },
       envFilePath: ['apps/worker-ingestion/.env'],
     }),
+    ContextModule.forRoot(),
     LoggerModule.forRoot({ serviceName: 'worker-ingestion' }),
     EmbeddingModule.forRoot(),
     DatabaseModule.forRoot(),

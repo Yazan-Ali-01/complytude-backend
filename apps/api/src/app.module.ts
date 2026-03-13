@@ -1,3 +1,4 @@
+import { ContextModule } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
 import { LoggerModule } from '@lib/logger';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
@@ -44,6 +45,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
         abortEarly: false,
       },
     }),
+    ContextModule.forRoot({ enableHttpTracing: true }),
     LoggerModule.forRoot({
       serviceName: 'gateway',
       excludeRoutes: [

@@ -3,6 +3,7 @@ import type { Params } from 'nestjs-pino';
 import type { IncomingMessage } from 'node:http';
 
 import type { RouteExclusion } from './interfaces/logger-options.interface';
+import { PINO_REDACT_PATHS, REDACTED } from './logger.redaction';
 
 export function createPinoConfig(
   configService: ConfigService,
@@ -37,14 +38,8 @@ export function createPinoConfig(
       },
 
       redact: {
-        paths: [
-          'req.headers.authorization',
-          'req.headers.cookie',
-          'req.body.password',
-          'req.body.currentPassword',
-          'req.body.newPassword',
-        ],
-        censor: '[REDACTED]',
+        paths: [...PINO_REDACT_PATHS],
+        censor: REDACTED,
       },
 
       serializers: {

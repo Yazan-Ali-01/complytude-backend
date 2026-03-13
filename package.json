@@ -117,6 +117,7 @@
     "file-type": "^21.0.0",
     "ioredis": "^5.9.2",
     "joi": "^18.0.1",
+    "nestjs-cls": "^6.2.0",
     "nestjs-i18n": "^10.6.0",
     "nestjs-pino": "^4.6.0",
     "openai": "^6.22.0",

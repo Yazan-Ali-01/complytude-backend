@@ -39,6 +39,13 @@ async function bootstrap() {
     },
   });
 
+  fastifyAdapter
+    .getInstance()
+    .addHook('onSend', (req, reply, _payload, done) => {
+      reply.header('x-trace-id', req.id);
+      done();
+    });
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     fastifyAdapter,

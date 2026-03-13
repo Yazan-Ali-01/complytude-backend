@@ -6,6 +6,8 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { CLS_TENANT_ID } from '@lib/context';
+import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
 import { Observable } from 'rxjs';
 import { AUTH_OPTIONS_KEY } from 'src/modules/auth/decorators/auth-options.decorator';
@@ -27,8 +29,9 @@ export class TenantInterceptor implements NestInterceptor {
   private readonly logger = new Logger(TenantInterceptor.name);
 
   constructor(
-    private reflector: Reflector,
+    private readonly reflector: Reflector,
     private readonly pinoLogger: PinoLogger,
+    private readonly cls: ClsService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -54,6 +57,7 @@ export class TenantInterceptor implements NestInterceptor {
       };
 
       this.pinoLogger.assign({ tenant_id: request.auth.tenant.tenantId });
+      this.cls.set(CLS_TENANT_ID, request.auth.tenant.tenantId);
 
       this.logger.debug(
         `Tenant context set: ${request.tenantContext.tenantId} (${request.tenantContext.role})`,

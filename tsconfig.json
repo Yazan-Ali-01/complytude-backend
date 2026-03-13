@@ -46,6 +46,12 @@
       "@lib/database/*": [
         "libs/database/src/*"
       ],
+      "@lib/context": [
+        "libs/context/src"
+      ],
+      "@lib/context/*": [
+        "libs/context/src/*"
+      ],
       "@lib/logger": [
         "libs/logger/src"
       ],
