@@ -20,10 +20,13 @@ class MockAuditService {
   log(): Promise<void> {
     return Promise.resolve();
   }
+  logSystemEvent(): Promise<void> {
+    return Promise.resolve();
+  }
   getAuditLogs(): Promise<unknown[]> {
     return Promise.resolve([]);
   }
-  getUserAuditLogs(): Promise<unknown[]> {
+  getActorAuditLogs(): Promise<unknown[]> {
     return Promise.resolve([]);
   }
   countAuditLogs(): Promise<number> {

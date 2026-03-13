@@ -269,16 +269,18 @@ COMMENT ON TABLE public.platform_role_permissions IS 'Many-to-many: platform rol
 -- =========================
 CREATE TABLE public.audit_logs (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id     UUID,
-    user_id       UUID,
+    tenant_id     UUID,                                        -- NULL for system-level actions
+    actor_id      UUID,                                        -- NULL for anonymous/system actors
+    actor_type    VARCHAR(50) NOT NULL DEFAULT 'user',         -- 'user', 'system', 'api_key'
     user_role     VARCHAR(50),
     action        VARCHAR(100) NOT NULL,
-    resource_type VARCHAR(50),
+    resource_type VARCHAR(100) NOT NULL,
     resource_id   UUID,
     details       JSONB DEFAULT '{}',
     ai_model_used VARCHAR(100),
     ip_address    VARCHAR(45),
     user_agent    TEXT,
+    trace_id      VARCHAR(64),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT fk_audit_logs_tenant
@@ -287,24 +289,28 @@ CREATE TABLE public.audit_logs (
         ON DELETE SET NULL
         ON UPDATE CASCADE,
 
-    CONSTRAINT fk_audit_logs_user
-        FOREIGN KEY (user_id)
+    CONSTRAINT fk_audit_logs_actor
+        FOREIGN KEY (actor_id)
         REFERENCES public.users(id)
         ON DELETE SET NULL
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT check_actor_type CHECK (actor_type IN ('user', 'system', 'api_key'))
 );
 
-COMMENT ON TABLE public.audit_logs IS 'Audit trail for all user actions';
+COMMENT ON TABLE public.audit_logs IS 'Immutable audit trail for all user and system actions';
 COMMENT ON COLUMN public.audit_logs.tenant_id IS 'Tenant ID (NULL for system-level actions)';
-COMMENT ON COLUMN public.audit_logs.user_id IS 'User who performed the action';
+COMMENT ON COLUMN public.audit_logs.actor_id IS 'User who performed the action (NULL for system/anonymous)';
+COMMENT ON COLUMN public.audit_logs.actor_type IS 'Type of actor: user, system, or api_key';
 COMMENT ON COLUMN public.audit_logs.user_role IS 'Role key at time of action (for historical record)';
-COMMENT ON COLUMN public.audit_logs.action IS 'Action performed (e.g., documents:create, settings:change_jurisdiction)';
+COMMENT ON COLUMN public.audit_logs.action IS 'Action performed (e.g., documents:create, settings:update)';
 COMMENT ON COLUMN public.audit_logs.resource_type IS 'Type of resource affected (e.g., documents, templates)';
 COMMENT ON COLUMN public.audit_logs.resource_id IS 'ID of the affected resource (if applicable)';
 COMMENT ON COLUMN public.audit_logs.details IS 'Additional context (JSONB)';
-COMMENT ON COLUMN public.audit_logs.ai_model_used IS 'AI model used for AI operations (prepared for future)';
+COMMENT ON COLUMN public.audit_logs.ai_model_used IS 'AI model used for AI operations';
 COMMENT ON COLUMN public.audit_logs.ip_address IS 'IP address of the request';
 COMMENT ON COLUMN public.audit_logs.user_agent IS 'User agent of the request';
+COMMENT ON COLUMN public.audit_logs.trace_id IS 'Correlates with request/job traces (from CLS_TRACE_ID)';
 
 -- =========================
 -- User ↔ Tenant Membership
@@ -506,10 +512,13 @@ CREATE INDEX idx_platform_role_permissions_permission_id ON public.platform_role
 
 -- Audit Logs
 CREATE INDEX idx_audit_logs_tenant_id ON public.audit_logs(tenant_id);
-CREATE INDEX idx_audit_logs_user_id ON public.audit_logs(user_id);
+CREATE INDEX idx_audit_logs_actor_id ON public.audit_logs(actor_id);
+CREATE INDEX idx_audit_logs_actor_type ON public.audit_logs(actor_type);
 CREATE INDEX idx_audit_logs_action ON public.audit_logs(action);
 CREATE INDEX idx_audit_logs_created_at ON public.audit_logs(created_at DESC);
 CREATE INDEX idx_audit_logs_tenant_created ON public.audit_logs(tenant_id, created_at DESC);
+CREATE INDEX idx_audit_logs_resource ON public.audit_logs(resource_type, resource_id);
+CREATE INDEX idx_audit_logs_trace_id ON public.audit_logs(trace_id);
 
 -- User Tenants
 -- Composite index for user's active tenants (WHERE user_id = ? AND is_active = true)
@@ -811,10 +820,13 @@ DROP INDEX IF EXISTS public.idx_invitations_email_pending;
 DROP INDEX IF EXISTS public.idx_invitations_email_tenant_status;
 DROP INDEX IF EXISTS public.idx_invitations_token_pending;
 
+DROP INDEX IF EXISTS public.idx_audit_logs_trace_id;
+DROP INDEX IF EXISTS public.idx_audit_logs_resource;
+DROP INDEX IF EXISTS public.idx_audit_logs_actor_type;
 DROP INDEX IF EXISTS public.idx_audit_logs_tenant_created;
 DROP INDEX IF EXISTS public.idx_audit_logs_created_at;
 DROP INDEX IF EXISTS public.idx_audit_logs_action;
-DROP INDEX IF EXISTS public.idx_audit_logs_user_id;
+DROP INDEX IF EXISTS public.idx_audit_logs_actor_id;
 DROP INDEX IF EXISTS public.idx_audit_logs_tenant_id;
 
 DROP INDEX IF EXISTS public.idx_tenant_role_permissions_permission_id;

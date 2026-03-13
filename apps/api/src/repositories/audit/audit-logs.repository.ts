@@ -20,58 +20,53 @@ export class AuditLogsRepository extends BaseRepository<
     return {
       id: row.id as string,
       tenantId: (row.tenant_id as string) || null,
-      userId: (row.user_id as string) || null,
+      actorId: (row.actor_id as string) || null,
+      actorType: (row.actor_type as AuditLog['actorType']) || 'user',
       userRole: (row.user_role as string) || null,
       action: row.action as string,
-      resourceType: (row.resource_type as string) || null,
+      resourceType: row.resource_type as string,
       resourceId: (row.resource_id as string) || null,
       details: (row.details as Record<string, unknown>) || {},
       aiModelUsed: (row.ai_model_used as string) || null,
       ipAddress: (row.ip_address as string) || null,
       userAgent: (row.user_agent as string) || null,
+      traceId: (row.trace_id as string) || null,
       createdAt: row.created_at as Date,
     };
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, user_id, user_role, action, resource_type, resource_id, details, ai_model_used, ip_address, user_agent, created_at';
+    return 'id, tenant_id, actor_id, actor_type, user_role, action, resource_type, resource_id, details, ai_model_used, ip_address, user_agent, trace_id, created_at';
   }
 
-  /**
-   * Create an audit log entry
-   * @param input - Audit log data
-   */
   async create(input: CreateAuditLogInput): Promise<AuditLog> {
     const query = `
       INSERT INTO ${this.tableName} (
-        tenant_id, user_id, user_role, action, resource_type, resource_id,
-        details, ai_model_used, ip_address, user_agent
+        tenant_id, actor_id, actor_type, user_role, action, resource_type, resource_id,
+        details, ai_model_used, ip_address, user_agent, trace_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING ${this.getSelectColumns()}
     `;
 
     const result = await this.executeQuery(query, [
       input.tenantId || null,
-      input.userId || null,
+      input.actorId || null,
+      input.actorType || 'user',
       input.userRole || null,
       input.action,
-      input.resourceType || null,
+      input.resourceType,
       input.resourceId || null,
       JSON.stringify(input.details || {}),
       input.aiModelUsed || null,
       input.ipAddress || null,
       input.userAgent || null,
+      input.traceId || null,
     ]);
 
     return this.mapRow(result.rows[0]);
   }
 
-  /**
-   * Find audit logs by tenant ID with filters
-   * @param tenantId - Tenant ID
-   * @param filters - Optional filters
-   */
   async findByTenant(
     tenantId: string,
     filters?: AuditLogFilters,
@@ -81,27 +76,33 @@ export class AuditLogsRepository extends BaseRepository<
     let paramIndex = 2;
 
     if (filters?.startDate) {
-      conditions.push(`created_at >= $${paramIndex}`);
+      conditions.push(`created_at >= $${paramIndex++}`);
       params.push(filters.startDate);
-      paramIndex++;
     }
 
     if (filters?.endDate) {
-      conditions.push(`created_at <= $${paramIndex}`);
+      conditions.push(`created_at <= $${paramIndex++}`);
       params.push(filters.endDate);
-      paramIndex++;
     }
 
     if (filters?.action) {
-      conditions.push(`action = $${paramIndex}`);
+      conditions.push(`action = $${paramIndex++}`);
       params.push(filters.action);
-      paramIndex++;
     }
 
     if (filters?.resourceType) {
-      conditions.push(`resource_type = $${paramIndex}`);
+      conditions.push(`resource_type = $${paramIndex++}`);
       params.push(filters.resourceType);
-      paramIndex++;
+    }
+
+    if (filters?.actorType) {
+      conditions.push(`actor_type = $${paramIndex++}`);
+      params.push(filters.actorType);
+    }
+
+    if (filters?.traceId) {
+      conditions.push(`trace_id = $${paramIndex++}`);
+      params.push(filters.traceId);
     }
 
     const query = `
@@ -117,41 +118,42 @@ export class AuditLogsRepository extends BaseRepository<
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  /**
-   * Find audit logs by user ID with filters
-   * @param userId - User ID
-   * @param filters - Optional filters
-   */
-  async findByUser(
-    userId: string,
+  async findByActor(
+    actorId: string,
     filters?: AuditLogFilters,
   ): Promise<AuditLog[]> {
-    const conditions: string[] = ['user_id = $1'];
-    const params: unknown[] = [userId];
+    const conditions: string[] = ['actor_id = $1'];
+    const params: unknown[] = [actorId];
     let paramIndex = 2;
 
     if (filters?.startDate) {
-      conditions.push(`created_at >= $${paramIndex}`);
+      conditions.push(`created_at >= $${paramIndex++}`);
       params.push(filters.startDate);
-      paramIndex++;
     }
 
     if (filters?.endDate) {
-      conditions.push(`created_at <= $${paramIndex}`);
+      conditions.push(`created_at <= $${paramIndex++}`);
       params.push(filters.endDate);
-      paramIndex++;
     }
 
     if (filters?.action) {
-      conditions.push(`action = $${paramIndex}`);
+      conditions.push(`action = $${paramIndex++}`);
       params.push(filters.action);
-      paramIndex++;
     }
 
     if (filters?.resourceType) {
-      conditions.push(`resource_type = $${paramIndex}`);
+      conditions.push(`resource_type = $${paramIndex++}`);
       params.push(filters.resourceType);
-      paramIndex++;
+    }
+
+    if (filters?.actorType) {
+      conditions.push(`actor_type = $${paramIndex++}`);
+      params.push(filters.actorType);
+    }
+
+    if (filters?.traceId) {
+      conditions.push(`trace_id = $${paramIndex++}`);
+      params.push(filters.traceId);
     }
 
     const query = `
@@ -167,11 +169,6 @@ export class AuditLogsRepository extends BaseRepository<
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  /**
-   * Count audit logs by tenant
-   * @param tenantId - Tenant ID
-   * @param filters - Optional filters
-   */
   async countByTenant(
     tenantId: string,
     filters?: Omit<AuditLogFilters, 'limit' | 'offset'>,
@@ -181,27 +178,33 @@ export class AuditLogsRepository extends BaseRepository<
     let paramIndex = 2;
 
     if (filters?.startDate) {
-      conditions.push(`created_at >= $${paramIndex}`);
+      conditions.push(`created_at >= $${paramIndex++}`);
       params.push(filters.startDate);
-      paramIndex++;
     }
 
     if (filters?.endDate) {
-      conditions.push(`created_at <= $${paramIndex}`);
+      conditions.push(`created_at <= $${paramIndex++}`);
       params.push(filters.endDate);
-      paramIndex++;
     }
 
     if (filters?.action) {
-      conditions.push(`action = $${paramIndex}`);
+      conditions.push(`action = $${paramIndex++}`);
       params.push(filters.action);
-      paramIndex++;
     }
 
     if (filters?.resourceType) {
-      conditions.push(`resource_type = $${paramIndex}`);
+      conditions.push(`resource_type = $${paramIndex++}`);
       params.push(filters.resourceType);
-      paramIndex++;
+    }
+
+    if (filters?.actorType) {
+      conditions.push(`actor_type = $${paramIndex++}`);
+      params.push(filters.actorType);
+    }
+
+    if (filters?.traceId) {
+      conditions.push(`trace_id = $${paramIndex++}`);
+      params.push(filters.traceId);
     }
 
     const query = `

@@ -9,42 +9,29 @@ import {
 export class AuditService {
   constructor(private readonly auditLogsRepository: AuditLogsRepository) {}
 
-  /**
-   * Create an audit log entry
-   * @param input - Audit log data
-   */
   async log(input: CreateAuditLogInput): Promise<void> {
     try {
       await this.auditLogsRepository.create(input);
     } catch (error) {
-      // Log the error but don't throw - audit logging should not break the application
+      // Audit logging must never break the application
       console.error('Failed to create audit log:', error);
     }
   }
 
-  /**
-   * Get audit logs for a tenant
-   * @param tenantId - Tenant ID
-   * @param filters - Optional filters
-   */
+  async logSystemEvent(
+    input: Omit<CreateAuditLogInput, 'actorId' | 'actorType'>,
+  ): Promise<void> {
+    return this.log({ ...input, actorType: 'system', actorId: undefined });
+  }
+
   async getAuditLogs(tenantId: string, filters?: AuditLogFilters) {
     return this.auditLogsRepository.findByTenant(tenantId, filters);
   }
 
-  /**
-   * Get audit logs for a user
-   * @param userId - User ID
-   * @param filters - Optional filters
-   */
-  async getUserAuditLogs(userId: string, filters?: AuditLogFilters) {
-    return this.auditLogsRepository.findByUser(userId, filters);
+  getActorAuditLogs(actorId: string, filters?: AuditLogFilters) {
+    return this.auditLogsRepository.findByActor(actorId, filters);
   }
 
-  /**
-   * Count audit logs for a tenant
-   * @param tenantId - Tenant ID
-   * @param filters - Optional filters
-   */
   async countAuditLogs(
     tenantId: string,
     filters?: Omit<AuditLogFilters, 'limit' | 'offset'>,
