@@ -48,6 +48,9 @@ export class QueueProducerService {
   ): Promise<Job<JobDataFor<Q, J>>> {
     const queue = this.queues.get(queueName);
     if (!queue) {
+      this.logger.error(
+        `Queue "${queueName}" is not registered — cannot enqueue job "${String(jobName)}"`,
+      );
       throw new Error(`Queue "${queueName}" is not registered`);
     }
     const job = await queue.add(
@@ -67,6 +70,9 @@ export class QueueProducerService {
   ): Promise<Job<JobDataFor<Q, J>>[]> {
     const queue = this.queues.get(queueName);
     if (!queue) {
+      this.logger.error(
+        `Queue "${queueName}" is not registered — cannot enqueue bulk jobs`,
+      );
       throw new Error(`Queue "${queueName}" is not registered`);
     }
     const metadata = this.buildMetadata();

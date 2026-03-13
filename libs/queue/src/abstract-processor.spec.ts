@@ -42,7 +42,7 @@ describe('AbstractProcessor', () => {
   });
 
   describe('metadata extraction', () => {
-    it('assigns trace_id and tenant_id when job has full _metadata', async () => {
+    it('assigns trace_id, tenant_id, and job context when job has full _metadata', async () => {
       const pinoLogger = makePinoLogger();
       (processor as any).pinoLogger = pinoLogger;
 
@@ -58,13 +58,17 @@ describe('AbstractProcessor', () => {
       await processor.process(job);
 
       expect(pinoLogger.assign).toHaveBeenCalledTimes(1);
-      expect(pinoLogger.assign).toHaveBeenCalledWith({
-        trace_id: 'trace-abc',
-        tenant_id: 'tenant-xyz',
-      });
+      expect(pinoLogger.assign).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trace_id: 'trace-abc',
+          tenant_id: 'tenant-xyz',
+          job_id: 'job-1',
+          job_name: 'test-job',
+        }),
+      );
     });
 
-    it('assigns only trace_id when tenantId is absent in _metadata', async () => {
+    it('assigns only trace_id and job context when tenantId is absent', async () => {
       const pinoLogger = makePinoLogger();
       (processor as any).pinoLogger = pinoLogger;
 
@@ -78,12 +82,17 @@ describe('AbstractProcessor', () => {
 
       await processor.process(job);
 
-      expect(pinoLogger.assign).toHaveBeenCalledWith({
-        trace_id: 'trace-only',
-      });
+      const assigned = pinoLogger.assign.mock.calls[0][0] as Record<
+        string,
+        string
+      >;
+      expect(assigned.trace_id).toBe('trace-only');
+      expect(assigned.tenant_id).toBeUndefined();
+      expect(assigned.job_id).toBe('job-1');
+      expect(assigned.job_name).toBe('test-job');
     });
 
-    it('assigns only tenant_id when traceId is absent in _metadata', async () => {
+    it('assigns only tenant_id and job context when traceId is absent', async () => {
       const pinoLogger = makePinoLogger();
       (processor as any).pinoLogger = pinoLogger;
 
@@ -97,12 +106,16 @@ describe('AbstractProcessor', () => {
 
       await processor.process(job);
 
-      expect(pinoLogger.assign).toHaveBeenCalledWith({
-        tenant_id: 'tenant-only',
-      });
+      const assigned = pinoLogger.assign.mock.calls[0][0] as Record<
+        string,
+        string
+      >;
+      expect(assigned.tenant_id).toBe('tenant-only');
+      expect(assigned.trace_id).toBeUndefined();
+      expect(assigned.job_id).toBe('job-1');
     });
 
-    it('does not call assign when _metadata is present but both ids are absent', async () => {
+    it('assigns job context even when _metadata has no trace/tenant ids', async () => {
       const pinoLogger = makePinoLogger();
       (processor as any).pinoLogger = pinoLogger;
 
@@ -113,17 +126,31 @@ describe('AbstractProcessor', () => {
 
       await processor.process(job);
 
-      expect(pinoLogger.assign).not.toHaveBeenCalled();
+      expect(pinoLogger.assign).toHaveBeenCalledTimes(1);
+      const assigned = pinoLogger.assign.mock.calls[0][0] as Record<
+        string,
+        string
+      >;
+      expect(assigned.job_id).toBe('job-1');
+      expect(assigned.job_name).toBe('test-job');
+      expect(assigned.trace_id).toBeUndefined();
+      expect(assigned.tenant_id).toBeUndefined();
     });
 
-    it('does not call assign and does not throw when job has no _metadata', async () => {
+    it('assigns job context even when job has no _metadata', async () => {
       const pinoLogger = makePinoLogger();
       (processor as any).pinoLogger = pinoLogger;
 
       const job = makeJob({ value: 'test' });
 
       await expect(processor.process(job)).resolves.toBe('test');
-      expect(pinoLogger.assign).not.toHaveBeenCalled();
+      expect(pinoLogger.assign).toHaveBeenCalledTimes(1);
+      const assigned = pinoLogger.assign.mock.calls[0][0] as Record<
+        string,
+        string
+      >;
+      expect(assigned.job_id).toBe('job-1');
+      expect(assigned.job_name).toBe('test-job');
     });
 
     it('does not throw when PinoLogger is not injected and _metadata is present', async () => {

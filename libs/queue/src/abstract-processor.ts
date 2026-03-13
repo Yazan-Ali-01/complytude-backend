@@ -38,6 +38,7 @@ export abstract class AbstractProcessor<
 
   async process(job: Job<TData>): Promise<TResult> {
     const startTime = Date.now();
+    const queueName = job.queueName;
     const meta = {
       jobId: job.id,
       jobName: job.name,
@@ -48,18 +49,21 @@ export abstract class AbstractProcessor<
       | JobMetadata
       | undefined;
 
-    if (this.pinoLogger && metadata) {
+    if (this.pinoLogger) {
       const logContext: Record<string, string> = {};
-      if (metadata.traceId) logContext.trace_id = metadata.traceId;
-      if (metadata.tenantId) logContext.tenant_id = metadata.tenantId;
-      if (Object.keys(logContext).length > 0) {
-        this.pinoLogger.assign(logContext);
-      }
+      if (metadata?.traceId) logContext.trace_id = metadata.traceId;
+      if (metadata?.tenantId) logContext.tenant_id = metadata.tenantId;
+      logContext.queue_name = queueName;
+      if (job.id) logContext.job_id = job.id;
+      logContext.job_name = job.name;
+      this.pinoLogger.assign(logContext);
     }
 
     this.logger.log(
       `Job started [${meta.jobName}] id=${meta.jobId} attempt=${meta.attempt}`,
     );
+
+    this.logJobPayloadSummary(job);
 
     try {
       const result = await this.handle(job);
@@ -96,6 +100,21 @@ export abstract class AbstractProcessor<
         `Job exhausted all retries [${job.name}] id=${job.id} attempts=${job.attemptsMade}: ${error.message}`,
       );
       this.onDeadLetter(job, error);
+    }
+  }
+
+  private logJobPayloadSummary(job: Job<TData>): void {
+    try {
+      const data = { ...(job.data as Record<string, unknown>) };
+      delete data._metadata;
+      const keys = Object.keys(data);
+      if (keys.length > 0) {
+        this.logger.debug(
+          `Job payload [${job.name}] id=${job.id} keys=[${keys.join(',')}]`,
+        );
+      }
+    } catch {
+      // Never fail on debug logging
     }
   }
 
