@@ -1,5 +1,6 @@
 import { databaseEnvSchema } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
+import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
 
@@ -28,6 +29,9 @@ export const validationSchema = Joi.object({
 
   // Embedding (OpenAI)
   ...embeddingEnvSchema,
+
+  // Logging
+  ...loggerEnvSchema,
 
   // Redis (for BullMQ)
   ...redisEnvSchema,

@@ -1,5 +1,7 @@
+import { ContextModule } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
 import { embeddingConfig, EmbeddingModule } from '@lib/embedding';
+import { LoggerModule } from '@lib/logger';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
 import { redisConfig } from '@lib/redis';
 import { Module } from '@nestjs/common';
@@ -27,6 +29,8 @@ import { WorkerAiController } from './worker-ai.controller';
       },
       envFilePath: ['apps/worker-ai/.env'],
     }),
+    ContextModule.forRoot(),
+    LoggerModule.forRoot({ serviceName: 'worker-ai' }),
     EmbeddingModule.forRoot(),
     DatabaseModule.forRoot(),
     QueueModule.forRoot([QUEUE_NAMES.AI_PROCESSING]),
