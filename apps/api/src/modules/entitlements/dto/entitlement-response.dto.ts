@@ -4,6 +4,7 @@ import type {
   PlanKey,
   UsageSource,
 } from 'src/common/types/entitlement.types';
+import { ALL_PLAN_KEYS } from '../../../common/constants/plan-entitlements.constant';
 
 /**
  * Effective entitlement response DTO
@@ -63,7 +64,7 @@ export class CurrentEntitlementsResponseDto {
 
   @ApiProperty({
     description: 'Current plan key',
-    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
+    enum: ALL_PLAN_KEYS,
     example: 'general_counsel',
   })
   plan: PlanKey;
@@ -88,7 +89,7 @@ export class PlanResponseDto {
 
   @ApiProperty({
     description: 'Plan key',
-    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
+    enum: ALL_PLAN_KEYS,
     example: 'shield',
   })
   key: PlanKey;

@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TenantModule } from 'src/modules/tenants/tenant.module';
-import { DatabaseModule } from '../../database/database.module';
 import { StorageModule } from '../storage/storage.module';
 
 // Controllers
@@ -20,7 +19,7 @@ import { RulesetsModule } from '../rulesets/rulesets.module';
 import { DocxPlaceholderExtractionService } from './services/docx-placeholder-extraction.service';
 
 @Module({
-  imports: [DatabaseModule, StorageModule, RulesetsModule, TenantModule],
+  imports: [StorageModule, RulesetsModule, TenantModule],
   controllers: [TemplatesController],
   providers: [
     TemplatesService,

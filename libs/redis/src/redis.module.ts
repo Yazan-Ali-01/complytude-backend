@@ -1,9 +1,11 @@
 import {
   DynamicModule,
   Global,
+  InjectionToken,
   Logger,
   Module,
   ModuleMetadata,
+  OptionalFactoryDependency,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
@@ -14,8 +16,8 @@ import { RedisService } from './redis.service';
 
 export interface RedisModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {
-  useFactory: (...args: any[]) => RedisConfig | Promise<RedisConfig>;
-  inject?: any[];
+  useFactory: (...args: unknown[]) => RedisConfig | Promise<RedisConfig>;
+  inject?: InjectionToken[] | OptionalFactoryDependency[];
 }
 
 @Global()
@@ -46,6 +48,7 @@ export class RedisModule {
       db: config.db,
       tls: config.tls,
       keyPrefix: config.keyPrefix,
+      disableClientInfo: true,
       maxRetriesPerRequest: config.maxRetriesPerRequest,
       connectTimeout: config.connectTimeout,
       retryStrategy: (times) => {
@@ -91,8 +94,7 @@ export class RedisModule {
       providers: [
         {
           provide: REDIS_CLIENT,
-          useFactory: async (...args: any[]) => {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- NestJS useFactory injects
+          useFactory: async (...args: unknown[]) => {
             const config = await options.useFactory(...args);
 
             RedisModule.logger.log(

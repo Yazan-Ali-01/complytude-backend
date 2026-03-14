@@ -147,7 +147,7 @@ export class CreateTemplateDto {
   @JsonField()
   @IsObject()
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   /**
    * File upload validated via custom validators
@@ -246,5 +246,5 @@ export class UpdateTemplateDto {
   })
   @IsObject()
   @IsOptional()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }

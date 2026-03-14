@@ -28,8 +28,10 @@ import {
   ApiListResponses,
   ApiUpdateResponses,
 } from 'src/common/swagger/decorators';
-import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
+import type { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
+import { Category } from './entities/category.entity';
+import { CategoriesService } from './categories.service';
 import {
   CategoryIdParamDto,
   CategoryListResponseDto,
@@ -41,10 +43,13 @@ import {
 
 @ApiTags('Categories')
 @Controller('categories')
-@SwaggerCookieAuth.tenantAccessToken()
+@AuthOptions({ identity: true })
+@SwaggerCookieAuth.identityAccessToken()
 @ApiExtraModels(CategoryResponseDto, CategoryListResponseDto, PaginationMetaDto)
 export class CategoriesController {
-  constructor() {}
+  constructor(private readonly categoriesService: CategoriesService) {}
+
+  // ─── Read Endpoints (identity token, no permission check) ──────
 
   @Get()
   @ApiOperation({
@@ -53,9 +58,33 @@ export class CategoriesController {
       'Retrieve a paginated list of template categories with optional filtering by active status and search term.',
   })
   @ApiListResponses(CategoryListResponseDto, 'Categories')
-  list(@Query() _query: ListCategoriesQueryDto): CategoryListResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async list(
+    @Query() query: ListCategoriesQueryDto,
+  ): Promise<CategoryListResponseDto> {
+    const result = await this.categoriesService.findAll(
+      {
+        isActive: query.isActive,
+        search: query.search,
+      },
+      {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+      },
+    );
+
+    return {
+      data: result.data.map((c) => this.mapToResponse(c)),
+      meta: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPreviousPage: result.hasPreviousPage,
+      },
+    };
   }
 
   @Get(':id')
@@ -70,38 +99,40 @@ export class CategoriesController {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiGetResponses(CategoryResponseDto, 'Category')
-  findOne(@Param() _params: CategoryIdParamDto): CategoryResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async findOne(
+    @Param() params: CategoryIdParamDto,
+  ): Promise<CategoryResponseDto> {
+    const category = await this.categoriesService.findById(params.id);
+    return this.mapToResponse(category);
   }
 
+  // ─── Write Endpoints (identity token + categories:manage) ──────
+
   @Post()
-  @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
     summary: 'Create category',
     description:
-      'Create a new template category. This endpoint is restricted to system administrators only. The category code will be automatically converted to lowercase.',
+      'Create a new template category. Restricted to platform administrators. The category code will be automatically converted to lowercase.',
   })
   @ApiCreateResponses(CategoryResponseDto, 'Category')
   @ApiConflictError('Category with this code already exists')
-  create(
-    @Body() _dto: CreateCategoryDto,
-    @CurrentUser() _user: AuthenticatedUser,
-  ): CategoryResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async create(
+    @Body() dto: CreateCategoryDto,
+    @CurrentUserIdentity() _identity: AuthenticatedIdentityUser,
+  ): Promise<CategoryResponseDto> {
+    const category = await this.categoriesService.create(dto);
+    return this.mapToResponse(category);
   }
 
   @Patch(':id')
-  @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
     summary: 'Update category',
     description:
-      'Update an existing template category. This endpoint is restricted to system administrators only. Only provided fields will be updated.',
+      'Update an existing template category. Restricted to platform administrators. Only provided fields will be updated.',
   })
   @ApiParam({
     name: 'id',
@@ -109,23 +140,22 @@ export class CategoriesController {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiUpdateResponses(CategoryResponseDto, 'Category')
-  update(
-    @Param() _params: CategoryIdParamDto,
-    @Body() _dto: UpdateCategoryDto,
-    @CurrentUser() _user: AuthenticatedUser,
-  ): CategoryResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async update(
+    @Param() params: CategoryIdParamDto,
+    @Body() dto: UpdateCategoryDto,
+    @CurrentUserIdentity() _identity: AuthenticatedIdentityUser,
+  ): Promise<CategoryResponseDto> {
+    const category = await this.categoriesService.update(params.id, dto);
+    return this.mapToResponse(category);
   }
 
   @Delete(':id')
-  @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
     summary: 'Deactivate category',
     description:
-      'Soft delete a category by setting its isActive status to false. This endpoint is restricted to system administrators only. The category will remain in the database but will be marked as inactive.',
+      'Soft delete a category by setting its isActive status to false. Restricted to platform administrators.',
   })
   @ApiParam({
     name: 'id',
@@ -133,11 +163,25 @@ export class CategoriesController {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiDeleteResponses('Category')
-  remove(
-    @Param() _params: CategoryIdParamDto,
-    @CurrentUser() _user: AuthenticatedUser,
-  ): MessageResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async remove(
+    @Param() params: CategoryIdParamDto,
+  ): Promise<MessageResponseDto> {
+    await this.categoriesService.deactivate(params.id);
+    return { message: 'Category has been deactivated' };
+  }
+
+  // ─── Response Mapping ──────────────────────────────────────────
+
+  private mapToResponse(category: Category): CategoryResponseDto {
+    return {
+      id: category.id,
+      code: category.code,
+      name: category.name,
+      description: category.description,
+      parentId: category.parent_id,
+      isActive: category.is_active,
+      createdAt: category.created_at.toISOString(),
+      updatedAt: category.updated_at.toISOString(),
+    };
   }
 }

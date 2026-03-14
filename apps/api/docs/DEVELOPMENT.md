@@ -7,6 +7,7 @@ This guide covers development workflow, module creation, best practices, and cod
 - [Creating a New Module](#creating-a-new-module)
 - [Module Structure](#module-structure)
 - [Best Practices](#best-practices)
+- [Error Handling & Internationalization](#error-handling--internationalization)
 - [Adding Database Migrations](#adding-database-migrations)
 - [Code Quality Checks](#code-quality-checks)
 
@@ -138,6 +139,55 @@ async listDocuments() { }
 | `TenantPermissionsGuard` | Fine-grained permission checks | `documents:create`, `templates:manage` |
 | `RolesGuard`             | Simple role verification       | Check if user is `tenant_admin`        |
 
+### Error Handling & Internationalization
+
+All error messages must be translated using the i18n system. Never use hardcoded strings in exceptions.
+
+**Basic error:**
+
+```typescript
+import { I18nService } from 'nestjs-i18n';
+import { YourModuleI18n } from './constants/i18n.constants';
+
+@Injectable()
+export class YourService {
+  constructor(private readonly i18n: I18nService) {}
+
+  async findOne(id: string) {
+    const item = await this.repository.findById(id);
+    if (!item) {
+      throw new NotFoundException(
+        this.i18n.t(YourModuleI18n.errors.ITEM_NOT_FOUND),
+      );
+    }
+  }
+}
+```
+
+**With parameters:**
+
+```typescript
+throw new BadRequestException(
+  this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+    args: { userId: id },
+  }),
+);
+```
+
+**Creating i18n Keys for a New Module:**
+
+1. Create `modules/{module}/constants/i18n.constants.ts` with `errors` and `messages` categories
+2. Create locale files: `i18n/locales/en/{module}.json` and `i18n/locales/ar/{module}.json` with matching structure:
+
+```json
+{
+  "errors": { "KEY_NAME": "Error message" },
+  "messages": { "KEY_NAME": "Success message" }
+}
+```
+
+Use single braces `{param}` for interpolation. Add keys to both `en/` and `ar/`.
+
 ### Naming Conventions
 
 | Type       | Convention                  | Example                   |
@@ -149,8 +199,6 @@ async listDocuments() { }
 | Entity     | `{feature}.entity.ts`       | `template.entity.ts`      |
 
 ---
-
-## Adding Database Migrations
 
 ### Migration Workflow
 
@@ -219,6 +267,86 @@ pnpm docker:reset    # ⚠️ Reset database (deletes all data)
 - Sample templates and documents
 
 For detailed migration and seeding documentation, see [scripts/README.md](../../../scripts/README.md) and [scripts/seeds/README.md](../../../scripts/seeds/README.md).
+
+---
+
+## Testing
+
+### Test Scripts
+
+```bash
+pnpm test                     # Run all tests (unit + integration)
+pnpm test:unit                # Run unit tests only
+pnpm test:integration         # Run integration tests only
+pnpm test:integration:watch   # Run integration tests in watch mode
+pnpm test:coverage            # Generate coverage report
+```
+
+### CI Requirements
+
+Integration tests use [testcontainers](https://node.testcontainers.org/) to spin up ephemeral Postgres (pgvector) and Redis containers. This has implications for CI environments.
+
+#### Docker Requirement
+
+Testcontainers **requires a running Docker daemon**. Any CI runner must have Docker available.
+
+- **Minimum Docker version:** 20.10+ (testcontainers v11 requirement)
+- **Recommended:** Docker 24.x or later (matches local dev prerequisites)
+- Rootless Docker and Podman are supported by testcontainers but may need extra config — see [testcontainers docs](https://node.testcontainers.org/supported-container-runtimes/)
+
+#### Environment Variables
+
+- `.env.test` is **committed to the repository** — no CI secrets are needed for test environment variables
+- `DB_*` and `REDIS_*` values in `.env.test` are placeholders — `globalSetup` overrides them at runtime with testcontainer connection details
+- JWT secrets, S3 keys, etc. in `.env.test` are hardcoded test values (not real credentials)
+
+#### GitHub Actions Considerations
+
+GitHub Actions hosted runners (`ubuntu-latest`) include Docker by default, so testcontainers works out of the box. No `services` block or Docker-in-Docker is needed — testcontainers manages its own containers.
+
+**Example workflow snippet** (reference only — not yet implemented):
+
+```yaml
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm type-check
+      - run: pnpm test:unit
+      - run: pnpm test:integration
+```
+
+> **Note:** Self-hosted runners must have Docker installed and the runner user must have permission to access the Docker socket (`/var/run/docker.sock`).
+
+#### Testcontainers Architecture
+
+The global setup (`apps/api/test/setup/global-setup.ts`) runs once before all workers:
+
+1. Starts a **PostgreSQL container** (`pgvector/pgvector:pg16`) with a `test` superuser
+2. Creates the `app_user` role (needed by migration grants)
+3. Starts a **Redis container** (`redis:7-alpine`)
+4. Writes connection config to a temp file for worker processes
+
+Each Jest worker then:
+
+1. Creates its own database (`test_w{workerId}`)
+2. Runs all migrations against that database
+3. Gets its own Redis DB index (0–15, capped by `maxWorkers: 16`)
+
+This ensures full worker isolation — tests can run in parallel without conflicts.
+
+For detailed test infrastructure documentation, see [test/README.md](../test/README.md).
 
 ---
 

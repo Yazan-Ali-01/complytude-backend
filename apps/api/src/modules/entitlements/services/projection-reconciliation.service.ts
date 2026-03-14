@@ -1,8 +1,8 @@
+import { DatabaseService } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { deriveBillingPeriod } from 'src/common/utils/billing.util';
-import { DatabaseService } from 'src/database/database.service';
 import { AggregatedUsage } from 'src/common/types/entitlement.types';
+import { deriveBillingPeriod } from 'src/common/utils/billing.util';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageProjectionService } from './usage-projection.service';
 

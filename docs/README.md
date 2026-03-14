@@ -13,7 +13,10 @@ complytude/
 │   ├── worker-ai/           # AI processing worker
 │   └── worker-ingestion/    # Data ingestion worker
 ├── libs/
-│   └── shared/              # Shared libraries and utilities
+│   ├── database/            # Database module, service, base repository
+│   ├── embedding/           # Embedding + chunking services (OpenAI)
+│   ├── queue/               # BullMQ queue module + producer
+│   └── redis/               # Redis module + service (ioredis)
 ├── docs/                    # This directory (monorepo-wide docs)
 └── scripts/                 # Database migrations and utilities
 ```
@@ -53,8 +56,8 @@ Each application has its own documentation:
 
 ### Worker Applications
 
-**AI Worker:** `apps/worker-ai/docs/` (coming soon)  
-**Ingestion Worker:** `apps/worker-ingestion/docs/` (coming soon)
+**AI Worker:** [apps/worker-ai/docs/README.md](../apps/worker-ai/docs/README.md) - AI worker architecture and setup  
+**Ingestion Worker:** [apps/worker-ingestion/docs/README.md](../apps/worker-ingestion/docs/README.md) - Ingestion worker architecture and setup
 
 ---
 

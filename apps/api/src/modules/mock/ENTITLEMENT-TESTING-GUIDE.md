@@ -666,7 +666,7 @@ curl -X GET http://localhost:3000/api/mock/entitlements/debug/feature/documents_
 ```sql
 SELECT
     t.id as tenant_id,
-    t.plan as tenant_plan_column,
+    t.name as tenant_name,
     p.key as subscription_plan_key,
     ts.status,
     ts.current_period_start,
@@ -681,7 +681,7 @@ ORDER BY t.id;
 **Expected:**
 
 - 3 rows (one per test tenant)
-- `tenant_plan_column` matches `subscription_plan_key`
+- Each tenant should have an active subscription
 
 ### Verify Add-ons
 
@@ -827,7 +827,7 @@ WHERE tor.is_active = true;
 
 **Solution:**
 
-- Verify `tenants.plan` column matches expected value
+- Verify tenant has an active subscription with correct plan
 - Check `PLAN_ENTITLEMENTS` constant has correct values
 - Verify sync service ran successfully
 - Check `plan_entitlements` table has 60 rows

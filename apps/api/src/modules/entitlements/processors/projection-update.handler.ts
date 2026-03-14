@@ -1,6 +1,6 @@
+import { DatabaseService } from '@lib/database';
 import { EntitlementProjectionUpdateJobData, Job } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../database/database.service';
 import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.repository';
 import { DomainEventsService } from '../services/domain-events.service';
 import { UsageProjectionService } from '../services/usage-projection.service';
@@ -61,11 +61,13 @@ export class ProjectionUpdateHandler {
 
         // Update aggregated_usage projection
         await this.usageProjectionService.incrementUsage(
-          data.tenantId,
-          data.subscriptionId,
-          data.featureId,
-          data.billingPeriod,
-          data.allocations,
+          {
+            tenantId: data.tenantId,
+            subscriptionId: data.subscriptionId,
+            featureId: data.featureId,
+            billingPeriod: data.billingPeriod,
+            allocations: data.allocations,
+          },
           { client },
         );
 

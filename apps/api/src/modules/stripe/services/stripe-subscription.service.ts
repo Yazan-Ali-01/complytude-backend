@@ -7,7 +7,7 @@ import {
 import Stripe from 'stripe';
 import { PlanKey } from 'src/common/types/entitlement.types';
 import { mapStripeStatusToInternal } from '../stripe.utils';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@lib/database';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';

@@ -16,10 +16,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import {
-  AuditAction,
-  AuditResource,
-} from 'src/common/decorators/audit.decorator';
+import { Audit } from 'src/common/decorators/audit.decorator';
 import {
   MessageResponseDto,
   PaginationMetaDto,
@@ -59,7 +56,6 @@ import {
 
 @ApiTags('Templates')
 @Controller('templates')
-@AuditResource('templates')
 @SwaggerCookieAuth.tenantAccessToken()
 @ApiExtraModels(
   GetTemplateResponseDto,
@@ -84,7 +80,7 @@ export class TemplatesController {
     @Query() _query: ListTemplatesQueryDto,
   ): Promise<ListTemplatesResponseDto> {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as Promise<ListTemplatesResponseDto>;
   }
 
   @Get(':key')
@@ -103,7 +99,7 @@ export class TemplatesController {
     @Param() _params: TemplateKeyParamDto,
   ): Promise<GetTemplateResponseDto> {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as Promise<GetTemplateResponseDto>;
   }
 
   @Post()
@@ -124,7 +120,7 @@ export class TemplatesController {
   ): Promise<GetTemplateResponseDto> {
     // Implementation will be added by service layer
     // Note: This will use multipart/form-data in actual implementation
-    return null as any;
+    return null as unknown as Promise<GetTemplateResponseDto>;
   }
 
   @Delete(':key')
@@ -147,7 +143,7 @@ export class TemplatesController {
     @CurrentUser() _user: AuthenticatedUser,
   ): MessageResponseDto {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as MessageResponseDto;
   }
 
   @Get(':key/versions')
@@ -167,7 +163,7 @@ export class TemplatesController {
     @Query() _query: PaginationQueryDto,
   ): Promise<TemplateVersionsListResponseDto> {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as Promise<TemplateVersionsListResponseDto>;
   }
 
   @Post(':key/versions')
@@ -193,7 +189,7 @@ export class TemplatesController {
     @CurrentUser() _user: AuthenticatedUser,
   ): Promise<GetTemplateVersionResponseDto> {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as Promise<GetTemplateVersionResponseDto>;
   }
 
   @Get(':key/versions/:version')
@@ -217,14 +213,14 @@ export class TemplatesController {
     @Param() _params: TemplateVersionParamDto,
   ): Promise<GetTemplateVersionResponseDto> {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as Promise<GetTemplateVersionResponseDto>;
   }
 
   @Post(':key/versions/:version/rollback')
   @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('templates:manage')
-  @AuditAction('rollback') // Example: Custom action name
+  @Audit('TEMPLATE_VERSION_ROLLBACK', { resourceIdParam: 'key' })
   @ApiOperation({
     summary: 'Rollback to previous template version',
     description:
@@ -251,7 +247,7 @@ export class TemplatesController {
     @CurrentUser() _user: AuthenticatedUser,
   ): Promise<GetTemplateVersionResponseDto> {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as Promise<GetTemplateVersionResponseDto>;
   }
 
   @Post(':key/rulesets')
@@ -281,7 +277,7 @@ export class TemplatesController {
     @CurrentUser() _user: AuthenticatedUser,
   ): Promise<LinkRulesetsResponseDto> {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as Promise<LinkRulesetsResponseDto>;
   }
 
   @Get(':key/download')
@@ -301,6 +297,6 @@ export class TemplatesController {
     @Query() _query: TemplateDownloadQueryDto,
   ): Promise<TemplateDownloadResponseDto> {
     // Implementation will be added by service layer
-    return null as any;
+    return null as unknown as Promise<TemplateDownloadResponseDto>;
   }
 }

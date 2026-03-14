@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import stripeConfig from 'src/config/stripe.config';
-import { DatabaseModule } from 'src/database/database.module';
+import { DatabaseModule } from '@lib/database';
 import { CreditPackagesRepository } from 'src/repositories/credits/credit-packages.repository';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';

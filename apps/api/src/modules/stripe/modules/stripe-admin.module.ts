@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import stripeConfig from 'src/config/stripe.config';
-import { DatabaseModule } from 'src/database/database.module';
+import { DatabaseModule } from '@lib/database';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
 import { StripeService } from '../stripe.service';
 import { StripeAdminController } from '../controllers/stripe-admin.controller';

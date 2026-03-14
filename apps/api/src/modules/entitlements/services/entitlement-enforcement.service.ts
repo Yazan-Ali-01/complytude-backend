@@ -1,4 +1,4 @@
-import { QueryOptions } from '@lib/database';
+import { DatabaseService, QueryOptions } from '@lib/database';
 import {
   ENTITLEMENT_JOB_NAMES,
   EntitlementProjectionUpdateJobData,
@@ -15,14 +15,19 @@ import { ConfigService } from '@nestjs/config';
 import { PoolClient } from 'pg';
 import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
 import {
-  EffectiveEntitlement,
+  AllocationResolution,
+  BuildProjectionJobInput,
+  CheckAndRecordInput,
+  EmitDenialEventInput,
+  EnforceUsageBasedInput,
+  EnforceUsageLimitedInput,
+  EnforceUsageUnlimitedInput,
   EntitlementCheckResult,
-  FeatureKey,
-  UsageLedgerEvent,
-  UsageSource,
+  ResolveAllocationsInput,
+  UsageWriteResult,
+  WriteUsageAndCreditsInput,
 } from '../../../common/types/entitlement.types';
 import { deriveBillingPeriod } from '../../../common/utils/billing.util';
-import { DatabaseService } from '../../../database/database.service';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { AggregatedUsageRepository } from '../../../repositories/usage/aggregated-usage.repository';
@@ -35,20 +40,6 @@ import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
 
-interface AllocationResolution {
-  mode: 'within_quota' | 'credit_fallback';
-  allocations: Array<{ source: 'plan' | 'credit'; units: number }>;
-  creditUnits: number;
-  creditCost: number;
-  creditCostPerUnit: number;
-  creditBalance?: number;
-}
-
-interface UsageWriteResult {
-  usageEvent: UsageLedgerEvent;
-  planUnits: number;
-}
-
 interface EnforceResult {
   result: EntitlementCheckResult;
   projectionJob?: EntitlementProjectionUpdateJobData;
@@ -59,20 +50,6 @@ class EntitlementDeniedException extends Error {
     super('Entitlement denied');
     this.name = 'EntitlementDeniedException';
   }
-}
-
-interface AllocationResolution {
-  mode: 'within_quota' | 'credit_fallback';
-  allocations: Array<{ source: 'plan' | 'credit'; units: number }>;
-  creditUnits: number;
-  creditCost: number;
-  creditCostPerUnit: number;
-  creditBalance?: number;
-}
-
-interface UsageWriteResult {
-  usageEvent: UsageLedgerEvent;
-  planUnits: number;
 }
 
 /**
@@ -134,22 +111,23 @@ export class EntitlementEnforcementService {
    *
    * All operations run in a single transaction for atomicity.
    *
-   * @param tenantId - Tenant ID
-   * @param featureKey - Feature key to check and record
-   * @param userId - User ID (optional)
-   * @param units - Number of units to consume (default 1)
-   * @param metadata - Additional metadata for usage event
+   * @param input - Input data
+   *   tenantId - Tenant ID
+   *   featureKey - Feature key to check and record
+   *   userId - User ID (optional)
+   *   units - Number of units to consume (default 1)
+   *   metadata - Additional metadata for usage event
    * @param options - Query options (optional client for shared transactions)
+   *   client - Client for shared transactions
    * @returns Check result with allowed flag, source, and remaining info
+   *   result - Check result
+   *   projectionJob - Projection job data
    */
   async checkAndRecord(
-    tenantId: string,
-    featureKey: FeatureKey,
-    userId?: string,
-    units: number = 1,
-    metadata?: Record<string, any>,
+    input: CheckAndRecordInput,
     options?: QueryOptions,
   ): Promise<EntitlementCheckResult> {
+    const { tenantId, featureKey, userId, units = 1, metadata } = input;
     this.logger.debug(
       `Checking and recording: tenant=${tenantId}, feature=${featureKey}, units=${units}`,
     );
@@ -187,12 +165,14 @@ export class EntitlementEnforcementService {
         entitlement.feature_type === 'capacity'
       ) {
         return this.enforceUsageBasedFeature(
-          tenantId,
-          featureKey,
-          entitlement,
-          userId,
-          units,
-          metadata,
+          {
+            tenantId,
+            featureKey,
+            entitlement,
+            userId,
+            units,
+            metadata,
+          },
           client,
         );
       }
@@ -245,14 +225,11 @@ export class EntitlementEnforcementService {
    * COM-134 will add strict-mode routing for near-limit requests.
    */
   private async enforceUsageBasedFeature(
-    tenantId: string,
-    featureKey: FeatureKey,
-    entitlement: EffectiveEntitlement,
-    userId: string | undefined,
-    units: number,
-    metadata: Record<string, any> | undefined,
+    input: EnforceUsageBasedInput,
     client: PoolClient,
   ): Promise<EnforceResult> {
+    const { tenantId, featureKey, entitlement, userId, units, metadata } =
+      input;
     // Try to get subscription from cache first
     const cachedSubscription = this.entitlementCache.getSubscription(tenantId);
     let subscription;
@@ -331,16 +308,18 @@ export class EntitlementEnforcementService {
     // Unlimited -> always async path (no strict CAS needed).
     if (limit === -1) {
       return this.enforceUsageUnlimited(
-        tenantId,
-        featureKey,
-        userId,
-        units,
-        metadata,
+        {
+          tenantId,
+          featureKey,
+          userId,
+          units,
+          metadata,
+          subscription,
+          feature,
+          billingPeriod,
+          used,
+        },
         client,
-        subscription,
-        feature,
-        billingPeriod,
-        used,
       );
     }
 
@@ -353,85 +332,68 @@ export class EntitlementEnforcementService {
 
     if (remaining <= threshold) {
       return this.enforceUsageStrict(
+        {
+          tenantId,
+          featureKey,
+          userId,
+          units,
+          metadata,
+          subscription,
+          feature,
+          billingPeriod,
+          limit,
+          used,
+        },
+        client,
+      );
+    }
+
+    return this.enforceUsageAsync(
+      {
         tenantId,
         featureKey,
         userId,
         units,
         metadata,
-        client,
         subscription,
         feature,
         billingPeriod,
         limit,
         used,
-      );
-    }
+      },
+      client,
+    );
+  }
 
-    return this.enforceUsageAsync(
+  private async enforceUsageAsync(
+    input: EnforceUsageLimitedInput,
+    client: PoolClient,
+  ): Promise<EnforceResult> {
+    const {
       tenantId,
       featureKey,
       userId,
       units,
       metadata,
-      client,
       subscription,
       feature,
       billingPeriod,
       limit,
       used,
-    );
-    /* eslint-enable @typescript-eslint/no-unsafe-argument */
-  }
+    } = input;
 
-  /**
-   * Enforce quota/metered/capacity feature with credit fallback
-   * using the async projection path.
-   *
-   * Returns EnforceResult with both the check result and optional projection
-   * job data for async processing after commit.
-   *
-   * @param tenantId - Tenant ID
-   * @param featureKey - Feature key
-   * @param entitlement - Resolved entitlement
-   * @param userId - User ID (optional)
-   * @param units - Number of units to consume
-   * @param metadata - Additional metadata
-   * @param client - Transaction client
-   * @param subscription - Pre-resolved active subscription (from router)
-   * @param limit - Pre-resolved entitlement limit (from router)
-   * @param used - Pre-resolved current usage (from router)
-   * @returns EnforceResult with result and optional projection job
-   */
-  private async enforceUsageAsync(
-    tenantId: string,
-    featureKey: FeatureKey,
-    userId: string | undefined,
-    units: number,
-    metadata: Record<string, any> | undefined,
-    client: PoolClient,
-    subscription: { id: string },
-    feature: {
-      id: string;
-      name: string;
-      feature_type: string;
-      credit_cost?: number | null;
-    },
-    billingPeriod: string,
-    limit: number,
-    used: number,
-  ): Promise<EnforceResult> {
-    const remaining = limit - used;
     let allocationResolution: AllocationResolution;
     try {
       allocationResolution = await this.resolveAllocationsWithCreditFallback(
-        tenantId,
-        featureKey,
-        userId,
-        units,
-        limit,
-        used,
-        remaining,
-        feature.credit_cost,
+        {
+          tenantId,
+          featureKey,
+          userId,
+          units,
+          limit,
+          used,
+          featureCreditCost: feature.credit_cost,
+        },
         client,
       );
     } catch (error) {
@@ -442,15 +404,17 @@ export class EntitlementEnforcementService {
     }
 
     const { usageEvent, planUnits } = await this.writeUsageAndCredits(
-      tenantId,
-      featureKey,
-      userId,
-      units,
-      metadata,
+      {
+        tenantId,
+        featureKey,
+        userId,
+        units,
+        metadata,
+        feature,
+        billingPeriod,
+        allocationResolution,
+      },
       client,
-      feature,
-      billingPeriod,
-      allocationResolution,
     );
 
     const {
@@ -476,27 +440,30 @@ export class EntitlementEnforcementService {
           allowed: true,
           source: 'plan',
           allocations,
-          remaining: remaining - units,
+          remaining: limit - used - units,
           limit,
           used: used + units,
         },
-        projectionJob: this.buildProjectionJob(
+        projectionJob: this.buildProjectionJob({
           tenantId,
           featureKey,
           usageEvent,
           feature,
           subscription,
           billingPeriod,
-          allocations.map((a) => ({ source: a.source, units: a.units })),
+          allocations: allocations.map((a) => ({
+            source: a.source,
+            units: a.units,
+          })),
           userId,
-        ),
+        }),
       };
     }
 
     return {
       result: {
         allowed: true,
-        source: responseSource as UsageSource,
+        source: responseSource,
         allocations,
         remaining: 0,
         creditsRemaining: (creditBalance ?? 0) - creditCost,
@@ -505,51 +472,52 @@ export class EntitlementEnforcementService {
         limit,
         used: used + units,
       },
-      projectionJob: this.buildProjectionJob(
+      projectionJob: this.buildProjectionJob({
         tenantId,
         featureKey,
         usageEvent,
         feature,
         subscription,
         billingPeriod,
-        allocations.map((a) => ({ source: a.source, units: a.units })),
+        allocations: allocations.map((a) => ({
+          source: a.source,
+          units: a.units,
+        })),
         userId,
-        creditUnits > 0,
-        creditUnits > 0 ? creditCost : undefined,
-      ),
+        creditDeducted: creditUnits > 0,
+        creditAmount: creditUnits > 0 ? creditCost : undefined,
+      }),
     };
   }
 
   private async enforceUsageStrict(
-    tenantId: string,
-    featureKey: FeatureKey,
-    userId: string | undefined,
-    units: number,
-    metadata: Record<string, any> | undefined,
+    input: EnforceUsageLimitedInput,
     client: PoolClient,
-    subscription: { id: string },
-    feature: {
-      id: string;
-      name: string;
-      feature_type: string;
-      credit_cost?: number | null;
-    },
-    billingPeriod: string,
-    limit: number,
-    used: number,
   ): Promise<EnforceResult> {
-    const remaining = limit - used;
+    const {
+      tenantId,
+      featureKey,
+      userId,
+      units,
+      metadata,
+      subscription,
+      feature,
+      billingPeriod,
+      limit,
+      used,
+    } = input;
     let allocationResolution: AllocationResolution;
     try {
       allocationResolution = await this.resolveAllocationsWithCreditFallback(
-        tenantId,
-        featureKey,
-        userId,
-        units,
-        limit,
-        used,
-        remaining,
-        feature.credit_cost,
+        {
+          tenantId,
+          featureKey,
+          userId,
+          units,
+          limit,
+          used,
+          featureCreditCost: feature.credit_cost,
+        },
         client,
       );
     } catch (error) {
@@ -576,25 +544,32 @@ export class EntitlementEnforcementService {
 
     try {
       const { usageEvent, planUnits } = await this.writeUsageAndCredits(
-        tenantId,
-        featureKey,
-        userId,
-        units,
-        metadata,
+        {
+          tenantId,
+          featureKey,
+          userId,
+          units,
+          metadata,
+          feature,
+          billingPeriod,
+          allocationResolution,
+        },
         client,
-        feature,
-        billingPeriod,
-        allocationResolution,
       );
 
       const casResult =
         await this.aggregatedUsageRepository.conditionalIncrement(
-          tenantId,
-          subscription.id,
-          feature.id,
-          billingPeriod,
-          allocations.map((a) => ({ source: a.source, units: a.units })),
-          limit,
+          {
+            tenantId,
+            subscriptionId: subscription.id,
+            featureId: feature.id,
+            billingPeriod,
+            allocations: allocations.map((a) => ({
+              source: a.source,
+              units: a.units,
+            })),
+            limit,
+          },
           { client },
         );
 
@@ -604,13 +579,15 @@ export class EntitlementEnforcementService {
           `Strict mode CAS failed: tenant=${tenantId} feature=${featureKey} limit=${limit} - concurrent request consumed remaining quota`,
         );
         await this.emitDenialEvent(
-          tenantId,
-          featureKey,
-          userId,
-          units,
-          limit,
-          used,
-          'concurrent_quota_race',
+          {
+            tenantId,
+            featureKey,
+            userId,
+            units,
+            limit,
+            used,
+            reason: 'concurrent_quota_race',
+          },
           client,
         );
         return {
@@ -667,7 +644,7 @@ export class EntitlementEnforcementService {
       return {
         result: {
           allowed: true,
-          source: responseSource as UsageSource,
+          source: responseSource,
           allocations,
           remaining: limit - casResult.total_units,
           limit,
@@ -695,22 +672,20 @@ export class EntitlementEnforcementService {
   }
 
   private async enforceUsageUnlimited(
-    tenantId: string,
-    featureKey: FeatureKey,
-    userId: string | undefined,
-    units: number,
-    metadata: Record<string, any> | undefined,
+    input: EnforceUsageUnlimitedInput,
     client: PoolClient,
-    subscription: { id: string },
-    feature: {
-      id: string;
-      name: string;
-      feature_type: string;
-      credit_cost?: number | null;
-    },
-    billingPeriod: string,
-    used: number,
   ): Promise<EnforceResult> {
+    const {
+      tenantId,
+      featureKey,
+      userId,
+      units,
+      metadata,
+      subscription,
+      feature,
+      billingPeriod,
+      used,
+    } = input;
     const usageEvent = await this.usageIngestionService.recordUsage(
       {
         tenant_id: tenantId,
@@ -734,16 +709,16 @@ export class EntitlementEnforcementService {
         limit: -1,
         used,
       },
-      projectionJob: this.buildProjectionJob(
+      projectionJob: this.buildProjectionJob({
         tenantId,
         featureKey,
         usageEvent,
         feature,
         subscription,
         billingPeriod,
-        [{ source: 'plan', units }],
+        allocations: [{ source: 'plan', units }],
         userId,
-      ),
+      }),
     };
   }
 
@@ -753,21 +728,20 @@ export class EntitlementEnforcementService {
    * for any savepoint wrapping around this call.
    */
   private async writeUsageAndCredits(
-    tenantId: string,
-    featureKey: FeatureKey,
-    userId: string | undefined,
-    units: number,
-    metadata: Record<string, any> | undefined,
+    input: WriteUsageAndCreditsInput,
     client: PoolClient,
-    feature: {
-      id: string;
-      name: string;
-      feature_type: string;
-      credit_cost?: number | null;
-    },
-    billingPeriod: string,
-    allocationResolution: AllocationResolution,
   ): Promise<UsageWriteResult> {
+    const {
+      tenantId,
+      featureKey,
+      userId,
+      units,
+      metadata,
+      feature,
+      billingPeriod,
+      allocationResolution,
+    } = input;
+
     const { allocations, creditUnits, creditCost, creditCostPerUnit, mode } =
       allocationResolution;
     const planUnits = allocations
@@ -800,15 +774,17 @@ export class EntitlementEnforcementService {
 
     if (creditUnits > 0) {
       await this.creditLedgerService.deduct(
-        tenantId,
-        creditCost,
-        feature.id,
-        usageEvent.id,
         {
-          ...metadata,
-          credit_fallback: true,
-          credit_cost_per_unit: creditCostPerUnit,
-          units_consumed: creditUnits,
+          tenantId,
+          amount: creditCost,
+          featureId: feature.id,
+          usageLedgerId: usageEvent.id,
+          metadata: {
+            ...metadata,
+            credit_fallback: true,
+            credit_cost_per_unit: creditCostPerUnit,
+            units_consumed: creditUnits,
+          },
         },
         { client },
       );
@@ -818,16 +794,20 @@ export class EntitlementEnforcementService {
   }
 
   private async resolveAllocationsWithCreditFallback(
-    tenantId: string,
-    featureKey: FeatureKey,
-    userId: string | undefined,
-    units: number,
-    limit: number,
-    used: number,
-    remaining: number,
-    featureCreditCost: number | null | undefined,
+    input: ResolveAllocationsInput,
     client: PoolClient,
   ): Promise<AllocationResolution> {
+    const {
+      tenantId,
+      featureKey,
+      userId,
+      units,
+      limit,
+      used,
+      featureCreditCost,
+    } = input;
+    const remaining = limit - used;
+
     if (remaining >= units) {
       return {
         mode: 'within_quota',
@@ -841,13 +821,15 @@ export class EntitlementEnforcementService {
     const featureDef = getFeatureDefinition(featureKey);
     if (!featureDef?.creditable) {
       await this.emitDenialEvent(
-        tenantId,
-        featureKey,
-        userId,
-        units,
-        limit,
-        used,
-        'not_creditable',
+        {
+          tenantId,
+          featureKey,
+          userId,
+          units,
+          limit,
+          used,
+          reason: 'not_creditable',
+        },
         client,
       );
 
@@ -875,13 +857,15 @@ export class EntitlementEnforcementService {
 
     if (creditBalance < creditCost) {
       await this.emitDenialEvent(
-        tenantId,
-        featureKey,
-        userId,
-        units,
-        limit,
-        used,
-        'insufficient_credits',
+        {
+          tenantId,
+          featureKey,
+          userId,
+          units,
+          limit,
+          used,
+          reason: 'insufficient_credits',
+        },
         client,
       );
 
@@ -920,26 +904,20 @@ export class EntitlementEnforcementService {
    * and credit-fallback paths.
    */
   private buildProjectionJob(
-    tenantId: string,
-    featureKey: FeatureKey,
-    usageEvent: {
-      id: string;
-      resource_type?: string;
-      resource_id?: string;
-      recorded_at: Date;
-      idempotency_key?: string;
-    },
-    feature: { id: string; name: string; feature_type: string },
-    subscription: { id: string },
-    billingPeriod: string,
-    allocations: Array<{
-      source: 'plan' | 'addon' | 'credit' | 'override';
-      units: number;
-    }>,
-    userId: string | undefined,
-    creditDeducted = false,
-    creditAmount?: number,
+    input: BuildProjectionJobInput,
   ): EntitlementProjectionUpdateJobData {
+    const {
+      tenantId,
+      featureKey,
+      usageEvent,
+      feature,
+      subscription,
+      billingPeriod,
+      allocations,
+      userId,
+      creditDeducted = false,
+      creditAmount,
+    } = input;
     const units = allocations.reduce((sum, a) => sum + a.units, 0);
     return {
       usageLedgerId: usageEvent.id,
@@ -1010,11 +988,13 @@ export class EntitlementEnforcementService {
           }
 
           await this.usageProjectionService.incrementUsage(
-            data.tenantId,
-            data.subscriptionId,
-            data.featureId,
-            data.billingPeriod,
-            data.allocations,
+            {
+              tenantId: data.tenantId,
+              subscriptionId: data.subscriptionId,
+              featureId: data.featureId,
+              billingPeriod: data.billingPeriod,
+              allocations: data.allocations,
+            },
             { client },
           );
 
@@ -1029,28 +1009,12 @@ export class EntitlementEnforcementService {
     }
   }
 
-  /**
-   * Emit entitlement denial event
-   *
-   * @param tenantId - Tenant ID
-   * @param featureKey - Feature key
-   * @param userId - User ID (optional)
-   * @param units - Requested units
-   * @param limit - Entitlement limit
-   * @param used - Current usage
-   * @param reason - Denial reason
-   * @param client - Transaction client
-   */
   private async emitDenialEvent(
-    tenantId: string,
-    featureKey: FeatureKey,
-    userId: string | undefined,
-    units: number,
-    limit: number,
-    used: number,
-    reason: string,
+    input: EmitDenialEventInput,
     client: PoolClient,
   ): Promise<void> {
+    const { tenantId, featureKey, userId, units, limit, used, reason } = input;
+
     await this.domainEventsService.emit(
       {
         tenant_id: tenantId,

@@ -64,13 +64,6 @@ export abstract class BaseRepository<
       );
     }
 
-    if (isAuthflow) {
-      return this.databaseService.transaction(async (txClient) => {
-        await txClient.query("SET LOCAL app.is_auth_flow = 'true'");
-        return await txClient.query<T>(query, params);
-      });
-    }
-
     return this.databaseService.query<T>(query, params);
   }
 

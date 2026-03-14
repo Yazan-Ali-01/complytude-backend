@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
 import { TenantSubscription } from 'src/common/types/entitlement.types';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@lib/database';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
 import { AddonsRepository } from 'src/repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';

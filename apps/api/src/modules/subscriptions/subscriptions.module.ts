@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../../database/database.module';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { SubscriptionsService } from './subscriptions.service';
 
 /**
@@ -9,14 +9,14 @@ import { SubscriptionsService } from './subscriptions.service';
  * All paid subscription mutations go through StripeModule/StripeSubscriptionService.
  *
  * Exports:
- * - SubscriptionsService: Read access + Navigator lifecycle (renewal, creation)
+ * - SubscriptionsService: Read access + Navigator lifecycle (renewal, creation, changePlan, cancel)
  *
  * Dependencies:
  * - DatabaseModule: For database access
- * - EntitlementsModule (global): For repositories and domain events
+ * - EntitlementsModule: For PlansRepository, EntitlementSnapshotsRepository, DomainEventsService
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [EntitlementsModule],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],
 })

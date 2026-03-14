@@ -1,0 +1,296 @@
+---
+description: >
+  Testing conventions, integration test patterns, test infrastructure, factories, and helpers for the Complytude Backend.
+  Use when writing tests, creating test factories/helpers, or modifying test infrastructure.
+alwaysApply: false
+---
+
+# Testing Guidelines
+
+Test conventions, infrastructure, and patterns for the Complytude project.
+
+**Related Rules:**
+
+- [nest-js.mdc](mdc:nest-js.mdc) - NestJS patterns and conventions
+- [project-structure.mdc](mdc:project-structure.mdc) - Project navigation (includes test directory)
+- [pre-production.mdc](mdc:pre-production.mdc) - Pre-production guidelines
+
+**Related Documentation:**
+
+- [apps/api/test/README.md](mdc:../../apps/api/test/README.md) - Comprehensive test documentation
+- [CONTRIBUTING.md](mdc:../../CONTRIBUTING.md) - Test section for contributors
+
+# ========================================
+# Test Naming & Location
+# ========================================
+
+## Naming Convention
+
+| Pattern | Jest Project | Location | Description |
+| --- | --- | --- | --- |
+| `*.spec.ts` | `unit` | `apps/api/src/**/*.spec.ts` | Unit tests, co-located with source |
+| `*.integration.spec.ts` | `integration` | `apps/api/test/**/*.integration.spec.ts` | Integration tests, in test directory |
+
+- Unit tests live **next to the file they test** (e.g., `users.service.spec.ts` beside `users.service.ts`)
+- Integration tests live under `apps/api/test/` — never inside `src/`
+- The `unit` project explicitly excludes `*.integration.spec.ts` to prevent overlap
+
+## Test Directory Structure
+
+```
+apps/api/test/
+├── setup/                          # Test infrastructure
+│   ├── global-setup.ts             # Starts Postgres + Redis testcontainers (once)
+│   ├── global-teardown.ts          # Stops containers, removes temp config (once)
+│   ├── jest.setup.ts               # Per-worker: loads .env.test, overrides DB/Redis env
+│   ├── worker-database.setup.ts    # Per-worker: creates DB + runs migrations
+│   └── smoke.integration.spec.ts   # Verifies test infrastructure itself
+├── factories/                      # Test data builders
+│   ├── index.ts                    # Barrel export
+│   ├── tenant.factory.ts           # createTestTenant()
+│   ├── user.factory.ts             # createTestUser()
+│   └── subscription.factory.ts     # createTestSubscription()
+├── helpers/                        # Shared test utilities
+│   ├── test-config.ts              # Testcontainer config path + types
+│   ├── truncate.helper.ts          # truncateAllTables()
+│   ├── redis-flush.helper.ts       # flushRedis() + resetTestState()
+│   └── tenant-context.helper.ts    # withTenantContext() / withPlatformAdminContext()
+└── mocks/                          # Shared mock implementations
+    ├── storage.mock.ts             # MockStorageService
+    └── file-type.mock.ts           # file-type ESM compatibility mock
+```
+
+# ========================================
+# Integration Test Patterns
+# ========================================
+
+## Required Boilerplate
+
+Every integration test MUST follow this structure:
+
+```typescript
+import { resetTestState } from '../helpers/redis-flush.helper';
+import { createTestApp, TestApp } from '../setup/test-app.factory';
+
+describe('YourFeature', () => {
+  let app: TestApp;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  }, 60000);
+
+  beforeEach(async () => {
+    await resetTestState(app.databaseService, app.redisClient);
+  }, 15000);
+
+  afterAll(async () => {
+    if (app) await app.cleanup();
+  }, 30000);
+
+  it('should ...', async () => {
+    // test body
+  });
+});
+```
+
+**Critical rules:**
+
+- `beforeAll` timeout: **60000ms** — first call creates DB, runs migrations, boots NestJS
+- `beforeEach` timeout: **15000ms** — truncates tables + flushes Redis
+- `afterAll` timeout: **30000ms** — closes queues + NestJS app
+- ALWAYS call `app.cleanup()` in `afterAll` — prevents Jest hanging from open connections
+- ALWAYS call `resetTestState()` in `beforeEach` — ensures test isolation
+
+## createTestApp
+
+`createTestApp()` boots the full NestJS app with real DB and Redis. Returns `TestApp`:
+
+```typescript
+interface TestApp {
+  app: INestApplication;
+  module: TestingModule;         // use .get() to resolve providers
+  databaseService: DatabaseService;
+  redisService: RedisService;
+  redisClient: Redis;            // raw ioredis
+  queueProducerService: QueueProducerService;
+  cleanup: () => Promise<void>;
+}
+```
+
+**Auto-mocked providers:**
+- `StorageService` → `MockStorageService` (no real S3/MinIO needed)
+- `AuditService` → no-op mock
+
+**Override additional providers:**
+
+```typescript
+const app = await createTestApp({
+  providers: [
+    { provide: SomeService, useValue: { myMethod: jest.fn() } },
+  ],
+});
+```
+
+## resetTestState
+
+Truncates all transactional tables and flushes the worker's Redis DB. Reference tables survive truncation:
+`plans`, `features`, `plan_entitlements`, `tenant_roles`, `tenant_permissions`, `tenant_role_permissions`, `platform_roles`, `platform_permissions`, `platform_role_permissions`.
+
+These are populated by sync services on app boot and must not be cleared between tests.
+
+# ========================================
+# Factories
+# ========================================
+
+Use factories to create test data. All factories take a `TestingModule` and optional overrides:
+
+```typescript
+import { createTestTenant, createTestUser, createTestSubscription } from '../factories';
+
+const tenant = await createTestTenant(app.module);
+const subscription = await createTestSubscription(app.module, tenant.id);
+const user = await createTestUser(app.module, { tenant_id: tenant.id });
+```
+
+## Adding New Factories
+
+When creating a new factory:
+
+1. Create `apps/api/test/factories/{entity}.factory.ts`
+2. Export a `createTest{Entity}(module, overrides?)` function
+3. Use the real repository from the module (not raw SQL)
+4. Add to `apps/api/test/factories/index.ts` barrel export
+5. Add integration tests for the factory in `factories.integration.spec.ts`
+
+```typescript
+// Example: apps/api/test/factories/document.factory.ts
+import { TestingModule } from '@nestjs/testing';
+import { DocumentRepository } from 'src/repositories/documents/document.repository';
+
+export async function createTestDocument(
+  module: TestingModule,
+  overrides?: Partial<CreateDocumentRow>,
+): Promise<Document> {
+  const repo = module.get(DocumentRepository);
+  return repo.create({
+    title: 'Test Document',
+    ...overrides,
+  });
+}
+```
+
+# ========================================
+# Helpers
+# ========================================
+
+## Tenant Context Helpers
+
+For testing RLS-protected queries:
+
+```typescript
+import { withTenantContext, withPlatformAdminContext } from '../helpers/tenant-context.helper';
+
+// Tenant-scoped query (RLS enforced)
+const rows = await withTenantContext(
+  app.databaseService,
+  tenantId,
+  async (client) => {
+    const result = await client.query('SELECT * FROM documents');
+    return result.rows;
+  },
+  { isTenantAdmin: false },  // default
+);
+
+// Platform admin context
+const rows = await withPlatformAdminContext(
+  app.databaseService,
+  async (client) => {
+    const result = await client.query('SELECT * FROM tenants');
+    return result.rows;
+  },
+);
+```
+
+# ========================================
+# When to Write Which Type of Test
+# ========================================
+
+## Unit Tests (`*.spec.ts`)
+
+Write unit tests for:
+- Pure business logic in services (no DB calls)
+- Utility functions
+- DTO validation
+- Mappers and transformers
+
+Mock dependencies using Jest mocks. Co-locate with source file.
+
+## Integration Tests (`*.integration.spec.ts`)
+
+Write integration tests for:
+- Repository operations (real DB queries)
+- Service methods that interact with the database
+- Factory validation
+- RLS policy enforcement
+- Multi-step workflows (create tenant → add user → verify permissions)
+- Queue job dispatch and processing
+
+Use `createTestApp()` + real testcontainers. Place in `apps/api/test/`.
+
+# ========================================
+# Documentation Updates
+# ========================================
+
+## When to Update Test Documentation
+
+After writing tests, check if documentation needs updating:
+
+### ALWAYS update when:
+- Adding a new **factory** → update `apps/api/test/README.md` (factories table + directory tree) and `CONTRIBUTING.md` (directory tree)
+- Adding a new **helper** → update `apps/api/test/README.md` (utilities reference + directory tree) and `CONTRIBUTING.md` (directory tree)
+- Adding a new **mock** → update `apps/api/test/README.md` (directory tree) and `CONTRIBUTING.md` (directory tree)
+- Adding a new **setup file** → update `apps/api/test/README.md` (architecture + directory tree)
+- Changing test infrastructure (new containers, changed lifecycle) → update `apps/api/test/README.md` and `apps/api/docs/DEVELOPMENT.md` CI section
+
+### Update Cursor rules when:
+- A new test pattern is used in **3+ test files** → add to this rule
+- Test directory structure changes significantly → update [project-structure.mdc](mdc:project-structure.mdc) test section
+
+### Do NOT update docs for:
+- Adding a regular test file (e.g., `users.integration.spec.ts`) — only infrastructure/shared code triggers doc updates
+- Fixing or refactoring existing tests
+
+# ========================================
+# CI Requirements (Quick Reference)
+# ========================================
+
+- **Docker required** for integration tests (testcontainers manages containers)
+- **Minimum Docker:** 20.10+ (testcontainers v11 requirement)
+- `.env.test` is committed — no CI secrets needed
+- DB/Redis connection details overridden at runtime by testcontainers
+- GitHub Actions `ubuntu-latest` includes Docker — works out of the box
+
+# ========================================
+# Test Scripts
+# ========================================
+
+```bash
+pnpm test                     # All tests (unit + integration)
+pnpm test:unit                # Unit tests only (no Docker needed)
+pnpm test:integration         # Integration tests only (Docker required)
+pnpm test:integration:watch   # Integration tests in watch mode
+pnpm test:coverage            # All tests with V8 coverage report
+```
+
+# ========================================
+# Metadata
+# ========================================
+
+metadata:
+project: "Complytude Backend"
+version: "1.0"
+updated: "2026-03-11"
+note: >
+  Testing conventions and patterns for the Complytude project.
+  See apps/api/test/README.md for comprehensive documentation.
+  See CONTRIBUTING.md for contributor-facing test instructions.

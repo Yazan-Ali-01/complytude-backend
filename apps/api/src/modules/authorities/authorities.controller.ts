@@ -30,6 +30,8 @@ import {
 import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import type { AuthenticatedIdentityUser } from '../auth/strategies';
+import { Authority } from './entities/authority.entity';
+import { AuthoritiesService } from './authorities.service';
 import {
   AuthorityIdParamDto,
   AuthorityListResponseDto,
@@ -41,14 +43,17 @@ import {
 
 @ApiTags('Authorities')
 @Controller('authorities')
-@SwaggerCookieAuth.tenantAccessToken()
+@AuthOptions({ identity: true })
+@SwaggerCookieAuth.identityAccessToken()
 @ApiExtraModels(
   AuthorityResponseDto,
   AuthorityListResponseDto,
   PaginationMetaDto,
 )
 export class AuthoritiesController {
-  constructor() {}
+  constructor(private readonly authoritiesService: AuthoritiesService) {}
+
+  // ─── Read Endpoints (identity token, no permission check) ──────
 
   @Get()
   @ApiOperation({
@@ -57,9 +62,34 @@ export class AuthoritiesController {
       'Retrieve a paginated list of legal authorities with optional filtering by active status, search term, and country.',
   })
   @ApiListResponses(AuthorityListResponseDto, 'Authorities')
-  list(@Query() _query: ListAuthoritiesQueryDto): AuthorityListResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async list(
+    @Query() query: ListAuthoritiesQueryDto,
+  ): Promise<AuthorityListResponseDto> {
+    const result = await this.authoritiesService.findAll(
+      {
+        isActive: query.isActive,
+        search: query.search,
+        country: query.country,
+      },
+      {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+      },
+    );
+
+    return {
+      data: result.data.map((a) => this.mapToResponse(a)),
+      meta: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPreviousPage: result.hasPreviousPage,
+      },
+    };
   }
 
   @Get(':id')
@@ -74,38 +104,40 @@ export class AuthoritiesController {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiGetResponses(AuthorityResponseDto, 'Authority')
-  findOne(@Param() _params: AuthorityIdParamDto): AuthorityResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async findOne(
+    @Param() params: AuthorityIdParamDto,
+  ): Promise<AuthorityResponseDto> {
+    const authority = await this.authoritiesService.findById(params.id);
+    return this.mapToResponse(authority);
   }
 
+  // ─── Write Endpoints (identity token + authorities:manage) ─────
+
   @Post()
-  @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
     summary: 'Create authority',
     description:
-      'Create a new legal authority. This endpoint is restricted to system administrators only. The authority code will be automatically converted to uppercase.',
+      'Create a new legal authority. Restricted to platform administrators. The authority code will be automatically converted to uppercase.',
   })
   @ApiCreateResponses(AuthorityResponseDto, 'Authority')
   @ApiConflictError('Authority with this code already exists')
-  create(
-    @Body() _dto: CreateAuthorityDto,
-    @CurrentUserIdentity() _identityUser: AuthenticatedIdentityUser,
-  ): AuthorityResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async create(
+    @Body() dto: CreateAuthorityDto,
+    @CurrentUserIdentity() _identity: AuthenticatedIdentityUser,
+  ): Promise<AuthorityResponseDto> {
+    const authority = await this.authoritiesService.create(dto);
+    return this.mapToResponse(authority);
   }
 
   @Patch(':id')
-  @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
     summary: 'Update authority',
     description:
-      'Update an existing legal authority. This endpoint is restricted to system administrators only. Only provided fields will be updated.',
+      'Update an existing legal authority. Restricted to platform administrators. Only provided fields will be updated.',
   })
   @ApiParam({
     name: 'id',
@@ -113,23 +145,22 @@ export class AuthoritiesController {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiUpdateResponses(AuthorityResponseDto, 'Authority')
-  update(
-    @Param() _params: AuthorityIdParamDto,
-    @Body() _dto: UpdateAuthorityDto,
-    @CurrentUserIdentity() _identityUser: AuthenticatedIdentityUser,
-  ): AuthorityResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async update(
+    @Param() params: AuthorityIdParamDto,
+    @Body() dto: UpdateAuthorityDto,
+    @CurrentUserIdentity() _identity: AuthenticatedIdentityUser,
+  ): Promise<AuthorityResponseDto> {
+    const authority = await this.authoritiesService.update(params.id, dto);
+    return this.mapToResponse(authority);
   }
 
   @Delete(':id')
-  @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
     summary: 'Deactivate authority',
     description:
-      'Soft delete an authority by setting its isActive status to false. This endpoint is restricted to system administrators only. The authority will remain in the database but will be marked as inactive.',
+      'Soft delete an authority by setting its isActive status to false. Restricted to platform administrators.',
   })
   @ApiParam({
     name: 'id',
@@ -137,11 +168,25 @@ export class AuthoritiesController {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiDeleteResponses('Authority')
-  remove(
-    @Param() _params: AuthorityIdParamDto,
-    @CurrentUserIdentity() _identityUser: AuthenticatedIdentityUser,
-  ): MessageResponseDto {
-    // Implementation will be added by service layer
-    return null as any;
+  async remove(
+    @Param() params: AuthorityIdParamDto,
+  ): Promise<MessageResponseDto> {
+    await this.authoritiesService.delete(params.id);
+    return { message: 'Authority has been deactivated' };
+  }
+
+  // ─── Response Mapping ──────────────────────────────────────────
+
+  private mapToResponse(authority: Authority): AuthorityResponseDto {
+    return {
+      id: authority.id,
+      code: authority.code,
+      name: authority.name,
+      description: authority.description,
+      country: authority.country,
+      isActive: authority.is_active,
+      createdAt: authority.created_at.toISOString(),
+      updatedAt: authority.updated_at.toISOString(),
+    };
   }
 }

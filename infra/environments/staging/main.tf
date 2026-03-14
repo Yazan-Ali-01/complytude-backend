@@ -201,13 +201,19 @@ module "ecs" {
   ]
 
   api_environment = {
-    NODE_ENV = "production"
+    NODE_ENV      = "production"
+    LOG_LEVEL     = "info"
+    SERVICE_NAME  = "gateway"
   }
   worker_ai_environment = {
-    NODE_ENV = "production"
+    NODE_ENV      = "production"
+    LOG_LEVEL     = "info"
+    SERVICE_NAME  = "worker-ai"
   }
   worker_ingestion_environment = {
-    NODE_ENV = "production"
+    NODE_ENV      = "production"
+    LOG_LEVEL     = "info"
+    SERVICE_NAME  = "worker-ingestion"
   }
 
   api_desired_count            = var.ecs_api_desired_count
@@ -222,6 +228,16 @@ module "dns_record" {
   record_name  = "staging"
   alb_dns_name = module.ecs.alb_dns_name
   alb_zone_id  = module.ecs.alb_zone_id
+}
+
+module "developers" {
+  source = "../../modules/developers"
+
+  project_name        = var.project
+  environment         = var.environment
+  developer_usernames = var.developer_usernames
+  s3_bucket_arns      = [module.s3.quarantine_bucket_arn, module.s3.clean_bucket_arn]
+  secret_arn          = module.secrets.secret_arn
 }
 
 module "monitoring" {

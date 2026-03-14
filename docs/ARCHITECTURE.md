@@ -35,36 +35,51 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                   NestJS Application Layer                       │
-│  ┌──────────────┬──────────────┬──────────────┬──────────────┐ │
-│  │     Auth     │   Tenants    │  Templates   │   Storage    │ │
-│  │    Module    │    Module    │    Module    │    Module    │ │
-│  └──────────────┴──────────────┴──────────────┴──────────────┘ │
+│                   NestJS API Application                         │
+│  ┌───────────┬───────────┬─────────────┬──────────────────────┐ │
+│  │   Auth    │  Tenants  │  Templates  │  Documents           │ │
+│  │  Module   │  Module   │   Module    │   Module             │ │
+│  ├───────────┼───────────┼─────────────┼──────────────────────┤ │
+│  │  RBAC     │ Entitle-  │  Rulesets   │  Subscriptions       │ │
+│  │ (T + P)   │  ments    │   Module    │   Module             │ │
+│  ├───────────┼───────────┼─────────────┼──────────────────────┤ │
+│  │  Storage  │   Audit   │  Users      │  Health / Mock       │ │
+│  │  Module   │  Module   │  Module     │   Modules            │ │
+│  └───────────┴───────────┴─────────────┴──────────────────────┘ │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  Common: Guards, Interceptors, Pipes, Decorators        │   │
 │  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ BullMQ (via Redis)
+          ┌────────────┴────────────┐
+          ↓                         ↓
+┌──────────────────┐    ┌────────────────────────┐
+│  Worker AI App   │    │  Worker Ingestion App  │
+│  (LLM analysis)  │    │  (chunk + embed)       │
+└──────────────────┘    └────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Data Layer                                  │
-│  ┌────────────────────────┬─────────────────────────────────┐   │
-│  │   PostgreSQL 16        │    S3-Compatible Storage        │   │
-│  │  (with RLS policies)   │    (MinIO / AWS S3)             │   │
-│  └────────────────────────┴─────────────────────────────────┘   │
+│                      Data & Infrastructure Layer                 │
+│  ┌──────────────┬──────────────┬──────────────┬──────────────┐ │
+│  │ PostgreSQL 16│    Redis 7   │ S3-Compatible│  OpenAI API  │ │
+│  │ + pgvector   │  (BullMQ)    │ (MinIO/AWS)  │ (Embeddings) │ │
+│  └──────────────┴──────────────┴──────────────┴──────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Architectural Decisions
 
-| Decision           | Choice                    | Rationale                                         |
-| ------------------ | ------------------------- | ------------------------------------------------- |
-| **Framework**      | NestJS 11 with Fastify    | Performance, modularity, TypeScript-first         |
-| **Database**       | PostgreSQL 16             | JSONB support, RLS for multi-tenancy, reliability |
-| **Multi-Tenancy**  | Row-Level Security (RLS)  | Strong data isolation at database level           |
-| **Authentication** | JWT with Passport         | Stateless, scalable, industry standard            |
-| **Storage**        | S3-compatible (MinIO/AWS) | Scalable, tenant-isolated buckets                 |
-| **Validation**     | class-validator           | Declarative, type-safe validation                 |
-| **Documentation**  | Swagger/OpenAPI           | Auto-generated, interactive API docs              |
+| Decision             | Choice                    | Rationale                                         |
+| -------------------- | ------------------------- | ------------------------------------------------- |
+| **Framework**        | NestJS 11 with Fastify    | Performance, modularity, TypeScript-first         |
+| **Database**         | PostgreSQL 16 + pgvector  | JSONB support, RLS, vector similarity search      |
+| **Multi-Tenancy**    | Row-Level Security (RLS)  | Strong data isolation at database level           |
+| **Authentication**   | JWT with Passport         | Stateless, scalable, industry standard            |
+| **Background Jobs**  | BullMQ + Redis            | Reliable job processing, typed payloads           |
+| **AI/LLM**          | OpenAI API                | Document analysis, embedding generation           |
+| **Storage**          | S3-compatible (MinIO/AWS) | Scalable, tenant-isolated buckets                 |
+| **Validation**       | class-validator           | Declarative, type-safe validation                 |
+| **Documentation**    | Swagger/OpenAPI           | Auto-generated, interactive API docs              |
 
 ---
 
@@ -73,19 +88,30 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 ### Backend Framework
 
 - **NestJS 11** - Modern TypeScript framework with dependency injection
-- **Fastify** - High-performance HTTP server (default in NestJS 11)
-- **TypeScript 5** - Type safety and modern JavaScript features
+- **Fastify** - High-performance HTTP server
+- **TypeScript 5.7** - Type safety and modern JavaScript features
 
-### Database & ORM
+### Database
 
-- **PostgreSQL 16** - Relational database with advanced features
-- **Raw SQL** - Direct SQL for migrations and complex queries
+- **PostgreSQL 16 + pgvector** - Relational database with vector similarity search
+- **Raw SQL** - Direct SQL via native `pg` driver (no ORM)
 - **Row-Level Security (RLS)** - Database-level tenant isolation
+
+### Background Jobs & Messaging
+
+- **BullMQ** - Redis-backed job queue for async processing
+- **Redis 7** - Message broker for BullMQ, connection management via ioredis
+
+### AI & Machine Learning
+
+- **OpenAI API** - Document analysis, embedding generation
+- **tiktoken** - Token counting for chunking
+- **pgvector** - Vector similarity search for semantic retrieval
 
 ### Authentication & Security
 
 - **Passport.js** - Authentication middleware
-- **JWT** - Stateless token-based authentication
+- **JWT** - Dual-token stateless authentication (identity + tenant)
 - **bcrypt** - Password hashing
 - **class-validator** - Input validation
 
@@ -100,9 +126,16 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 
 ### DevOps
 
-- **Docker** - Containerization
+- **Docker** - Containerization (base + dev + prod overlays)
 - **Docker Compose** - Local development orchestration
 - **pnpm** - Fast, disk-efficient package manager
+
+### Shared Libraries (`libs/`)
+
+- **@lib/database** - Database module, service, base repository
+- **@lib/embedding** - OpenAI embedding + text chunking
+- **@lib/queue** - BullMQ queue module + typed producer
+- **@lib/redis** - Redis connection management
 
 ---
 
@@ -114,20 +147,33 @@ Complytude follows clean architecture principles with clear separation of concer
 
 ```
 apps/api/src/
-├── modules/              # Feature modules (business logic)
-│   ├── auth/            # Authentication & authorization
+├── modules/              # Feature modules (17 total)
+│   ├── auth/            # JWT authentication & token management
+│   ├── audit/           # Audit logging
+│   ├── authorities/     # Regulatory authorities
+│   ├── categories/      # Template categories
+│   ├── documents/       # Document generation & management
+│   ├── entitlements/    # Plan-based feature access, usage, credits
+│   ├── health/          # Health checks
+│   ├── invitations/     # Tenant invitations
+│   ├── mock/            # Dev/test mock controllers
+│   ├── platform-rbac/   # Platform-wide authorization
+│   ├── rulesets/        # Compliance rulesets
+│   ├── storage/         # S3 file storage
+│   ├── subscriptions/   # Subscription management
+│   ├── tenant-rbac/     # Tenant-scoped authorization
 │   ├── tenants/         # Multi-tenancy management
-│   ├── users/           # User management
-│   ├── invitations/     # Tenant invitations & membership
-│   ├── templates/       # Template CRUD
-│   └── storage/         # File storage
+│   ├── templates/       # Template CRUD & versioning
+│   └── users/           # User management
 ├── common/              # Cross-cutting concerns
-│   ├── guards/         # Authorization guards
-│   ├── interceptors/   # Request/response transformation
-│   ├── decorators/     # Custom decorators
-│   └── pipes/          # Validation pipes
+│   ├── guards/         # Authorization guards (RBAC, entitlement, usage)
+│   ├── interceptors/   # Request/response transformation (tenant, audit)
+│   ├── decorators/     # Custom decorators (permissions, entitlement, audit)
+│   ├── exceptions/     # Custom exceptions
+│   ├── pipes/          # Validation pipes
+│   └── utils/          # Utilities (permission matching, billing, etc.)
 ├── config/             # Configuration management
-├── database/           # Database connection & utilities
+├── database/           # Re-exports from @lib/database (deprecated)
 ├── repositories/       # Data access layer
 └── i18n/               # Internationalization
 ```
@@ -221,16 +267,25 @@ graph TD
 
 ### Core Modules
 
-| Module           | Responsibility                                                          | Dependencies                 |
-| ---------------- | ----------------------------------------------------------------------- | ---------------------------- |
-| **auth**         | JWT authentication, signup, login, token refresh, user invitation flows | users, invitations, database |
-| **users**        | User management, profile updates                                        | database                     |
-| **tenants**      | Tenant creation, subscription management                                | users, database              |
-| **invitations**  | Tenant invitations, accept/reject, admin management                     | users, tenants, database     |
-| **entitlements** | Plan-based feature access, usage tracking, credit system (Global)       | database, subscriptions      |
-| **templates**    | Template CRUD, versioning                                               | storage, database            |
-| **storage**      | File upload/download, S3 integration                                    | tenants, database            |
-| **health**       | Health checks for services                                              | database, storage            |
+| Module              | Responsibility                                                          | Dependencies                 |
+| ------------------- | ----------------------------------------------------------------------- | ---------------------------- |
+| **auth**            | JWT authentication, signup, login, token refresh, invitation flows      | users, invitations, database |
+| **users**           | User management, profile updates                                        | database                     |
+| **tenants**         | Tenant creation, management, invitations                                | users, database              |
+| **invitations**     | Tenant invitations, accept/reject                                       | users, tenants, database     |
+| **tenant-rbac**     | Tenant-scoped RBAC (Global)                                             | database                     |
+| **platform-rbac**   | Platform-wide RBAC (Global)                                             | database                     |
+| **entitlements**    | Plan-based feature access, usage tracking, credit system (Global)       | database, subscriptions, queue |
+| **subscriptions**   | Subscription lifecycle (create, change plan, cancel, renew)             | database                     |
+| **audit**           | Audit logging (Global)                                                  | database                     |
+| **authorities**     | Regulatory authority management                                         | database                     |
+| **categories**      | Template category management                                            | database                     |
+| **templates**       | Template CRUD, versioning, field extraction                             | storage, database            |
+| **rulesets**        | Compliance rulesets with versioning                                      | database                     |
+| **documents**       | Document generation and management                                      | templates, storage, database |
+| **storage**         | File upload/download, S3 integration                                    | database                     |
+| **health**          | Health checks for services                                              | database, redis              |
+| **mock**            | Development/testing mock endpoints                                      | entitlements, rbac           |
 
 ---
 
@@ -242,35 +297,21 @@ The database uses a **multi-tenant architecture** with Row-Level Security (RLS) 
 
 **For detailed database documentation, see [DATABASE.md](DATABASE.md)**
 
-### Table Categories
+### Table Categories (38+ tables)
 
-1. **Core Tables** (3)
-   - `tenants` - Organizations
-   - `users` - User accounts
-   - `user_tenants` - Many-to-many with role assignments
-
-2. **RBAC Tables** (3)
-   - `tenant_roles` - System and custom role definitions
-   - `tenant_permissions` - Permission definitions
-   - `tenant_role_permissions` - Role-permission assignments
-
-3. **Authentication Tables** (3)
-   - `refresh_tokens` - JWT refresh tokens
-   - `email_verifications` - Email verification tokens
-   - `password_resets` - Password reset tokens
-
-4. **Global Reference Tables** (8)
-   - `authorities`, `categories` - Reference data
-   - `templates`, `template_versions` - Templates with versioning
-   - `rulesets`, `ruleset_versions` - Legal rulesets with versioning
-
-5. **Tenant-Scoped Tables** (1)
-   - `documents` - Generated documents (RLS enabled)
-
-6. **Junction Tables** (3)
-   - `template_rulesets` - Templates ↔ Rulesets
-   - `template_version_ruleset_versions` - Version associations
-   - `tenant_role_permissions` - Tenant Roles ↔ Tenant Permissions
+1. **Core Tables** (3) - `tenants`, `users`, `user_tenants`
+2. **Tenant RBAC Tables** (3) - `tenant_roles`, `tenant_permissions`, `tenant_role_permissions`
+3. **Platform RBAC Tables** (3) - `platform_roles`, `platform_permissions`, `platform_role_permissions`
+4. **Authentication Tables** (4) - `refresh_tokens`, `email_verifications`, `password_resets`, `invitations`
+5. **Global Reference Tables** (6) - `authorities`, `categories`, `templates`, `template_versions`, `rulesets`, `ruleset_versions`
+6. **Entitlement Catalog Tables** (5) - `features`, `plans`, `plan_entitlements`, `addons`, `addon_entitlements`
+7. **Tenant-Scoped Entitlement Tables** (3) - `tenant_subscriptions`, `tenant_addons`, `tenant_overrides`
+8. **Event Ledgers** (3) - `usage_ledger`, `usage_allocations`, `credit_ledger`
+9. **Projections & Snapshots** (2) - `aggregated_usage`, `entitlement_snapshots`
+10. **Domain Events** (1) - `domain_events`
+11. **Tenant-Scoped Tables** (1) - `documents`
+12. **Audit Tables** (1) - `audit_logs`
+13. **Junction Tables** (4) - `template_rulesets`, `template_version_ruleset_versions`, `tenant_role_permissions`, `platform_role_permissions`
 
 ### ER Diagram
 
@@ -301,56 +342,74 @@ Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
 
 ### How It Works
 
-1. **Application sets session context:**
+1. **Application uses transaction with tenant context:**
 
    ```typescript
-   @Injectable()
-   export class TenantContextService {
-     async setContext(tenantId: string, role: string, isAuthFlow = false) {
-       // Set tenant context (transaction-local)
-       await this.db.query(`SELECT set_config('app.tenant_id', $1, true)`, [
-         tenantId,
-       ]);
+   // DatabaseService handles context setup automatically
+   await this.databaseService.transactionWithTenantContext(
+     { tenantId, isTenantAdmin: true },
+     async (client) => {
+       // All queries within this callback have RLS context set:
+       //   app.tenant_id = tenantId
+       //   app.is_tenant_admin = 'true'
+       //   app.allow_cross_tenant_read = 'false'
+       const result = await client.query('SELECT * FROM documents');
+       return result.rows;
+     },
+   );
 
-       // Set user-tenant role (transaction-local)
-       await this.db.query(
-         `SELECT set_config('app.user_tenant_role', $2, true)`,
-         [role],
-       );
-
-       // Set auth flow flag if needed (transaction-local)
-       if (isAuthFlow) {
-         await this.db.query(
-           `SELECT set_config('app.is_auth_flow', 'true', true)`,
-         );
-       }
-     }
-   }
+   // For system-wide operations (bypasses tenant RLS):
+   await this.databaseService.transactionWithPlatformAdminContext(
+     async (client) => {
+       // app.platform_role = 'true' → is_platform_admin() returns true
+       const result = await client.query('SELECT * FROM tenants');
+       return result.rows;
+     },
+   );
    ```
 
-2. **RLS policies filter automatically:**
+2. **RLS policies filter automatically using helper functions:**
 
    ```sql
+   -- Tenant-scoped: users only see their tenant's data
    CREATE POLICY documents_select ON documents
    FOR SELECT USING (
        tenant_id = current_tenant_id_or_null()
    );
+
+   -- Platform admin: can see all tenants
+   CREATE POLICY tenant_select ON tenants
+   FOR SELECT USING (
+       id = current_tenant_id_or_null()
+       OR is_auth_flow()
+       OR is_platform_admin()
+   );
    ```
 
-3. **Result:** Users only see their tenant's data
+3. **Result:** Users only see their tenant's data; platform admins see all
+
+### Session Context Variables
+
+| Variable | Set By | SQL Helper | Purpose |
+|----------|--------|------------|---------|
+| `app.tenant_id` | `transactionWithTenantContext` | `current_tenant_id_or_null()` | Current tenant for RLS filtering |
+| `app.is_tenant_admin` | `transactionWithTenantContext` | `is_tenant_admin()` | Allow UPDATE/DELETE on tenant data |
+| `app.allow_cross_tenant_read` | `transactionWithTenantContext` | `allow_cross_tenant_read()` | Cross-tenant SELECT (slug checks) |
+| `app.platform_role` | `transactionWithPlatformAdminContext` | `is_platform_admin()` | System admin bypasses tenant RLS |
+| `app.is_auth_flow` | Set manually in auth flows | `is_auth_flow()` | Allow INSERT during signup/login |
 
 ### Tenant Context Flow
 
 ```
-Request → JWT Validation → Extract tenant_id → Set Session Context → Execute Query → RLS Filters → Response
+Request → JWT Validation → Extract tenant_id → transactionWithTenantContext → SET LOCAL app.tenant_id → Execute Query → RLS Filters → COMMIT → Response
 ```
 
 ### Global vs Tenant-Scoped Tables
 
-| Type              | Tables                             | RLS    | Access                    |
-| ----------------- | ---------------------------------- | ------ | ------------------------- |
-| **Global**        | authorities, categories, templates | ❌ No  | Shared across all tenants |
-| **Tenant-Scoped** | documents                          | ✅ Yes | Isolated per tenant       |
+| Type              | Tables                                                                   | RLS    | Access                    |
+| ----------------- | ------------------------------------------------------------------------ | ------ | ------------------------- |
+| **Global**        | authorities, categories, templates, features, plans, addons              | ❌ No  | Shared across all tenants |
+| **Tenant-Scoped** | documents, tenant_subscriptions, tenant_addons, tenant_overrides, usage_ledger, credit_ledger, etc. | ✅ Yes | Isolated per tenant |
 
 ---
 
@@ -546,7 +605,7 @@ RBAC is a cross-cutting concern similar to authentication. Making `TenantRbacMod
 **Implementation:**
 
 ```typescript
-// src/modules/rbac/rbac.module.ts
+// src/modules/tenant-rbac/tenant-rbac.module.ts
 @Global()  // ← Makes module available everywhere
 @Module({
   imports: [DatabaseModule],
@@ -740,9 +799,10 @@ S3_SECRET_KEY=<secret>
 ### Scalability
 
 - Stateless design (horizontal scaling)
+- Redis deployed for BullMQ job queues
+- Entitlement snapshots for fast cached reads
 - Database read replicas (planned)
 - CDN for static assets (planned)
-- Redis caching layer (planned)
 
 ---
 
@@ -843,11 +903,11 @@ API App
 ├── Produces jobs to:   AI_PROCESSING, DATA_INGESTION, ENTITLEMENT_PROCESSING
 ├── Consumes jobs from: ENTITLEMENT_PROCESSING  (light DB ops, same service graph)
 
-Worker-Ingestion App (future)
-├── Consumes jobs from: DATA_INGESTION  (heavy I/O, file processing)
+Worker-Ingestion App (apps/worker-ingestion)
+├── Consumes jobs from: DATA_INGESTION  (ruleset chunking + embedding)
 
-Worker-AI App (future)
-├── Consumes jobs from: AI_PROCESSING   (GPU/LLM calls)
+Worker-AI App (apps/worker-ai)
+├── Consumes jobs from: AI_PROCESSING   (LLM document analysis)
 ```
 
 **Why does the API consume `ENTITLEMENT_PROCESSING`?**
@@ -857,8 +917,8 @@ Entitlement jobs (snapshot rebuild, domain event fanout, credit events) are ligh
 
 | Constant | Redis key | Producer | Consumer |
 |---|---|---|---|
-| `QUEUE_NAMES.AI_PROCESSING` | `ai-processing` | API | worker-ai (future) |
-| `QUEUE_NAMES.DATA_INGESTION` | `data-ingestion` | API | worker-ingestion (future) |
+| `QUEUE_NAMES.AI_PROCESSING` | `ai-processing` | API | worker-ai |
+| `QUEUE_NAMES.DATA_INGESTION` | `data-ingestion` | API | worker-ingestion |
 | `QUEUE_NAMES.ENTITLEMENT_PROCESSING` | `entitlement-processing` | API | API |
 
 ### QueueProducerService
@@ -964,4 +1024,4 @@ A Bull Board dashboard is available at `/admin/queues`. When `BULL_BOARD_ADMIN_S
 
 ---
 
-**Last Updated:** February 21, 2026
+**Last Updated:** March 4, 2026

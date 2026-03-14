@@ -34,7 +34,7 @@ export class ErrorResponseDto {
 
   @ApiProperty({
     description: 'API path where the error occurred',
-    example: '/api/templates',
+    example: '/api/v1/templates',
     required: false,
   })
   path?: string;
@@ -64,7 +64,7 @@ export class UnauthorizedErrorDto extends ErrorResponseDto {
   declare timestamp?: string;
 
   @ApiProperty({
-    example: '/api/templates',
+    example: '/api/v1/templates',
     required: false,
   })
   declare path?: string;
@@ -89,7 +89,7 @@ export class ForbiddenErrorDto extends ErrorResponseDto {
   declare timestamp?: string;
 
   @ApiProperty({
-    example: '/api/templates',
+    example: '/api/v1/templates',
     required: false,
   })
   declare path?: string;
@@ -114,7 +114,7 @@ export class NotFoundErrorDto extends ErrorResponseDto {
   declare timestamp?: string;
 
   @ApiProperty({
-    example: '/api/templates',
+    example: '/api/v1/templates',
     required: false,
   })
   declare path?: string;
@@ -144,7 +144,7 @@ export class ValidationErrorDto {
   declare timestamp?: string;
 
   @ApiProperty({
-    example: '/api/templates',
+    example: '/api/v1/templates',
     required: false,
   })
   declare path?: string;
@@ -169,7 +169,7 @@ export class ConflictErrorDto {
   declare timestamp?: string;
 
   @ApiProperty({
-    example: '/api/templates',
+    example: '/api/v1/templates',
     required: false,
   })
   declare path?: string;
@@ -194,7 +194,7 @@ export class InternalServerErrorDto extends ErrorResponseDto {
   declare timestamp?: string;
 
   @ApiProperty({
-    example: '/api/templates',
+    example: '/api/v1/templates',
     required: false,
   })
   declare path?: string;

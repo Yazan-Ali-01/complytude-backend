@@ -1,4 +1,4 @@
-import { QueryOptions } from '@lib/database';
+import { DatabaseService, QueryOptions } from '@lib/database';
 import {
   ENTITLEMENT_JOB_NAMES,
   QUEUE_NAMES,
@@ -11,7 +11,6 @@ import {
   PlanKey,
   ResolvedEntitlements,
 } from '../../../common/types/entitlement.types';
-import { DatabaseService } from '../../../database/database.service';
 import { EntitlementSnapshotsRepository } from '../../../repositories/entitlements/entitlement-snapshots.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { DomainEventsService } from './domain-events.service';
@@ -114,8 +113,11 @@ export class EntitlementSnapshotService {
       this.logger.debug(`Serving fresh snapshot for tenant: ${tenantId}`);
 
       // Extract plan key from snapshot metadata
-      const planKey = (snapshot.snapshot_data as any).__plan_key as PlanKey;
-
+      const planKey = (
+        snapshot.snapshot_data as Record<string, unknown> & {
+          __plan_key?: PlanKey;
+        }
+      ).__plan_key as PlanKey; // Safe: __plan_key set by resolver
       return {
         entitlements: snapshot.snapshot_data as ResolvedEntitlements,
         plan: planKey,

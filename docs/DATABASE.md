@@ -72,7 +72,7 @@ The complete ER diagram is available in DBML format:
 
 The diagram shows:
 
-- All 16 tables with columns and data types
+- All 38+ tables with columns and data types
 - Relationships (foreign keys) with cardinality
 - Table groups color-coded by purpose
 - Indexes and constraints
@@ -107,15 +107,23 @@ Complytude implements **Row-Level Security (RLS)** for tenant isolation:
 
 ### Session Context
 
-Before executing queries, the application sets session variables:
+The application uses `DatabaseService` transaction methods which automatically set session variables:
+
+**`transactionWithTenantContext({ tenantId, isTenantAdmin?, allowCrossTenantRead? })`:**
 
 ```sql
-SELECT set_config('app.tenant_id', 'tenant-uuid', true);
-SELECT set_config('app.user_id', 'user-uuid', true);
-SELECT set_config('app.role', 'admin', true);
+SELECT set_config('app.tenant_id', 'tenant-uuid', true);        -- Always set
+SELECT set_config('app.is_tenant_admin', 'true/false', true);   -- For update/delete policies
+SELECT set_config('app.allow_cross_tenant_read', 'true/false', true); -- For cross-tenant reads
 ```
 
-RLS policies use these to filter data automatically.
+**`transactionWithPlatformAdminContext()`:**
+
+```sql
+SELECT set_config('app.platform_role', 'true', true);  -- Bypasses tenant RLS
+```
+
+All variables are transaction-scoped (`is_local=true`) — they clear on COMMIT/ROLLBACK. RLS policies use helper functions to read these variables.
 
 ---
 
@@ -216,21 +224,46 @@ Tables with tenant isolation:
 
 ### tenants
 
-Organizations using the platform.
+Organizations using the platform. Plan assignment is managed via `tenant_subscriptions` (single source of truth).
 
-| Column       | Type        | Description                                                     |
-| ------------ | ----------- | --------------------------------------------------------------- |
-| `id`         | UUID        | Primary key                                                     |
-| `plan`       | ENUM        | Subscription plan: `early_access`, `basic`, `pro`, `enterprise` |
-| `features`   | JSONB       | Feature flags (e.g., `{"api_access": true}`)                    |
-| `is_active`  | BOOLEAN     | Soft delete flag                                                |
-| `created_at` | TIMESTAMPTZ | Creation timestamp                                              |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp                                           |
+| Column                     | Type         | Description                                                    |
+| -------------------------- | ------------ | -------------------------------------------------------------- |
+| `id`                       | UUID         | Primary key                                                    |
+| `name`                     | VARCHAR(255) | Tenant name (NULL for anonymous tenants)                       |
+| `logo_url`                 | TEXT         | Logo URL                                                       |
+| `brand_color_primary`      | VARCHAR(7)   | Primary brand color hex code                                   |
+| `brand_color_secondary`    | VARCHAR(7)   | Secondary brand color hex code                                 |
+| `contact_email`            | VARCHAR(255) | Contact email                                                  |
+| `billing_email`            | VARCHAR(255) | Billing email                                                  |
+| `contact_phone`            | VARCHAR(50)  | Contact phone                                                  |
+| `emirate`                  | VARCHAR(50)  | UAE emirate                                                    |
+| `city`                     | VARCHAR(100) | City                                                           |
+| `address_line_1`           | VARCHAR(500) | Address line 1                                                 |
+| `address_line_2`           | VARCHAR(500) | Address line 2                                                 |
+| `postal_code`              | VARCHAR(20)  | Postal code                                                    |
+| `trade_license_number`     | VARCHAR(100) | Trade license number                                           |
+| `legal_entity_type`        | VARCHAR(50)  | Legal entity type                                              |
+| `tax_registration_number`  | VARCHAR(100) | Tax registration number                                        |
+| `locale`                   | VARCHAR(50)  | Locale (default: `en`)                                         |
+| `timezone`                 | VARCHAR(50)  | Timezone                                                       |
+| `default_jurisdiction`     | VARCHAR(100) | Default jurisdiction                                           |
+| `settings`                 | JSONB        | Tenant settings (e.g., `{"notifications": true}`)              |
+| `slug`                     | VARCHAR(255) | Unique URL slug                                                |
+| `is_active`                | BOOLEAN      | Soft delete flag                                               |
+| `parent_tenant_id`         | UUID         | FK to tenants (agency/partner hierarchy, MVP+)                 |
+| `onboarding_completed_at`  | TIMESTAMPTZ  | When onboarding was completed                                  |
+| `onboarding_metadata`      | JSONB        | Onboarding progress metadata                                   |
+| `deactivated_at`           | TIMESTAMPTZ  | When tenant was deactivated                                    |
+| `deactivation_reason`      | TEXT         | Reason for deactivation                                        |
+| `created_at`               | TIMESTAMPTZ  | Creation timestamp                                             |
+| `updated_at`               | TIMESTAMPTZ  | Last update timestamp                                          |
 
 **Indexes:**
 
-- `idx_tenants_plan` - Filter by plan
+- `slug` (unique)
 - `idx_tenants_is_active` - Active tenants only (partial)
+
+> **Note:** The `tenants.plan` column and `tenant_plan` ENUM have been removed. Tenant plan assignment is now managed exclusively through `tenant_subscriptions`. See [Entitlement System](#entitlement-tables).
 
 ### users
 
@@ -724,56 +757,57 @@ FOR INSERT WITH CHECK (
 
 ### How RLS Works
 
-1. **Application sets session context** before queries:
+1. **Application uses transaction with tenant context:**
 
    ```typescript
-   await db.query(`SELECT set_config('app.tenant_id', $1, false)`, [tenantId]);
+   await databaseService.transactionWithTenantContext(
+     { tenantId },
+     async (client) => {
+       // app.tenant_id is set automatically (transaction-scoped)
+       return client.query('SELECT * FROM documents');
+     },
+   );
    ```
 
 2. **PostgreSQL applies policies automatically:**
 
    ```sql
-   -- User executes:
+   -- User executes within transaction:
    SELECT * FROM documents;
 
-   -- PostgreSQL converts to:
-   SELECT * FROM documents
-   WHERE tenant_id = current_setting('app.tenant_id');
+   -- PostgreSQL applies RLS policy:
+   -- WHERE tenant_id = current_tenant_id_or_null()
+   -- Only rows matching the session's app.tenant_id are returned
    ```
 
 3. **Result:** Users only see their tenant's data
 
 ### Session Context Functions
 
-Helper functions for RLS policies:
+Helper functions for RLS policies (defined in migration 003):
 
 ```sql
--- Get current tenant ID from session
-CREATE FUNCTION current_tenant_id_or_null() RETURNS UUID AS $$
-BEGIN
-    RETURN current_setting('app.tenant_id', true)::uuid;
-EXCEPTION WHEN OTHERS THEN
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql STABLE;
+-- Get current tenant ID (strict — throws if not set)
+CREATE FUNCTION current_tenant_id() RETURNS UUID;
 
--- Get current user ID from session
-CREATE FUNCTION current_user_id_or_null() RETURNS UUID AS $$
-BEGIN
-    RETURN current_setting('app.user_id', true)::uuid;
-EXCEPTION WHEN OTHERS THEN
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql STABLE;
+-- Get current tenant ID (permissive — returns NULL if not set, used in RLS policies)
+CREATE FUNCTION current_tenant_id_or_null() RETURNS UUID;
 
--- Get current role from session
-CREATE FUNCTION current_user_role_or_null() RETURNS tenant_role AS $$
-BEGIN
-    RETURN current_setting('app.role', true)::tenant_role;
-EXCEPTION WHEN OTHERS THEN
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql STABLE;
+-- Check if current user is tenant admin
+CREATE FUNCTION is_tenant_admin() RETURNS BOOLEAN;
+-- Reads: app.is_tenant_admin
+
+-- Check if current operation is an auth flow (signup, login, etc.)
+CREATE FUNCTION is_auth_flow() RETURNS BOOLEAN;
+-- Reads: app.is_auth_flow
+
+-- Check if current user has platform admin role
+CREATE FUNCTION is_platform_admin() RETURNS BOOLEAN;
+-- Reads: app.platform_role
+
+-- Check if cross-tenant read is allowed (slug uniqueness checks)
+CREATE FUNCTION allow_cross_tenant_read() RETURNS BOOLEAN;
+-- Reads: app.allow_cross_tenant_read
 ```
 
 ### Verifying RLS
@@ -784,18 +818,24 @@ To verify tenant isolation:
 -- Connect as app user
 \c complytude complytude_app
 
--- Set context for Tenant 1
-SELECT set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', false);
+-- Start a transaction and set context for Tenant 1
+BEGIN;
+SELECT set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', true);
 
 -- Query documents (should only see Tenant 1's documents)
 SELECT * FROM documents;
+COMMIT;
 
--- Change to Tenant 2
-SELECT set_config('app.tenant_id', '22222222-2222-4222-8222-222222222222', false);
+-- Start a new transaction for Tenant 2
+BEGIN;
+SELECT set_config('app.tenant_id', '22222222-2222-4222-8222-222222222222', true);
 
 -- Query again (should see different documents)
 SELECT * FROM documents;
+COMMIT;
 ```
+
+**Important:** Always use `true` for the `is_local` parameter to scope settings to the transaction. Using `false` leaks the setting to the session, which would cause cross-tenant data leakage with connection pooling.
 
 ---
 
@@ -862,6 +902,10 @@ Database schema is managed through versioned migration files:
 | 010 | `entitlement_tables_grants_to_app_user.sql` | Grants for entitlement tables                               |
 | 011 | `entitlement_tables_rls_enablement.sql`     | RLS on tenant-scoped entitlement tables                     |
 | 012 | `entitlement_tables_rls_policies.sql`       | RLS policies for entitlement tables                         |
+| 013 | `vector_tables.sql`                         | Vector/embedding tables (pgvector)                          |
+| 014 | `vector_tables_grants.sql`                  | Grants for vector tables                                    |
+| 015 | `vector_tables_rls_enablement.sql`          | RLS on vector tables                                        |
+| 016 | `vector_tables_rls_policies.sql`            | RLS policies for vector tables                              |
 
 ### Running Migrations
 
@@ -885,8 +929,8 @@ ORDER BY executed_at DESC;
 
 ### Creating New Migrations
 
-1. Create file: `scripts/migrations/009_description.sql`
-2. Follow naming convention: `00X_description.sql`
+1. Create file: `scripts/migrations/017_description.sql`
+2. Follow naming convention: `0XX_description.sql`
 3. Include BEGIN/COMMIT for transactions
 4. Make it idempotent (use `IF NOT EXISTS`)
 5. Run: `pnpm db:migrate`
@@ -953,4 +997,4 @@ psql -d complytude -c "
 
 ---
 
-**Last Updated:** February 18, 2026
+**Last Updated:** March 4, 2026

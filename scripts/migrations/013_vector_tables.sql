@@ -67,6 +67,10 @@ CREATE INDEX idx_ruleset_chunks_ruleset_version_id ON public.ruleset_chunks(rule
 CREATE INDEX idx_ruleset_chunks_ruleset_version ON public.ruleset_chunks(ruleset_id, ruleset_version_id);
 
 -- HNSW index for fast cosine similarity search
+-- Defaults: m=16, ef_construction=64 (build-time accuracy vs. size tradeoff)
+-- Query-time accuracy is controlled by ef_search (default 40); raise with:
+--   SET hnsw.ef_search = 100;  -- per session, or in postgresql.conf globally
+-- Tune m and ef_construction when ruleset_chunks grows beyond ~100k rows
 CREATE INDEX idx_ruleset_chunks_embedding_hnsw ON public.ruleset_chunks
     USING hnsw (embedding vector_cosine_ops);
 
@@ -86,6 +90,7 @@ CREATE TABLE public.analysis_jobs (
     error              TEXT,
     started_at         TIMESTAMPTZ,
     completed_at       TIMESTAMPTZ,
+    failed_at          TIMESTAMPTZ,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -127,6 +132,7 @@ COMMENT ON COLUMN public.analysis_jobs.ruleset_id IS 'Ruleset used for analysis 
 COMMENT ON COLUMN public.analysis_jobs.ruleset_version_id IS 'Ruleset version used for analysis (traceability, SET NULL on delete)';
 COMMENT ON COLUMN public.analysis_jobs.result IS 'Analysis output (matches, violations, recommendations)';
 COMMENT ON COLUMN public.analysis_jobs.error IS 'Error message if status is failed';
+COMMENT ON COLUMN public.analysis_jobs.failed_at IS 'Timestamp when the job transitioned to failed status';
 
 -- =========================
 -- ANALYSIS_JOBS INDEXES

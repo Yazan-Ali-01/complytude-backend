@@ -1,7 +1,6 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
-import { DatabaseService } from '../../database/database.service';
 import {
   LinkUserTenantInput,
   UserTenantWithUserRow,

@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PlanKey } from 'src/common/types/entitlement.types';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@lib/database';
 import { CreditPackagesRepository } from 'src/repositories/credits/credit-packages.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';

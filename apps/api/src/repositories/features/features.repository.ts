@@ -1,4 +1,4 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreateFeatureRow,
@@ -6,7 +6,6 @@ import {
   FeatureKey,
   UpdateFeatureRow,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type FeatureRow = {
   id: string;
@@ -45,7 +44,7 @@ export class FeaturesRepository extends BaseRepository<
     const data = row as FeatureRow;
     return {
       id: data.id,
-      key: data.key as FeatureKey,
+      key: data.key as FeatureKey, // Safe: features.key is validated by sync service from FEATURE_CATALOG
       name: data.name,
       description: data.description ?? undefined,
       feature_type: data.feature_type as Feature['feature_type'],
@@ -53,7 +52,7 @@ export class FeaturesRepository extends BaseRepository<
       creditable: data.creditable,
       credit_cost: data.credit_cost ?? undefined,
       is_active: data.is_active,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

@@ -1,4 +1,4 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreatePlanRow,
@@ -8,7 +8,6 @@ import {
   PlanWithEntitlements,
   UpdatePlanRow,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 import { DEFAULT_CURRENCY } from 'src/common/constants/billing.constant';
 
 type PlanRow = {
@@ -59,7 +58,7 @@ export class PlansRepository extends BaseRepository<
       billing_period: data.billing_period,
       is_active: data.is_active,
       sort_order: data.sort_order,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       stripe_product_id: data.stripe_product_id,
       stripe_price_id_monthly: data.stripe_price_id_monthly,
       stripe_price_id_annual: data.stripe_price_id_annual,
@@ -134,7 +133,7 @@ export class PlansRepository extends BaseRepository<
         value_bool: row.value_bool as boolean | undefined,
         value_int: row.value_int as number | undefined,
         value_text: row.value_text as string | undefined,
-        metadata: (row.entitlement_metadata as Record<string, any>) ?? {},
+        metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
         created_at: row.entitlement_created_at as Date,
       }));
 

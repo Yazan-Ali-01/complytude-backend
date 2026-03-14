@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   Body,
@@ -10,7 +11,6 @@ import type { PlanKey } from 'src/common/types/entitlement.types';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
-import { DatabaseService } from '../../database/database.service';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';

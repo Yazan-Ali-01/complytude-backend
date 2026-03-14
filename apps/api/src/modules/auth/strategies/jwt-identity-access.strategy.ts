@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import { I18nContext } from 'nestjs-i18n';
+import { AuthI18n } from '../constants/i18n.constants';
 import { FastifyRequest } from 'fastify';
 import { Strategy } from 'passport-jwt';
 import { IDENTITY_TOKEN_COOKIE_NAME } from 'src/common/swagger/common';
@@ -34,7 +36,10 @@ export class JwtIdentityAccessStrategy extends PassportStrategy(
   validate(payload: IdentityPayload): AuthenticatedIdentityUser {
     // Ensure it's an identity access token
     if (payload.type !== IDENTITY_PAYLOAD_TYPE) {
-      throw new UnauthorizedException('Invalid token type');
+      const i18n = I18nContext.current();
+      throw new UnauthorizedException(
+        i18n?.t(AuthI18n.errors.INVALID_TOKEN_TYPE) ?? 'Invalid token type',
+      );
     }
 
     // Return user information to be attached to request.auth.identity

@@ -7,3 +7,9 @@ project     = "complytude"
 
 # Billing Scheduler — enables daily Stripe reconciliation at 3 AM
 billing_schedule_enabled = true
+# Copy this file to terraform.tfvars and fill in the values.
+# terraform.tfvars is gitignored — never commit it.
+
+aws_region  = "me-central-1"
+environment = "production"
+project     = "complytude"

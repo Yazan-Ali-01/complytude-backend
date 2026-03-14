@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
+import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -9,7 +9,8 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { DatabaseService } from '../../database/database.service';
+import { I18nService } from 'nestjs-i18n';
+import { UsersI18n } from './constants/i18n.constants';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -21,7 +22,10 @@ export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private readonly BCRYPT_ROUNDS = 12;
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly i18n: I18nService,
+  ) {}
 
   /**
    * Find user by ID
@@ -33,7 +37,11 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+          args: { userId },
+        }),
+      );
     }
 
     return new User(result.rows[0]);
@@ -49,7 +57,11 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_EMAIL, {
+          args: { email },
+        }),
+      );
     }
 
     return new User(result.rows[0]);
@@ -81,7 +93,7 @@ export class UsersService {
     updateProfileDto: UpdateProfileDto,
   ): Promise<User> {
     const updateFields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (updateProfileDto.firstName !== undefined) {
@@ -95,7 +107,9 @@ export class UsersService {
     }
 
     if (updateFields.length === 0) {
-      throw new BadRequestException('No fields to update');
+      throw new BadRequestException(
+        this.i18n.t(UsersI18n.errors.NO_FIELDS_TO_UPDATE),
+      );
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -129,10 +143,14 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+          args: { userId },
+        }),
+      );
     }
 
-    const user = result.rows[0];
+    const user = result.rows[0] as { password_hash: string };
 
     // Verify current password
     const isPasswordValid = await bcrypt.compare(
@@ -141,7 +159,9 @@ export class UsersService {
     );
 
     if (!isPasswordValid) {
-      throw new BadRequestException('Current password is incorrect');
+      throw new BadRequestException(
+        this.i18n.t(UsersI18n.errors.CURRENT_PASSWORD_INCORRECT),
+      );
     }
 
     // Hash new password
@@ -170,7 +190,7 @@ export class UsersService {
   /**
    * List all users in a tenant (admin/member only)
    */
-  async listTenantUsers(tenantId: string): Promise<any[]> {
+  async listTenantUsers(tenantId: string): Promise<Record<string, unknown>[]> {
     return this.databaseService.transaction(async (client) => {
       await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [
         tenantId,
@@ -205,9 +225,8 @@ export class UsersService {
    */
   async createUser(
     tenantId: string,
-    creatorId: string,
     createUserDto: CreateUserDto,
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     // Check if email already exists
     const existingUser = await this.databaseService.query(
       'SELECT id FROM public.users WHERE email = $1',
@@ -218,7 +237,7 @@ export class UsersService {
 
     if (existingUser.rows.length > 0) {
       // User exists, check if already in tenant
-      userId = existingUser.rows[0].id;
+      userId = existingUser.rows[0].id as string;
 
       const existingAssociation = await this.databaseService.query(
         'SELECT * FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
@@ -226,7 +245,9 @@ export class UsersService {
       );
 
       if (existingAssociation.rows.length > 0) {
-        throw new ConflictException('User already exists in this tenant');
+        throw new ConflictException(
+          this.i18n.t(UsersI18n.errors.USER_ALREADY_EXISTS_IN_TENANT),
+        );
       }
     } else {
       // Create new user
@@ -272,9 +293,7 @@ export class UsersService {
       [userId, tenantId, createUserDto.role],
     );
 
-    this.logger.log(
-      `User ${userId} added to tenant ${tenantId} by ${creatorId}`,
-    );
+    this.logger.log(`User ${userId} added to tenant ${tenantId}`);
 
     // Return user info
     const userResult = await this.databaseService.query(
@@ -288,15 +307,15 @@ export class UsersService {
 
     const user = userResult.rows[0];
     return {
-      id: user.id,
-      email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      isVerified: user.is_verified,
-      createdAt: user.created_at,
-      role: user.role_key,
-      isActive: user.is_active,
-      joinedAt: user.joined_at,
+      id: user.id as string,
+      email: user.email as string,
+      firstName: user.first_name as string,
+      lastName: user.last_name as string,
+      isVerified: user.is_verified as boolean,
+      createdAt: user.created_at as Date,
+      role: user.role_key as string,
+      isActive: user.is_active as boolean,
+      joinedAt: user.joined_at as Date,
     };
   }
 
@@ -308,7 +327,7 @@ export class UsersService {
     targetUserId: string,
     updaterId: string,
     updateUserDto: UpdateUserDto,
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     // Check if target user exists in tenant
     const existingAssociation = await this.databaseService.query(
       'SELECT * FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
@@ -316,16 +335,20 @@ export class UsersService {
     );
 
     if (existingAssociation.rows.length === 0) {
-      throw new NotFoundException('User not found in this tenant');
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_IN_TENANT),
+      );
     }
 
     // Prevent users from modifying their own admin status
     if (targetUserId === updaterId && updateUserDto.role) {
-      throw new ForbiddenException('Cannot modify your own role');
+      throw new ForbiddenException(
+        this.i18n.t(UsersI18n.errors.CANNOT_MODIFY_OWN_ROLE),
+      );
     }
 
     const updateFields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (updateUserDto.role !== undefined) {
@@ -339,7 +362,9 @@ export class UsersService {
     }
 
     if (updateFields.length === 0) {
-      throw new BadRequestException('No fields to update');
+      throw new BadRequestException(
+        this.i18n.t(UsersI18n.errors.NO_FIELDS_TO_UPDATE),
+      );
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -372,7 +397,9 @@ export class UsersService {
   ): Promise<void> {
     // Prevent users from removing themselves
     if (targetUserId === removerId) {
-      throw new ForbiddenException('Cannot remove yourself from the tenant');
+      throw new ForbiddenException(
+        this.i18n.t(UsersI18n.errors.CANNOT_REMOVE_YOURSELF),
+      );
     }
 
     // Check if target user exists in tenant
@@ -382,7 +409,9 @@ export class UsersService {
     );
 
     if (existingAssociation.rows.length === 0) {
-      throw new NotFoundException('User not found in this tenant');
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_IN_TENANT),
+      );
     }
 
     // Delete the association
@@ -408,7 +437,7 @@ export class UsersService {
   private async getUserInTenant(
     userId: string,
     tenantId: string,
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     const result = await this.databaseService.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.is_verified, u.created_at,
               ut.role_key, r.name as role_name, ut.is_active, ut.joined_at
@@ -421,7 +450,9 @@ export class UsersService {
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException('User not found in tenant');
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_IN_TENANT),
+      );
     }
 
     const user = result.rows[0];

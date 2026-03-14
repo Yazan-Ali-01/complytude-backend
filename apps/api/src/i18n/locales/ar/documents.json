@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "DOCUMENT_NOT_FOUND": "المستند غير موجود",
+    "ANALYSIS_JOB_NOT_FOUND": "مهمة التحليل غير موجودة",
+    "NO_ANALYSIS_JOB_FOR_DOCUMENT": "لا توجد مهمة تحليل لهذا المستند",
+    "PREVIEW_NOT_IMPLEMENTED": "معاينة المستند غير مطبقة بعد",
+    "GENERATION_NOT_IMPLEMENTED": "إنشاء المستند غير مطبق بعد",
+    "LISTING_NOT_IMPLEMENTED": "عرض قائمة المستندات غير مطبق بعد",
+    "RETRIEVAL_NOT_IMPLEMENTED": "استرجاع المستند غير مطبق بعد",
+    "DELETION_NOT_IMPLEMENTED": "حذف المستند غير مطبق بعد"
+  },
+  "messages": {}
+}

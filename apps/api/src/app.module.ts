@@ -1,7 +1,9 @@
+import { ContextModule, TracingInterceptor } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
-import { RedisModule } from '@lib/redis';
+import { LoggerModule } from '@lib/logger';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
-import { Module } from '@nestjs/common';
+import { redisConfig, RedisModule } from '@lib/redis';
+import { Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import appConfig from 'src/config/app.config';
@@ -14,9 +16,8 @@ import { UsersModule } from 'src/modules/users/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
-import redisConfig from './config/redis-config';
 import { I18nModule } from './i18n/i18n.module';
-import { AuditModule } from './modules/audit/audit.module';
+import { AuditModule } from '@lib/audit';
 import { BillingModule } from './modules/billing/billing.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
@@ -24,6 +25,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 import { MockModule } from './modules/mock/mock.module';
+import { RagMockModule } from './modules/rag-mock/rag-mock.module';
 import { PlatformRbacModule } from './modules/platform-rbac/platform-rbac.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -44,6 +46,14 @@ import { TenantModule } from './modules/tenants/tenant.module';
         allowUnknown: true,
         abortEarly: false,
       },
+    }),
+    ContextModule.forRoot({ enableHttpTracing: true }),
+    LoggerModule.forRoot({
+      serviceName: 'gateway',
+      excludeRoutes: [
+        { path: 'health', method: RequestMethod.ALL },
+        { path: 'health/(.*)', method: RequestMethod.ALL },
+      ],
     }),
     RedisModule.forRoot(),
     QueueModule.forRoot([
@@ -70,8 +80,9 @@ import { TenantModule } from './modules/tenants/tenant.module';
     BillingModule,
     TenantRbacModule,
     PlatformRbacModule,
-    AuditModule,
+    AuditModule.forRoot(),
     MockModule,
+    RagMockModule,
   ],
   controllers: [AppController],
   providers: [
@@ -79,6 +90,10 @@ import { TenantModule } from './modules/tenants/tenant.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TracingInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

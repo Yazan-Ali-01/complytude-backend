@@ -407,27 +407,14 @@ chmod +x scripts/*.sh
 
 ### Migration Fails
 
-**Pre-Production Approach (Easiest):**
-
 1. Check error message
 2. Fix migration file
-3. Drop and recreate database:
+3. Reset the DB and re-run all migrations:
    ```bash
    docker-compose down -v
    docker-compose up -d postgres
    ./scripts/run-migrations.sh
    ```
-
-**Alternative (Keep Data):**
-
-1. Check error message
-2. Fix migration file
-3. Remove from tracking:
-   ```sql
-   DELETE FROM public.schema_migrations
-   WHERE migration_name = 'failed_migration.sql';
-   ```
-4. Re-run: `./scripts/run-migrations.sh`
 
 ### No Sample Data Showing
 
@@ -578,10 +565,27 @@ ON CONFLICT (code) DO NOTHING;
 ### Create Sample Tenant Manually
 
 ```sql
--- Create tenant
-INSERT INTO public.tenants (id, plan, features, is_active)
-VALUES (gen_random_uuid(), 'pro', '{"api_access": true}'::jsonb, true)
+-- Create tenant (Note: plan column is deprecated, use tenant_subscriptions instead)
+INSERT INTO public.tenants (id, is_active, name, slug)
+VALUES (gen_random_uuid(), true, 'Sample Tenant', 'sample-tenant')
 RETURNING id;
+
+-- Create subscription for tenant
+INSERT INTO public.tenant_subscriptions (
+    tenant_id, plan_id, status, 
+    current_period_start, current_period_end,
+    billing_period_start, billing_period_end
+)
+SELECT
+    'tenant-id-here',  -- Replace with actual tenant ID from above
+    p.id,
+    'active',
+    NOW(),
+    NOW() + INTERVAL '30 days',
+    NOW(),
+    NOW() + INTERVAL '30 days'
+FROM public.plans p
+WHERE p.key = 'navigator';  -- Choose desired plan
 
 -- Create user (use the returned tenant ID)
 INSERT INTO public.users (email, password_hash, first_name, last_name, is_verified)
@@ -589,8 +593,8 @@ VALUES ('sample@example.com', '$2b$10$hash...', 'Sample', 'User', true)
 RETURNING id;
 
 -- Link user to tenant (use both returned IDs)
-INSERT INTO public.user_tenants (user_id, tenant_id, role)
-VALUES ('user-id', 'tenant-id', 'admin');
+INSERT INTO public.user_tenants (user_id, tenant_id, role_key)
+VALUES ('user-id', 'tenant-id', 'tenant_admin');
 ```
 
 ---

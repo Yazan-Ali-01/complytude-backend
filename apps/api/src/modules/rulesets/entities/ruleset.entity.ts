@@ -3,15 +3,16 @@ export interface Ruleset {
   key: string;
   name: string;
   description: string | null;
-  authority_id: string | null;
-  clauses: RulesetClause[];
-  metadata: Record<string, any>;
-  version: string;
-  status: 'active' | 'inactive' | 'deprecated';
-  created_by: string | null;
-  created_at: Date;
-  updated_at: Date;
+  authorityId: string | null;
+  currentVersion: string;
+  status: RulesetStatus;
+  metadata: Record<string, unknown>;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
+
+export type RulesetStatus = 'active' | 'inactive' | 'deprecated';
 
 export interface RulesetClause {
   id: string;
@@ -19,5 +20,5 @@ export interface RulesetClause {
   content: string;
   order: number;
   is_required: boolean;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown>;
 }

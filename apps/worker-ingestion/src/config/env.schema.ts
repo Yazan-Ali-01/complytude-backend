@@ -1,5 +1,7 @@
 import { databaseEnvSchema } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
+import { loggerEnvSchema } from '@lib/logger';
+import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
 
 export const validationSchema = Joi.object({
@@ -11,24 +13,12 @@ export const validationSchema = Joi.object({
   // Worker Ingestion Port
   WORKER_INGESTION_PORT: Joi.number().default(3002),
 
-  // Queue Configuration
-  WORKER_INGESTION_QUEUE_NAME: Joi.string().default('data-ingestion-queue'),
+  // Queue / Processing configuration
   WORKER_INGESTION_CONCURRENCY: Joi.number().default(10),
   WORKER_INGESTION_MAX_RETRIES: Joi.number().default(3),
   WORKER_INGESTION_RETRY_DELAY: Joi.number().default(3000),
-
-  // Processing Limits
   WORKER_INGESTION_MAX_PROCESSING_TIME: Joi.number().default(180000),
-  WORKER_INGESTION_BATCH_SIZE: Joi.number().default(50),
-
-  // File Processing
-  WORKER_INGESTION_MAX_FILE_SIZE: Joi.number().default(52428800),
-  WORKER_INGESTION_ALLOWED_FILE_TYPES:
-    Joi.string().default('pdf,docx,xlsx,csv'),
-
-  // Storage
-  WORKER_INGESTION_STORAGE_TYPE: Joi.string().default('s3'),
-  WORKER_INGESTION_STORAGE_PATH: Joi.string().default('/tmp/ingestion'),
+  WORKER_INGESTION_BATCH_SIZE: Joi.number().default(500),
 
   // Resource Limits
   WORKER_INGESTION_MEMORY_LIMIT: Joi.string().default('1GB'),
@@ -39,4 +29,10 @@ export const validationSchema = Joi.object({
 
   // Embedding (OpenAI)
   ...embeddingEnvSchema,
+
+  // Logging
+  ...loggerEnvSchema,
+
+  // Redis (for BullMQ)
+  ...redisEnvSchema,
 });

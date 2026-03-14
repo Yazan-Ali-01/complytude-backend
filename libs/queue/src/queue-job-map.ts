@@ -2,6 +2,7 @@ import { QUEUE_NAMES } from './queue.constants';
 import {
   AI_JOB_NAMES,
   ArabicTranslationJobData,
+  DocumentAnalysisJobData,
   DocumentGenerationJobData,
   TemplateAnalysisJobData,
 } from './interfaces/ai-processing.jobs';
@@ -15,6 +16,7 @@ import {
 import {
   DocumentIngestionJobData,
   INGESTION_JOB_NAMES,
+  RulesetIngestionJobData,
 } from './interfaces/data-ingestion.jobs';
 import {
   ENTITLEMENT_JOB_NAMES,
@@ -32,6 +34,7 @@ export interface QueueJobMap {
     [AI_JOB_NAMES.DOCUMENT_GENERATION]: DocumentGenerationJobData;
     [AI_JOB_NAMES.TEMPLATE_ANALYSIS]: TemplateAnalysisJobData;
     [AI_JOB_NAMES.ARABIC_TRANSLATION]: ArabicTranslationJobData;
+    [AI_JOB_NAMES.DOCUMENT_ANALYSIS]: DocumentAnalysisJobData;
   };
   [QUEUE_NAMES.BILLING_PROCESSING]: {
     [BILLING_JOB_NAMES.DUNNING_EMAIL]: DunningEmailJobData;
@@ -41,6 +44,7 @@ export interface QueueJobMap {
   };
   [QUEUE_NAMES.DATA_INGESTION]: {
     [INGESTION_JOB_NAMES.DOCUMENT_INGESTION]: DocumentIngestionJobData;
+    [INGESTION_JOB_NAMES.RULESET_INGESTION]: RulesetIngestionJobData;
   };
   [QUEUE_NAMES.ENTITLEMENT_PROCESSING]: {
     [ENTITLEMENT_JOB_NAMES.SNAPSHOT_REBUILD]: EntitlementSnapshotRebuildJobData;

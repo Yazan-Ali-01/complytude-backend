@@ -1,4 +1,6 @@
 import { databaseEnvSchema } from '@lib/database';
+import { loggerEnvSchema } from '@lib/logger';
+import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
 
 export const validationSchema = Joi.object({
@@ -46,11 +48,11 @@ export const validationSchema = Joi.object({
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
 
   // S3/MinIO Storage
-  S3_ENDPOINT: Joi.string().required(),
+  S3_ENDPOINT: Joi.string().allow('').default(''),
   S3_REGION: Joi.string().default('us-east-1'),
-  S3_ACCESS_KEY: Joi.string().required(),
-  S3_SECRET_KEY: Joi.string().required(),
-  S3_FORCE_PATH_STYLE: Joi.boolean().default(true),
+  S3_ACCESS_KEY: Joi.string().allow('').default(''),
+  S3_SECRET_KEY: Joi.string().allow('').default(''),
+  S3_FORCE_PATH_STYLE: Joi.boolean().default(false),
 
   // Storage Buckets
   COMPLYTUDE_FILES_BUCKET_NAME: Joi.string().default('complytude-files'),
@@ -61,14 +63,11 @@ export const validationSchema = Joi.object({
   TEMPLATE_MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
 
+  // Logging
+  ...loggerEnvSchema,
+
   // Redis Configuration
-  REDIS_HOST: Joi.string().required(),
-  REDIS_PORT: Joi.number().required(),
-  REDIS_PASSWORD: Joi.string().optional().allow(''),
-  REDIS_DB: Joi.number().default(0),
-  REDIS_QUEUE_DB: Joi.number().default(1),
-  REDIS_TLS: Joi.boolean().default(false),
-  REDIS_KEY_PREFIX: Joi.string().default('complytude:'),
+  ...redisEnvSchema,
 
   // Stripe
   STRIPE_SECRET_KEY: Joi.string().required(),

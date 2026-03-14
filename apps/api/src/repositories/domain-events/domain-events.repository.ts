@@ -1,10 +1,9 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreateDomainEventRow,
   DomainEvent,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type DomainEventRow = {
   id: string;
@@ -70,8 +69,8 @@ export class DomainEventsRepository extends BaseRepository<
       aggregate_id: data.aggregate_id,
       actor_id: data.actor_id ?? undefined,
       actor_type: data.actor_type,
-      payload: (data.payload as Record<string, any>) ?? {},
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      payload: (data.payload as Record<string, unknown>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       sequence_number: data.sequence_number ?? undefined,
       recorded_at: data.recorded_at,
     };
@@ -125,7 +124,7 @@ export class DomainEventsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<DomainEvent[]> {
     const conditions: string[] = ['tenant_id = $1'];
-    const params: any[] = [tenantId];
+    const params: unknown[] = [tenantId];
     let paramIndex = 2;
 
     // Build WHERE clause dynamically based on filters
@@ -186,7 +185,7 @@ export class DomainEventsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<DomainEvent[]> {
     const conditions: string[] = ['event_type = $1'];
-    const params: any[] = [eventType];
+    const params: unknown[] = [eventType];
 
     if (tenantId) {
       conditions.push('tenant_id = $2');
@@ -228,7 +227,7 @@ export class DomainEventsRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<number> {
     const conditions: string[] = ['tenant_id = $1'];
-    const params: any[] = [tenantId];
+    const params: unknown[] = [tenantId];
     let paramIndex = 2;
 
     if (filters?.eventType) {

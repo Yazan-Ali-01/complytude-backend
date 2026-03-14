@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@lib/database';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { StripeService } from '../stripe.service';

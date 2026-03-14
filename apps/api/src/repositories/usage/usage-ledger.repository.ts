@@ -1,10 +1,9 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreateUsageLedgerRow,
   UsageLedgerEvent,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type UsageLedgerRow = {
   id: string;
@@ -52,7 +51,7 @@ export class UsageLedgerRepository extends BaseRepository<
       billing_period: data.billing_period,
       resource_type: data.resource_type ?? undefined,
       resource_id: data.resource_id ?? undefined,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       idempotency_key: data.idempotency_key ?? undefined,
       recorded_at: data.recorded_at,
       projected_at: data.projected_at ?? undefined,

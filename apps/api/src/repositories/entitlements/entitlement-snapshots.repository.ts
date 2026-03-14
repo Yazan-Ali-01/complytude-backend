@@ -1,11 +1,11 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreateEntitlementSnapshotRow,
+  EffectiveEntitlement,
   EntitlementSnapshot,
   UpdateEntitlementSnapshotRow,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type EntitlementSnapshotRow = {
   id: string;
@@ -42,7 +42,8 @@ export class EntitlementSnapshotsRepository extends BaseRepository<
     return {
       id: data.id,
       tenant_id: data.tenant_id,
-      snapshot_data: (data.snapshot_data as Record<string, any>) ?? {},
+      snapshot_data:
+        (data.snapshot_data as Record<string, EffectiveEntitlement>) ?? {},
       subscription_id: data.subscription_id ?? undefined,
       valid_from: data.valid_from,
       invalidated_at: data.invalidated_at ?? undefined,

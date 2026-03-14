@@ -10,15 +10,17 @@ import {
   CREDIT_PACKAGES,
   CreditPackageDefinition,
 } from 'src/common/constants/credit-packages.constant';
-import {
-  ALL_PLANS,
-  PlanDefinition,
-} from 'src/common/constants/plan-entitlements.constant';
+
 import { Addon, Plan } from 'src/common/types/entitlement.types';
 import { CreditPackagesRepository } from 'src/repositories/credits/credit-packages.repository';
 import { AddonsRepository } from 'src/repositories/entitlements/addons.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { StripeService } from '../stripe.service';
+import {
+  ALL_PLAN_KEYS,
+  PLAN_CATALOG,
+  PlanKey,
+} from 'src/common/constants/plan-entitlements.constant';
 
 /**
  * StripeCatalogSyncService
@@ -75,7 +77,7 @@ export class StripeCatalogSyncService {
       await this.syncAddons();
       await this.syncCreditPackages();
 
-      const paidPlans = ALL_PLANS.filter((p) => p.key !== 'navigator');
+      const paidPlanKeys = ALL_PLAN_KEYS.filter((p) => p !== 'navigator');
       const addons = await this.addonsRepository.findAllActive();
 
       const message = 'Stripe catalog sync completed successfully';
@@ -85,7 +87,7 @@ export class StripeCatalogSyncService {
         success: true,
         message,
         details: {
-          plans: paidPlans.length,
+          plans: paidPlanKeys.length,
           addons: addons.length,
           creditPackages: CREDIT_PACKAGES.length,
         },
@@ -102,30 +104,30 @@ export class StripeCatalogSyncService {
   // ---------------------------------------------------------------------------
 
   private async syncPlans(): Promise<void> {
-    const paidPlans = ALL_PLANS.filter((p) => p.key !== 'navigator');
+    const paidPlans = ALL_PLAN_KEYS.filter((p) => p !== 'navigator');
     this.logger.log(`Syncing ${paidPlans.length} paid plans to Stripe...`);
 
     for (const plan of paidPlans) {
       try {
         await this.syncPlanToStripe(plan);
       } catch (error) {
-        this.logger.error(`Failed to sync plan "${plan.key}"`, error);
+        this.logger.error(`Failed to sync plan "${plan}"`, error);
       }
     }
   }
 
-  private async syncPlanToStripe(plan: PlanDefinition): Promise<void> {
-    const dbPlan = await this.plansRepository.findByKey(plan.key);
+  private async syncPlanToStripe(plan: PlanKey): Promise<void> {
+    const dbPlan = await this.plansRepository.findByKey(plan);
     if (!dbPlan) {
-      this.logger.error(`Plan not found in DB: ${plan.key} — skipping`);
+      this.logger.error(`Plan not found in DB: ${plan} — skipping`);
       return;
     }
 
     const stripeProductId = await this.resolveOrCreateProduct({
       existingStripeProductId: dbPlan.stripe_product_id,
-      key: plan.key,
-      name: plan.name,
-      description: plan.description,
+      key: plan,
+      name: PLAN_CATALOG[plan].name,
+      description: PLAN_CATALOG[plan].description,
       internalId: dbPlan.id,
       type: 'plan',
     });
@@ -142,10 +144,15 @@ export class StripeCatalogSyncService {
       stripe_product_id: stripeProductId,
     };
 
-    await this.syncPlanPrice(planWithProductId, 'monthly', plan.price_monthly);
+    await this.syncPlanPrice(
+      planWithProductId,
+      'monthly',
+      PLAN_CATALOG[plan].price_monthly,
+    );
 
-    const annualAmount = plan.price_monthly * ANNUAL_BILLING.CHARGED_MONTHS;
-    await this.syncPlanPrice(planWithProductId, 'annual', annualAmount);
+    const annualAmountAed =
+      PLAN_CATALOG[plan].price_monthly * ANNUAL_BILLING.CHARGED_MONTHS;
+    await this.syncPlanPrice(planWithProductId, 'annual', annualAmountAed);
   }
 
   private async syncPlanPrice(

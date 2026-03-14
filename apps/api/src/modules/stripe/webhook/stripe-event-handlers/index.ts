@@ -6,7 +6,7 @@ import {
   getSubscriptionPeriod,
   mapStripeStatusToInternal,
 } from '../../stripe.utils';
-import { DatabaseService } from 'src/database/database.service';
+import { DatabaseService } from '@lib/database';
 import { CreditLedgerService } from 'src/modules/entitlements/services/credit-ledger.service';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
 import { EntitlementCacheService } from 'src/modules/entitlements/services/entitlement-cache.service';
@@ -196,12 +196,16 @@ export class StripeEventHandlersService {
         ? session.payment_intent
         : (session.payment_intent?.id ?? null);
 
-    await this.creditLedgerService.purchase(tenantId, creditsAmount, {
-      stripe_checkout_session_id: session.id,
-      stripe_payment_intent_id: paymentIntentId,
-      credit_package_key: packageKey,
-      amount_paid: session.amount_total,
-      currency: session.currency,
+    await this.creditLedgerService.purchase({
+      tenantId,
+      amount: creditsAmount,
+      metadata: {
+        stripe_checkout_session_id: session.id,
+        stripe_payment_intent_id: paymentIntentId,
+        credit_package_key: packageKey,
+        amount_paid: session.amount_total,
+        currency: session.currency,
+      },
     });
 
     this.logger.log(

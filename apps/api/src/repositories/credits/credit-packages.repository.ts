@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository, QueryOptions } from '@lib/database';
-import { DatabaseService } from '../../database/database.service';
+import { DatabaseService } from '@lib/database';
 
 export interface CreditPackage {
   id: string;

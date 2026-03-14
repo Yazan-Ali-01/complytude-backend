@@ -1,4 +1,4 @@
-import { QueryOptions } from '@lib/database';
+import { DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -13,11 +13,9 @@ import {
   PlanKey,
   ResolvedEntitlements,
 } from '../../../common/types/entitlement.types';
-import { DatabaseService } from '../../../database/database.service';
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
-import { TenantRepository } from '../../../repositories/tenants/tenant.repository';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
 /**
@@ -45,7 +43,6 @@ export class EntitlementResolverService {
 
   constructor(
     private readonly databaseService: DatabaseService,
-    private readonly tenantRepository: TenantRepository,
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
@@ -211,20 +208,24 @@ export class EntitlementResolverService {
     options?: QueryOptions,
   ): Promise<{ entitlements: ResolvedEntitlements; plan: PlanKey }> {
     const execute = async (client: PoolClient) => {
-      const tenant = await this.tenantRepository.findById(tenantId, {
-        client,
-      });
-      if (!tenant) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
-      }
-
-      // Plan is derived from tenant_subscriptions (source of truth), default to navigator
       const subscription =
-        await this.subscriptionsRepository.findCurrentByTenantWithPlan(
+        await this.subscriptionsRepository.findActiveByTenantWithPlan(
           tenantId,
           { client },
         );
-      const planKey: PlanKey = subscription?.plan?.key ?? 'navigator';
+      if (!subscription) {
+        throw new NotFoundException(
+          `No active subscription found for tenant ${tenantId}`,
+        );
+      }
+      if (!subscription.plan) {
+        throw new NotFoundException(
+          `Plan data missing for active subscription of tenant ${tenantId}`,
+        );
+      }
+
+      // Plan is derived from tenant_subscriptions (source of truth), default to navigator
+      const planKey = subscription.plan.key;
 
       // Get all plan entitlements (in-memory)
       const planEntitlements = getAllPlanEntitlements(planKey);

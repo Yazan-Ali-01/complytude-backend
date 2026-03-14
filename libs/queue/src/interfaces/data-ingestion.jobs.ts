@@ -1,5 +1,6 @@
 export const INGESTION_JOB_NAMES = {
   DOCUMENT_INGESTION: 'document-ingestion',
+  RULESET_INGESTION: 'ruleset-ingestion',
 } as const;
 
 export type IngestionJobName =
@@ -11,4 +12,9 @@ export interface DocumentIngestionJobData {
   s3QuarantineKey: string;
   originalFilename: string;
   mimeType: string;
+}
+
+export interface RulesetIngestionJobData {
+  rulesetId: string;
+  versionId: string;
 }

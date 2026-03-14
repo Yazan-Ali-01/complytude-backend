@@ -1,9 +1,11 @@
 import {
   DynamicModule,
   Global,
+  InjectionToken,
   Logger,
   Module,
   ModuleMetadata,
+  OptionalFactoryDependency,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolConfig } from 'pg';
@@ -12,8 +14,8 @@ import { DatabaseService } from './database.service';
 
 export interface DatabaseModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {
-  useFactory: (...args: any[]) => PoolConfig | Promise<PoolConfig>;
-  inject?: any[];
+  useFactory: (...args: unknown[]) => PoolConfig | Promise<PoolConfig>;
+  inject?: InjectionToken[] | OptionalFactoryDependency[];
 }
 
 @Global()
@@ -37,6 +39,9 @@ export class DatabaseModule {
           );
         }
 
+        const sslEnabled = configService.get<boolean>('database.sslEnabled');
+        const sslRejectUnauthorized =
+          configService.get<boolean>('database.sslRejectUnauthorized') ?? true;
         return {
           host,
           port,
@@ -49,6 +54,9 @@ export class DatabaseModule {
           connectionTimeoutMillis:
             configService.get<number>('database.connectionTimeoutMillis') ??
             2000,
+          ...(sslEnabled && {
+            ssl: { rejectUnauthorized: sslRejectUnauthorized },
+          }),
         };
       },
     });
@@ -61,8 +69,7 @@ export class DatabaseModule {
       providers: [
         {
           provide: DATABASE_POOL,
-          useFactory: async (...args: any[]) => {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- NestJS useFactory injects
+          useFactory: async (...args: unknown[]) => {
             const config = await options.useFactory(...args);
 
             DatabaseModule.logger.log(

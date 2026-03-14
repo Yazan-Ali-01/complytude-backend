@@ -1,4 +1,8 @@
-import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
+import {
+  CursorPaginationOptions,
+  CursorPaginationResult,
+  DatabaseService,
+} from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -8,11 +12,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { DatabaseService } from '../../database/database.service';
+import { deepMerge } from '../../common/utils/deep-merge.util';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { StripeCustomerService } from '../stripe/services/stripe-customer.service';
 import { StripeTaxService } from '../stripe/services/stripe-tax.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { TenantsI18n } from './constants/i18n.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
@@ -31,7 +38,7 @@ import { Tenant } from './entities/tenant.entity';
 // For now, addons use tenant admin context; overrides use platform context.
 export type TenantContext =
   | { mode: 'platform' }
-  | { mode: 'tenant'; canManageSettings?: boolean; tenantId?: string };
+  | { mode: 'tenant'; tenantId?: string };
 
 /**
  * Service call options - discriminated union
@@ -65,7 +72,8 @@ export class TenantService {
     private readonly tenantRepository: TenantRepository,
     private readonly stripeCustomerService: StripeCustomerService,
     private readonly stripeTaxService: StripeTaxService,
-    // private readonly entitlementResolver: EntitlementResolverService,
+    private readonly subscriptionsService: SubscriptionsService,
+    private readonly i18n: I18nService,
   ) {}
 
   // ============================================================================
@@ -73,10 +81,102 @@ export class TenantService {
   // ============================================================================
 
   /**
-   * Create a new tenant
+   * Execute database operation with appropriate RLS context
+   *
+   * 🎯 Purpose: Centralized context handling to eliminate duplication across all methods
+   *
+   * Handles two execution modes:
+   * - Platform admin: Bypasses RLS, sees all tenants
+   * - Tenant scope: Enforces RLS, filtered by tenant + permissions
+   *
+   * @param tenantId - Tenant ID for RLS context (ignored in platform mode)
+   * @param context - Optional execution context (platform vs tenant)
+   * @param callback - Database operation to execute within transaction
+   * @param options - Additional context options
+   * @returns Result from callback execution
+   *
+   * @throws Re-throws known exceptions (NotFound, Forbidden, BadRequest, Conflict)
+   * @throws InternalServerErrorException for unexpected errors
+   *
+   * @example
+   * ```ts
+   * return this.executeInTenantScope(tenantId, context, async (client) => {
+   *   return this.tenantRepository.findById(tenantId, { client });
+   * });
+   * ```
+   */
+
+  private async executeInTenantScope<T>(
+    tenantId: string,
+    context: TenantContext | undefined,
+    callback: (client: PoolClient) => Promise<T>,
+    options?: {
+      allowCrossTenantRead?: boolean;
+    },
+  ): Promise<T> {
+    try {
+      // Platform admin mode: bypass RLS, full system access
+      if (context?.mode === 'platform') {
+        return await this.databaseService.transactionWithPlatformAdminContext(
+          callback,
+        );
+      }
+
+      // Tenant mode: enforce RLS with tenant context
+      return await this.databaseService.transactionWithTenantContext(
+        {
+          tenantId,
+          isTenantAdmin: true,
+          allowCrossTenantRead: options?.allowCrossTenantRead,
+        },
+        callback,
+      );
+    } catch (error) {
+      // Pass through known business logic exceptions
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+
+      // Log and wrap unexpected errors
+      this.logger.error(
+        `Database operation failed: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(TenantsI18n.errors.TENANT_CREATION_FAILED),
+      );
+    }
+  }
+
+  /**
+   * Update tenant and throw NotFoundException if not found.
+   * Centralizes the repeated update + null-check pattern.
+   */
+  private async updateOrThrow(
+    tenantId: string,
+    data: UpdateTenantDto | Record<string, unknown>,
+    client: PoolClient,
+  ): Promise<Tenant> {
+    const updated = await this.tenantRepository.update(tenantId, data, {
+      client,
+    });
+    if (!updated) {
+      throw new NotFoundException(`Tenant ${tenantId} not found`);
+    }
+    return updated;
+  }
+
+  /**
+   * Create a new tenant with default subscription
    *
    * 📝 Creates a tenant record with default plan and active status.
-   * Does NOT require RLS context since it's inserting a new row (RLS policies typically allow INSERT).
+   * Also creates a default subscription in the same transaction for atomicity.
+   * Does NOT require RLS context since it's inserting new rows (RLS policies typically allow INSERT).
    *
    * @param createTenantDto - Tenant configuration (plan is derived from tenant_subscriptions)
    * @param options - Optional database client for transaction support (used by parent transactions).
@@ -101,6 +201,7 @@ export class TenantService {
 
     try {
       const tenantCreation = async (client: PoolClient) => {
+        // Step 1: Create the tenant
         return await this.tenantRepository.create(
           {
             is_active: true,
@@ -114,6 +215,14 @@ export class TenantService {
         ? await tenantCreation(client)
         : await this.databaseService.transaction(tenantCreation);
     } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof ConflictException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
       throw new InternalServerErrorException('Failed to create tenant');
     }
@@ -138,6 +247,7 @@ export class TenantService {
    * Returns 404 if tenant doesn't exist OR if caller lacks access per RLS policy.
    *
    * @param tenantId - UUID of the tenant to fetch
+   * @param options - TenantContext for scoped access, or { client } when already inside a transaction
    * @returns The Tenant entity if found and accessible
    *
    * @throws NotFoundException - If tenant not found or access denied by RLS
@@ -146,36 +256,30 @@ export class TenantService {
    * @example
    * ```ts
    * const tenant = await tenantService.findById('111...');
+   * const tenant = await tenantService.findById('111...', { client });
    * ```
    */
-  async findById(tenantId: string, context?: TenantContext): Promise<Tenant> {
-    try {
-      if (context?.mode === 'platform') {
-        const tenant =
-          await this.databaseService.transactionWithPlatformAdminContext(
-            async (client) =>
-              this.tenantRepository.findById(tenantId, { client }),
-          );
-        if (!tenant) {
-          throw new NotFoundException(`Tenant ${tenantId} not found`);
-        }
-        return tenant;
-      }
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      const tenant = await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => this.tenantRepository.findById(tenantId, { client }),
-      );
+  async findById(
+    tenantId: string,
+    options?: TenantContext | { client: PoolClient },
+  ): Promise<Tenant> {
+    const client = options && 'client' in options ? options.client : undefined;
+    if (client) {
+      const tenant = await this.tenantRepository.findById(tenantId, { client });
       if (!tenant) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
+        throw new NotFoundException(
+          this.i18n.t(TenantsI18n.errors.TENANT_NOT_FOUND, {
+            args: { tenantId },
+          }),
+        );
       }
       return tenant;
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      this.logger.error(`Failed to fetch tenant: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to fetch tenant');
     }
+    return this.executeInTenantScope(
+      tenantId,
+      options as TenantContext | undefined,
+      (c) => this.findById(tenantId, { client: c }),
+    );
   }
 
   /**
@@ -207,7 +311,9 @@ export class TenantService {
       return this.tenantRepository.findMany({}, cursorOptions);
     } catch (error) {
       this.logger.error(`Failed to fetch tenants: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to fetch tenants');
+      throw new InternalServerErrorException(
+        this.i18n.t(TenantsI18n.errors.TENANT_FETCH_FAILED),
+      );
     }
   }
 
@@ -231,102 +337,9 @@ export class TenantService {
     updateTenantDto: UpdateTenantDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      await this.findById(tenantId, context);
-
-      if (context?.mode === 'platform') {
-        return this.databaseService.transactionWithPlatformAdminContext(
-          async (client) =>
-            this.tenantRepository.update(tenantId, updateTenantDto, {
-              client,
-            }),
-        );
-      }
-
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => {
-          // Validate tenant exists in this context
-          const existing = await this.tenantRepository.findById(tenantId, {
-            client,
-          });
-          if (!existing) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            {
-              ...updateTenantDto,
-            },
-            { client },
-          );
-
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-
-          return updated;
-        },
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      this.logger.error(`Failed to update tenant: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to update tenant');
-    }
-  }
-
-  /**
-   * Delete tenant (soft delete or hard delete per policy)
-   *
-   * 🔐 RLS: Executes in tenant context to ensure caller has delete permission.
-   * Typically reserved for system admins or automated cleanup jobs.
-   *
-   * @param tenantId - UUID of the tenant to delete
-   * @returns void (success) or throws error
-   *
-   * @throws NotFoundException - If tenant not found or access denied
-   * @throws InternalServerErrorException - If deletion fails
-   *
-   * @security Requires system_admin role or equivalent
-   * @warning This operation may be irreversible - confirm business logic
-   */
-  async deleteTenant(tenantId: string, context?: TenantContext): Promise<void> {
-    try {
-      if (context?.mode === 'platform') {
-        await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            const deleted = await this.tenantRepository.delete(tenantId, {
-              client,
-            });
-            if (deleted === 0) {
-              throw new NotFoundException(`Tenant ${tenantId} not found`);
-            }
-          },
-        );
-        return;
-      }
-
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => {
-          const deleted = await this.tenantRepository.delete(tenantId, {
-            client,
-          });
-          if (deleted === 0) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-        },
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      this.logger.error(`Failed to delete tenant: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to delete tenant');
-    }
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      return this.updateOrThrow(tenantId, updateTenantDto, client);
+    });
   }
 
   /**
@@ -347,32 +360,11 @@ export class TenantService {
    * ```
    */
   async getDocumentCount(tenantId: string): Promise<number> {
-    try {
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId: tenantId },
-        async (client) => {
-          // Validate tenant exists first
-          const tenant = await this.tenantRepository.findById(tenantId, {
-            client,
-          });
-          if (!tenant) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-          return await this.tenantRepository.getDocumentCount(tenantId, {
-            client,
-          });
-        },
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      this.logger.error(
-        `Failed to get document count for tenant ${tenantId}: ${error.message}`,
-        error,
-      );
-      throw new InternalServerErrorException(
-        'Failed to retrieve document count',
-      );
-    }
+    return this.executeInTenantScope(tenantId, undefined, async (client) => {
+      return await this.tenantRepository.getDocumentCount(tenantId, {
+        client,
+      });
+    });
   }
 
   // ============================================================================
@@ -399,62 +391,9 @@ export class TenantService {
     dto: UpdateTenantProfileDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      let updated: Tenant;
-
-      if (context?.mode === 'platform') {
-        updated =
-          await this.databaseService.transactionWithPlatformAdminContext(
-            async (client) => {
-              const tenant = await this.tenantRepository.findById(tenantId, {
-                client,
-              });
-              if (!tenant) {
-                throw new NotFoundException(`Tenant ${tenantId} not found`);
-              }
-              return await this.tenantRepository.update(
-                tenantId,
-                { ...dto },
-                { client },
-              );
-            },
-          );
-      } else {
-        const canUpdate =
-          context?.mode === 'tenant' && context?.canManageSettings;
-        updated = await this.databaseService.transactionWithTenantContext(
-          { tenantId, isTenantAdmin: !!canUpdate },
-          async (client) => {
-            const result = await this.tenantRepository.update(
-              tenantId,
-              { ...dto },
-              { client },
-            );
-            if (!result) {
-              throw new NotFoundException(`Tenant ${tenantId} not found`);
-            }
-            return result;
-          },
-        );
-      }
-
-      this.maybeSyncTaxToStripe(dto, updated);
-      return updated;
-    } catch (error) {
-      // ✅ Map all known exceptions
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to update tenant profile: ${error.message}`,
-        error,
-      );
-      throw new InternalServerErrorException('Failed to update tenant profile');
-    }
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      return this.updateOrThrow(tenantId, { ...dto }, client);
+    });
   }
 
   /**
@@ -479,75 +418,30 @@ export class TenantService {
     dto: UpdateTenantSlugDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      if (context?.mode === 'platform') {
-        return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            const isTaken = await this.tenantRepository.isSlugTaken(
-              dto.slug,
-              tenantId,
-              { client },
-            );
-            if (isTaken) {
-              throw new ConflictException(
-                `Slug "${dto.slug}" is already taken. Please choose a different slug.`,
-              );
-            }
-            return await this.tenantRepository.update(
-              tenantId,
-              { slug: dto.slug },
-              { client },
-            );
-          },
-        );
-      }
-
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      return await this.databaseService.transactionWithTenantContext(
-        {
+    return this.executeInTenantScope(
+      tenantId,
+      context,
+      async (client) => {
+        // Check slug uniqueness (requires cross-tenant read for tenant mode)
+        const isTaken = await this.tenantRepository.isSlugTaken(
+          dto.slug,
           tenantId,
-          isTenantAdmin: !!canUpdate,
-          allowCrossTenantRead: !!canUpdate,
-        },
-        async (client) => {
-          // Check slug uniqueness (global, not tenant-scoped)
-          const isTaken = await this.tenantRepository.isSlugTaken(
-            dto.slug,
-            tenantId,
-            { client },
+          { client },
+        );
+        if (isTaken) {
+          throw new ConflictException(
+            this.i18n.t(TenantsI18n.errors.SLUG_TAKEN, {
+              args: { slug: dto.slug },
+            }),
           );
-          if (isTaken) {
-            throw new ConflictException(
-              `Slug "${dto.slug}" is already taken. Please choose a different slug.`,
-            );
-          }
+        }
 
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            { slug: dto.slug },
-            { client },
-          );
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-          return updated;
-        },
-      );
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ConflictException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to update tenant slug: ${error.message}`,
-        error,
-      );
-      throw new InternalServerErrorException('Failed to update tenant slug');
-    }
+        return this.updateOrThrow(tenantId, { slug: dto.slug }, client);
+      },
+      {
+        allowCrossTenantRead: context?.mode === 'tenant',
+      },
+    );
   }
 
   /**
@@ -572,66 +466,25 @@ export class TenantService {
     dto: UpdateTenantSettingsDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      if (context?.mode === 'platform') {
-        return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) =>
-            this.tenantRepository.update(tenantId, { ...dto }, { client }),
-        );
-      }
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      const mergedSettings = dto.settings
+        ? deepMerge(tenant.settings || {}, dto.settings)
+        : tenant.settings;
 
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => {
-          // Fetch current tenant to merge settings
-          const tenant = await this.tenantRepository.findById(tenantId, {
-            client,
-          });
-          if (!tenant) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-
-          // Deep-merge settings (shallow merge for top-level fields)
-          const mergedSettings = dto.settings
-            ? { ...tenant.settings, ...dto.settings }
-            : tenant.settings;
-
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            {
-              ...(dto.locale && { locale: dto.locale }),
-              ...(dto.timezone && { timezone: dto.timezone }),
-              ...(dto.default_jurisdiction !== undefined && {
-                default_jurisdiction: dto.default_jurisdiction,
-              }),
-              settings: mergedSettings,
-            },
-            { client },
-          );
-
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-          return updated;
+      return this.updateOrThrow(
+        tenantId,
+        {
+          ...(dto.locale && { locale: dto.locale }),
+          ...(dto.timezone && { timezone: dto.timezone }),
+          ...(dto.default_jurisdiction !== undefined && {
+            default_jurisdiction: dto.default_jurisdiction,
+          }),
+          settings: mergedSettings,
         },
+        client,
       );
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to update tenant settings: ${error.message}`,
-        error,
-      );
-      throw new InternalServerErrorException(
-        'Failed to update tenant settings',
-      );
-    }
+    });
   }
 
   /**
@@ -656,52 +509,15 @@ export class TenantService {
     dto: UpdateTenantBrandingDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      if (context?.mode === 'platform') {
-        return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) =>
-            this.tenantRepository.update(tenantId, { ...dto }, { client }),
-        );
-      }
-
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => {
-          if (!dto.brand_color_primary && !dto.brand_color_secondary) {
-            throw new BadRequestException(
-              'At least one branding field must be provided',
-            );
-          }
-
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            { ...dto },
-            { client },
-          );
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-          return updated;
-        },
-      );
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to update tenant branding: ${error.message}`,
-        error,
-      );
-      throw new InternalServerErrorException(
-        'Failed to update tenant branding',
+    if (!dto.brand_color_primary && !dto.brand_color_secondary) {
+      throw new BadRequestException(
+        this.i18n.t(TenantsI18n.errors.AT_LEAST_ONE_BRANDING_FIELD_REQUIRED),
       );
     }
+
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      return this.updateOrThrow(tenantId, { ...dto }, client);
+    });
   }
 
   /**
@@ -725,47 +541,9 @@ export class TenantService {
     logoUrl: string | null,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      if (context?.mode === 'platform') {
-        return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) =>
-            this.tenantRepository.update(
-              tenantId,
-              { logo_url: logoUrl },
-              { client },
-            ),
-        );
-      }
-
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => {
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            { logo_url: logoUrl },
-            { client },
-          );
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-          return updated;
-        },
-      );
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to update tenant logo: ${error.message}`,
-        error,
-      );
-      throw new InternalServerErrorException('Failed to update tenant logo');
-    }
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      return this.updateOrThrow(tenantId, { logo_url: logoUrl }, client);
+    });
   }
 
   /**
@@ -787,59 +565,17 @@ export class TenantService {
     tenantId: string,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      if (context?.mode === 'platform') {
-        return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) =>
-            this.tenantRepository.update(
-              tenantId,
-              { onboarding_completed_at: new Date() },
-              { client },
-            ),
-        );
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      if (tenant.onboarding_completed_at) {
+        return tenant;
       }
-
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => {
-          const tenant = await this.tenantRepository.findById(tenantId, {
-            client,
-          });
-          if (!tenant) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-
-          // Idempotent: skip if already completed
-          if (tenant.onboarding_completed_at) {
-            return tenant;
-          }
-
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            { onboarding_completed_at: new Date() },
-            { client },
-          );
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-          return updated;
-        },
+      return this.updateOrThrow(
+        tenantId,
+        { onboarding_completed_at: new Date() },
+        client,
       );
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
-      }
-      this.logger.error(
-        `Failed to complete onboarding: ${error.message}`,
-        error,
-      );
-      throw new InternalServerErrorException('Failed to complete onboarding');
-    }
+    });
   }
 
   /**
@@ -863,57 +599,18 @@ export class TenantService {
     dto: UpdateOnboardingDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      if (context?.mode === 'platform') {
-        return await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) =>
-            this.tenantRepository.update(
-              tenantId,
-              { onboarding_metadata: dto.onboarding_metadata },
-              { client },
-            ),
-        );
-      }
-
-      const canUpdate =
-        context?.mode === 'tenant' && context?.canManageSettings;
-      return await this.databaseService.transactionWithTenantContext(
-        { tenantId, isTenantAdmin: !!canUpdate },
-        async (client) => {
-          const tenant = await this.tenantRepository.findById(tenantId, {
-            client,
-          });
-          if (!tenant) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-
-          // Deep-merge onboarding metadata
-          const mergedMetadata = {
-            ...tenant.onboarding_metadata,
-            ...dto.onboarding_metadata,
-          };
-
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            { onboarding_metadata: mergedMetadata },
-            { client },
-          );
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-          return updated;
-        },
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      const mergedMetadata = deepMerge(
+        tenant.onboarding_metadata || {},
+        dto.onboarding_metadata || {},
       );
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
-      }
-      this.logger.error(`Failed to update onboarding: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to update onboarding');
-    }
+      return this.updateOrThrow(
+        tenantId,
+        { onboarding_metadata: mergedMetadata },
+        client,
+      );
+    });
   }
 
   // ============================================================================
@@ -942,57 +639,37 @@ export class TenantService {
     dto: DeactivateTenantDto,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      if (context?.mode !== 'platform') {
-        throw new ForbiddenException(
-          'Only platform administrators can deactivate tenants',
+    if (context?.mode !== 'platform') {
+      throw new ForbiddenException(
+        'Only platform administrators can deactivate tenants',
+      );
+    }
+
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      if (!tenant.is_active) {
+        throw new BadRequestException(
+          this.i18n.t(TenantsI18n.errors.TENANT_ALREADY_DEACTIVATED, {
+            args: { tenantId },
+          }),
         );
       }
-      return await this.databaseService.transactionWithPlatformAdminContext(
-        async (client) => {
-          const tenant = await this.tenantRepository.findById(tenantId, {
-            client,
-          });
-          if (!tenant) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
 
-          if (!tenant.is_active) {
-            throw new BadRequestException(
-              `Tenant ${tenantId} is already deactivated`,
-            );
-          }
-
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            {
-              is_active: false,
-              deactivated_at: new Date(),
-              deactivation_reason: dto.reason,
-            },
-            { client },
-          );
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-
-          this.logger.warn(
-            `Tenant ${tenantId} deactivated by admin. Reason: ${dto.reason}`,
-          );
-          return updated;
+      const updated = await this.updateOrThrow(
+        tenantId,
+        {
+          is_active: false,
+          deactivated_at: new Date(),
+          deactivation_reason: dto.reason,
         },
+        client,
       );
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
-      }
-      this.logger.error(`Failed to deactivate tenant: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to deactivate tenant');
-    }
+
+      this.logger.warn(
+        `Tenant ${tenantId} deactivated by admin. Reason: ${dto.reason}`,
+      );
+      return updated;
+    });
   }
 
   /**
@@ -1015,55 +692,38 @@ export class TenantService {
     tenantId: string,
     context?: TenantContext,
   ): Promise<Tenant> {
-    try {
-      if (context?.mode !== 'platform') {
-        throw new ForbiddenException(
-          'Only platform administrators can reactivate tenants',
+    if (context?.mode !== 'platform') {
+      throw new ForbiddenException(
+        'Only platform administrators can reactivate tenants',
+      );
+    }
+
+    return this.executeInTenantScope(tenantId, context, async (client) => {
+      const tenant = await this.findById(tenantId, { client });
+      if (tenant.is_active) {
+        throw new BadRequestException(
+          this.i18n.t(TenantsI18n.errors.TENANT_ALREADY_ACTIVE, {
+            args: { tenantId },
+          }),
         );
       }
-      return await this.databaseService.transactionWithPlatformAdminContext(
-        async (client) => {
-          const tenant = await this.tenantRepository.findById(tenantId, {
-            client,
-          });
-          if (!tenant) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
 
-          if (tenant.is_active) {
-            throw new BadRequestException(
-              `Tenant ${tenantId} is already active`,
-            );
-          }
-
-          const updated = await this.tenantRepository.update(
-            tenantId,
-            {
-              is_active: true,
-              deactivated_at: null,
-              deactivation_reason: null,
-            },
-            { client },
-          );
-          if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
-          }
-
-          this.logger.log(`Tenant ${tenantId} reactivated by admin`);
-          return updated;
+      const updated = await this.tenantRepository.update(
+        tenantId,
+        {
+          is_active: true,
+          deactivated_at: null,
+          deactivation_reason: null,
         },
+        { client },
       );
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException ||
-        error instanceof ForbiddenException
-      ) {
-        throw error;
+      if (!updated) {
+        throw new NotFoundException(`Tenant ${tenantId} not found`);
       }
-      this.logger.error(`Failed to reactivate tenant: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to reactivate tenant');
-    }
+
+      this.logger.log(`Tenant ${tenantId} reactivated by admin`);
+      return updated;
+    });
   }
 
   /**
@@ -1087,23 +747,20 @@ export class TenantService {
     dto: UpdateTenantProfileDto,
   ): Promise<Tenant> {
     try {
-      const updated = await this.databaseService.transactionWithTenantContext(
+      return await this.databaseService.transactionWithTenantContext(
         { tenantId: tenantId },
         async (client) => {
-          const result = await this.tenantRepository.update(
+          const updated = await this.tenantRepository.update(
             tenantId,
             { ...dto },
             { client },
           );
-          if (!result) {
+          if (!updated) {
             throw new NotFoundException(`Tenant ${tenantId} not found`);
           }
-          return result;
+          return updated;
         },
       );
-
-      this.maybeSyncTaxToStripe(dto, updated);
-      return updated;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       this.logger.error(
@@ -1111,43 +768,6 @@ export class TenantService {
         error,
       );
       throw new InternalServerErrorException('Failed to update tenant profile');
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Fire-and-forget tax sync: if the DTO touches any Stripe Tax–relevant field
-   * (address, TRN, or name) and the tenant already has a Stripe customer, kick
-   * off a non-blocking sync. Errors are handled inside StripeTaxService.
-   */
-  private maybeSyncTaxToStripe(
-    dto: UpdateTenantProfileDto,
-    tenant: Tenant,
-  ): void {
-    if (!tenant.stripe_customer_id) return;
-
-    const taxRelevantFields: (keyof UpdateTenantProfileDto)[] = [
-      'name',
-      'emirate',
-      'city',
-      'address_line_1',
-      'address_line_2',
-      'postal_code',
-      'tax_registration_number',
-    ];
-
-    const hasTaxRelevantChange = taxRelevantFields.some(
-      (field) => field in dto && dto[field] !== undefined,
-    );
-
-    if (hasTaxRelevantChange) {
-      void this.stripeTaxService.syncCustomerTax(
-        tenant.stripe_customer_id,
-        tenant,
-      );
     }
   }
 }

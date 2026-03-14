@@ -1,10 +1,9 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 import {
   CreateCreditLedgerRow,
   CreditLedgerTransaction,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type CreditLedgerRow = {
   id: string;
@@ -57,7 +56,7 @@ export class CreditLedgerRepository extends BaseRepository<
       reason: data.reason ?? undefined,
       applied_by: data.applied_by ?? undefined,
       expires_at: data.expires_at ?? undefined,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       idempotency_key: data.idempotency_key ?? undefined,
       stripe_payment_intent_id: data.stripe_payment_intent_id,
       recorded_at: data.recorded_at,
@@ -145,7 +144,7 @@ export class CreditLedgerRepository extends BaseRepository<
     let query = `SELECT ${this.getSelectColumns()}
                  FROM ${this.tableName}
                  WHERE tenant_id = $1`;
-    const params: any[] = [tenantId];
+    const params: unknown[] = [tenantId];
 
     if (cursor) {
       query += ` AND recorded_at < $2`;

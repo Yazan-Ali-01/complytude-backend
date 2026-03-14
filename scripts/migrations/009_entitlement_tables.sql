@@ -68,7 +68,7 @@ CREATE TABLE public.plans (
 );
 
 COMMENT ON TABLE public.plans IS 'Subscription plan catalog (navigator, shield, general_counsel, infrastructure)';
-COMMENT ON COLUMN public.plans.key IS 'Unique plan key matching tenant_plan enum';
+COMMENT ON COLUMN public.plans.key IS 'Unique plan key (e.g., navigator, shield, general_counsel, infrastructure)';
 COMMENT ON COLUMN public.plans.billing_period IS 'Billing cycle: monthly, yearly';
 COMMENT ON COLUMN public.plans.sort_order IS 'Display order for plan listing';
 COMMENT ON COLUMN public.plans.stripe_product_id IS 'Stripe product ID (prod_xxx), NULL for Navigator (free) plan';
@@ -245,7 +245,7 @@ CREATE TABLE public.usage_ledger (
     idempotency_key VARCHAR(255),
     recorded_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     projected_at    TIMESTAMPTZ NULL,
-    
+
     CONSTRAINT chk_usage_units CHECK (units > 0)
 );
 

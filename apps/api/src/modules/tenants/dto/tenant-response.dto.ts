@@ -1,9 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ALL_PLAN_KEYS } from '../../../common/constants/plan-entitlements.constant';
 import type { PlanKey } from '../../../common/types/entitlement.types';
 import { Tenant } from '../entities/tenant.entity';
 
 export class TenantResponseDto {
-  constructor(data: Tenant | string) {
+  constructor(data: Tenant) {
     Object.assign(this, data);
   }
   @ApiProperty({
@@ -13,7 +14,7 @@ export class TenantResponseDto {
 
   @ApiProperty({
     example: 'navigator',
-    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
+    enum: ALL_PLAN_KEYS,
   })
   plan: PlanKey;
 

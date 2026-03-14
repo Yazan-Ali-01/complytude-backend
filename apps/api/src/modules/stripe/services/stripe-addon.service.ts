@@ -5,12 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { TenantAddonWithEntitlements } from 'src/common/types/entitlement.types';
-import { DatabaseService } from 'src/database/database.service';
 import { AddonsRepository } from 'src/repositories/entitlements/addons.repository';
 import { TenantAddonsRepository } from 'src/repositories/entitlements/tenant-addons.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
 import { EntitlementSnapshotService } from '../../entitlements/services/entitlement-snapshot.service';
 import { StripeService } from '../stripe.service';
+import { DatabaseService } from '@lib/database';
 
 /**
  * Manages add-on lifecycle through Stripe subscription items.

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DunningEmailJobData, Job } from '@lib/queue';
-import { DatabaseService } from '../../../database/database.service';
+import { DatabaseService } from '@lib/database';
 import { TenantRepository } from '../../../repositories/tenants/tenant.repository';
 import { EmailService } from '../../email/email.service';
 

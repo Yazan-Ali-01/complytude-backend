@@ -1,4 +1,4 @@
-import { BaseRepository, QueryOptions } from '@lib/database';
+import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   CreateTenantSubscriptionRow,
@@ -7,7 +7,6 @@ import {
   TenantSubscription,
   UpdateTenantSubscriptionRow,
 } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '../../database/database.service';
 
 type TenantSubscriptionRow = {
   id: string;
@@ -62,7 +61,7 @@ export class SubscriptionsRepository extends BaseRepository<
       current_period_start: data.current_period_start,
       current_period_end: data.current_period_end,
       cancelled_at: data.cancelled_at ?? undefined,
-      metadata: (data.metadata as Record<string, any>) ?? {},
+      metadata: (data.metadata as Record<string, unknown>) ?? {},
       stripe_subscription_id: data.stripe_subscription_id,
       stripe_schedule_id: data.stripe_schedule_id,
       stripe_current_period_end: data.stripe_current_period_end,
@@ -147,7 +146,7 @@ export class SubscriptionsRepository extends BaseRepository<
         ts.cancelled_at, ts.metadata, ts.stripe_subscription_id,
         ts.stripe_schedule_id, ts.stripe_current_period_end, ts.stripe_status,
         ts.created_at, ts.updated_at,
-        p.id as plan_id_full, p.key as plan_key, p.name as plan_name,
+        p.key as plan_key, p.name as plan_name,
         p.description as plan_description, p.price_monthly, p.price_currency,
         p.billing_period as plan_billing_period, p.is_active as plan_is_active,
         p.sort_order, p.metadata as plan_metadata, p.created_at as plan_created_at,
@@ -169,7 +168,7 @@ export class SubscriptionsRepository extends BaseRepository<
     const subscription = this.mapRow(row);
 
     const plan: Plan = {
-      id: row.plan_id_full as string,
+      id: subscription.plan_id,
       key: row.plan_key as Plan['key'],
       name: row.plan_name as string,
       description: (row.plan_description as string) ?? undefined,
@@ -178,7 +177,7 @@ export class SubscriptionsRepository extends BaseRepository<
       billing_period: row.plan_billing_period as string,
       is_active: row.plan_is_active as boolean,
       sort_order: row.sort_order as number,
-      metadata: (row.plan_metadata as Record<string, any>) ?? {},
+      metadata: (row.plan_metadata as Record<string, unknown>) ?? {},
       created_at: row.plan_created_at as Date,
       updated_at: row.plan_updated_at as Date,
     };

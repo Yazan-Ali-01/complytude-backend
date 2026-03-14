@@ -182,11 +182,14 @@ echo ""
 SEED_FILES=(
     "001_seed_authorities.sql"
     "002_seed_categories.sql"
-    "004_seed_test_tenants_users.sql"
-    "005_seed_templates.sql"
-    "006_seed_test_documents.sql"
-    "007_seed_features_plans.sql"
+    "003_seed_test_tenants_users.sql"
+    "004_seed_templates.sql"
+    "005_seed_test_documents.sql"
+    "006_seed_features_plans.sql"
+    "007_seed_test_subscriptions.sql"    # Runs after plans exist
     "008_seed_test_entitlements.sql"
+    "009_seed_rulesets.sql"
+    "010_seed_ruleset_chunks.sql"
 )
 
 FAILED_COUNT=0

@@ -1,5 +1,7 @@
 import { databaseEnvSchema } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
+import { loggerEnvSchema } from '@lib/logger';
+import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
 
 export const validationSchema = Joi.object({
@@ -12,19 +14,18 @@ export const validationSchema = Joi.object({
   WORKER_AI_PORT: Joi.number().default(3001),
 
   // Queue Configuration
-  WORKER_AI_QUEUE_NAME: Joi.string().default('ai-processing-queue'),
   WORKER_AI_CONCURRENCY: Joi.number().default(5),
   WORKER_AI_MAX_RETRIES: Joi.number().default(3),
   WORKER_AI_RETRY_DELAY: Joi.number().default(5000),
 
   // Processing Limits
   WORKER_AI_MAX_PROCESSING_TIME: Joi.number().default(300000),
-  WORKER_AI_BATCH_SIZE: Joi.number().default(10),
 
-  // AI Service
-  AI_SERVICE_URL: Joi.string().default('http://localhost:8000'),
-  AI_SERVICE_TIMEOUT: Joi.number().default(60000),
-  AI_SERVICE_API_KEY: Joi.string().optional(),
+  // LLM (OpenAI Chat)
+  OPENAI_CHAT_MODEL: Joi.string().default('gpt-4o-mini'),
+  OPENAI_CHAT_MAX_TOKENS: Joi.number().default(4096),
+  OPENAI_CHAT_TEMPERATURE: Joi.number().default(0.1),
+  OPENAI_CHAT_TIMEOUT: Joi.number().default(120000),
 
   // Resource Limits
   WORKER_AI_MEMORY_LIMIT: Joi.string().default('2GB'),
@@ -35,4 +36,10 @@ export const validationSchema = Joi.object({
 
   // Embedding (OpenAI)
   ...embeddingEnvSchema,
+
+  // Logging
+  ...loggerEnvSchema,
+
+  // Redis (for BullMQ)
+  ...redisEnvSchema,
 });

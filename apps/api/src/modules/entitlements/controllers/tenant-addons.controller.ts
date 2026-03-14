@@ -14,7 +14,7 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
-import { I18nKeys } from '../../../common/constants/i18n-keys';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import { MessageResponseDto } from '../../../common/dto';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../../auth/decorators/current-user.decorator';
@@ -51,7 +51,7 @@ export class TenantAddonsController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<TenantAddonResponseDto[]> {
     const addons = await this.tenantAddonsService.listAddons(user.tenantId, {
-      context: { mode: 'tenant', canManageSettings: true },
+      context: { mode: 'tenant' },
     });
 
     return addons.map((addon) => mapTenantAddonToDto(addon, addon.addon_name));
@@ -122,6 +122,8 @@ export class TenantAddonsController {
   ): Promise<MessageResponseDto> {
     await this.stripeAddonService.removeAddon(user.tenantId, id);
 
-    return new MessageResponseDto(this.i18n.t(I18nKeys.ADDON_REMOVE_SUCCESS));
+    return new MessageResponseDto(
+      this.i18n.t(EntitlementsI18n.messages.ADDON_REMOVE_SUCCESS),
+    );
   }
 }
