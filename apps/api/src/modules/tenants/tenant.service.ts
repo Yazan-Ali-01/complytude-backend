@@ -19,6 +19,7 @@ import { deepMerge } from '../../common/utils/deep-merge.util';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { EntitlementSnapshotService } from '../entitlements/services/entitlement-snapshot.service';
+import { StripeCustomerService } from '../stripe/services/stripe-customer.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantRbacSyncService } from '../tenant-rbac/tenant-rbac-sync.service';
 import { TenantsI18n } from './constants/i18n.constants';
@@ -73,6 +74,7 @@ export class TenantService {
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly stripeCustomerService: StripeCustomerService,
     private readonly userTenantRepository: UserTenantRepository,
     private readonly tenantRbacSyncService: TenantRbacSyncService,
     private readonly entitlementSnapshotService: EntitlementSnapshotService,
@@ -343,8 +345,11 @@ export class TenantService {
           `Tenant creation complete: id=${tenant.id}, user=${userId}`,
         );
 
-        // TODO: After Stripe integration - fire-and-forget customer creation:
-        // void stripeCustomerService.createCustomerForTenant(tenant, email, userId)
+        this.stripeCustomerService.createCustomerForTenant(
+          tenant,
+          email,
+          userId,
+        );
 
         return tenant;
       },

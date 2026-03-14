@@ -5,6 +5,7 @@ import { UserTenantRepository } from '../../repositories/users/user-tenant.repos
 import { UserRepository } from '../../repositories/users/user.repository';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { MockModule } from '../mock/mock.module';
+import { StripeModule } from '../stripe/stripe.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { TenantInvitationsController } from './invitations.controller';
 import { TenantController } from './tenant.controller';
@@ -14,6 +15,7 @@ import { TenantService } from './tenant.service';
   imports: [
     InvitationsModule,
     SubscriptionsModule,
+    StripeModule,
     MockModule, // ✅ Use mock module
   ],
   controllers: [

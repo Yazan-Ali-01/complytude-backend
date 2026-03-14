@@ -62,4 +62,10 @@ export const validationSchema = Joi.object({
 
   // Redis Configuration
   ...redisEnvSchema,
+
+  // Stripe
+  STRIPE_SECRET_KEY: Joi.string().allow('').default(''),
+  STRIPE_SKIP_CUSTOMER_CREATION: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
 });

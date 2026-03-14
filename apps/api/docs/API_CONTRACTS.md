@@ -609,7 +609,7 @@ After completing this flow, users have full tenant access with tenant tokens set
 - Entitlements resolved lazily on first access (from subscription)
 - Default settings applied (locale: `en`, timezone: `Asia/Dubai`)
 - Tenant slug is `null` on creation; user can set via `PATCH /tenants/me/slug` later
-- **Stripe:** Fire-and-forget customer creation planned; TODO when Stripe service is implemented
+- **Stripe:** Fire-and-forget customer creation via `StripeCustomerService.createCustomerForTenant()`. Creates Stripe customer with creator email and `metadata.creator_user_id` for traceability. Skips when `STRIPE_SECRET_KEY` is empty or `STRIPE_SKIP_CUSTOMER_CREATION=true`. Never blocks tenant creation.
 
 ---
 

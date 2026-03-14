@@ -12,6 +12,7 @@ import emailConfig from 'src/config/email.config';
 import { validationSchema } from 'src/config/env.schema';
 import jwtConfig from 'src/config/jwt.config';
 import storageConfig from 'src/config/storage.config';
+import stripeConfig from 'src/config/stripe.config';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { HealthModule } from 'src/modules/health/health.module';
 import { UsersModule } from 'src/modules/users/users.module';
@@ -45,6 +46,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
         jwtConfig,
         emailConfig,
         storageConfig,
+        stripeConfig,
         redisConfig,
       ],
       validationSchema: validationSchema,

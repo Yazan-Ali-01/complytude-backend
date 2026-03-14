@@ -267,26 +267,26 @@ graph TD
 
 ### Core Modules
 
-| Module            | Responsibility                                                     | Dependencies                   |
-| ----------------- | ------------------------------------------------------------------ | ------------------------------ |
+| Module            | Responsibility                                                     | Dependencies                        |
+| ----------------- | ------------------------------------------------------------------ | ----------------------------------- |
 | **auth**          | JWT authentication, signup, login, token refresh, invitation flows | users, invitations, email, database |
-| **email**         | Email delivery (verification, password reset) via Resend         | config, i18n                    |
-| **users**         | User management, profile updates                                   | database                       |
-| **tenants**       | Tenant creation, management, invitations                           | users, database                |
-| **invitations**   | Tenant invitations, accept/reject                                  | users, tenants, database       |
-| **tenant-rbac**   | Tenant-scoped RBAC (Global)                                        | database                       |
-| **platform-rbac** | Platform-wide RBAC (Global)                                        | database                       |
-| **entitlements**  | Plan-based feature access, usage tracking, credit system (Global)  | database, subscriptions, queue |
-| **subscriptions** | Subscription lifecycle (create, change plan, cancel, renew)        | database                       |
-| **audit**         | Audit logging (Global)                                             | database                       |
-| **authorities**   | Regulatory authority management                                    | database                       |
-| **categories**    | Template category management                                       | database                       |
-| **templates**     | Template CRUD, versioning, field extraction                        | storage, database              |
-| **rulesets**      | Compliance rulesets with versioning                                | database                       |
-| **documents**     | Document generation and management                                 | templates, storage, database   |
-| **storage**       | File upload/download, S3 integration                               | database                       |
-| **health**        | Health checks for services                                         | database, redis                |
-| **mock**          | Development/testing mock endpoints                                 | entitlements, rbac             |
+| **email**         | Email delivery (verification, password reset) via Resend           | config, i18n                        |
+| **users**         | User management, profile updates                                   | database                            |
+| **tenants**       | Tenant creation, management, invitations                           | users, database                     |
+| **invitations**   | Tenant invitations, accept/reject                                  | users, tenants, database            |
+| **tenant-rbac**   | Tenant-scoped RBAC (Global)                                        | database                            |
+| **platform-rbac** | Platform-wide RBAC (Global)                                        | database                            |
+| **entitlements**  | Plan-based feature access, usage tracking, credit system (Global)  | database, subscriptions, queue      |
+| **subscriptions** | Subscription lifecycle (create, change plan, cancel, renew)        | database                            |
+| **audit**         | Audit logging (Global)                                             | database                            |
+| **authorities**   | Regulatory authority management                                    | database                            |
+| **categories**    | Template category management                                       | database                            |
+| **templates**     | Template CRUD, versioning, field extraction                        | storage, database                   |
+| **rulesets**      | Compliance rulesets with versioning                                | database                            |
+| **documents**     | Document generation and management                                 | templates, storage, database        |
+| **storage**       | File upload/download, S3 integration                               | database                            |
+| **health**        | Health checks for services                                         | database, redis                     |
+| **mock**          | Development/testing mock endpoints                                 | entitlements, rbac                  |
 
 ---
 
@@ -443,6 +443,9 @@ await this.executeInTenantScope('', { mode: 'platform' }, async (client) => {
     { client },
   );
 
+  // 4. Fire-and-forget Stripe customer creation (non-blocking)
+  this.stripeCustomerService.createCustomerForTenant(tenant, email, userId);
+
   return tenant;
 });
 ```
@@ -455,6 +458,7 @@ await this.executeInTenantScope('', { mode: 'platform' }, async (client) => {
 - **Default Plan:** Navigator (free tier) if not specified
 - **RBAC Setup:** System roles are synced on app startup, not per-tenant
 - **Entitlement Snapshot:** Created lazily on first access by `EntitlementResolverService`
+- **Stripe Customer:** Fire-and-forget creation with creator email and `metadata.creator_user_id`; never blocks tenant creation
 
 **RLS Policy Requirements:**
 
