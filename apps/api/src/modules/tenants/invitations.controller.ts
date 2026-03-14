@@ -13,10 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import {
-  AuditAction,
-  AuditResource,
-} from 'src/common/decorators/audit.decorator';
+import { Audit } from 'src/common/decorators/audit.decorator';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
   ApiAuthenticatedResponses,
@@ -47,7 +44,6 @@ import {
  */
 @ApiTags('Tenant - Invitations')
 @Controller('tenants/admin/invitations')
-@AuditResource('invitations')
 @AuthOptions({ tenant: true })
 @UseGuards(RolesGuard)
 @Roles(SystemTenantRole.TENANT_ADMIN)
@@ -154,7 +150,7 @@ export class TenantInvitationsController {
    */
   @Post(':invitationId/resend')
   @HttpCode(HttpStatus.OK)
-  @AuditAction('resend')
+  @Audit('INVITATION_RESEND', { resourceIdParam: 'invitationId' })
   @ApiOperation({
     summary: 'Resend invitation',
     description:
@@ -202,7 +198,7 @@ export class TenantInvitationsController {
    */
   @Delete(':invitationId')
   @HttpCode(HttpStatus.OK)
-  @AuditAction('revoke')
+  @Audit('INVITATION_REVOKE', { resourceIdParam: 'invitationId' })
   @ApiOperation({
     summary: 'Revoke invitation',
     description:

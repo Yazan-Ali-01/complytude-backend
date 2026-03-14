@@ -1,3 +1,4 @@
+import { ContextModule } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
 import { embeddingConfig, EmbeddingModule } from '@lib/embedding';
 import { LoggerModule } from '@lib/logger';
@@ -28,6 +29,7 @@ import { WorkerAiController } from './worker-ai.controller';
       },
       envFilePath: ['apps/worker-ai/.env'],
     }),
+    ContextModule.forRoot(),
     LoggerModule.forRoot({ serviceName: 'worker-ai' }),
     EmbeddingModule.forRoot(),
     DatabaseModule.forRoot(),

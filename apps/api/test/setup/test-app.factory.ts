@@ -11,7 +11,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import Redis from 'ioredis';
 import { AppModule } from 'src/app.module';
-import { AuditService } from 'src/modules/audit/audit.service';
+import { AuditService } from '@lib/audit';
 import { StorageService } from 'src/modules/storage/storage.service';
 import { MockStorageService } from '../mocks/storage.mock';
 import { ensureWorkerDatabase } from './worker-database.setup';
@@ -20,10 +20,16 @@ class MockAuditService {
   log(): Promise<void> {
     return Promise.resolve();
   }
+  logBatch(): Promise<void> {
+    return Promise.resolve();
+  }
+  logSystemEvent(): Promise<void> {
+    return Promise.resolve();
+  }
   getAuditLogs(): Promise<unknown[]> {
     return Promise.resolve([]);
   }
-  getUserAuditLogs(): Promise<unknown[]> {
+  getActorAuditLogs(): Promise<unknown[]> {
     return Promise.resolve([]);
   }
   countAuditLogs(): Promise<number> {

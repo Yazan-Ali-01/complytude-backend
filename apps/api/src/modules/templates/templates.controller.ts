@@ -16,10 +16,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import {
-  AuditAction,
-  AuditResource,
-} from 'src/common/decorators/audit.decorator';
+import { Audit } from 'src/common/decorators/audit.decorator';
 import {
   MessageResponseDto,
   PaginationMetaDto,
@@ -59,7 +56,6 @@ import {
 
 @ApiTags('Templates')
 @Controller('templates')
-@AuditResource('templates')
 @SwaggerCookieAuth.tenantAccessToken()
 @ApiExtraModels(
   GetTemplateResponseDto,
@@ -224,7 +220,7 @@ export class TemplatesController {
   @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('templates:manage')
-  @AuditAction('rollback') // Example: Custom action name
+  @Audit('TEMPLATE_VERSION_ROLLBACK', { resourceIdParam: 'key' })
   @ApiOperation({
     summary: 'Rollback to previous template version',
     description:

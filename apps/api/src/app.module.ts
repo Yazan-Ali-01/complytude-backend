@@ -1,3 +1,4 @@
+import { ContextModule, TracingInterceptor } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
 import { LoggerModule } from '@lib/logger';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
@@ -16,7 +17,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { I18nModule } from './i18n/i18n.module';
-import { AuditModule } from './modules/audit/audit.module';
+import { AuditModule } from '@lib/audit';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -44,6 +45,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
         abortEarly: false,
       },
     }),
+    ContextModule.forRoot({ enableHttpTracing: true }),
     LoggerModule.forRoot({
       serviceName: 'gateway',
       excludeRoutes: [
@@ -73,7 +75,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     DocumentsModule,
     TenantRbacModule,
     PlatformRbacModule,
-    AuditModule,
+    AuditModule.forRoot(),
     MockModule,
     RagMockModule,
   ],
@@ -83,6 +85,10 @@ import { TenantModule } from './modules/tenants/tenant.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TracingInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

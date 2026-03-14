@@ -8,10 +8,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  AuditAction,
-  AuditResource,
-} from 'src/common/decorators/audit.decorator';
-import {
   RequireAllTenantPermissions,
   RequireAnyTenantPermission,
 } from 'src/common/decorators/tenant-permissions.decorator';
@@ -34,7 +30,6 @@ import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.int
  */
 @Controller('mock/rbac')
 @AuthOptions({ tenant: true })
-@AuditResource('rbac_test')
 export class RbacMockController {
   // ============================================
   // USE CASE 1: Single Concrete Permission (Most Common)
@@ -49,7 +44,6 @@ export class RbacMockController {
   @Get('documents')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:read')
-  @AuditAction({ action: 'read', resourceType: 'documents' })
   listDocuments(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Documents listed by ${user.email} (${user.role})` };
   }
@@ -67,7 +61,6 @@ export class RbacMockController {
   @Get('documents/wildcard-required')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:*')
-  @AuditAction({ action: 'wildcard_check', resourceType: 'documents' })
   requireDocumentsWildcard(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
       message: `Wildcard permission verified for ${user.email} (${user.role})`,
@@ -87,7 +80,6 @@ export class RbacMockController {
     'templates:use',
     'regulatory:query',
   )
-  @AuditAction({ action: 'multi_or_check', resourceType: 'permissions' })
   multiPermissionOr(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Multi-OR accessed by ${user.email} (${user.role})` };
   }
@@ -102,7 +94,6 @@ export class RbacMockController {
   @Delete('documents/:id')
   @UseGuards(TenantPermissionsGuard)
   @RequireAllTenantPermissions('documents:read', 'documents:delete')
-  @AuditAction({ action: 'delete', resourceType: 'documents' })
   deleteDocument(
     @Param('id') id: string,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
@@ -122,7 +113,6 @@ export class RbacMockController {
   @Post('admin-only')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('*:*')
-  @AuditAction({ action: 'admin_action', resourceType: 'system' })
   adminOnlyAction(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Admin action by ${user.email} (${user.role})` };
   }
@@ -139,7 +129,6 @@ export class RbacMockController {
   @Get('read-anything')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('*:read')
-  @AuditAction({ action: 'read', resourceType: 'wildcard' })
   readAnything(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
       message: `Read-anything accessed by ${user.email} (${user.role})`,
@@ -156,7 +145,6 @@ export class RbacMockController {
   @Post('mixed-permissions')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:*', 'templates:use')
-  @AuditAction({ action: 'mixed_check', resourceType: 'permissions' })
   mixedPermissions(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
       message: `Mixed permissions accessed by ${user.email} (${user.role})`,
@@ -173,7 +161,6 @@ export class RbacMockController {
   @Get('multi-wildcard-or')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:*', 'contracts:*', 'templates:*')
-  @AuditAction({ action: 'multi_wildcard_or', resourceType: 'permissions' })
   multiWildcardOr(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
       message: `Multi-wildcard-OR accessed by ${user.email} (${user.role})`,
@@ -190,7 +177,6 @@ export class RbacMockController {
   @Post('multi-wildcard-and')
   @UseGuards(TenantPermissionsGuard)
   @RequireAllTenantPermissions('documents:*', 'contracts:*', 'templates:*')
-  @AuditAction({ action: 'multi_wildcard_and', resourceType: 'permissions' })
   multiWildcardAnd(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
       message: `Multi-wildcard-AND accessed by ${user.email} (${user.role})`,
@@ -207,7 +193,6 @@ export class RbacMockController {
   @Post('contracts/analyze')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('contracts:analyze')
-  @AuditAction({ action: 'analyze', resourceType: 'contracts' })
   analyzeContract(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Contract analyzed by ${user.email} (${user.role})` };
   }
@@ -222,7 +207,6 @@ export class RbacMockController {
   @Post('contracts/redline')
   @UseGuards(TenantPermissionsGuard)
   @RequireAllTenantPermissions('contracts:analyze', 'documents:create')
-  @AuditAction({ action: 'redline', resourceType: 'contracts' })
   redlineContract(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Contract redlined by ${user.email} (${user.role})` };
   }
@@ -236,7 +220,6 @@ export class RbacMockController {
   @Patch('manage-anything')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('*:manage')
-  @AuditAction({ action: 'manage', resourceType: 'wildcard' })
   manageAnything(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
       message: `Manage-anything accessed by ${user.email} (${user.role})`,
@@ -250,7 +233,6 @@ export class RbacMockController {
   // Passes: All authenticated users with tenant token
   // How it works: No PermissionsGuard, only AuthOptions({ tenant: true })
   @Get('public')
-  @AuditAction({ action: 'public_access', resourceType: 'public' })
   publicEndpoint(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
       message: `Public endpoint accessed by ${user.email} (${user.role})`,
@@ -267,11 +249,6 @@ export class RbacMockController {
   @Patch('settings/jurisdiction')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:change_jurisdiction')
-  @AuditAction({
-    action: 'change',
-    subResource: 'jurisdiction',
-    resourceType: 'settings',
-  })
   changeJurisdiction(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return {
       message: `Jurisdiction changed by ${user.email} (${user.role}) - CRITICAL`,
@@ -288,7 +265,6 @@ export class RbacMockController {
   @Get('billing')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('billing:manage', 'settings:manage')
-  @AuditAction({ action: 'manage', resourceType: 'billing' })
   manageBilling(@CurrentUserTenant() user: AuthenticatedTenantUser) {
     return { message: `Billing accessed by ${user.email} (${user.role})` };
   }
