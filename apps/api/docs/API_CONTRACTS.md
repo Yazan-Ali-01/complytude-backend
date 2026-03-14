@@ -339,6 +339,7 @@ This section documents the entire user journey from initial signup to operationa
 ### Overview
 
 New users follow this 5-step flow:
+
 1. **Register** - Create account (email + password)
 2. **Verify** - Confirm email address
 3. **Login** - Authenticate and receive identity tokens
@@ -374,12 +375,12 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Request Schema:**
 
-| Field | Type | Required | Validation | Description |
-|-------|------|----------|-----------|-------------|
-| `email` | string | Yes | Valid email | User email address |
-| `password` | string | Yes | Min 8 chars, max 100 | User password |
-| `firstName` | string | No | Max 255 chars | First name |
-| `lastName` | string | No | Max 255 chars | Last name |
+| Field       | Type   | Required | Validation           | Description        |
+| ----------- | ------ | -------- | -------------------- | ------------------ |
+| `email`     | string | Yes      | Valid email          | User email address |
+| `password`  | string | Yes      | Min 8 chars, max 100 | User password      |
+| `firstName` | string | No       | Max 255 chars        | First name         |
+| `lastName`  | string | No       | Max 255 chars        | Last name          |
 
 **Response (201 Created):**
 
@@ -391,11 +392,11 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Error Responses:**
 
-| Status | Condition | Response |
-|--------|-----------|----------|
-| 400 | Validation failed | `ValidationErrorDto` |
-| 409 | Email already registered | `ConflictErrorDto` |
-| 500 | Server error | `InternalServerErrorDto` |
+| Status | Condition                | Response                 |
+| ------ | ------------------------ | ------------------------ |
+| 400    | Validation failed        | `ValidationErrorDto`     |
+| 409    | Email already registered | `ConflictErrorDto`       |
+| 500    | Server error             | `InternalServerErrorDto` |
 
 **Behind the Scenes:**
 
@@ -422,9 +423,9 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Request Schema:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `token` | string | Yes | Email verification token from email |
+| Field   | Type   | Required | Description                         |
+| ------- | ------ | -------- | ----------------------------------- |
+| `token` | string | Yes      | Email verification token from email |
 
 **Response (200 OK):**
 
@@ -436,10 +437,10 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Error Responses:**
 
-| Status | Condition | Response |
-|--------|-----------|----------|
-| 400 | Invalid/expired token | `ValidationErrorDto` |
-| 500 | Server error | `InternalServerErrorDto` |
+| Status | Condition             | Response                 |
+| ------ | --------------------- | ------------------------ |
+| 400    | Invalid/expired token | `ValidationErrorDto`     |
+| 500    | Server error          | `InternalServerErrorDto` |
 
 **Behind the Scenes:**
 
@@ -466,10 +467,10 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Request Schema:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `email` | string | Yes | User email |
-| `password` | string | Yes | User password |
+| Field      | Type   | Required | Description   |
+| ---------- | ------ | -------- | ------------- |
+| `email`    | string | Yes      | User email    |
+| `password` | string | Yes      | User password |
 
 **Response (200 OK):**
 
@@ -489,30 +490,30 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Response Schema:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `user.id` | UUID | User unique identifier |
-| `user.email` | string | User email address |
-| `user.firstName` | string \| null | First name or null |
-| `user.lastName` | string \| null | Last name or null |
-| `user.platformRole` | string \| null | Platform role (null for regular users, 'system_admin' for admins) |
-| `tenants` | array | List of tenants user belongs to (empty array for new users) |
-| `pendingInvitationsCount` | number | Number of pending tenant invitations |
+| Field                     | Type           | Description                                                       |
+| ------------------------- | -------------- | ----------------------------------------------------------------- |
+| `user.id`                 | UUID           | User unique identifier                                            |
+| `user.email`              | string         | User email address                                                |
+| `user.firstName`          | string \| null | First name or null                                                |
+| `user.lastName`           | string \| null | Last name or null                                                 |
+| `user.platformRole`       | string \| null | Platform role (null for regular users, 'system_admin' for admins) |
+| `tenants`                 | array          | List of tenants user belongs to (empty array for new users)       |
+| `pendingInvitationsCount` | number         | Number of pending tenant invitations                              |
 
 **Cookies Set:**
 
-| Cookie | Value | Lifetime | HttpOnly |
-|--------|-------|----------|----------|
-| `identityAccessToken` | JWT | 15 min | Yes |
-| `identityRefreshToken` | JWT | 14 days | Yes |
+| Cookie                 | Value | Lifetime | HttpOnly |
+| ---------------------- | ----- | -------- | -------- |
+| `identityAccessToken`  | JWT   | 15 min   | Yes      |
+| `identityRefreshToken` | JWT   | 14 days  | Yes      |
 
 **Error Responses:**
 
-| Status | Condition | Response |
-|--------|-----------|----------|
-| 400 | Validation failed | `ValidationErrorDto` |
-| 401 | Invalid credentials or email not verified | `UnauthorizedErrorDto` |
-| 500 | Server error | `InternalServerErrorDto` |
+| Status | Condition                                 | Response                 |
+| ------ | ----------------------------------------- | ------------------------ |
+| 400    | Validation failed                         | `ValidationErrorDto`     |
+| 401    | Invalid credentials or email not verified | `UnauthorizedErrorDto`   |
+| 500    | Server error                              | `InternalServerErrorDto` |
 
 **Behind the Scenes:**
 
@@ -544,10 +545,10 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Request Schema:**
 
-| Field | Type | Required | Default | Validation | Description |
-|-------|------|----------|---------|-----------|-------------|
-| `name` | string | No | `"{email}'s Organization"` | Max 100 chars | Organization name |
-| `planKey` | enum | No | `"navigator"` | One of valid plan keys | Subscription plan |
+| Field     | Type   | Required | Default                    | Validation             | Description       |
+| --------- | ------ | -------- | -------------------------- | ---------------------- | ----------------- |
+| `name`    | string | No       | `"{email}'s Organization"` | Max 100 chars          | Organization name |
+| `planKey` | enum   | No       | `"navigator"`              | One of valid plan keys | Subscription plan |
 
 **Valid Plan Keys:** `navigator`, `architect`, `infrastructure` (see entitlements documentation for details)
 
@@ -571,40 +572,43 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Response Schema:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | UUID | Tenant unique identifier |
-| `plan` | string | Subscription plan key |
-| `is_active` | boolean | Tenant is active and operational |
-| `name` | string \| null | Organization name |
-| `slug` | string \| null | URL-safe identifier (auto-generated from name) |
-| `locale` | string | Default locale (e.g., 'en', 'ar') |
-| `timezone` | string | Default timezone (IANA format) |
-| `settings` | object | Flexible JSONB settings (empty by default) |
-| `onboarding_metadata` | object | Onboarding state tracking |
-| `created_at` | string (ISO 8601) | Creation timestamp |
-| `updated_at` | string (ISO 8601) | Last update timestamp |
+| Field                 | Type              | Description                                    |
+| --------------------- | ----------------- | ---------------------------------------------- |
+| `id`                  | UUID              | Tenant unique identifier                       |
+| `plan`                | string            | Subscription plan key                          |
+| `is_active`           | boolean           | Tenant is active and operational               |
+| `name`                | string \| null    | Organization name                              |
+| `slug`                | string \| null    | URL-safe identifier (auto-generated from name) |
+| `locale`              | string            | Default locale (e.g., 'en', 'ar')              |
+| `timezone`            | string            | Default timezone (IANA format)                 |
+| `settings`            | object            | Flexible JSONB settings (empty by default)     |
+| `onboarding_metadata` | object            | Onboarding state tracking                      |
+| `created_at`          | string (ISO 8601) | Creation timestamp                             |
+| `updated_at`          | string (ISO 8601) | Last update timestamp                          |
 
 **Error Responses:**
 
-| Status | Condition | Response |
-|--------|-----------|----------|
-| 400 | Validation failed or plan not active | `BadRequestErrorDto` |
-| 403 | Email not verified | `ForbiddenErrorDto` |
-| 404 | Plan not found | `NotFoundErrorDto` |
-| 409 | User already owns tenant or name taken | `ConflictErrorDto` |
-| 401 | Missing/invalid identity token | `UnauthorizedErrorDto` |
-| 500 | Server error | `InternalServerErrorDto` |
+| Status | Condition                              | Response                 |
+| ------ | -------------------------------------- | ------------------------ |
+| 400    | Validation failed or plan not active   | `BadRequestErrorDto`     |
+| 403    | Email not verified                     | `ForbiddenErrorDto`      |
+| 404    | Plan not found                         | `NotFoundErrorDto`       |
+| 409    | User already owns tenant or name taken | `ConflictErrorDto`       |
+| 401    | Missing/invalid identity token         | `UnauthorizedErrorDto`   |
+| 500    | Server error                           | `InternalServerErrorDto` |
 
 **Behind the Scenes:**
 
 - Tenant created with specified name (or default)
-- Subscription created with specified plan
-- Stripe subscription initiated (if Stripe enabled)
+- `tenant_subscriptions` row created atomically within the same transaction:
+  - `plan_id` resolved from `planKey` via `PlansRepository.findByKey()`
+  - `status` = `'active'`, `current_period_start` = NOW(), `current_period_end` = NOW() + 1 month
+  - `getCurrentSubscription(tenantId)` works immediately after creation
 - User linked as `tenant_admin` in `user_tenants` table
-- Entitlements from plan assigned to tenant
+- Entitlements resolved lazily on first access (from subscription)
 - Default settings applied (locale, timezone)
 - Tenant slug auto-generated from name
+- Stripe integration: TODO (not yet implemented)
 
 ---
 
@@ -624,9 +628,9 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Request Schema:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `tenantId` | UUID | Yes | Tenant ID to switch to |
+| Field      | Type | Required | Description            |
+| ---------- | ---- | -------- | ---------------------- |
+| `tenantId` | UUID | Yes      | Tenant ID to switch to |
 
 **Response (200 OK):**
 
@@ -647,33 +651,33 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Response Schema:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `tenant.id` | UUID | Selected tenant ID |
-| `tenant.name` | string | Organization name |
-| `user.id` | UUID | User ID |
-| `user.email` | string | User email |
-| `user.role` | string | User role within tenant (e.g., 'tenant_admin', 'member') |
-| `user.roleName` | string | Role display name |
+| Field           | Type   | Description                                              |
+| --------------- | ------ | -------------------------------------------------------- |
+| `tenant.id`     | UUID   | Selected tenant ID                                       |
+| `tenant.name`   | string | Organization name                                        |
+| `user.id`       | UUID   | User ID                                                  |
+| `user.email`    | string | User email                                               |
+| `user.role`     | string | User role within tenant (e.g., 'tenant_admin', 'member') |
+| `user.roleName` | string | Role display name                                        |
 
 **Cookies Set:**
 
-| Cookie | Value | Lifetime | HttpOnly |
-|--------|-------|----------|----------|
-| `tenantAccessToken` | JWT | 30 min | Yes |
-| `tenantRefreshToken` | JWT | 14 days | Yes |
-| `identityAccessToken` | Unchanged | Still valid | Yes |
-| `identityRefreshToken` | Unchanged | Still valid | Yes |
+| Cookie                 | Value     | Lifetime    | HttpOnly |
+| ---------------------- | --------- | ----------- | -------- |
+| `tenantAccessToken`    | JWT       | 30 min      | Yes      |
+| `tenantRefreshToken`   | JWT       | 14 days     | Yes      |
+| `identityAccessToken`  | Unchanged | Still valid | Yes      |
+| `identityRefreshToken` | Unchanged | Still valid | Yes      |
 
 **Error Responses:**
 
-| Status | Condition | Response |
-|--------|-----------|----------|
-| 400 | Validation failed | `ValidationErrorDto` |
-| 401 | Missing/invalid identity token | `UnauthorizedErrorDto` |
-| 403 | User doesn't belong to tenant | `ForbiddenErrorDto` |
-| 404 | Tenant not found | `NotFoundErrorDto` |
-| 500 | Server error | `InternalServerErrorDto` |
+| Status | Condition                      | Response                 |
+| ------ | ------------------------------ | ------------------------ |
+| 400    | Validation failed              | `ValidationErrorDto`     |
+| 401    | Missing/invalid identity token | `UnauthorizedErrorDto`   |
+| 403    | User doesn't belong to tenant  | `ForbiddenErrorDto`      |
+| 404    | Tenant not found               | `NotFoundErrorDto`       |
+| 500    | Server error                   | `InternalServerErrorDto` |
 
 **Behind the Scenes:**
 
