@@ -74,7 +74,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_high_memory" {
   alarm_name          = "${each.key}-high-memory"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
-  metric_name         = "MemoryUtilized"
+  metric_name         = "MemoryUtilization"
   namespace           = "ECS/ContainerInsights"
   period              = 300
   statistic           = "Average"

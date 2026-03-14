@@ -1,4 +1,5 @@
 import { databaseEnvSchema } from '@lib/database';
+import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
 
@@ -46,6 +47,9 @@ export const validationSchema = Joi.object({
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
   TEMPLATE_MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
+
+  // Logging
+  ...loggerEnvSchema,
 
   // Redis Configuration
   ...redisEnvSchema,

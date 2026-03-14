@@ -31,6 +31,8 @@ services:
       DB_PORT: 5432
       S3_ENDPOINT: http://minio:9000
       REDIS_HOST: redis
+      LOG_LEVEL: debug
+      SERVICE_NAME: gateway
     ports:
       - '${PORT:-3000}:3000'
     volumes:

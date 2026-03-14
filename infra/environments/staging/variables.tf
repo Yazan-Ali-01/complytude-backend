@@ -201,6 +201,13 @@ variable "ecs_worker_ingestion_desired_count" {
   default     = 1
 }
 
+# ---- Developer IAM Users ----
+variable "developer_usernames" {
+  description = "IAM usernames for developers (e.g. [\"john\", \"alice\"]). Each gets access keys with scoped permissions."
+  type        = list(string)
+  default     = []
+}
+
 # ---- Monitoring ----
 variable "alarm_email" {
   description = "Email for CloudWatch alarm notifications. Set in terraform.tfvars. Must confirm SNS subscription after first apply."

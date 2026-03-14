@@ -25,6 +25,8 @@ const sharedProjectConfig = {
     '^@nestjs/bullmq$':
       '<rootDir>/../../node_modules/@nestjs/bullmq/dist/index.js',
     '^src/(.*)$': '<rootDir>/src/$1',
+    '^@lib/context$': '<rootDir>/../../libs/context/src/index.ts',
+    '^@lib/context/(.*)$': '<rootDir>/../../libs/context/src/$1',
     '^@lib/database$': '<rootDir>/../../libs/database/src/index.ts',
     '^@lib/database/(.*)$': '<rootDir>/../../libs/database/src/$1',
     '^@lib/queue$': '<rootDir>/../../libs/queue/src/index.ts',
@@ -33,6 +35,8 @@ const sharedProjectConfig = {
     '^@lib/redis/(.*)$': '<rootDir>/../../libs/redis/src/$1',
     '^@lib/embedding$': '<rootDir>/../../libs/embedding/src/index.ts',
     '^@lib/embedding/(.*)$': '<rootDir>/../../libs/embedding/src/$1',
+    '^@lib/audit$': '<rootDir>/../../libs/audit/src/index.ts',
+    '^@lib/audit/(.*)$': '<rootDir>/../../libs/audit/src/$1',
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
   testEnvironment: 'node',
@@ -40,6 +44,34 @@ const sharedProjectConfig = {
 
 const skipIntegrationBootstrap =
   process.env.JEST_SKIP_INTEGRATION_BOOTSTRAP === '1';
+
+const libsUnitProjectConfig = {
+  displayName: 'unit',
+  rootDir: '<rootDir>/libs',
+  transform: {
+    '^.+\\.(t|j)s$': ['@swc/jest', swcTransformConfig],
+  },
+  moduleNameMapper: {
+    '^@lib/context$': '<rootDir>/context/src/index.ts',
+    '^@lib/context/(.*)$': '<rootDir>/context/src/$1',
+    '^@lib/logger$': '<rootDir>/logger/src/index.ts',
+    '^@lib/logger/(.*)$': '<rootDir>/logger/src/$1',
+    '^@lib/database$': '<rootDir>/database/src/index.ts',
+    '^@lib/database/(.*)$': '<rootDir>/database/src/$1',
+    '^@lib/queue$': '<rootDir>/queue/src/index.ts',
+    '^@lib/queue/(.*)$': '<rootDir>/queue/src/$1',
+    '^@lib/redis$': '<rootDir>/redis/src/index.ts',
+    '^@lib/redis/(.*)$': '<rootDir>/redis/src/$1',
+    '^@lib/embedding$': '<rootDir>/embedding/src/index.ts',
+    '^@lib/embedding/(.*)$': '<rootDir>/embedding/src/$1',
+    '^@lib/audit$': '<rootDir>/audit/src/index.ts',
+    '^@lib/audit/(.*)$': '<rootDir>/audit/src/$1',
+  },
+  moduleFileExtensions: ['ts', 'js', 'json'],
+  testEnvironment: 'node',
+  testMatch: ['<rootDir>/**/*.spec.ts'],
+  testPathIgnorePatterns: ['/node_modules/', '\\.integration\\.spec\\.ts$'],
+};
 
 const config = {
   watchman: false,
@@ -51,6 +83,7 @@ const config = {
       testMatch: ['<rootDir>/src/**/*.spec.ts'],
       testPathIgnorePatterns: ['/node_modules/', '\\.integration\\.spec\\.ts$'],
     },
+    libsUnitProjectConfig,
     {
       ...sharedProjectConfig,
       displayName: 'integration',
@@ -88,7 +121,8 @@ const config = {
     'apps/api/src/**/*.ts',
     '!apps/api/src/**/*.spec.ts',
     '!apps/api/src/**/*.integration.spec.ts',
-    // TODO: Add libs/*/src/**/*.ts when lib-level tests or cross-lib coverage is needed
+    'libs/*/src/**/*.ts',
+    '!libs/*/src/**/*.spec.ts',
   ],
   coverageProvider: 'v8',
 };
