@@ -199,16 +199,17 @@ export class AuthService {
   }
 
   /**
-   * Registers a new user and creates their first tenant.
+   * Registers a new user account.
    *
    * @remarks
-   * - Creates a new user account
-   * - Creates a new tenant with default plan and features
-   * - Links the user to the tenant with admin role in user_tenants table
+   * - Checks for existing email (throws ConflictException if taken)
+   * - Creates a new user account (unverified)
    * - Creates email verification token
+   * - Does NOT create a tenant — users create their organization
+   *   separately via POST /tenants after verifying their email
    *
    * @param signupDto - User registration information
-   * @returns An object containing a success message, userId, tenantId, and an email verification token (remove in production)
+   * @returns Success message (+ verificationToken in non-production)
    * @throws {ConflictException} if the email is already registered
    */
   async signup(signupDto: SignupDto): Promise<MessageResponseDto> {
