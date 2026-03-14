@@ -69,17 +69,17 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 
 ### Key Architectural Decisions
 
-| Decision             | Choice                    | Rationale                                         |
-| -------------------- | ------------------------- | ------------------------------------------------- |
-| **Framework**        | NestJS 11 with Fastify    | Performance, modularity, TypeScript-first         |
-| **Database**         | PostgreSQL 16 + pgvector  | JSONB support, RLS, vector similarity search      |
-| **Multi-Tenancy**    | Row-Level Security (RLS)  | Strong data isolation at database level           |
-| **Authentication**   | JWT with Passport         | Stateless, scalable, industry standard            |
-| **Background Jobs**  | BullMQ + Redis            | Reliable job processing, typed payloads           |
-| **AI/LLM**          | OpenAI API                | Document analysis, embedding generation           |
-| **Storage**          | S3-compatible (MinIO/AWS) | Scalable, tenant-isolated buckets                 |
-| **Validation**       | class-validator           | Declarative, type-safe validation                 |
-| **Documentation**    | Swagger/OpenAPI           | Auto-generated, interactive API docs              |
+| Decision            | Choice                    | Rationale                                    |
+| ------------------- | ------------------------- | -------------------------------------------- |
+| **Framework**       | NestJS 11 with Fastify    | Performance, modularity, TypeScript-first    |
+| **Database**        | PostgreSQL 16 + pgvector  | JSONB support, RLS, vector similarity search |
+| **Multi-Tenancy**   | Row-Level Security (RLS)  | Strong data isolation at database level      |
+| **Authentication**  | JWT with Passport         | Stateless, scalable, industry standard       |
+| **Background Jobs** | BullMQ + Redis            | Reliable job processing, typed payloads      |
+| **AI/LLM**          | OpenAI API                | Document analysis, embedding generation      |
+| **Storage**         | S3-compatible (MinIO/AWS) | Scalable, tenant-isolated buckets            |
+| **Validation**      | class-validator           | Declarative, type-safe validation            |
+| **Documentation**   | Swagger/OpenAPI           | Auto-generated, interactive API docs         |
 
 ---
 
@@ -267,25 +267,25 @@ graph TD
 
 ### Core Modules
 
-| Module              | Responsibility                                                          | Dependencies                 |
-| ------------------- | ----------------------------------------------------------------------- | ---------------------------- |
-| **auth**            | JWT authentication, signup, login, token refresh, invitation flows      | users, invitations, database |
-| **users**           | User management, profile updates                                        | database                     |
-| **tenants**         | Tenant creation, management, invitations                                | users, database              |
-| **invitations**     | Tenant invitations, accept/reject                                       | users, tenants, database     |
-| **tenant-rbac**     | Tenant-scoped RBAC (Global)                                             | database                     |
-| **platform-rbac**   | Platform-wide RBAC (Global)                                             | database                     |
-| **entitlements**    | Plan-based feature access, usage tracking, credit system (Global)       | database, subscriptions, queue |
-| **subscriptions**   | Subscription lifecycle (create, change plan, cancel, renew)             | database                     |
-| **audit**           | Audit logging (Global)                                                  | database                     |
-| **authorities**     | Regulatory authority management                                         | database                     |
-| **categories**      | Template category management                                            | database                     |
-| **templates**       | Template CRUD, versioning, field extraction                             | storage, database            |
-| **rulesets**        | Compliance rulesets with versioning                                      | database                     |
-| **documents**       | Document generation and management                                      | templates, storage, database |
-| **storage**         | File upload/download, S3 integration                                    | database                     |
-| **health**          | Health checks for services                                              | database, redis              |
-| **mock**            | Development/testing mock endpoints                                      | entitlements, rbac           |
+| Module            | Responsibility                                                     | Dependencies                   |
+| ----------------- | ------------------------------------------------------------------ | ------------------------------ |
+| **auth**          | JWT authentication, signup, login, token refresh, invitation flows | users, invitations, database   |
+| **users**         | User management, profile updates                                   | database                       |
+| **tenants**       | Tenant creation, management, invitations                           | users, database                |
+| **invitations**   | Tenant invitations, accept/reject                                  | users, tenants, database       |
+| **tenant-rbac**   | Tenant-scoped RBAC (Global)                                        | database                       |
+| **platform-rbac** | Platform-wide RBAC (Global)                                        | database                       |
+| **entitlements**  | Plan-based feature access, usage tracking, credit system (Global)  | database, subscriptions, queue |
+| **subscriptions** | Subscription lifecycle (create, change plan, cancel, renew)        | database                       |
+| **audit**         | Audit logging (Global)                                             | database                       |
+| **authorities**   | Regulatory authority management                                    | database                       |
+| **categories**    | Template category management                                       | database                       |
+| **templates**     | Template CRUD, versioning, field extraction                        | storage, database              |
+| **rulesets**      | Compliance rulesets with versioning                                | database                       |
+| **documents**     | Document generation and management                                 | templates, storage, database   |
+| **storage**       | File upload/download, S3 integration                               | database                       |
+| **health**        | Health checks for services                                         | database, redis                |
+| **mock**          | Development/testing mock endpoints                                 | entitlements, rbac             |
 
 ---
 
@@ -390,13 +390,13 @@ Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
 
 ### Session Context Variables
 
-| Variable | Set By | SQL Helper | Purpose |
-|----------|--------|------------|---------|
-| `app.tenant_id` | `transactionWithTenantContext` | `current_tenant_id_or_null()` | Current tenant for RLS filtering |
-| `app.is_tenant_admin` | `transactionWithTenantContext` | `is_tenant_admin()` | Allow UPDATE/DELETE on tenant data |
-| `app.allow_cross_tenant_read` | `transactionWithTenantContext` | `allow_cross_tenant_read()` | Cross-tenant SELECT (slug checks) |
-| `app.platform_role` | `transactionWithPlatformAdminContext` | `is_platform_admin()` | System admin bypasses tenant RLS |
-| `app.is_auth_flow` | Set manually in auth flows | `is_auth_flow()` | Allow INSERT during signup/login |
+| Variable                      | Set By                                | SQL Helper                    | Purpose                            |
+| ----------------------------- | ------------------------------------- | ----------------------------- | ---------------------------------- |
+| `app.tenant_id`               | `transactionWithTenantContext`        | `current_tenant_id_or_null()` | Current tenant for RLS filtering   |
+| `app.is_tenant_admin`         | `transactionWithTenantContext`        | `is_tenant_admin()`           | Allow UPDATE/DELETE on tenant data |
+| `app.allow_cross_tenant_read` | `transactionWithTenantContext`        | `allow_cross_tenant_read()`   | Cross-tenant SELECT (slug checks)  |
+| `app.platform_role`           | `transactionWithPlatformAdminContext` | `is_platform_admin()`         | System admin bypasses tenant RLS   |
+| `app.is_auth_flow`            | Set manually in auth flows            | `is_auth_flow()`              | Allow INSERT during signup/login   |
 
 ### Tenant Context Flow
 
@@ -406,10 +406,10 @@ Request → JWT Validation → Extract tenant_id → transactionWithTenantContex
 
 ### Global vs Tenant-Scoped Tables
 
-| Type              | Tables                                                                   | RLS    | Access                    |
-| ----------------- | ------------------------------------------------------------------------ | ------ | ------------------------- |
-| **Global**        | authorities, categories, templates, features, plans, addons              | ❌ No  | Shared across all tenants |
-| **Tenant-Scoped** | documents, tenant_subscriptions, tenant_addons, tenant_overrides, usage_ledger, credit_ledger, etc. | ✅ Yes | Isolated per tenant |
+| Type              | Tables                                                                                              | RLS    | Access                    |
+| ----------------- | --------------------------------------------------------------------------------------------------- | ------ | ------------------------- |
+| **Global**        | authorities, categories, templates, features, plans, addons                                         | ❌ No  | Shared across all tenants |
+| **Tenant-Scoped** | documents, tenant_subscriptions, tenant_addons, tenant_overrides, usage_ledger, credit_ledger, etc. | ✅ Yes | Isolated per tenant       |
 
 ### Tenant Creation Flow
 
@@ -419,18 +419,29 @@ When a new tenant is created (via `POST /tenants` or during signup), the system 
 // TenantService.createTenantForUser()
 await this.executeInTenantScope('', { mode: 'platform' }, async (client) => {
   // 1. Create tenant record
-  const tenant = await this.tenantRepository.create({ name, is_active: true }, { client });
-  
+  const tenant = await this.tenantRepository.create(
+    { name, is_active: true },
+    { client },
+  );
+
   // 2. Link user as tenant_admin
-  await this.userTenantRepository.linkUserToTenant({
-    userId, tenantId: tenant.id, roleKey: 'tenant_admin'
-  }, { client });
-  
+  await this.userTenantRepository.linkUserToTenant(
+    {
+      userId,
+      tenantId: tenant.id,
+      roleKey: 'tenant_admin',
+    },
+    { client },
+  );
+
   // 3. Create subscription (defaults to 'navigator' plan)
   await this.subscriptionsService.createSubscription(
-    tenant.id, planKey ?? 'navigator', userId, { client }
+    tenant.id,
+    planKey ?? 'navigator',
+    userId,
+    { client },
   );
-  
+
   return tenant;
 });
 ```
@@ -511,21 +522,34 @@ Complytude implements a sophisticated dual-token authentication system that sepa
 
 The system uses **four distinct token types**:
 
-1. **Identity Access Token:** Short-lived (15 minutes), contains user identity and global roles, used for tenant selection and system admin operations
+1. **Identity Access Token:** Short-lived (15 minutes), contains user identity (userId, email, `isVerified`), and global roles, used for tenant selection and system admin operations
 2. **Identity Refresh Token:** Long-lived (14 days), used to obtain new identity access tokens
 3. **Tenant Access Token:** Short-lived (30 minutes), contains user + tenant info, used for tenant-scoped API access
 4. **Tenant Refresh Token:** Long-lived (14 days), tenant-specific, used to obtain new tenant access tokens
 
 All tokens are stored in HTTP-only cookies and refresh tokens are persisted in the database with type tracking (`identity` or `tenant`).
 
+**Identity Access Token Payload:**
+
+```json
+{
+  "sub": "user-id",
+  "email": "user@example.com",
+  "isVerified": true,
+  "platformRole": "system_admin" | "support" | "auditor" | null,
+  "type": "identity"
+}
+```
+
 ### Authorization Levels
 
 1. **Route-Level:** `JwtAuthGuard` with `@AuthOptions()` decorator validates required tokens
 2. **Identity-Level:** Identity tokens for user verification and system admin access
-3. **Tenant-Level:** Tenant tokens provide tenant-scoped access
-4. **Role-Level:** `RolesGuard` with `@Roles()` for simple role checks (e.g., `tenant_admin`)
-5. **Permission-Level:** `TenantPermissionsGuard` with `@RequirePermissions()` decorators for fine-grained RBAC
-6. **Data-Level:** RLS policies enforce tenant isolation at database level
+3. **Verified User-Level:** `VerifiedUserGuard` ensures email verification before critical operations (e.g., tenant creation)
+4. **Tenant-Level:** Tenant tokens provide tenant-scoped access
+5. **Role-Level:** `RolesGuard` with `@Roles()` for simple role checks (e.g., `tenant_admin`)
+6. **Permission-Level:** `TenantPermissionsGuard` with `@RequirePermissions()` decorators for fine-grained RBAC
+7. **Data-Level:** RLS policies enforce tenant isolation at database level
 
 ### Authentication Decorators
 
@@ -565,6 +589,14 @@ async createDocument(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
 @Roles('tenant_admin')
 @Post('admin-settings')
 async updateAdminSettings(@CurrentUserTenant() tenant: AuthenticatedTenantUser) { }
+
+// Email verification required (e.g., tenant creation)
+@AuthOptions({ identity: true })
+@UseGuards(VerifiedUserGuard)
+@Post('tenants')
+async createTenant(
+  @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+) { }
 ```
 
 ---
@@ -582,17 +614,17 @@ Complytude implements a **dual-level RBAC system** for authorization:
 
 #### Tenant RBAC (Tenant-Scoped Authorization)
 
-**Authentication:** Requires tenant token (`tenantAccessToken` cookie)  
+**Authentication:** Requires tenant token (`tenantAccessToken` cookie)
 **Use Cases:** Document operations, team management, tenant settings
 
 **System Roles:**
 
-| Role | Key | Permissions | Description |
-|------|-----|-------------|-------------|
-| **Tenant Admin** | `tenant_admin` | `*:*` | Full access to all tenant features |
-| **Legal Counsel** | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query` | AI drafting, analysis, templates |
-| **Member** | `member` | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation |
-| **Viewer** | `viewer` | `documents:read`, `regulatory:query` | Read-only access |
+| Role              | Key             | Permissions                                                               | Description                        |
+| ----------------- | --------------- | ------------------------------------------------------------------------- | ---------------------------------- |
+| **Tenant Admin**  | `tenant_admin`  | `*:*`                                                                     | Full access to all tenant features |
+| **Legal Counsel** | `legal_counsel` | `documents:*`, `contracts:*`, `templates:*`, `regulatory:query`           | AI drafting, analysis, templates   |
+| **Member**        | `member`        | `documents:create`, `documents:read`, `templates:use`, `regulatory:query` | Basic document creation            |
+| **Viewer**        | `viewer`        | `documents:read`, `regulatory:query`                                      | Read-only access                   |
 
 **Usage Example:**
 
@@ -609,16 +641,16 @@ async createDocument(@CurrentUserTenant() user: AuthenticatedTenantUser) {
 
 #### Platform RBAC (Platform-Wide Authorization)
 
-**Authentication:** Requires identity token (`identityAccessToken` cookie)  
+**Authentication:** Requires identity token (`identityAccessToken` cookie)
 **Use Cases:** Tenant management, global templates, system administration
 
 **System Roles:**
 
-| Role | Key | Permissions | Description |
-|------|-----|-------------|-------------|
-| **System Admin** | `system_admin` | `*:*` | Full access to all platform features |
-| **Support** | `support` | `tenants:read`, `users:read`, `plans:read`, `subscriptions:read`, etc. | Read-only support access |
-| **Auditor** | `auditor` | `tenants:read`, `users:read`, `audit:read`, `entitlements:read` | Audit and compliance access |
+| Role             | Key            | Permissions                                                            | Description                          |
+| ---------------- | -------------- | ---------------------------------------------------------------------- | ------------------------------------ |
+| **System Admin** | `system_admin` | `*:*`                                                                  | Full access to all platform features |
+| **Support**      | `support`      | `tenants:read`, `users:read`, `plans:read`, `subscriptions:read`, etc. | Read-only support access             |
+| **Auditor**      | `auditor`      | `tenants:read`, `users:read`, `audit:read`, `entitlements:read`        | Audit and compliance access          |
 
 **Usage Example:**
 
@@ -961,11 +993,11 @@ Entitlement jobs (snapshot rebuild, domain event fanout, credit events) are ligh
 
 ### Queue Names
 
-| Constant | Redis key | Producer | Consumer |
-|---|---|---|---|
-| `QUEUE_NAMES.AI_PROCESSING` | `ai-processing` | API | worker-ai |
-| `QUEUE_NAMES.DATA_INGESTION` | `data-ingestion` | API | worker-ingestion |
-| `QUEUE_NAMES.ENTITLEMENT_PROCESSING` | `entitlement-processing` | API | API |
+| Constant                             | Redis key                | Producer | Consumer         |
+| ------------------------------------ | ------------------------ | -------- | ---------------- |
+| `QUEUE_NAMES.AI_PROCESSING`          | `ai-processing`          | API      | worker-ai        |
+| `QUEUE_NAMES.DATA_INGESTION`         | `data-ingestion`         | API      | worker-ingestion |
+| `QUEUE_NAMES.ENTITLEMENT_PROCESSING` | `entitlement-processing` | API      | API              |
 
 ### QueueProducerService
 
@@ -988,6 +1020,7 @@ await this.queue.add('snapshot-rebuild', { tenantId: '...' }); // no type safety
 ```
 
 **Benefits of `QueueProducerService`:**
+
 - Compile-time job name validation — wrong job name for a queue = TS error
 - Compile-time payload typing — wrong data shape = TS error
 - Centralized retry/DLQ behavior and observability hooks
@@ -1019,6 +1052,7 @@ export class EntitlementProcessor extends AbstractProcessor<EntitlementSnapshotR
 ```
 
 **What `AbstractProcessor` standardizes:**
+
 - Structured logging: `Job started [name] id=X attempt=N`, `Job completed [...] elapsed=Xms`, `Job failed (retryable) [...]`
 - Duration measurement: `elapsed_ms` logged on completion and failure
 - Error classification: `RetryableError` triggers BullMQ retry; `PermanentError` is converted to `UnrecoverableError` (skips retries, moves to failed)
@@ -1028,25 +1062,26 @@ export class EntitlementProcessor extends AbstractProcessor<EntitlementSnapshotR
 
 Configured in `libs/queue/src/queue.config.ts`:
 
-| Setting | Value |
-|---|---|
-| Attempts | 3 |
-| Backoff type | Exponential |
-| Delays | 1s → 2s → 4s |
+| Setting                 | Value             |
+| ----------------------- | ----------------- |
+| Attempts                | 3                 |
+| Backoff type            | Exponential       |
+| Delays                  | 1s → 2s → 4s      |
 | Completed job retention | 24h or last 1,000 |
-| Failed job retention | 7 days |
+| Failed job retention    | 7 days            |
 
 ### Error Classification
 
-| Error class | Behavior |
-|---|---|
-| `RetryableError` | Re-thrown as-is; BullMQ applies exponential backoff and retries up to `attempts` times |
-| `PermanentError` | Converted to BullMQ's `UnrecoverableError`; job moves immediately to failed, no retries |
-| Retries exhausted | `onDeadLetter()` hook fires in the processor |
+| Error class       | Behavior                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| `RetryableError`  | Re-thrown as-is; BullMQ applies exponential backoff and retries up to `attempts` times  |
+| `PermanentError`  | Converted to BullMQ's `UnrecoverableError`; job moves immediately to failed, no retries |
+| Retries exhausted | `onDeadLetter()` hook fires in the processor                                            |
 
 ### Graceful Shutdown
 
 `app.enableShutdownHooks()` is called in `main.ts`. On `SIGTERM`/`SIGINT`:
+
 1. NestJS fires `onModuleDestroy` on all providers
 2. `@nestjs/bullmq` workers drain active jobs before closing
 3. `RedisService` closes the Redis connection

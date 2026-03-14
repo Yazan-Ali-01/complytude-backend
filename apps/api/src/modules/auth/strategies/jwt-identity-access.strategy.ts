@@ -46,6 +46,7 @@ export class JwtIdentityAccessStrategy extends PassportStrategy(
     return {
       userId: payload.sub,
       email: payload.email,
+      isVerified: payload.isVerified ?? false,
       platformRole: payload.platformRole ?? null,
     };
   }

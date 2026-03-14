@@ -312,7 +312,12 @@ export class AuthService {
 
     // Generate identity tokens (access + refresh)
     const { identityAccessToken, identityRefreshToken } =
-      await this.generateIdentityTokens(user.id, user.email, platformRole);
+      await this.generateIdentityTokens(
+        user.id,
+        user.email,
+        user.is_verified,
+        platformRole,
+      );
 
     // Get user's active tenants
     const userTenants = await this.userTenantRepository.getActiveUserTenants(
@@ -398,11 +403,13 @@ export class AuthService {
   async generateIdentityTokens(
     userId: string,
     email: string,
+    isVerified: boolean,
     platformRole: string | null,
   ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     const accessPayload: IdentityPayload = {
       sub: userId,
       email,
+      isVerified,
       platformRole,
       type: 'identity',
     };
@@ -607,6 +614,7 @@ export class AuthService {
     const tokens = await this.generateIdentityTokens(
       userId,
       email,
+      user.is_verified,
       platformRole,
     );
 

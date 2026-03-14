@@ -7,6 +7,7 @@ export const IDENTITY_PAYLOAD_TYPE = 'identity';
 export interface IdentityPayload {
   sub: string; // userId
   email: string;
+  isVerified: boolean; // Email verification status
   platformRole: string | null; // 'system_admin', 'support', 'auditor', or null
   type: typeof IDENTITY_PAYLOAD_TYPE;
 }
@@ -14,6 +15,7 @@ export interface IdentityPayload {
 export interface AuthenticatedIdentityUser {
   userId: string;
   email: string;
+  isVerified: boolean;
   platformRole: string | null;
 }
 

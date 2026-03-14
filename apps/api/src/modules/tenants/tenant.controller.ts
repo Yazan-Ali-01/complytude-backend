@@ -25,6 +25,7 @@ import { RequireEntitlement } from 'src/common/decorators/require-entitlement.de
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
+import { VerifiedUserGuard } from 'src/common/guards/verified-user.guard';
 import { FastifyMultipartInterceptor } from 'src/common/interceptors/fastify-multipart.interceptor';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import type { MulterLikeFile } from '../../common/interfaces/multer-file.interface';
@@ -33,7 +34,6 @@ import {
   CurrentUserIdentity,
   CurrentUserTenant,
 } from '../auth/decorators/current-user.decorator';
-import { VerifiedUserGuard } from '../auth/guards/verified-user.guard';
 import type {
   AuthenticatedIdentityUser,
   AuthenticatedTenantUser,
