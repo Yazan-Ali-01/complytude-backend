@@ -40,7 +40,10 @@ import type {
 } from '../auth/strategies';
 import { TenantsI18n } from './constants/i18n.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
-import { TenantResponseDto } from './dto/tenant-response.dto';
+import {
+  TenantResponseDto,
+  TenantResponseInput,
+} from './dto/tenant-response.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
 import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
@@ -141,7 +144,9 @@ export class TenantController {
       { mode: 'platform' }, // TODO replace with tenant mode
     );
 
-    return new TenantResponseDto(tenant);
+    const planKey = createTenantDto.planKey ?? 'navigator';
+    const input: TenantResponseInput = { ...tenant, plan: planKey };
+    return new TenantResponseDto(input);
   }
 
   /**

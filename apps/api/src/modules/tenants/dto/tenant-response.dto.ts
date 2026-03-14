@@ -3,8 +3,11 @@ import { ALL_PLAN_KEYS } from '../../../common/constants/plan-entitlements.const
 import type { PlanKey } from '../../../common/types/entitlement.types';
 import { Tenant } from '../entities/tenant.entity';
 
+/** Input for TenantResponseDto - Tenant plus optional plan (from subscription) */
+export type TenantResponseInput = Tenant & { plan?: PlanKey };
+
 export class TenantResponseDto {
-  constructor(data: Tenant) {
+  constructor(data: TenantResponseInput) {
     Object.assign(this, data);
   }
   @ApiProperty({

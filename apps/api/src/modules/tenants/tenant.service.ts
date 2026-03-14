@@ -343,6 +343,9 @@ export class TenantService {
           `Tenant creation complete: id=${tenant.id}, user=${userId}`,
         );
 
+        // TODO: After Stripe integration - fire-and-forget customer creation:
+        // void stripeCustomerService.createCustomerForTenant(tenant, email, userId)
+
         return tenant;
       },
       {

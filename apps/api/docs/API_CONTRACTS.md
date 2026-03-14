@@ -599,16 +599,17 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Behind the Scenes:**
 
-- Tenant created with specified name (or default)
+- **Transaction (all-or-nothing):** Entire operation runs in a single database transaction via `transactionWithPlatformAdminContext`. If any step fails, everything rolls back.
+- Tenant created with specified name (or `"{email}'s Organization"` if omitted)
+- User linked as `tenant_admin` in `user_tenants` table (within same transaction)
 - `tenant_subscriptions` row created atomically within the same transaction:
   - `plan_id` resolved from `planKey` via `PlansRepository.findByKey()`
   - `status` = `'active'`, `current_period_start` = NOW(), `current_period_end` = NOW() + 1 month
   - `getCurrentSubscription(tenantId)` works immediately after creation
-- User linked as `tenant_admin` in `user_tenants` table
 - Entitlements resolved lazily on first access (from subscription)
-- Default settings applied (locale, timezone)
-- Tenant slug auto-generated from name
-- Stripe integration: TODO (not yet implemented)
+- Default settings applied (locale: `en`, timezone: `Asia/Dubai`)
+- Tenant slug is `null` on creation; user can set via `PATCH /tenants/me/slug` later
+- **Stripe:** Fire-and-forget customer creation planned; TODO when Stripe service is implemented
 
 ---
 
