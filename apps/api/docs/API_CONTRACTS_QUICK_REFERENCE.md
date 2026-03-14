@@ -71,6 +71,7 @@ import {
   RequireAnyTenantPermission,
 } from 'src/common/decorators/permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/permissions.guard';
+import { VerifiedUserGuard } from 'src/common/guards/verified-user.guard';
 
 // Role decorators (simple role checks)
 import { Roles } from 'src/modules/auth/decorators/roles.decorator';
@@ -156,6 +157,29 @@ async create(
   @Body() dto: CreateResourceDto,
   @CurrentUserTenant() user: AuthenticatedTenantUser,
 ): Promise<ResourceResponseDto> {
+  // Implementation
+  return;
+}
+```
+
+### 3a. Create Self-Service Tenant (Identity-Based POST)
+
+```typescript
+@Post('tenants')
+@AuthOptions({ identity: true })
+@UseGuards(VerifiedUserGuard)
+@ApiOperation({
+  summary: 'Create a new tenant (organization)',
+  description: 'Self-service tenant creation for verified users. Requires identity token and verified email.',
+})
+@ApiCreateResponses(TenantResponseDto, 'Tenant')
+@ApiForbiddenError('Email not verified')
+@ApiConflictError('User already has a tenant')
+@ApiNotFoundError('Plan not found')
+async createTenant(
+  @Body() dto: CreateTenantDto,
+  @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+): Promise<TenantResponseDto> {
   // Implementation
   return;
 }

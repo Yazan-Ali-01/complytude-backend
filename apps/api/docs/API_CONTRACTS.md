@@ -2,7 +2,7 @@
 
 > **Purpose:** Define standards and conventions for API contract definition across all modules
 
-**Last Updated:** March 10, 2026
+**Last Updated:** March 14, 2026
 **Status:** Foundation Complete
 
 ---
@@ -12,6 +12,7 @@
 - [Overview](#overview)
 - [API Versioning](#api-versioning)
 - [Authentication Strategy](#authentication-strategy)
+- [Complete Signup-to-Operational Flow](#complete-signup-to-operational-flow)
 - [Request Contracts](#request-contracts)
 - [Response Contracts](#response-contracts)
 - [Error Handling](#error-handling)
@@ -315,10 +316,9 @@ async createDocument() { ... }
 
 // Platform permission-protected endpoint
 @AuthOptions({ identity: true })
-@UseGuards(PlatformPermissionsGuard)
-@RequireAnyPlatformPermission('tenants:create')
-@ApiProtectedResponses('Requires tenants:create permission')
-@Post('admin/tenants')
+@UseGuards(VerifiedUserGuard)
+@ApiProtectedResponses('Requires verified email')
+@Post('tenants')
 async createTenant() { ... }
 
 // Role-protected endpoint (simple role check)
@@ -328,6 +328,382 @@ async createTenant() { ... }
 @ApiProtectedResponses('Requires tenant_admin role')
 @Post('admin-settings')
 async updateAdminSettings() { ... }
+```
+
+---
+
+## Complete Signup-to-Operational Flow
+
+This section documents the entire user journey from initial signup to operational access within a tenant.
+
+### Overview
+
+New users follow this 5-step flow:
+1. **Register** - Create account (email + password)
+2. **Verify** - Confirm email address
+3. **Login** - Authenticate and receive identity tokens
+4. **Create Organization** - Create first tenant (self-service)
+5. **Switch Tenant** - Activate tenant and receive tenant tokens
+
+After completing this flow, users have full tenant access with tenant tokens set as cookies.
+
+### Frontend Integration Notes
+
+- After **Login**: Check if `tenants.length === 0` to determine if user needs onboarding
+- After **Create Organization**: Must immediately call **Switch Tenant** to activate the tenant
+- **Limbo State**: User is logged in (identity token valid) but not in any tenant (no tenant token) - show onboarding UI
+- **Identity Token Lifetime**: 15 minutes - refresh using `/auth/refresh/identity` endpoint
+- **Tenant Token Lifetime**: 30 minutes - refresh using `/auth/refresh/tenant` endpoint
+
+### Step 1: Register New User Account
+
+**Endpoint:** `POST /api/v1/auth/signup`
+
+**Authentication:** None (public endpoint)
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "SecurePassword123!",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+```
+
+**Request Schema:**
+
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|-----------|-------------|
+| `email` | string | Yes | Valid email | User email address |
+| `password` | string | Yes | Min 8 chars, max 100 | User password |
+| `firstName` | string | No | Max 255 chars | First name |
+| `lastName` | string | No | Max 255 chars | Last name |
+
+**Response (201 Created):**
+
+```json
+{
+  "message": "User registered successfully. Verification email sent."
+}
+```
+
+**Error Responses:**
+
+| Status | Condition | Response |
+|--------|-----------|----------|
+| 400 | Validation failed | `ValidationErrorDto` |
+| 409 | Email already registered | `ConflictErrorDto` |
+| 500 | Server error | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- User account created with email and hashed password
+- Email verification token generated
+- Verification email sent to user (dev mode: token included in response)
+- User account is created but **email is not verified** (cannot proceed until verified)
+
+---
+
+### Step 2: Verify Email Address
+
+**Endpoint:** `POST /api/v1/auth/verify-email`
+
+**Authentication:** None (public endpoint)
+
+**Request Body:**
+
+```json
+{
+  "token": "abc123def456ghi789"
+}
+```
+
+**Request Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `token` | string | Yes | Email verification token from email |
+
+**Response (200 OK):**
+
+```json
+{
+  "message": "Email verified successfully"
+}
+```
+
+**Error Responses:**
+
+| Status | Condition | Response |
+|--------|-----------|----------|
+| 400 | Invalid/expired token | `ValidationErrorDto` |
+| 500 | Server error | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- Verification token validated
+- User's `email_verified_at` timestamp updated
+- User can now proceed to login and create tenant
+
+---
+
+### Step 3: Login
+
+**Endpoint:** `POST /api/v1/auth/login`
+
+**Authentication:** None (public endpoint)
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "SecurePassword123!"
+}
+```
+
+**Request Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | User email |
+| `password` | string | Yes | User password |
+
+**Response (200 OK):**
+
+```json
+{
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "platformRole": null
+  },
+  "tenants": [],
+  "pendingInvitationsCount": 0
+}
+```
+
+**Response Schema:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user.id` | UUID | User unique identifier |
+| `user.email` | string | User email address |
+| `user.firstName` | string \| null | First name or null |
+| `user.lastName` | string \| null | Last name or null |
+| `user.platformRole` | string \| null | Platform role (null for regular users, 'system_admin' for admins) |
+| `tenants` | array | List of tenants user belongs to (empty array for new users) |
+| `pendingInvitationsCount` | number | Number of pending tenant invitations |
+
+**Cookies Set:**
+
+| Cookie | Value | Lifetime | HttpOnly |
+|--------|-------|----------|----------|
+| `identityAccessToken` | JWT | 15 min | Yes |
+| `identityRefreshToken` | JWT | 14 days | Yes |
+
+**Error Responses:**
+
+| Status | Condition | Response |
+|--------|-----------|----------|
+| 400 | Validation failed | `ValidationErrorDto` |
+| 401 | Invalid credentials or email not verified | `UnauthorizedErrorDto` |
+| 500 | Server error | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- Email and password validated
+- User's email must be verified (enforced)
+- Identity tokens generated (short + long-lived)
+- Tokens set as HTTP-only cookies
+- List of user's existing tenants returned
+- **For new users:** `tenants` array is empty
+
+---
+
+### Step 4: Create Organization (Self-Service)
+
+**Endpoint:** `POST /api/v1/tenants`
+
+**Authentication:** Identity token required (from Step 3)
+
+**Authorization:** User must have verified email
+
+**Request Body:**
+
+```json
+{
+  "name": "Acme Legal LLC",
+  "planKey": "navigator"
+}
+```
+
+**Request Schema:**
+
+| Field | Type | Required | Default | Validation | Description |
+|-------|------|----------|---------|-----------|-------------|
+| `name` | string | No | `"{email}'s Organization"` | Max 100 chars | Organization name |
+| `planKey` | enum | No | `"navigator"` | One of valid plan keys | Subscription plan |
+
+**Valid Plan Keys:** `navigator`, `architect`, `infrastructure` (see entitlements documentation for details)
+
+**Response (201 Created):**
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "plan": "navigator",
+  "is_active": true,
+  "name": "Acme Legal LLC",
+  "slug": "acme-legal-llc",
+  "locale": "en",
+  "timezone": "Asia/Dubai",
+  "settings": {},
+  "onboarding_metadata": {},
+  "created_at": "2026-03-14T10:00:00.000Z",
+  "updated_at": "2026-03-14T10:00:00.000Z"
+}
+```
+
+**Response Schema:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID | Tenant unique identifier |
+| `plan` | string | Subscription plan key |
+| `is_active` | boolean | Tenant is active and operational |
+| `name` | string \| null | Organization name |
+| `slug` | string \| null | URL-safe identifier (auto-generated from name) |
+| `locale` | string | Default locale (e.g., 'en', 'ar') |
+| `timezone` | string | Default timezone (IANA format) |
+| `settings` | object | Flexible JSONB settings (empty by default) |
+| `onboarding_metadata` | object | Onboarding state tracking |
+| `created_at` | string (ISO 8601) | Creation timestamp |
+| `updated_at` | string (ISO 8601) | Last update timestamp |
+
+**Error Responses:**
+
+| Status | Condition | Response |
+|--------|-----------|----------|
+| 400 | Validation failed or plan not active | `BadRequestErrorDto` |
+| 403 | Email not verified | `ForbiddenErrorDto` |
+| 404 | Plan not found | `NotFoundErrorDto` |
+| 409 | User already owns tenant or name taken | `ConflictErrorDto` |
+| 401 | Missing/invalid identity token | `UnauthorizedErrorDto` |
+| 500 | Server error | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- Tenant created with specified name (or default)
+- Subscription created with specified plan
+- Stripe subscription initiated (if Stripe enabled)
+- User linked as `tenant_admin` in `user_tenants` table
+- Entitlements from plan assigned to tenant
+- Default settings applied (locale, timezone)
+- Tenant slug auto-generated from name
+
+---
+
+### Step 5: Switch to Tenant (Activate)
+
+**Endpoint:** `POST /api/v1/auth/tenant-switch`
+
+**Authentication:** Identity token required (from Step 3)
+
+**Request Body:**
+
+```json
+{
+  "tenantId": "11111111-1111-4111-8111-111111111111"
+}
+```
+
+**Request Schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tenantId` | UUID | Yes | Tenant ID to switch to |
+
+**Response (200 OK):**
+
+```json
+{
+  "tenant": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "Acme Legal LLC"
+  },
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "role": "tenant_admin",
+    "roleName": "Tenant Admin"
+  }
+}
+```
+
+**Response Schema:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tenant.id` | UUID | Selected tenant ID |
+| `tenant.name` | string | Organization name |
+| `user.id` | UUID | User ID |
+| `user.email` | string | User email |
+| `user.role` | string | User role within tenant (e.g., 'tenant_admin', 'member') |
+| `user.roleName` | string | Role display name |
+
+**Cookies Set:**
+
+| Cookie | Value | Lifetime | HttpOnly |
+|--------|-------|----------|----------|
+| `tenantAccessToken` | JWT | 30 min | Yes |
+| `tenantRefreshToken` | JWT | 14 days | Yes |
+| `identityAccessToken` | Unchanged | Still valid | Yes |
+| `identityRefreshToken` | Unchanged | Still valid | Yes |
+
+**Error Responses:**
+
+| Status | Condition | Response |
+|--------|-----------|----------|
+| 400 | Validation failed | `ValidationErrorDto` |
+| 401 | Missing/invalid identity token | `UnauthorizedErrorDto` |
+| 403 | User doesn't belong to tenant | `ForbiddenErrorDto` |
+| 404 | Tenant not found | `NotFoundErrorDto` |
+| 500 | Server error | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- User's membership in specified tenant validated
+- Tenant access permissions verified
+- Tenant tokens generated (short + long-lived)
+- Tokens set as HTTP-only cookies
+- Identity tokens remain valid (user still authenticated)
+- Both identity and tenant contexts available to subsequent requests
+
+---
+
+### Complete Flow Example
+
+```
+USER JOURNEY:
+1. Frontend calls POST /auth/signup
+   ↓ User receives verification email
+2. User clicks link, Frontend extracts token
+3. Frontend calls POST /auth/verify-email with token
+   ↓ Email verified
+4. Frontend calls POST /auth/login
+   ↓ Identity tokens set as cookies, response shows tenants: []
+5. Frontend detects empty tenants array, shows "Create Organization" form
+6. Frontend calls POST /tenants with name + plan
+   ↓ Tenant created, subscription started
+7. Frontend calls POST /auth/tenant-switch with tenantId
+   ↓ Tenant tokens set as cookies
+8. Frontend shows main app - user now has full tenant access
+   ↓ Subsequent requests use tenantAccessToken automatically (browser sends cookies)
 ```
 
 ---
