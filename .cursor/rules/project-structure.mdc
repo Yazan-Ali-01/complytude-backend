@@ -437,7 +437,17 @@ Data access layer with repository pattern. All repositories extend `BaseReposito
 
 ### Feature Modules (`apps/api/src/modules/`)
 
-**18 modules total:** auth, audit, authorities, categories, documents, entitlements, health, invitations, mock, platform-rbac, rag-mock, rulesets, storage, subscriptions, tenant-rbac, tenants, templates, users
+**19 modules total:** auth, audit, authorities, categories, documents, email, entitlements, health, invitations, mock, platform-rbac, rag-mock, rulesets, storage, subscriptions, tenant-rbac, tenants, templates, users
+
+#### Email (`email/`)
+
+Transactional email delivery via Resend:
+
+- **email.module.ts** - Module configuration
+- **email.service.ts** - Resend integration, verification and password reset emails
+- **constants/i18n.constants.ts** - Email i18n keys
+
+Used by AuthModule for signup verification and forgot-password flows. Fire-and-forget sending with graceful degradation (logs errors, never fails parent operation).
 
 #### Authentication (`auth/`)
 

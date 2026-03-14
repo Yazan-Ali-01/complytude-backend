@@ -402,7 +402,7 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 - User account created with email and hashed password
 - Email verification token generated
-- Verification email sent to user (dev mode: token included in response)
+- Verification email sent via Resend (link: `{FRONTEND_URL}/verify-email?token={token}`). Fire-and-forget; signup succeeds even if email fails. In dev without `EMAIL_API_KEY`, log-only mode applies.
 - User account is created but **email is not verified** (cannot proceed until verified)
 
 ---

@@ -269,7 +269,8 @@ graph TD
 
 | Module            | Responsibility                                                     | Dependencies                   |
 | ----------------- | ------------------------------------------------------------------ | ------------------------------ |
-| **auth**          | JWT authentication, signup, login, token refresh, invitation flows | users, invitations, database   |
+| **auth**          | JWT authentication, signup, login, token refresh, invitation flows | users, invitations, email, database |
+| **email**         | Email delivery (verification, password reset) via Resend         | config, i18n                    |
 | **users**         | User management, profile updates                                   | database                       |
 | **tenants**       | Tenant creation, management, invitations                           | users, database                |
 | **invitations**   | Tenant invitations, accept/reject                                  | users, tenants, database       |
@@ -852,6 +853,9 @@ JWT_ACCESS_SECRET=<secret>
 JWT_REFRESH_SECRET=<secret>
 DB_PASSWORD=<secret>
 S3_SECRET_KEY=<secret>
+EMAIL_API_KEY=re_xxx          # Resend API key (optional: omit for log-only mode)
+EMAIL_FROM=noreply@complytude.com
+FRONTEND_URL=https://app.complytude.com
 ```
 
 **Never commit secrets to version control.**

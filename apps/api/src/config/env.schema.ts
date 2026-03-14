@@ -32,6 +32,15 @@ export const validationSchema = Joi.object({
   JWT_IDENTITY_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
 
+  // Email (Resend)
+  EMAIL_PROVIDER: Joi.string()
+    .valid('resend', 'ses', 'sendgrid')
+    .default('resend'),
+  EMAIL_API_KEY: Joi.string().allow('').default(''),
+  EMAIL_FROM: Joi.string().default('noreply@complytude.com'),
+  FRONTEND_URL: Joi.string().default('http://localhost:3000'),
+  EMAIL_SKIP_SEND: Joi.string().valid('true', 'false').default('false'),
+
   // S3/MinIO Storage
   S3_ENDPOINT: Joi.string().allow('').default(''),
   S3_REGION: Joi.string().default('us-east-1'),

@@ -28,6 +28,7 @@ import { EmailVerificationRepository } from '../../repositories/users/email-veri
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { UserRepository } from '../../repositories/users/user.repository';
+import { EmailService } from '../email/email.service';
 import { InvitationsService } from '../invitations/invitations.service';
 import { TenantService } from '../tenants/tenant.service';
 import { UsersI18n } from '../users/constants/i18n.constants';
@@ -66,6 +67,7 @@ export class AuthService {
     private readonly userTenantRepository: UserTenantRepository,
     private readonly databaseService: DatabaseService,
     private readonly invitationsService: InvitationsService,
+    private readonly emailService: EmailService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -269,9 +271,9 @@ export class AuthService {
         { client },
       );
 
-      // TODO: Hook in actual email sending here
-      this.logger.log(
-        `Verification token for ${signupDto.email}: ${verificationToken}`,
+      this.emailService.sendVerificationEmail(
+        signupDto.email,
+        verificationToken,
       );
 
       const result = {
@@ -795,8 +797,7 @@ export class AuthService {
       expiresAt,
     });
 
-    // TODO: Send password reset email
-    this.logger.log(`Password reset token for ${email}: ${resetToken}`);
+    this.emailService.sendPasswordResetEmail(email, resetToken);
 
     const result = {
       message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
