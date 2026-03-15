@@ -29,6 +29,8 @@ const sharedProjectConfig = {
     '^@lib/context/(.*)$': '<rootDir>/../../libs/context/src/$1',
     '^@lib/database$': '<rootDir>/../../libs/database/src/index.ts',
     '^@lib/database/(.*)$': '<rootDir>/../../libs/database/src/$1',
+    '^@lib/logger$': '<rootDir>/../../libs/logger/src/index.ts',
+    '^@lib/logger/(.*)$': '<rootDir>/../../libs/logger/src/$1',
     '^@lib/queue$': '<rootDir>/../../libs/queue/src/index.ts',
     '^@lib/queue/(.*)$': '<rootDir>/../../libs/queue/src/$1',
     '^@lib/redis$': '<rootDir>/../../libs/redis/src/index.ts',
