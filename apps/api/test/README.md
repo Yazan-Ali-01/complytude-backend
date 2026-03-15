@@ -48,6 +48,7 @@ pnpm test:coverage
 | `pnpm test:unit` | `jest --selectProjects unit` | Runs unit tests only |
 | `pnpm test:integration` | `jest --selectProjects integration` | Runs integration tests only |
 | `pnpm test:integration:watch` | `jest --selectProjects integration --watch` | Integration tests in watch mode |
+| `pnpm test:benchmark` | `jest --selectProjects integration --testPathPattern=benchmark ...` | Projection pipeline latency benchmark (sync vs async) |
 | `pnpm test:coverage` | `jest --coverage` | All tests with V8 coverage report |
 
 ---
@@ -127,7 +128,8 @@ apps/api/test/
 │   ├── test-config.ts              # Testcontainer config path + TypeScript types
 │   ├── truncate.helper.ts          # truncateAllTables() — preserves reference data
 │   ├── redis-flush.helper.ts       # flushRedis() + resetTestState()
-│   └── tenant-context.helper.ts    # withTenantContext() / withPlatformAdminContext()
+│   ├── tenant-context.helper.ts    # withTenantContext() / withPlatformAdminContext()
+│   └── queue.helper.ts             # waitForQueueIdle() — poll until queue drained
 └── mocks/                          # Shared mock implementations
     ├── storage.mock.ts             # MockStorageService (replaces S3/MinIO)
     └── file-type.mock.ts           # file-type ESM compatibility mock
@@ -254,6 +256,18 @@ Executes a callback inside a transaction with RLS tenant context set (`SET LOCAL
 ### `withPlatformAdminContext(databaseService, callback)`
 
 Executes a callback inside a transaction with platform admin RLS context.
+
+### `waitForQueueIdle(queue, timeout?)`
+
+Polls until all active/waiting/delayed jobs on the given BullMQ queue are drained. Use in integration tests that enqueue async jobs and need to assert post-processing state without arbitrary sleeps. Default timeout: 10s.
+
+```typescript
+import { waitForQueueIdle } from '../helpers/queue.helper';
+import { getQueueToken, QUEUE_NAMES } from '@lib/queue';
+
+const queue = app.module.get<Queue>(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING));
+await waitForQueueIdle(queue, 15000);
+```
 
 ### Factories
 

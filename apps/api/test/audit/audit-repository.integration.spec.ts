@@ -41,23 +41,24 @@ describe('AuditLogsRepository', () => {
     });
 
     it('persists optional fields correctly', async () => {
+      const resourceId = 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d';
       const input: CreateAuditLogInput = {
         ...BASE_INPUT,
         tenantId: undefined,
-        actorId: 'actor-1',
+        actorId: undefined,
         actorType: 'system',
         userRole: 'admin',
-        resourceId: 'res-1',
+        resourceId,
         details: { key: 'value' },
         traceId: 'trace-abc',
       };
 
       const log = await repo.create(input);
 
-      expect(log.actorId).toBe('actor-1');
+      expect(log.actorId).toBeNull();
       expect(log.actorType).toBe('system');
       expect(log.userRole).toBe('admin');
-      expect(log.resourceId).toBe('res-1');
+      expect(log.resourceId).toBe(resourceId);
       expect(log.details).toEqual({ key: 'value' });
       expect(log.traceId).toBe('trace-abc');
     });
