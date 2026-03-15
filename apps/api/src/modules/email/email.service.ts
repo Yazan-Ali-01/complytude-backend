@@ -1,4 +1,4 @@
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { SendEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
@@ -7,6 +7,7 @@ import {
   DEFAULT_CURRENCY_LOWERCASE,
 } from 'src/common/constants/billing.constant';
 import { emailConfig, EmailConfig } from 'src/config/email.config';
+import { EmailI18n } from './constants/i18n.constants';
 
 export interface DunningEmailData {
   tenantAdminEmail: string;
@@ -44,6 +45,187 @@ export class EmailService {
     this.sesClient = new SESClient({
       region: this.config.awsRegion,
     });
+  }
+
+  async sendVerificationEmail(
+    email: string,
+    token: string,
+    locale: string = 'en',
+  ): Promise<void> {
+    const verificationUrl = `${this.config.frontendUrl}/verify-email?token=${token}`;
+    const subject = this.i18n.t(EmailI18n.verification.SUBJECT, {
+      lang: locale,
+    });
+    const htmlBody = this.renderVerificationHtml(verificationUrl, locale);
+    const textBody = this.renderVerificationText(verificationUrl, locale);
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+        Destination: { ToAddresses: [email] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            Text: { Data: textBody, Charset: 'UTF-8' },
+          },
+        },
+        Tags: [{ Name: 'EmailType', Value: 'verification' }],
+      });
+
+      await this.sesClient.send(command);
+      this.logger.log(`Verification email sent: email=${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email: email=${email}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  private renderVerificationHtml(
+    verificationUrl: string,
+    locale: string,
+  ): string {
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t(EmailI18n.verification.SUBJECT, { lang: locale })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #e7f3ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #b3d9ff; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t(EmailI18n.verification.BODY_LINK_TEXT, { lang: locale })}</h1>
+    </div>
+    <div class="content">
+        <p>${this.i18n.t(EmailI18n.verification.BODY_INTRO, { lang: locale })}</p>
+        <p>${this.i18n.t(EmailI18n.verification.BODY_CTA_HINT, { lang: locale })}</p>
+        <a href="${verificationUrl}" class="cta-button">
+            ${this.i18n.t(EmailI18n.verification.BODY_LINK_TEXT, { lang: locale })}
+        </a>
+        <p style="font-size: 14px; color: #666;">${this.i18n.t(EmailI18n.verification.BODY_IGNORE, { lang: locale })}</p>
+    </div>
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderVerificationText(
+    verificationUrl: string,
+    locale: string,
+  ): string {
+    return `
+${this.i18n.t(EmailI18n.verification.BODY_INTRO, { lang: locale })}
+
+${this.i18n.t(EmailI18n.verification.BODY_CTA_HINT, { lang: locale })}
+
+${this.i18n.t(EmailI18n.verification.BODY_LINK_TEXT, { lang: locale })}: ${verificationUrl}
+
+${this.i18n.t(EmailI18n.verification.BODY_IGNORE, { lang: locale })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
+  }
+
+  async sendPasswordResetEmail(
+    email: string,
+    token: string,
+    locale: string = 'en',
+  ): Promise<void> {
+    const resetUrl = `${this.config.frontendUrl}/reset-password?token=${token}`;
+    const subject = this.i18n.t(EmailI18n.passwordReset.SUBJECT, {
+      lang: locale,
+    });
+    const htmlBody = this.renderPasswordResetHtml(resetUrl, locale);
+    const textBody = this.renderPasswordResetText(resetUrl, locale);
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+        Destination: { ToAddresses: [email] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            Text: { Data: textBody, Charset: 'UTF-8' },
+          },
+        },
+        Tags: [{ Name: 'EmailType', Value: 'password_reset' }],
+      });
+
+      await this.sesClient.send(command);
+      this.logger.log(`Password reset email sent: email=${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send password reset email: email=${email}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  private renderPasswordResetHtml(resetUrl: string, locale: string): string {
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t(EmailI18n.passwordReset.SUBJECT, { lang: locale })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ffeaa7; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t(EmailI18n.passwordReset.BODY_LINK_TEXT, { lang: locale })}</h1>
+    </div>
+    <div class="content">
+        <p>${this.i18n.t(EmailI18n.passwordReset.BODY_INTRO, { lang: locale })}</p>
+        <p>${this.i18n.t(EmailI18n.passwordReset.BODY_CTA_HINT, { lang: locale })}</p>
+        <a href="${resetUrl}" class="cta-button">
+            ${this.i18n.t(EmailI18n.passwordReset.BODY_LINK_TEXT, { lang: locale })}
+        </a>
+        <p style="font-size: 14px; color: #666;">${this.i18n.t(EmailI18n.passwordReset.BODY_EXPIRY, { lang: locale })}</p>
+        <p style="font-size: 14px; color: #666;">${this.i18n.t(EmailI18n.passwordReset.BODY_IGNORE, { lang: locale })}</p>
+    </div>
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderPasswordResetText(resetUrl: string, locale: string): string {
+    return `
+${this.i18n.t(EmailI18n.passwordReset.BODY_INTRO, { lang: locale })}
+
+${this.i18n.t(EmailI18n.passwordReset.BODY_CTA_HINT, { lang: locale })}
+
+${this.i18n.t(EmailI18n.passwordReset.BODY_LINK_TEXT, { lang: locale })}: ${resetUrl}
+
+${this.i18n.t(EmailI18n.passwordReset.BODY_EXPIRY, { lang: locale })}
+
+${this.i18n.t(EmailI18n.passwordReset.BODY_IGNORE, { lang: locale })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
   }
 
   async sendPaymentActionRequiredEmail(

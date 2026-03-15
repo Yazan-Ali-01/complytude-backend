@@ -5,6 +5,7 @@ export interface EmailConfig {
   fromEmail: string;
   fromName: string;
   supportEmail: string;
+  frontendUrl: string;
 }
 
 export const emailConfig = (configService: ConfigService): EmailConfig => ({
@@ -12,4 +13,8 @@ export const emailConfig = (configService: ConfigService): EmailConfig => ({
   fromEmail: configService.get<string>('FROM_EMAIL')!,
   fromName: configService.get<string>('FROM_NAME', 'Complytude Billing'),
   supportEmail: configService.get<string>('SUPPORT_EMAIL')!,
+  frontendUrl: configService.get<string>(
+    'FRONTEND_URL',
+    'http://localhost:3000',
+  ),
 });

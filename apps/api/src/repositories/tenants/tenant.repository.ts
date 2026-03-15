@@ -204,6 +204,28 @@ export class TenantRepository extends BaseRepository<
     return this.mapRow(result.rows[0]);
   }
 
+  async isNameTaken(
+    name: string,
+    excludeTenantId?: string,
+    options?: QueryOptions,
+  ): Promise<boolean> {
+    const params: unknown[] = [name];
+    let query = `SELECT id FROM ${this.tableName} WHERE LOWER(name) = LOWER($1)`;
+
+    if (excludeTenantId) {
+      params.push(excludeTenantId);
+      query += ` AND id != $2`;
+    }
+    query += ` LIMIT 1`;
+
+    const result = await this.executeQuery<{ id: string }>(
+      query,
+      params,
+      options,
+    );
+    return result.rows.length > 0;
+  }
+
   async isSlugTaken(
     slug: string,
     excludeTenantId?: string,

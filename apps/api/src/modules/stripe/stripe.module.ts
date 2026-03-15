@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import {
-  StripeWebhookModule,
+  StripeAdminModule,
   StripeBillingModule,
   StripeCatalogModule,
-  StripeAdminModule,
+  StripeWebhookModule,
 } from './modules';
 
 /**

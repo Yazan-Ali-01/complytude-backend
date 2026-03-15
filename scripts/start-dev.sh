@@ -53,7 +53,7 @@ echo "🔍 Checking database migrations..."
 
 # Load environment from apps/api/.env if it exists
 if [ -f apps/api/.env ]; then
-    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | sed 's/[[:space:]]*#.*$//' | xargs)
 fi
 
 # Check if migrations are needed

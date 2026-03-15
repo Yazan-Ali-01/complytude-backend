@@ -437,7 +437,17 @@ Data access layer with repository pattern. All repositories extend `BaseReposito
 
 ### Feature Modules (`apps/api/src/modules/`)
 
-**18 modules total:** auth, audit, authorities, categories, documents, entitlements, health, invitations, mock, platform-rbac, rag-mock, rulesets, storage, subscriptions, tenant-rbac, tenants, templates, users
+**20 modules total:** auth, audit, authorities, categories, documents, email, entitlements, health, invitations, mock, platform-rbac, rag-mock, rulesets, storage, stripe, subscriptions, tenant-rbac, tenants, templates, users
+
+#### Email (`email/`)
+
+Transactional email delivery via Resend:
+
+- **email.module.ts** - Module configuration
+- **email.service.ts** - Resend integration, verification and password reset emails
+- **constants/i18n.constants.ts** - Email i18n keys
+
+Used by AuthModule for signup verification and forgot-password flows. Fire-and-forget sending with graceful degradation (logs errors, never fails parent operation).
 
 #### Authentication (`auth/`)
 
@@ -614,9 +624,16 @@ Compliance rulesets with versioning:
 - **dto/** - Ruleset DTOs (create, update, versions, clauses)
 - **entities/** - Ruleset and ruleset version entities
 
-#### Storage (`storage/`)
+#### Stripe (`stripe/`)
 
-S3-based file storage:
+Stripe billing integration:
+
+- **stripe.module.ts** - Module configuration
+- **services/stripe-customer.service.ts** - Fire-and-forget Stripe customer creation for new tenants (creator email, metadata.creator_user_id)
+
+Used by TenantModule during tenant creation. Skips when `STRIPE_SECRET_KEY` is empty or `STRIPE_SKIP_CUSTOMER_CREATION=true`.
+
+#### Storage (`storage/`)
 
 - **storage.controller.ts** - File upload/download endpoints
 - **storage.service.ts** - S3 integration

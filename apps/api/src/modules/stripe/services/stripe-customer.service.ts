@@ -1,6 +1,6 @@
+import { DatabaseService } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import type { PoolClient } from 'pg';
-import { DatabaseService } from '@lib/database';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import Stripe from 'stripe';

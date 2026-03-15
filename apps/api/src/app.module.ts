@@ -1,3 +1,4 @@
+import { AuditModule } from '@lib/audit';
 import { ContextModule, TracingInterceptor } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
 import { LoggerModule } from '@lib/logger';
@@ -10,6 +11,7 @@ import appConfig from 'src/config/app.config';
 import { validationSchema } from 'src/config/env.schema';
 import jwtConfig from 'src/config/jwt.config';
 import storageConfig from 'src/config/storage.config';
+import stripeConfig from 'src/config/stripe.config';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { HealthModule } from 'src/modules/health/health.module';
 import { UsersModule } from 'src/modules/users/users.module';
@@ -17,21 +19,20 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { I18nModule } from './i18n/i18n.module';
-import { AuditModule } from '@lib/audit';
-import { BillingModule } from './modules/billing/billing.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EntitlementsModule } from './modules/entitlements/entitlements.module';
 import { MockModule } from './modules/mock/mock.module';
-import { RagMockModule } from './modules/rag-mock/rag-mock.module';
 import { PlatformRbacModule } from './modules/platform-rbac/platform-rbac.module';
+import { RagMockModule } from './modules/rag-mock/rag-mock.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { StripeModule } from './modules/stripe/stripe.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TemplatesModule } from './modules/templates/templates.module';
-import { StripeModule } from './modules/stripe/stripe.module';
 import { TenantRbacModule } from './modules/tenant-rbac/tenant-rbac.module';
 import { TenantModule } from './modules/tenants/tenant.module';
 
@@ -40,7 +41,14 @@ import { TenantModule } from './modules/tenants/tenant.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['apps/api/.env'],
-      load: [databaseConfig, appConfig, jwtConfig, storageConfig, redisConfig],
+      load: [
+        databaseConfig,
+        appConfig,
+        jwtConfig,
+        storageConfig,
+        stripeConfig,
+        redisConfig,
+      ],
       validationSchema: validationSchema,
       validationOptions: {
         allowUnknown: true,

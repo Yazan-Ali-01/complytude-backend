@@ -226,37 +226,37 @@ Tables with tenant isolation:
 
 Organizations using the platform. Plan assignment is managed via `tenant_subscriptions` (single source of truth).
 
-| Column                     | Type         | Description                                                    |
-| -------------------------- | ------------ | -------------------------------------------------------------- |
-| `id`                       | UUID         | Primary key                                                    |
-| `name`                     | VARCHAR(255) | Tenant name (NULL for anonymous tenants)                       |
-| `logo_url`                 | TEXT         | Logo URL                                                       |
-| `brand_color_primary`      | VARCHAR(7)   | Primary brand color hex code                                   |
-| `brand_color_secondary`    | VARCHAR(7)   | Secondary brand color hex code                                 |
-| `contact_email`            | VARCHAR(255) | Contact email                                                  |
-| `billing_email`            | VARCHAR(255) | Billing email                                                  |
-| `contact_phone`            | VARCHAR(50)  | Contact phone                                                  |
-| `emirate`                  | VARCHAR(50)  | UAE emirate                                                    |
-| `city`                     | VARCHAR(100) | City                                                           |
-| `address_line_1`           | VARCHAR(500) | Address line 1                                                 |
-| `address_line_2`           | VARCHAR(500) | Address line 2                                                 |
-| `postal_code`              | VARCHAR(20)  | Postal code                                                    |
-| `trade_license_number`     | VARCHAR(100) | Trade license number                                           |
-| `legal_entity_type`        | VARCHAR(50)  | Legal entity type                                              |
-| `tax_registration_number`  | VARCHAR(100) | Tax registration number                                        |
-| `locale`                   | VARCHAR(50)  | Locale (default: `en`)                                         |
-| `timezone`                 | VARCHAR(50)  | Timezone                                                       |
-| `default_jurisdiction`     | VARCHAR(100) | Default jurisdiction                                           |
-| `settings`                 | JSONB        | Tenant settings (e.g., `{"notifications": true}`)              |
-| `slug`                     | VARCHAR(255) | Unique URL slug                                                |
-| `is_active`                | BOOLEAN      | Soft delete flag                                               |
-| `parent_tenant_id`         | UUID         | FK to tenants (agency/partner hierarchy, MVP+)                 |
-| `onboarding_completed_at`  | TIMESTAMPTZ  | When onboarding was completed                                  |
-| `onboarding_metadata`      | JSONB        | Onboarding progress metadata                                   |
-| `deactivated_at`           | TIMESTAMPTZ  | When tenant was deactivated                                    |
-| `deactivation_reason`      | TEXT         | Reason for deactivation                                        |
-| `created_at`               | TIMESTAMPTZ  | Creation timestamp                                             |
-| `updated_at`               | TIMESTAMPTZ  | Last update timestamp                                          |
+| Column                    | Type         | Description                                       |
+| ------------------------- | ------------ | ------------------------------------------------- |
+| `id`                      | UUID         | Primary key                                       |
+| `name`                    | VARCHAR(255) | Tenant name (NULL for anonymous tenants)          |
+| `logo_url`                | TEXT         | Logo URL                                          |
+| `brand_color_primary`     | VARCHAR(7)   | Primary brand color hex code                      |
+| `brand_color_secondary`   | VARCHAR(7)   | Secondary brand color hex code                    |
+| `contact_email`           | VARCHAR(255) | Contact email                                     |
+| `billing_email`           | VARCHAR(255) | Billing email                                     |
+| `contact_phone`           | VARCHAR(50)  | Contact phone                                     |
+| `emirate`                 | VARCHAR(50)  | UAE emirate                                       |
+| `city`                    | VARCHAR(100) | City                                              |
+| `address_line_1`          | VARCHAR(500) | Address line 1                                    |
+| `address_line_2`          | VARCHAR(500) | Address line 2                                    |
+| `postal_code`             | VARCHAR(20)  | Postal code                                       |
+| `trade_license_number`    | VARCHAR(100) | Trade license number                              |
+| `legal_entity_type`       | VARCHAR(50)  | Legal entity type                                 |
+| `tax_registration_number` | VARCHAR(100) | Tax registration number                           |
+| `locale`                  | VARCHAR(50)  | Locale (default: `en`)                            |
+| `timezone`                | VARCHAR(50)  | Timezone                                          |
+| `default_jurisdiction`    | VARCHAR(100) | Default jurisdiction                              |
+| `settings`                | JSONB        | Tenant settings (e.g., `{"notifications": true}`) |
+| `slug`                    | VARCHAR(255) | Unique URL slug                                   |
+| `is_active`               | BOOLEAN      | Soft delete flag                                  |
+| `parent_tenant_id`        | UUID         | FK to tenants (agency/partner hierarchy, MVP+)    |
+| `onboarding_completed_at` | TIMESTAMPTZ  | When onboarding was completed                     |
+| `onboarding_metadata`     | JSONB        | Onboarding progress metadata                      |
+| `deactivated_at`          | TIMESTAMPTZ  | When tenant was deactivated                       |
+| `deactivation_reason`     | TEXT         | Reason for deactivation                           |
+| `created_at`              | TIMESTAMPTZ  | Creation timestamp                                |
+| `updated_at`              | TIMESTAMPTZ  | Last update timestamp                             |
 
 **Indexes:**
 
@@ -264,6 +264,8 @@ Organizations using the platform. Plan assignment is managed via `tenant_subscri
 - `idx_tenants_is_active` - Active tenants only (partial)
 
 > **Note:** The `tenants.plan` column and `tenant_plan` ENUM have been removed. Tenant plan assignment is now managed exclusively through `tenant_subscriptions`. See [Entitlement System](#entitlement-tables).
+
+**Tenant creation flow:** When a tenant is created via `POST /tenants` (or `TenantService.createTenantForUser()`), a `tenant_subscriptions` row is created atomically within the same transaction. This ensures `getCurrentSubscription(tenantId)` works immediately and entitlement resolution does not throw `NotFoundException`. Default plan is `navigator` if not specified.
 
 ### users
 
@@ -326,18 +328,21 @@ Tables for **Tenant RBAC** and **Platform RBAC** with permission-based authoriza
 **Important:** RBAC tables are **automatically synchronized** from code constants on every application startup. You should never manually insert or update these records.
 
 **Tenant RBAC Sync:**
+
 - Service: `TenantRbacSyncService`
 - Source: `TENANT_PERMISSIONS` object (single source) and `TENANT_SYSTEM_ROLE_PERMISSIONS` map
 - Derived: `ALL_TENANT_PERMISSIONS` array (automatically generated from object)
 - Tables: `tenant_permissions`, `tenant_roles`, `tenant_role_permissions`
 
 **Platform RBAC Sync:**
+
 - Service: `PlatformRbacSyncService`
 - Source: `PLATFORM_PERMISSIONS` object (single source) and `PLATFORM_SYSTEM_ROLE_PERMISSIONS` map
 - Derived: `ALL_PLATFORM_PERMISSIONS` array (automatically generated from object)
 - Tables: `platform_permissions`, `platform_roles`, `platform_role_permissions`
 
 **Sync Behavior:**
+
 - **Permissions:** Add new, update existing, delete removed
 - **System Roles:** Add new, update existing, sync role-permission mappings
 - **Custom Roles:** Never touched
@@ -423,11 +428,11 @@ Tenant-level permissions for RBAC. **Automatically synced from `TENANT_PERMISSIO
 
 Many-to-many relationship between tenant roles and tenant permissions.
 
-| Column          | Type        | Description               |
-| --------------- | ----------- | ------------------------- |
-| `role_id`       | UUID        | FK to tenant_roles        |
-| `permission_id` | UUID        | FK to tenant_permissions  |
-| `created_at`    | TIMESTAMPTZ | Creation timestamp |
+| Column          | Type        | Description              |
+| --------------- | ----------- | ------------------------ |
+| `role_id`       | UUID        | FK to tenant_roles       |
+| `permission_id` | UUID        | FK to tenant_permissions |
+| `created_at`    | TIMESTAMPTZ | Creation timestamp       |
 
 **Primary Key:** `(role_id, permission_id)`
 
@@ -452,16 +457,16 @@ Tables for platform-wide authorization (system administration, tenant management
 
 Platform-level roles for system-wide access control.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `key` | VARCHAR(50) | Role key (e.g., `system_admin`, `support`, `auditor`) |
-| `name` | VARCHAR(100) | Display name (e.g., `System Admin`) |
-| `description` | TEXT | Role description |
-| `is_system` | BOOLEAN | TRUE for system roles, FALSE for custom platform roles |
-| `is_active` | BOOLEAN | Active status |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| Column        | Type         | Description                                            |
+| ------------- | ------------ | ------------------------------------------------------ |
+| `id`          | UUID         | Primary key                                            |
+| `key`         | VARCHAR(50)  | Role key (e.g., `system_admin`, `support`, `auditor`)  |
+| `name`        | VARCHAR(100) | Display name (e.g., `System Admin`)                    |
+| `description` | TEXT         | Role description                                       |
+| `is_system`   | BOOLEAN      | TRUE for system roles, FALSE for custom platform roles |
+| `is_active`   | BOOLEAN      | Active status                                          |
+| `created_at`  | TIMESTAMPTZ  | Creation timestamp                                     |
+| `updated_at`  | TIMESTAMPTZ  | Last update timestamp                                  |
 
 **Indexes:**
 
@@ -470,25 +475,25 @@ Platform-level roles for system-wide access control.
 
 **System Roles (synced from code):**
 
-| Key | Name | Permissions | Description |
-|-----|------|-------------|-------------|
-| `system_admin` | System Admin | `*:*` | Full access to all platform features |
-| `support` | Support | Read-only permissions | Customer support access |
-| `auditor` | Auditor | Audit-focused permissions | Audit and compliance access |
+| Key            | Name         | Permissions               | Description                          |
+| -------------- | ------------ | ------------------------- | ------------------------------------ |
+| `system_admin` | System Admin | `*:*`                     | Full access to all platform features |
+| `support`      | Support      | Read-only permissions     | Customer support access              |
+| `auditor`      | Auditor      | Audit-focused permissions | Audit and compliance access          |
 
 ### platform_permissions
 
 Platform-level permissions for system-wide RBAC.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `key` | VARCHAR(100) | Permission key (e.g., `tenants:create`, `users:manage_roles`) |
-| `name` | VARCHAR(100) | Display name (e.g., `Create Tenants`) |
-| `resource` | VARCHAR(50) | Resource type (e.g., `tenants`, `users`) |
-| `action` | VARCHAR(50) | Action type (e.g., `create`, `manage`) |
-| `description` | TEXT | Permission description |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| Column        | Type         | Description                                                   |
+| ------------- | ------------ | ------------------------------------------------------------- |
+| `id`          | UUID         | Primary key                                                   |
+| `key`         | VARCHAR(100) | Permission key (e.g., `tenants:create`, `users:manage_roles`) |
+| `name`        | VARCHAR(100) | Display name (e.g., `Create Tenants`)                         |
+| `resource`    | VARCHAR(50)  | Resource type (e.g., `tenants`, `users`)                      |
+| `action`      | VARCHAR(50)  | Action type (e.g., `create`, `manage`)                        |
+| `description` | TEXT         | Permission description                                        |
+| `created_at`  | TIMESTAMPTZ  | Creation timestamp                                            |
 
 **Indexes:**
 
@@ -498,30 +503,30 @@ Platform-level permissions for system-wide RBAC.
 
 **Available Permissions (synced from code):**
 
-| Resource | Permissions |
-|----------|-------------|
-| `tenants` | `tenants:create`, `tenants:read`, `tenants:update`, `tenants:delete`, `tenants:*` |
-| `users` | `users:read`, `users:update`, `users:delete`, `users:manage_roles`, `users:*` |
-| `plans` | `plans:read`, `plans:manage`, `plans:*` |
-| `subscriptions` | `subscriptions:read`, `subscriptions:manage`, `subscriptions:*` |
-| `templates` | `templates:read`, `templates:manage`, `templates:*` |
-| `rulesets` | `rulesets:read`, `rulesets:manage`, `rulesets:*` |
-| `authorities` | `authorities:read`, `authorities:manage`, `authorities:*` |
-| `categories` | `categories:read`, `categories:manage`, `categories:*` |
-| `entitlements` | `entitlements:read`, `entitlements:manage`, `entitlements:*` |
-| `audit` | `audit:read`, `audit:*` |
-| `support` | `support:access`, `support:impersonate`, `support:*` |
-| `*` (cross) | `*:read`, `*:manage`, `*:*` |
+| Resource        | Permissions                                                                       |
+| --------------- | --------------------------------------------------------------------------------- |
+| `tenants`       | `tenants:create`, `tenants:read`, `tenants:update`, `tenants:delete`, `tenants:*` |
+| `users`         | `users:read`, `users:update`, `users:delete`, `users:manage_roles`, `users:*`     |
+| `plans`         | `plans:read`, `plans:manage`, `plans:*`                                           |
+| `subscriptions` | `subscriptions:read`, `subscriptions:manage`, `subscriptions:*`                   |
+| `templates`     | `templates:read`, `templates:manage`, `templates:*`                               |
+| `rulesets`      | `rulesets:read`, `rulesets:manage`, `rulesets:*`                                  |
+| `authorities`   | `authorities:read`, `authorities:manage`, `authorities:*`                         |
+| `categories`    | `categories:read`, `categories:manage`, `categories:*`                            |
+| `entitlements`  | `entitlements:read`, `entitlements:manage`, `entitlements:*`                      |
+| `audit`         | `audit:read`, `audit:*`                                                           |
+| `support`       | `support:access`, `support:impersonate`, `support:*`                              |
+| `*` (cross)     | `*:read`, `*:manage`, `*:*`                                                       |
 
 ### platform_role_permissions
 
 Many-to-many relationship between platform roles and permissions.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `role_id` | UUID | FK to platform_roles |
-| `permission_id` | UUID | FK to platform_permissions |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| Column          | Type        | Description                |
+| --------------- | ----------- | -------------------------- |
+| `role_id`       | UUID        | FK to platform_roles       |
+| `permission_id` | UUID        | FK to platform_permissions |
+| `created_at`    | TIMESTAMPTZ | Creation timestamp         |
 
 **Primary Key:** `(role_id, permission_id)`
 
