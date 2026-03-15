@@ -49,6 +49,9 @@ GRANT SELECT, INSERT, UPDATE ON public.tenant_overrides TO app_user;
 
 -- Usage Ledger
 GRANT SELECT, INSERT ON public.usage_ledger TO app_user;
+-- Column-level UPDATE grant: only projected_at may be set once (NULL → timestamp).
+-- The immutability trigger in migration 009 enforces this constraint at the row level.
+GRANT UPDATE (projected_at) ON public.usage_ledger TO app_user;
 
 -- Usage Allocations
 GRANT SELECT, INSERT ON public.usage_allocations TO app_user;

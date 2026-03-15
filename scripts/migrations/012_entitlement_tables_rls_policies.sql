@@ -123,6 +123,17 @@ WITH CHECK (
     tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
+-- App can claim a ledger row for projection (projected_at: NULL → timestamp)
+CREATE POLICY usage_ledger_update
+ON public.usage_ledger
+FOR UPDATE
+USING (
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+)
+WITH CHECK (
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+);
+
 -- =========================
 -- credit_ledger
 -- =========================
@@ -271,6 +282,7 @@ DROP POLICY IF EXISTS credit_ledger_insert ON public.credit_ledger;
 DROP POLICY IF EXISTS credit_ledger_select ON public.credit_ledger;
 
 -- Drop usage_ledger policies
+DROP POLICY IF EXISTS usage_ledger_update ON public.usage_ledger;
 DROP POLICY IF EXISTS usage_ledger_insert ON public.usage_ledger;
 DROP POLICY IF EXISTS usage_ledger_select ON public.usage_ledger;
 

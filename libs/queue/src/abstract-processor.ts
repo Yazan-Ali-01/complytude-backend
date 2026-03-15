@@ -50,13 +50,18 @@ export abstract class AbstractProcessor<
       | undefined;
 
     if (this.pinoLogger) {
-      const logContext: Record<string, string> = {};
-      if (metadata?.traceId) logContext.trace_id = metadata.traceId;
-      if (metadata?.tenantId) logContext.tenant_id = metadata.tenantId;
-      logContext.queue_name = queueName;
-      if (job.id) logContext.job_id = job.id;
-      logContext.job_name = job.name;
-      this.pinoLogger.assign(logContext);
+      try {
+        const logContext: Record<string, string> = {};
+        if (metadata?.traceId) logContext.trace_id = metadata.traceId;
+        if (metadata?.tenantId) logContext.tenant_id = metadata.tenantId;
+        logContext.queue_name = queueName;
+        if (job.id) logContext.job_id = job.id;
+        logContext.job_name = job.name;
+        this.pinoLogger.assign(logContext);
+      } catch {
+        // PinoLogger.assign throws outside HTTP request scope (e.g. BullMQ workers).
+        // Skip metadata assignment; Nest Logger still works.
+      }
     }
 
     this.logger.log(

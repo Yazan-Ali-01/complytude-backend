@@ -201,6 +201,22 @@ The system uses a **dual-mode enforcement strategy** that balances performance (
 - If CAS returns null (concurrent request consumed remaining quota), the savepoint is rolled back and the request is denied with `concurrent_quota_race` reason
 - Domain event is emitted in-transaction (not async)
 
+### Latency Benchmark (COM-136)
+
+A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRecord()` calls.
+
+**Run:** `pnpm test:benchmark` (requires Docker for testcontainers)
+
+**Sample results** (local dev, 50 concurrent):
+
+| Metric | Sync (strict) | Async | Improvement |
+|--------|---------------|-------|-------------|
+| p50    | ~270ms        | ~160ms| ~41%        |
+| p95    | ~440ms        | ~230ms| ~48%        |
+| p99    | ~450ms        | ~240ms| ~48%        |
+
+**Rationale:** Sync path updates `aggregated_usage` in the same transaction as the ledger write, causing row lock contention under concurrency. Async path only writes to the ledger and enqueues a job, reducing request-path latency.
+
 ### Data Layer
 
 ```
@@ -1115,7 +1131,9 @@ export class AuditService {
     "allocations": [{ "source": "plan", "units": 1 }],
     "billing_period": "2026-02",
     "resource_type": "document",
-    "resource_id": "document_uuid"
+    "resource_id": "document_uuid",
+    "enforcement_mode": "async",
+    "fallback": false
   },
   "recorded_at": "2026-02-07T10:30:00Z"
 }
