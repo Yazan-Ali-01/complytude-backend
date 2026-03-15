@@ -256,7 +256,7 @@ export class AuthService {
       const expiresAt = new Date(
         Date.now() +
           this.parseExpiresIn(
-            this.configService.get<string>('EMAIL_VERIFICATION_EXPIRES_IN') ||
+            this.configService.get<string>('email.verificationExpiresIn') ||
               '1d',
           ),
       );
@@ -281,7 +281,7 @@ export class AuthService {
         message: this.i18n.t(AuthI18n.messages.SIGNUP_SUCCESS),
       } as unknown as MessageResponseDto & { verificationToken: string };
 
-      if (this.configService.get<string>('NODE_ENV') !== 'production') {
+      if (this.configService.get<string>('app.environment') !== 'production') {
         (result as unknown as { verificationToken: string }).verificationToken =
           verificationToken;
       }
@@ -304,13 +304,7 @@ export class AuthService {
     // Validate user credentials
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
-    // Check if user is verified
-    if (!user.is_verified) {
-      throw new UnauthorizedException(
-        this.i18n.t(AuthI18n.errors.EMAIL_NOT_VERIFIED),
-      );
-    }
-
+    // Allow unverified users to login; VerifiedUserGuard blocks them from tenant creation
     const platformRole = user.platform_role_key ?? null;
 
     // Generate identity tokens (access + refresh)
@@ -352,6 +346,7 @@ export class AuthService {
         firstName: user.first_name,
         lastName: user.last_name,
         platformRole: user.platform_role_key ?? null,
+        isVerified: user.is_verified,
       },
       tenants: tenantsWithDetails,
       pendingInvitationsCount,
@@ -804,7 +799,7 @@ export class AuthService {
       message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
     };
 
-    if (this.configService.get<string>('NODE_ENV') !== 'production') {
+    if (this.configService.get<string>('app.environment') !== 'production') {
       (result as unknown as { resetToken: string }).resetToken = resetToken;
     }
 

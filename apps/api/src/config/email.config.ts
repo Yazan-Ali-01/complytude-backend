@@ -5,6 +5,7 @@ export default registerAs('email', () => ({
   apiKey: process.env.EMAIL_API_KEY || '',
   from: process.env.EMAIL_FROM || 'noreply@complytude.com',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+  verificationExpiresIn: process.env.EMAIL_VERIFICATION_EXPIRES_IN || '1d',
   skipSend:
     process.env.EMAIL_SKIP_SEND === 'true' ||
     !(process.env.EMAIL_API_KEY || '').trim(),

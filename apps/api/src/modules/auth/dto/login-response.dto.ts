@@ -37,6 +37,12 @@ export class LoginUserDto {
     nullable: true,
   })
   platformRole: string | null;
+
+  @ApiProperty({
+    description: 'Whether user has verified their email',
+    example: true,
+  })
+  isVerified: boolean;
 }
 
 /**

@@ -203,31 +203,19 @@ export class TenantRepository extends BaseRepository<
     return this.mapRow(result.rows[0]);
   }
 
-  async findByName(
-    name: string,
-    options?: QueryOptions,
-  ): Promise<Tenant | null> {
-    const result = await this.executeQuery<TenantRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE name = $1`,
-      [name],
-      options,
-    );
-    if (!result.rows[0]) return null;
-    return this.mapRow(result.rows[0]);
-  }
-  // TODO global check for name taken through the codebase
   async isNameTaken(
     name: string,
     excludeTenantId?: string,
     options?: QueryOptions,
   ): Promise<boolean> {
     const params: unknown[] = [name];
-    let query = `SELECT id FROM ${this.tableName} WHERE name = $1`;
+    let query = `SELECT id FROM ${this.tableName} WHERE LOWER(name) = LOWER($1)`;
 
     if (excludeTenantId) {
       params.push(excludeTenantId);
       query += ` AND id != $2`;
     }
+    query += ` LIMIT 1`;
 
     const result = await this.executeQuery<{ id: string }>(
       query,

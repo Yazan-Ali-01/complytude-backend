@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import type { PlanKey } from 'src/common/types/entitlement.types';
 import { ALL_PLAN_KEYS } from '../../../common/constants/plan-entitlements.constant';
 
@@ -7,13 +14,14 @@ export class CreateTenantDto {
   @ApiProperty({
     description: 'Organization name',
     example: 'Acme Legal LLC',
-    required: false,
-    maxLength: 100,
+    required: true,
+    maxLength: 255,
   })
-  @IsOptional()
   @IsString()
-  @MaxLength(100)
-  name?: string;
+  @MinLength(1)
+  @MaxLength(255)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  name: string;
 
   @ApiProperty({
     example: 'navigator',

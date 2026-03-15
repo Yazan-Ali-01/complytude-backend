@@ -5,8 +5,8 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
-import { CommonI18n } from '../constants/i18n.constants';
 import type { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
+import { CommonI18n } from '../constants/i18n.constants';
 
 /**
  * Verified User Guard

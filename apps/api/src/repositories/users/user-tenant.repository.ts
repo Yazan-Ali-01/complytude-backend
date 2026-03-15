@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 import {
   LinkUserTenantInput,
@@ -386,6 +387,28 @@ export class UserTenantRepository extends BaseRepository<
       userTenant: this.mapRow(row),
       wasCreated,
     };
+  }
+
+  /**
+   * Check if user is tenant_admin of any tenant.
+   *
+   * @param userId - User ID
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns true if user has tenant_admin role in at least one tenant
+   */
+  async userIsTenantAdminOfAny(
+    userId: string,
+    options?: QueryOptions,
+  ): Promise<boolean> {
+    const result = await this.executeQuery<{ exists: boolean }>(
+      `SELECT EXISTS(
+        SELECT 1 FROM ${this.tableName}
+        WHERE user_id = $1 AND role_key = $2
+      ) as exists`,
+      [userId, SystemTenantRole.TENANT_ADMIN],
+      options,
+    );
+    return result.rows[0]?.exists ?? false;
   }
 
   /**

@@ -55,6 +55,11 @@ CREATE TABLE public.tenants (
         ON UPDATE CASCADE
 );
 
+-- Case-insensitive unique constraint on tenant name (allows multiple NULLs)
+CREATE UNIQUE INDEX idx_tenants_name_lower_unique
+  ON public.tenants (LOWER(name))
+  WHERE name IS NOT NULL;
+
 COMMENT ON TABLE public.tenants IS 'Organizations/companies using the platform';
 COMMENT ON COLUMN public.tenants.id IS 'Unique tenant identifier (UUID)';
 COMMENT ON COLUMN public.tenants.name IS 'Tenant name (NULL for anonymous tenants)';

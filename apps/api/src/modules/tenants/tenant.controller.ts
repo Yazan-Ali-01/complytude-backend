@@ -133,15 +133,10 @@ export class TenantController {
     @Body() createTenantDto: CreateTenantDto,
     @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
   ): Promise<TenantResponseDto> {
-    this.logger.log(
-      `User ${identityUser.email} creating tenant with plan ${createTenantDto.planKey ?? 'navigator'}`,
-    );
-
     const tenant = await this.tenantService.createTenantForUser(
       identityUser.userId,
       identityUser.email,
       createTenantDto,
-      { mode: 'platform' }, // TODO replace with tenant mode
     );
 
     const planKey = createTenantDto.planKey ?? 'navigator';

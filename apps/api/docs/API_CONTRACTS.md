@@ -367,7 +367,7 @@ After completing this flow, users have full tenant access with tenant tokens set
 ```json
 {
   "email": "user@example.com",
-  "password": "SecurePassword123!",
+  "password": "Test123!@#",
   "firstName": "John",
   "lastName": "Doe"
 }
@@ -461,7 +461,7 @@ After completing this flow, users have full tenant access with tenant tokens set
 ```json
 {
   "email": "user@example.com",
-  "password": "SecurePassword123!"
+  "password": "Test123!@#"
 }
 ```
 
@@ -545,12 +545,12 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Request Schema:**
 
-| Field     | Type   | Required | Default                    | Validation             | Description       |
-| --------- | ------ | -------- | -------------------------- | ---------------------- | ----------------- |
-| `name`    | string | No       | `"{email}'s Organization"` | Max 100 chars          | Organization name |
-| `planKey` | enum   | No       | `"navigator"`              | One of valid plan keys | Subscription plan |
+| Field     | Type   | Required | Default       | Validation             | Description       |
+| --------- | ------ | -------- | ------------- | ---------------------- | ----------------- |
+| `name`    | string | Yes      | -             | Min 1, max 255 chars   | Organization name |
+| `planKey` | enum   | No       | `"navigator"` | One of valid plan keys | Subscription plan |
 
-**Valid Plan Keys:** `navigator`, `architect`, `infrastructure` (see entitlements documentation for details)
+**Valid Plan Keys:** `navigator`, `shield`, `general_counsel`, `infrastructure` (see entitlements documentation for details)
 
 **Response (201 Created):**
 
@@ -600,7 +600,7 @@ After completing this flow, users have full tenant access with tenant tokens set
 **Behind the Scenes:**
 
 - **Transaction (all-or-nothing):** Entire operation runs in a single database transaction via `transactionWithPlatformAdminContext`. If any step fails, everything rolls back.
-- Tenant created with specified name (or `"{email}'s Organization"` if omitted)
+- Tenant created with specified name (required)
 - User linked as `tenant_admin` in `user_tenants` table (within same transaction)
 - `tenant_subscriptions` row created atomically within the same transaction:
   - `plan_id` resolved from `planKey` via `PlansRepository.findByKey()`

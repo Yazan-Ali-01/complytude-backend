@@ -4,10 +4,22 @@ import { I18nService } from 'nestjs-i18n';
 import { Resend } from 'resend';
 import { EmailI18n } from './constants/i18n.constants';
 
+/** Minimal type for Resend client — avoids Resend union-type issues from package exports */
+interface ResendClient {
+  emails: {
+    send(opts: {
+      from: string;
+      to: string;
+      subject: string;
+      html: string;
+    }): Promise<{ error?: { message: string } }>;
+  };
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly resend: Resend;
+  private readonly resend: ResendClient | null;
   private readonly skipSend: boolean;
   private readonly from: string;
   private readonly frontendUrl: string;
@@ -26,8 +38,9 @@ export class EmailService {
       'http://localhost:3000';
 
     if (!this.skipSend && apiKey) {
-      this.resend = new Resend(apiKey);
+      this.resend = new Resend(apiKey) as ResendClient;
     } else {
+      this.resend = null;
       this.logger.log(
         'Email sending disabled (EMAIL_SKIP_SEND=true or EMAIL_API_KEY empty)',
       );
