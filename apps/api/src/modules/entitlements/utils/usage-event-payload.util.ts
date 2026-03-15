@@ -38,6 +38,7 @@ export function buildUsageRecordedEvent(
       recorded_at: data.recordedAt,
       idempotency_key: data.idempotencyKey,
       enforcement_mode: enforcementMode,
+      fallback: enforcementMode === 'sync_fallback',
       credit_deducted: data.creditDeducted,
       credit_amount: data.creditAmount,
     }),

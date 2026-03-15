@@ -76,8 +76,8 @@ class EntitlementDeniedException extends Error {
  * 5. Record usage with source attribution
  * 6. Emit domain events
  *
- * TODO: BullMQ - After denial, emit quota.exceeded event to queue for
- * async notification (email/webhook to tenant admin with upgrade prompt).
+ * todo: add new ticket for quota.exceeded async notification (email/webhook to tenant admin) is
+ * tracked as a separate feature and is out of scope for this epic.
  */
 @Injectable()
 export class EntitlementEnforcementService {
