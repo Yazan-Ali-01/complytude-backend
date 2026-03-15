@@ -1,0 +1,22 @@
+{
+  "common": {
+    "GREETING": "Hi there",
+    "FOOTER_HELP": "Questions? Contact us at support@complytude.com",
+    "FOOTER_BRAND": "© {year} Complytude. All rights reserved."
+  },
+  "verification": {
+    "SUBJECT": "Verify your email — Complytude",
+    "BODY_INTRO": "You're almost there! One quick click to verify your email and get started.",
+    "BODY_CTA_HINT": "Click the button below to verify your email:",
+    "BODY_LINK_TEXT": "Verify email address",
+    "BODY_IGNORE": "Didn't create an account? You can safely ignore this email."
+  },
+  "passwordReset": {
+    "SUBJECT": "Reset your password — Complytude",
+    "BODY_INTRO": "We received a request to reset your password.",
+    "BODY_CTA_HINT": "Click the button below to choose a new password:",
+    "BODY_LINK_TEXT": "Reset password",
+    "BODY_EXPIRY": "This link expires in 1 hour.",
+    "BODY_IGNORE": "Didn't request this? You can safely ignore this email."
+  }
+}

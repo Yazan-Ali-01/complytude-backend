@@ -14,8 +14,11 @@ import {
 } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { SystemTenantRole } from '../../common/types/tenant.types';
 import { deepMerge } from '../../common/utils/deep-merge.util';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
+import { StripeCustomerService } from '../stripe/services/stripe-customer.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantsI18n } from './constants/i18n.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -69,6 +72,8 @@ export class TenantService {
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly stripeCustomerService: StripeCustomerService,
+    private readonly userTenantRepository: UserTenantRepository,
     private readonly i18n: I18nService,
   ) {}
 
@@ -175,7 +180,7 @@ export class TenantService {
    * Does NOT require RLS context since it's inserting new rows (RLS policies typically allow INSERT).
    *
    * @param createTenantDto - Tenant creation data (optional planKey, defaults to 'navigator')
-   * @param options - Optional database client for transaction support (used by parent transactions)
+   * @param options - Optional client for transaction reuse, name override, and subscription creator
    * @returns The created Tenant entity with generated ID and timestamps
    *
    * @throws InternalServerErrorException - If database operation fails
@@ -185,32 +190,34 @@ export class TenantService {
    * @example
    * ```ts
    * const tenant = await tenantService.createTenant({ planKey: 'general_counsel' });
-   * const tenant = await tenantService.createTenant({}); // Uses default 'navigator' plan
+   * const tenant = await tenantService.createTenant({}, { client }); // Reuse parent transaction
    * ```
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
-    options?: { client?: PoolClient },
+    subscriptionCreatorUserId: string | null,
+    options?: {
+      client?: PoolClient;
+    },
   ): Promise<Tenant> {
     const { client } = options ?? {};
 
     try {
-      const tenantCreation = async (client: PoolClient) => {
-        // Step 1: Create the tenant
+      const tenantCreation = async (txClient: PoolClient) => {
         const tenant = await this.tenantRepository.create(
           {
+            name: createTenantDto.name,
             is_active: true,
           },
-          { client },
+          { client: txClient },
         );
 
-        // Step 2: Create default subscription with the specified plan (or 'navigator' default)
         const planKey = createTenantDto.planKey ?? 'navigator';
         await this.subscriptionsService.createSubscription(
           tenant.id,
           planKey,
-          null,
-          { client },
+          subscriptionCreatorUserId ?? null,
+          { client: txClient },
         );
 
         this.logger.log(
@@ -222,11 +229,10 @@ export class TenantService {
 
       if (client) {
         return await tenantCreation(client);
-      } else {
-        return await this.databaseService.transactionWithPlatformAdminContext(
-          tenantCreation,
-        );
       }
+      return await this.databaseService.transactionWithPlatformAdminContext(
+        tenantCreation,
+      );
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -236,11 +242,99 @@ export class TenantService {
       ) {
         throw error;
       }
+      // Unique violation (23505) = duplicate tenant name (race condition)
+      if ((error as { code?: string })?.code === '23505') {
+        throw new ConflictException(
+          this.i18n.t(TenantsI18n.errors.TENANT_NAME_TAKEN, {
+            args: { name: createTenantDto.name },
+          }),
+        );
+      }
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
       throw new InternalServerErrorException(
         this.i18n.t(TenantsI18n.errors.TENANT_CREATION_FAILED),
       );
     }
+  }
+
+  /**
+   * Create tenant for user (self-service signup or admin creation)
+   *
+   * Orchestrates tenant creation in a single transaction:
+   * 1. Create tenant record
+   * 2. Link user as tenant_admin
+   * 3. Create subscription (defaults to 'navigator' plan)
+   *
+   * Runs in platform admin context to bypass RLS. RBAC roles are synced on app startup.
+   * Entitlement snapshots are created lazily on first access.
+   *
+   * @throws ConflictException - If user already owns a tenant or tenant name is taken
+   * @throws NotFoundException - If specified plan not found
+   * @throws BadRequestException - If specified plan not active
+   */
+  async createTenantForUser(
+    userId: string,
+    email: string,
+    createTenantDto: CreateTenantDto,
+  ): Promise<Tenant> {
+    const tenant = await this.executeInTenantScope(
+      '',
+      { mode: 'platform' },
+      async (client) => {
+        this.logger.log(`Creating tenant for user: ${userId}`);
+
+        const isAdminOfAnyTenant =
+          await this.userTenantRepository.userIsTenantAdminOfAny(userId, {
+            client,
+          });
+        if (isAdminOfAnyTenant) {
+          throw new ConflictException(
+            this.i18n.t(TenantsI18n.errors.USER_ALREADY_HAS_TENANT),
+          );
+        }
+
+        const isNameTaken = await this.tenantRepository.isNameTaken(
+          createTenantDto.name,
+          undefined,
+          { client },
+        );
+        if (isNameTaken) {
+          throw new ConflictException(
+            this.i18n.t(TenantsI18n.errors.TENANT_NAME_TAKEN, {
+              args: { name: createTenantDto.name },
+            }),
+          );
+        }
+
+        const created = await this.createTenant(createTenantDto, userId, {
+          client,
+        });
+
+        await this.userTenantRepository.linkUserToTenant(
+          {
+            userId,
+            tenantId: created.id,
+            roleKey: SystemTenantRole.TENANT_ADMIN,
+            isActive: true,
+          },
+          { client },
+        );
+
+        this.logger.log(
+          `Tenant creation complete: id=${created.id}, user=${userId}`,
+        );
+
+        return created;
+      },
+      {
+        allowCrossTenantRead: true,
+      },
+    );
+
+    // Fire-and-forget Stripe customer creation after transaction commits
+    this.stripeCustomerService.createCustomerForTenant(tenant, email, userId);
+
+    return tenant;
   }
 
   /**

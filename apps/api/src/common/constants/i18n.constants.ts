@@ -10,6 +10,7 @@ export const CommonI18n = {
     UNAUTHORIZED: 'common.errors.UNAUTHORIZED',
     FORBIDDEN: 'common.errors.FORBIDDEN',
     BAD_REQUEST: 'common.errors.BAD_REQUEST',
+    EMAIL_VERIFICATION_REQUIRED: 'common.errors.EMAIL_VERIFICATION_REQUIRED',
   },
   messages: {},
 } as const;

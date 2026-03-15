@@ -6,6 +6,7 @@ import { EmailVerificationRepository } from 'src/repositories/users/email-verifi
 import { RefreshTokenRepository } from 'src/repositories/users/refresh-token.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
+import { EmailModule } from '../email/email.module';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { TenantModule } from '../tenants/tenant.module';
 import { AuthController } from './auth.controller';
@@ -23,6 +24,7 @@ import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strate
     ConfigModule,
     PassportModule.register({ defaultStrategy: JWT_TENANT_ACCESS_STRATEGY }),
     JwtModule.register({}), // Configuration done in strategies
+    EmailModule,
     TenantModule,
     InvitationsModule,
   ],

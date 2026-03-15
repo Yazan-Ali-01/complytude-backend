@@ -28,6 +28,7 @@ import { EmailVerificationRepository } from '../../repositories/users/email-veri
 import { RefreshTokenRepository } from '../../repositories/users/refresh-token.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { UserRepository } from '../../repositories/users/user.repository';
+import { EmailService } from '../email/email.service';
 import { InvitationsService } from '../invitations/invitations.service';
 import { TenantService } from '../tenants/tenant.service';
 import { UsersI18n } from '../users/constants/i18n.constants';
@@ -66,6 +67,7 @@ export class AuthService {
     private readonly userTenantRepository: UserTenantRepository,
     private readonly databaseService: DatabaseService,
     private readonly invitationsService: InvitationsService,
+    private readonly emailService: EmailService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -197,16 +199,17 @@ export class AuthService {
   }
 
   /**
-   * Registers a new user and creates their first tenant.
+   * Registers a new user account.
    *
    * @remarks
-   * - Creates a new user account
-   * - Creates a new tenant with default plan and features
-   * - Links the user to the tenant with admin role in user_tenants table
+   * - Checks for existing email (throws ConflictException if taken)
+   * - Creates a new user account (unverified)
    * - Creates email verification token
+   * - Does NOT create a tenant — users create their organization
+   *   separately via POST /tenants after verifying their email
    *
    * @param signupDto - User registration information
-   * @returns An object containing a success message, userId, tenantId, and an email verification token (remove in production)
+   * @returns Success message (+ verificationToken in non-production)
    * @throws {ConflictException} if the email is already registered
    */
   async signup(signupDto: SignupDto): Promise<MessageResponseDto> {
@@ -253,7 +256,7 @@ export class AuthService {
       const expiresAt = new Date(
         Date.now() +
           this.parseExpiresIn(
-            this.configService.get<string>('EMAIL_VERIFICATION_EXPIRES_IN') ||
+            this.configService.get<string>('email.verificationExpiresIn') ||
               '1d',
           ),
       );
@@ -269,16 +272,16 @@ export class AuthService {
         { client },
       );
 
-      // TODO: Hook in actual email sending here
-      this.logger.log(
-        `Verification token for ${signupDto.email}: ${verificationToken}`,
+      this.emailService.sendVerificationEmail(
+        signupDto.email,
+        verificationToken,
       );
 
       const result = {
         message: this.i18n.t(AuthI18n.messages.SIGNUP_SUCCESS),
       } as unknown as MessageResponseDto & { verificationToken: string };
 
-      if (this.configService.get<string>('NODE_ENV') !== 'production') {
+      if (this.configService.get<string>('app.environment') !== 'production') {
         (result as unknown as { verificationToken: string }).verificationToken =
           verificationToken;
       }
@@ -301,18 +304,17 @@ export class AuthService {
     // Validate user credentials
     const user = await this.validateUser(loginDto.email, loginDto.password);
 
-    // Check if user is verified
-    if (!user.is_verified) {
-      throw new UnauthorizedException(
-        this.i18n.t(AuthI18n.errors.EMAIL_NOT_VERIFIED),
-      );
-    }
-
+    // Allow unverified users to login; VerifiedUserGuard blocks them from tenant creation
     const platformRole = user.platform_role_key ?? null;
 
     // Generate identity tokens (access + refresh)
     const { identityAccessToken, identityRefreshToken } =
-      await this.generateIdentityTokens(user.id, user.email, platformRole);
+      await this.generateIdentityTokens(
+        user.id,
+        user.email,
+        user.is_verified,
+        platformRole,
+      );
 
     // Get user's active tenants
     const userTenants = await this.userTenantRepository.getActiveUserTenants(
@@ -344,6 +346,7 @@ export class AuthService {
         firstName: user.first_name,
         lastName: user.last_name,
         platformRole: user.platform_role_key ?? null,
+        isVerified: user.is_verified,
       },
       tenants: tenantsWithDetails,
       pendingInvitationsCount,
@@ -398,11 +401,13 @@ export class AuthService {
   async generateIdentityTokens(
     userId: string,
     email: string,
+    isVerified: boolean,
     platformRole: string | null,
   ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     const accessPayload: IdentityPayload = {
       sub: userId,
       email,
+      isVerified,
       platformRole,
       type: 'identity',
     };
@@ -607,6 +612,7 @@ export class AuthService {
     const tokens = await this.generateIdentityTokens(
       userId,
       email,
+      user.is_verified,
       platformRole,
     );
 
@@ -787,14 +793,13 @@ export class AuthService {
       expiresAt,
     });
 
-    // TODO: Send password reset email
-    this.logger.log(`Password reset token for ${email}: ${resetToken}`);
+    this.emailService.sendPasswordResetEmail(email, resetToken);
 
     const result = {
       message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
     };
 
-    if (this.configService.get<string>('NODE_ENV') !== 'production') {
+    if (this.configService.get<string>('app.environment') !== 'production') {
       (result as unknown as { resetToken: string }).resetToken = resetToken;
     }
 
