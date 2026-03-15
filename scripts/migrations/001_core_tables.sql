@@ -816,6 +816,7 @@ DROP INDEX IF EXISTS public.idx_tenants_is_active;
 DROP INDEX IF EXISTS public.idx_tenants_deactivated;
 DROP INDEX IF EXISTS public.idx_tenants_emirate;
 DROP INDEX IF EXISTS public.idx_tenants_slug;
+DROP INDEX IF EXISTS public.idx_tenants_name_lower_unique;
 
 
 DROP INDEX IF EXISTS public.idx_invitations_email_tenant_pending;
