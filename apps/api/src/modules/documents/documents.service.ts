@@ -42,47 +42,59 @@ export class DocumentsService {
     dto: AnalyzeDocumentDto,
     user: AuthenticatedTenantUser,
   ): Promise<AnalyzeDocumentResponseDto> {
-    const { documentId, analysisJobId } =
-      await this.databaseService.transactionWithTenantContext(
-        { tenantId: user.tenantId },
-        async (client) => {
-          const document = await this.documentRepository.create(
-            {
-              tenant_id: user.tenantId,
-              title: dto.title,
-              content: dto.content,
-              created_by: user.userId,
-              metadata: JSON.stringify({}),
-            },
-            { client },
-          );
+    try {
+      const { documentId, analysisJobId } =
+        await this.databaseService.transactionWithTenantContext(
+          { tenantId: user.tenantId },
+          async (client) => {
+            const document = await this.documentRepository.create(
+              {
+                tenant_id: user.tenantId,
+                title: dto.title,
+                content: dto.content,
+                created_by: user.userId,
+                metadata: JSON.stringify({}),
+              },
+              { client },
+            );
 
-          const analysisJob = await this.analysisJobRepository.create(
-            {
-              tenant_id: user.tenantId,
-              document_id: document.id,
-              created_by: user.userId,
-              status: 'queued',
-            },
-            { client },
-          );
+            this.logger.log(
+              `Document created: documentId=${document.id} tenantId=${user.tenantId} userId=${user.userId}`,
+            );
 
-          return { documentId: document.id, analysisJobId: analysisJob.id };
-        },
+            const analysisJob = await this.analysisJobRepository.create(
+              {
+                tenant_id: user.tenantId,
+                document_id: document.id,
+                created_by: user.userId,
+                status: 'queued',
+              },
+              { client },
+            );
+
+            return { documentId: document.id, analysisJobId: analysisJob.id };
+          },
+        );
+
+      await this.queueProducerService.enqueue(
+        QUEUE_NAMES.AI_PROCESSING,
+        AI_JOB_NAMES.DOCUMENT_ANALYSIS,
+        { analysisJobId, documentId, tenantId: user.tenantId },
+        { jobId: `doc-analysis-${analysisJobId}` },
       );
 
-    await this.queueProducerService.enqueue(
-      QUEUE_NAMES.AI_PROCESSING,
-      AI_JOB_NAMES.DOCUMENT_ANALYSIS,
-      { analysisJobId, documentId, tenantId: user.tenantId },
-      { jobId: `doc-analysis-${analysisJobId}` },
-    );
+      this.logger.log(
+        `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJobId} tenantId=${user.tenantId}`,
+      );
 
-    this.logger.log(
-      `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJobId} tenantId=${user.tenantId}`,
-    );
-
-    return { documentId, analysisJobId };
+      return { documentId, analysisJobId };
+    } catch (error) {
+      this.logger.error(
+        `Document analysis failed: tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
   }
 
   /**
@@ -93,31 +105,40 @@ export class DocumentsService {
     documentId: string,
     user: AuthenticatedTenantUser,
   ): Promise<AnalysisJobResponseDto> {
-    const tenantContext = {
-      tenantId: user.tenantId,
-      schema: 'public' as const,
-    };
+    try {
+      const tenantContext = {
+        tenantId: user.tenantId,
+        schema: 'public' as const,
+      };
 
-    const document = await this.documentRepository.findById(documentId, {
-      tenant: tenantContext,
-    });
-    if (!document) {
-      throw new NotFoundException(
-        this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+      const document = await this.documentRepository.findById(documentId, {
+        tenant: tenantContext,
+      });
+      if (!document) {
+        throw new NotFoundException(
+          this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+        );
+      }
+
+      const job = await this.analysisJobRepository.findLatestByDocument(
+        documentId,
+        { tenant: tenantContext },
       );
-    }
+      if (!job) {
+        throw new NotFoundException(
+          this.i18n.t(DocumentsI18n.errors.NO_ANALYSIS_JOB_FOR_DOCUMENT),
+        );
+      }
 
-    const job = await this.analysisJobRepository.findLatestByDocument(
-      documentId,
-      { tenant: tenantContext },
-    );
-    if (!job) {
-      throw new NotFoundException(
-        this.i18n.t(DocumentsI18n.errors.NO_ANALYSIS_JOB_FOR_DOCUMENT),
+      return this.mapAnalysisJobToDto(job);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.error(
+        `getLatestAnalysis failed: documentId=${documentId} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
       );
+      throw error;
     }
-
-    return this.mapAnalysisJobToDto(job);
   }
 
   /**
@@ -128,21 +149,30 @@ export class DocumentsService {
     analysisJobId: string,
     user: AuthenticatedTenantUser,
   ): Promise<AnalysisJobResponseDto> {
-    const tenantContext = {
-      tenantId: user.tenantId,
-      schema: 'public' as const,
-    };
+    try {
+      const tenantContext = {
+        tenantId: user.tenantId,
+        schema: 'public' as const,
+      };
 
-    const job = await this.analysisJobRepository.findById(analysisJobId, {
-      tenant: tenantContext,
-    });
-    if (!job) {
-      throw new NotFoundException(
-        this.i18n.t(DocumentsI18n.errors.ANALYSIS_JOB_NOT_FOUND),
+      const job = await this.analysisJobRepository.findById(analysisJobId, {
+        tenant: tenantContext,
+      });
+      if (!job) {
+        throw new NotFoundException(
+          this.i18n.t(DocumentsI18n.errors.ANALYSIS_JOB_NOT_FOUND),
+        );
+      }
+
+      return this.mapAnalysisJobToDto(job);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.error(
+        `getAnalysisJobById failed: analysisJobId=${analysisJobId} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
       );
+      throw error;
     }
-
-    return this.mapAnalysisJobToDto(job);
   }
 
   private mapAnalysisJobToDto(job: {
