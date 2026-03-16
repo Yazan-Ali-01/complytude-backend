@@ -757,47 +757,54 @@ describe('Projection Pipeline', () => {
     }, 30000);
 
     it('Test 10: reconciliation per-row error resilience', async () => {
-      // Create 3 tenants, all with drift
-      const tenants = await Promise.all([
-        createTestTenant(app.module),
-        createTestTenant(app.module),
-        createTestTenant(app.module),
-      ]);
-      for (const tenant of tenants) {
-        await createTestSubscription(app.module, tenant.id, {
-          planKey: 'shield',
-        });
-        await usageIngestionService.recordUsage({
-          tenant_id: tenant.id,
-          feature_key: 'documents_per_month',
-          units: 1,
-          allocations: [{ source: 'plan', units: 1 }],
-        });
+      // Pause queue so projection stays empty — recordUsage queues PROJECTION_UPDATE
+      // but we need drift (ledger populated, projection empty) for reconcile to correct
+      await queue.pause();
+      try {
+        // Create 3 tenants, all with drift
+        const tenants = await Promise.all([
+          createTestTenant(app.module),
+          createTestTenant(app.module),
+          createTestTenant(app.module),
+        ]);
+        for (const tenant of tenants) {
+          await createTestSubscription(app.module, tenant.id, {
+            planKey: 'shield',
+          });
+          await usageIngestionService.recordUsage({
+            tenant_id: tenant.id,
+            feature_key: 'documents_per_month',
+            units: 1,
+            allocations: [{ source: 'plan', units: 1 }],
+          });
+        }
+
+        // Spy: fail on exactly the 2nd call to rebuildFromLedger
+        const original = usageProjectionService.rebuildFromLedger.bind(
+          usageProjectionService,
+        );
+        let callCount = 0;
+        jest
+          .spyOn(usageProjectionService, 'rebuildFromLedger')
+          .mockImplementation((...args) => {
+            callCount++;
+            if (callCount === 2) {
+              throw new Error('simulated rebuild failure for tenant 2');
+            }
+            return original(...(args as Parameters<typeof original>));
+          });
+
+        const result = await reconciliationService.reconcile();
+
+        expect(result.corrected).toBe(2);
+        expect(result.failed).toBe(1);
+        expect(result.failedDetails).toHaveLength(1);
+        expect(result.failedDetails[0].error).toContain(
+          'simulated rebuild failure',
+        );
+      } finally {
+        await queue.resume();
       }
-
-      // Spy: fail on exactly the 2nd call to rebuildFromLedger
-      const original = usageProjectionService.rebuildFromLedger.bind(
-        usageProjectionService,
-      );
-      let callCount = 0;
-      jest
-        .spyOn(usageProjectionService, 'rebuildFromLedger')
-        .mockImplementation((...args) => {
-          callCount++;
-          if (callCount === 2) {
-            throw new Error('simulated rebuild failure for tenant 2');
-          }
-          return original(...(args as Parameters<typeof original>));
-        });
-
-      const result = await reconciliationService.reconcile();
-
-      expect(result.corrected).toBe(2);
-      expect(result.failed).toBe(1);
-      expect(result.failedDetails).toHaveLength(1);
-      expect(result.failedDetails[0].error).toContain(
-        'simulated rebuild failure',
-      );
     }, 30000);
   });
 
