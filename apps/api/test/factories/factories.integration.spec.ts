@@ -36,7 +36,7 @@ describe('Test Data Factories', () => {
       const tenant = await createTestTenant(app.module);
 
       expect(tenant.id).toBeDefined();
-      expect(tenant.name).toBe('Test Tenant');
+      expect(tenant.name).toMatch(/^Test Tenant [a-f0-9]{8}$/);
       expect(tenant.slug).toMatch(/^test-/);
       expect(tenant.is_active).toBe(true);
     });
