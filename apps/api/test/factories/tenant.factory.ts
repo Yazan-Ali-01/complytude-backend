@@ -11,9 +11,10 @@ export async function createTestTenant(
   overrides?: Partial<CreateTenantRow>,
 ): Promise<Tenant> {
   const tenantRepository = module.get(TenantRepository);
+  const suffix = randomUUID().slice(0, 8);
   return tenantRepository.create({
-    name: 'Test Tenant',
-    slug: `test-${randomUUID().slice(0, 8)}`,
+    name: overrides?.name ?? `Test Tenant ${suffix}`,
+    slug: `test-${suffix}`,
     is_active: true,
     ...overrides,
   });
