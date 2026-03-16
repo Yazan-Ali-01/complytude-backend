@@ -17,14 +17,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Audit } from 'src/common/decorators/audit.decorator';
+import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import {
   MessageResponseDto,
   PaginationMetaDto,
   PaginationQueryDto,
 } from 'src/common/dto';
-import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
-import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiConflictError,
@@ -35,6 +34,7 @@ import {
   ApiNotFoundError,
   ApiProtectedResponses,
 } from 'src/common/swagger/decorators';
+import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
 import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
 import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
 import {
@@ -103,6 +103,7 @@ export class TemplatesController {
   }
 
   @Post()
+  @Audit('TEMPLATE_CREATED', { resourceType: 'templates', includeBody: true })
   @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('templates:manage')
@@ -124,6 +125,10 @@ export class TemplatesController {
   }
 
   @Delete(':key')
+  @Audit('TEMPLATE_DEACTIVATED', {
+    resourceIdParam: 'key',
+    resourceType: 'templates',
+  })
   @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('templates:manage')
@@ -167,6 +172,10 @@ export class TemplatesController {
   }
 
   @Post(':key/versions')
+  @Audit('TEMPLATE_VERSION_CREATED', {
+    resourceIdParam: 'key',
+    resourceType: 'templates',
+  })
   @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('templates:manage')
@@ -251,6 +260,10 @@ export class TemplatesController {
   }
 
   @Post(':key/rulesets')
+  @Audit('TEMPLATE_RULESETS_LINKED', {
+    resourceIdParam: 'key',
+    resourceType: 'templates',
+  })
   @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('templates:manage')

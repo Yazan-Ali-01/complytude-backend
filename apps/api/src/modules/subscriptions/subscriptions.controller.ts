@@ -3,6 +3,7 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { SystemTenantRole } from 'src/common/types';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -77,6 +78,10 @@ export class SubscriptionsController {
    * Requires: billing:manage permission (typically tenant_admin or billing manager)
    */
   @Post('change-plan')
+  @Audit('SUBSCRIPTION_PLAN_CHANGED', {
+    resourceType: 'subscriptions',
+    includeBody: true,
+  })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({
@@ -128,6 +133,9 @@ export class SubscriptionsController {
    * Requires: billing:manage permission (typically tenant_admin or billing manager)
    */
   @Post('cancel')
+  @Audit('SUBSCRIPTION_CANCELLED', {
+    resourceType: 'subscriptions',
+  })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({
@@ -167,6 +175,9 @@ export class SubscriptionsController {
    * Requires: tenant_admin role
    */
   @Post('renew')
+  @Audit('SUBSCRIPTION_RENEWED', {
+    resourceType: 'subscriptions',
+  })
   @UseGuards(RolesGuard)
   @Roles(SystemTenantRole.TENANT_ADMIN)
   @ApiOperation({

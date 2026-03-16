@@ -13,11 +13,12 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
-import { EntitlementsI18n } from '../constants/i18n.constants';
+import { Audit } from '../../../common/decorators/audit.decorator';
 import { MessageResponseDto } from '../../../common/dto';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../../auth/strategies/jwt-payload.interface';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import {
   AddAddonDto,
   TenantAddonResponseDto,
@@ -55,6 +56,7 @@ export class TenantAddonsController {
   }
 
   @Post()
+  @Audit('TENANT_ADDON_ATTACHED', { resourceType: 'tenant-addons' })
   @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({ summary: 'Add an add-on to tenant subscription' })
   @ApiResponse({
@@ -77,6 +79,10 @@ export class TenantAddonsController {
   }
 
   @Patch(':id')
+  @Audit('TENANT_ADDON_UPDATED', {
+    resourceIdParam: 'id',
+    resourceType: 'tenant-addons',
+  })
   @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({ summary: 'Update tenant add-on quantity or status' })
   @ApiParam({ name: 'id', description: 'Tenant add-on ID' })
@@ -101,6 +107,10 @@ export class TenantAddonsController {
   }
 
   @Delete(':id')
+  @Audit('TENANT_ADDON_DETACHED', {
+    resourceIdParam: 'id',
+    resourceType: 'tenant-addons',
+  })
   @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({ summary: 'Remove (cancel) tenant add-on' })
   @ApiParam({ name: 'id', description: 'Tenant add-on ID' })

@@ -20,6 +20,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { RequireAnyPlatformPermission } from '../../common/decorators/platform-permissions.decorator';
 import { CursorQueryParamsDto } from '../../common/dto/cursor-query-params.dto';
 import { TenantCursorPaginatedResponseDto } from '../../common/dto/tenant-cursor-paginated-response.dto';
@@ -132,6 +133,11 @@ export class TenantAdminController {
   }
 
   @Patch(':tenantId/profile')
+  @Audit('TENANT_PROFILE_UPDATED', {
+    resourceIdParam: 'tenantId',
+    resourceType: 'tenants',
+    includeBody: true,
+  })
   @RequireAnyPlatformPermission('tenants:update')
   @ApiOperation({
     summary: '[ADMIN] Update organization profile',
@@ -175,6 +181,10 @@ export class TenantAdminController {
    * @throws ConflictException if slug already taken
    */
   @Patch(':tenantId/slug')
+  @Audit('TENANT_SLUG_UPDATED', {
+    resourceIdParam: 'tenantId',
+    resourceType: 'tenants',
+  })
   @RequireAnyPlatformPermission('tenants:update')
   @ApiOperation({
     summary: 'Update tenant slug',
@@ -201,6 +211,10 @@ export class TenantAdminController {
   }
 
   @Post(':tenantId/deactivate')
+  @Audit('TENANT_DEACTIVATED', {
+    resourceIdParam: 'tenantId',
+    resourceType: 'tenants',
+  })
   @HttpCode(HttpStatus.OK)
   @RequireAnyPlatformPermission('tenants:update')
   @ApiOperation({
@@ -232,6 +246,10 @@ export class TenantAdminController {
   }
 
   @Post(':tenantId/reactivate')
+  @Audit('TENANT_REACTIVATED', {
+    resourceIdParam: 'tenantId',
+    resourceType: 'tenants',
+  })
   @HttpCode(HttpStatus.OK)
   @RequireAnyPlatformPermission('tenants:update')
   @ApiOperation({

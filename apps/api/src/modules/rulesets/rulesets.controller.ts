@@ -37,6 +37,7 @@ import {
 import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
 import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
 import type { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { IngestionStatus } from './constants/ingestion-status.constants';
 import {
   CreateRulesetDto,
@@ -195,6 +196,7 @@ export class RulesetsController {
   // ─── Write Endpoints (identity token + rulesets:manage) ────────
 
   @Post()
+  @Audit('RULESET_CREATED', { resourceType: 'rulesets', includeBody: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -213,6 +215,11 @@ export class RulesetsController {
   }
 
   @Patch(':key')
+  @Audit('RULESET_UPDATED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+    includeBody: true,
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -235,6 +242,10 @@ export class RulesetsController {
   }
 
   @Delete(':key')
+  @Audit('RULESET_DEACTIVATED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -256,6 +267,10 @@ export class RulesetsController {
   }
 
   @Post(':key/versions')
+  @Audit('RULESET_VERSION_CREATED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -284,6 +299,10 @@ export class RulesetsController {
   }
 
   @Post(':key/versions/:version/rollback')
+  @Audit('RULESET_VERSION_ROLLBACK', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -322,6 +341,10 @@ export class RulesetsController {
   }
 
   @Post(':key/ingest')
+  @Audit('RULESET_INGESTION_TRIGGERED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
   @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')

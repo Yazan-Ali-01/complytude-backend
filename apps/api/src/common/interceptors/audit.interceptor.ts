@@ -1,3 +1,4 @@
+import { AuditService } from '@lib/audit';
 import {
   CallHandler,
   ExecutionContext,
@@ -6,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
-import { AuditService } from '@lib/audit';
 import { FastifyRequest } from 'fastify';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
@@ -44,9 +44,9 @@ export class AuditInterceptor implements NestInterceptor {
     >();
     const tenant = request.auth?.tenant;
 
-    if (!tenant) {
-      return next.handle();
-    }
+    // if (!tenant) {
+    //   return next.handle();
+    // }
 
     return next.handle().pipe(
       tap({
@@ -70,10 +70,10 @@ export class AuditInterceptor implements NestInterceptor {
           }
 
           void this.auditService.log({
-            tenantId: tenant.tenantId,
-            actorId: tenant.userId,
+            tenantId: tenant?.tenantId,
+            actorId: tenant?.userId,
             actorType: 'user',
-            userRole: tenant.role,
+            userRole: tenant?.role,
             action: auditConfig.event,
             resourceType: resourceType ?? 'unknown',
             resourceId,

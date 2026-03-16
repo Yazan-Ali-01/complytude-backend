@@ -9,6 +9,7 @@ import {
   ApiValidationError,
   SwaggerCookieAuth,
 } from 'src/common/swagger';
+import { Audit } from '../../common/decorators/audit.decorator';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -46,6 +47,7 @@ export class UsersController {
    * Update current user profile
    */
   @Patch('me')
+  @Audit('USER_PROFILE_UPDATED', { resourceType: 'users' })
   @ApiOperation({
     summary: 'Update current user profile',
     description: 'Update first name and/or last name of the authenticated user',
@@ -64,6 +66,7 @@ export class UsersController {
    * Change password
    */
   @Patch('me/password')
+  @Audit('USER_PASSWORD_CHANGED', { resourceType: 'users' })
   @ApiOperation({
     summary: 'Change password',
     description:
