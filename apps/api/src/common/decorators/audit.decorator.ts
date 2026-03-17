@@ -12,7 +12,7 @@ export interface AuditOptions {
 }
 
 export interface AuditConfig {
-  event: string;
+  action: string;
   options: AuditOptions;
 }
 
@@ -21,7 +21,7 @@ export interface AuditConfig {
  * Only methods decorated with @Audit() will be logged to the audit trail.
  * Logging is fire-and-forget and only triggers on successful (2xx) responses.
  *
- * @param event - The audit event name (stored as `action` in audit_logs)
+ * @param action - The audit action name (stored as `action` in audit_logs)
  * @param options - Optional configuration for resource type, ID extraction, and body inclusion
  *
  * @example
@@ -34,8 +34,8 @@ export interface AuditConfig {
  * @Audit('TEMPLATE_CREATED', { includeBody: true })
  * async createTemplate(@Body() dto: CreateTemplateDto) { ... }
  */
-export const Audit = (event: string, options?: AuditOptions) =>
+export const Audit = (action: string, options?: AuditOptions) =>
   SetMetadata(AUDIT_KEY, {
-    event,
+    action,
     options: options ?? {},
   } satisfies AuditConfig);

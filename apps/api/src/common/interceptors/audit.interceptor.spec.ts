@@ -33,6 +33,12 @@ describe('AuditInterceptor', () => {
     role: 'tenant_admin',
   };
 
+  const identityUser = {
+    userId: 'user-456',
+    email: 'test@example.com',
+    platformRole: null,
+  };
+
   const baseRequest = {
     method: 'POST',
     url: '/contracts/abc/export',
@@ -77,8 +83,8 @@ describe('AuditInterceptor', () => {
     });
   });
 
-  it('passes through without logging when no tenant auth', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_EXPORTED', options: {} });
+  it('passes through without logging when no auth context at all', (done) => {
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const request = {
       ...baseRequest,
       auth: { tenant: undefined, identity: undefined },
@@ -93,8 +99,8 @@ describe('AuditInterceptor', () => {
     });
   });
 
-  it('logs audit event on successful response', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_EXPORTED', options: {} });
+  it('logs with tenant actor on tenant-scoped routes', (done) => {
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const context = createMockExecutionContext(baseRequest);
 
     interceptor.intercept(context, next).subscribe({
@@ -114,8 +120,56 @@ describe('AuditInterceptor', () => {
     });
   });
 
+  it('logs with identity actor on identity-only routes (login, signup)', (done) => {
+    mockAuditConfig({ action: 'AUTH_LOGIN', options: {} });
+    const request = {
+      ...baseRequest,
+      auth: { tenant: undefined, identity: identityUser },
+    };
+    const context = createMockExecutionContext(request);
+
+    interceptor.intercept(context, next).subscribe({
+      complete: () => {
+        expect(auditService.log).toHaveBeenCalledTimes(1);
+        expect(auditService.log).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: 'AUTH_LOGIN',
+            actorId: 'user-456',
+            actorType: 'user',
+          }),
+        );
+        const logCall = auditService.log.mock.calls[0][0];
+        expect(logCall.tenantId).toBeUndefined();
+        expect(logCall.userRole).toBeUndefined();
+        done();
+      },
+    });
+  });
+
+  it('prefers tenant over identity when both are present', (done) => {
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
+    const request = {
+      ...baseRequest,
+      auth: { tenant: tenantUser, identity: identityUser },
+    };
+    const context = createMockExecutionContext(request);
+
+    interceptor.intercept(context, next).subscribe({
+      complete: () => {
+        expect(auditService.log).toHaveBeenCalledWith(
+          expect.objectContaining({
+            tenantId: 'tenant-123',
+            actorId: 'user-456',
+            userRole: 'tenant_admin',
+          }),
+        );
+        done();
+      },
+    });
+  });
+
   it('does NOT log on error response', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_EXPORTED', options: {} });
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const context = createMockExecutionContext(baseRequest);
     const errorNext: CallHandler = {
       handle: () => throwError(() => new Error('Forbidden')),
@@ -131,7 +185,7 @@ describe('AuditInterceptor', () => {
 
   it('extracts resource ID from route params when resourceIdParam set', (done) => {
     mockAuditConfig({
-      event: 'CONTRACT_EXPORTED',
+      action: 'CONTRACT_EXPORTED',
       options: { resourceIdParam: 'id' },
     });
     const context = createMockExecutionContext(baseRequest);
@@ -147,7 +201,7 @@ describe('AuditInterceptor', () => {
   });
 
   it('falls back to response body ID when no resourceIdParam', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_CREATED', options: {} });
+    mockAuditConfig({ action: 'CONTRACT_CREATED', options: {} });
     const context = createMockExecutionContext(baseRequest);
 
     interceptor.intercept(context, next).subscribe({
@@ -161,7 +215,7 @@ describe('AuditInterceptor', () => {
   });
 
   it('extracts resource ID from nested response.data.id', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_CREATED', options: {} });
+    mockAuditConfig({ action: 'CONTRACT_CREATED', options: {} });
     const nestedNext: CallHandler = {
       handle: () => of({ data: { id: 'nested-id' } }),
     };
@@ -178,7 +232,7 @@ describe('AuditInterceptor', () => {
   });
 
   it('auto-derives resourceType from controller path', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_EXPORTED', options: {} });
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const context = createMockExecutionContext(baseRequest);
 
     interceptor.intercept(context, next).subscribe({
@@ -193,7 +247,7 @@ describe('AuditInterceptor', () => {
 
   it('uses explicit resourceType from options over controller path', (done) => {
     mockAuditConfig({
-      event: 'REPORT_GENERATED',
+      action: 'REPORT_GENERATED',
       options: { resourceType: 'reports' },
     });
     const context = createMockExecutionContext(baseRequest);
@@ -210,7 +264,7 @@ describe('AuditInterceptor', () => {
 
   it('includes sanitized body in details when includeBody is true', (done) => {
     mockAuditConfig({
-      event: 'CONTRACT_CREATED',
+      action: 'CONTRACT_CREATED',
       options: { includeBody: true },
     });
     const requestWithBody = {
@@ -234,7 +288,7 @@ describe('AuditInterceptor', () => {
 
   it('does not include body in details when includeBody is false', (done) => {
     mockAuditConfig({
-      event: 'CONTRACT_EXPORTED',
+      action: 'CONTRACT_EXPORTED',
       options: { includeBody: false },
     });
     const context = createMockExecutionContext(baseRequest);
@@ -249,7 +303,7 @@ describe('AuditInterceptor', () => {
   });
 
   it('extracts IP from X-Forwarded-For header', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_EXPORTED', options: {} });
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const request = {
       ...baseRequest,
       headers: {
@@ -270,7 +324,7 @@ describe('AuditInterceptor', () => {
   });
 
   it('falls back to request.ip when no X-Forwarded-For', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_EXPORTED', options: {} });
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const context = createMockExecutionContext(baseRequest);
 
     interceptor.intercept(context, next).subscribe({
@@ -284,7 +338,7 @@ describe('AuditInterceptor', () => {
   });
 
   it('includes method and url in details', (done) => {
-    mockAuditConfig({ event: 'CONTRACT_EXPORTED', options: {} });
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const context = createMockExecutionContext(baseRequest);
 
     interceptor.intercept(context, next).subscribe({

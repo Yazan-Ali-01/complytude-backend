@@ -1,4 +1,4 @@
-import { AuditService } from '@lib/audit';
+import { AuditActorType, AuditService } from '@lib/audit';
 import {
   CallHandler,
   ExecutionContext,
@@ -17,6 +17,20 @@ import {
 import { AUDIT_KEY, AuditConfig } from '../decorators/audit.decorator';
 import { sanitizeBody } from '../utils/audit-sanitize.util';
 
+type AuditableRequest = FastifyRequest & {
+  auth?: {
+    tenant?: AuthenticatedTenantUser;
+    identity?: AuthenticatedIdentityUser;
+  };
+};
+
+interface ResolvedActor {
+  actorId: string;
+  tenantId?: string;
+  actorType: AuditActorType;
+  userRole?: string;
+}
+
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   constructor(
@@ -34,19 +48,12 @@ export class AuditInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    const request = context.switchToHttp().getRequest<
-      FastifyRequest & {
-        auth: {
-          tenant: AuthenticatedTenantUser | undefined;
-          identity: AuthenticatedIdentityUser | undefined;
-        };
-      }
-    >();
-    const tenant = request.auth?.tenant;
+    const request = context.switchToHttp().getRequest<AuditableRequest>();
 
-    // if (!tenant) {
-    //   return next.handle();
-    // }
+    const actor = this.resolveActor(request);
+    if (!actor) {
+      return next.handle();
+    }
 
     return next.handle().pipe(
       tap({
@@ -57,7 +64,7 @@ export class AuditInterceptor implements NestInterceptor {
             request,
             response,
           );
-          const ipAddress = this.getIpAddress(request);
+          const ipAddress = this.resolveIpAddress(request);
           const userAgent = request.headers['user-agent'] || undefined;
 
           const details: Record<string, unknown> = {
@@ -70,11 +77,8 @@ export class AuditInterceptor implements NestInterceptor {
           }
 
           void this.auditService.log({
-            tenantId: tenant?.tenantId,
-            actorId: tenant?.userId,
-            actorType: 'user',
-            userRole: tenant?.role,
-            action: auditConfig.event,
+            ...actor,
+            action: auditConfig.action,
             resourceType: resourceType ?? 'unknown',
             resourceId,
             details,
@@ -84,6 +88,35 @@ export class AuditInterceptor implements NestInterceptor {
         },
       }),
     );
+  }
+
+  /**
+   * Resolves the actor from whichever auth context is available.
+   * Tenant context takes priority (has richer info: tenantId + role).
+   * Falls back to identity context for pre-tenant routes (login, signup, etc.).
+   * Returns null if no auth context exists (anonymous/unauthenticated).
+   */
+  private resolveActor(request: AuditableRequest): ResolvedActor | null {
+    const tenant = request.auth?.tenant;
+    const identity = request.auth?.identity;
+
+    if (tenant) {
+      return {
+        actorId: tenant.userId,
+        tenantId: tenant.tenantId,
+        actorType: 'user',
+        userRole: tenant.role,
+      };
+    }
+
+    if (identity) {
+      return {
+        actorId: identity.userId,
+        actorType: 'user',
+      };
+    }
+
+    return null;
   }
 
   /**
@@ -137,7 +170,7 @@ export class AuditInterceptor implements NestInterceptor {
     return undefined;
   }
 
-  private getIpAddress(request: FastifyRequest): string | undefined {
+  private resolveIpAddress(request: FastifyRequest): string | undefined {
     const forwardedFor = request.headers['x-forwarded-for'];
     if (forwardedFor) {
       const ips = Array.isArray(forwardedFor)
