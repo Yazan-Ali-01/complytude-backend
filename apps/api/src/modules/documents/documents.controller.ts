@@ -21,6 +21,7 @@ import {
   ApiNotFoundError,
   ApiValidationError,
 } from 'src/common/swagger/decorators';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
@@ -78,6 +79,7 @@ export class DocumentsController {
   }
 
   @Post('analyze')
+  @Audit('DOCUMENT_ANALYSIS_TRIGGERED', { resourceType: 'documents' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:create')
   @HttpCode(HttpStatus.ACCEPTED)

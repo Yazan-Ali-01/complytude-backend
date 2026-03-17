@@ -280,7 +280,7 @@ CREATE TABLE public.audit_logs (
     user_role     VARCHAR(50),
     action        VARCHAR(100) NOT NULL,
     resource_type VARCHAR(100) NOT NULL,
-    resource_id   UUID,
+    resource_id   TEXT,
     details       JSONB DEFAULT '{}',
     ai_model_used VARCHAR(100),
     ip_address    VARCHAR(45),
@@ -310,7 +310,7 @@ COMMENT ON COLUMN public.audit_logs.actor_type IS 'Type of actor: user, system, 
 COMMENT ON COLUMN public.audit_logs.user_role IS 'Role key at time of action (for historical record)';
 COMMENT ON COLUMN public.audit_logs.action IS 'Action performed (e.g., documents:create, settings:update)';
 COMMENT ON COLUMN public.audit_logs.resource_type IS 'Type of resource affected (e.g., documents, templates)';
-COMMENT ON COLUMN public.audit_logs.resource_id IS 'ID of the affected resource (if applicable)';
+COMMENT ON COLUMN public.audit_logs.resource_id IS 'ID or key of the affected resource (if applicable)';
 COMMENT ON COLUMN public.audit_logs.details IS 'Additional context (JSONB)';
 COMMENT ON COLUMN public.audit_logs.ai_model_used IS 'AI model used for AI operations';
 COMMENT ON COLUMN public.audit_logs.ip_address IS 'IP address of the request';
