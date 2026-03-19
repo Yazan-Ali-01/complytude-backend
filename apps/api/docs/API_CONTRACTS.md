@@ -534,7 +534,15 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Authorization:** User must have verified email
 
-**Request Body:**
+**Request Body (trial — omit planKey):**
+
+```json
+{
+  "name": "Acme Legal LLC"
+}
+```
+
+**Request Body (direct subscription):**
 
 ```json
 {
@@ -545,10 +553,10 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Request Schema:**
 
-| Field     | Type   | Required | Default       | Validation             | Description       |
-| --------- | ------ | -------- | ------------- | ---------------------- | ----------------- |
-| `name`    | string | Yes      | -             | Min 1, max 255 chars   | Organization name |
-| `planKey` | enum   | No       | `"navigator"` | One of valid plan keys | Subscription plan |
+| Field     | Type   | Required | Default | Validation             | Description                                                                 |
+| --------- | ------ | -------- | ------- | ---------------------- | --------------------------------------------------------------------------- |
+| `name`    | string | Yes      | -       | Min 1, max 255 chars   | Organization name                                                           |
+| `planKey` | enum   | No       | (trial) | One of valid plan keys | If omitted: 14-day trial on General Counsel. If provided: direct subscription |
 
 **Valid Plan Keys:** `navigator`, `shield`, `general_counsel`, `infrastructure` (see entitlements documentation for details)
 
@@ -603,8 +611,8 @@ After completing this flow, users have full tenant access with tenant tokens set
 - Tenant created with specified name (required)
 - User linked as `tenant_admin` in `user_tenants` table (within same transaction)
 - `tenant_subscriptions` row created atomically within the same transaction:
-  - `plan_id` resolved from `planKey` via `PlansRepository.findByKey()`
-  - `status` = `'active'`, `current_period_start` = NOW(), `current_period_end` = NOW() + 1 month
+  - **If `planKey` omitted:** Trial subscription — `status` = `'trialing'`, `plan_id` = General Counsel, `trial_ends_at` = NOW() + 14 days, `current_period_end` = trial_ends_at
+  - **If `planKey` provided:** Direct subscription — `plan_id` resolved from `planKey`, `status` = `'active'`, `current_period_start` = NOW(), `current_period_end` = NOW() + 1 month
   - `getCurrentSubscription(tenantId)` works immediately after creation
 - Entitlements resolved lazily on first access (from subscription)
 - Default settings applied (locale: `en`, timezone: `Asia/Dubai`)

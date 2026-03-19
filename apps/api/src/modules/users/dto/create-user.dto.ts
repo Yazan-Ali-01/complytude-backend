@@ -1,11 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-    IsEmail,
-    IsOptional,
-    IsString,
-    Matches,
-    MaxLength,
-    MinLength,
+  IsEmail,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
 import { SystemTenantRole } from 'src/common/types';
 

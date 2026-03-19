@@ -212,17 +212,26 @@ export class TenantService {
           { client: txClient },
         );
 
-        const planKey = createTenantDto.planKey ?? 'navigator';
-        await this.subscriptionsService.createSubscription(
-          tenant.id,
-          planKey,
-          subscriptionCreatorUserId ?? null,
-          { client: txClient },
-        );
-
-        this.logger.log(
-          `Tenant created with subscription: tenant=${tenant.id}, plan=${planKey}`,
-        );
+        if (createTenantDto.planKey) {
+          await this.subscriptionsService.createSubscription(
+            tenant.id,
+            createTenantDto.planKey,
+            subscriptionCreatorUserId ?? null,
+            { client: txClient },
+          );
+          this.logger.log(
+            `Tenant created with subscription: tenant=${tenant.id}, plan=${createTenantDto.planKey}`,
+          );
+        } else {
+          await this.subscriptionsService.createTrialSubscription(
+            tenant.id,
+            subscriptionCreatorUserId ?? null,
+            { client: txClient },
+          );
+          this.logger.log(
+            `Tenant created with trial subscription: tenant=${tenant.id}`,
+          );
+        }
 
         return tenant;
       };

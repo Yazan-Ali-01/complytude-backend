@@ -2,6 +2,7 @@ import {
   AbstractProcessor,
   ENTITLEMENT_JOB_NAMES,
   EntitlementProjectionUpdateJobData,
+  EntitlementTrialExpiryCheckJobData,
   Job,
   PermanentError,
   Processor,
@@ -9,6 +10,7 @@ import {
 } from '@lib/queue';
 import { Logger } from '@nestjs/common';
 import { ProjectionUpdateHandler } from './projection-update.handler';
+import { TrialExpiryHandler } from './trial-expiry.handler';
 
 /**
  * Entitlement Queue Processor
@@ -30,6 +32,7 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
 
   constructor(
     private readonly projectionUpdateHandler: ProjectionUpdateHandler,
+    private readonly trialExpiryHandler: TrialExpiryHandler,
     // Future handlers injected here:
     // private readonly snapshotRebuildHandler: SnapshotRebuildHandler,
     // private readonly domainEventFanoutHandler: DomainEventFanoutHandler,
@@ -43,6 +46,11 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
       case ENTITLEMENT_JOB_NAMES.PROJECTION_UPDATE:
         return this.projectionUpdateHandler.execute(
           job as Job<EntitlementProjectionUpdateJobData>,
+        );
+
+      case ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK:
+        return this.trialExpiryHandler.execute(
+          job as Job<EntitlementTrialExpiryCheckJobData>,
         );
 
       // Future job handlers:

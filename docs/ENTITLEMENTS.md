@@ -393,23 +393,36 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 
 **Every tenant must have an active subscription.** When a tenant is created via `POST /tenants` or during signup, the system automatically creates a subscription:
 
+**Default (no planKey):** Trial subscription — 14 days on General Counsel plan
+
 ```typescript
-// TenantService.createTenantForUser()
-await this.subscriptionsService.createSubscription(
-  tenant.id,
-  planKey ?? 'navigator', // Defaults to free Navigator plan
-  userId,
-  { client }, // Reuses transaction client
-);
+// TenantService.createTenantForUser() — when planKey omitted
+await this.subscriptionsService.createTrialSubscription(tenant.id, userId, { client });
 ```
 
-**Created Subscription:**
+**With planKey:** Direct subscription on specified plan
+
+```typescript
+// TenantService.createTenantForUser() — when planKey provided
+await this.subscriptionsService.createSubscription(tenant.id, planKey, userId, { client });
+```
+
+**Trial Subscription:**
+
+- `plan_id` — General Counsel (full features to hook users)
+- `status` — `'trialing'`
+- `trial_ends_at` — NOW() + 14 days
+- `current_period_start` — NOW()
+- `current_period_end` — trial_ends_at (aligned)
+
+**Direct Subscription:**
 
 - `plan_id` — Resolved from plan key via `PlansRepository.findByKey()`
 - `status` — `'active'`
 - `current_period_start` — NOW()
 - `current_period_end` — NOW() + 1 month
-- `tenant_id` — From newly created tenant
+
+**Trial Expiry:** A scheduled job (`TRIAL_EXPIRY_CHECK`) runs every 6 hours. Expired trials are auto-downgraded to Navigator, snapshot invalidated, and `trial.expired` domain event emitted.
 
 **Important:** Without an active subscription, `EntitlementResolverService.resolveForTenant()` will throw `NotFoundException`. The subscription is created within the same transaction as the tenant to ensure atomicity.
 
@@ -1102,9 +1115,11 @@ async grantCredits(
 | `entitlement.snapshot_created`     | entitlement  | Snapshot created                                   |
 | `entitlement.snapshot_invalidated` | entitlement  | Snapshot invalidated                               |
 | `subscription.created`             | subscription | New subscription created                           |
+| `subscription.trial_started`       | subscription | Trial subscription created (new tenant, no planKey) |
 | `subscription.plan_changed`        | subscription | Plan upgraded/downgraded                           |
 | `subscription.cancelled`           | subscription | Subscription cancelled                             |
 | `subscription.renewed`             | subscription | Billing period renewed                             |
+| `trial.expired`                    | subscription | Trial ended, auto-downgraded to Navigator          |
 
 ### Querying Events
 

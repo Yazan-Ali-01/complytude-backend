@@ -141,7 +141,7 @@ export class TenantController {
       createTenantDto,
     );
 
-    const planKey = createTenantDto.planKey ?? 'navigator';
+    const planKey = createTenantDto.planKey ?? 'general_counsel';
     const input: TenantResponseInput = { ...tenant, plan: planKey };
     return new TenantResponseDto(input);
   }
