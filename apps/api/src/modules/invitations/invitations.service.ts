@@ -30,6 +30,8 @@ import {
 import { InvitationRepository } from 'src/repositories/invitations/invitation.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
+import { EntitlementEnforcementService } from '../entitlements/services/entitlement-enforcement.service';
+import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { InvitationsI18n } from './constants/i18n.constants';
 
 export interface CreateInvitationServiceInput {
@@ -54,6 +56,8 @@ export class InvitationsService {
     private readonly invitationRepository: InvitationRepository,
     private readonly userRepository: UserRepository,
     private readonly userTenantRepository: UserTenantRepository,
+    private readonly entitlementEnforcementService: EntitlementEnforcementService,
+    private readonly entitlementResolver: EntitlementResolverService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -212,6 +216,31 @@ export class InvitationsService {
         throw new ForbiddenException(
           this.i18n.t(InvitationsI18n.errors.INVITATION_EMAIL_MISMATCH),
         );
+      }
+
+      // Seat capacity check: only for NEW members (not already active)
+      const existingMembership =
+        await this.userTenantRepository.findByCompositeKey(
+          { userId, tenantId: invitation.tenantId },
+          { client },
+        );
+      const isNewMember = !existingMembership || !existingMembership.is_active;
+      if (isNewMember) {
+        const seatCheck =
+          await this.entitlementEnforcementService.checkAndRecord(
+            {
+              tenantId: invitation.tenantId,
+              featureKey: 'user_seats',
+              units: 1,
+            },
+            { client },
+          );
+        if (!seatCheck.allowed) {
+          throw new ForbiddenException({
+            message: this.i18n.t(InvitationsI18n.errors.SEAT_LIMIT_REACHED),
+            statusCode: 403,
+          });
+        }
       }
 
       // Mark invitation as accepted first
@@ -452,6 +481,33 @@ export class InvitationsService {
             this.i18n.t(InvitationsI18n.errors.USER_ALREADY_MEMBER),
           );
         }
+      }
+
+      // Seat capacity check: members + pending invitations must not exceed limit
+      const activeMembers = await this.userTenantRepository.countActiveByTenant(
+        input.tenantId,
+        {
+          client,
+        },
+      );
+      const pendingInvitations =
+        await this.invitationRepository.countPendingByTenant(input.tenantId, {
+          client,
+        });
+      const seatEntitlement = await this.entitlementResolver.resolveForTenant(
+        input.tenantId,
+        'user_seats',
+        { client },
+      );
+      const seatLimit = seatEntitlement?.value_int ?? 0;
+      const currentOccupancy = activeMembers + pendingInvitations;
+      if (seatLimit !== -1 && currentOccupancy >= seatLimit) {
+        throw new ForbiddenException({
+          message: this.i18n.t(
+            InvitationsI18n.errors.SEAT_LIMIT_REACHED_FOR_INVITE,
+          ),
+          statusCode: 403,
+        });
       }
 
       // Generate token

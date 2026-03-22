@@ -21,6 +21,7 @@ import { UserTenantRepository } from '../../repositories/users/user-tenant.repos
 import { StripeCustomerService } from '../stripe/services/stripe-customer.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantsI18n } from './constants/i18n.constants';
+import { DEFAULT_ONBOARDING_METADATA } from './constants/onboarding.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
@@ -208,6 +209,8 @@ export class TenantService {
           {
             name: createTenantDto.name,
             is_active: true,
+            onboarding_metadata:
+              DEFAULT_ONBOARDING_METADATA as unknown as Record<string, unknown>,
           },
           { client: txClient },
         );
@@ -698,9 +701,16 @@ export class TenantService {
   ): Promise<Tenant> {
     return this.executeInTenantScope(tenantId, context, async (client) => {
       const tenant = await this.findById(tenantId, { client });
+      const partialMetadata: Record<string, unknown> = {};
+      if (dto.currentStep !== undefined)
+        partialMetadata.currentStep = dto.currentStep;
+      if (dto.teamInviteSkipped !== undefined)
+        partialMetadata.teamInviteSkipped = dto.teamInviteSkipped;
+      if (dto.firstActionType !== undefined)
+        partialMetadata.firstActionType = dto.firstActionType;
       const mergedMetadata = deepMerge(
         tenant.onboarding_metadata || {},
-        dto.onboarding_metadata || {},
+        partialMetadata,
       );
       return this.updateOrThrow(
         tenantId,

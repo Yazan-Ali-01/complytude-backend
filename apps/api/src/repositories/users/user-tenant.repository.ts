@@ -242,6 +242,27 @@ export class UserTenantRepository extends BaseRepository<
   }
 
   /**
+   * Count active members for a tenant.
+   *
+   * @param tenantId - Tenant ID
+   * @param options - Query options
+   * @returns Number of active user_tenants rows
+   */
+  async countActiveByTenant(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<number> {
+    const result = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) as count
+       FROM ${this.tableName}
+       WHERE tenant_id = $1 AND is_active = true`,
+      [tenantId],
+      options,
+    );
+    return parseInt(result.rows[0]?.count || '0', 10);
+  }
+
+  /**
    * Find user tenants, without pagination.
    * Supports filtering by user_id, tenant_id, and is_active.
    *
