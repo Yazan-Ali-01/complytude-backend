@@ -223,6 +223,8 @@ variable "from_name" {
 variable "support_email" {
   description = "Support email address (e.g., support@complytude.com)"
   type        = string
+}
+
 # ---- Developer IAM Users ----
 variable "developer_usernames" {
   description = "IAM usernames for developers (e.g. [\"john\", \"alice\"]). Each gets access keys with scoped permissions."

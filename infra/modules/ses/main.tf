@@ -41,8 +41,8 @@ resource "aws_ses_event_destination" "cloudwatch" {
 
   cloudwatch_destination {
     default_value  = "0"
-    dimension_name = "EmailAddress"
-    value_source   = "emailAddress"
+    dimension_name = "MessageTag"
+    value_source   = "messageTag"
   }
 }
 
