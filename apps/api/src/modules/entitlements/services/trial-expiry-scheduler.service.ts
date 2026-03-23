@@ -21,14 +21,16 @@ export class TrialExpirySchedulerService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     try {
       const repeatableJobs = await this.entitlementQueue.getRepeatableJobs();
-      const existing = repeatableJobs.find(
-        (j) =>
-          j.name === ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK &&
-          j.pattern === '0 */6 * * *',
+      const existingJobs = repeatableJobs.filter(
+        (j) => j.name === ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK,
       );
-      if (existing) {
-        await this.entitlementQueue.removeRepeatableByKey(existing.key);
-        this.logger.log('Removed existing trial expiry repeatable job');
+      for (const j of existingJobs) {
+        await this.entitlementQueue.removeRepeatableByKey(j.key);
+      }
+      if (existingJobs.length > 0) {
+        this.logger.log(
+          `Removed ${existingJobs.length} existing trial expiry repeatable job(s)`,
+        );
       }
 
       await this.entitlementQueue.add(

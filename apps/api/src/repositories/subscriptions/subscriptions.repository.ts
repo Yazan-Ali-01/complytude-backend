@@ -233,7 +233,7 @@ export class SubscriptionsRepository extends BaseRepository<
   ): Promise<TenantSubscription> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
       `UPDATE ${this.tableName}
-       SET status = $1, cancelled_at = $2, updated_at = now()
+       SET status = $1, cancelled_at = $2, trial_ends_at = NULL, updated_at = now()
        WHERE id = $3
        RETURNING ${this.getSelectColumns()}`,
       [status, cancelledAt ?? null, id],
@@ -302,20 +302,19 @@ export class SubscriptionsRepository extends BaseRepository<
     periodStart: Date,
     periodEnd: Date,
     options?: QueryOptions,
-  ): Promise<TenantSubscription> {
+  ): Promise<TenantSubscription | null> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
       `UPDATE ${this.tableName}
-       SET status = 'active', plan_id = $1, current_period_start = $2, current_period_end = $3, trial_ends_at = NULL, updated_at = now()
-       WHERE id = $4
+       SET status = 'active', plan_id = $1,
+           billing_period_start = $2, billing_period_end = $3,
+           current_period_start = $2, current_period_end = $3,
+           trial_ends_at = NULL, updated_at = now()
+       WHERE id = $4 AND status = 'trialing'
        RETURNING ${this.getSelectColumns()}`,
       [planId, periodStart, periodEnd, id],
       options,
     );
 
-    if (result.rows.length === 0) {
-      throw new NotFoundException(`Subscription not found: ${id}`);
-    }
-
-    return this.mapRow(result.rows[0]);
+    return result.rows.length > 0 ? this.mapRow(result.rows[0]) : null;
   }
 }
