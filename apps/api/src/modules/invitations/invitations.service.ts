@@ -218,7 +218,10 @@ export class InvitationsService {
         );
       }
 
-      // Seat capacity check: only for NEW members (not already active)
+      // Seat capacity check: only for NEW members (not already active).
+      // Uses a live COUNT(*) from user_tenants rather than the ledger-based
+      // projection, because capacity features are bidirectional (users can be
+      // removed) and the projection can only increment.
       const existingMembership =
         await this.userTenantRepository.findByCompositeKey(
           { userId, tenantId: invitation.tenantId },
@@ -226,16 +229,18 @@ export class InvitationsService {
         );
       const isNewMember = !existingMembership || !existingMembership.is_active;
       if (isNewMember) {
-        const seatCheck =
-          await this.entitlementEnforcementService.checkAndRecord(
-            {
-              tenantId: invitation.tenantId,
-              featureKey: 'user_seats',
-              units: 1,
-            },
+        const [activeMembers, seatEntitlement] = await Promise.all([
+          this.userTenantRepository.countActiveByTenant(invitation.tenantId, {
+            client,
+          }),
+          this.entitlementResolver.resolveForTenant(
+            invitation.tenantId,
+            'user_seats',
             { client },
-          );
-        if (!seatCheck.allowed) {
+          ),
+        ]);
+        const seatLimit = seatEntitlement?.value_int ?? 0;
+        if (seatLimit !== -1 && activeMembers >= seatLimit) {
           throw new ForbiddenException({
             message: this.i18n.t(InvitationsI18n.errors.SEAT_LIMIT_REACHED),
             statusCode: 403,
@@ -483,17 +488,27 @@ export class InvitationsService {
         }
       }
 
-      // Seat capacity check: members + pending invitations must not exceed limit
-      const activeMembers = await this.userTenantRepository.countActiveByTenant(
-        input.tenantId,
-        {
-          client,
-        },
+      // Seat capacity check: members + pending invitations must not exceed limit.
+      // Uses a live COUNT(*) from user_tenants (same source of truth as the
+      // accept flow) because capacity features are bidirectional and the
+      // aggregated_usage projection can only increment.
+      const occupancyResult = await client.query<{
+        active_members: string;
+        pending_invitations: string;
+      }>(
+        `SELECT
+          (SELECT COUNT(*) FROM public.user_tenants WHERE tenant_id = $1 AND is_active = true) AS active_members,
+          (SELECT COUNT(*) FROM public.invitations WHERE tenant_id = $1 AND status = $2 AND expires_at > NOW()) AS pending_invitations`,
+        [input.tenantId, InvitationStatus.PENDING],
       );
-      const pendingInvitations =
-        await this.invitationRepository.countPendingByTenant(input.tenantId, {
-          client,
-        });
+      const activeMembers = parseInt(
+        occupancyResult.rows[0].active_members,
+        10,
+      );
+      const pendingInvitations = parseInt(
+        occupancyResult.rows[0].pending_invitations,
+        10,
+      );
       const seatEntitlement = await this.entitlementResolver.resolveForTenant(
         input.tenantId,
         'user_seats',
@@ -536,6 +551,19 @@ export class InvitationsService {
 
       this.logger.log(
         `Created invitation ${invitation.id} for ${input.email} to tenant ${input.tenantId}`,
+      );
+
+      // Mark inviteTeam step complete in onboarding metadata.
+      // Conditional on currentStep so this is idempotent for subsequent invites.
+      await client.query(
+        `UPDATE public.tenants
+         SET onboarding_metadata = jsonb_set(
+           jsonb_set(onboarding_metadata, '{stepsCompleted,inviteTeam}', 'true'),
+           '{currentStep}', '"first_action"'
+         )
+         WHERE id = $1
+           AND onboarding_metadata->>'currentStep' = 'invite_team'`,
+        [input.tenantId],
       );
 
       return {

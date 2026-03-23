@@ -13,7 +13,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PoolClient } from 'pg';
-import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
+import {
+  FeatureKey,
+  getFeatureDefinition,
+} from '../../../common/constants/plan-entitlements.constant';
 import {
   AllocationResolution,
   BuildProjectionJobInput,
@@ -96,6 +99,54 @@ export class EntitlementEnforcementService {
     private readonly configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
   ) {}
+
+  /**
+   * Read current projected usage and limit for a capacity/quota feature without
+   * writing to the ledger or projection. Use this for pre-flight checks where
+   * you need the same source of truth as `checkAndRecord` but must not consume
+   * a unit (e.g. checking seat availability before creating an invitation).
+   */
+  async peekUsage(
+    input: { tenantId: string; featureKey: FeatureKey },
+    options?: QueryOptions,
+  ): Promise<{ used: number; limit: number }> {
+    const execute = async (client: PoolClient) => {
+      const entitlement = await this.entitlementResolver.resolveForTenant(
+        input.tenantId,
+        input.featureKey,
+        { client },
+      );
+      if (!entitlement) {
+        throw new NotFoundException(`Feature not found: ${input.featureKey}`);
+      }
+      const subscription =
+        await this.subscriptionsRepository.findActiveByTenant(input.tenantId, {
+          client,
+        });
+      if (!subscription) {
+        throw new NotFoundException(
+          `No active subscription for tenant: ${input.tenantId}`,
+        );
+      }
+      const usage = await this.usageProjectionService.getCurrentUsage(
+        input.tenantId,
+        subscription.id,
+        input.featureKey,
+        { client },
+      );
+      return {
+        used: usage?.total_units ?? 0,
+        limit: entitlement.value_int ?? 0,
+      };
+    };
+
+    return options?.client
+      ? execute(options.client)
+      : this.databaseService.transactionWithTenantContext(
+          { tenantId: input.tenantId },
+          execute,
+        );
+  }
 
   async checkAndRecord(
     input: CheckAndRecordInput,

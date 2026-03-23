@@ -321,8 +321,8 @@ export class InvitationRepository extends BaseRepository<
     const result = await this.executeQuery<{ count: string }>(
       `SELECT COUNT(*) as count
        FROM ${this.tableName}
-       WHERE tenant_id = $1 AND status = '${InvitationStatus.PENDING}' AND expires_at > NOW()`,
-      [tenantId],
+       WHERE tenant_id = $1 AND status = $2 AND expires_at > NOW()`,
+      [tenantId, InvitationStatus.PENDING],
       options,
     );
     return parseInt(result.rows[0]?.count || '0', 10);
