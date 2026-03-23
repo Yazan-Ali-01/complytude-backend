@@ -7,7 +7,13 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
@@ -17,6 +23,7 @@ import type { AuthenticatedTenantUser } from '../auth/strategies';
 import { DocumentsService } from '../documents/documents.service';
 import { SAMPLE_CONTRACTS } from './sample-contracts.constant';
 
+@ApiExcludeController()
 @ApiTags('RAG Mock (Demo)')
 @Controller('rag-mock')
 @AuthOptions({ tenant: true })

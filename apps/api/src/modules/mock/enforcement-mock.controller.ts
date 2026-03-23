@@ -10,7 +10,12 @@ import {
 } from '@nestjs/common';
 import { FastifyRequest } from 'fastify';
 import type { EntitlementCheckResult } from 'src/common/types/entitlement.types';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { TrackUsage } from 'src/common/decorators/track-usage.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
@@ -57,6 +62,7 @@ import { UsageProjectionService } from '../entitlements/services/usage-projectio
  * - If guard passes: Endpoint is reached, returns 200 with data
  * - If guard fails: Endpoint is NOT reached, guard throws exception (403 or 402)
  */
+@ApiExcludeController()
 @Controller('mock/enforcement')
 @AuthOptions({ tenant: true })
 @ApiTags('mock-enforcement')
