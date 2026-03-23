@@ -184,3 +184,33 @@ variable "stripe_tax_enabled" {
   type        = string
   default     = "false"
 }
+
+# ---- Billing Scheduler ----
+variable "billing_schedule_enabled" {
+  description = "Enable scheduled billing jobs (daily Stripe reconciliation at 3 AM)"
+  type        = bool
+  default     = true
+}
+
+# ---- Email (AWS SES) ----
+variable "aws_region" {
+  description = "AWS region for SES"
+  type        = string
+  default     = "eu-central-1"
+}
+
+variable "from_email" {
+  description = "From email address for sending emails"
+  type        = string
+}
+
+variable "from_name" {
+  description = "From name for sending emails"
+  type        = string
+  default     = "Complytude Billing"
+}
+
+variable "support_email" {
+  description = "Support email address"
+  type        = string
+}

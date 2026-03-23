@@ -6,5 +6,6 @@
 export async function fileTypeFromBuffer(
   _buffer: Buffer | Uint8Array,
 ): Promise<{ mime: string; ext: string } | undefined> {
+  await Promise.resolve();
   return { mime: 'application/octet-stream', ext: 'bin' };
 }

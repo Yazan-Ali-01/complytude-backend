@@ -16,6 +16,21 @@ export const validationSchema = Joi.object({
     .min(1)
     .max(50)
     .default(5),
+  ENTITLEMENT_SUBSCRIPTION_CACHE_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(10)
+    .max(3600)
+    .default(60),
+  ENTITLEMENT_FEATURE_CACHE_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(30)
+    .max(7200)
+    .default(300),
+  ENTITLEMENT_CACHE_CLEANUP_INTERVAL_SECONDS: Joi.number()
+    .integer()
+    .min(60)
+    .max(3600)
+    .default(300),
 
   // Database
   ...databaseEnvSchema,
@@ -64,8 +79,22 @@ export const validationSchema = Joi.object({
   ...redisEnvSchema,
 
   // Stripe
-  STRIPE_SECRET_KEY: Joi.string().allow('').default(''),
-  STRIPE_SKIP_CUSTOMER_CREATION: Joi.string()
-    .valid('true', 'false')
-    .default('false'),
+  STRIPE_SECRET_KEY: Joi.string().required(),
+  STRIPE_WEBHOOK_SECRET: Joi.string().required(),
+  STRIPE_PUBLISHABLE_KEY: Joi.string().required(),
+  STRIPE_CATALOG_SYNC_ENABLED: Joi.boolean().default(false),
+  STRIPE_TAX_ENABLED: Joi.boolean().default(false),
+
+  // Billing Scheduler
+  BILLING_SCHEDULE_ENABLED: Joi.boolean().default(false),
+
+  // Bull Board — when set, /admin/queues requires Authorization: Bearer <secret>
+  // In production, this MUST be set. In development, omit to allow unauthenticated access.
+  BULL_BOARD_ADMIN_SECRET: Joi.string().optional().allow(''),
+
+  // Email (AWS SES)
+  AWS_REGION: Joi.string().default('eu-central-1'),
+  FROM_EMAIL: Joi.string().email().required(),
+  FROM_NAME: Joi.string().default('Complytude Billing'),
+  SUPPORT_EMAIL: Joi.string().email().required(),
 });

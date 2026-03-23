@@ -1,30 +1,22 @@
 import { Module } from '@nestjs/common';
-import { SubscriptionsController } from './subscriptions.controller';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { SubscriptionsService } from './subscriptions.service';
 
 /**
- * Subscriptions Module - Phase 6
+ * Subscriptions Module
  *
- * Manages tenant subscriptions: plan changes, cancellations, and billing periods.
- *
- * This module is NOT global (unlike EntitlementsModule) -- it's imported where needed.
- *
- * Providers:
- * - SubscriptionsService: Business logic for subscription management
- *
- * Controllers:
- * - SubscriptionsController: HTTP endpoints for subscription operations
+ * Thin internal module that owns the Navigator (free) subscription lifecycle.
+ * All paid subscription mutations go through StripeModule/StripeSubscriptionService.
  *
  * Exports:
- * - SubscriptionsService: For use in other modules (e.g., admin, billing)
+ * - SubscriptionsService: Read access + Navigator lifecycle (renewal, creation, changePlan, cancel)
  *
  * Dependencies:
  * - DatabaseModule: For database access
- * - EntitlementsModule (global): For snapshot invalidation, domain events, repositories
+ * - EntitlementsModule: For PlansRepository, EntitlementSnapshotsRepository, DomainEventsService
  */
 @Module({
-  imports: [],
-  controllers: [SubscriptionsController],
+  imports: [EntitlementsModule],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],
 })

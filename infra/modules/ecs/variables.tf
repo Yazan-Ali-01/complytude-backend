@@ -107,3 +107,9 @@ variable "worker_ingestion_desired_count" {
   type        = number
   default     = 1
 }
+
+variable "ses_send_policy_arn" {
+  description = "ARN of the SES send email policy (optional)"
+  type        = string
+  default     = null
+}

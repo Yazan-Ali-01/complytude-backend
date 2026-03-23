@@ -49,5 +49,13 @@ ecs_api_desired_count          = 1
 ecs_worker_ai_desired_count    = 1
 ecs_worker_ingestion_desired_count = 1
 
+# Email (AWS SES) — for dunning and notifications
+from_email    = "billing@complytude.com"
+from_name     = "Complytude Company Billing"
+support_email = "support@complytude.com"
+
+# Billing Scheduler — enables daily Stripe reconciliation at 3 AM
+billing_schedule_enabled = true
+
 # Monitoring — email for CloudWatch alarms (must confirm SNS subscription after first apply)
-alarm_email = "your-email@example.com"
+alarm_email = "yazan.ali.dev@gmail.com"

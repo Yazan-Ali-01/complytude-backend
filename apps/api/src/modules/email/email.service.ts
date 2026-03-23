@@ -1,196 +1,757 @@
+import { SendEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
-import { Resend } from 'resend';
+import {
+  CURRENCY_UTILS,
+  DEFAULT_CURRENCY_LOWERCASE,
+} from 'src/common/constants/billing.constant';
+import { emailConfig, EmailConfig } from 'src/config/email.config';
 import { EmailI18n } from './constants/i18n.constants';
 
-/** Minimal type for Resend client — avoids Resend union-type issues from package exports */
-interface ResendClient {
-  emails: {
-    send(opts: {
-      from: string;
-      to: string;
-      subject: string;
-      html: string;
-    }): Promise<{ error?: { message: string } }>;
-  };
+export interface DunningEmailData {
+  tenantAdminEmail: string;
+  tenantName?: string;
+  invoiceId: string;
+  hostedInvoiceUrl: string;
+  attemptCount: number;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  supportEmail: string;
+}
+
+export interface PaymentActionRequiredEmailData {
+  tenantAdminEmail: string;
+  tenantName?: string;
+  invoiceId: string;
+  hostedInvoiceUrl: string;
+  amount: number;
+  currency: string;
+  supportEmail: string;
 }
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly resend: ResendClient | null;
-  private readonly skipSend: boolean;
-  private readonly from: string;
-  private readonly frontendUrl: string;
+  private readonly sesClient: SESClient;
+  private readonly config: EmailConfig;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly i18n: I18nService,
   ) {
-    const apiKey = this.configService.get<string>('email.apiKey') || '';
-    this.skipSend =
-      this.configService.get<boolean>('email.skipSend') === true || !apiKey;
-    this.from =
-      this.configService.get<string>('email.from') || 'noreply@complytude.com';
-    this.frontendUrl =
-      this.configService.get<string>('email.frontendUrl') ||
-      'http://localhost:3000';
+    this.config = emailConfig(configService);
+    this.sesClient = new SESClient({
+      region: this.config.awsRegion,
+    });
+  }
 
-    if (!this.skipSend && apiKey) {
-      this.resend = new Resend(apiKey) as ResendClient;
-    } else {
-      this.resend = null;
-      this.logger.log(
-        'Email sending disabled (EMAIL_SKIP_SEND=true or EMAIL_API_KEY empty)',
+  async sendVerificationEmail(
+    email: string,
+    token: string,
+    locale: string = 'en',
+  ): Promise<void> {
+    const verificationUrl = `${this.config.frontendUrl}/verify-email?token=${token}`;
+    const subject = this.i18n.t(EmailI18n.verification.SUBJECT, {
+      lang: locale,
+    });
+    const htmlBody = this.renderVerificationHtml(verificationUrl, locale);
+    const textBody = this.renderVerificationText(verificationUrl, locale);
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+        Destination: { ToAddresses: [email] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            Text: { Data: textBody, Charset: 'UTF-8' },
+          },
+        },
+        Tags: [{ Name: 'EmailType', Value: 'verification' }],
+      });
+
+      await this.sesClient.send(command);
+      this.logger.log(`Verification email sent: email=${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email: email=${email}`,
+        error.stack,
       );
+      throw error;
     }
   }
 
-  /**
-   * Send verification email (fire-and-forget, non-blocking).
-   * Logs errors but does not throw — signup must not fail if email fails.
-   */
-  sendVerificationEmail(to: string, token: string): void {
-    const subject = this.i18n.t(EmailI18n.verification.SUBJECT);
-    const link = `${this.frontendUrl}/verify-email?token=${token}`;
-    const html = this.buildTransactionalHtml({
-      greeting: this.i18n.t(EmailI18n.common.GREETING),
-      intro: this.i18n.t(EmailI18n.verification.BODY_INTRO),
-      ctaHint: this.i18n.t(EmailI18n.verification.BODY_CTA_HINT),
-      ctaLink: link,
-      ctaText: this.i18n.t(EmailI18n.verification.BODY_LINK_TEXT),
-      ignoreText: this.i18n.t(EmailI18n.verification.BODY_IGNORE),
-      expiryText: null,
-    });
-    this.sendEmail(to, subject, html, 'verification');
-  }
-
-  /**
-   * Send password reset email (fire-and-forget, non-blocking).
-   * Logs errors but does not throw — forgot-password must not fail if email fails.
-   */
-  sendPasswordResetEmail(to: string, token: string): void {
-    const subject = this.i18n.t(EmailI18n.passwordReset.SUBJECT);
-    const link = `${this.frontendUrl}/reset-password?token=${token}`;
-    const html = this.buildTransactionalHtml({
-      greeting: this.i18n.t(EmailI18n.common.GREETING),
-      intro: this.i18n.t(EmailI18n.passwordReset.BODY_INTRO),
-      ctaHint: this.i18n.t(EmailI18n.passwordReset.BODY_CTA_HINT),
-      ctaLink: link,
-      ctaText: this.i18n.t(EmailI18n.passwordReset.BODY_LINK_TEXT),
-      ignoreText: this.i18n.t(EmailI18n.passwordReset.BODY_IGNORE),
-      expiryText: this.i18n.t(EmailI18n.passwordReset.BODY_EXPIRY),
-    });
-    this.sendEmail(to, subject, html, 'password-reset');
-  }
-
-  /**
-   * Build transactional email HTML (Stripe-style: clean, minimal, CTA button).
-   * Uses inline styles for email client compatibility.
-   */
-  private buildTransactionalHtml(params: {
-    greeting: string;
-    intro: string;
-    ctaHint: string;
-    ctaLink: string;
-    ctaText: string;
-    ignoreText: string;
-    expiryText: string | null;
-  }): string {
-    const year = new Date().getFullYear();
-    const footerBrand = this.i18n.t(EmailI18n.common.FOOTER_BRAND, {
-      args: { year },
-    });
-    const footerHelp = this.i18n.t(EmailI18n.common.FOOTER_HELP);
-
+  private renderVerificationHtml(
+    verificationUrl: string,
+    locale: string,
+  ): string {
     return `
 <!DOCTYPE html>
-<html>
+<html lang="${locale}">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Complytude</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t(EmailI18n.verification.SUBJECT, { lang: locale })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #e7f3ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #b3d9ff; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+    </style>
 </head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:16px;line-height:1.5;color:#333;background-color:#f4f4f5;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4f4f5;">
-    <tr>
-      <td align="center" style="padding:40px 20px;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-          <tr>
-            <td style="padding:40px 40px 32px;">
-              <p style="margin:0 0 24px;font-size:18px;font-weight:600;color:#111;">Complytude</p>
-              <p style="margin:0 0 16px;font-size:16px;color:#374151;">${params.greeting},</p>
-              <p style="margin:0 0 24px;font-size:16px;color:#374151;">${params.intro}</p>
-              <p style="margin:0 0 16px;font-size:14px;color:#6b7280;text-align:center;">${params.ctaHint}</p>
-              <table role="presentation" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto 24px;">
-                <tr>
-                  <td style="border-radius:6px;background-color:#111;">
-                    <a href="${params.ctaLink}" target="_blank" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">${params.ctaText}</a>
-                  </td>
-                </tr>
-              </table>
-              ${params.expiryText ? `<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">${params.expiryText}</p>` : ''}
-              <p style="margin:0;font-size:13px;color:#9ca3af;">${params.ignoreText}</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:24px 40px;border-top:1px solid #e5e7eb;background-color:#f9fafb;border-radius:0 0 8px 8px;">
-              <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">${footerHelp}</p>
-              <p style="margin:0;font-size:12px;color:#9ca3af;">${footerBrand}</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t(EmailI18n.verification.BODY_LINK_TEXT, { lang: locale })}</h1>
+    </div>
+    <div class="content">
+        <p>${this.i18n.t(EmailI18n.verification.BODY_INTRO, { lang: locale })}</p>
+        <p>${this.i18n.t(EmailI18n.verification.BODY_CTA_HINT, { lang: locale })}</p>
+        <a href="${verificationUrl}" class="cta-button">
+            ${this.i18n.t(EmailI18n.verification.BODY_LINK_TEXT, { lang: locale })}
+        </a>
+        <p style="font-size: 14px; color: #666;">${this.i18n.t(EmailI18n.verification.BODY_IGNORE, { lang: locale })}</p>
+    </div>
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
 </body>
 </html>`;
   }
 
-  /**
-   * Fire-and-forget send. Never throws — logs errors for graceful degradation.
-   */
-  private sendEmail(
-    to: string,
-    subject: string,
-    html: string,
-    type: string,
-  ): void {
-    if (this.skipSend) {
-      this.logger.log(
-        `[${type}] Would send to ${to}: ${subject} (log-only mode)`,
-      );
-      return;
-    }
+  private renderVerificationText(
+    verificationUrl: string,
+    locale: string,
+  ): string {
+    return `
+${this.i18n.t(EmailI18n.verification.BODY_INTRO, { lang: locale })}
 
-    if (!this.resend) {
-      this.logger.warn(
-        `[${type}] Email not sent to ${to}: Resend not configured`,
-      );
-      return;
-    }
+${this.i18n.t(EmailI18n.verification.BODY_CTA_HINT, { lang: locale })}
 
-    this.resend.emails
-      .send({
-        from: this.from,
-        to,
-        subject,
-        html,
-      })
-      .then((result) => {
-        if (result.error) {
-          this.logger.error(
-            `[${type}] Failed to send email to ${to}: ${result.error.message}`,
-          );
-        } else {
-          this.logger.log(`[${type}] Email sent to ${to}`);
-        }
-      })
-      .catch((err) => {
-        this.logger.error(
-          `[${type}] Failed to send email to ${to}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+${this.i18n.t(EmailI18n.verification.BODY_LINK_TEXT, { lang: locale })}: ${verificationUrl}
+
+${this.i18n.t(EmailI18n.verification.BODY_IGNORE, { lang: locale })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
+  }
+
+  async sendPasswordResetEmail(
+    email: string,
+    token: string,
+    locale: string = 'en',
+  ): Promise<void> {
+    const resetUrl = `${this.config.frontendUrl}/reset-password?token=${token}`;
+    const subject = this.i18n.t(EmailI18n.passwordReset.SUBJECT, {
+      lang: locale,
+    });
+    const htmlBody = this.renderPasswordResetHtml(resetUrl, locale);
+    const textBody = this.renderPasswordResetText(resetUrl, locale);
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+        Destination: { ToAddresses: [email] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            Text: { Data: textBody, Charset: 'UTF-8' },
+          },
+        },
+        Tags: [{ Name: 'EmailType', Value: 'password_reset' }],
       });
+
+      await this.sesClient.send(command);
+      this.logger.log(`Password reset email sent: email=${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send password reset email: email=${email}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  private renderPasswordResetHtml(resetUrl: string, locale: string): string {
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t(EmailI18n.passwordReset.SUBJECT, { lang: locale })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ffeaa7; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t(EmailI18n.passwordReset.BODY_LINK_TEXT, { lang: locale })}</h1>
+    </div>
+    <div class="content">
+        <p>${this.i18n.t(EmailI18n.passwordReset.BODY_INTRO, { lang: locale })}</p>
+        <p>${this.i18n.t(EmailI18n.passwordReset.BODY_CTA_HINT, { lang: locale })}</p>
+        <a href="${resetUrl}" class="cta-button">
+            ${this.i18n.t(EmailI18n.passwordReset.BODY_LINK_TEXT, { lang: locale })}
+        </a>
+        <p style="font-size: 14px; color: #666;">${this.i18n.t(EmailI18n.passwordReset.BODY_EXPIRY, { lang: locale })}</p>
+        <p style="font-size: 14px; color: #666;">${this.i18n.t(EmailI18n.passwordReset.BODY_IGNORE, { lang: locale })}</p>
+    </div>
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderPasswordResetText(resetUrl: string, locale: string): string {
+    return `
+${this.i18n.t(EmailI18n.passwordReset.BODY_INTRO, { lang: locale })}
+
+${this.i18n.t(EmailI18n.passwordReset.BODY_CTA_HINT, { lang: locale })}
+
+${this.i18n.t(EmailI18n.passwordReset.BODY_LINK_TEXT, { lang: locale })}: ${resetUrl}
+
+${this.i18n.t(EmailI18n.passwordReset.BODY_EXPIRY, { lang: locale })}
+
+${this.i18n.t(EmailI18n.passwordReset.BODY_IGNORE, { lang: locale })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
+  }
+
+  async sendPaymentActionRequiredEmail(
+    data: PaymentActionRequiredEmailData,
+    locale: string = 'en',
+  ): Promise<void> {
+    const tenantName = data.tenantName || 'Your Organization';
+    const subject = this.i18n.t('email.payment_action_required.subject', {
+      lang: locale,
+      args: { tenantName },
+    });
+    const htmlBody = this.renderPaymentActionRequiredHtml(data, locale);
+    const textBody = this.renderPaymentActionRequiredText(data, locale);
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+        Destination: {
+          ToAddresses: [data.tenantAdminEmail],
+        },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            Text: { Data: textBody, Charset: 'UTF-8' },
+          },
+        },
+        Tags: [
+          { Name: 'EmailType', Value: 'payment_action_required' },
+          { Name: 'InvoiceId', Value: data.invoiceId },
+        ],
+      });
+
+      await this.sesClient.send(command);
+      this.logger.log(
+        `Payment action required email sent: email=${data.tenantAdminEmail}, invoice=${data.invoiceId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send payment action required email: email=${data.tenantAdminEmail}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  private renderPaymentActionRequiredHtml(
+    data: PaymentActionRequiredEmailData,
+    locale: string,
+  ): string {
+    const tenantName = data.tenantName || 'Your Organization';
+    const formattedAmount = this.formatCurrency(data.amount, data.currency);
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t('email.payment_action_required.title', { lang: locale })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #e7f3ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #b3d9ff; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+        .info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t('email.payment_action_required.title', { lang: locale })}</h1>
+    </div>
+    <div class="content">
+        <p>${this.i18n.t('email.payment_action_required.greeting', { lang: locale, args: { tenantName } })}</p>
+        <div class="info">
+            <p>${this.i18n.t('email.payment_action_required.body', { lang: locale })}</p>
+            <p><strong>${this.i18n.t('email.dunning.common.amount', { lang: locale })}:</strong> ${formattedAmount}</p>
+        </div>
+        <a href="${data.hostedInvoiceUrl}" class="cta-button">
+            ${this.i18n.t('email.payment_action_required.cta', { lang: locale })}
+        </a>
+    </div>
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}</p>
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderPaymentActionRequiredText(
+    data: PaymentActionRequiredEmailData,
+    locale: string,
+  ): string {
+    const tenantName = data.tenantName || 'Your Organization';
+    const formattedAmount = this.formatCurrency(data.amount, data.currency);
+    return `
+${this.i18n.t('email.payment_action_required.title', { lang: locale })}
+
+${this.i18n.t('email.payment_action_required.greeting', { lang: locale, args: { tenantName } })}
+
+${this.i18n.t('email.payment_action_required.body', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmount}
+
+${this.i18n.t('email.payment_action_required.cta', { lang: locale })}: ${data.hostedInvoiceUrl}
+
+${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
+  }
+
+  async sendDunningEmail(
+    sequence: 'day0' | 'day3' | 'day5',
+    data: DunningEmailData,
+    locale: string = 'en',
+  ): Promise<void> {
+    const { subject, htmlBody, textBody } = this.renderDunningTemplate(
+      sequence,
+      data,
+      locale,
+    );
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+        Destination: {
+          ToAddresses: [data.tenantAdminEmail],
+        },
+        Message: {
+          Subject: {
+            Data: subject,
+            Charset: 'UTF-8',
+          },
+          Body: {
+            Html: {
+              Data: htmlBody,
+              Charset: 'UTF-8',
+            },
+            Text: {
+              Data: textBody,
+              Charset: 'UTF-8',
+            },
+          },
+        },
+        Tags: [
+          {
+            Name: 'EmailType',
+            Value: 'dunning',
+          },
+          {
+            Name: 'DunningSequence',
+            Value: sequence,
+          },
+          {
+            Name: 'InvoiceId',
+            Value: data.invoiceId,
+          },
+        ],
+      });
+
+      const result = await this.sesClient.send(command);
+
+      this.logger.log(
+        `Dunning email sent successfully: sequence=${sequence}, email=${data.tenantAdminEmail}, messageId=${result.MessageId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send dunning email: sequence=${sequence}, email=${data.tenantAdminEmail}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  private renderDunningTemplate(
+    sequence: 'day0' | 'day3' | 'day5',
+    data: DunningEmailData,
+    locale: string,
+  ): { subject: string; htmlBody: string; textBody: string } {
+    const tenantName = data.tenantName || 'Your Organization';
+    const formattedAmount = this.formatCurrency(data.amount, data.currency);
+    const formattedDate = new Date(data.dueDate).toLocaleDateString(
+      locale === 'ar' ? 'ar-AE' : 'en-US',
+    );
+
+    switch (sequence) {
+      case 'day0':
+        return {
+          subject: this.i18n.t('email.dunning.day0.subject', {
+            lang: locale,
+            args: { tenantName },
+          }),
+          htmlBody: this.renderDay0Html(
+            data,
+            tenantName,
+            formattedAmount,
+            formattedDate,
+            locale,
+          ),
+          textBody: this.renderDay0Text(
+            data,
+            tenantName,
+            formattedAmount,
+            formattedDate,
+            locale,
+          ),
+        };
+
+      case 'day3':
+        return {
+          subject: this.i18n.t('email.dunning.day3.subject', {
+            lang: locale,
+            args: { tenantName },
+          }),
+          htmlBody: this.renderDay3Html(
+            data,
+            tenantName,
+            formattedAmount,
+            formattedDate,
+            locale,
+          ),
+          textBody: this.renderDay3Text(
+            data,
+            tenantName,
+            formattedAmount,
+            formattedDate,
+            locale,
+          ),
+        };
+
+      case 'day5':
+        return {
+          subject: this.i18n.t('email.dunning.day5.subject', {
+            lang: locale,
+            args: { tenantName },
+          }),
+          htmlBody: this.renderDay5Html(
+            data,
+            tenantName,
+            formattedAmount,
+            formattedDate,
+            locale,
+          ),
+          textBody: this.renderDay5Text(
+            data,
+            tenantName,
+            formattedAmount,
+            formattedDate,
+            locale,
+          ),
+        };
+
+      default:
+        throw new Error(`Unknown dunning sequence: ${sequence as string}`);
+    }
+  }
+
+  private renderDay0Html(
+    data: DunningEmailData,
+    tenantName: string,
+    formattedAmount: string,
+    formattedDate: string,
+    locale: string,
+  ): string {
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t('email.dunning.day0.subject', { lang: locale, args: { tenantName } })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+        .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t('email.dunning.day0.title', { lang: locale })}</h1>
+    </div>
+    
+    <div class="content">
+        <p>${this.i18n.t('email.dunning.day0.greeting', { lang: locale, args: { tenantName } })}</p>
+        
+        <div class="warning">
+            <p><strong>${this.i18n.t('email.dunning.day0.payment_failed', { lang: locale })}</strong></p>
+            <ul>
+                <li>${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmount}</li>
+                <li>${this.i18n.t('email.dunning.common.due_date', { lang: locale })}: ${formattedDate}</li>
+                <li>${this.i18n.t('email.dunning.common.attempt', { lang: locale })}: ${data.attemptCount}</li>
+            </ul>
+        </div>
+        
+        <p>${this.i18n.t('email.dunning.day0.action_required', { lang: locale })}</p>
+        
+        <a href="${data.hostedInvoiceUrl}" class="cta-button">
+            ${this.i18n.t('email.dunning.common.update_payment', { lang: locale })}
+        </a>
+        
+        <p>${this.i18n.t('email.dunning.day0.consequences', { lang: locale })}</p>
+    </div>
+    
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}</p>
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderDay0Text(
+    data: DunningEmailData,
+    tenantName: string,
+    formattedAmount: string,
+    formattedDate: string,
+    locale: string,
+  ): string {
+    return `
+${this.i18n.t('email.dunning.day0.title', { lang: locale })}
+
+${this.i18n.t('email.dunning.day0.greeting', { lang: locale, args: { tenantName } })}
+
+${this.i18n.t('email.dunning.day0.payment_failed', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmount}
+${this.i18n.t('email.dunning.common.due_date', { lang: locale })}: ${formattedDate}
+${this.i18n.t('email.dunning.common.attempt', { lang: locale })}: ${data.attemptCount}
+
+${this.i18n.t('email.dunning.day0.action_required', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.update_payment', { lang: locale })}: ${data.hostedInvoiceUrl}
+
+${this.i18n.t('email.dunning.day0.consequences', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
+  }
+
+  private renderDay3Html(
+    data: DunningEmailData,
+    tenantName: string,
+    formattedAmount: string,
+    formattedDate: string,
+    locale: string,
+  ): string {
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t('email.dunning.day3.subject', { lang: locale, args: { tenantName } })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ffeaa7; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+        .urgent { background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 4px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t('email.dunning.day3.title', { lang: locale })}</h1>
+    </div>
+    
+    <div class="content">
+        <p>${this.i18n.t('email.dunning.day3.greeting', { lang: locale, args: { tenantName } })}</p>
+        
+        <div class="urgent">
+            <p><strong>${this.i18n.t('email.dunning.day3.reminder', { lang: locale })}</strong></p>
+            <ul>
+                <li>${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmount}</li>
+                <li>${this.i18n.t('email.dunning.common.due_date', { lang: locale })}: ${formattedDate}</li>
+            </ul>
+        </div>
+        
+        <p>${this.i18n.t('email.dunning.day3.urgency', { lang: locale })}</p>
+        
+        <a href="${data.hostedInvoiceUrl}" class="cta-button">
+            ${this.i18n.t('email.dunning.common.update_payment', { lang: locale })}
+        </a>
+        
+        <p>${this.i18n.t('email.dunning.day3.consequences', { lang: locale })}</p>
+    </div>
+    
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}</p>
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderDay3Text(
+    data: DunningEmailData,
+    tenantName: string,
+    formattedAmount: string,
+    formattedDate: string,
+    locale: string,
+  ): string {
+    return `
+${this.i18n.t('email.dunning.day3.title', { lang: locale })}
+
+${this.i18n.t('email.dunning.day3.greeting', { lang: locale, args: { tenantName } })}
+
+${this.i18n.t('email.dunning.day3.reminder', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmount}
+${this.i18n.t('email.dunning.common.due_date', { lang: locale })}: ${formattedDate}
+
+${this.i18n.t('email.dunning.day3.urgency', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.update_payment', { lang: locale })}: ${data.hostedInvoiceUrl}
+
+${this.i18n.t('email.dunning.day3.consequences', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
+  }
+
+  private renderDay5Html(
+    data: DunningEmailData,
+    tenantName: string,
+    formattedAmount: string,
+    formattedDate: string,
+    locale: string,
+  ): string {
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t('email.dunning.day5.subject', { lang: locale, args: { tenantName } })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f8d7da; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #f5c6cb; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+        .critical { background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 4px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t('email.dunning.day5.title', { lang: locale })}</h1>
+    </div>
+    
+    <div class="content">
+        <p>${this.i18n.t('email.dunning.day5.greeting', { lang: locale, args: { tenantName } })}</p>
+        
+        <div class="critical">
+            <p><strong>${this.i18n.t('email.dunning.day5.final_notice', { lang: locale })}</strong></p>
+            <ul>
+                <li>${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmount}</li>
+                <li>${this.i18n.t('email.dunning.common.due_date', { lang: locale })}: ${formattedDate}</li>
+            </ul>
+        </div>
+        
+        <p>${this.i18n.t('email.dunning.day5.last_chance', { lang: locale })}</p>
+        
+        <a href="${data.hostedInvoiceUrl}" class="cta-button">
+            ${this.i18n.t('email.dunning.common.update_payment', { lang: locale })}
+        </a>
+        
+        <p>${this.i18n.t('email.dunning.day5.consequences', { lang: locale })}</p>
+    </div>
+    
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}</p>
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderDay5Text(
+    data: DunningEmailData,
+    tenantName: string,
+    formattedAmount: string,
+    formattedDate: string,
+    locale: string,
+  ): string {
+    return `
+${this.i18n.t('email.dunning.day5.title', { lang: locale })}
+
+${this.i18n.t('email.dunning.day5.greeting', { lang: locale, args: { tenantName } })}
+
+${this.i18n.t('email.dunning.day5.final_notice', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmount}
+${this.i18n.t('email.dunning.common.due_date', { lang: locale })}: ${formattedDate}
+
+${this.i18n.t('email.dunning.day5.last_chance', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.update_payment', { lang: locale })}: ${data.hostedInvoiceUrl}
+
+${this.i18n.t('email.dunning.day5.consequences', { lang: locale })}
+
+${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
+  }
+
+  private formatCurrency(amount: number, currency: string): string {
+    // Convert from smallest currency unit (fils for AED) to major unit
+    const majorAmount =
+      currency.toLowerCase() === DEFAULT_CURRENCY_LOWERCASE
+        ? CURRENCY_UTILS.filsToAed(amount)
+        : amount;
+
+    return new Intl.NumberFormat('en-AE', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    }).format(majorAmount);
   }
 }

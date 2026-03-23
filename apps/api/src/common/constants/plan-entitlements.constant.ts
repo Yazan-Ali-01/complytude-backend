@@ -8,6 +8,7 @@
  */
 
 import { FeatureType } from '../constants/entitlement-constants';
+import { DEFAULT_CURRENCY } from './billing.constant';
 
 // =========================
 // FEATURE DEFINITIONS
@@ -169,15 +170,15 @@ export const PLAN_CATALOG = {
     name: 'Navigator',
     description: 'Lead magnet — Regulatory Watch + basic Chat with Law',
     price_monthly: 0,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 1,
   },
   shield: {
     name: 'Shield',
     description: 'Solo entrepreneurs — Essential templates + basic analysis',
-    price_monthly: 249,
-    price_currency: 'AED',
+    price_monthly: 349,
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 2,
   },
@@ -185,7 +186,7 @@ export const PLAN_CATALOG = {
     name: 'General Counsel',
     description: 'Active SMEs — Full library + Jais-native Arabic + redlining',
     price_monthly: 599,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 3,
   },
@@ -193,7 +194,7 @@ export const PLAN_CATALOG = {
     name: 'Infrastructure',
     description: 'Agencies — Silo isolation + custom playbooks + white-label',
     price_monthly: 2499,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 4,
   },
@@ -205,6 +206,19 @@ export type PlanKey = keyof typeof PLAN_CATALOG;
  * Runtime array of all plan keys (for DTO validators)
  */
 export const ALL_PLAN_KEYS = Object.keys(PLAN_CATALOG) as PlanKey[]; // Safe: Object.keys returns string[], but catalog keys are PlanKey
+
+/**
+ * Plan with key (for catalog sync / iteration)
+ */
+export type PlanDefinition = { key: PlanKey } & PlanCatalogEntry;
+
+/**
+ * All plans as array (for Stripe catalog sync etc.)
+ */
+export const ALL_PLANS: PlanDefinition[] = ALL_PLAN_KEYS.map((key) => ({
+  key,
+  ...PLAN_CATALOG[key],
+}));
 
 // =========================
 // PLAN ENTITLEMENTS

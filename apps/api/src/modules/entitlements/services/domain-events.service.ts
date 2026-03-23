@@ -1,4 +1,9 @@
 import { DatabaseService, QueryOptions } from '@lib/database';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import {
@@ -44,9 +49,20 @@ import { DomainEventsRepository } from '../../../repositories/domain-events/doma
 export class DomainEventsService {
   private readonly logger = new Logger(DomainEventsService.name);
 
+  /** Event types that trigger async fan-out (notifications, webhooks, analytics) */
+  private static readonly FANOUT_EVENT_TYPES = new Set([
+    'credit.purchased',
+    'credit.granted',
+    'credit.deducted',
+    'credit.refunded',
+    'credit.expired',
+    'entitlement.denied',
+  ]);
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly domainEventsRepository: DomainEventsRepository,
+    private readonly queueProducer: QueueProducerService,
   ) {}
 
   /**
@@ -93,8 +109,35 @@ export class DomainEventsService {
         `Domain event emitted: type=${event.event_type}, aggregate=${event.aggregate_type}/${event.aggregate_id}, seq=${nextSequence}`,
       );
 
-      // TODO: BullMQ - Emit to queue for async fan-out to listeners
-      // await this.eventQueue.add('domain-event', { event: emittedEvent });
+      const tenantId = event.tenant_id;
+      if (
+        DomainEventsService.FANOUT_EVENT_TYPES.has(event.event_type) &&
+        tenantId
+      ) {
+        try {
+          const payload =
+            typeof emittedEvent.payload === 'string'
+              ? JSON.parse(emittedEvent.payload)
+              : emittedEvent.payload;
+          await this.queueProducer.enqueue(
+            QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+            ENTITLEMENT_JOB_NAMES.DOMAIN_EVENT_FANOUT,
+            {
+              eventId: emittedEvent.id,
+              eventType: emittedEvent.event_type,
+              tenantId,
+              aggregateType: emittedEvent.aggregate_type,
+              aggregateId: emittedEvent.aggregate_id,
+              payload: typeof payload === 'object' ? payload : {},
+            },
+            { attempts: 3, backoff: { type: 'exponential', delay: 500 } },
+          );
+        } catch (error) {
+          this.logger.warn(
+            `[domain_event.fanout] Failed to enqueue: type=${event.event_type} — ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
 
       return emittedEvent;
     };

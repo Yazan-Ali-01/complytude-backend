@@ -19,6 +19,7 @@ import { deepMerge } from '../../common/utils/deep-merge.util';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { StripeCustomerService } from '../stripe/services/stripe-customer.service';
+import { StripeTaxService } from '../stripe/services/stripe-tax.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantsI18n } from './constants/i18n.constants';
 import {
@@ -75,8 +76,9 @@ export class TenantService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
-    private readonly subscriptionsService: SubscriptionsService,
     private readonly stripeCustomerService: StripeCustomerService,
+    private readonly stripeTaxService: StripeTaxService,
+    private readonly subscriptionsService: SubscriptionsService,
     private readonly userTenantRepository: UserTenantRepository,
     private readonly i18n: I18nService,
   ) {}
@@ -184,7 +186,8 @@ export class TenantService {
    * Does NOT require RLS context since it's inserting new rows (RLS policies typically allow INSERT).
    *
    * @param createTenantDto - Tenant creation data (optional planKey, defaults to 'navigator')
-   * @param options - Optional client for transaction reuse, name override, and subscription creator
+   * @param subscriptionCreatorUserId - User ID for subscription creator (null when created by system)
+   * @param options - Optional client for transaction reuse
    * @returns The created Tenant entity with generated ID and timestamps
    *
    * @throws InternalServerErrorException - If database operation fails
@@ -193,8 +196,8 @@ export class TenantService {
    *
    * @example
    * ```ts
-   * const tenant = await tenantService.createTenant({ planKey: 'general_counsel' });
-   * const tenant = await tenantService.createTenant({}, { client }); // Reuse parent transaction
+   * const tenant = await tenantService.createTenant({ name: 'Acme', planKey: 'general_counsel' }, userId);
+   * const tenant = await tenantService.createTenant(dto, null, { client }); // Reuse parent transaction
    * ```
    */
   async createTenant(
@@ -206,9 +209,11 @@ export class TenantService {
   ): Promise<Tenant> {
     const { client } = options ?? {};
 
+    let tenant: Tenant;
+
     try {
       const tenantCreation = async (txClient: PoolClient) => {
-        const tenant = await this.tenantRepository.create(
+        const created = await this.tenantRepository.create(
           {
             name: createTenantDto.name,
             is_active: true,
@@ -219,34 +224,36 @@ export class TenantService {
 
         if (createTenantDto.planKey) {
           await this.subscriptionsService.createSubscription(
-            tenant.id,
+            created.id,
             createTenantDto.planKey,
             subscriptionCreatorUserId ?? null,
             { client: txClient },
           );
           this.logger.log(
-            `Tenant created with subscription: tenant=${tenant.id}, plan=${createTenantDto.planKey}`,
+            `Tenant created with subscription: tenant=${created.id}, plan=${createTenantDto.planKey}`,
           );
         } else {
           await this.subscriptionsService.createTrialSubscription(
-            tenant.id,
+            created.id,
             subscriptionCreatorUserId ?? null,
             { client: txClient },
           );
           this.logger.log(
-            `Tenant created with trial subscription: tenant=${tenant.id}`,
+            `Tenant created with trial subscription: tenant=${created.id}`,
           );
         }
 
-        return tenant;
+        return created;
       };
 
       if (client) {
-        return await tenantCreation(client);
+        tenant = await tenantCreation(client);
+      } else {
+        tenant =
+          await this.databaseService.transactionWithPlatformAdminContext(
+            tenantCreation,
+          );
       }
-      return await this.databaseService.transactionWithPlatformAdminContext(
-        tenantCreation,
-      );
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -265,10 +272,10 @@ export class TenantService {
         );
       }
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
-      throw new InternalServerErrorException(
-        this.i18n.t(TenantsI18n.errors.TENANT_CREATION_FAILED),
-      );
+      throw new InternalServerErrorException('Failed to create tenant');
     }
+
+    return tenant;
   }
 
   /**
@@ -346,7 +353,11 @@ export class TenantService {
     );
 
     // Fire-and-forget Stripe customer creation after transaction commits
-    this.stripeCustomerService.createCustomerForTenant(tenant, email, userId);
+    void this.stripeCustomerService.createCustomerForTenant(
+      tenant,
+      email,
+      userId,
+    );
 
     return tenant;
   }
@@ -841,18 +852,66 @@ export class TenantService {
         );
       }
 
-      const updated = await this.updateOrThrow(
+      const updated = await this.tenantRepository.update(
         tenantId,
         {
           is_active: true,
           deactivated_at: null,
           deactivation_reason: null,
         },
-        client,
+        { client },
       );
+      if (!updated) {
+        throw new NotFoundException(`Tenant ${tenantId} not found`);
+      }
 
       this.logger.log(`Tenant ${tenantId} reactivated by admin`);
       return updated;
     });
+  }
+
+  /**
+   * Admin update tenant profile (bypasses some user permissions)
+   *
+   * 🔐 RLS: Admin operation that can update any tenant's profile.
+   * Similar to updateProfile() but available to system admins for support tasks.
+   *
+   * @param tenantId - UUID of the tenant to update
+   * @param dto - Profile fields to update (partial)
+   * @returns Updated Tenant entity
+   *
+   * @throws NotFoundException - If tenant not found
+   * @throws InternalServerErrorException - If update fails
+   *
+   * @security Requires system_admin role
+   * @note Use for support/admin tasks - regular users should use /me/profile endpoint
+   */
+  async adminUpdateProfile(
+    tenantId: string,
+    dto: UpdateTenantProfileDto,
+  ): Promise<Tenant> {
+    try {
+      return await this.databaseService.transactionWithTenantContext(
+        { tenantId: tenantId },
+        async (client) => {
+          const updated = await this.tenantRepository.update(
+            tenantId,
+            { ...dto },
+            { client },
+          );
+          if (!updated) {
+            throw new NotFoundException(`Tenant ${tenantId} not found`);
+          }
+          return updated;
+        },
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.error(
+        `[ADMIN] Failed to update tenant profile: ${error.message}`,
+        error,
+      );
+      throw new InternalServerErrorException('Failed to update tenant profile');
+    }
   }
 }

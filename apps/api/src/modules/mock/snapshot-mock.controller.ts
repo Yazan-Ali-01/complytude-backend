@@ -13,12 +13,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { PlanKey } from 'src/common/types/entitlement.types';
+import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
+import { PlansRepository } from 'src/repositories/plans/plans.repository';
+import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
 import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { EntitlementSnapshotService } from '../entitlements/services/entitlement-snapshot.service';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 /**
  * Snapshot Mock Controller - Phase 8 Test Cases
@@ -68,7 +70,9 @@ export class SnapshotMockController {
   constructor(
     private readonly snapshotService: EntitlementSnapshotService,
     private readonly entitlementResolver: EntitlementResolverService,
-    private readonly subscriptionsService: SubscriptionsService,
+    private readonly subscriptionsRepository: SubscriptionsRepository,
+    private readonly plansRepository: PlansRepository,
+    private readonly entitlementSnapshotsRepository: EntitlementSnapshotsRepository,
     private readonly databaseService: DatabaseService,
   ) {}
 
@@ -323,12 +327,29 @@ export class SnapshotMockController {
 
         const beforePlan = initialSnapshot?.plan ?? 'unknown';
 
-        // Step 2: Change plan (this invalidates snapshot)
-        await this.subscriptionsService.changePlan(
-          user.tenantId,
-          newPlanKey,
-          user.userId,
+        // Step 2: Change plan directly in DB (mock-only — bypasses Stripe)
+        const newPlan = await this.plansRepository.findByKey(newPlanKey);
+        if (!newPlan) {
+          throw new BadRequestException(`Plan not found: ${newPlanKey}`);
+        }
+
+        const activeSubscription =
+          await this.subscriptionsRepository.findActiveByTenant(user.tenantId, {
+            client,
+          });
+        if (!activeSubscription) {
+          throw new BadRequestException('No active subscription found');
+        }
+
+        await this.subscriptionsRepository.update(
+          activeSubscription.id,
+          { plan_id: newPlan.id },
+          { client },
         );
+
+        await this.entitlementSnapshotsRepository.invalidate(user.tenantId, {
+          client,
+        });
 
         // Step 3: Verify snapshot was invalidated
         const afterInvalidation = await this.snapshotService.getOrNull(

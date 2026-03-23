@@ -92,6 +92,16 @@ module "ecr" {
   repository_names = ["api", "worker-ai", "worker-ingestion"]
 }
 
+module "ses" {
+  source = "../../modules/ses"
+
+  project_name  = var.project
+  environment   = var.environment
+  domain_name   = var.domain_name
+  from_email    = var.from_email
+  support_email = var.support_email
+}
+
 module "secrets" {
   source = "../../modules/secrets"
 
@@ -138,6 +148,15 @@ module "secrets" {
   stripe_webhook_secret      = var.stripe_webhook_secret
   stripe_catalog_sync_enabled = var.stripe_catalog_sync_enabled
   stripe_tax_enabled         = var.stripe_tax_enabled
+
+  # Billing Scheduler
+  billing_schedule_enabled = var.billing_schedule_enabled
+
+  # Email (AWS SES)
+  aws_region    = var.aws_region
+  from_email    = var.from_email
+  from_name     = var.from_name
+  support_email = var.support_email
 }
 
 module "route53" {
@@ -175,25 +194,26 @@ module "ecs" {
 
   secret_arn           = module.secrets.secret_arn
   ecs_secrets_policy_arn = module.secrets.ecs_secrets_policy_arn
+  ses_send_policy_arn    = module.ses.ses_send_policy_arn
   s3_bucket_arns = [
     module.s3.quarantine_bucket_arn,
     module.s3.clean_bucket_arn,
   ]
 
   api_environment = {
-    NODE_ENV    = "production"
-    LOG_LEVEL   = "info"
-    SERVICE_NAME = "gateway"
+    NODE_ENV      = "production"
+    LOG_LEVEL     = "info"
+    SERVICE_NAME  = "gateway"
   }
   worker_ai_environment = {
-    NODE_ENV    = "production"
-    LOG_LEVEL   = "info"
-    SERVICE_NAME = "worker-ai"
+    NODE_ENV      = "production"
+    LOG_LEVEL     = "info"
+    SERVICE_NAME  = "worker-ai"
   }
   worker_ingestion_environment = {
-    NODE_ENV    = "production"
-    LOG_LEVEL   = "info"
-    SERVICE_NAME = "worker-ingestion"
+    NODE_ENV      = "production"
+    LOG_LEVEL     = "info"
+    SERVICE_NAME  = "worker-ingestion"
   }
 
   api_desired_count            = var.ecs_api_desired_count

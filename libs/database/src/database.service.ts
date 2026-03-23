@@ -15,21 +15,31 @@ import { DATABASE_POOL } from './database.constants';
  *
  * RLS Pattern for Tenant Isolation:
  * ================================
- * All RLS-protected tables MUST use transactions with tenant context:
+ * All RLS-protected tables MUST use transactions with the appropriate context:
  *
- * Usage Pattern:
+ * Tenant operations:
  * ```typescript
- * await this.databaseService.transactionWithTenantContext(tenantId, async (client) => {
+ * await this.databaseService.transactionWithTenantContext({ tenantId }, async (client) => {
  *   const addons = await this.tenantAddonsRepository.findActiveByTenant(tenantId, { client });
- *   const overrides = await this.tenantOverridesRepository.findActiveByTenant(tenantId, { client });
- *   return { addons, overrides };
+ *   return { addons };
+ * });
+ * ```
+ *
+ * System / webhook operations (cross-tenant access):
+ * ```typescript
+ * await this.databaseService.transactionWithPlatformAdminContext(async (client) => {
+ *   const sub = await this.subscriptionsRepository.findByStripeSubscriptionId(id, { client });
+ *   return sub;
  * });
  * ```
  *
  * Key Points:
- * - SET LOCAL app.current_tenant_id is transaction-scoped (clears on COMMIT/ROLLBACK)
+ * - Session context variables are transaction-scoped (cleared on COMMIT/ROLLBACK)
  * - Always pass { client } to repository methods within the transaction
- * - System operations (e.g., sync services) should use transactionWithPlatformAdminContext
+ * - Use transactionWithTenantContext for tenant-scoped operations
+ * - Use transactionWithPlatformAdminContext for system/admin/webhook operations
+ * - Use transaction() for operations on tables without RLS (catalog tables, RBAC sync)
+ * - The bare query() method runs WITHOUT any RLS context — only safe for non-RLS tables
  *
  * Why transactions for reads:
  * set_config(name, value, is_local=true) scopes the setting to the current transaction.
@@ -68,7 +78,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Execute a query with parameters
+   * Execute a query with parameters.
+   *
+   * WARNING: This method runs WITHOUT any RLS context. It is only safe for
+   * tables that do not have RLS policies (e.g., catalog tables like plans,
+   * features, addons, credit_packages, stripe_webhook_events).
+   *
+   * For RLS-protected tables, use:
+   * - transactionWithTenantContext() for tenant-scoped operations
+   * - transactionWithPlatformAdminContext() for system/admin operations
+   *
    * @param text SQL query string
    * @param params Query parameters
    * @returns Query result
@@ -101,7 +120,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Execute multiple queries in a transaction
+   * Execute multiple queries in a transaction.
+   *
+   * WARNING: This method runs WITHOUT any RLS context. It is only safe for
+   * tables that do not have RLS policies (e.g., catalog sync, RBAC sync).
+   *
+   * For RLS-protected tables, use:
+   * - transactionWithTenantContext() for tenant-scoped operations
+   * - transactionWithPlatformAdminContext() for system/admin operations
+   *
    * @param callback Transaction callback
    * @returns Transaction result
    */

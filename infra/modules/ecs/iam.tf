@@ -103,3 +103,10 @@ resource "aws_iam_role_policy" "ecs_s3" {
     ]
   })
 }
+
+# Attach SES policy from SES module — allows sending emails
+resource "aws_iam_role_policy_attachment" "ecs_ses" {
+  count      = var.ses_send_policy_arn != null ? 1 : 0
+  role       = aws_iam_role.ecs_task.name
+  policy_arn = var.ses_send_policy_arn
+}

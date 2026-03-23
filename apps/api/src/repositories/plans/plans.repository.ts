@@ -8,6 +8,7 @@ import {
   PlanWithEntitlements,
   UpdatePlanRow,
 } from 'src/common/types/entitlement.types';
+import { DEFAULT_CURRENCY } from 'src/common/constants/billing.constant';
 
 type PlanRow = {
   id: string;
@@ -20,6 +21,9 @@ type PlanRow = {
   is_active: boolean;
   sort_order: number;
   metadata: unknown;
+  stripe_product_id: string | null;
+  stripe_price_id_monthly: string | null;
+  stripe_price_id_annual: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -39,7 +43,7 @@ export class PlansRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, description, price_monthly, price_currency, billing_period, is_active, sort_order, metadata, created_at, updated_at';
+    return 'id, key, name, description, price_monthly, price_currency, billing_period, is_active, sort_order, metadata, stripe_product_id, stripe_price_id_monthly, stripe_price_id_annual, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Plan {
@@ -55,6 +59,9 @@ export class PlansRepository extends BaseRepository<
       is_active: data.is_active,
       sort_order: data.sort_order,
       metadata: (data.metadata as Record<string, unknown>) ?? {},
+      stripe_product_id: data.stripe_product_id,
+      stripe_price_id_monthly: data.stripe_price_id_monthly,
+      stripe_price_id_annual: data.stripe_price_id_annual,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -137,6 +144,59 @@ export class PlansRepository extends BaseRepository<
   }
 
   /**
+   * Update the Stripe product ID for a plan
+   */
+  async updateStripeProductId(
+    id: string,
+    stripeProductId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET stripe_product_id = $1, updated_at = now() WHERE id = $2`,
+      [stripeProductId, id],
+      options,
+    );
+  }
+
+  /**
+   * Update a Stripe price ID for a plan (monthly or annual)
+   */
+  async updateStripePriceId(
+    id: string,
+    interval: 'monthly' | 'annual',
+    priceId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    const column =
+      interval === 'monthly'
+        ? 'stripe_price_id_monthly'
+        : 'stripe_price_id_annual';
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET ${column} = $1, updated_at = now() WHERE id = $2`,
+      [priceId, id],
+      options,
+    );
+  }
+
+  /**
+   * Find plan by Stripe price ID (monthly or annual)
+   */
+  async findByStripePriceId(
+    stripePriceId: string,
+    options?: QueryOptions,
+  ): Promise<Plan | null> {
+    const result = await this.executeQuery<PlanRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE stripe_price_id_monthly = $1 OR stripe_price_id_annual = $1
+       LIMIT 1`,
+      [stripePriceId],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Upsert plan by key (for sync service)
    */
   async upsertByKey(
@@ -164,7 +224,7 @@ export class PlansRepository extends BaseRepository<
         plan.name,
         plan.description ?? null,
         plan.price_monthly ?? 0,
-        plan.price_currency ?? 'AED',
+        plan.price_currency ?? DEFAULT_CURRENCY,
         plan.billing_period ?? 'monthly',
         plan.is_active ?? true,
         plan.sort_order ?? 0,

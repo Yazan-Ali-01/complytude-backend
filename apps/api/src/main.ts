@@ -72,6 +72,37 @@ async function bootstrap() {
   const maxFileSize =
     configService.get<number>('storage.upload.maxFileSize') || 10485760; // 10MB
 
+  // Capture raw body for Stripe webhook signature verification.
+  // Using preParsing hook instead of replacing the content type parser so
+  // NestJS's own JSON parser registration is never disturbed.
+  // The hook stashes the raw bytes on request.rawBody for webhook routes only;
+  // all other routes are left completely untouched.
+
+  const fastifyInstance = app.getHttpAdapter().getInstance() as any;
+  fastifyInstance.addHook(
+    'preParsing',
+    async (request: any, _reply: any, payload: any) => {
+      const url: string = request.url ?? request.raw?.url ?? '';
+      if (!url.includes('/stripe/webhook')) {
+        return payload;
+      }
+
+      const chunks: Buffer<ArrayBuffer>[] = [];
+      for await (const chunk of payload) {
+        chunks.push(
+          Buffer.isBuffer(chunk)
+            ? (chunk as Buffer<ArrayBuffer>)
+            : Buffer.from(chunk as ArrayBuffer),
+        );
+      }
+      request.rawBody = Buffer.concat(chunks);
+
+      // Return a fresh readable so downstream parsing still has the bytes
+      const { Readable } = await import('stream');
+      return Readable.from(request.rawBody as Buffer);
+    },
+  );
+
   // Register cookie plugin for HTTP-only cookie authentication
   await app.register(cookie);
 
@@ -113,7 +144,9 @@ async function bootstrap() {
   );
 
   // Bull Board — queue monitoring dashboard at /admin/queues
-  // TODO: Protect with platform RBAC or basic auth before production
+  const bullBoardAdminSecret = configService.get<string | null>(
+    'app.bullBoardAdminSecret',
+  );
   const bullBoardAdapter = new BullBoardFastifyAdapter();
   bullBoardAdapter.setBasePath('/admin/queues');
 
@@ -128,9 +161,34 @@ async function bootstrap() {
     serverAdapter: bullBoardAdapter,
   });
 
-  await app.register(bullBoardAdapter.registerPlugin(), {
-    prefix: '/admin/queues',
-  });
+  // Protect Bull Board when BULL_BOARD_ADMIN_SECRET is set
+  const bullBoardPlugin = bullBoardAdapter.registerPlugin();
+  if (bullBoardAdminSecret) {
+    const wrappedPlugin = async (instance: any) => {
+      instance.addHook('onRequest', async (request: any, reply: any) => {
+        const authHeader = request.headers?.authorization;
+        const bearer = authHeader?.startsWith('Bearer ')
+          ? authHeader.slice(7)
+          : null;
+        const headerSecret = request.headers?.['x-admin-secret'];
+        const valid =
+          bearer === bullBoardAdminSecret ||
+          headerSecret === bullBoardAdminSecret;
+        if (!valid) {
+          await reply.status(401).send({
+            statusCode: 401,
+            error: 'Unauthorized',
+            message:
+              'Bull Board requires Authorization: Bearer <BULL_BOARD_ADMIN_SECRET> or X-Admin-Secret header',
+          });
+        }
+      });
+      await instance.register(bullBoardPlugin);
+    };
+    await app.register(wrappedPlugin, { prefix: '/admin/queues' });
+  } else {
+    await app.register(bullBoardPlugin, { prefix: '/admin/queues' });
+  }
 
   // ========================================================================
   // SWAGGER CONFIGURATION - Dev/staging only; disabled in production

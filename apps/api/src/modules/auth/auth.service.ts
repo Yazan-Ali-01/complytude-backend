@@ -272,7 +272,7 @@ export class AuthService {
         { client },
       );
 
-      this.emailService.sendVerificationEmail(
+      void this.emailService.sendVerificationEmail(
         signupDto.email,
         verificationToken,
       );
@@ -795,7 +795,7 @@ export class AuthService {
       expiresAt,
     });
 
-    this.emailService.sendPasswordResetEmail(email, resetToken);
+    void this.emailService.sendPasswordResetEmail(email, resetToken);
 
     const result = {
       message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),

@@ -1098,7 +1098,7 @@ This prevents job loss during rolling deployments.
 
 ### Queue Monitoring (Bull Board)
 
-A Bull Board dashboard is available at `/admin/queues` (no auth in dev — TODO: protect before production). All three queues are visible there and included in the `GET /health/queues` health check endpoint.
+A Bull Board dashboard is available at `/admin/queues`. When `BULL_BOARD_ADMIN_SECRET` is set (required in production), requests must include `Authorization: Bearer <secret>` or `X-Admin-Secret: <secret>`. Omit the env var in development for unauthenticated access. All three queues are visible there and included in the `GET /health/queues` health check endpoint.
 
 ---
 

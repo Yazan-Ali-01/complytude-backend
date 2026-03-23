@@ -170,6 +170,13 @@ variable "stripe_tax_enabled" {
   default     = "false"
 }
 
+# ---- Billing Scheduler ----
+variable "billing_schedule_enabled" {
+  description = "Enable scheduled billing jobs (daily Stripe reconciliation at 3 AM)"
+  type        = bool
+  default     = true
+}
+
 # ---- DNS & SSL ----
 variable "domain_name" {
   description = "Root domain for the project (e.g. complytude.com)"
@@ -201,6 +208,21 @@ variable "ecs_worker_ingestion_desired_count" {
   default     = 1
 }
 
+# ---- Email (AWS SES) ----
+variable "from_email" {
+  description = "From email address for sending emails (e.g., billing@complytude.com)"
+  type        = string
+}
+
+variable "from_name" {
+  description = "From name for sending emails"
+  type        = string
+  default     = "Complytude Billing"
+}
+
+variable "support_email" {
+  description = "Support email address (e.g., support@complytude.com)"
+  type        = string
 # ---- Developer IAM Users ----
 variable "developer_usernames" {
   description = "IAM usernames for developers (e.g. [\"john\", \"alice\"]). Each gets access keys with scoped permissions."

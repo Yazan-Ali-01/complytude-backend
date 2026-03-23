@@ -17,6 +17,8 @@ export class QueueProducerService {
     @Inject(getQueueToken(QUEUE_NAMES.AI_PROCESSING))
     aiQueue: Queue | null,
     @Optional()
+    @Inject(getQueueToken(QUEUE_NAMES.BILLING_PROCESSING))
+    billingQueue: Queue | null,
     @Inject(getQueueToken(QUEUE_NAMES.DATA_INGESTION))
     ingestionQueue: Queue | null,
     @Optional()
@@ -26,10 +28,15 @@ export class QueueProducerService {
     private readonly cls: ClsService | null,
   ) {
     if (aiQueue) this.queues.set(QUEUE_NAMES.AI_PROCESSING, aiQueue);
-    if (ingestionQueue)
+    if (billingQueue) {
+      this.queues.set(QUEUE_NAMES.BILLING_PROCESSING, billingQueue);
+    }
+    if (ingestionQueue) {
       this.queues.set(QUEUE_NAMES.DATA_INGESTION, ingestionQueue);
-    if (entitlementQueue)
-      this.queues.set(QUEUE_NAMES.ENTITLEMENT_PROCESSING, entitlementQueue);
+      if (entitlementQueue) {
+        this.queues.set(QUEUE_NAMES.ENTITLEMENT_PROCESSING, entitlementQueue);
+      }
+    }
   }
 
   private buildMetadata(): JobMetadata {

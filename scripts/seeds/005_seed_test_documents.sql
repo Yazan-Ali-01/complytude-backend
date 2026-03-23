@@ -262,5 +262,7 @@ SELECT
     d.created_at
 FROM public.documents d
 JOIN public.tenants t ON d.tenant_id = t.id
+LEFT JOIN public.tenant_subscriptions ts ON ts.tenant_id = t.id AND ts.status = 'active'
+LEFT JOIN public.plans p ON p.id = ts.plan_id
 JOIN public.users u ON d.created_by = u.id
 ORDER BY t.name, d.created_at;

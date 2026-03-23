@@ -55,6 +55,9 @@ export interface Plan {
   is_active: boolean;
   sort_order: number;
   metadata: Record<string, unknown>;
+  stripe_product_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -79,6 +82,8 @@ export interface Addon {
   price_currency: string;
   is_active: boolean;
   metadata: Record<string, unknown>;
+  stripe_product_id?: string | null;
+  stripe_price_id?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -112,6 +117,10 @@ export interface TenantSubscription {
   cancelled_at?: Date;
   trial_ends_at?: Date;
   metadata: Record<string, unknown>;
+  stripe_subscription_id?: string | null;
+  stripe_schedule_id?: string | null;
+  stripe_current_period_end?: Date | null;
+  stripe_status?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -125,6 +134,7 @@ export interface TenantAddon {
   starts_at: Date;
   expires_at?: Date;
   metadata: Record<string, unknown>;
+  stripe_subscription_item_id?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -193,6 +203,7 @@ export interface CreditLedgerTransaction {
   expires_at?: Date;
   metadata: Record<string, unknown>;
   idempotency_key?: string;
+  stripe_payment_intent_id?: string | null;
   recorded_at: Date;
 }
 
@@ -337,6 +348,9 @@ export interface CreatePlanRow {
   is_active?: boolean;
   sort_order?: number;
   metadata?: string; // Stringified JSON
+  stripe_product_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
 }
 
 export interface UpdatePlanRow {
@@ -348,6 +362,9 @@ export interface UpdatePlanRow {
   is_active?: boolean;
   sort_order?: number;
   metadata?: string; // Stringified JSON
+  stripe_product_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
 }
 
 // Plan Entitlements
@@ -381,6 +398,10 @@ export interface CreateTenantSubscriptionRow {
   cancelled_at?: Date;
   trial_ends_at?: Date;
   metadata?: string; // Stringified JSON
+  stripe_subscription_id?: string | null;
+  stripe_schedule_id?: string | null;
+  stripe_current_period_end?: Date | null;
+  stripe_status?: string | null;
 }
 
 export interface UpdateTenantSubscriptionRow {
@@ -389,8 +410,12 @@ export interface UpdateTenantSubscriptionRow {
   billing_period_end?: Date;
   current_period_start?: Date;
   current_period_end?: Date;
-  cancelled_at?: Date;
+  cancelled_at?: Date | null;
   metadata?: string; // Stringified JSON
+  stripe_subscription_id?: string | null;
+  stripe_schedule_id?: string | null;
+  stripe_current_period_end?: Date | null;
+  stripe_status?: string | null;
 }
 
 // Tenant Addons
@@ -403,6 +428,7 @@ export interface CreateTenantAddonRow {
   starts_at?: Date;
   expires_at?: Date;
   metadata?: string; // Stringified JSON
+  stripe_subscription_item_id?: string | null;
 }
 
 export interface UpdateTenantAddonRow {
@@ -410,6 +436,7 @@ export interface UpdateTenantAddonRow {
   status?: string;
   expires_at?: Date;
   metadata?: string; // Stringified JSON
+  stripe_subscription_item_id?: string | null;
 }
 
 // Tenant Overrides
@@ -472,6 +499,7 @@ export interface CreateCreditLedgerRow {
   expires_at?: Date;
   metadata?: string; // Stringified JSON
   idempotency_key?: string;
+  stripe_payment_intent_id?: string | null;
 }
 
 // Aggregated Usage

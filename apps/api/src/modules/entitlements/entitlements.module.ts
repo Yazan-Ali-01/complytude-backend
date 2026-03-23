@@ -19,12 +19,18 @@ import { TenantAddonsController } from './controllers/tenant-addons.controller';
 import { TenantOverridesReadController } from './controllers/tenant-overrides-read.controller';
 import { TenantOverridesController } from './controllers/tenant-overrides.controller';
 import { EntitlementsController } from './entitlements.controller';
+import { CreditNotificationHandler } from './processors/credit-notification.handler';
+import { DomainEventFanoutHandler } from './processors/domain-event-fanout.handler';
 import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
 import { ProjectionUpdateHandler } from './processors/projection-update.handler';
+import { QuotaExceededHandler } from './processors/quota-exceeded.handler';
+import { SnapshotRebuildHandler } from './processors/snapshot-rebuild.handler';
 import { TrialExpiryHandler } from './processors/trial-expiry.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
+import { EntitlementCacheService } from './services/entitlement-cache.service';
+import { EntitlementCacheCleanupService } from './services/entitlement-cache-cleanup.service';
 import { EntitlementEnforcementService } from './services/entitlement-enforcement.service';
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
 import { EntitlementSnapshotService } from './services/entitlement-snapshot.service';
@@ -66,6 +72,8 @@ import { UsageProjectionService } from './services/usage-projection.service';
     // Core services
     EntitlementResolverService,
     EntitlementSyncService,
+    EntitlementCacheService, // Performance optimization for enforcement
+    EntitlementCacheCleanupService, // Periodic cache cleanup
     UsageIngestionService, // Phase 3
     UsageProjectionService, // Phase 3
     EntitlementEnforcementService, // Phase 4
@@ -81,6 +89,10 @@ import { UsageProjectionService } from './services/usage-projection.service';
     // Queue processor + handlers
     EntitlementQueueProcessor,
     ProjectionUpdateHandler,
+    SnapshotRebuildHandler,
+    DomainEventFanoutHandler,
+    CreditNotificationHandler,
+    QuotaExceededHandler,
     TrialExpiryHandler,
     TrialExpirySchedulerService,
 
@@ -107,6 +119,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
   exports: [
     // Services
     EntitlementResolverService,
+    EntitlementCacheService, // Performance optimization for enforcement
     UsageIngestionService, // Phase 3
     UsageProjectionService, // Phase 3
     EntitlementEnforcementService, // Phase 4

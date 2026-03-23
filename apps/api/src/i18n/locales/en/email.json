@@ -1,22 +1,58 @@
 {
-  "common": {
-    "GREETING": "Hi there",
-    "FOOTER_HELP": "Questions? Contact us at support@complytude.com",
-    "FOOTER_BRAND": "© {year} Complytude. All rights reserved."
-  },
   "verification": {
-    "SUBJECT": "Verify your email — Complytude",
-    "BODY_INTRO": "You're almost there! One quick click to verify your email and get started.",
+    "SUBJECT": "Verify your email - Complytude",
+    "BODY_INTRO": "Thanks for signing up! Please verify your email address by clicking the link below.",
     "BODY_CTA_HINT": "Click the button below to verify your email:",
-    "BODY_LINK_TEXT": "Verify email address",
-    "BODY_IGNORE": "Didn't create an account? You can safely ignore this email."
+    "BODY_LINK_TEXT": "Verify Email",
+    "BODY_IGNORE": "If you didn't create an account, you can safely ignore this email."
   },
   "passwordReset": {
-    "SUBJECT": "Reset your password — Complytude",
-    "BODY_INTRO": "We received a request to reset your password.",
-    "BODY_CTA_HINT": "Click the button below to choose a new password:",
-    "BODY_LINK_TEXT": "Reset password",
+    "SUBJECT": "Reset your password - Complytude",
+    "BODY_INTRO": "You requested a password reset. Click the link below to set a new password.",
+    "BODY_CTA_HINT": "Click the button below to reset your password:",
+    "BODY_LINK_TEXT": "Reset Password",
     "BODY_EXPIRY": "This link expires in 1 hour.",
-    "BODY_IGNORE": "Didn't request this? You can safely ignore this email."
+    "BODY_IGNORE": "If you didn't request a password reset, you can safely ignore this email."
+  },
+  "payment_action_required": {
+    "subject": "Payment Action Required - Complete Your Payment for {tenantName}",
+    "title": "Payment Action Required",
+    "greeting": "Hello {tenantName},",
+    "body": "Your payment requires additional verification (e.g. 3D Secure). Please complete the payment to avoid service interruption.",
+    "cta": "Complete Payment"
+  },
+  "dunning": {
+    "day0": {
+      "subject": "Payment Failed - Action Required for {tenantName}",
+      "title": "Payment Failed - Immediate Action Required",
+      "greeting": "Hello {tenantName},",
+      "payment_failed": "Your recent payment attempt has failed and requires immediate attention.",
+      "action_required": "Please update your payment method to avoid service interruption. Your invoice is available below:",
+      "consequences": "If payment is not received within 7 days, your service may be suspended to prevent additional charges."
+    },
+    "day3": {
+      "subject": "Payment Reminder - {tenantName}",
+      "title": "Payment Reminder - Urgent Action Required",
+      "greeting": "Hello {tenantName},",
+      "reminder": "This is a reminder that your payment is still outstanding.",
+      "urgency": "Please resolve this payment issue as soon as possible to avoid service interruption.",
+      "consequences": "If payment is not received within 2 days, your service will be suspended."
+    },
+    "day5": {
+      "subject": "Final Notice - Service Suspension Imminent for {tenantName}",
+      "title": "Final Notice - Service Suspension Imminent",
+      "greeting": "Hello {tenantName},",
+      "final_notice": "This is your final notice regarding the outstanding payment.",
+      "last_chance": "This is your last opportunity to resolve this payment issue before service suspension.",
+      "consequences": "If payment is not received immediately, your service will be suspended within 24 hours."
+    },
+    "common": {
+      "amount": "Amount Due",
+      "due_date": "Due Date",
+      "attempt": "Payment Attempt",
+      "update_payment": "Update Payment Method",
+      "questions": "If you have any questions, please contact our support team at {supportEmail}.",
+      "signature": "Best regards,\nThe Complytude Team"
+    }
   }
 }

@@ -6,6 +6,13 @@ import {
   TemplateAnalysisJobData,
 } from './interfaces/ai-processing.jobs';
 import {
+  BILLING_JOB_NAMES,
+  DunningEmailJobData,
+  PaymentActionRequiredJobData,
+  StripeReconciliationJobData,
+  StripeWebhookProcessingJobData,
+} from './interfaces/billing-processing.jobs';
+import {
   DocumentIngestionJobData,
   INGESTION_JOB_NAMES,
   RulesetIngestionJobData,
@@ -16,6 +23,7 @@ import {
   EntitlementCreditNotificationJobData,
   EntitlementDomainEventFanoutJobData,
   EntitlementProjectionUpdateJobData,
+  EntitlementQuotaExceededJobData,
   EntitlementSnapshotRebuildJobData,
   EntitlementSubscriptionRenewalJobData,
   EntitlementTrialExpiryCheckJobData,
@@ -29,6 +37,12 @@ export interface QueueJobMap {
     [AI_JOB_NAMES.ARABIC_TRANSLATION]: ArabicTranslationJobData;
     [AI_JOB_NAMES.DOCUMENT_ANALYSIS]: DocumentAnalysisJobData;
   };
+  [QUEUE_NAMES.BILLING_PROCESSING]: {
+    [BILLING_JOB_NAMES.DUNNING_EMAIL]: DunningEmailJobData;
+    [BILLING_JOB_NAMES.PAYMENT_ACTION_REQUIRED]: PaymentActionRequiredJobData;
+    [BILLING_JOB_NAMES.STRIPE_RECONCILIATION]: StripeReconciliationJobData;
+    [BILLING_JOB_NAMES.STRIPE_WEBHOOK_PROCESSING]: StripeWebhookProcessingJobData;
+  };
   [QUEUE_NAMES.DATA_INGESTION]: {
     [INGESTION_JOB_NAMES.DOCUMENT_INGESTION]: DocumentIngestionJobData;
     [INGESTION_JOB_NAMES.RULESET_INGESTION]: RulesetIngestionJobData;
@@ -40,6 +54,7 @@ export interface QueueJobMap {
     [ENTITLEMENT_JOB_NAMES.PROJECTION_UPDATE]: EntitlementProjectionUpdateJobData;
     [ENTITLEMENT_JOB_NAMES.SUBSCRIPTION_RENEWAL]: EntitlementSubscriptionRenewalJobData;
     [ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION]: EntitlementCreditNotificationJobData;
+    [ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED]: EntitlementQuotaExceededJobData;
     [ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK]: EntitlementTrialExpiryCheckJobData;
   };
 }

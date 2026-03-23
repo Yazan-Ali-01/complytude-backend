@@ -32,7 +32,13 @@ function makeService(
   queue: MockQueue | null,
   cls: ClsService | null,
 ): QueueProducerService {
-  return new QueueProducerService(queue as unknown as Queue, null, null, cls);
+  return new QueueProducerService(
+    queue as unknown as Queue,
+    null,
+    null,
+    null,
+    cls,
+  );
 }
 
 describe('QueueProducerService', () => {

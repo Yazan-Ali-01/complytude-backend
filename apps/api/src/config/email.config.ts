@@ -1,12 +1,20 @@
-import { registerAs } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 
-export default registerAs('email', () => ({
-  provider: process.env.EMAIL_PROVIDER || 'resend',
-  apiKey: process.env.EMAIL_API_KEY || '',
-  from: process.env.EMAIL_FROM || 'noreply@complytude.com',
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
-  verificationExpiresIn: process.env.EMAIL_VERIFICATION_EXPIRES_IN || '1d',
-  skipSend:
-    process.env.EMAIL_SKIP_SEND === 'true' ||
-    !(process.env.EMAIL_API_KEY || '').trim(),
-}));
+export interface EmailConfig {
+  awsRegion: string;
+  fromEmail: string;
+  fromName: string;
+  supportEmail: string;
+  frontendUrl: string;
+}
+
+export const emailConfig = (configService: ConfigService): EmailConfig => ({
+  awsRegion: configService.get<string>('AWS_REGION', 'eu-central-1'),
+  fromEmail: configService.get<string>('FROM_EMAIL')!,
+  fromName: configService.get<string>('FROM_NAME', 'Complytude Billing'),
+  supportEmail: configService.get<string>('SUPPORT_EMAIL')!,
+  frontendUrl: configService.get<string>(
+    'FRONTEND_URL',
+    'http://localhost:3000',
+  ),
+});

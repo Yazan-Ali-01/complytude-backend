@@ -23,24 +23,15 @@ import { DomainEventsService } from '../entitlements/services/domain-events.serv
 import { SubscriptionsI18n } from './constants/i18n.constants';
 
 /**
- * Subscriptions Service - Phase 6
+ * Subscriptions Service
  *
- * Manages tenant subscriptions: plan changes, cancellations, renewals, and billing periods.
+ * Internal service for reading subscription state and managing Navigator (free) subscription lifecycle.
+ * All paid subscription mutations go through StripeSubscriptionService or Stripe webhooks.
  *
- * Key responsibilities:
- * - View current subscription
- * - Change plan (upgrade/downgrade)
- * - Cancel subscription
- * - Create new subscription
- * - Renew billing period (advance to next month)
- * - Batch renewal for all due subscriptions
- *
- * BullMQ Integration (TODO):
- * - Plan changes → async job for prorated billing, email notification
- * - Cancellations → async job for cancellation email, schedule downgrade
- * - Renewals → scheduled cron job to call renewAllDuePeriods()
- *
- * For now, all operations are synchronous with TODO comments.
+ * Responsibilities:
+ * - Read current subscription (populated by Stripe webhooks for paid plans)
+ * - Renew billing period for Navigator (free) subscriptions
+ * - Batch renewal cron for Navigator-only subscriptions
  */
 @Injectable()
 export class SubscriptionsService {
@@ -56,11 +47,10 @@ export class SubscriptionsService {
   ) {}
 
   /**
-   * Get current subscription for a tenant with plan details
+   * Get current subscription for a tenant with plan details.
+   * Returns active, past_due, or trialing subscriptions.
    *
-   * @param tenantId - Tenant ID
-   * @returns Active subscription with plan details
-   * @throws NotFoundException if no active subscription found
+   * @throws NotFoundException if no non-cancelled subscription found
    */
   async getCurrentSubscription(
     tenantId: string,
@@ -68,7 +58,7 @@ export class SubscriptionsService {
   ): Promise<TenantSubscriptionWithPlan> {
     const execute = async (client: PoolClient) => {
       const subscription =
-        await this.subscriptionsRepository.findActiveByTenantWithPlan(
+        await this.subscriptionsRepository.findCurrentByTenantWithPlan(
           tenantId,
           { client },
         );
@@ -91,7 +81,9 @@ export class SubscriptionsService {
   }
 
   /**
-   * Change plan for a tenant
+   * Renew billing period for a Navigator (free) tenant.
+   * For Stripe-backed subscriptions, period renewal is driven by the
+   * invoice.paid webhook in StripeEventHandlersService.
    *
    * Flow:
    * 1. Validate new plan exists and is active
@@ -178,9 +170,9 @@ export class SubscriptionsService {
       }
 
       // Step 7: Update plan
-      const updatedSubscription = await this.subscriptionsRepository.updatePlan(
+      const updatedSubscription = await this.subscriptionsRepository.update(
         currentSubscription.id,
-        newPlan.id,
+        { plan_id: newPlan.id },
         { client },
       );
 
@@ -569,6 +561,7 @@ export class SubscriptionsService {
    *
    * @param tenantId - Tenant ID
    * @returns Updated subscription with new period
+   *
    * @throws NotFoundException if no active subscription found
    */
   async renewPeriod(
@@ -578,7 +571,6 @@ export class SubscriptionsService {
     const execute = async (client: PoolClient) => {
       this.logger.log(`Renewing billing period: tenant=${tenantId}`);
 
-      // Step 1: Find active subscription
       const subscription =
         await this.subscriptionsRepository.findActiveByTenant(tenantId, {
           client,
@@ -590,12 +582,10 @@ export class SubscriptionsService {
         );
       }
 
-      // Step 2: Calculate new period
       const newPeriodStart = subscription.current_period_end;
       const newPeriodEnd = new Date(newPeriodStart);
       newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
 
-      // Step 3: Update within transaction
       const renewedSubscription =
         await this.subscriptionsRepository.updatePeriod(
           subscription.id,
@@ -604,7 +594,6 @@ export class SubscriptionsService {
           { client },
         );
 
-      // Emit domain event
       await this.domainEventsService.emit(
         {
           tenant_id: tenantId,
@@ -631,16 +620,6 @@ export class SubscriptionsService {
         `Billing period renewed: tenant=${tenantId}, newStart=${newPeriodStart.toISOString()}, newEnd=${newPeriodEnd.toISOString()}`,
       );
 
-      // TODO: BullMQ - This method would be called by a scheduled cron job
-      // When BullMQ is available:
-      // - Create a cron job that runs daily at midnight
-      // - Job calls renewAllDuePeriods() to renew all subscriptions where current_period_end <= now()
-      // - Each renewal triggers async jobs for:
-      //   1. Invoice generation
-      //   2. Payment processing
-      //   3. Email notification
-      //   4. Usage report for previous period
-
       return renewedSubscription;
     };
 
@@ -655,18 +634,17 @@ export class SubscriptionsService {
   }
 
   /**
-   * Batch renewal for all subscriptions due for renewal
-   *
-   * Finds all subscriptions where current_period_end <= now() and status = 'active',
-   * then calls renewPeriod() for each.
-   * Uses platform admin context to see all subscriptions (batch job runs without tenant context).
+   * Batch renewal for all Navigator (free) subscriptions due for period renewal.
+   * Stripe-backed subscriptions are excluded (stripe_subscription_id IS NULL filter).
+   * Intended to be called by a scheduled cron job.
    *
    * @returns Count of renewed subscriptions
    */
   async renewAllDuePeriods(): Promise<number> {
-    this.logger.log('Starting batch renewal for all due subscriptions');
+    this.logger.log(
+      'Starting batch renewal for Navigator subscriptions due for renewal',
+    );
 
-    // Find all due subscriptions (platform admin context - batch job sees all tenants)
     const dueSubscriptions =
       await this.databaseService.transactionWithPlatformAdminContext(
         async (client) =>
@@ -674,7 +652,7 @@ export class SubscriptionsService {
       );
 
     this.logger.log(
-      `Found ${dueSubscriptions.length} subscriptions due for renewal`,
+      `Found ${dueSubscriptions.length} Navigator subscriptions due for renewal`,
     );
 
     let renewedCount = 0;
@@ -687,24 +665,12 @@ export class SubscriptionsService {
         this.logger.error(
           `Failed to renew subscription for tenant=${subscription.tenant_id}: ${error.message}`,
         );
-        // Continue with next subscription
       }
     }
 
     this.logger.log(
       `Batch renewal complete: ${renewedCount} subscriptions renewed`,
     );
-
-    // TODO: BullMQ - Replace with scheduled cron job
-    // When BullMQ is available:
-    // - Create a cron job using @nestjs/bullmq
-    // - Schedule: Daily at midnight UTC
-    // - Job calls this method
-    // - Example:
-    //   @Cron('0 0 * * *')
-    //   async handleBillingPeriodRenewal() {
-    //     await this.subscriptionsService.renewAllDuePeriods();
-    //   }
 
     return renewedCount;
   }

@@ -1,4 +1,9 @@
 import { DatabaseService, QueryOptions } from '@lib/database';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
@@ -46,6 +51,7 @@ export class CreditLedgerService {
     private readonly creditLedgerRepository: CreditLedgerRepository,
     private readonly featuresRepository: FeaturesRepository,
     private readonly domainEventsService: DomainEventsService,
+    private readonly queueProducer: QueueProducerService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -64,7 +70,7 @@ export class CreditLedgerService {
       `Purchasing credits: tenant=${tenantId}, amount=${amount}`,
     );
 
-    return this.recordTransaction(
+    const tx = await this.recordTransaction(
       {
         tenantId,
         transactionType: 'purchase',
@@ -74,7 +80,13 @@ export class CreditLedgerService {
       options,
     );
 
-    // TODO: BullMQ - Emit credit.purchased event to queue for async notification
+    await this.enqueueCreditNotification(
+      tenantId,
+      'purchased',
+      amount,
+      tx.balance_after,
+    );
+    return tx;
   }
 
   async grant(
@@ -92,7 +104,7 @@ export class CreditLedgerService {
       `Granting credits: tenant=${tenantId}, amount=${amount}, reason=${reason}`,
     );
 
-    return this.recordTransaction(
+    const tx = await this.recordTransaction(
       {
         tenantId,
         transactionType: 'grant',
@@ -105,7 +117,13 @@ export class CreditLedgerService {
       options,
     );
 
-    // TODO: BullMQ - Emit credit.granted event to queue for async notification
+    await this.enqueueCreditNotification(
+      tenantId,
+      'granted',
+      amount,
+      tx.balance_after,
+    );
+    return tx;
   }
 
   async deduct(
@@ -123,7 +141,7 @@ export class CreditLedgerService {
       `Deducting credits: tenant=${tenantId}, amount=${amount}, metadata=${JSON.stringify(metadata)}`,
     );
 
-    return this.recordTransaction(
+    const tx = await this.recordTransaction(
       {
         tenantId,
         transactionType: 'deduction',
@@ -135,8 +153,13 @@ export class CreditLedgerService {
       options,
     );
 
-    // TODO: BullMQ - Emit credit.deducted event to queue for async notification
-    // (email alert when balance is low)
+    await this.enqueueCreditNotification(
+      tenantId,
+      'deducted',
+      amount,
+      tx.balance_after,
+    );
+    return tx;
   }
 
   async refund(
@@ -154,7 +177,7 @@ export class CreditLedgerService {
       `Refunding credits: tenant=${tenantId}, amount=${amount}`,
     );
 
-    return this.recordTransaction(
+    const tx = await this.recordTransaction(
       {
         tenantId,
         transactionType: 'refund',
@@ -164,6 +187,13 @@ export class CreditLedgerService {
       },
       options,
     );
+    await this.enqueueCreditNotification(
+      tenantId,
+      'refunded',
+      amount,
+      tx.balance_after,
+    );
+    return tx;
   }
 
   /**
@@ -284,6 +314,34 @@ export class CreditLedgerService {
       { tenantId },
       execute,
     );
+  }
+
+  /**
+   * Enqueue credit notification for async processing (email, webhooks)
+   */
+  private async enqueueCreditNotification(
+    tenantId: string,
+    transactionType: 'purchased' | 'granted' | 'deducted' | 'refunded',
+    amount: number,
+    remainingBalance: number,
+  ): Promise<void> {
+    try {
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION,
+        {
+          tenantId,
+          transactionType,
+          amount,
+          remainingBalance,
+        },
+        { attempts: 3, backoff: { type: 'exponential', delay: 500 } },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[credit.${transactionType}] Failed to enqueue notification: tenant=${tenantId} — ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**

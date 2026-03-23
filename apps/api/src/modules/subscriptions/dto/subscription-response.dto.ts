@@ -1,16 +1,27 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type {
   Plan,
+  PlanKey,
   SubscriptionStatus,
   TenantSubscription,
 } from 'src/common/types/entitlement.types';
 import { SUBSCRIPTION_STATUSES } from '../../../common/constants/entitlement-constants';
 
-/**
- * Subscription Response DTO
- *
- * Used for all subscription endpoints
- */
+class PendingPlanChangeDto {
+  @ApiProperty({
+    description: 'Plan key that will be applied at period end',
+    enum: ['navigator', 'shield', 'general_counsel', 'infrastructure'],
+    example: 'general_counsel',
+  })
+  new_plan_key: PlanKey;
+
+  @ApiProperty({
+    description: 'When the plan change takes effect',
+    example: '2026-04-01T00:00:00Z',
+  })
+  scheduled_for: Date;
+}
+
 export class SubscriptionResponseDto {
   @ApiProperty({
     description: 'Subscription ID',
@@ -93,6 +104,43 @@ export class SubscriptionResponseDto {
   plan?: Plan;
 
   @ApiProperty({
+    description: 'Stripe subscription ID',
+    example: 'sub_1ABC...',
+    required: false,
+  })
+  stripe_subscription_id?: string;
+
+  @ApiProperty({
+    description: 'Stripe-reported subscription status',
+    example: 'active',
+    required: false,
+  })
+  stripe_status?: string;
+
+  @ApiProperty({
+    description:
+      'Whether the subscription is scheduled to cancel at period end',
+    example: false,
+    required: false,
+  })
+  cancel_at_period_end?: boolean;
+
+  @ApiProperty({
+    description: 'Pending plan change scheduled at period end',
+    type: PendingPlanChangeDto,
+    required: false,
+  })
+  pending_plan_change?: PendingPlanChangeDto;
+
+  @ApiProperty({
+    description: 'Billing interval (monthly or annual)',
+    enum: ['monthly', 'annual'],
+    example: 'monthly',
+    required: false,
+  })
+  billing_interval?: 'monthly' | 'annual';
+
+  @ApiProperty({
     description: 'Plan key (e.g., navigator, general_counsel)',
     example: 'general_counsel',
     required: false,
@@ -118,6 +166,13 @@ export class SubscriptionResponseDto {
     subscription: TenantSubscription,
     plan?: Plan,
   ): SubscriptionResponseDto {
+    const metadata = subscription.metadata ?? {};
+    const rawInterval = metadata.interval;
+    const billingInterval: 'monthly' | 'annual' | undefined =
+      rawInterval === 'monthly' || rawInterval === 'annual'
+        ? rawInterval
+        : undefined;
+
     const dto = Object.assign(new SubscriptionResponseDto(), {
       id: subscription.id,
       tenant_id: subscription.tenant_id,
@@ -128,10 +183,14 @@ export class SubscriptionResponseDto {
       current_period_start: subscription.current_period_start,
       current_period_end: subscription.current_period_end,
       cancelled_at: subscription.cancelled_at,
-      metadata: subscription.metadata,
+      metadata,
       created_at: subscription.created_at,
       updated_at: subscription.updated_at,
       plan,
+      stripe_subscription_id: subscription.stripe_subscription_id ?? undefined,
+      stripe_status: subscription.stripe_status ?? undefined,
+      cancel_at_period_end: metadata.cancel_at_period_end === true,
+      billing_interval: billingInterval,
       planKey: plan?.key,
     });
 
