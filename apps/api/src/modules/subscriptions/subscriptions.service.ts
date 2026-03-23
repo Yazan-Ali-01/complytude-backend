@@ -12,6 +12,7 @@ import {
   PlanKey,
   TenantSubscription,
 } from 'src/common/types/entitlement.types';
+import { TRIAL_CONFIG } from 'src/common/constants/trial-config.constant';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import {
@@ -166,7 +167,17 @@ export class SubscriptionsService {
         { client },
       );
 
-      // Step 6: Update plan
+      // Step 6: If trialing, activate first (clears trial_ends_at and promotes status)
+      if (currentSubscription.status === 'trialing') {
+        await this.subscriptionsRepository.updateStatus(
+          currentSubscription.id,
+          'active',
+          undefined,
+          { client },
+        );
+      }
+
+      // Step 7: Update plan
       const updatedSubscription = await this.subscriptionsRepository.updatePlan(
         currentSubscription.id,
         newPlan.id,
@@ -332,7 +343,7 @@ export class SubscriptionsService {
    * 1. Check no active subscription exists
    * 2. Find plan by key
    * 3. Calculate billing period (start = now, end = +1 month)
-   * 4. Create via upsert
+   * 4. Create subscription row
    * 5. Emit domain event
    * 6. Return new subscription
    *
@@ -355,94 +366,22 @@ export class SubscriptionsService {
         `Creating subscription: tenant=${tenantId}, plan=${planKey}, actor=${actorId ?? 'system'}`,
       );
 
-      // Step 1: Check no active subscription exists
-      const existingSubscription =
-        await this.subscriptionsRepository.findActiveByTenant(tenantId, {
-          client,
-        });
-
-      if (existingSubscription) {
-        throw new BadRequestException(
-          this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_ALREADY_EXISTS),
-        );
-      }
-
-      // Step 2: Find plan
-      const plan = await this.plansRepository.findByKey(planKey, { client });
-      if (!plan) {
-        throw new NotFoundException(
-          this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_FOUND),
-        );
-      }
-
-      if (!plan.is_active) {
-        throw new BadRequestException(
-          this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_ACTIVE),
-        );
-      }
-
-      // Step 3: Calculate billing period
       const now = new Date();
-      const oneMonthLater = new Date(now);
-      oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-      // Step 4: Create subscription (plain INSERT — step 1 already guards against duplicates,
-      // unique partial index provides DB-level race condition safety)
-      let newSubscription: TenantSubscription;
-      try {
-        newSubscription = await this.subscriptionsRepository.create(
-          {
-            tenant_id: tenantId,
-            plan_id: plan.id,
-            status: 'active',
-            billing_period_start: now,
-            billing_period_end: oneMonthLater,
-            current_period_start: now,
-            current_period_end: oneMonthLater,
-            metadata: '{}',
-          },
-          { client },
-        );
-      } catch (error) {
-        if (error?.code === '23505') {
-          throw new ConflictException(
-            this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_ALREADY_EXISTS),
-          );
-        }
-        throw error;
-      }
-
-      // Invalidate any stale entitlement snapshot (relevant for re-subscription after cancellation)
-      await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+      const subscription = await this._createSubscription(
+        tenantId,
+        planKey,
+        actorId,
+        { status: 'active', now, periodEnd, eventType: 'subscription.created' },
         client,
-      });
-
-      // Emit domain event
-      await this.domainEventsService.emit(
-        {
-          tenant_id: tenantId,
-          event_type: 'subscription.created',
-          aggregate_type: 'subscription',
-          aggregate_id: newSubscription.id,
-          actor_id: actorId ?? undefined,
-          actor_type: actorId ? 'user' : 'system',
-          payload: JSON.stringify({
-            subscription_id: newSubscription.id,
-            plan_id: plan.id,
-            plan_key: plan.key,
-          }),
-          metadata: JSON.stringify({
-            timestamp: new Date().toISOString(),
-          }),
-        },
-        { client },
       );
 
       this.logger.log(
         `Subscription created: tenant=${tenantId}, plan=${planKey}`,
       );
-
-      return newSubscription;
+      return subscription;
     };
 
     if (options?.client) {
@@ -453,6 +392,163 @@ export class SubscriptionsService {
       { tenantId },
       execute,
     );
+  }
+
+  /**
+   * Create trial subscription for a new tenant
+   *
+   * Trial subscriptions:
+   * - status: 'trialing'
+   * - plan: general_counsel (full features to hook users)
+   * - trial_ends_at: NOW() + 14 days
+   * - current_period aligned with trial end
+   *
+   * @param tenantId - Tenant ID
+   * @param actorId - User ID performing the creation (null for system-initiated)
+   * @param options - Optional database client for transaction support
+   * @returns New trial subscription
+   */
+  async createTrialSubscription(
+    tenantId: string,
+    actorId: string | null,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription> {
+    const execute = async (client: PoolClient) => {
+      this.logger.log(
+        `Creating trial subscription: tenant=${tenantId}, actor=${actorId ?? 'system'}`,
+      );
+
+      const now = new Date();
+      const trialEndsAt = new Date(now);
+      trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_CONFIG.DURATION_DAYS);
+
+      const subscription = await this._createSubscription(
+        tenantId,
+        TRIAL_CONFIG.PLAN_KEY,
+        actorId,
+        {
+          status: 'trialing',
+          now,
+          periodEnd: trialEndsAt,
+          trialEndsAt,
+          eventType: 'subscription.trial_started',
+        },
+        client,
+      );
+
+      this.logger.log(
+        `Trial subscription created: tenant=${tenantId}, trialEndsAt=${trialEndsAt.toISOString()}`,
+      );
+      return subscription;
+    };
+
+    if (options?.client) {
+      return execute(options.client);
+    }
+
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
+  }
+
+  /**
+   * Shared implementation for createSubscription and createTrialSubscription.
+   *
+   * Handles: duplicate check, plan lookup/validation, row insert (with 23505 guard),
+   * snapshot invalidation, and domain event emission.
+   */
+  private async _createSubscription(
+    tenantId: string,
+    planKey: PlanKey,
+    actorId: string | null,
+    config: {
+      status: 'active' | 'trialing';
+      now: Date;
+      periodEnd: Date;
+      trialEndsAt?: Date;
+      eventType: 'subscription.created' | 'subscription.trial_started';
+    },
+    client: PoolClient,
+  ): Promise<TenantSubscription> {
+    const existingSubscription =
+      await this.subscriptionsRepository.findActiveByTenant(tenantId, {
+        client,
+      });
+
+    if (existingSubscription) {
+      throw new BadRequestException(
+        this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_ALREADY_EXISTS),
+      );
+    }
+
+    const plan = await this.plansRepository.findByKey(planKey, { client });
+    if (!plan) {
+      throw new NotFoundException(
+        this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_FOUND),
+      );
+    }
+    if (!plan.is_active) {
+      throw new BadRequestException(
+        this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_ACTIVE),
+      );
+    }
+
+    // Plain INSERT — app-level check above guards against duplicates;
+    // unique partial index provides DB-level race condition safety.
+    let newSubscription: TenantSubscription;
+    try {
+      newSubscription = await this.subscriptionsRepository.create(
+        {
+          tenant_id: tenantId,
+          plan_id: plan.id,
+          status: config.status,
+          billing_period_start: config.now,
+          billing_period_end: config.periodEnd,
+          current_period_start: config.now,
+          current_period_end: config.periodEnd,
+          ...(config.trialEndsAt !== undefined
+            ? { trial_ends_at: config.trialEndsAt }
+            : {}),
+          metadata: '{}',
+        },
+        { client },
+      );
+    } catch (error) {
+      if (error?.code === '23505') {
+        throw new ConflictException(
+          this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_ALREADY_EXISTS),
+        );
+      }
+      throw error;
+    }
+
+    await this.entitlementSnapshotsRepository.invalidate(tenantId, { client });
+
+    const eventPayload: Record<string, unknown> = {
+      subscription_id: newSubscription.id,
+      plan_id: plan.id,
+      plan_key: plan.key,
+    };
+    if (config.trialEndsAt !== undefined) {
+      eventPayload.trial_ends_at = config.trialEndsAt.toISOString();
+    }
+
+    await this.domainEventsService.emit(
+      {
+        tenant_id: tenantId,
+        event_type: config.eventType,
+        aggregate_type: 'subscription',
+        aggregate_id: newSubscription.id,
+        actor_id: actorId ?? undefined,
+        actor_type: actorId ? 'user' : 'system',
+        payload: JSON.stringify(eventPayload),
+        metadata: JSON.stringify({ timestamp: new Date().toISOString() }),
+      },
+      { client },
+    );
+
+    return newSubscription;
   }
 
   /**

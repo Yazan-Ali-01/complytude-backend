@@ -110,6 +110,7 @@ export interface TenantSubscription {
   current_period_start: Date;
   current_period_end: Date;
   cancelled_at?: Date;
+  trial_ends_at?: Date;
   metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
@@ -378,6 +379,7 @@ export interface CreateTenantSubscriptionRow {
   current_period_start: Date;
   current_period_end: Date;
   cancelled_at?: Date;
+  trial_ends_at?: Date;
   metadata?: string; // Stringified JSON
 }
 

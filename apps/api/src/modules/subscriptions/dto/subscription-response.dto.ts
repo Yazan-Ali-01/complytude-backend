@@ -92,11 +92,33 @@ export class SubscriptionResponseDto {
   })
   plan?: Plan;
 
+  @ApiProperty({
+    description: 'Plan key (e.g., navigator, general_counsel)',
+    example: 'general_counsel',
+    required: false,
+  })
+  planKey?: string;
+
+  @ApiProperty({
+    description: 'Trial end date (only present when status = trialing)',
+    example: '2026-04-01T00:00:00.000Z',
+    required: false,
+  })
+  trialEndsAt?: Date;
+
+  @ApiProperty({
+    description:
+      'Days remaining in trial, clamped to 0 (only present when status = trialing)',
+    example: 12,
+    required: false,
+  })
+  daysRemaining?: number;
+
   static fromEntity(
     subscription: TenantSubscription,
     plan?: Plan,
   ): SubscriptionResponseDto {
-    return Object.assign(new SubscriptionResponseDto(), {
+    const dto = Object.assign(new SubscriptionResponseDto(), {
       id: subscription.id,
       tenant_id: subscription.tenant_id,
       plan_id: subscription.plan_id,
@@ -110,6 +132,20 @@ export class SubscriptionResponseDto {
       created_at: subscription.created_at,
       updated_at: subscription.updated_at,
       plan,
+      planKey: plan?.key,
     });
+
+    if (subscription.status === 'trialing' && subscription.trial_ends_at) {
+      dto.trialEndsAt = subscription.trial_ends_at;
+      dto.daysRemaining = Math.max(
+        0,
+        Math.ceil(
+          (subscription.trial_ends_at.getTime() - Date.now()) /
+            (1000 * 60 * 60 * 24),
+        ),
+      );
+    }
+
+    return dto;
   }
 }

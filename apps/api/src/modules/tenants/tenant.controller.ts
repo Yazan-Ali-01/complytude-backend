@@ -39,6 +39,7 @@ import type {
   AuthenticatedIdentityUser,
   AuthenticatedTenantUser,
 } from '../auth/strategies';
+import { TRIAL_CONFIG } from 'src/common/constants/trial-config.constant';
 import { TenantsI18n } from './constants/i18n.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import {
@@ -141,7 +142,7 @@ export class TenantController {
       createTenantDto,
     );
 
-    const planKey = createTenantDto.planKey ?? 'navigator';
+    const planKey = createTenantDto.planKey ?? TRIAL_CONFIG.PLAN_KEY;
     const input: TenantResponseInput = { ...tenant, plan: planKey };
     return new TenantResponseDto(input);
   }

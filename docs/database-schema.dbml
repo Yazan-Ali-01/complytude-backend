@@ -677,6 +677,7 @@ Table tenant_subscriptions {
   current_period_start timestamptz [not null]
   current_period_end timestamptz [not null]
   cancelled_at timestamptz
+  trial_ends_at timestamptz [note: 'Only set when status = trialing']
   metadata jsonb [default: '{}']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]

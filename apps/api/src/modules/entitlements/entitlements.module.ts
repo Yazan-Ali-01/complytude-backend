@@ -21,6 +21,7 @@ import { TenantOverridesController } from './controllers/tenant-overrides.contro
 import { EntitlementsController } from './entitlements.controller';
 import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
 import { ProjectionUpdateHandler } from './processors/projection-update.handler';
+import { TrialExpiryHandler } from './processors/trial-expiry.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
@@ -31,6 +32,7 @@ import { EntitlementSyncService } from './services/entitlement-sync.service';
 import { ProjectionReconciliationService } from './services/projection-reconciliation.service';
 import { TenantAddonsService } from './services/tenant-addons.service';
 import { TenantOverridesService } from './services/tenant-overrides.service';
+import { TrialExpirySchedulerService } from './services/trial-expiry-scheduler.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
 import { UsageProjectionService } from './services/usage-projection.service';
 
@@ -79,6 +81,8 @@ import { UsageProjectionService } from './services/usage-projection.service';
     // Queue processor + handlers
     EntitlementQueueProcessor,
     ProjectionUpdateHandler,
+    TrialExpiryHandler,
+    TrialExpirySchedulerService,
 
     // Catalog repositories
     FeaturesRepository,
