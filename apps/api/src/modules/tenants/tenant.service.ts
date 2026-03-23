@@ -22,6 +22,10 @@ import { StripeCustomerService } from '../stripe/services/stripe-customer.servic
 import { StripeTaxService } from '../stripe/services/stripe-tax.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantsI18n } from './constants/i18n.constants';
+import {
+  DEFAULT_ONBOARDING_METADATA,
+  type StepsCompleted,
+} from './constants/onboarding.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
@@ -213,21 +217,31 @@ export class TenantService {
           {
             name: createTenantDto.name,
             is_active: true,
+            onboarding_metadata: { ...DEFAULT_ONBOARDING_METADATA },
           },
           { client: txClient },
         );
 
-        const planKey = createTenantDto.planKey ?? 'navigator';
-        await this.subscriptionsService.createSubscription(
-          created.id,
-          planKey,
-          subscriptionCreatorUserId ?? null,
-          { client: txClient },
-        );
-
-        this.logger.log(
-          `Tenant created with subscription: tenant=${created.id}, plan=${planKey}`,
-        );
+        if (createTenantDto.planKey) {
+          await this.subscriptionsService.createSubscription(
+            created.id,
+            createTenantDto.planKey,
+            subscriptionCreatorUserId ?? null,
+            { client: txClient },
+          );
+          this.logger.log(
+            `Tenant created with subscription: tenant=${created.id}, plan=${createTenantDto.planKey}`,
+          );
+        } else {
+          await this.subscriptionsService.createTrialSubscription(
+            created.id,
+            subscriptionCreatorUserId ?? null,
+            { client: txClient },
+          );
+          this.logger.log(
+            `Tenant created with trial subscription: tenant=${created.id}`,
+          );
+        }
 
         return created;
       };
@@ -709,9 +723,31 @@ export class TenantService {
   ): Promise<Tenant> {
     return this.executeInTenantScope(tenantId, context, async (client) => {
       const tenant = await this.findById(tenantId, { client });
+      const { currentStep, teamInviteSkipped, firstActionType } = dto;
+      const partialMetadata: Record<string, unknown> = Object.fromEntries(
+        Object.entries({
+          currentStep,
+          teamInviteSkipped,
+          firstActionType,
+        }).filter(([, v]) => v !== undefined),
+      );
+
+      // Derive stepsCompleted flags from semantic field changes so the server
+      // always owns these — clients set intent, we set completion.
+      const stepsCompleted: Partial<StepsCompleted> = {};
+      if (teamInviteSkipped === true) {
+        stepsCompleted.inviteTeam = true;
+      }
+      if (firstActionType != null) {
+        stepsCompleted.firstAction = true;
+      }
+      if (Object.keys(stepsCompleted).length > 0) {
+        partialMetadata.stepsCompleted = stepsCompleted;
+      }
+
       const mergedMetadata = deepMerge(
         tenant.onboarding_metadata || {},
-        dto.onboarding_metadata || {},
+        partialMetadata,
       );
       return this.updateOrThrow(
         tenantId,

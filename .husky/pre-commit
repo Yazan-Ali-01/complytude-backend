@@ -1,1 +1,9 @@
+if git diff --cached --name-only | grep -q 'package\.json'; then
+  if ! git diff --cached --name-only | grep -q 'pnpm-lock\.yaml'; then
+    echo "ERROR: package.json changed but pnpm-lock.yaml is not staged."
+    echo "Run 'pnpm install' and stage the updated lockfile."
+    exit 1
+  fi
+fi
+
 pnpm type-check && pnpm lint-staged

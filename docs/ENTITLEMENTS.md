@@ -211,11 +211,11 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 
 **Sample results** (local dev, 50 concurrent):
 
-| Metric | Sync (strict) | Async | Improvement |
-|--------|---------------|-------|-------------|
-| p50    | ~270ms        | ~160ms| ~41%        |
-| p95    | ~440ms        | ~230ms| ~48%        |
-| p99    | ~450ms        | ~240ms| ~48%        |
+| Metric | Sync (strict) | Async  | Improvement |
+| ------ | ------------- | ------ | ----------- |
+| p50    | ~270ms        | ~160ms | ~41%        |
+| p95    | ~440ms        | ~230ms | ~48%        |
+| p99    | ~450ms        | ~240ms | ~48%        |
 
 **Rationale:** Sync path updates `aggregated_usage` in the same transaction as the ledger write, causing row lock contention under concurrency. Async path only writes to the ledger and enqueues a job, reducing request-path latency.
 
@@ -271,23 +271,23 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 
 ### Complete Feature List
 
-| Feature Key                    | Type     | Unit      | Creditable | Credit Cost | Description                                        |
-| ------------------------------ | -------- | --------- | ---------- | ----------- | -------------------------------------------------- |
-| `documents_per_month`          | quota    | documents | ✅ Yes     | 5 credits   | Documents that can be generated per billing period |
-| `template_library`             | boolean  | -         | ❌ No      | -           | Access to template library (essential/full)        |
-| `bilingual_quality`            | boolean  | -         | ❌ No      | -           | Bilingual quality (standard/jais_native)           |
-| `contract_reviews_per_month`   | quota    | reviews   | ❌ No      | -           | AI contract reviews per billing period             |
-| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | Risk analysis level (none/critical_only/full)      |
-| `redlining_enabled`            | boolean  | -         | ❌ No      | -           | AI suggests alternative compliant wording          |
-| `localizer_check`              | boolean  | -         | ❌ No      | -           | Flags governing law/jurisdiction mismatches        |
-| `regulatory_hub_access`        | boolean  | -         | ❌ No      | -           | Access to compliance dashboard                     |
-| `regulatory_queries_per_month` | quota    | queries   | ✅ Yes     | 3 credits   | Chat-with-Law queries per billing period           |
-| `license_verifier_lookups`     | quota    | lookups   | ❌ No      | -           | DED API lookups per billing period                 |
-| `jurisdictions`                | boolean  | -         | ❌ No      | -           | Access to jurisdictions (single/all)               |
-| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant                  |
-| `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)       |
-| `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions      |
-| `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                |
+| Feature Key                    | Type     | Unit      | Creditable | Credit Cost | Description                                                                                                                                                                                  |
+| ------------------------------ | -------- | --------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `documents_per_month`          | quota    | documents | ✅ Yes     | 5 credits   | Documents that can be generated per billing period                                                                                                                                           |
+| `template_library`             | boolean  | -         | ❌ No      | -           | Access to template library (essential/full)                                                                                                                                                  |
+| `bilingual_quality`            | boolean  | -         | ❌ No      | -           | Bilingual quality (standard/jais_native)                                                                                                                                                     |
+| `contract_reviews_per_month`   | quota    | reviews   | ❌ No      | -           | AI contract reviews per billing period                                                                                                                                                       |
+| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | Risk analysis level (none/critical_only/full)                                                                                                                                                |
+| `redlining_enabled`            | boolean  | -         | ❌ No      | -           | AI suggests alternative compliant wording                                                                                                                                                    |
+| `localizer_check`              | boolean  | -         | ❌ No      | -           | Flags governing law/jurisdiction mismatches                                                                                                                                                  |
+| `regulatory_hub_access`        | boolean  | -         | ❌ No      | -           | Access to compliance dashboard                                                                                                                                                               |
+| `regulatory_queries_per_month` | quota    | queries   | ✅ Yes     | 3 credits   | Chat-with-Law queries per billing period                                                                                                                                                     |
+| `license_verifier_lookups`     | quota    | lookups   | ❌ No      | -           | DED API lookups per billing period                                                                                                                                                           |
+| `jurisdictions`                | boolean  | -         | ❌ No      | -           | Access to jurisdictions (single/all)                                                                                                                                                         |
+| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant. Enforced on invitation accept and create (see [API Contracts: Invitation System](../apps/api/docs/API_CONTRACTS.md#invitation-system--seat-enforcement)). |
+| `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)                                                                                                                                                 |
+| `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions                                                                                                                                                |
+| `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                                                                                                                                                          |
 
 ---
 
@@ -393,23 +393,36 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 
 **Every tenant must have an active subscription.** When a tenant is created via `POST /tenants` or during signup, the system automatically creates a subscription:
 
+**Default (no planKey):** Trial subscription — 14 days on General Counsel plan
+
 ```typescript
-// TenantService.createTenantForUser()
-await this.subscriptionsService.createSubscription(
-  tenant.id,
-  planKey ?? 'navigator', // Defaults to free Navigator plan
-  userId,
-  { client }, // Reuses transaction client
-);
+// TenantService.createTenantForUser() — when planKey omitted
+await this.subscriptionsService.createTrialSubscription(tenant.id, userId, { client });
 ```
 
-**Created Subscription:**
+**With planKey:** Direct subscription on specified plan
+
+```typescript
+// TenantService.createTenantForUser() — when planKey provided
+await this.subscriptionsService.createSubscription(tenant.id, planKey, userId, { client });
+```
+
+**Trial Subscription:**
+
+- `plan_id` — General Counsel (full features to hook users)
+- `status` — `'trialing'`
+- `trial_ends_at` — NOW() + 14 days
+- `current_period_start` — NOW()
+- `current_period_end` — trial_ends_at (aligned)
+
+**Direct Subscription:**
 
 - `plan_id` — Resolved from plan key via `PlansRepository.findByKey()`
 - `status` — `'active'`
 - `current_period_start` — NOW()
 - `current_period_end` — NOW() + 1 month
-- `tenant_id` — From newly created tenant
+
+**Trial Expiry:** A scheduled job (`TRIAL_EXPIRY_CHECK`) runs every 6 hours. Expired trials are auto-downgraded to Navigator, snapshot invalidated, and `trial.expired` domain event emitted.
 
 **Important:** Without an active subscription, `EntitlementResolverService.resolveForTenant()` will throw `NotFoundException`. The subscription is created within the same transaction as the tenant to ensure atomicity.
 
@@ -1102,9 +1115,11 @@ async grantCredits(
 | `entitlement.snapshot_created`     | entitlement  | Snapshot created                                   |
 | `entitlement.snapshot_invalidated` | entitlement  | Snapshot invalidated                               |
 | `subscription.created`             | subscription | New subscription created                           |
+| `subscription.trial_started`       | subscription | Trial subscription created (new tenant, no planKey) |
 | `subscription.plan_changed`        | subscription | Plan upgraded/downgraded                           |
 | `subscription.cancelled`           | subscription | Subscription cancelled                             |
 | `subscription.renewed`             | subscription | Billing period renewed                             |
+| `trial.expired`                    | subscription | Trial ended, auto-downgraded to Navigator          |
 
 ### Querying Events
 

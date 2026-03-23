@@ -2,6 +2,7 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -16,6 +17,8 @@ import {
 
 @Injectable()
 export class JwtAuthRefreshGuard implements CanActivate {
+  private readonly logger = new Logger(JwtAuthRefreshGuard.name);
+
   constructor(private readonly reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -88,7 +91,11 @@ export class JwtAuthRefreshGuard implements CanActivate {
 
     return new Promise<void>((resolve) => {
       passport.authenticate(strategy, { session: false }, (err, user) => {
-        if (!err && user) {
+        if (err) {
+          this.logger.warn(
+            `JWT refresh auth failed [${strategy}]: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        } else if (user) {
           req.auth[key] = user;
         }
         resolve();

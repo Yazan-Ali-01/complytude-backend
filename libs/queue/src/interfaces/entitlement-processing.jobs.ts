@@ -6,6 +6,7 @@ export const ENTITLEMENT_JOB_NAMES = {
   SUBSCRIPTION_RENEWAL: 'subscription-renewal',
   CREDIT_NOTIFICATION: 'credit-notification',
   QUOTA_EXCEEDED: 'quota-exceeded',
+  TRIAL_EXPIRY_CHECK: 'trial-expiry-check',
 } as const;
 
 export type EntitlementJobName =
@@ -64,6 +65,10 @@ export interface EntitlementProjectionUpdateJobData {
 export interface EntitlementSubscriptionRenewalJobData {
   tenantId: string;
   subscriptionId: string;
+}
+
+export interface EntitlementTrialExpiryCheckJobData {
+  triggeredAt: string;
 }
 
 export interface EntitlementCreditNotificationJobData {

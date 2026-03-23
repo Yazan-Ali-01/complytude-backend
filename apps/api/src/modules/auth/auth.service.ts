@@ -374,6 +374,7 @@ export class AuthService {
       ],
     });
     if (!user) {
+      this.logger.warn(`Login failed: user not found for email`);
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
       );
@@ -382,6 +383,7 @@ export class AuthService {
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
+      this.logger.warn(`Login failed: invalid password for user ${user.id}`);
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
       );

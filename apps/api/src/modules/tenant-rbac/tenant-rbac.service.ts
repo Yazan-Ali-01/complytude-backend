@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { TENANT_SYSTEM_ROLE_PERMISSIONS } from '../../common/constants/tenant-system-roles.constant';
 import { isTenantSystemRole } from '../../common/utils/tenant-type-guards.util';
 import { TenantRolesRepository } from '../../repositories/tenant-rbac/tenant-roles.repository';
 
 @Injectable()
 export class TenantRbacService {
+  private readonly logger = new Logger(TenantRbacService.name);
+
   // System roles use in-memory permission sets (TENANT_SYSTEM_ROLE_PERMISSIONS)
   // Custom tenant roles (MVP+) will query the database
   // TODO: Implement caching for custom tenant roles - load role-permissions
@@ -25,23 +27,44 @@ export class TenantRbacService {
     roleKey: string,
     tenantId: string,
   ): Promise<string[]> {
-    // 1. Check system roles first (in-memory, no DB query)
-    // System role keys are reserved and cannot be used by custom roles
-    if (isTenantSystemRole(roleKey)) {
-      const permissions = TENANT_SYSTEM_ROLE_PERMISSIONS[roleKey];
-      return Array.from(permissions);
-    }
+    this.logger.debug(
+      `Permission check: roleKey=${roleKey} tenantId=${tenantId}`,
+    );
+    try {
+      // 1. Check system roles first (in-memory, no DB query)
+      // System role keys are reserved and cannot be used by custom roles
+      if (isTenantSystemRole(roleKey)) {
+        const permissions = TENANT_SYSTEM_ROLE_PERMISSIONS[roleKey];
+        return Array.from(permissions);
+      }
 
-    // 2. Custom tenant roles: query database (MVP+ feature)
-    // Returns only concrete permissions from database
-    return this.tenantRolesRepository.getPermissionsForRole(roleKey, tenantId);
+      // 2. Custom tenant roles: query database (MVP+ feature)
+      // Returns only concrete permissions from database
+      return await this.tenantRolesRepository.getPermissionsForRole(
+        roleKey,
+        tenantId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Permission lookup failed: roleKey=${roleKey} tenantId=${tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
   }
 
   /**
    * Get all system roles
    */
   async getSystemRoles() {
-    return this.tenantRolesRepository.findSystemRoles();
+    this.logger.debug('Fetching tenant system roles');
+    try {
+      return await this.tenantRolesRepository.findSystemRoles();
+    } catch (error) {
+      this.logger.warn(
+        `System roles lookup failed - ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
   }
 
   /**
@@ -50,7 +73,26 @@ export class TenantRbacService {
    * @param tenantId - Optional tenant ID for custom roles
    */
   async getRoleByKey(roleKey: string, tenantId?: string) {
-    return this.tenantRolesRepository.findByKey(roleKey, tenantId);
+    this.logger.debug(
+      `Role lookup: roleKey=${roleKey} tenantId=${tenantId ?? 'none'}`,
+    );
+    try {
+      const role = await this.tenantRolesRepository.findByKey(
+        roleKey,
+        tenantId,
+      );
+      if (!role) {
+        this.logger.warn(
+          `Role not found: roleKey=${roleKey} tenantId=${tenantId ?? 'none'}`,
+        );
+      }
+      return role;
+    } catch (error) {
+      this.logger.warn(
+        `Role lookup failed: roleKey=${roleKey} tenantId=${tenantId ?? 'none'} - ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
   }
 
   // TODO: AI Model Selection Gate

@@ -2,7 +2,7 @@
 import { AUDIT_KEY, Audit, AuditConfig } from './audit.decorator';
 
 describe('Audit decorator', () => {
-  it('sets metadata with event name and empty options', () => {
+  it('sets metadata with action name and empty options', () => {
     class TestController {
       @Audit('CONTRACT_EXPORTED')
       testMethod() {}
@@ -13,12 +13,12 @@ describe('Audit decorator', () => {
       TestController.prototype.testMethod,
     );
     expect(metadata).toEqual({
-      event: 'CONTRACT_EXPORTED',
+      action: 'CONTRACT_EXPORTED',
       options: {},
     });
   });
 
-  it('sets metadata with event name and custom options', () => {
+  it('sets metadata with action name and custom options', () => {
     class TestController {
       @Audit('CONTRACT_EXPORTED', {
         resourceIdParam: 'id',
@@ -33,7 +33,7 @@ describe('Audit decorator', () => {
       TestController.prototype.testMethod,
     );
     expect(metadata).toEqual({
-      event: 'CONTRACT_EXPORTED',
+      action: 'CONTRACT_EXPORTED',
       options: {
         resourceIdParam: 'id',
         includeBody: true,

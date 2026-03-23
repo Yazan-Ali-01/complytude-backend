@@ -6,7 +6,12 @@ import {
   Get,
   Post,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { PlanKey } from 'src/common/types/entitlement.types';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
@@ -57,6 +62,7 @@ import { EntitlementSnapshotService } from '../entitlements/services/entitlement
  * });
  * ```
  */
+@ApiExcludeController()
 @Controller('mock/snapshots')
 @AuthOptions({ tenant: true })
 @ApiTags('mock-snapshots')

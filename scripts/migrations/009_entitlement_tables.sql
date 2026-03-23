@@ -158,6 +158,7 @@ CREATE TABLE public.tenant_subscriptions (
     current_period_start        TIMESTAMPTZ NOT NULL,
     current_period_end          TIMESTAMPTZ NOT NULL,
     cancelled_at                TIMESTAMPTZ,
+    trial_ends_at               TIMESTAMPTZ,
     metadata                    JSONB DEFAULT '{}',
     stripe_subscription_id      VARCHAR(255) UNIQUE DEFAULT NULL,
     stripe_schedule_id          VARCHAR(255) DEFAULT NULL,
@@ -168,6 +169,7 @@ CREATE TABLE public.tenant_subscriptions (
 );
 
 COMMENT ON TABLE public.tenant_subscriptions IS 'Tenant subscription records with billing period tracking';
+COMMENT ON COLUMN public.tenant_subscriptions.trial_ends_at IS 'Trial expiration timestamp (only set when status = trialing)';
 COMMENT ON COLUMN public.tenant_subscriptions.billing_period_start IS 'Overall subscription start date';
 COMMENT ON COLUMN public.tenant_subscriptions.billing_period_end IS 'Overall subscription end date (NULL for ongoing)';
 COMMENT ON COLUMN public.tenant_subscriptions.current_period_start IS 'Current billing cycle start';
@@ -558,12 +560,17 @@ CREATE INDEX idx_tenant_subscriptions_tenant_id ON public.tenant_subscriptions(t
 CREATE INDEX idx_tenant_subscriptions_plan_id ON public.tenant_subscriptions(plan_id);
 CREATE INDEX idx_tenant_subscriptions_status ON public.tenant_subscriptions(status);
 CREATE INDEX idx_tenant_subscriptions_tenant_active ON public.tenant_subscriptions(tenant_id, status)
-    WHERE status = 'active';
+    WHERE status IN ('active', 'trialing');
 
--- Unique constraint: only one active subscription per tenant (for upsert in SubscriptionsRepository)
-CREATE UNIQUE INDEX idx_tenant_subscriptions_tenant_active_unique
+-- Unique constraint: only one active or trialing subscription per tenant
+CREATE UNIQUE INDEX idx_tenant_subscriptions_tenant_one_valid
     ON public.tenant_subscriptions(tenant_id)
-    WHERE status = 'active';
+    WHERE status IN ('active', 'trialing');
+
+-- Partial index for trial expiry job (efficient lookup of expired trials)
+CREATE INDEX idx_tenant_subscriptions_trial_expiry
+    ON public.tenant_subscriptions(trial_ends_at)
+    WHERE status = 'trialing';
 
 -- Tenant Addons
 CREATE INDEX idx_tenant_addons_tenant_id ON public.tenant_addons(tenant_id);

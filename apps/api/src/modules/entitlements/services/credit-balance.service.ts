@@ -45,14 +45,15 @@ export class CreditBalanceService {
       return this.creditLedgerRepository.getBalance(tenantId, { client });
     };
 
-    if (options?.client) {
-      return execute(options.client);
-    }
+    const balance = options?.client
+      ? await execute(options.client)
+      : await this.databaseService.transactionWithTenantContext(
+          { tenantId },
+          execute,
+        );
 
-    return this.databaseService.transactionWithTenantContext(
-      { tenantId },
-      execute,
-    );
+    this.logger.debug(`Balance query: tenantId=${tenantId} balance=${balance}`);
+    return balance;
   }
 
   /**
@@ -71,7 +72,13 @@ export class CreditBalanceService {
     options?: QueryOptions,
   ): Promise<boolean> {
     const balance = await this.getAvailableBalance(tenantId, options);
-    return balance >= amount;
+    const hasEnough = balance >= amount;
+    if (!hasEnough) {
+      this.logger.warn(
+        `Insufficient credits: tenantId=${tenantId} required=${amount} available=${balance}`,
+      );
+    }
+    return hasEnough;
   }
 
   /**
@@ -121,6 +128,10 @@ export class CreditBalanceService {
     const expired = breakdown.expiry ?? 0; // Already negative
 
     const net = purchased + granted + deducted + refunded + expired;
+
+    this.logger.debug(
+      `Balance breakdown: tenantId=${tenantId} net=${net} purchased=${purchased} granted=${granted} deducted=${deducted}`,
+    );
 
     return {
       purchased,

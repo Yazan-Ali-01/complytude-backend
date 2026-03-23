@@ -308,6 +308,27 @@ export class InvitationRepository extends BaseRepository<
   }
 
   /**
+   * Count pending (unexpired) invitations for a tenant.
+   *
+   * @param tenantId - The tenant ID
+   * @param options - Query options
+   * @returns Number of pending invitations
+   */
+  async countPendingByTenant(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<number> {
+    const result = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) as count
+       FROM ${this.tableName}
+       WHERE tenant_id = $1 AND status = $2 AND expires_at > NOW()`,
+      [tenantId, InvitationStatus.PENDING],
+      options,
+    );
+    return parseInt(result.rows[0]?.count || '0', 10);
+  }
+
+  /**
    * Find all pending invitations for a tenant.
    *
    * @param tenantId - The tenant ID

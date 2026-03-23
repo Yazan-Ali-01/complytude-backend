@@ -57,6 +57,10 @@ export class TenantInvitationsController {
    * Create a new invitation to join the tenant
    */
   @Post()
+  @Audit('INVITATION_CREATED', {
+    resourceType: 'invitations',
+    includeBody: true,
+  })
   @ApiOperation({
     summary: 'Create invitation',
     description:

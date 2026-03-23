@@ -6,6 +6,7 @@ import {
   EntitlementProjectionUpdateJobData,
   EntitlementQuotaExceededJobData,
   EntitlementSnapshotRebuildJobData,
+  EntitlementTrialExpiryCheckJobData,
   Job,
   PermanentError,
   Processor,
@@ -17,6 +18,7 @@ import { DomainEventFanoutHandler } from './domain-event-fanout.handler';
 import { ProjectionUpdateHandler } from './projection-update.handler';
 import { QuotaExceededHandler } from './quota-exceeded.handler';
 import { SnapshotRebuildHandler } from './snapshot-rebuild.handler';
+import { TrialExpiryHandler } from './trial-expiry.handler';
 
 /**
  * Entitlement Queue Processor
@@ -42,6 +44,7 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
     private readonly domainEventFanoutHandler: DomainEventFanoutHandler,
     private readonly creditNotificationHandler: CreditNotificationHandler,
     private readonly quotaExceededHandler: QuotaExceededHandler,
+    private readonly trialExpiryHandler: TrialExpiryHandler,
   ) {
     super();
   }
@@ -71,6 +74,11 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
       case ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED:
         return this.quotaExceededHandler.execute(
           job as Job<EntitlementQuotaExceededJobData>,
+        );
+
+      case ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK:
+        return this.trialExpiryHandler.execute(
+          job as Job<EntitlementTrialExpiryCheckJobData>,
         );
 
       default:

@@ -31,15 +31,15 @@ Complytude uses two separate logging streams with distinct purposes, formats, an
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-| Aspect | System Logs (Pino) | Audit Trail |
-|---|---|---|
-| **Purpose** | Debugging, monitoring, alerting | Compliance, accountability, user activity |
-| **Audience** | Engineers, DevOps | Compliance officers, admins, legal |
-| **Destination** | stdout → log aggregator | `audit_logs` table in Postgres |
-| **Trigger** | Automatic (every request + manual calls) | Explicit (`@Audit()` decorator only) |
-| **Retention** | Short-term (days–weeks) | Long-term (years) |
-| **Contains PII** | No (redacted) | Minimal (actor ID, IP) |
-| **Blocking** | No | No (fire-and-forget) |
+| Aspect           | System Logs (Pino)                       | Audit Trail                               |
+| ---------------- | ---------------------------------------- | ----------------------------------------- |
+| **Purpose**      | Debugging, monitoring, alerting          | Compliance, accountability, user activity |
+| **Audience**     | Engineers, DevOps                        | Compliance officers, admins, legal        |
+| **Destination**  | stdout → log aggregator                  | `audit_logs` table in Postgres            |
+| **Trigger**      | Automatic (every request + manual calls) | Explicit (`@Audit()` decorator only)      |
+| **Retention**    | Short-term (days–weeks)                  | Long-term (years)                         |
+| **Contains PII** | No (redacted)                            | Minimal (actor ID, IP)                    |
+| **Blocking**     | No                                       | No (fire-and-forget)                      |
 
 ### Why Two Streams?
 
@@ -73,38 +73,39 @@ libs/logger/src/
 
 Each application has a unique `service_name` in all log lines:
 
-| Application | Service Name | Config Location |
-|---|---|---|
-| API Gateway | `gateway` | `apps/api/src/app.module.ts` |
-| AI Worker | `worker-ai` | `apps/worker-ai/src/worker-ai.module.ts` |
+| Application      | Service Name       | Config Location                                        |
+| ---------------- | ------------------ | ------------------------------------------------------ |
+| API Gateway      | `gateway`          | `apps/api/src/app.module.ts`                           |
+| AI Worker        | `worker-ai`        | `apps/worker-ai/src/worker-ai.module.ts`               |
 | Ingestion Worker | `worker-ingestion` | `apps/worker-ingestion/src/worker-ingestion.module.ts` |
 
 ### Log Fields
 
 Every log line includes:
 
-| Field | Source | Present In |
-|---|---|---|
-| `service_name` | `LoggerModule.forRoot()` | All logs |
-| `trace_id` | Fastify `req.id` → CLS → Pino | Gateway requests |
-| `trace_id` | Job `_metadata.traceId` → Pino | Worker jobs |
-| `tenant_id` | Job `_metadata.tenantId` → Pino | Worker jobs |
-| `queue_name` | `job.queueName` → Pino | Worker jobs |
-| `job_id` | `job.id` → Pino | Worker jobs |
-| `job_name` | `job.name` → Pino | Worker jobs |
-| `method` | HTTP request | Gateway requests |
-| `url` | HTTP request | Gateway requests |
+| Field          | Source                          | Present In       |
+| -------------- | ------------------------------- | ---------------- |
+| `service_name` | `LoggerModule.forRoot()`        | All logs         |
+| `trace_id`     | Fastify `req.id` → CLS → Pino   | Gateway requests |
+| `trace_id`     | Job `_metadata.traceId` → Pino  | Worker jobs      |
+| `tenant_id`    | Job `_metadata.tenantId` → Pino | Worker jobs      |
+| `queue_name`   | `job.queueName` → Pino          | Worker jobs      |
+| `job_id`       | `job.id` → Pino                 | Worker jobs      |
+| `job_name`     | `job.name` → Pino               | Worker jobs      |
+| `method`       | HTTP request                    | Gateway requests |
+| `url`          | HTTP request                    | Gateway requests |
 
 ### Log Levels
 
-| Level | When to Use | Examples |
-|---|---|---|
-| `error` | Operation failed, needs attention | DB query failed, external API down, job permanently failed |
-| `warn` | Unexpected but handled | Access denied, auth failure, retry needed, data inconsistency |
-| `log` (info) | Important business operations | User created, document analyzed, plan changed, job completed |
-| `debug` | Operational detail for debugging | Query params, cache hits, intermediate results, job payloads |
+| Level        | When to Use                       | Examples                                                      |
+| ------------ | --------------------------------- | ------------------------------------------------------------- |
+| `error`      | Operation failed, needs attention | DB query failed, external API down, job permanently failed    |
+| `warn`       | Unexpected but handled            | Access denied, auth failure, retry needed, data inconsistency |
+| `log` (info) | Important business operations     | User created, document analyzed, plan changed, job completed  |
+| `debug`      | Operational detail for debugging  | Query params, cache hits, intermediate results, job payloads  |
 
 **Rules:**
+
 - Never log at `error` for expected user errors (validation, 404) — use `warn` or skip
 - Always include contextual IDs (userId, tenantId, resourceId) in log messages
 - Never log passwords, tokens, or raw SQL parameters
@@ -152,11 +153,11 @@ LoggerModule.forRoot({
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `LOG_LEVEL` | `debug` (dev), `info` (prod) | Minimum log level |
-| `SERVICE_NAME` | From `LoggerModule.forRoot()` | Override service name |
-| `NODE_ENV` | `development` | Controls pretty printing |
+| Variable       | Default                       | Description              |
+| -------------- | ----------------------------- | ------------------------ |
+| `LOG_LEVEL`    | `debug` (dev), `info` (prod)  | Minimum log level        |
+| `SERVICE_NAME` | From `LoggerModule.forRoot()` | Override service name    |
+| `NODE_ENV`     | `development`                 | Controls pretty printing |
 
 ---
 
@@ -176,14 +177,14 @@ Audit logging uses an opt-in `@Audit()` decorator on controller methods. Only de
 
 **Key files:**
 
-| Component | Path |
-|---|---|
-| Decorator | `apps/api/src/common/decorators/audit.decorator.ts` |
-| Interceptor | `apps/api/src/common/interceptors/audit.interceptor.ts` |
-| Body sanitizer | `apps/api/src/common/utils/audit-sanitize.util.ts` |
-| Service | `libs/audit/src/audit.service.ts` |
-| Repository | `libs/audit/src/audit.repository.ts` |
-| Types | `libs/audit/src/audit.types.ts` |
+| Component      | Path                                                    |
+| -------------- | ------------------------------------------------------- |
+| Decorator      | `apps/api/src/common/decorators/audit.decorator.ts`     |
+| Interceptor    | `apps/api/src/common/interceptors/audit.interceptor.ts` |
+| Body sanitizer | `apps/api/src/common/utils/audit-sanitize.util.ts`      |
+| Service        | `libs/audit/src/audit.service.ts`                       |
+| Repository     | `libs/audit/src/audit.repository.ts`                    |
+| Types          | `libs/audit/src/audit.types.ts`                         |
 
 ### Using the `@Audit()` Decorator
 
@@ -217,11 +218,11 @@ export class ContractsController {
 
 ### Decorator Options
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `resourceType` | `string` | Auto-derived from `@Controller()` path | Override the resource type in audit log |
-| `resourceIdParam` | `string` | `undefined` (falls back to response body) | Route param name containing the resource ID |
-| `includeBody` | `boolean` | `false` | Include sanitized request body in `details.body` |
+| Option            | Type      | Default                                   | Description                                      |
+| ----------------- | --------- | ----------------------------------------- | ------------------------------------------------ |
+| `resourceType`    | `string`  | Auto-derived from `@Controller()` path    | Override the resource type in audit log          |
+| `resourceIdParam` | `string`  | `undefined` (falls back to response body) | Route param name containing the resource ID      |
+| `includeBody`     | `boolean` | `false`                                   | Include sanitized request body in `details.body` |
 
 ### Event Naming Convention
 
@@ -244,34 +245,54 @@ Examples:
 
 Every audit record contains:
 
-| Field | Source |
-|---|---|
-| `tenant_id` | JWT tenant context |
-| `actor_id` | JWT `userId` |
-| `actor_type` | `'user'` (always for HTTP) |
-| `user_role` | JWT `role` |
-| `action` | Event name from `@Audit()` |
-| `resource_type` | Explicit option or auto-derived from controller path |
-| `resource_id` | Route param (if configured) or response body `id` |
-| `ip_address` | `X-Forwarded-For` header or `request.ip` |
-| `user_agent` | Request `User-Agent` header |
-| `trace_id` | From CLS (same as system log trace ID) |
-| `details.method` | HTTP method |
-| `details.url` | Request URL |
-| `details.body` | Sanitized request body (only when `includeBody: true`) |
+| Field            | Source                                                 |
+| ---------------- | ------------------------------------------------------ |
+| `tenant_id`      | JWT tenant context                                     |
+| `actor_id`       | JWT `userId`                                           |
+| `actor_type`     | `'user'` (always for HTTP)                             |
+| `user_role`      | JWT `role`                                             |
+| `action`         | Event name from `@Audit()`                             |
+| `resource_type`  | Explicit option or auto-derived from controller path   |
+| `resource_id`    | Route param (if configured) or response body `id`      |
+| `ip_address`     | `X-Forwarded-For` header or `request.ip`               |
+| `user_agent`     | Request `User-Agent` header                            |
+| `trace_id`       | From CLS (same as system log trace ID)                 |
+| `details.method` | HTTP method                                            |
+| `details.url`    | Request URL                                            |
+| `details.body`   | Sanitized request body (only when `includeBody: true`) |
 
 ### When to Use Audit vs System Logging
 
-| Scenario | Use |
-|---|---|
-| User creates/updates/deletes a resource | `@Audit()` |
-| User logs in, changes password | `@Audit()` |
-| Admin changes tenant settings | `@Audit()` |
-| Database query timing for monitoring | System log (`Logger`) |
-| Error debugging with stack trace | System log (`Logger`) |
-| Cache hit/miss for performance tuning | System log (`Logger`) |
-| Permission denied (security monitoring) | System log (`Logger.warn()`) |
-| Job processing lifecycle | System log (via `AbstractProcessor`) |
+| Scenario                                | Use                                  |
+| --------------------------------------- | ------------------------------------ |
+| User creates/updates/deletes a resource | `@Audit()`                           |
+| User logs in, changes password          | `@Audit()`                           |
+| Admin changes tenant settings           | `@Audit()`                           |
+| Database query timing for monitoring    | System log (`Logger`)                |
+| Error debugging with stack trace        | System log (`Logger`)                |
+| Cache hit/miss for performance tuning   | System log (`Logger`)                |
+| Permission denied (security monitoring) | System log (`Logger.warn()`)         |
+| Job processing lifecycle                | System log (via `AbstractProcessor`) |
+
+### System Logging Coverage
+
+The following components have structured logging for security, debugging, and operational visibility:
+
+| Component                              | Logs                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| **PlatformRbacService**                | Permission checks (debug), role lookups (debug), failures (warn)        |
+| **TenantRbacService**                  | Permission checks (debug), role lookups (debug), failures (warn)        |
+| **DocumentsService**                   | Document create (log), job enqueue (log), errors (error)                |
+| **DocumentGenerationService**          | Generation start/complete with template key (log), errors (error)       |
+| **CreditBalanceService**               | Balance queries (debug), insufficient balance (warn), breakdown (debug) |
+| **TenantPermissionsGuard**             | Access denial with userId, role, required permission (warn)             |
+| **PlatformPermissionsGuard**           | Access denial with userId, role, required permission (warn)             |
+| **JWT strategies**                     | Invalid token type, expired token, validation failures (warn)           |
+| **JwtAuthGuard / JwtAuthRefreshGuard** | Passport validation errors (expired, malformed) (warn)                  |
+| **AuthService**                        | Login failures: user not found, invalid password (warn)                 |
+| **BaseRepository**                     | Query failures with table, operation type (error)                       |
+| **AuditLogsRepository**                | Batch insert failures, row insert failures (error)                      |
+| **HealthService**                      | Database/Redis/queue health check failures (error/warn)                 |
 
 ### Manual AuditService Usage
 
@@ -354,13 +375,13 @@ export class MyService {
 
 ### Key Files
 
-| Component | Path |
-|---|---|
-| Constants | `libs/context/src/context.constants.ts` |
-| CLS seeding | `libs/context/src/tracing.middleware.ts` |
-| Pino assignment | `libs/context/src/tracing.interceptor.ts` |
+| Component         | Path                                       |
+| ----------------- | ------------------------------------------ |
+| Constants         | `libs/context/src/context.constants.ts`    |
+| CLS seeding       | `libs/context/src/tracing.middleware.ts`   |
+| Pino assignment   | `libs/context/src/tracing.interceptor.ts`  |
 | Queue propagation | `libs/queue/src/queue-producer.service.ts` |
-| Worker extraction | `libs/queue/src/abstract-processor.ts` |
+| Worker extraction | `libs/queue/src/abstract-processor.ts`     |
 
 ### Debugging with Trace IDs
 
@@ -410,10 +431,12 @@ The audit body sanitizer (`audit-sanitize.util.ts`) uses a case-insensitive deny
 ### Adding New Redaction Paths
 
 **For system logs (Pino):**
+
 1. Add the path to `PINO_REDACT_PATHS` in `libs/logger/src/logger.redaction.ts`
 2. Format: `req.body.fieldName` or `req.body.*.fieldName` for one-level nesting
 
 **For audit logs:**
+
 1. Add the key (lowercase) to `SENSITIVE_KEYS` in `apps/api/src/common/utils/audit-sanitize.util.ts`
 
 ### Review Checklist for New Log Statements
@@ -486,5 +509,5 @@ LIMIT 10;
 
 ---
 
-**Last Updated:** 2026-03-14  
+**Last Updated:** 2026-03-17
 **Status:** PRE-PRODUCTION

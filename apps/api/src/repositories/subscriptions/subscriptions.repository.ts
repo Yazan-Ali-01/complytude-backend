@@ -18,6 +18,7 @@ type TenantSubscriptionRow = {
   current_period_start: Date;
   current_period_end: Date;
   cancelled_at: Date | null;
+  trial_ends_at: Date | null;
   metadata: unknown;
   stripe_subscription_id: string | null;
   stripe_schedule_id: string | null;
@@ -46,7 +47,7 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, plan_id, status, billing_period_start, billing_period_end, current_period_start, current_period_end, cancelled_at, metadata, stripe_subscription_id, stripe_schedule_id, stripe_current_period_end, stripe_status, created_at, updated_at';
+    return 'id, tenant_id, plan_id, status, billing_period_start, billing_period_end, current_period_start, current_period_end, cancelled_at, trial_ends_at, metadata, stripe_subscription_id, stripe_schedule_id, stripe_current_period_end, stripe_status, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): TenantSubscription {
@@ -61,6 +62,9 @@ export class SubscriptionsRepository extends BaseRepository<
       current_period_start: data.current_period_start,
       current_period_end: data.current_period_end,
       cancelled_at: data.cancelled_at ?? undefined,
+      trial_ends_at: data.trial_ends_at
+        ? new Date(data.trial_ends_at)
+        : undefined,
       metadata: (data.metadata as Record<string, unknown>) ?? {},
       stripe_subscription_id: data.stripe_subscription_id,
       stripe_schedule_id: data.stripe_schedule_id,
@@ -73,13 +77,14 @@ export class SubscriptionsRepository extends BaseRepository<
 
   /**
    * Find active subscription for a tenant
+   * Includes both 'active' and 'trialing' statuses (trial tenants are treated as active for entitlements)
    */
   async findActiveByTenant(
     tenantId: string,
     options?: QueryOptions,
   ): Promise<TenantSubscription | null> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE tenant_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE tenant_id = $1 AND status IN ('active', 'trialing') ORDER BY created_at DESC LIMIT 1`,
       [tenantId],
       options,
     );
@@ -109,13 +114,17 @@ export class SubscriptionsRepository extends BaseRepository<
 
   /**
    * Find active subscription with plan details (JOIN to avoid N+1)
-   * Matches status = 'active' only.
+   * Includes both 'active' and 'trialing' statuses (trial tenants treated as active for entitlements)
    */
   async findActiveByTenantWithPlan(
     tenantId: string,
     options?: QueryOptions,
   ): Promise<TenantSubscriptionWithPlan | null> {
-    return this.findByTenantWithPlan(tenantId, `ts.status = 'active'`, options);
+    return this.findByTenantWithPlan(
+      tenantId,
+      `ts.status IN ('active', 'trialing')`,
+      options,
+    );
   }
 
   /**
@@ -143,7 +152,7 @@ export class SubscriptionsRepository extends BaseRepository<
       SELECT
         ts.id, ts.tenant_id, ts.plan_id, ts.status, ts.billing_period_start,
         ts.billing_period_end, ts.current_period_start, ts.current_period_end,
-        ts.cancelled_at, ts.metadata, ts.stripe_subscription_id,
+        ts.cancelled_at, ts.trial_ends_at, ts.metadata, ts.stripe_subscription_id,
         ts.stripe_schedule_id, ts.stripe_current_period_end, ts.stripe_status,
         ts.created_at, ts.updated_at,
         p.key as plan_key, p.name as plan_name,
@@ -201,18 +210,19 @@ export class SubscriptionsRepository extends BaseRepository<
         tenant_id, plan_id, status,
         billing_period_start, billing_period_end,
         current_period_start, current_period_end,
-        metadata,
+        trial_ends_at, metadata,
         stripe_subscription_id, stripe_schedule_id,
         stripe_current_period_end, stripe_status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      ON CONFLICT (tenant_id) WHERE status = 'active'
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ON CONFLICT (tenant_id) WHERE (status IN ('active', 'trialing'))
       DO UPDATE SET
         plan_id = EXCLUDED.plan_id,
         status = EXCLUDED.status,
         billing_period_end = EXCLUDED.billing_period_end,
         current_period_start = EXCLUDED.current_period_start,
         current_period_end = EXCLUDED.current_period_end,
+        trial_ends_at = EXCLUDED.trial_ends_at,
         metadata = EXCLUDED.metadata,
         stripe_subscription_id = COALESCE(EXCLUDED.stripe_subscription_id, ${this.tableName}.stripe_subscription_id),
         stripe_schedule_id = COALESCE(EXCLUDED.stripe_schedule_id, ${this.tableName}.stripe_schedule_id),
@@ -229,6 +239,7 @@ export class SubscriptionsRepository extends BaseRepository<
         subscription.billing_period_end,
         subscription.current_period_start,
         subscription.current_period_end,
+        subscription.trial_ends_at ?? null,
         subscription.metadata ?? '{}',
         subscription.stripe_subscription_id ?? null,
         subscription.stripe_schedule_id ?? null,
@@ -319,7 +330,7 @@ export class SubscriptionsRepository extends BaseRepository<
   ): Promise<TenantSubscription> {
     const result = await this.executeQuery<TenantSubscriptionRow>(
       `UPDATE ${this.tableName}
-       SET status = $1, cancelled_at = $2, updated_at = now()
+       SET status = $1, cancelled_at = $2, trial_ends_at = NULL, updated_at = now()
        WHERE id = $3
        RETURNING ${this.getSelectColumns()}`,
       [status, cancelledAt ?? null, id],
@@ -356,5 +367,51 @@ export class SubscriptionsRepository extends BaseRepository<
     }
 
     return this.mapRow(result.rows[0]);
+  }
+
+  /**
+   * Find expired trial subscriptions for batch processing
+   * Used by the trial expiry job
+   */
+  async findExpiredTrials(
+    limit = 100,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription[]> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `SELECT ${this.getSelectColumns()}
+       FROM ${this.tableName}
+       WHERE status = 'trialing' AND trial_ends_at <= NOW()
+       ORDER BY trial_ends_at ASC
+       LIMIT $1`,
+      [limit],
+      options,
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Update subscription for trial expiry: set status to active, change plan, set new period, clear trial_ends_at
+   */
+  async updateForTrialExpiry(
+    id: string,
+    planId: string,
+    periodStart: Date,
+    periodEnd: Date,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription | null> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `UPDATE ${this.tableName}
+       SET status = 'active', plan_id = $1,
+           billing_period_start = $2, billing_period_end = $3,
+           current_period_start = $2, current_period_end = $3,
+           trial_ends_at = NULL, updated_at = now()
+       WHERE id = $4 AND status = 'trialing'
+       RETURNING ${this.getSelectColumns()}`,
+      [planId, periodStart, periodEnd, id],
+      options,
+    );
+
+    return result.rows.length > 0 ? this.mapRow(result.rows[0]) : null;
   }
 }

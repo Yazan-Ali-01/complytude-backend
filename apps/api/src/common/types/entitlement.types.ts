@@ -115,6 +115,7 @@ export interface TenantSubscription {
   current_period_start: Date;
   current_period_end: Date;
   cancelled_at?: Date;
+  trial_ends_at?: Date;
   metadata: Record<string, unknown>;
   stripe_subscription_id?: string | null;
   stripe_schedule_id?: string | null;
@@ -395,6 +396,7 @@ export interface CreateTenantSubscriptionRow {
   current_period_start: Date;
   current_period_end: Date;
   cancelled_at?: Date;
+  trial_ends_at?: Date;
   metadata?: string; // Stringified JSON
   stripe_subscription_id?: string | null;
   stripe_schedule_id?: string | null;

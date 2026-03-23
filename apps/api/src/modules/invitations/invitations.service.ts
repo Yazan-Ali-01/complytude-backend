@@ -30,6 +30,8 @@ import {
 import { InvitationRepository } from 'src/repositories/invitations/invitation.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
+import { EntitlementEnforcementService } from '../entitlements/services/entitlement-enforcement.service';
+import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { InvitationsI18n } from './constants/i18n.constants';
 
 export interface CreateInvitationServiceInput {
@@ -54,6 +56,8 @@ export class InvitationsService {
     private readonly invitationRepository: InvitationRepository,
     private readonly userRepository: UserRepository,
     private readonly userTenantRepository: UserTenantRepository,
+    private readonly entitlementEnforcementService: EntitlementEnforcementService,
+    private readonly entitlementResolver: EntitlementResolverService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -212,6 +216,36 @@ export class InvitationsService {
         throw new ForbiddenException(
           this.i18n.t(InvitationsI18n.errors.INVITATION_EMAIL_MISMATCH),
         );
+      }
+
+      // Seat capacity check: only for NEW members (not already active).
+      // Uses a live COUNT(*) from user_tenants rather than the ledger-based
+      // projection, because capacity features are bidirectional (users can be
+      // removed) and the projection can only increment.
+      const existingMembership =
+        await this.userTenantRepository.findByCompositeKey(
+          { userId, tenantId: invitation.tenantId },
+          { client },
+        );
+      const isNewMember = !existingMembership || !existingMembership.is_active;
+      if (isNewMember) {
+        const [activeMembers, seatEntitlement] = await Promise.all([
+          this.userTenantRepository.countActiveByTenant(invitation.tenantId, {
+            client,
+          }),
+          this.entitlementResolver.resolveForTenant(
+            invitation.tenantId,
+            'user_seats',
+            { client },
+          ),
+        ]);
+        const seatLimit = seatEntitlement?.value_int ?? 0;
+        if (seatLimit !== -1 && activeMembers >= seatLimit) {
+          throw new ForbiddenException({
+            message: this.i18n.t(InvitationsI18n.errors.SEAT_LIMIT_REACHED),
+            statusCode: 403,
+          });
+        }
       }
 
       // Mark invitation as accepted first
@@ -454,6 +488,43 @@ export class InvitationsService {
         }
       }
 
+      // Seat capacity check: members + pending invitations must not exceed limit.
+      // Uses a live COUNT(*) from user_tenants (same source of truth as the
+      // accept flow) because capacity features are bidirectional and the
+      // aggregated_usage projection can only increment.
+      const occupancyResult = await client.query<{
+        active_members: string;
+        pending_invitations: string;
+      }>(
+        `SELECT
+          (SELECT COUNT(*) FROM public.user_tenants WHERE tenant_id = $1 AND is_active = true) AS active_members,
+          (SELECT COUNT(*) FROM public.invitations WHERE tenant_id = $1 AND status = $2 AND expires_at > NOW()) AS pending_invitations`,
+        [input.tenantId, InvitationStatus.PENDING],
+      );
+      const activeMembers = parseInt(
+        occupancyResult.rows[0].active_members,
+        10,
+      );
+      const pendingInvitations = parseInt(
+        occupancyResult.rows[0].pending_invitations,
+        10,
+      );
+      const seatEntitlement = await this.entitlementResolver.resolveForTenant(
+        input.tenantId,
+        'user_seats',
+        { client },
+      );
+      const seatLimit = seatEntitlement?.value_int ?? 0;
+      const currentOccupancy = activeMembers + pendingInvitations;
+      if (seatLimit !== -1 && currentOccupancy >= seatLimit) {
+        throw new ForbiddenException({
+          message: this.i18n.t(
+            InvitationsI18n.errors.SEAT_LIMIT_REACHED_FOR_INVITE,
+          ),
+          statusCode: 403,
+        });
+      }
+
       // Generate token
       const token = this.generateToken();
       const tokenHash = this.hashToken(token);
@@ -480,6 +551,19 @@ export class InvitationsService {
 
       this.logger.log(
         `Created invitation ${invitation.id} for ${input.email} to tenant ${input.tenantId}`,
+      );
+
+      // Mark inviteTeam step complete in onboarding metadata.
+      // Conditional on currentStep so this is idempotent for subsequent invites.
+      await client.query(
+        `UPDATE public.tenants
+         SET onboarding_metadata = jsonb_set(
+           jsonb_set(onboarding_metadata, '{stepsCompleted,inviteTeam}', 'true'),
+           '{currentStep}', '"first_action"'
+         )
+         WHERE id = $1
+           AND onboarding_metadata->>'currentStep' = 'invite_team'`,
+        [input.tenantId],
       );
 
       return {

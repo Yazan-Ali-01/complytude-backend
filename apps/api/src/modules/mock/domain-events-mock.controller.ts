@@ -8,7 +8,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
@@ -48,6 +53,7 @@ import { UsageIngestionService } from '../entitlements/services/usage-ingestion.
  * - Event replay and reprocessing
  * For now, all event queries are synchronous.
  */
+@ApiExcludeController()
 @Controller('mock/domain-events')
 @AuthOptions({ tenant: true })
 @ApiTags('mock-domain-events')

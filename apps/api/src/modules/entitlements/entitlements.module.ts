@@ -25,6 +25,7 @@ import { EntitlementQueueProcessor } from './processors/entitlement-queue.proces
 import { ProjectionUpdateHandler } from './processors/projection-update.handler';
 import { QuotaExceededHandler } from './processors/quota-exceeded.handler';
 import { SnapshotRebuildHandler } from './processors/snapshot-rebuild.handler';
+import { TrialExpiryHandler } from './processors/trial-expiry.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
@@ -37,6 +38,7 @@ import { EntitlementSyncService } from './services/entitlement-sync.service';
 import { ProjectionReconciliationService } from './services/projection-reconciliation.service';
 import { TenantAddonsService } from './services/tenant-addons.service';
 import { TenantOverridesService } from './services/tenant-overrides.service';
+import { TrialExpirySchedulerService } from './services/trial-expiry-scheduler.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
 import { UsageProjectionService } from './services/usage-projection.service';
 
@@ -91,6 +93,8 @@ import { UsageProjectionService } from './services/usage-projection.service';
     DomainEventFanoutHandler,
     CreditNotificationHandler,
     QuotaExceededHandler,
+    TrialExpiryHandler,
+    TrialExpirySchedulerService,
 
     // Catalog repositories
     FeaturesRepository,

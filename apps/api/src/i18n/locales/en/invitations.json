@@ -10,7 +10,9 @@
     "INVITATION_WRONG_TENANT": "Invitation does not belong to this tenant",
     "CAN_ONLY_RESEND_PENDING": "Can only resend pending invitations",
     "TENANT_NOT_FOUND": "Tenant not found",
-    "INVITER_NOT_FOUND": "Inviter not found"
+    "INVITER_NOT_FOUND": "Inviter not found",
+    "SEAT_LIMIT_REACHED": "Workspace has reached its seat limit. Contact the workspace admin to upgrade.",
+    "SEAT_LIMIT_REACHED_FOR_INVITE": "Cannot send invitation. Workspace has reached its seat limit including pending invitations. Upgrade to add more team members."
   },
   "messages": {
     "ACCEPTED_SUCCESSFULLY": "Invitation accepted successfully",

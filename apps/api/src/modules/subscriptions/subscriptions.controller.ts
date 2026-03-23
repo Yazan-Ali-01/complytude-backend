@@ -1,12 +1,15 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { SystemTenantRole } from 'src/common/types';
+import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
-import { SubscriptionResponseDto } from './dto';
+import { ChangePlanDto, SubscriptionResponseDto } from './dto';
 import { SubscriptionsService } from './subscriptions.service';
 
 /**
@@ -64,6 +67,104 @@ export class SubscriptionsController {
   }
 
   /**
+   * Change plan (upgrade or downgrade)
+   *
+   * Changes the tenant's subscription plan. This operation:
+   * - Updates the plan_id on the subscription
+   * - Invalidates the entitlement snapshot (new entitlements take effect immediately)
+   * - Emits a domain event for audit trail
+   *
+   * Requires: billing:manage permission (typically tenant_admin or billing manager)
+   */
+  @Post('change-plan')
+  @Audit('SUBSCRIPTION_PLAN_CHANGED', {
+    resourceType: 'subscriptions',
+    includeBody: true,
+  })
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('billing:manage')
+  @ApiOperation({
+    summary: 'Change subscription plan',
+    description:
+      'Change the tenant subscription plan (upgrade or downgrade). Requires billing:manage permission.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Plan changed successfully',
+    type: SubscriptionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Already on this plan or invalid plan',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Missing billing:manage permission',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Plan not found',
+  })
+  async changePlan(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+    @Body() dto: ChangePlanDto,
+  ) {
+    const updatedSubscription = await this.subscriptionsService.changePlan(
+      user.tenantId,
+      dto.planKey,
+      user.userId,
+    );
+
+    return SubscriptionResponseDto.fromEntity(updatedSubscription);
+  }
+
+  /**
+   * Cancel subscription
+   *
+   * Cancels the tenant's subscription. This operation:
+   * - Sets status to 'cancelled'
+   * - Records cancellation timestamp
+   * - Emits a domain event for audit trail
+   *
+   * Note: Cancellation takes effect immediately. In a production system, you might
+   * want to allow access until the end of the current billing period.
+   *
+   * Requires: billing:manage permission (typically tenant_admin or billing manager)
+   */
+  @Post('cancel')
+  @Audit('SUBSCRIPTION_CANCELLED', {
+    resourceType: 'subscriptions',
+  })
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('billing:manage')
+  @ApiOperation({
+    summary: 'Cancel subscription',
+    description:
+      'Cancel the tenant subscription. Requires billing:manage permission.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Subscription cancelled',
+    type: SubscriptionResponseDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Missing billing:manage permission',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No active subscription found',
+  })
+  async cancelSubscription(@CurrentUserTenant() user: AuthenticatedTenantUser) {
+    const cancelledSubscription = await this.subscriptionsService.cancel(
+      user.tenantId,
+      user.userId,
+    );
+
+    return SubscriptionResponseDto.fromEntity(cancelledSubscription);
+  }
+
+  /**
    * Force renew current billing period (admin/debug only)
    *
    * Advances the current billing period to the next month. This is primarily
@@ -73,6 +174,9 @@ export class SubscriptionsController {
    * Requires: tenant_admin role
    */
   @Post('renew')
+  @Audit('SUBSCRIPTION_RENEWED', {
+    resourceType: 'subscriptions',
+  })
   @UseGuards(RolesGuard)
   @Roles(SystemTenantRole.TENANT_ADMIN)
   @ApiOperation({

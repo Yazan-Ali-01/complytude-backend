@@ -21,7 +21,7 @@ RUN npm install -g pnpm@9
 # Set working directory
 WORKDIR /app
 
-# Copy root package files and workspace manifests
+# Copy root package files, workspace manifests, and pnpm config
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 # Copy app/lib package.json files so pnpm workspace resolves correctly
 COPY apps/api/package.json ./apps/api/package.json

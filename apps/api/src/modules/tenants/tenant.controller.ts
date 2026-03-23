@@ -28,6 +28,7 @@ import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.gua
 import { VerifiedUserGuard } from 'src/common/guards/verified-user.guard';
 import { FastifyMultipartInterceptor } from 'src/common/interceptors/fastify-multipart.interceptor';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { Audit } from '../../common/decorators/audit.decorator';
 import type { MulterLikeFile } from '../../common/interfaces/multer-file.interface';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import {
@@ -38,6 +39,7 @@ import type {
   AuthenticatedIdentityUser,
   AuthenticatedTenantUser,
 } from '../auth/strategies';
+import { TRIAL_CONFIG } from 'src/common/constants/trial-config.constant';
 import { TenantsI18n } from './constants/i18n.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import {
@@ -103,6 +105,7 @@ export class TenantController {
    * @throws BadRequestException if specified plan not active
    */
   @Post()
+  @Audit('TENANT_CREATED', { resourceType: 'tenants' })
   @AuthOptions({ identity: true, tenant: false })
   @UseGuards(VerifiedUserGuard)
   @SwaggerCookieAuth.identityAccessToken()
@@ -139,7 +142,7 @@ export class TenantController {
       createTenantDto,
     );
 
-    const planKey = createTenantDto.planKey ?? 'navigator';
+    const planKey = createTenantDto.planKey ?? TRIAL_CONFIG.PLAN_KEY;
     const input: TenantResponseInput = { ...tenant, plan: planKey };
     return new TenantResponseDto(input);
   }
@@ -196,6 +199,7 @@ export class TenantController {
    * @permission settings:manage
    */
   @Patch('me/profile')
+  @Audit('TENANT_PROFILE_UPDATED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
@@ -241,6 +245,7 @@ export class TenantController {
    * @throws ConflictException if slug already taken
    */
   @Patch('me/slug')
+  @Audit('TENANT_SLUG_UPDATED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
@@ -285,6 +290,10 @@ export class TenantController {
    * @permission settings:manage
    */
   @Patch('me/settings')
+  @Audit('TENANT_SETTINGS_UPDATED', {
+    resourceType: 'tenants',
+    includeBody: true,
+  })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
@@ -329,6 +338,7 @@ export class TenantController {
    * @permission settings:manage + white_label_exports entitlement
    */
   @Patch('me/branding')
+  @Audit('TENANT_BRANDING_UPDATED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard, EntitlementGuard)
   @RequireAnyTenantPermission('settings:manage')
   @RequireEntitlement('white_label_exports')
@@ -378,6 +388,7 @@ export class TenantController {
    * @consumes multipart/form-data
    */
   @Post('me/logo')
+  @Audit('TENANT_LOGO_UPLOADED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @UseInterceptors(FastifyMultipartInterceptor(class LogoUploadDto {}))
@@ -461,6 +472,7 @@ export class TenantController {
    * @permission settings:manage
    */
   @Delete('me/logo')
+  @Audit('TENANT_LOGO_DELETED', { resourceType: 'tenants' })
   @HttpCode(HttpStatus.OK)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
@@ -501,6 +513,7 @@ export class TenantController {
    * @idempotent true
    */
   @Post('me/onboarding/complete')
+  @Audit('TENANT_ONBOARDING_COMPLETED', { resourceType: 'tenants' })
   @HttpCode(HttpStatus.OK)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
@@ -535,11 +548,13 @@ export class TenantController {
    * @permission settings:manage
    */
   @Patch('me/onboarding')
+  @Audit('TENANT_ONBOARDING_UPDATED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Update onboarding progress',
-    description: 'Update onboarding step tracking. JSONB deep-merged.',
+    description:
+      'Update onboarding metadata (currentStep, teamInviteSkipped, firstActionType). Deep-merged with existing. stepsCompleted is server-side only.',
   })
   @ApiBody({ type: UpdateOnboardingDto })
   @ApiResponse({

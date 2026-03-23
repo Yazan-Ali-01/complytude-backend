@@ -28,6 +28,7 @@ import {
   ApiValidationError,
   SwaggerCookieAuth,
 } from 'src/common/swagger';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { AuthService } from './auth.service';
 import {
   AuthOptions,
@@ -66,6 +67,7 @@ export class AuthController {
    * Register new user account without creating a tenant
    */
   @Post('signup')
+  @Audit('AUTH_SIGNUP')
   @ApiOperation({
     summary: 'Register a new user account',
     description:
@@ -88,6 +90,7 @@ export class AuthController {
    * Verify email address using token
    */
   @Post('verify-email')
+  @Audit('AUTH_EMAIL_VERIFIED')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Verify email address',
@@ -114,6 +117,7 @@ export class AuthController {
    * Login and receive identity tokens for tenant selection or system admin operations
    */
   @Post('login')
+  @Audit('AUTH_LOGIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Login to user account',
@@ -157,6 +161,7 @@ export class AuthController {
    */
   @AuthOptions({ identity: true })
   @Post('tenant-switch')
+  @Audit('AUTH_TENANT_SWITCH')
   @SwaggerCookieAuth.identityAccessToken()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -212,6 +217,7 @@ export class AuthController {
    * Refresh identity access token using identity refresh token
    */
   @Post('refresh-identity')
+  @Audit('AUTH_TOKEN_REFRESH', { resourceType: 'auth' })
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthRefreshGuard)
   @AuthRefreshOptions({ identity: true })
@@ -256,6 +262,7 @@ export class AuthController {
    * Refresh tenant access token using tenant refresh token
    */
   @Post('refresh-tenant')
+  @Audit('AUTH_TOKEN_REFRESH', { resourceType: 'auth' })
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthRefreshGuard)
   @AuthRefreshOptions({ tenant: true })
@@ -301,6 +308,7 @@ export class AuthController {
    * Logout and invalidate all refresh tokens
    */
   @Post('logout')
+  @Audit('AUTH_LOGOUT')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthRefreshGuard)
   @AuthRefreshOptions({ tenant: true, identity: true })
@@ -342,6 +350,7 @@ export class AuthController {
    * Send password reset email
    */
   @Post('forgot-password')
+  @Audit('AUTH_PASSWORD_RESET_REQUESTED')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Request password reset',
@@ -366,6 +375,7 @@ export class AuthController {
    * Reset password using token
    */
   @Post('reset-password')
+  @Audit('AUTH_PASSWORD_RESET')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Reset password using token',
@@ -452,6 +462,10 @@ export class AuthController {
    */
   @AuthOptions({ identity: true })
   @Post('invitations/:invitationId/accept')
+  @Audit('INVITATION_ACCEPTED', {
+    resourceIdParam: 'invitationId',
+    resourceType: 'invitations',
+  })
   @SwaggerCookieAuth.identityAccessToken()
   @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
@@ -491,6 +505,10 @@ export class AuthController {
    */
   @AuthOptions({ identity: true })
   @Post('invitations/:invitationId/reject')
+  @Audit('INVITATION_REJECTED', {
+    resourceIdParam: 'invitationId',
+    resourceType: 'invitations',
+  })
   @SwaggerCookieAuth.identityAccessToken()
   @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({

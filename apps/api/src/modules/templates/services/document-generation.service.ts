@@ -253,6 +253,9 @@ export class DocumentGenerationService {
     key: string,
     generateDocumentDto: GenerateDocumentDto,
   ): Promise<GenerateDocumentResponseDto> {
+    this.logger.log(
+      `Document generation started: templateKey=${key} tenantId=${tenantId} userId=${userId}`,
+    );
     try {
       // 1. Validate template and version
       const {
@@ -284,6 +287,10 @@ export class DocumentGenerationService {
         templateVersion,
         outputBuffer,
         generateDocumentDto.variables,
+      );
+
+      this.logger.log(
+        `Document generation completed: templateKey=${template.key} documentId=${documentId} tenantId=${tenantId}`,
       );
 
       // 5. Return response

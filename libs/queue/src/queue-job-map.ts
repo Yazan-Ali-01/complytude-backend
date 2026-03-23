@@ -1,4 +1,3 @@
-import { QUEUE_NAMES } from './queue.constants';
 import {
   AI_JOB_NAMES,
   ArabicTranslationJobData,
@@ -27,7 +26,9 @@ import {
   EntitlementQuotaExceededJobData,
   EntitlementSnapshotRebuildJobData,
   EntitlementSubscriptionRenewalJobData,
+  EntitlementTrialExpiryCheckJobData,
 } from './interfaces/entitlement-processing.jobs';
+import { QUEUE_NAMES } from './queue.constants';
 
 export interface QueueJobMap {
   [QUEUE_NAMES.AI_PROCESSING]: {
@@ -54,6 +55,7 @@ export interface QueueJobMap {
     [ENTITLEMENT_JOB_NAMES.SUBSCRIPTION_RENEWAL]: EntitlementSubscriptionRenewalJobData;
     [ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION]: EntitlementCreditNotificationJobData;
     [ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED]: EntitlementQuotaExceededJobData;
+    [ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK]: EntitlementTrialExpiryCheckJobData;
   };
 }
 
