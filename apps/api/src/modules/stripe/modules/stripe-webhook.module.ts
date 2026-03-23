@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import stripeConfig from 'src/config/stripe.config';
 import { DatabaseModule } from '@lib/database';
 import { QueueModule } from '@lib/queue';
+import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
 import { StripeService } from '../stripe.service';
@@ -24,6 +25,7 @@ import { StripeWebhookMonitoringService } from '../services/stripe-webhook-monit
     AddonSyncEngine,
     StripeWebhookMonitoringService,
     UserTenantRepository,
+    TenantRepository,
   ],
   exports: [StripeWebhookService, StripeEventHandlersService],
 })
