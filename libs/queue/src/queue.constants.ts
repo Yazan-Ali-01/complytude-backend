@@ -3,4 +3,5 @@ export const QUEUE_NAMES = {
   DATA_INGESTION: 'data-ingestion',
   ENTITLEMENT_PROCESSING: 'entitlement-processing',
   BILLING_PROCESSING: 'billing-processing',
+  TENANT_PROCESSING: 'tenant-processing',
 } as const;

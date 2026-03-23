@@ -35,6 +35,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { TemplatesModule } from './modules/templates/templates.module';
 import { TenantRbacModule } from './modules/tenant-rbac/tenant-rbac.module';
 import { TenantModule } from './modules/tenants/tenant.module';
+import { TenantProcessingModule } from './modules/tenant-processing/tenant-processing.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
       QUEUE_NAMES.BILLING_PROCESSING,
       QUEUE_NAMES.DATA_INGESTION,
       QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+      QUEUE_NAMES.TENANT_PROCESSING,
     ]),
     I18nModule,
     DatabaseModule.forRoot(),
@@ -86,6 +88,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     DocumentsModule,
     StripeModule,
     BillingModule,
+    TenantProcessingModule,
     TenantRbacModule,
     PlatformRbacModule,
     AuditModule.forRoot(),

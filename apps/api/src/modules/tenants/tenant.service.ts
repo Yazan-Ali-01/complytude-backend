@@ -18,8 +18,11 @@ import { SystemTenantRole } from '../../common/types/tenant.types';
 import { deepMerge } from '../../common/utils/deep-merge.util';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
-import { StripeCustomerService } from '../stripe/services/stripe-customer.service';
-import { StripeTaxService } from '../stripe/services/stripe-tax.service';
+import {
+  QueueProducerService,
+  QUEUE_NAMES,
+  TENANT_JOB_NAMES,
+} from '@lib/queue';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantsI18n } from './constants/i18n.constants';
 import {
@@ -76,8 +79,7 @@ export class TenantService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
-    private readonly stripeCustomerService: StripeCustomerService,
-    private readonly stripeTaxService: StripeTaxService,
+    private readonly queueProducer: QueueProducerService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly userTenantRepository: UserTenantRepository,
     private readonly i18n: I18nService,
@@ -352,11 +354,11 @@ export class TenantService {
       },
     );
 
-    // Fire-and-forget Stripe customer creation after transaction commits
-    void this.stripeCustomerService.createCustomerForTenant(
-      tenant,
-      email,
-      userId,
+    void this.queueProducer.enqueue(
+      QUEUE_NAMES.TENANT_PROCESSING,
+      TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION,
+      { tenantId: tenant.id, email, userId },
+      { attempts: 5, backoff: { type: 'exponential', delay: 1000 } },
     );
 
     return tenant;

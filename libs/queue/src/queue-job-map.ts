@@ -28,6 +28,10 @@ import {
   EntitlementSubscriptionRenewalJobData,
   EntitlementTrialExpiryCheckJobData,
 } from './interfaces/entitlement-processing.jobs';
+import {
+  TENANT_JOB_NAMES,
+  TenantStripeCustomerCreationJobData,
+} from './interfaces/tenant-processing.jobs';
 import { QUEUE_NAMES } from './queue.constants';
 
 export interface QueueJobMap {
@@ -56,6 +60,9 @@ export interface QueueJobMap {
     [ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION]: EntitlementCreditNotificationJobData;
     [ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED]: EntitlementQuotaExceededJobData;
     [ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK]: EntitlementTrialExpiryCheckJobData;
+  };
+  [QUEUE_NAMES.TENANT_PROCESSING]: {
+    [TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION]: TenantStripeCustomerCreationJobData;
   };
 }
 

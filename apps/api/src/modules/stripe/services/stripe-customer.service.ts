@@ -34,40 +34,28 @@ export class StripeCustomerService {
   /**
    * Create a Stripe customer for a tenant and persist the ID.
    *
-   * Non-fatal: errors are logged but not re-thrown, because Stripe customer
-   * creation must never block tenant signup. Use `getOrCreateCustomer` to
-   * recover lazily if this silently fails.
-   *
-   * Note: returns the tenant as-is (stripe_customer_id will be null on the
-   * returned object). Callers that need the resolved ID should use
-   * `getOrCreateCustomer`.
+   * Throws on failure so callers (e.g. BullMQ job handlers) can retry.
+   * Use `getOrCreateCustomer` as a lazy fallback for cases where this
+   * was never called or silently failed before the queue migration.
    */
   async createCustomerForTenant(
     tenant: Tenant,
     creatorEmail?: string,
     creatorUserId?: string,
-  ): Promise<string | null> {
-    try {
-      const customerId = await this.createStripeCustomerAndPersist(tenant, {
-        email: creatorEmail,
-        metadata: {
-          complytude_tenant_id: tenant.id,
-          ...(creatorUserId && { complytude_user_id: creatorUserId }),
-        },
-      });
+  ): Promise<string> {
+    const customerId = await this.createStripeCustomerAndPersist(tenant, {
+      email: creatorEmail,
+      metadata: {
+        complytude_tenant_id: tenant.id,
+        ...(creatorUserId && { complytude_user_id: creatorUserId }),
+      },
+    });
 
-      this.logger.log(
-        `Created Stripe customer ${customerId} for tenant ${tenant.id}`,
-      );
+    this.logger.log(
+      `Created Stripe customer ${customerId} for tenant ${tenant.id}`,
+    );
 
-      return customerId;
-    } catch (error) {
-      this.logger.error(
-        `Failed to create Stripe customer for tenant ${tenant.id}: ${error.message}`,
-        error,
-      );
-      return null;
-    }
+    return customerId;
   }
 
   /**
