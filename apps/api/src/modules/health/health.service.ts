@@ -95,7 +95,10 @@ export class HealthService {
             status: 'healthy' as const,
             counts: { waiting, active, completed, failed, delayed },
           };
-        } catch {
+        } catch (error) {
+          this.logger.warn(
+            `Queue health check failed: ${name} - ${error instanceof Error ? error.message : 'Connection failed'}`,
+          );
           return {
             name,
             status: 'unhealthy' as const,

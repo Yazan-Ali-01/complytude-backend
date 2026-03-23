@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -19,6 +20,8 @@ import {
 
 @Injectable()
 export class TenantPermissionsGuard implements CanActivate {
+  private readonly logger = new Logger(TenantPermissionsGuard.name);
+
   // Optimized permission checking:
   // 1. Fetch all role permissions once (single DB query or in-memory for system roles)
   // 2. Normalize wildcards in required permissions
@@ -76,9 +79,13 @@ export class TenantPermissionsGuard implements CanActivate {
       : hasAnyPermission(userPermissions, permissionMetadata.permissions);
 
     if (!hasPermission) {
+      const requiredPermission = permissionMetadata.permissions.join(', ');
+      this.logger.warn(
+        `Access denied: user ${tenant.userId} (role: ${tenant.role}) lacks permission ${requiredPermission}`,
+      );
       const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
       throw new ForbiddenException(
-        `Access denied. Required ${logicType} of: ${permissionMetadata.permissions.join(', ')}`,
+        `Access denied. Required ${logicType} of: ${requiredPermission}`,
       );
     }
 

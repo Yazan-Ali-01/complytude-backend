@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -19,6 +20,8 @@ import {
 
 @Injectable()
 export class PlatformPermissionsGuard implements CanActivate {
+  private readonly logger = new Logger(PlatformPermissionsGuard.name);
+
   constructor(
     private reflector: Reflector,
     private platformRbacService: PlatformRbacService,
@@ -63,9 +66,13 @@ export class PlatformPermissionsGuard implements CanActivate {
       : hasAnyPermission(userPermissions, permissionMetadata.permissions);
 
     if (!hasPermission) {
+      const requiredPermission = permissionMetadata.permissions.join(', ');
+      this.logger.warn(
+        `Access denied: user ${identity.userId} (role: ${platformRole}) lacks permission ${requiredPermission}`,
+      );
       const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
       throw new ForbiddenException(
-        `Platform access denied. Required ${logicType} of: ${permissionMetadata.permissions.join(', ')}`,
+        `Platform access denied. Required ${logicType} of: ${requiredPermission}`,
       );
     }
 

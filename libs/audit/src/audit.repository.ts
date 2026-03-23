@@ -1,5 +1,5 @@
 import { BaseRepository, DatabaseService } from '@lib/database';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuditLog, AuditLogFilters, CreateAuditLogInput } from './audit.types';
 
 const SELECT_COLUMNS =
@@ -11,6 +11,8 @@ export class AuditLogsRepository extends BaseRepository<
   CreateAuditLogInput,
   never
 > {
+  private readonly auditLogger = new Logger(AuditLogsRepository.name);
+
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'audit_logs');
   }
@@ -110,9 +112,9 @@ export class AuditLogsRepository extends BaseRepository<
       const result = await this.executeQuery(query, params);
       return result.rows.map((row) => this.mapRow(row));
     } catch (batchError) {
-      console.error(
-        'Batch audit insert failed, falling back to row-by-row:',
-        batchError,
+      this.auditLogger.error(
+        `Batch audit insert failed, falling back to row-by-row: ${batchError instanceof Error ? batchError.message : String(batchError)}`,
+        batchError instanceof Error ? batchError.stack : undefined,
       );
 
       const results: AuditLog[] = [];
@@ -121,7 +123,10 @@ export class AuditLogsRepository extends BaseRepository<
           const row = await this.create(input);
           results.push(row);
         } catch (rowError) {
-          console.error('Failed to insert audit log row:', rowError);
+          this.auditLogger.error(
+            `Failed to insert audit log row: ${rowError instanceof Error ? rowError.message : String(rowError)}`,
+            rowError instanceof Error ? rowError.stack : undefined,
+          );
         }
       }
       return results;
