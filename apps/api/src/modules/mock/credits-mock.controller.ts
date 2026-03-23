@@ -6,7 +6,12 @@ import {
   Get,
   Post,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type {
   FeatureKey,
   UsageSource,
@@ -51,6 +56,7 @@ import { UsageProjectionService } from '../entitlements/services/usage-projectio
  * 2. credit.deducted → check if balance < threshold → email low balance alert
  * 3. quota.exceeded → email upgrade prompt to tenant admin
  */
+@ApiExcludeController()
 @Controller('mock/credits')
 @AuthOptions({ tenant: true })
 @ApiTags('mock-credits')

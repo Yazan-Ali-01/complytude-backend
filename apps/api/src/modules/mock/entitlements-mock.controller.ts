@@ -1,5 +1,10 @@
 import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import type { FeatureKey } from 'src/common/types/entitlement.types';
@@ -27,6 +32,7 @@ import { EntitlementResolverService } from '../entitlements/services/entitlement
  * - Tenant 2 (shield): Basic features, HAS add-on (+50 documents)
  * - Tenant 3 (infrastructure): Unlimited, HAS override (custom documents_per_month)
  */
+@ApiExcludeController()
 @Controller('mock/entitlements')
 @AuthOptions({ tenant: true })
 @ApiTags('mock-entitlements')

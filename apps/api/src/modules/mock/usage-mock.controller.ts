@@ -7,7 +7,12 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type {
   FeatureKey,
   UsageSource,
@@ -48,6 +53,7 @@ import { UsageProjectionService } from '../entitlements/services/usage-projectio
  * 4. Worker emits projection.updated event
  * 5. Worker checks quota and emits quota.exceeded if needed
  */
+@ApiExcludeController()
 @Controller('mock/usage')
 @AuthOptions({ tenant: true })
 @ApiTags('mock-usage')

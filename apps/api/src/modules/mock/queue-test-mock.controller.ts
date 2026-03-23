@@ -9,9 +9,15 @@ import {
 } from '@lib/queue';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Queue } from 'bullmq';
 
+@ApiExcludeController()
 @Controller('admin/queue-test')
 @ApiTags('Queue Test (Dev Only)')
 export class QueueTestMockController {

@@ -11,6 +11,7 @@ import {
   RequireAllTenantPermissions,
   RequireAnyTenantPermission,
 } from 'src/common/decorators/tenant-permissions.decorator';
+import { ApiExcludeController } from '@nestjs/swagger';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
@@ -28,6 +29,7 @@ import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.int
  * - member: Has 'documents:create', 'documents:read', 'templates:use', 'regulatory:query'
  * - viewer: Has 'documents:read', 'regulatory:query'
  */
+@ApiExcludeController()
 @Controller('mock/rbac')
 @AuthOptions({ tenant: true })
 export class RbacMockController {
