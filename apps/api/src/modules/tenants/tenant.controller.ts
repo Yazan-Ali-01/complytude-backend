@@ -553,7 +553,8 @@ export class TenantController {
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Update onboarding progress',
-    description: 'Update onboarding step tracking. JSONB deep-merged.',
+    description:
+      'Update onboarding metadata (currentStep, teamInviteSkipped, firstActionType). Deep-merged with existing. stepsCompleted is server-side only.',
   })
   @ApiBody({ type: UpdateOnboardingDto })
   @ApiResponse({

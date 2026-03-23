@@ -15,6 +15,9 @@ export const InvitationsI18n = {
     CAN_ONLY_RESEND_PENDING: 'invitations.errors.CAN_ONLY_RESEND_PENDING',
     TENANT_NOT_FOUND: 'invitations.errors.TENANT_NOT_FOUND',
     INVITER_NOT_FOUND: 'invitations.errors.INVITER_NOT_FOUND',
+    SEAT_LIMIT_REACHED: 'invitations.errors.SEAT_LIMIT_REACHED',
+    SEAT_LIMIT_REACHED_FOR_INVITE:
+      'invitations.errors.SEAT_LIMIT_REACHED_FOR_INVITE',
   },
   messages: {
     ACCEPTED_SUCCESSFULLY: 'invitations.messages.ACCEPTED_SUCCESSFULLY',

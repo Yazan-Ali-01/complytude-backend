@@ -211,11 +211,11 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 
 **Sample results** (local dev, 50 concurrent):
 
-| Metric | Sync (strict) | Async | Improvement |
-|--------|---------------|-------|-------------|
-| p50    | ~270ms        | ~160ms| ~41%        |
-| p95    | ~440ms        | ~230ms| ~48%        |
-| p99    | ~450ms        | ~240ms| ~48%        |
+| Metric | Sync (strict) | Async  | Improvement |
+| ------ | ------------- | ------ | ----------- |
+| p50    | ~270ms        | ~160ms | ~41%        |
+| p95    | ~440ms        | ~230ms | ~48%        |
+| p99    | ~450ms        | ~240ms | ~48%        |
 
 **Rationale:** Sync path updates `aggregated_usage` in the same transaction as the ledger write, causing row lock contention under concurrency. Async path only writes to the ledger and enqueues a job, reducing request-path latency.
 
@@ -271,23 +271,23 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 
 ### Complete Feature List
 
-| Feature Key                    | Type     | Unit      | Creditable | Credit Cost | Description                                        |
-| ------------------------------ | -------- | --------- | ---------- | ----------- | -------------------------------------------------- |
-| `documents_per_month`          | quota    | documents | ✅ Yes     | 5 credits   | Documents that can be generated per billing period |
-| `template_library`             | boolean  | -         | ❌ No      | -           | Access to template library (essential/full)        |
-| `bilingual_quality`            | boolean  | -         | ❌ No      | -           | Bilingual quality (standard/jais_native)           |
-| `contract_reviews_per_month`   | quota    | reviews   | ❌ No      | -           | AI contract reviews per billing period             |
-| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | Risk analysis level (none/critical_only/full)      |
-| `redlining_enabled`            | boolean  | -         | ❌ No      | -           | AI suggests alternative compliant wording          |
-| `localizer_check`              | boolean  | -         | ❌ No      | -           | Flags governing law/jurisdiction mismatches        |
-| `regulatory_hub_access`        | boolean  | -         | ❌ No      | -           | Access to compliance dashboard                     |
-| `regulatory_queries_per_month` | quota    | queries   | ✅ Yes     | 3 credits   | Chat-with-Law queries per billing period           |
-| `license_verifier_lookups`     | quota    | lookups   | ❌ No      | -           | DED API lookups per billing period                 |
-| `jurisdictions`                | boolean  | -         | ❌ No      | -           | Access to jurisdictions (single/all)               |
-| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant                  |
-| `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)       |
-| `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions      |
-| `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                |
+| Feature Key                    | Type     | Unit      | Creditable | Credit Cost | Description                                                                                                                                                                                  |
+| ------------------------------ | -------- | --------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `documents_per_month`          | quota    | documents | ✅ Yes     | 5 credits   | Documents that can be generated per billing period                                                                                                                                           |
+| `template_library`             | boolean  | -         | ❌ No      | -           | Access to template library (essential/full)                                                                                                                                                  |
+| `bilingual_quality`            | boolean  | -         | ❌ No      | -           | Bilingual quality (standard/jais_native)                                                                                                                                                     |
+| `contract_reviews_per_month`   | quota    | reviews   | ❌ No      | -           | AI contract reviews per billing period                                                                                                                                                       |
+| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | Risk analysis level (none/critical_only/full)                                                                                                                                                |
+| `redlining_enabled`            | boolean  | -         | ❌ No      | -           | AI suggests alternative compliant wording                                                                                                                                                    |
+| `localizer_check`              | boolean  | -         | ❌ No      | -           | Flags governing law/jurisdiction mismatches                                                                                                                                                  |
+| `regulatory_hub_access`        | boolean  | -         | ❌ No      | -           | Access to compliance dashboard                                                                                                                                                               |
+| `regulatory_queries_per_month` | quota    | queries   | ✅ Yes     | 3 credits   | Chat-with-Law queries per billing period                                                                                                                                                     |
+| `license_verifier_lookups`     | quota    | lookups   | ❌ No      | -           | DED API lookups per billing period                                                                                                                                                           |
+| `jurisdictions`                | boolean  | -         | ❌ No      | -           | Access to jurisdictions (single/all)                                                                                                                                                         |
+| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant. Enforced on invitation accept and create (see [API Contracts: Invitation System](../apps/api/docs/API_CONTRACTS.md#invitation-system--seat-enforcement)). |
+| `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)                                                                                                                                                 |
+| `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions                                                                                                                                                |
+| `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                                                                                                                                                          |
 
 ---
 

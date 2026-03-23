@@ -16,6 +16,8 @@
 - [Request Contracts](#request-contracts)
 - [Response Contracts](#response-contracts)
 - [Error Handling](#error-handling)
+- [Onboarding Metadata Schema](#onboarding-metadata-schema)
+- [Invitation System & Seat Enforcement](#invitation-system--seat-enforcement)
 - [Naming Conventions](#naming-conventions)
 - [Swagger Documentation](#swagger-documentation)
 - [Invitation System](#invitation-system)
@@ -572,7 +574,17 @@ After completing this flow, users have full tenant access with tenant tokens set
   "locale": "en",
   "timezone": "Asia/Dubai",
   "settings": {},
-  "onboarding_metadata": {},
+  "onboarding_metadata": {
+    "currentStep": "invite_team",
+    "teamInviteSkipped": false,
+    "firstActionType": null,
+    "firstActionCompletedAt": null,
+    "stepsCompleted": {
+      "createWorkspace": true,
+      "inviteTeam": false,
+      "firstAction": false
+    }
+  },
   "created_at": "2026-03-14T10:00:00.000Z",
   "updated_at": "2026-03-14T10:00:00.000Z"
 }
@@ -580,19 +592,19 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Response Schema:**
 
-| Field                 | Type              | Description                                    |
-| --------------------- | ----------------- | ---------------------------------------------- |
-| `id`                  | UUID              | Tenant unique identifier                       |
-| `plan`                | string            | Subscription plan key                          |
-| `is_active`           | boolean           | Tenant is active and operational               |
-| `name`                | string \| null    | Organization name                              |
-| `slug`                | string \| null    | URL-safe identifier (auto-generated from name) |
-| `locale`              | string            | Default locale (e.g., 'en', 'ar')              |
-| `timezone`            | string            | Default timezone (IANA format)                 |
-| `settings`            | object            | Flexible JSONB settings (empty by default)     |
-| `onboarding_metadata` | object            | Onboarding state tracking                      |
-| `created_at`          | string (ISO 8601) | Creation timestamp                             |
-| `updated_at`          | string (ISO 8601) | Last update timestamp                          |
+| Field                 | Type              | Description                                                                        |
+| --------------------- | ----------------- | ---------------------------------------------------------------------------------- |
+| `id`                  | UUID              | Tenant unique identifier                                                           |
+| `plan`                | string            | Subscription plan key                                                              |
+| `is_active`           | boolean           | Tenant is active and operational                                                   |
+| `name`                | string \| null    | Organization name                                                                  |
+| `slug`                | string \| null    | URL-safe identifier (auto-generated from name)                                     |
+| `locale`              | string            | Default locale (e.g., 'en', 'ar')                                                  |
+| `timezone`            | string            | Default timezone (IANA format)                                                     |
+| `settings`            | object            | Flexible JSONB settings (empty by default)                                         |
+| `onboarding_metadata` | object            | Onboarding state tracking (see [Onboarding Metadata](#onboarding-metadata-schema)) |
+| `created_at`          | string (ISO 8601) | Creation timestamp                                                                 |
+| `updated_at`          | string (ISO 8601) | Last update timestamp                                                              |
 
 **Error Responses:**
 
@@ -982,6 +994,92 @@ async ingest(@Param() params: RulesetKeyParamDto) { ... }
 ```
 
 For create/update responses that trigger background ingestion (e.g. ruleset create, version create, rollback), include `ingestionStatus: 'enqueued' | 'failed'` so callers know if the job was enqueued. Creation still succeeds on enqueue failure; use the manual ingest endpoint to retry.
+
+---
+
+## Onboarding Metadata Schema
+
+The `onboarding_metadata` JSONB on tenants follows a structured schema for progressive onboarding UI.
+
+### Structure
+
+```typescript
+interface OnboardingMetadata {
+  currentStep:
+    | 'create_workspace'
+    | 'invite_team'
+    | 'first_action'
+    | 'completed';
+  teamInviteSkipped: boolean;
+  firstActionType?:
+    | 'upload_contract'
+    | 'ask_question'
+    | 'analyze_document'
+    | null;
+  firstActionCompletedAt?: string | null; // ISO 8601
+  stepsCompleted: {
+    createWorkspace: boolean;
+    inviteTeam: boolean; // true if sent invites OR skipped
+    firstAction: boolean;
+  };
+}
+```
+
+### Default (New Tenants)
+
+New tenants are created with:
+
+```json
+{
+  "currentStep": "invite_team",
+  "teamInviteSkipped": false,
+  "firstActionType": null,
+  "firstActionCompletedAt": null,
+  "stepsCompleted": {
+    "createWorkspace": true,
+    "inviteTeam": false,
+    "firstAction": false
+  }
+}
+```
+
+### PATCH /tenants/me/onboarding
+
+**Authentication:** Tenant token + `settings:manage` permission
+
+**Request Body (all fields optional):**
+
+| Field               | Type    | Description                                                            |
+| ------------------- | ------- | ---------------------------------------------------------------------- |
+| `currentStep`       | enum    | One of: `create_workspace`, `invite_team`, `first_action`, `completed` |
+| `teamInviteSkipped` | boolean | Whether user skipped the team invite step                              |
+| `firstActionType`   | enum    | One of: `upload_contract`, `ask_question`, `analyze_document`          |
+
+**Note:** `stepsCompleted` is updated server-side based on actions; clients cannot set it directly.
+
+---
+
+## Invitation System & Seat Enforcement
+
+### Seat Capacity Enforcement
+
+The `user_seats` entitlement (capacity feature) is enforced at two points:
+
+1. **Invitation Accept** (`POST /auth/invitations/:id/accept`): Before adding a new member, the system checks seat capacity via `EntitlementEnforcementService.checkAndRecord`. If at capacity, returns **403 Forbidden**.
+2. **Invitation Create** (`POST /tenants/admin/invitations`): Before creating a pending invitation, the system checks that `active_members + pending_invitations < seat_limit`. If at or over limit, returns **403 Forbidden**.
+
+### 403 Errors (Seat Limit)
+
+| Endpoint          | Key                             | Message                                                                                                                         |
+| ----------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Accept invitation | `SEAT_LIMIT_REACHED`            | "Workspace has reached its seat limit. Contact the workspace admin to upgrade."                                                 |
+| Create invitation | `SEAT_LIMIT_REACHED_FOR_INVITE` | "Cannot send invitation. Workspace has reached its seat limit including pending invitations. Upgrade to add more team members." |
+
+### Edge Cases
+
+- **Reactivation:** If a user already belongs to the tenant (active or inactive) and accepts an invitation, no new seat is consumed for active members; inactive members being reactivated consume a seat.
+- **Concurrent accept:** CAS in entitlement enforcement handles race conditions when two users accept the last seat simultaneously.
+- **Invite sent before full, accepted after:** Check happens at accept time, not send time.
 
 ---
 
