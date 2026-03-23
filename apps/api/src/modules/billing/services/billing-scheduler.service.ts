@@ -77,12 +77,11 @@ export class BillingSchedulerService implements OnModuleInit {
    */
   private shouldScheduleJobs(): boolean {
     const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-    const forceSchedule = this.configService.get<string>(
+    const forceSchedule = this.configService.get<boolean>(
       'BILLING_SCHEDULE_ENABLED',
-      'false',
+      false,
     );
 
-    // Schedule in production by default, or when explicitly enabled
-    return nodeEnv === 'production' || forceSchedule.toLowerCase() === 'true';
+    return nodeEnv === 'production' || forceSchedule === true;
   }
 }
