@@ -142,6 +142,9 @@ module "secrets" {
   # OpenAI (for workers)
   openai_api_key = var.openai_api_key
 
+  # Cohere (for worker-ai reranking)
+  cohere_api_key = var.cohere_api_key
+
   # Stripe
   stripe_secret_key          = var.stripe_secret_key
   stripe_publishable_key     = var.stripe_publishable_key

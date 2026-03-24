@@ -34,6 +34,7 @@ CREATE TABLE public.ruleset_chunks (
     ruleset_version_id UUID NOT NULL,
     chunk_index        INTEGER NOT NULL,
     content            TEXT NOT NULL,
+    content_tsv        TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
     embedding          vector(1536) NOT NULL,
     metadata           JSONB DEFAULT '{}',
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -54,8 +55,9 @@ CREATE TABLE public.ruleset_chunks (
         UNIQUE (ruleset_version_id, chunk_index)
 );
 
-COMMENT ON TABLE public.ruleset_chunks IS 'Embedded ruleset clause chunks for vector similarity search (global, no RLS)';
+COMMENT ON TABLE public.ruleset_chunks IS 'Embedded ruleset clause chunks for hybrid (vector + BM25) search (global, no RLS)';
 COMMENT ON COLUMN public.ruleset_chunks.chunk_index IS 'Order of chunk within the ruleset version';
+COMMENT ON COLUMN public.ruleset_chunks.content_tsv IS 'Generated tsvector for BM25 full-text search (auto-maintained by PostgreSQL)';
 COMMENT ON COLUMN public.ruleset_chunks.embedding IS 'OpenAI text-embedding-3-small vector (1536 dimensions)';
 COMMENT ON COLUMN public.ruleset_chunks.metadata IS 'Extra info (token count, source clause index, etc.)';
 
@@ -73,6 +75,10 @@ CREATE INDEX idx_ruleset_chunks_ruleset_version ON public.ruleset_chunks(ruleset
 -- Tune m and ef_construction when ruleset_chunks grows beyond ~100k rows
 CREATE INDEX idx_ruleset_chunks_embedding_hnsw ON public.ruleset_chunks
     USING hnsw (embedding vector_cosine_ops);
+
+-- GIN index for BM25 full-text search on the generated tsvector column
+CREATE INDEX idx_ruleset_chunks_content_tsv ON public.ruleset_chunks
+    USING gin (content_tsv);
 
 -- =========================
 -- ANALYSIS_JOBS TABLE (Tenant-Scoped, RLS in later migration)
@@ -172,6 +178,7 @@ DROP INDEX IF EXISTS public.idx_analysis_jobs_status;
 DROP INDEX IF EXISTS public.idx_analysis_jobs_document_id;
 DROP INDEX IF EXISTS public.idx_analysis_jobs_tenant_id;
 
+DROP INDEX IF EXISTS public.idx_ruleset_chunks_content_tsv;
 DROP INDEX IF EXISTS public.idx_ruleset_chunks_embedding_hnsw;
 DROP INDEX IF EXISTS public.idx_ruleset_chunks_ruleset_version;
 DROP INDEX IF EXISTS public.idx_ruleset_chunks_ruleset_version_id;

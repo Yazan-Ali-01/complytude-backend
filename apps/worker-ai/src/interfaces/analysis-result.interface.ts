@@ -15,4 +15,5 @@ export interface AnalysisResult {
   documentChunks: number;
   rulesetChunksMatched: number;
   rulesetsConsulted: string[];
+  reranked: boolean;
 }

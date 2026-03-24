@@ -10,23 +10,9 @@ export interface BuiltPrompt {
 }
 
 const OUTPUT_RESERVE_TOKENS = 4_096;
-const SYSTEM_PROMPT_ESTIMATE_TOKENS = 600;
+const SYSTEM_PROMPT_ESTIMATE_TOKENS = 400;
 
 const SYSTEM_PROMPT = `You are a compliance analysis assistant. Your task is to analyze a legal or business document against a set of regulatory clauses and identify compliance issues, risks, and missing requirements.
-
-You MUST respond with a valid JSON object matching this exact schema:
-{
-  "findings": [
-    {
-      "clauseRef": "<authority name and clause identifier, e.g. 'DMCC Employment Rule 4.2'>",
-      "riskLevel": "<'high' | 'medium' | 'low'>",
-      "title": "<short title of the issue, max 10 words>",
-      "description": "<detailed description of the compliance gap or risk>",
-      "suggestion": "<concrete recommendation to address the issue>"
-    }
-  ],
-  "summary": "<overall summary of the compliance assessment, 2-4 sentences>"
-}
 
 Risk level definitions:
 - high: Missing required clause, direct regulatory violation, or significant legal exposure
@@ -37,7 +23,9 @@ Rules:
 - Only report findings that are directly supported by the provided regulatory context
 - Do not invent regulatory requirements that are not in the provided clauses
 - If the document is fully compliant with all provided clauses, return an empty findings array with an appropriate summary
-- Be specific: cite the exact clause reference in clauseRef`;
+- Be specific: cite the exact authority name and clause identifier in clauseRef (e.g. "DMCC Employment Rule 4.2")
+- Keep each title under 10 words
+- Provide a 2-4 sentence overall summary`;
 
 @Injectable()
 export class PromptBuilderService {
@@ -67,7 +55,7 @@ export class PromptBuilderService {
       this.logger.warn(
         `Ruleset context (${rulesetTokens} tokens) exhausted the entire content budget for ` +
           `"${documentTitle}" (available: ${availableContentTokens} tokens). ` +
-          `Document will be reduced to a minimal stub. Consider reducing MAX_UNIQUE_CHUNKS.`,
+          `Document will be reduced to a minimal stub. Consider reducing retrieval limits.`,
       );
     }
 
@@ -139,6 +127,6 @@ export class PromptBuilderService {
     documentContent: string,
     rulesetContext: string,
   ): string {
-    return `## Regulatory Context\n\n${rulesetContext}\n\n---\n\n## Document Under Review: ${documentTitle}\n\n${documentContent}\n\n---\n\nAnalyze the document against the regulatory clauses above. Identify all compliance issues, risks, and missing clauses. Return your analysis as a JSON object matching the schema provided in the system prompt.`;
+    return `## Regulatory Context\n\n${rulesetContext}\n\n---\n\n## Document Under Review: ${documentTitle}\n\n${documentContent}\n\n---\n\nAnalyze the document against the regulatory clauses above. Identify all compliance issues, risks, and missing clauses.`;
   }
 }

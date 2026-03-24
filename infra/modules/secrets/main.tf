@@ -88,6 +88,9 @@ resource "aws_secretsmanager_secret_version" "app" {
     # OpenAI (for worker-ai, worker-ingestion)
     OPENAI_API_KEY = var.openai_api_key
 
+    # Cohere (for worker-ai reranking)
+    COHERE_API_KEY = var.cohere_api_key
+
     # Stripe
     STRIPE_SECRET_KEY          = var.stripe_secret_key
     STRIPE_PUBLISHABLE_KEY     = var.stripe_publishable_key

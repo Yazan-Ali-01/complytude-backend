@@ -8,7 +8,7 @@
 
 ## Overview
 
-The Data Ingestion Worker is a standalone NestJS application that consumes jobs from the `data-ingestion` BullMQ queue. It processes rulesets by chunking their clauses, generating embeddings via OpenAI, and storing the resulting vectors in PostgreSQL (pgvector) for later similarity search by the AI Worker.
+The Data Ingestion Worker is a standalone NestJS application that consumes jobs from the `data-ingestion` BullMQ queue. It processes rulesets by chunking their clauses, generating embeddings via OpenAI, and storing the resulting vectors in PostgreSQL (pgvector) for later hybrid retrieval by the AI Worker. The `ruleset_chunks` table has a `content_tsv` generated column (tsvector) that is automatically populated by PostgreSQL for BM25 full-text search — no extra work is needed at ingestion time.
 
 ### What It Does
 
@@ -180,4 +180,4 @@ See `.env.example` for the full list.
 
 ---
 
-**Last Updated:** March 4, 2026
+**Last Updated:** March 24, 2026
