@@ -60,6 +60,7 @@ export const validationSchema = Joi.object({
   // Storage Buckets
   COMPLYTUDE_FILES_BUCKET_NAME: Joi.string().default('complytude-files'),
   TEMPLATES_BUCKET_NAME: Joi.string().default('complytude-templates'),
+  QUARANTINE_BUCKET_NAME: Joi.string().default('complytude-quarantine'),
 
   // File Upload Limits
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB

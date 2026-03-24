@@ -78,6 +78,7 @@ resource "aws_secretsmanager_secret_version" "app" {
     S3_FORCE_PATH_STYLE = "false"
     COMPLYTUDE_FILES_BUCKET_NAME = var.s3_quarantine_bucket
     TEMPLATES_BUCKET_NAME        = var.s3_clean_bucket
+    QUARANTINE_BUCKET_NAME       = var.s3_quarantine_bucket
     MAX_FILE_SIZE               = "10485760"
     TEMPLATE_MAX_FILE_SIZE      = "5242880"
     SIGNED_URL_EXPIRES_IN       = "900"

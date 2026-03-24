@@ -84,6 +84,18 @@ Enum analysis_job_status {
   failed
 }
 
+Enum document_source_type {
+  text_input
+  file_upload
+}
+
+Enum document_extraction_status {
+  pending
+  processing
+  completed
+  failed
+}
+
 // ============================================
 // CORE TABLES (Multi-Tenancy)
 // ============================================
@@ -916,6 +928,17 @@ Table documents {
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
 
+  // File storage columns
+  source_type document_source_type [not null, default: 'text_input', note: 'Distinguish text-pasted docs from file uploads']
+  s3_key varchar(1024) [null, note: 'Full S3 object key (includes tenant prefix). NULL for text-input docs']
+  s3_bucket varchar(255) [null, note: 'Bucket name (quarantine or clean)']
+  original_filename varchar(512) [null, note: 'User original filename for display/download']
+  file_size_bytes bigint [null, note: 'File size for validation and display']
+  mime_type varchar(255) [null, note: 'e.g. application/pdf']
+  extraction_status document_extraction_status [null, note: 'Extraction lifecycle. NULL for text-input docs']
+  extraction_error text [null, note: 'Error message if extraction failed']
+  extracted_at timestamptz [null, note: 'When text extraction completed']
+
   indexes {
     tenant_id [note: 'Critical for RLS performance']
     template_id
@@ -923,11 +946,15 @@ Table documents {
     created_by
     (tenant_id, created_at)
     (tenant_id, template_id)
+    extraction_status [where: 'extraction_status IS NOT NULL']
+    s3_key [where: 's3_key IS NOT NULL']
   }
 
   Note: '''
     Tenant-scoped documents with RLS-based tenant isolation.
+    Supports both text-input and file-upload documents.
     RLS: SELECT/INSERT filtered by current_tenant_id_or_null()
+    CHECK: text_input requires content; file_upload requires s3_key
   '''
 }
 

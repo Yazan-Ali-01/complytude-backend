@@ -64,6 +64,12 @@
       "@lib/logger/*": [
         "libs/logger/src/*"
       ],
+      "@lib/storage": [
+        "libs/storage/src"
+      ],
+      "@lib/storage/*": [
+        "libs/storage/src/*"
+      ],
       "src/*": [
         "apps/api/src/*"
       ]

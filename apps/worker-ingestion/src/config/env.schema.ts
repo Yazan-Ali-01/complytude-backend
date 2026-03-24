@@ -2,6 +2,7 @@ import { databaseEnvSchema } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
 import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
+import { storageEnvSchema } from '@lib/storage';
 import * as Joi from 'joi';
 
 export const validationSchema = Joi.object({
@@ -35,4 +36,7 @@ export const validationSchema = Joi.object({
 
   // Redis (for BullMQ)
   ...redisEnvSchema,
+
+  // S3 Storage (for document ingestion)
+  ...storageEnvSchema,
 });

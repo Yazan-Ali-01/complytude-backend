@@ -80,6 +80,15 @@
         "tsConfigPath": "libs/redis/tsconfig.lib.json"
       }
     },
+    "storage": {
+      "type": "library",
+      "root": "libs/storage",
+      "entryFile": "index",
+      "sourceRoot": "libs/storage/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/storage/tsconfig.lib.json"
+      }
+    },
     "worker-ai": {
       "type": "application",
       "root": "apps/worker-ai",

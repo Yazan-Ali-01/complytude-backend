@@ -7,7 +7,15 @@
     "GENERATION_NOT_IMPLEMENTED": "Document generation not yet implemented",
     "LISTING_NOT_IMPLEMENTED": "Document listing not yet implemented",
     "RETRIEVAL_NOT_IMPLEMENTED": "Document retrieval not yet implemented",
-    "DELETION_NOT_IMPLEMENTED": "Document deletion not yet implemented"
+    "DELETION_NOT_IMPLEMENTED": "Document deletion not yet implemented",
+    "FILE_SIZE_EXCEEDS_LIMIT": "File size exceeds the maximum allowed limit",
+    "UPLOAD_URL_GENERATION_FAILED": "Failed to generate upload URL. Please try again.",
+    "INVALID_DOCUMENT_TYPE": "Upload confirmation is only valid for file upload documents",
+    "UPLOAD_ALREADY_CONFIRMED": "This document has already been confirmed and queued for processing",
+    "FILE_NOT_UPLOADED": "File not found in storage. Please upload the file before confirming",
+    "FILE_SIZE_MISMATCH": "Uploaded file size does not match the declared file size"
   },
-  "messages": {}
+  "messages": {
+    "UPLOAD_CONFIRMED": "Upload confirmed. Text extraction has been queued."
+  }
 }

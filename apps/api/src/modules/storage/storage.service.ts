@@ -74,6 +74,8 @@ export class StorageService {
   private readonly signedUrlExpiresIn: number;
   private readonly templatesBucket: string;
   private readonly tenantFilesBucket: string;
+  private readonly quarantineBucket: string;
+  private quarantineBucketInitialized = false;
 
   /**
    * AWS S3 metadata key constants
@@ -98,6 +100,9 @@ export class StorageService {
     this.tenantFilesBucket =
       this.configService.get('storage.bucket.filesBucketName') ||
       'complytude-files';
+    this.quarantineBucket =
+      this.configService.get('storage.quarantine.bucketName') ||
+      'complytude-quarantine';
     this.signedUrlExpiresIn =
       this.configService.get('storage.signedUrl.expiresIn') || 900;
 
@@ -459,6 +464,91 @@ export class StorageService {
         this.i18n.t(StorageI18n.errors.TEMPORARY_URL_GENERATION_FAILED),
       );
     }
+  }
+
+  async initializeQuarantineBucket(): Promise<void> {
+    if (this.quarantineBucketInitialized) return;
+
+    const exists = await this.bucketExists(this.quarantineBucket);
+    if (!exists) {
+      await this.createBucket(this.quarantineBucket);
+      this.logger.log(`Created bucket ${this.quarantineBucket}`);
+    }
+
+    this.quarantineBucketInitialized = true;
+  }
+
+  /**
+   * Generate a presigned PUT URL for direct client-to-S3 upload into the quarantine bucket.
+   *
+   * NOTE: Presigned PUT URLs (unlike S3 POST Policy) cannot enforce a content-length
+   * range server-side. File size validation must be enforced at the API layer before
+   * issuing this URL.
+   */
+  async generatePresignedPutUrl(
+    s3Key: string,
+    contentType: string,
+    expiresIn?: number,
+  ): Promise<string> {
+    await this.initializeQuarantineBucket();
+    const expires = expiresIn ?? this.signedUrlExpiresIn;
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.quarantineBucket,
+        Key: s3Key,
+        ContentType: contentType,
+      });
+
+      return await getSignedUrl(this.s3Client, command, { expiresIn: expires });
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate presigned PUT URL: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(StorageI18n.errors.TEMPORARY_URL_GENERATION_FAILED),
+      );
+    }
+  }
+
+  /**
+   * Check whether an object exists in the quarantine bucket and return its metadata.
+   * Returns null if the object does not exist (HeadObject 404).
+   */
+  async getQuarantineObjectMetadata(s3Key: string): Promise<{
+    contentLength: number;
+    contentType: string | undefined;
+  } | null> {
+    try {
+      const response = await this.s3Client.send(
+        new HeadObjectCommand({
+          Bucket: this.quarantineBucket,
+          Key: s3Key,
+        }),
+      );
+      return {
+        contentLength: response.ContentLength ?? 0,
+        contentType: response.ContentType,
+      };
+    } catch (error) {
+      if (
+        error.name === 'NoSuchKey' ||
+        error.name === 'NotFound' ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
+        return null;
+      }
+      this.logger.error(
+        `HeadObject failed for quarantine key "${s3Key}": ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(StorageI18n.errors.QUARANTINE_OBJECT_CHECK_FAILED),
+      );
+    }
+  }
+
+  get quarantineBucketName(): string {
+    return this.quarantineBucket;
   }
 
   /**

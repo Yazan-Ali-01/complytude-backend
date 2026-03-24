@@ -22,7 +22,8 @@ complytude/
 │   ├── database/               # Database module, service, base repository
 │   ├── embedding/              # Embedding + chunking services (OpenAI)
 │   ├── queue/                  # BullMQ queue module + producer
-│   └── redis/                  # Redis module + service (ioredis)
+│   ├── redis/                  # Redis module + service (ioredis)
+│   └── storage/                # S3 client, config, basic S3 operations
 ├── docs/                       # Monorepo-wide documentation
 ├── scripts/                    # Database and development scripts
 ├── docker-compose.yml          # Base Docker services (PostgreSQL, Redis, MinIO, pgAdmin)
@@ -127,6 +128,18 @@ Redis connection management (ioredis):
 - **src/redis.schema.ts** - Joi schema for Redis env vars
 - **src/index.ts** - Public API exports
 - **src/interfaces/** - Redis config interface
+
+### Storage Library (`libs/storage/`)
+
+S3 client factory and basic S3 operations shared across API and workers:
+
+- **src/storage.module.ts** - Global module providing S3Client via DI
+- **src/s3.service.ts** - Basic S3 operations (copy, head, get, delete, bucket management)
+- **src/storage.config.ts** - Config factory (`storage.s3.*`, `storage.buckets.*`)
+- **src/storage.schema.ts** - Joi env var schema for S3 variables
+- **src/storage.constants.ts** - Injection tokens (`S3_CLIENT`)
+- **src/index.ts** - Public API exports
+- **src/interfaces/s3-config.interface.ts** - S3Config, StorageBucketsConfig, HeadObjectResult, CopyObjectResult
 
 ## Scripts (`scripts/`)
 
@@ -253,7 +266,7 @@ apps/worker-ai/
 
 ### Worker Ingestion Application (`apps/worker-ingestion/`)
 
-BullMQ worker for data ingestion (ruleset chunking + embedding):
+BullMQ worker for data ingestion (ruleset chunking + embedding, document text extraction):
 
 ```
 apps/worker-ingestion/
@@ -266,12 +279,19 @@ apps/worker-ingestion/
 │   │   ├── env.schema.ts                    # Environment validation
 │   │   └── worker-ingestion.config.ts       # Worker configuration
 │   ├── processors/
-│   │   └── data-ingestion.processor.ts      # BullMQ job processor
+│   │   └── data-ingestion.processor.ts      # BullMQ job processor (routes by job.name)
+│   ├── interfaces/
+│   │   ├── textract.interface.ts            # ITextractService interface + token
+│   │   └── s3-promotion.interface.ts        # IS3PromotionService interface + token
 │   ├── services/
-│   │   └── ruleset-ingestion.service.ts     # Ruleset chunking + embedding
+│   │   ├── ruleset-ingestion.service.ts     # Ruleset chunking + embedding
+│   │   ├── document-ingestion.service.ts    # Document extraction pipeline orchestrator
+│   │   ├── textract.stub.service.ts         # Textract stub (COM-209)
+│   │   └── s3-promotion.stub.service.ts     # S3 promotion stub (COM-210)
 │   └── repositories/
 │       ├── ruleset-version-read.repository.ts # Read ruleset versions
-│       └── ruleset-chunks.repository.ts       # Write embedded chunks
+│       ├── ruleset-chunks.repository.ts       # Write embedded chunks
+│       └── document-write.repository.ts       # Read/update document status + content
 ├── docs/README.md
 ├── .env.example
 └── package.json
