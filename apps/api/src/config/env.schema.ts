@@ -46,14 +46,8 @@ export const validationSchema = Joi.object({
   JWT_IDENTITY_EXPIRES_IN: Joi.string().default('10m'),
   JWT_IDENTITY_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
-
-  // Email (Resend)
-  EMAIL_PROVIDER: Joi.string()
-    .valid('resend', 'ses', 'sendgrid')
-    .default('resend'),
-  EMAIL_API_KEY: Joi.string().allow('').default(''),
-  EMAIL_FROM: Joi.string().default('noreply@complytude.com'),
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
+  /** When true, email methods return without calling SES (local/tests). */
   EMAIL_SKIP_SEND: Joi.string().valid('true', 'false').default('false'),
 
   // S3/MinIO Storage
@@ -92,7 +86,7 @@ export const validationSchema = Joi.object({
   // In production, this MUST be set. In development, omit to allow unauthenticated access.
   BULL_BOARD_ADMIN_SECRET: Joi.string().optional().allow(''),
 
-  // Email (AWS SES)
+  // AWS SES (verification, password reset, billing notices)
   AWS_REGION: Joi.string().default('eu-central-1'),
   FROM_EMAIL: Joi.string().email().required(),
   FROM_NAME: Joi.string().default('Complytude Billing'),

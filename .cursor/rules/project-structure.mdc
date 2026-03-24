@@ -441,10 +441,10 @@ Data access layer with repository pattern. All repositories extend `BaseReposito
 
 #### Email (`email/`)
 
-Transactional email delivery via Resend:
+Transactional email delivery via AWS SES:
 
 - **email.module.ts** - Module configuration
-- **email.service.ts** - Resend integration, verification and password reset emails
+- **email.service.ts** - SES (`SendEmail`), verification, password reset, and billing-related templates
 - **constants/i18n.constants.ts** - Email i18n keys
 
 Used by AuthModule for signup verification and forgot-password flows. Fire-and-forget sending with graceful degradation (logs errors, never fails parent operation).

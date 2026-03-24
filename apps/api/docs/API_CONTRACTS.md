@@ -404,7 +404,7 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 - User account created with email and hashed password
 - Email verification token generated
-- Verification email sent via Resend (link: `{FRONTEND_URL}/verify-email?token={token}`). Fire-and-forget; signup succeeds even if email fails. In dev without `EMAIL_API_KEY`, log-only mode applies.
+- Verification email sent via AWS SES (link: `{FRONTEND_URL}/verify-email?token={token}`). Fire-and-forget (`void`); unhandled SES errors may still surface as promise rejections. With `EMAIL_SKIP_SEND=true`, no SES call is made (useful for local/tests).
 - User account is created but **email is not verified** (cannot proceed until verified)
 
 ---
