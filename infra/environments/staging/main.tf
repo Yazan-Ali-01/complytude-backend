@@ -225,7 +225,7 @@ module "dns_record" {
   source = "../../modules/route53-record"
 
   zone_id      = module.route53.zone_id
-  record_name  = "staging"
+  record_name  = "api-staging"
   alb_dns_name = module.ecs.alb_dns_name
   alb_zone_id  = module.ecs.alb_zone_id
 }
