@@ -95,11 +95,9 @@ module "ecr" {
 module "ses" {
   source = "../../modules/ses"
 
-  project_name  = var.project
-  environment   = var.environment
-  domain_name   = var.domain_name
-  from_email    = var.from_email
-  support_email = var.support_email
+  project_name = var.project
+  environment  = var.environment
+  domain_name  = var.domain_name
 }
 
 module "secrets" {
