@@ -153,10 +153,12 @@ async function bootstrap() {
   createBullBoard({
     queues: [
       new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.AI_PROCESSING))),
+      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.BILLING_PROCESSING))),
       new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.DATA_INGESTION))),
       new BullMQAdapter(
         app.get(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING)),
       ),
+      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.TENANT_PROCESSING))),
     ],
     serverAdapter: bullBoardAdapter,
   });
