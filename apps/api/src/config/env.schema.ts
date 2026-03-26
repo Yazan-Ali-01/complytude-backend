@@ -68,6 +68,7 @@ export const validationSchema = Joi.object({
   EMAIL_API_KEY: Joi.string().allow('').default(''),
   EMAIL_FROM: Joi.string().default('noreply@complytude.com'),
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
+  /** When true, email methods return without calling SES (local/tests). */
   EMAIL_SKIP_SEND: Joi.string().valid('true', 'false').default('false'),
 
   // S3/MinIO Storage
@@ -80,6 +81,7 @@ export const validationSchema = Joi.object({
   // Storage Buckets
   COMPLYTUDE_FILES_BUCKET_NAME: Joi.string().default('complytude-files'),
   TEMPLATES_BUCKET_NAME: Joi.string().default('complytude-templates'),
+  QUARANTINE_BUCKET_NAME: Joi.string().default('complytude-quarantine'),
 
   // File Upload Limits
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
@@ -106,7 +108,7 @@ export const validationSchema = Joi.object({
   // In production, this MUST be set. In development, omit to allow unauthenticated access.
   BULL_BOARD_ADMIN_SECRET: Joi.string().optional().allow(''),
 
-  // Email (AWS SES)
+  // AWS SES (verification, password reset, billing notices)
   AWS_REGION: Joi.string().default('eu-central-1'),
   FROM_EMAIL: Joi.string().email().required(),
   FROM_NAME: Joi.string().default('Complytude Billing'),

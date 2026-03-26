@@ -4,7 +4,7 @@ variable "zone_id" {
 }
 
 variable "record_name" {
-  description = "Record name within the zone (e.g. staging for staging.complytude.com in zone complytude.com)"
+  description = "Record name within the zone (e.g. api-staging for api-staging.complytude.com in zone complytude.com)"
   type        = string
 }
 

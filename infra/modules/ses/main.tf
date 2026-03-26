@@ -11,16 +11,6 @@ resource "aws_ses_domain_dkim" "main" {
   domain = aws_ses_domain_identity.main.domain
 }
 
-# Email address identity for the from address
-resource "aws_ses_email_identity" "from_email" {
-  email = var.from_email
-}
-
-# Email address identity for support email
-resource "aws_ses_email_identity" "support_email" {
-  email = var.support_email
-}
-
 # Configuration set for tracking and monitoring
 resource "aws_ses_configuration_set" "main" {
   name = "${var.project_name}-${var.environment}"
@@ -63,8 +53,6 @@ resource "aws_iam_policy" "ses_send_email" {
         ]
         Resource = [
           aws_ses_domain_identity.main.arn,
-          aws_ses_email_identity.from_email.arn,
-          aws_ses_email_identity.support_email.arn,
           "${aws_ses_configuration_set.main.arn}/*"
         ]
       },

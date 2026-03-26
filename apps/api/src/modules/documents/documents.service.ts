@@ -1,21 +1,33 @@
 import { DatabaseService } from '@lib/database';
-import { AI_JOB_NAMES, QUEUE_NAMES, QueueProducerService } from '@lib/queue';
 import {
+  AI_JOB_NAMES,
+  INGESTION_JOB_NAMES,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
+import {
+  BadRequestException,
+  ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
+import { StorageService } from '../storage/storage.service';
 import { DocumentsI18n } from './constants/i18n.constants';
+import { UPLOAD_MAX_FILE_SIZE_BYTES } from './constants/upload.constants';
 import type {
   AnalysisJobResponseDto,
   AnalyzeDocumentDto,
   AnalyzeDocumentResponseDto,
+  ConfirmUploadResponseDto,
   DeleteDocumentResponseDto,
   DocumentListResponseDto,
   DocumentResponseDto,
@@ -24,6 +36,8 @@ import type {
   ListDocumentsQueryDto,
   PreviewDocumentDto,
   PreviewDocumentResponseDto,
+  UploadUrlDto,
+  UploadUrlResponseDto,
 } from './dto';
 
 @Injectable()
@@ -35,6 +49,8 @@ export class DocumentsService {
     private readonly documentRepository: DocumentRepository,
     private readonly analysisJobRepository: AnalysisJobRepository,
     private readonly queueProducerService: QueueProducerService,
+    private readonly storageService: StorageService,
+    private readonly configService: ConfigService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -94,6 +110,197 @@ export class DocumentsService {
         error instanceof Error ? error.stack : undefined,
       );
       throw error;
+    }
+  }
+
+  async getUploadUrl(
+    dto: UploadUrlDto,
+    user: AuthenticatedTenantUser,
+  ): Promise<UploadUrlResponseDto> {
+    const maxFileSize: number =
+      this.configService.get<number>('storage.upload.maxFileSize') ??
+      UPLOAD_MAX_FILE_SIZE_BYTES;
+    const expiresIn: number =
+      this.configService.get<number>('storage.signedUrl.expiresIn') ?? 900;
+    const quarantineBucket: string =
+      this.configService.get<string>('storage.quarantine.bucketName') ??
+      'complytude-quarantine';
+
+    if (dto.fileSizeBytes > maxFileSize) {
+      throw new BadRequestException(
+        this.i18n.t(DocumentsI18n.errors.FILE_SIZE_EXCEEDS_LIMIT),
+      );
+    }
+
+    const sanitizedFilename = this.storageService.normalizeFileName(
+      dto.filename,
+    );
+
+    const documentId = crypto.randomUUID();
+    const s3Key = `tenants/${user.tenantId}/documents/${documentId}/${sanitizedFilename}`;
+
+    try {
+      await this.databaseService.transactionWithTenantContext(
+        { tenantId: user.tenantId },
+        async (client) => {
+          await this.documentRepository.createWithId(
+            documentId,
+            {
+              tenant_id: user.tenantId,
+              title: dto.filename,
+              content: null,
+              created_by: user.userId,
+              metadata: JSON.stringify({}),
+              source_type: 'file_upload',
+              s3_key: s3Key,
+              s3_bucket: quarantineBucket,
+              original_filename: sanitizedFilename,
+              file_size_bytes: dto.fileSizeBytes,
+              mime_type: dto.contentType,
+              extraction_status: 'pending',
+            },
+            { client },
+          );
+        },
+      );
+
+      const uploadUrl = await this.storageService.generatePresignedPutUrl(
+        s3Key,
+        dto.contentType,
+        expiresIn,
+      );
+
+      this.logger.log(
+        `Upload URL generated: documentId=${documentId} tenantId=${user.tenantId} s3Key=${s3Key}`,
+      );
+
+      return {
+        documentId,
+        uploadUrl,
+        expiresIn,
+        s3Key,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      this.logger.error(
+        `getUploadUrl failed: tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.UPLOAD_URL_GENERATION_FAILED),
+      );
+    }
+  }
+
+  async confirmUpload(
+    documentId: string,
+    user: AuthenticatedTenantUser,
+  ): Promise<ConfirmUploadResponseDto> {
+    try {
+      const tenantContext = {
+        tenantId: user.tenantId,
+        schema: 'public' as const,
+      };
+
+      // First fetch the document to provide accurate error codes —
+      // we need to distinguish "not found" vs "wrong type" vs "already confirmed".
+      const existing = await this.documentRepository.findById(documentId, {
+        tenant: tenantContext,
+      });
+      if (!existing) {
+        throw new NotFoundException(
+          this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+        );
+      }
+      if (existing.source_type !== 'file_upload') {
+        throw new BadRequestException(
+          this.i18n.t(DocumentsI18n.errors.INVALID_DOCUMENT_TYPE),
+        );
+      }
+      if (existing.extraction_status !== 'pending') {
+        throw new ConflictException(
+          this.i18n.t(DocumentsI18n.errors.UPLOAD_ALREADY_CONFIRMED),
+        );
+      }
+
+      // Atomic claim: UPDATE … WHERE extraction_status = 'pending'
+      // prevents a concurrent request from double-enqueuing.
+      const document = await this.documentRepository.claimPendingUpload(
+        documentId,
+        { tenant: tenantContext },
+      );
+      if (!document) {
+        throw new ConflictException(
+          this.i18n.t(DocumentsI18n.errors.UPLOAD_ALREADY_CONFIRMED),
+        );
+      }
+
+      const s3Key = document.s3_key!;
+      const objectMeta =
+        await this.storageService.getQuarantineObjectMetadata(s3Key);
+
+      if (!objectMeta) {
+        await this.documentRepository.update(
+          documentId,
+          { extraction_status: 'pending' },
+          { tenant: tenantContext },
+        );
+        throw new BadRequestException(
+          this.i18n.t(DocumentsI18n.errors.FILE_NOT_UPLOADED),
+        );
+      }
+
+      const declaredSize = document.file_size_bytes ?? 0;
+      const tolerance = Math.max(Math.ceil(declaredSize * 0.01), 1024);
+      if (Math.abs(objectMeta.contentLength - declaredSize) > tolerance) {
+        await this.documentRepository.update(
+          documentId,
+          { extraction_status: 'pending' },
+          { tenant: tenantContext },
+        );
+        throw new BadRequestException(
+          this.i18n.t(DocumentsI18n.errors.FILE_SIZE_MISMATCH),
+        );
+      }
+
+      await this.queueProducerService.enqueue(
+        QUEUE_NAMES.DATA_INGESTION,
+        INGESTION_JOB_NAMES.DOCUMENT_INGESTION,
+        {
+          documentId: document.id,
+          tenantId: user.tenantId,
+          s3Key,
+          s3Bucket: this.storageService.quarantineBucketName,
+          mimeType: document.mime_type ?? 'application/pdf',
+          originalFilename: document.original_filename ?? document.title,
+        },
+        { jobId: `doc-ingestion-${document.id}` },
+      );
+
+      this.logger.log(
+        `Enqueued DOCUMENT_INGESTION job: documentId=${document.id} tenantId=${user.tenantId}`,
+      );
+
+      return {
+        documentId: document.id,
+        status: 'processing',
+        message: this.i18n.t(DocumentsI18n.messages.UPLOAD_CONFIRMED),
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `confirmUpload failed: documentId=${documentId} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.UPLOAD_URL_GENERATION_FAILED),
+      );
     }
   }
 

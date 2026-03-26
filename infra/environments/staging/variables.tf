@@ -137,6 +137,13 @@ variable "openai_api_key" {
   sensitive   = true
 }
 
+variable "cohere_api_key" {
+  description = "Cohere API key — required for worker-ai reranking"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ---- Stripe ----
 variable "stripe_secret_key" {
   description = "Stripe secret key"

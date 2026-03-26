@@ -36,12 +36,15 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly sesClient: SESClient;
   private readonly config: EmailConfig;
+  private readonly skipSend: boolean;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly i18n: I18nService,
   ) {
     this.config = emailConfig(configService);
+    this.skipSend =
+      this.configService.get<string>('EMAIL_SKIP_SEND', 'false') === 'true';
     this.sesClient = new SESClient({
       region: this.config.awsRegion,
     });
@@ -52,6 +55,12 @@ export class EmailService {
     token: string,
     locale: string = 'en',
   ): Promise<void> {
+    if (this.skipSend) {
+      this.logger.log(
+        `Skipping verification email (EMAIL_SKIP_SEND): to=${email}`,
+      );
+      return;
+    }
     const verificationUrl = `${this.config.frontendUrl}/verify-email?token=${token}`;
     const subject = this.i18n.t(EmailI18n.verification.SUBJECT, {
       lang: locale,
@@ -144,6 +153,12 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     token: string,
     locale: string = 'en',
   ): Promise<void> {
+    if (this.skipSend) {
+      this.logger.log(
+        `Skipping password reset email (EMAIL_SKIP_SEND): to=${email}`,
+      );
+      return;
+    }
     const resetUrl = `${this.config.frontendUrl}/reset-password?token=${token}`;
     const subject = this.i18n.t(EmailI18n.passwordReset.SUBJECT, {
       lang: locale,
@@ -232,6 +247,12 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     data: PaymentActionRequiredEmailData,
     locale: string = 'en',
   ): Promise<void> {
+    if (this.skipSend) {
+      this.logger.log(
+        `Skipping payment-action-required email (EMAIL_SKIP_SEND): to=${data.tenantAdminEmail}`,
+      );
+      return;
+    }
     const tenantName = data.tenantName || 'Your Organization';
     const subject = this.i18n.t('email.payment_action_required.subject', {
       lang: locale,
@@ -344,6 +365,12 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     data: DunningEmailData,
     locale: string = 'en',
   ): Promise<void> {
+    if (this.skipSend) {
+      this.logger.log(
+        `Skipping dunning email (EMAIL_SKIP_SEND): sequence=${sequence}, to=${data.tenantAdminEmail}`,
+      );
+      return;
+    }
     const { subject, htmlBody, textBody } = this.renderDunningTemplate(
       sequence,
       data,

@@ -22,13 +22,3 @@ output "ses_send_policy_arn" {
   description = "ARN of the IAM policy for sending emails via SES"
   value       = aws_iam_policy.ses_send_email.arn
 }
-
-output "from_email_identity_arn" {
-  description = "ARN of the from email identity"
-  value       = aws_ses_email_identity.from_email.arn
-}
-
-output "support_email_identity_arn" {
-  description = "ARN of the support email identity"
-  value       = aws_ses_email_identity.support_email.arn
-}

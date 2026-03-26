@@ -179,6 +179,37 @@ export abstract class BaseRepository<
     return this.mapRow(result.rows[0] as Record<string, unknown>);
   }
 
+  /**
+   * Create an entity with a pre-generated ID.
+   * Useful when the ID must be known before insertion (e.g. to build S3 keys).
+   */
+  async createWithId(
+    id: string,
+    data: TCreate,
+    options?: QueryOptions,
+  ): Promise<TEntity> {
+    const dataWithId = { id, ...(data as Record<string, unknown>) };
+    const keys = Object.keys(dataWithId);
+    const values = Object.values(dataWithId);
+
+    this.logger.debug(
+      `createWithId: table=${this.tableName}, id=${id}, columns=${keys.join(
+        ', ',
+      )}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
+    );
+    const columns = keys.join(', ');
+    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
+
+    const query = `
+      INSERT INTO ${this.tableName} (${columns})
+      VALUES (${placeholders})
+      RETURNING *
+    `;
+
+    const result = await this.executeQuery(query, values, options);
+    return this.mapRow(result.rows[0] as Record<string, unknown>);
+  }
+
   async update(
     id: string,
     data: TUpdate,

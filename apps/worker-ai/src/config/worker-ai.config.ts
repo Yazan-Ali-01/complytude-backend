@@ -23,6 +23,11 @@ export default registerAs('workerAi', () => ({
   llmTemperature: parseFloat(process.env.OPENAI_CHAT_TEMPERATURE || '0.1'),
   llmTimeout: parseInt(process.env.OPENAI_CHAT_TIMEOUT || '120000', 10),
 
+  // Cohere re-ranking configuration
+  cohereApiKey: process.env.COHERE_API_KEY!,
+  cohereRerankModel: process.env.COHERE_RERANK_MODEL || 'rerank-v3.5',
+  rerankTopN: parseInt(process.env.RERANK_TOP_N || '10', 10),
+
   // Resource limits
   memoryLimit: process.env.WORKER_AI_MEMORY_LIMIT || '2GB',
   cpuLimit: process.env.WORKER_AI_CPU_LIMIT || '2',

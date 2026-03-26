@@ -125,4 +125,27 @@ export class MockStorageService implements PublicApi<StorageService> {
     await Promise.resolve();
     return { files: [], hasMore: false };
   }
+
+  async generatePresignedPutUrl(
+    _s3Key: string,
+    _contentType: string,
+    _expiresIn?: number,
+  ): Promise<string> {
+    await Promise.resolve();
+    return 'https://mock-s3/presigned-put/mock-key';
+  }
+
+  async getQuarantineObjectMetadata(_s3Key: string): Promise<{
+    contentLength: number;
+    contentType: string | undefined;
+  } | null> {
+    await Promise.resolve();
+    return { contentLength: 2048576, contentType: 'application/pdf' };
+  }
+
+  async initializeQuarantineBucket(): Promise<void> {}
+
+  get quarantineBucketName(): string {
+    return 'mock-quarantine-bucket';
+  }
 }

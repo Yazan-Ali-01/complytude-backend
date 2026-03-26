@@ -153,10 +153,12 @@ async function bootstrap() {
   createBullBoard({
     queues: [
       new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.AI_PROCESSING))),
+      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.BILLING_PROCESSING))),
       new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.DATA_INGESTION))),
       new BullMQAdapter(
         app.get(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING)),
       ),
+      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.TENANT_PROCESSING))),
     ],
     serverAdapter: bullBoardAdapter,
   });
@@ -219,12 +221,9 @@ async function bootstrap() {
         'support@complytude.com',
       )
       .setLicense('Proprietary', 'https://complytude.com/license')
-      .addServer(
-        `http://localhost:${port}/${apiPrefix}/v1`,
-        'Local Development',
-      )
-      .addServer('https://api-staging.complytude.com/api/v1', 'Staging')
-      .addServer('https://api.complytude.com/api/v1', 'Production')
+      .addServer(`http://localhost:${port}`, 'Local Development')
+      .addServer('https://api-staging.complytude.com', 'Staging')
+      .addServer('https://api.complytude.com', 'Production')
       // Cookie-based authentication definitions - ALL 4 TYPES
       .addCookieAuth(
         IDENTITY_TOKEN_COOKIE_NAME,

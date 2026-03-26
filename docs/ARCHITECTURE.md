@@ -947,8 +947,9 @@ JWT_ACCESS_SECRET=<secret>
 JWT_REFRESH_SECRET=<secret>
 DB_PASSWORD=<secret>
 S3_SECRET_KEY=<secret>
-EMAIL_API_KEY=re_xxx          # Resend API key (optional: omit for log-only mode)
-EMAIL_FROM=noreply@complytude.com
+AWS_REGION=eu-central-1
+FROM_EMAIL=noreply@complytude.com
+SUPPORT_EMAIL=support@complytude.com
 FRONTEND_URL=https://app.complytude.com
 ```
 

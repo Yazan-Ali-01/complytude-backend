@@ -8,23 +8,23 @@
 
 ## Overview
 
-The AI Worker is a standalone NestJS application that consumes jobs from the `ai-processing` BullMQ queue. It performs AI-powered compliance analysis on documents using a RAG (Retrieval-Augmented Generation) pipeline.
+The AI Worker is a standalone NestJS application that consumes jobs from the `ai-processing` BullMQ queue. It performs AI-powered compliance analysis on documents using a RAG (Retrieval-Augmented Generation) pipeline with hybrid search and re-ranking.
 
 ### What It Does
 
 1. Receives `DOCUMENT_ANALYSIS` jobs dispatched by the API
 2. Fetches the document content from PostgreSQL
 3. Chunks the document text and generates embeddings (OpenAI)
-4. Performs vector similarity search against embedded ruleset clauses (pgvector)
-5. Builds a context-enriched prompt with matched regulatory clauses
-6. Calls the LLM (OpenAI GPT) for compliance analysis
-7. Parses and validates the structured JSON response
-8. Stores the analysis result and marks the job complete
+4. Performs **hybrid search** — vector similarity (pgvector HNSW) + BM25 full-text search (tsvector GIN) merged via Reciprocal Rank Fusion (RRF)
+5. **Re-ranks** retrieved chunks using Cohere's rerank model (graceful fallback if unavailable)
+6. Builds a context-enriched prompt with the top regulatory clauses
+7. Calls the LLM (OpenAI GPT) with **structured output** enforcement (JSON Schema)
+8. Stores the typed analysis result and marks the job complete
 
 ### RAG Pipeline
 
 ```
-Document → Chunk → Embed → pgvector Search → Top-K Clauses → Prompt Build → LLM → Parse → Store Result
+Document → Chunk → Embed → Hybrid Search (Vector + BM25 / RRF) → Cohere Re-rank → Prompt Build → LLM (Structured Output) → Store Result
 ```
 
 ---
@@ -40,6 +40,13 @@ Document → Chunk → Embed → pgvector Search → Top-K Clauses → Prompt Bu
 | `@lib/queue` | BullMQ consumer registration (AbstractProcessor) |
 | `@lib/redis` | Redis connection for BullMQ |
 
+### External APIs
+
+| Provider | Usage |
+|----------|-------|
+| **OpenAI** | Embeddings (`text-embedding-3-small`) + LLM chat completions (`gpt-4o-mini`, structured output with `json_schema`) |
+| **Cohere** | Re-ranking retrieved chunks (`rerank-v3.5`) — optional, graceful degradation on failure |
+
 ### Source Structure
 
 ```
@@ -54,12 +61,13 @@ apps/worker-ai/src/
 │   └── ai-processing.processor.ts   # BullMQ processor (routes by job.name)
 ├── services/
 │   ├── document-analysis.service.ts # RAG pipeline orchestration
-│   ├── llm.service.ts               # OpenAI chat completions (JSON mode)
-│   └── prompt-builder.service.ts    # System prompt + context window management
+│   ├── llm.service.ts               # OpenAI chat completions (structured output, json_schema)
+│   ├── prompt-builder.service.ts    # System prompt + context window management
+│   └── reranker.service.ts          # Cohere rerank integration (graceful fallback)
 ├── repositories/
 │   ├── document-read.repository.ts       # Read document content
 │   ├── analysis-job-write.repository.ts  # Claim, mark processing/completed/failed
-│   └── ruleset-chunk-search.repository.ts # pgvector cosine similarity search
+│   └── ruleset-chunk-search.repository.ts # Hybrid search (vector + BM25, RRF merge)
 └── interfaces/
     └── analysis-result.interface.ts      # AnalysisResult, AnalysisFinding types
 ```
@@ -78,19 +86,29 @@ DocumentAnalysisService pipeline:
   2. Fetch document content
   3. Chunk document text (TextChunkerService)
   4. Embed all chunks (EmbeddingService → OpenAI)
-  5. Batch similarity search (pgvector HNSW, top-K per query, deduped)
-  6. Build prompt (system + regulatory context + document, context-window aware)
-  7. LLM call (OpenAI, JSON response format)
-  8. Parse + validate response (findings array + summary)
+  5. Hybrid search (vector HNSW + BM25 tsvector, merged via RRF, top 20)
+  6. Cohere re-rank (top 10, graceful fallback to original ranking)
+  7. Build prompt (system + regulatory context + document, context-window aware)
+  8. LLM call (OpenAI, structured output with JSON Schema enforcement)
   9. Store result, mark job completed
 ```
+
+### Retrieval Strategy
+
+The worker uses a **hybrid retrieval** approach combining two complementary search methods:
+
+- **Vector search (semantic):** pgvector HNSW index with cosine distance. Finds chunks that are semantically similar to document content, even when different wording is used.
+- **BM25 full-text search (lexical):** PostgreSQL tsvector/GIN index. Catches exact keyword matches (e.g., specific regulation numbers like "Article 14.3") that embeddings may miss.
+- **Reciprocal Rank Fusion (RRF):** Combines results from both methods using rank position (not raw scores), with `k=60`. This avoids the problem of incomparable score scales between cosine distance and BM25 ts_rank.
+- **Cohere re-ranking:** The merged candidates are re-ranked by a dedicated cross-encoder model for final relevance ordering.
 
 ### Error Handling
 
 | Error Type | Behavior |
 |-----------|----------|
-| `RetryableError` | DB timeouts, embedding API failures, LLM API errors → BullMQ retries with exponential backoff |
-| `PermanentError` | Job/document not found, invalid LLM response, terminal job state → moves to failed, no retries |
+| `RetryableError` | DB timeouts, embedding API failures, LLM API errors, Cohere API errors → BullMQ retries with exponential backoff |
+| `PermanentError` | Job/document not found, terminal job state → moves to failed, no retries |
+| Cohere failure | Graceful degradation: falls back to original hybrid ranking, logs warning, pipeline continues |
 | Pipeline failure | `markFailed(jobId, errorMessage)` is called before re-throwing |
 
 ### Analysis Result Schema
@@ -107,8 +125,9 @@ interface AnalysisResult {
   summary: string;         // Overall compliance assessment (2-4 sentences)
   model: string;           // LLM model used (e.g., "gpt-4o-mini")
   documentChunks: number;  // Number of document chunks processed
-  rulesetChunksMatched: number; // Unique regulatory chunks retrieved
+  rulesetChunksMatched: number; // Unique regulatory chunks after re-ranking
   rulesetsConsulted: string[];  // Ruleset keys consulted
+  reranked: boolean;       // Whether Cohere re-ranking was applied
 }
 ```
 
@@ -149,11 +168,14 @@ cp apps/worker-ai/.env.example apps/worker-ai/.env
 |----------|---------|-------------|
 | `WORKER_AI_PORT` | `3001` | HTTP port for health checks |
 | `OPENAI_API_KEY` | (required) | OpenAI API key (shared for embeddings + LLM) |
-| `OPENAI_CHAT_MODEL` | `gpt-4o-mini` | LLM model for analysis |
+| `OPENAI_CHAT_MODEL` | `gpt-4o-mini` | LLM model for analysis (must support structured outputs) |
 | `OPENAI_CHAT_MAX_TOKENS` | `4096` | Max output tokens |
 | `OPENAI_CHAT_TEMPERATURE` | `0.1` | LLM temperature (low for deterministic analysis) |
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
 | `OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Embedding vector dimensions |
+| `COHERE_API_KEY` | (required) | Cohere API key for re-ranking |
+| `COHERE_RERANK_MODEL` | `rerank-v3.5` | Cohere rerank model |
+| `RERANK_TOP_N` | `10` | Number of chunks to keep after re-ranking |
 | `WORKER_AI_CONCURRENCY` | `5` | Max concurrent jobs |
 | `REDIS_HOST` | `localhost` | Redis host for BullMQ |
 | `DB_HOST` | `localhost` | PostgreSQL host |
@@ -170,4 +192,4 @@ See `.env.example` for the full list.
 
 ---
 
-**Last Updated:** March 4, 2026
+**Last Updated:** March 24, 2026

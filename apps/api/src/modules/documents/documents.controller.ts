@@ -12,11 +12,14 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply } from 'fastify';
+import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
+import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiAuthErrors,
+  ApiConflictError,
   ApiForbiddenError,
   ApiNotFoundError,
   ApiValidationError,
@@ -30,6 +33,9 @@ import {
   AnalysisJobResponseDto,
   AnalyzeDocumentDto,
   AnalyzeDocumentResponseDto,
+  ConfirmUploadResponseDto,
+  UploadUrlDto,
+  UploadUrlResponseDto,
 } from './dto';
 
 const RETRY_AFTER_SECONDS = 5;
@@ -76,6 +82,67 @@ export class DocumentsController {
     );
     setRetryAfterIfPending(reply, result.status);
     return result;
+  }
+
+  @Post('upload-url')
+  @Audit('DOCUMENT_UPLOAD_URL_GENERATED', { resourceType: 'documents' })
+  @UseGuards(TenantPermissionsGuard, EntitlementGuard)
+  @RequireAnyTenantPermission('documents:create')
+  @RequireEntitlement({ featureKey: 'document_scans', minValue: 1 })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Generate presigned S3 PUT URL for direct document upload',
+    description:
+      'Creates a document record in pending extraction state and returns a presigned S3 PUT URL ' +
+      'for the client to upload the file directly to the quarantine bucket. ' +
+      'The client must PUT the file to the returned URL with the matching Content-Type header. ' +
+      'No job is enqueued here — that happens on upload confirmation (next step).',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Presigned upload URL generated and document record created',
+    type: UploadUrlResponseDto,
+  })
+  @ApiValidationError()
+  @ApiAuthErrors()
+  @ApiForbiddenError(
+    'Insufficient permissions or document_scans quota exhausted',
+  )
+  getUploadUrl(
+    @Body() dto: UploadUrlDto,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<UploadUrlResponseDto> {
+    return this.documentsService.getUploadUrl(dto, user);
+  }
+
+  @Post(':documentId/confirm-upload')
+  @Audit('DOCUMENT_UPLOAD_CONFIRMED', { resourceType: 'documents' })
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:create')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Confirm document upload and enqueue ingestion job',
+    description:
+      'After uploading a file directly to S3 via the presigned URL, call this endpoint to confirm ' +
+      'the upload succeeded. The API validates the file exists in S3, checks the file size, ' +
+      'and enqueues a DOCUMENT_INGESTION job for text extraction.',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 202,
+    description: 'Upload confirmed and ingestion job enqueued',
+    type: ConfirmUploadResponseDto,
+  })
+  @ApiValidationError()
+  @ApiNotFoundError('Document')
+  @ApiConflictError('Document already confirmed (UPLOAD_ALREADY_CONFIRMED)')
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to confirm document upload')
+  confirmUpload(
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<ConfirmUploadResponseDto> {
+    return this.documentsService.confirmUpload(documentId, user);
   }
 
   @Post('analyze')

@@ -19,6 +19,7 @@ export class QueueProducerService {
     @Optional()
     @Inject(getQueueToken(QUEUE_NAMES.BILLING_PROCESSING))
     billingQueue: Queue | null,
+    @Optional()
     @Inject(getQueueToken(QUEUE_NAMES.DATA_INGESTION))
     ingestionQueue: Queue | null,
     @Optional()

@@ -9,7 +9,7 @@ variable "environment" {
 }
 
 variable "domain_name" {
-  description = "Primary domain for the certificate (e.g. staging.complytude.com)"
+  description = "Primary domain for the certificate (e.g. api-staging.complytude.com)"
   type        = string
 }
 

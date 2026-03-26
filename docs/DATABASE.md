@@ -43,7 +43,7 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 | Tenant-Scoped Tables | 2     |
 | Junction Tables      | 4     |
 | Audit Tables         | 1     |
-| Enums                | 9     |
+| Enums                | 11    |
 
 ---
 
@@ -714,25 +714,45 @@ These tables have **Row-Level Security (RLS) enabled** for tenant isolation.
 
 ### documents
 
-Tenant-specific generated documents.
+Tenant-specific documents. Supports both text-input (pasted content) and file-upload (S3-stored) documents.
 
-| Column                | Type         | Description                                |
-| --------------------- | ------------ | ------------------------------------------ |
-| `id`                  | UUID         | Primary key                                |
-| `tenant_id`           | UUID         | **RLS isolation key** (FK to tenants)      |
-| `title`               | VARCHAR(255) | Document title                             |
-| `content`             | TEXT         | Document content                           |
-| `metadata`            | JSONB        | Tags, custom fields, etc.                  |
-| `template_id`         | UUID         | FK to templates (which template was used)  |
-| `template_version_id` | UUID         | FK to template_versions (specific version) |
-| `generation_metadata` | JSONB        | AI model, parameters, etc.                 |
-| `created_by`          | UUID         | FK to users                                |
-| `created_at`          | TIMESTAMPTZ  | Creation timestamp                         |
-| `updated_at`          | TIMESTAMPTZ  | Last update timestamp                      |
+| Column                | Type                              | Description                                                                            |
+| --------------------- | --------------------------------- | -------------------------------------------------------------------------------------- |
+| `id`                  | UUID                              | Primary key                                                                            |
+| `tenant_id`           | UUID                              | **RLS isolation key** (FK to tenants)                                                  |
+| `title`               | VARCHAR(255)                      | Document title                                                                         |
+| `content`             | TEXT                              | Document content (required for text-input; populated after extraction for file-upload)  |
+| `metadata`            | JSONB                             | Tags, custom fields, etc.                                                              |
+| `template_id`         | UUID                              | FK to templates (which template was used)                                              |
+| `template_version_id` | UUID                              | FK to template_versions (specific version)                                             |
+| `generation_metadata` | JSONB                             | AI model, parameters, etc.                                                             |
+| `created_by`          | UUID                              | FK to users                                                                            |
+| `created_at`          | TIMESTAMPTZ                       | Creation timestamp                                                                     |
+| `updated_at`          | TIMESTAMPTZ                       | Last update timestamp                                                                  |
+| `source_type`         | `document_source_type` ENUM       | `text_input` (default) or `file_upload`                                                |
+| `s3_key`              | VARCHAR(1024)                     | Full S3 object key (includes tenant prefix). NULL for text-input                       |
+| `s3_bucket`           | VARCHAR(255)                      | Bucket name (`quarantine` or `clean`). NULL for text-input                             |
+| `original_filename`   | VARCHAR(512)                      | User's original filename for display/download                                          |
+| `file_size_bytes`     | BIGINT                            | File size for validation and display                                                   |
+| `mime_type`           | VARCHAR(255)                      | MIME type (e.g. `application/pdf`)                                                     |
+| `extraction_status`   | `document_extraction_status` ENUM | Extraction lifecycle: `pending`, `processing`, `completed`, `failed`. NULL for text-input |
+| `extraction_error`    | TEXT                              | Error message if extraction failed                                                     |
+| `extracted_at`        | TIMESTAMPTZ                       | When text extraction completed                                                         |
 
-**Critical Index:**
+**Enums:**
+
+- `document_source_type`: `text_input`, `file_upload`
+- `document_extraction_status`: `pending`, `processing`, `completed`, `failed`
+
+**Check Constraint:**
+
+- `chk_document_source`: text-input docs must have `content`; file-upload docs must have `s3_key`
+
+**Critical Indexes:**
 
 - `idx_documents_tenant_id` - **Required for RLS performance**
+- `idx_documents_extraction_status` - Partial index (WHERE extraction_status IS NOT NULL)
+- `idx_documents_s3_key` - Partial index (WHERE s3_key IS NOT NULL)
 
 **RLS Policies:**
 
@@ -740,21 +760,27 @@ Tenant-specific generated documents.
 -- SELECT Policy
 CREATE POLICY documents_select ON documents
 FOR SELECT USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- INSERT Policy
 CREATE POLICY documents_insert ON documents
 FOR INSERT WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
+
+-- UPDATE Policy
+CREATE POLICY documents_update ON documents
+FOR UPDATE
+USING (tenant_id = current_tenant_id_or_null() OR is_platform_admin())
+WITH CHECK (tenant_id = current_tenant_id_or_null() OR is_platform_admin());
 ```
 
 **What this means:**
 
-- Users can only see documents for their current tenant
-- Users can only create documents for their current tenant
-- No cross-tenant data access is possible
+- Users can only see/create/update documents for their current tenant
+- Platform admins (workers) can read and update any document via `transactionWithPlatformAdminContext`
+- No cross-tenant data access is possible for regular users
 
 ---
 
@@ -1002,4 +1028,4 @@ psql -d complytude -c "
 
 ---
 
-**Last Updated:** March 4, 2026
+**Last Updated:** March 25, 2026

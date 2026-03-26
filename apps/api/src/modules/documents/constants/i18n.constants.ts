@@ -12,6 +12,15 @@ export const DocumentsI18n = {
     LISTING_NOT_IMPLEMENTED: 'documents.errors.LISTING_NOT_IMPLEMENTED',
     RETRIEVAL_NOT_IMPLEMENTED: 'documents.errors.RETRIEVAL_NOT_IMPLEMENTED',
     DELETION_NOT_IMPLEMENTED: 'documents.errors.DELETION_NOT_IMPLEMENTED',
+    FILE_SIZE_EXCEEDS_LIMIT: 'documents.errors.FILE_SIZE_EXCEEDS_LIMIT',
+    UPLOAD_URL_GENERATION_FAILED:
+      'documents.errors.UPLOAD_URL_GENERATION_FAILED',
+    INVALID_DOCUMENT_TYPE: 'documents.errors.INVALID_DOCUMENT_TYPE',
+    UPLOAD_ALREADY_CONFIRMED: 'documents.errors.UPLOAD_ALREADY_CONFIRMED',
+    FILE_NOT_UPLOADED: 'documents.errors.FILE_NOT_UPLOADED',
+    FILE_SIZE_MISMATCH: 'documents.errors.FILE_SIZE_MISMATCH',
   },
-  messages: {},
+  messages: {
+    UPLOAD_CONFIRMED: 'documents.messages.UPLOAD_CONFIRMED',
+  },
 } as const;

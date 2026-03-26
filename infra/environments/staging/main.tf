@@ -95,11 +95,9 @@ module "ecr" {
 module "ses" {
   source = "../../modules/ses"
 
-  project_name  = var.project
-  environment   = var.environment
-  domain_name   = var.domain_name
-  from_email    = var.from_email
-  support_email = var.support_email
+  project_name = var.project
+  environment  = var.environment
+  domain_name  = var.domain_name
 }
 
 module "secrets" {
@@ -141,6 +139,9 @@ module "secrets" {
 
   # OpenAI (for workers)
   openai_api_key = var.openai_api_key
+
+  # Cohere (for worker-ai reranking)
+  cohere_api_key = var.cohere_api_key
 
   # Stripe
   stripe_secret_key          = var.stripe_secret_key
@@ -225,7 +226,7 @@ module "dns_record" {
   source = "../../modules/route53-record"
 
   zone_id      = module.route53.zone_id
-  record_name  = "staging"
+  record_name  = "api-staging"
   alb_dns_name = module.ecs.alb_dns_name
   alb_zone_id  = module.ecs.alb_zone_id
 }

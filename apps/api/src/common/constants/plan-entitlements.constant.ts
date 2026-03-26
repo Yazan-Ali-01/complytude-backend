@@ -139,6 +139,16 @@ export const FEATURE_CATALOG = {
     storage_type: 'bool',
     description: 'Export reports with tenant branding',
   },
+  document_scans: {
+    name: 'Document Scans',
+    feature_type: 'quota',
+    storage_type: 'int',
+    unit: 'scans',
+    creditable: true,
+    credit_cost: 5,
+    description:
+      'Number of document file scans (Textract extraction) per billing period',
+  },
 } as const satisfies Record<string, FeatureCatalogEntry>;
 
 export type FeatureKey = keyof typeof FEATURE_CATALOG;
@@ -256,6 +266,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'shared' },
     custom_playbooks: { value_bool: false },
     white_label_exports: { value_bool: false },
+    document_scans: { value_int: 0 },
   },
   shield: {
     documents_per_month: { value_int: 25 },
@@ -273,6 +284,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'shared' },
     custom_playbooks: { value_bool: false },
     white_label_exports: { value_bool: false },
+    document_scans: { value_int: 10 },
   },
   general_counsel: {
     documents_per_month: { value_int: 100 },
@@ -290,6 +302,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'row_level' },
     custom_playbooks: { value_bool: false },
     white_label_exports: { value_bool: false },
+    document_scans: { value_int: 50 },
   },
   infrastructure: {
     documents_per_month: { value_int: -1 }, // unlimited
@@ -307,6 +320,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'silo' },
     custom_playbooks: { value_bool: true },
     white_label_exports: { value_bool: true },
+    document_scans: { value_int: -1 }, // unlimited
   },
 };
 

@@ -38,10 +38,13 @@ s3_secret_key = ""
 s3_endpoint   = ""  # Empty for AWS S3
 
 # CORS — comma-separated origins
-cors_origins = "https://staging.complytude.com"
+cors_origins = "https://api-staging.complytude.com"
 
 # OpenAI — required for worker-ai and worker-ingestion
 openai_api_key = "sk-..."
+
+# Cohere — required for worker-ai reranking
+cohere_api_key = ""
 
 # ECS — image tag and desired counts
 ecs_image_tag                  = "latest"
