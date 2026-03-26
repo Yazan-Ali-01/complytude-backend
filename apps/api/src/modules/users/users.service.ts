@@ -10,6 +10,10 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { I18nService } from 'nestjs-i18n';
+import { SessionListResponseDto } from '../auth/dto/session-list-response.dto';
+import type { TenantSessionItemDto } from '../auth/dto/session-response.dto';
+import { SessionInvalidationService } from '../auth/services/session-invalidation.service';
+import { SessionService } from '../auth/services/session.service';
 import { UsersI18n } from './constants/i18n.constants';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -25,6 +29,8 @@ export class UsersService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly i18n: I18nService,
+    private readonly sessionInvalidationService: SessionInvalidationService,
+    private readonly sessionService: SessionService,
   ) {}
 
   /**
@@ -171,18 +177,13 @@ export class UsersService {
     );
 
     await this.databaseService.transaction(async (client) => {
-      // Update password
       await client.query(
         'UPDATE public.users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
         [newPasswordHash, userId],
       );
-
-      // Revoke all refresh tokens (force re-login on other devices)
-      await client.query(
-        'UPDATE public.refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL',
-        [userId],
-      );
     });
+
+    await this.sessionInvalidationService.invalidateAllUserSessions(userId);
 
     this.logger.log(`Password changed for user ${userId}`);
   }
@@ -340,6 +341,11 @@ export class UsersService {
       );
     }
 
+    const previous = existingAssociation.rows[0] as {
+      role_key: string;
+      is_active: boolean;
+    };
+
     // Prevent users from modifying their own admin status
     if (targetUserId === updaterId && updateUserDto.role) {
       throw new ForbiddenException(
@@ -379,6 +385,19 @@ export class UsersService {
 
     await this.databaseService.query(query, values);
 
+    const roleChanged =
+      updateUserDto.role !== undefined &&
+      updateUserDto.role !== previous.role_key;
+    const deactivated =
+      updateUserDto.isActive === false && previous.is_active === true;
+
+    if (roleChanged || deactivated) {
+      await this.sessionInvalidationService.invalidateTenantSessions(
+        targetUserId,
+        tenantId,
+      );
+    }
+
     this.logger.log(
       `User ${targetUserId} updated in tenant ${tenantId} by ${updaterId}`,
     );
@@ -414,20 +433,125 @@ export class UsersService {
       );
     }
 
-    // Delete the association
     await this.databaseService.query(
       'DELETE FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
       [targetUserId, tenantId],
     );
 
-    // Revoke refresh tokens for this user (they'll need to login again)
-    await this.databaseService.query(
-      'UPDATE public.refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL',
-      [targetUserId],
+    await this.sessionInvalidationService.invalidateTenantSessions(
+      targetUserId,
+      tenantId,
     );
 
     this.logger.log(
       `User ${targetUserId} removed from tenant ${tenantId} by ${removerId}`,
+    );
+  }
+
+  /**
+   * List a target user's active sessions scoped to a specific tenant.
+   * Requires the target user to be an active member of the tenant.
+   */
+  async listTenantUserSessions(
+    tenantId: string,
+    targetUserId: string,
+  ): Promise<SessionListResponseDto> {
+    await this.assertUserBelongsToTenant(targetUserId, tenantId);
+
+    const identitySessionIds =
+      await this.sessionService.getIdentitySessionIds(targetUserId);
+    const sessions: SessionListResponseDto['sessions'] = [];
+
+    for (const identitySessionId of identitySessionIds) {
+      const identitySession =
+        await this.sessionService.findIdentitySessionById(identitySessionId);
+      if (!identitySession || identitySession.userId !== targetUserId) continue;
+
+      const tenantSessions: TenantSessionItemDto[] = [];
+      for (const tenantSessionId of identitySession.activeTenantSessionIds) {
+        const tenantSession =
+          await this.sessionService.findTenantSessionById(tenantSessionId);
+
+        if (
+          !tenantSession ||
+          tenantSession.userId !== targetUserId ||
+          tenantSession.tenantId !== tenantId
+        ) {
+          continue;
+        }
+
+        tenantSessions.push({
+          sessionId: tenantSessionId,
+          tenantId: tenantSession.tenantId,
+          role: tenantSession.role,
+          createdAt: tenantSession.createdAt,
+          lastActivityAt: tenantSession.lastActivityAt,
+          isCurrent: false,
+        });
+      }
+
+      if (tenantSessions.length === 0) continue;
+
+      sessions.push({
+        identitySession: {
+          sessionId: identitySessionId,
+          deviceInfo: identitySession.deviceInfo,
+          ipAddress: identitySession.ipAddress,
+          geoLocation: identitySession.geoLocation,
+          sessionName: identitySession.sessionName,
+          createdAt: identitySession.createdAt,
+          lastActivityAt: identitySession.lastActivityAt,
+          isCurrent: false,
+        },
+        tenantSessions,
+      });
+    }
+
+    return { sessions };
+  }
+
+  /**
+   * Force logout all tenant sessions for a target user in a specific tenant.
+   * Requires the target user to be an active member of the tenant.
+   */
+  async forceLogoutUserFromTenantSessions(
+    tenantId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    await this.assertUserBelongsToTenant(targetUserId, tenantId);
+    await this.sessionInvalidationService.invalidateTenantSessions(
+      targetUserId,
+      tenantId,
+    );
+  }
+
+  /**
+   * Force logout a specific tenant session for a target user.
+   * Session must belong to target user and tenant.
+   */
+  async forceLogoutSpecificTenantSession(
+    tenantId: string,
+    targetUserId: string,
+    sessionId: string,
+  ): Promise<void> {
+    await this.assertUserBelongsToTenant(targetUserId, tenantId);
+
+    const tenantSession =
+      await this.sessionService.findTenantSessionById(sessionId);
+    if (
+      !tenantSession ||
+      tenantSession.userId !== targetUserId ||
+      tenantSession.tenantId !== tenantId
+    ) {
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_IN_TENANT),
+      );
+    }
+
+    await this.sessionService.deleteTenantSession(
+      sessionId,
+      targetUserId,
+      tenantId,
     );
   }
 
@@ -468,5 +592,27 @@ export class UsersService {
       isActive: user.is_active,
       joinedAt: user.joined_at,
     };
+  }
+
+  /**
+   * Ensure target user is an active member of tenant.
+   */
+  private async assertUserBelongsToTenant(
+    targetUserId: string,
+    tenantId: string,
+  ): Promise<void> {
+    const result = await this.databaseService.query(
+      `SELECT 1
+       FROM public.user_tenants
+       WHERE user_id = $1 AND tenant_id = $2 AND is_active = true
+       LIMIT 1`,
+      [targetUserId, tenantId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(
+        this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_IN_TENANT),
+      );
+    }
   }
 }

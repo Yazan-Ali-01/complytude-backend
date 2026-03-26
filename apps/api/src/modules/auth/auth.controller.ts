@@ -1,12 +1,15 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -17,7 +20,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
   ApiAuthenticatedResponses,
@@ -37,6 +40,7 @@ import {
 import {
   CurrentUserIdentity,
   CurrentUserIdentityRefresh,
+  CurrentUserTenant,
   CurrentUserTenantRefresh,
 } from './decorators/current-user.decorator';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -44,8 +48,11 @@ import { InvitationIdParamDto } from './dto/invitation-id-param.dto';
 import { InvitationListResponseDto } from './dto/invitation-list-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { LoginDto } from './dto/login.dto';
+import { RenameSessionDto } from './dto/rename-session.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResolveInvitationResponseDto } from './dto/resolve-invitation-response.dto';
+import { SessionIdParamDto } from './dto/session-id-param.dto';
+import { SessionListResponseDto } from './dto/session-list-response.dto';
 import { SignupDto } from './dto/signup.dto';
 import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
@@ -55,6 +62,7 @@ import type {
   AuthenticatedIdentityRefreshUser,
   AuthenticatedIdentityUser,
   AuthenticatedTenantRefreshUser,
+  AuthenticatedTenantUser,
 } from './strategies';
 
 @ApiTags('Authentication')
@@ -138,10 +146,11 @@ export class AuthController {
   @ApiPublicResponses()
   async login(
     @Body() loginDto: LoginDto,
+    @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<LoginResponseDto> {
     const { identityAccessToken, identityRefreshToken, ...loginResponse } =
-      await this.authService.login(loginDto);
+      await this.authService.login(loginDto, request);
 
     // Clear all auth cookies (in case the user somehow didn't logout before logging in again)
     this.authService.clearAllAuthCookies(reply);
@@ -242,17 +251,17 @@ export class AuthController {
     identityUser: AuthenticatedIdentityRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
-    const { identityAccessToken, identityRefreshToken } =
+    const { identityAccessToken } =
       await this.authService.refreshIdentityTokens(
         identityUser.userId,
         identityUser.email,
-        identityUser.refreshToken,
+        identityUser.sessionId,
       );
 
     this.authService.setIdentityTokens(
       reply,
       identityAccessToken,
-      identityRefreshToken,
+      identityUser.refreshToken,
     );
     return { message: 'Identity tokens refreshed successfully' };
   }
@@ -287,18 +296,17 @@ export class AuthController {
     tenantUser: AuthenticatedTenantRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
-    const { tenantAccessToken, tenantRefreshToken } =
-      await this.authService.refreshTenantTokens(
-        tenantUser.userId,
-        tenantUser.email,
-        tenantUser.tenantId,
-        tenantUser.refreshToken,
-      );
+    const { tenantAccessToken } = await this.authService.refreshTenantTokens(
+      tenantUser.userId,
+      tenantUser.email,
+      tenantUser.tenantId,
+      tenantUser.sessionId,
+    );
 
     this.authService.setTenantTokens(
       reply,
       tenantAccessToken,
-      tenantRefreshToken,
+      tenantUser.refreshToken,
     );
     return { message: 'Tenant tokens refreshed successfully' };
   }
@@ -315,9 +323,9 @@ export class AuthController {
   @SwaggerCookieAuth.identityRefreshToken()
   @SwaggerCookieAuth.tenantRefreshToken()
   @ApiOperation({
-    summary: 'Logout from all sessions',
+    summary: 'Logout from current session context',
     description:
-      'Invalidate all refresh tokens (identity + tenant) and clear all authentication cookies.',
+      'Deletes the corresponding Redis session(s) for the refresh token(s) sent (identity and/or tenant), then clears cookies. Use session DELETE endpoints for targeted or global logout.',
   })
   @ApiResponse({
     status: 200,
@@ -336,13 +344,227 @@ export class AuthController {
     tenantRefreshUser: AuthenticatedTenantRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
+    const userId =
+      identityRefreshUser?.userId ?? tenantRefreshUser?.userId ?? '';
     const { message } = await this.authService.logout(
-      identityRefreshUser?.userId ?? tenantRefreshUser?.userId,
-      identityRefreshUser?.refreshToken,
-      tenantRefreshUser?.refreshToken,
+      userId,
+      identityRefreshUser?.sessionId,
+      tenantRefreshUser?.sessionId,
+      tenantRefreshUser?.tenantId,
     );
     this.authService.clearAllAuthCookies(reply);
     return { message };
+  }
+
+  /**
+   * GET /auth/sessions/all
+   * List all sessions across all tenants (identity access token required)
+   */
+  @AuthOptions({ identity: true })
+  @Get('sessions/all')
+  @Audit('SESSION_LIST_ALL', { resourceType: 'sessions' })
+  @SwaggerCookieAuth.identityAccessToken()
+  @ApiOperation({
+    summary: 'List all sessions',
+    description:
+      'List identity sessions and linked tenant sessions across all tenants. Requires identity access token.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Sessions retrieved successfully',
+    type: SessionListResponseDto,
+  })
+  @ApiAuthenticatedResponses()
+  listAllSessions(
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
+  ): Promise<SessionListResponseDto> {
+    return this.authService.getAllSessions(
+      identityUser.userId,
+      identityUser.sessionId,
+      undefined,
+    );
+  }
+
+  /**
+   * GET /auth/sessions
+   * List sessions for current tenant (identity + tenant access token required)
+   */
+  @AuthOptions({ identity: true, tenant: true })
+  @Get('sessions')
+  @Audit('SESSION_LIST', { resourceType: 'sessions' })
+  @SwaggerCookieAuth.identityAccessToken()
+  @SwaggerCookieAuth.tenantAccessToken()
+  @ApiOperation({
+    summary: 'List sessions for current tenant',
+    description:
+      'List identity sessions and linked tenant sessions for the current tenant. Requires identity and tenant access tokens.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Sessions retrieved successfully',
+    type: SessionListResponseDto,
+  })
+  @ApiAuthenticatedResponses()
+  listSessions(
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
+    @CurrentUserTenant() tenantUser: AuthenticatedTenantUser,
+  ): Promise<SessionListResponseDto> {
+    return this.authService.getSessionsForCurrentTenant(
+      identityUser.userId,
+      tenantUser.tenantId,
+      identityUser.sessionId,
+      tenantUser.sessionId,
+    );
+  }
+
+  /**
+   * DELETE /auth/sessions/all
+   * Logout all sessions (all tenants, all devices)
+   */
+  @AuthOptions({ identity: true })
+  @Delete('sessions/all')
+  @Audit('SESSION_LOGOUT_ALL', { resourceType: 'sessions' })
+  @SwaggerCookieAuth.identityAccessToken()
+  @ApiOperation({
+    summary: 'Logout all sessions',
+    description:
+      'Invalidate all sessions across all tenants and devices. Clears all auth cookies.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Logged out successfully',
+    type: MessageResponseDto,
+  })
+  @ApiAuthenticatedResponses()
+  async logoutAllSessions(
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MessageResponseDto> {
+    const { message } = await this.authService.logoutAll(identityUser.userId);
+    this.authService.clearAllAuthCookies(reply);
+    return { message };
+  }
+
+  /**
+   * DELETE /auth/sessions
+   * Logout all sessions for current tenant only
+   */
+  @AuthOptions({ identity: true, tenant: true })
+  @Delete('sessions')
+  @Audit('SESSION_LOGOUT_TENANT', { resourceType: 'sessions' })
+  @SwaggerCookieAuth.identityAccessToken()
+  @SwaggerCookieAuth.tenantAccessToken()
+  @ApiOperation({
+    summary: 'Logout all sessions for current tenant',
+    description:
+      'Invalidate all tenant sessions for the current tenant across all devices. Clears tenant cookies only.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Logged out successfully',
+    type: MessageResponseDto,
+  })
+  @ApiAuthenticatedResponses()
+  async logoutCurrentTenantSessions(
+    @CurrentUserTenant() tenantUser: AuthenticatedTenantUser,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MessageResponseDto> {
+    const { message } = await this.authService.logoutCurrentTenant(
+      tenantUser.userId,
+      tenantUser.tenantId,
+    );
+    this.authService.clearTenantTokens(reply);
+    return { message };
+  }
+
+  /**
+   * DELETE /auth/sessions/:sessionId
+   * Logout a specific session (identity or tenant; identity cascades to linked tenant sessions)
+   */
+  @AuthOptions({ identity: true })
+  @Delete('sessions/:sessionId')
+  @Audit('SESSION_DELETED', {
+    resourceType: 'sessions',
+    resourceIdParam: 'sessionId',
+  })
+  @SwaggerCookieAuth.identityAccessToken()
+  @ApiOperation({
+    summary: 'Logout specific session',
+    description:
+      'Invalidate a specific identity or tenant session. Deleting an identity session cascades to all linked tenant sessions.',
+  })
+  @ApiParam({
+    name: 'sessionId',
+    description: 'Identity or tenant session UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Session invalidated successfully',
+    type: MessageResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Session not found',
+  })
+  @ApiAuthenticatedResponses()
+  async deleteSession(
+    @Param() params: SessionIdParamDto,
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MessageResponseDto> {
+    const { message } = await this.authService.deleteSession(
+      identityUser.userId,
+      params.sessionId,
+    );
+    const isCurrentIdentity = params.sessionId === identityUser.sessionId;
+    if (isCurrentIdentity) {
+      this.authService.clearAllAuthCookies(reply);
+    }
+    return { message };
+  }
+
+  /**
+   * PATCH /auth/sessions/:sessionId
+   * Rename an identity session (update sessionName)
+   */
+  @AuthOptions({ identity: true })
+  @Patch('sessions/:sessionId')
+  @Audit('SESSION_RENAMED', {
+    resourceType: 'sessions',
+    resourceIdParam: 'sessionId',
+  })
+  @SwaggerCookieAuth.identityAccessToken()
+  @ApiOperation({
+    summary: 'Rename session',
+    description:
+      'Update the user-customizable label for an identity session (e.g. "Work laptop"). Only identity sessions support renaming.',
+  })
+  @ApiParam({
+    name: 'sessionId',
+    description: 'Identity session UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Session renamed successfully',
+    type: MessageResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Session not found',
+  })
+  @ApiAuthenticatedResponses()
+  renameSession(
+    @Param() params: SessionIdParamDto,
+    @Body() dto: RenameSessionDto,
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
+  ): Promise<MessageResponseDto> {
+    return this.authService.renameSession(
+      identityUser.userId,
+      params.sessionId,
+      dto,
+    );
   }
 
   /**

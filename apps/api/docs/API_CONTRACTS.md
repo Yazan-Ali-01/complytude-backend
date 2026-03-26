@@ -216,6 +216,23 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
 | `tenantAccessToken`    | Tenant-scoped API access   | 30 min   | Sent with tenant-specific API requests                 |
 | `tenantRefreshToken`   | Tenant token renewal       | 14 days  | Used at `/auth/refresh/tenant` endpoint                |
 
+Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `tenant-session:{id}`). Guards verify the session still exists (with graceful degradation if Redis is unavailable). Refresh endpoints re-issue **access** tokens only; refresh JWTs are not rotated in PostgreSQL.
+
+### Session management API (`/api/v1/auth/sessions*`, admin)
+
+| Method   | Path                               | Auth                             | Description                                                      |
+| -------- | ---------------------------------- | -------------------------------- | ---------------------------------------------------------------- |
+| `GET`    | `/api/v1/auth/sessions/all`        | Identity access cookie           | List all identity + linked tenant sessions for the user          |
+| `GET`    | `/api/v1/auth/sessions`            | Identity + tenant access cookies | List sessions scoped to the current tenant                       |
+| `PATCH`  | `/api/v1/auth/sessions/:sessionId` | Identity access                  | Rename an identity session (`sessionName`)                       |
+| `DELETE` | `/api/v1/auth/sessions/:sessionId` | Identity access                  | Invalidate one session (identity deletes linked tenant sessions) |
+| `DELETE` | `/api/v1/auth/sessions`            | Identity + tenant                | Invalidate all tenant sessions for current tenant (cross-device) |
+| `DELETE` | `/api/v1/auth/sessions/all`        | Identity                         | Invalidate every session for the user (all tenants / devices)    |
+
+**Tenant admin** (`sessions:manage`): `GET|DELETE /api/v1/tenants/admin/users/:userId/sessions` and `DELETE .../sessions/:sessionId`.
+
+**System admin** (`platformRole === system_admin`): `GET /api/v1/admin/sessions/stats`, `GET /api/v1/admin/tenants/:tenantId/sessions`, `GET /api/v1/admin/users/:userId/sessions`, `DELETE /api/v1/admin/users/:userId/sessions`, `DELETE /api/v1/admin/sessions/:sessionId`. All audited as break-glass.
+
 ### Authentication Flow
 
 **Regular User Authentication:**
@@ -555,9 +572,9 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Request Schema:**
 
-| Field     | Type   | Required | Default | Validation             | Description                                                                 |
-| --------- | ------ | -------- | ------- | ---------------------- | --------------------------------------------------------------------------- |
-| `name`    | string | Yes      | -       | Min 1, max 255 chars   | Organization name                                                           |
+| Field     | Type   | Required | Default | Validation             | Description                                                                   |
+| --------- | ------ | -------- | ------- | ---------------------- | ----------------------------------------------------------------------------- |
+| `name`    | string | Yes      | -       | Min 1, max 255 chars   | Organization name                                                             |
 | `planKey` | enum   | No       | (trial) | One of valid plan keys | If omitted: 14-day trial on General Counsel. If provided: direct subscription |
 
 **Valid Plan Keys:** `navigator`, `shield`, `general_counsel`, `infrastructure` (see entitlements documentation for details)

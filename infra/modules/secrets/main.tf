@@ -59,16 +59,19 @@ resource "aws_secretsmanager_secret_version" "app" {
     REDIS_QUEUE_DB = "1"
     REDIS_KEY_PREFIX = "complytude:"
 
-    # JWT
+    # JWT (refresh JWT expiry aligned with Redis session max TTL — see SESSION_MAX_TTL)
     JWT_ACCESS_SECRET         = var.jwt_access_secret
     JWT_REFRESH_SECRET       = var.jwt_refresh_secret
     JWT_IDENTITY_SECRET      = var.jwt_identity_secret
     JWT_IDENTITY_REFRESH_SECRET = var.jwt_identity_refresh_secret
-    JWT_REFRESH_HASH_SECRET   = var.jwt_refresh_hash_secret
     JWT_ACCESS_EXPIRES_IN    = "30m"
-    JWT_REFRESH_EXPIRES_IN   = "14d"
     JWT_IDENTITY_EXPIRES_IN  = "10m"
-    JWT_IDENTITY_REFRESH_EXPIRES_IN = "14d"
+
+    # Redis-backed sessions (AuthModule) — refresh token JWT TTL uses jwt.refreshExpiresIn from SESSION_MAX_TTL
+    SESSION_MAX_TTL                    = "14d"
+    SESSION_IDLE_TIMEOUT               = "72h"
+    SESSION_MAX_PER_USER               = "5"
+    SESSION_ACTIVITY_THROTTLE_SECONDS  = "120"
 
     # S3
     S3_REGION   = var.s3_region

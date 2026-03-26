@@ -40,12 +40,34 @@ export const validationSchema = Joi.object({
   JWT_REFRESH_SECRET: Joi.string().required(),
   JWT_IDENTITY_SECRET: Joi.string().required(),
   JWT_IDENTITY_REFRESH_SECRET: Joi.string().required(),
-  JWT_REFRESH_HASH_SECRET: Joi.string().required(),
   JWT_ACCESS_EXPIRES_IN: Joi.string().default('30m'),
-  JWT_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
   JWT_IDENTITY_EXPIRES_IN: Joi.string().default('10m'),
-  JWT_IDENTITY_REFRESH_EXPIRES_IN: Joi.string().default('14d'),
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
+
+  // MaxMind GeoIP (optional — empty = geo disabled)
+  MAXMIND_LICENSE_KEY: Joi.string().allow('').optional().default(''),
+  MAXMIND_DB_PATH: Joi.string()
+    .allow('')
+    .optional()
+    .default('./data/GeoLite2-City.mmdb'),
+
+  // Session (Redis-backed)
+  SESSION_MAX_TTL: Joi.string().default('14d'),
+  SESSION_IDLE_TIMEOUT: Joi.string().default('72h'),
+  SESSION_MAX_PER_USER: Joi.number().integer().min(1).max(20).default(5),
+  SESSION_ACTIVITY_THROTTLE_SECONDS: Joi.number()
+    .integer()
+    .min(60)
+    .max(3600)
+    .default(120),
+  SESSION_STRICT_MODE: Joi.boolean().default(false),
+
+  // Email (Resend)
+  EMAIL_PROVIDER: Joi.string()
+    .valid('resend', 'ses', 'sendgrid')
+    .default('resend'),
+  EMAIL_API_KEY: Joi.string().allow('').default(''),
+  EMAIL_FROM: Joi.string().default('noreply@complytude.com'),
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
   /** When true, email methods return without calling SES (local/tests). */
   EMAIL_SKIP_SEND: Joi.string().valid('true', 'false').default('false'),

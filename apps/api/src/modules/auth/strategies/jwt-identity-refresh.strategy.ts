@@ -41,7 +41,6 @@ export class JwtIdentityRefreshStrategy extends PassportStrategy(
     req: FastifyRequest,
     payload: IdentityRefreshPayload,
   ): AuthenticatedIdentityRefreshUser {
-    // Ensure it's an identity refresh token
     const i18n = I18nContext.current();
     if (payload.type !== IDENTITY_REFRESH_PAYLOAD_TYPE) {
       this.logger.warn(
@@ -64,6 +63,7 @@ export class JwtIdentityRefreshStrategy extends PassportStrategy(
     return {
       userId: payload.sub,
       email: payload.email,
+      sessionId: payload.sessionId ?? '',
       refreshToken,
     };
   }

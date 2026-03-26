@@ -151,7 +151,7 @@ BEGIN
     SELECT COUNT(*) INTO doc_tenant2 FROM public.documents WHERE tenant_id = '22222222-2222-4222-8222-222222222222';
     SELECT COUNT(*) INTO doc_tenant3 FROM public.documents WHERE tenant_id = '33333333-2222-4222-8222-333333333333';
     SELECT COUNT(*) INTO total_docs FROM public.documents;
-    
+
     RAISE NOTICE '=========================';
     RAISE NOTICE 'Document Seed Summary:';
     RAISE NOTICE '=========================';
@@ -167,7 +167,7 @@ BEGIN
     RAISE NOTICE '=========================';
 END $$;
 
-SELECT 
+SELECT
     t.name as tenant_name,
     t.slug as tenant_slug,
     d.title as document_title,

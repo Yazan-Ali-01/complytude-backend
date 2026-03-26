@@ -36,7 +36,6 @@ export class JwtIdentityAccessStrategy extends PassportStrategy(
   }
 
   validate(payload: IdentityPayload): AuthenticatedIdentityUser {
-    // Ensure it's an identity access token
     if (payload.type !== IDENTITY_PAYLOAD_TYPE) {
       this.logger.warn(
         `Invalid token type: expected ${String(IDENTITY_PAYLOAD_TYPE)}, got ${String(payload.type)}`,
@@ -47,12 +46,12 @@ export class JwtIdentityAccessStrategy extends PassportStrategy(
       );
     }
 
-    // Return user information to be attached to request.auth.identity
     return {
       userId: payload.sub,
       email: payload.email,
       isVerified: payload.isVerified ?? false,
       platformRole: payload.platformRole ?? null,
+      sessionId: payload.sessionId ?? '',
     };
   }
 }

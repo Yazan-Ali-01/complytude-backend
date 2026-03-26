@@ -40,7 +40,6 @@ export class JwtTenantRefreshStrategy extends PassportStrategy(
     req: FastifyRequest,
     payload: TenantRefreshPayload,
   ): AuthenticatedTenantRefreshUser {
-    // Ensure it's a tenant refresh token
     const i18n = I18nContext.current();
     if (payload.type !== TENANT_REFRESH_PAYLOAD_TYPE) {
       this.logger.warn(
@@ -64,6 +63,7 @@ export class JwtTenantRefreshStrategy extends PassportStrategy(
       userId: payload.sub,
       email: payload.email,
       tenantId: payload.tenantId,
+      sessionId: payload.sessionId ?? '',
       refreshToken,
     };
   }

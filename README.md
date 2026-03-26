@@ -345,11 +345,13 @@ JWT_ACCESS_SECRET=your-super-secret-jwt-access-key-change-this-in-production
 JWT_REFRESH_SECRET=your-super-secret-jwt-refresh-key-change-this-in-production
 JWT_IDENTITY_SECRET=your-super-secret-jwt-identity-key-change-this-in-production
 JWT_IDENTITY_REFRESH_SECRET=your-super-secret-jwt-identity-refresh-key-change-this-in-production
-JWT_REFRESH_HASH_SECRET=your-super-secret-jwt-refresh-hash-key-change-this-in-production
 JWT_ACCESS_EXPIRES_IN=30m
-JWT_REFRESH_EXPIRES_IN=14d
 JWT_IDENTITY_EXPIRES_IN=15m
-JWT_IDENTITY_REFRESH_EXPIRES_IN=14d
+# Redis-backed sessions — also drives identity + tenant refresh JWT expiry (jwt.refreshExpiresIn)
+SESSION_MAX_TTL=14d
+SESSION_IDLE_TIMEOUT=72h
+SESSION_MAX_PER_USER=5
+SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
 # S3/MinIO Storage
 S3_ENDPOINT=http://localhost:9000

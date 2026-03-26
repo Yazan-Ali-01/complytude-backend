@@ -12,7 +12,6 @@ BEGIN;
 -- =========================
 
 CREATE TYPE invitation_status AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'REVOKED', 'EXPIRED');
-CREATE TYPE refresh_token_type AS ENUM ('identity', 'tenant');
 
 -- =========================
 -- Tenants
@@ -356,35 +355,6 @@ COMMENT ON CONSTRAINT check_role_key_format ON public.user_tenants IS 'Ensures r
 -- =========================
 -- Auth Artifacts
 -- =========================
-CREATE TABLE public.refresh_tokens (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id      UUID NOT NULL,
-    token_hash   VARCHAR(255) NOT NULL,
-    token_type   refresh_token_type NOT NULL DEFAULT 'tenant',
-    tenant_id    UUID,
-    expires_at   TIMESTAMPTZ NOT NULL,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    revoked_at   TIMESTAMPTZ,
-
-    CONSTRAINT fk_refresh_tokens_user
-        FOREIGN KEY (user_id)
-        REFERENCES public.users(id)
-        ON DELETE CASCADE
-        ON UPDATE CASCADE,
-
-    CONSTRAINT fk_refresh_tokens_tenant
-        FOREIGN KEY (tenant_id)
-        REFERENCES public.tenants(id)
-        ON DELETE CASCADE
-        ON UPDATE CASCADE
-);
-
-COMMENT ON TABLE public.refresh_tokens IS 'Refresh tokens for session management (JWT refresh flow)';
-COMMENT ON COLUMN public.refresh_tokens.token_hash IS 'Hashed refresh token value';
-COMMENT ON COLUMN public.refresh_tokens.token_type IS 'Token type: identity, tenant';
-COMMENT ON COLUMN public.refresh_tokens.tenant_id IS 'Tenant ID for tenant-scoped refresh tokens (NULL for identity tokens)';
-COMMENT ON COLUMN public.refresh_tokens.revoked_at IS 'Timestamp when token was revoked (NULL if still valid)';
-
 CREATE TABLE public.email_verifications (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID NOT NULL,
@@ -538,25 +508,6 @@ WHERE is_active = true;
 
 -- Index for tenant-based queries (WHERE tenant_id = ?)
 CREATE INDEX idx_user_tenants_tenant_id ON public.user_tenants(tenant_id);
-
--- Refresh Tokens
--- Composite partial index for identity token refresh
--- Covers: WHERE user_id = ? AND token_hash = ? AND token_type = 'identity' AND revoked_at IS NULL
-CREATE INDEX idx_refresh_tokens_user_token_identity ON public.refresh_tokens(user_id, token_hash, token_type)
-WHERE token_type = 'identity' AND revoked_at IS NULL;
-
--- Composite partial index for tenant token refresh
--- Covers: WHERE user_id = ? AND tenant_id = ? AND token_hash = ? AND token_type = 'tenant' AND revoked_at IS NULL
-CREATE INDEX idx_refresh_tokens_user_tenant_token ON public.refresh_tokens(user_id, tenant_id, token_hash, token_type)
-WHERE token_type = 'tenant' AND revoked_at IS NULL;
-
--- Index for revoking all user tokens (WHERE user_id = ? AND revoked_at IS NULL)
-CREATE INDEX idx_refresh_tokens_user_active ON public.refresh_tokens(user_id)
-WHERE revoked_at IS NULL;
-
--- Index for cleanup queries (WHERE expires_at < NOW())
-CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at)
-WHERE revoked_at IS NULL;
 
 -- Email Verifications
 -- Composite partial index for verification lookup
@@ -829,11 +780,6 @@ DROP INDEX IF EXISTS public.idx_tenant_roles_key_system;
 DROP INDEX IF EXISTS public.idx_password_resets_token_active;
 DROP INDEX IF EXISTS public.idx_email_verifications_token_active;
 
-DROP INDEX IF EXISTS public.idx_refresh_tokens_expires_at;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_user_active;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_user_tenant_token;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_user_token_identity;
-
 DROP INDEX IF EXISTS public.idx_user_tenants_tenant_id;
 DROP INDEX IF EXISTS public.idx_user_tenants_user_tenant_active;
 DROP INDEX IF EXISTS public.idx_user_tenants_user_active;
@@ -887,7 +833,6 @@ DROP INDEX IF EXISTS public.idx_platform_roles_key;
 DROP TABLE IF EXISTS public.invitations;
 DROP TABLE IF EXISTS public.password_resets;
 DROP TABLE IF EXISTS public.email_verifications;
-DROP TABLE IF EXISTS public.refresh_tokens;
 DROP TABLE IF EXISTS public.user_tenants;
 DROP TABLE IF EXISTS public.audit_logs;
 DROP TABLE IF EXISTS public.platform_role_permissions;
@@ -900,7 +845,6 @@ DROP TABLE IF EXISTS public.users;
 DROP TABLE IF EXISTS public.tenants;
 
 -- Drop ENUMs
-DROP TYPE IF EXISTS refresh_token_type;
 DROP TYPE IF EXISTS invitation_status;
 
 COMMIT;

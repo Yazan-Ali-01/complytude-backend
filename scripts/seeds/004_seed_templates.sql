@@ -14,8 +14,8 @@ BEGIN;
 -- Note: created_by references test users from 003_seed_test_tenants_users.sql
 -- Note: category_id and authority_id reference data from 001 and 002
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by) 
-SELECT 
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
+SELECT
     '10000000-0000-0000-0000-000000000001'::UUID,
     'dmcc_employment_limited_en_v1',
     'DMCC Limited Employment Contract',
@@ -28,14 +28,14 @@ SELECT
     'https://s3.complytude.test/templates/dmcc_employment_limited_v1.docx',
     'https://s3.complytude.test/thumbnails/dmcc_employment_limited_v1.png',
     '{"pages": 5, "fields_count": 18, "compliance_version": "2024.1", "last_audit": "2024-12-01"}',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'employment' AND a.code = 'DMCC'
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
-SELECT 
+SELECT
     '10000000-0000-0000-0000-000000000002'::UUID,
     'difc_nda_mutual_en_v1',
     'DIFC Mutual Non-Disclosure Agreement',
@@ -48,14 +48,14 @@ SELECT
     'https://s3.complytude.test/templates/difc_nda_mutual_v1.docx',
     'https://s3.complytude.test/thumbnails/difc_nda_mutual_v1.png',
     '{"pages": 3, "fields_count": 12, "compliance_version": "2024.1"}',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'nda' AND a.code = 'DIFC'
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
-SELECT 
+SELECT
     '10000000-0000-0000-0000-000000000003'::UUID,
     'ded_freelance_service_en_v1',
     'DED Freelance Service Agreement',
@@ -68,14 +68,14 @@ SELECT
     'https://s3.complytude.test/templates/ded_freelance_v1.docx',
     'https://s3.complytude.test/thumbnails/ded_freelance_v1.png',
     '{"pages": 4, "fields_count": 15, "compliance_version": "2024.1"}',
-    'dddddddd-dddd-dddd-dddd-dddddddddddd'::UUID
+    'dddddddd-dddd-4ddd-dddd-dddddddddddd'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'freelance' AND a.code = 'DED'
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
-SELECT 
+SELECT
     '10000000-0000-0000-0000-000000000004'::UUID,
     'adgm_partnership_agreement_en_v1',
     'ADGM Partnership Agreement',
@@ -88,14 +88,14 @@ SELECT
     'https://s3.complytude.test/templates/adgm_partnership_v2.docx',
     'https://s3.complytude.test/thumbnails/adgm_partnership_v2.png',
     '{"pages": 8, "fields_count": 25, "compliance_version": "2024.2"}',
-    'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID
+    'ffffffff-ffff-4fff-ffff-ffffffffffff'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'partnership' AND a.code = 'ADGM'
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
-SELECT 
+SELECT
     '10000000-0000-0000-0000-000000000005'::UUID,
     'ifza_commercial_lease_en_v1',
     'IFZA Commercial Lease Agreement',
@@ -108,7 +108,7 @@ SELECT
     'https://s3.complytude.test/templates/ifza_lease_v1.docx',
     'https://s3.complytude.test/thumbnails/ifza_lease_v1.png',
     '{"pages": 6, "fields_count": 20, "compliance_version": "2024.1"}',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'lease' AND a.code = 'IFZA'
@@ -137,7 +137,7 @@ VALUES (
     'https://s3.complytude.test/templates/dmcc_employment_limited_v1.docx',
     'Initial version - DMCC compliance requirements',
     true,
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
 ) ON CONFLICT ON CONSTRAINT uq_template_versions_template_version DO NOTHING;
 
 -- Version for DIFC NDA
@@ -158,7 +158,7 @@ VALUES (
     'https://s3.complytude.test/templates/difc_nda_mutual_v1.docx',
     'Initial version - DIFC common law provisions',
     true,
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
 ) ON CONFLICT ON CONSTRAINT uq_template_versions_template_version DO NOTHING;
 
 -- Version 1.0.0 for ADGM Partnership
@@ -177,7 +177,7 @@ VALUES (
     'https://s3.complytude.test/templates/adgm_partnership_v1.docx',
     'Initial version',
     false,
-    'ffffffff-ffff-ffff-ffff-ffffffffffff'
+    'ffffffff-ffff-4fff-ffff-ffffffffffff'
 ) ON CONFLICT ON CONSTRAINT uq_template_versions_template_version DO NOTHING;
 
 -- Version 2.0.0 for ADGM Partnership (current/active)
@@ -199,7 +199,7 @@ VALUES (
     'https://s3.complytude.test/templates/adgm_partnership_v2.docx',
     'Added ADGM license field, capital contribution, and profit sharing provisions',
     true,
-    'ffffffff-ffff-ffff-ffff-ffffffffffff'
+    'ffffffff-ffff-4fff-ffff-ffffffffffff'
 ) ON CONFLICT ON CONSTRAINT uq_template_versions_template_version DO NOTHING;
 
 COMMIT;
@@ -215,7 +215,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*) INTO template_count FROM public.templates;
     SELECT COUNT(*) INTO version_count FROM public.template_versions;
-    
+
     RAISE NOTICE '=========================';
     RAISE NOTICE 'Template Seed Summary:';
     RAISE NOTICE '=========================';
@@ -225,7 +225,7 @@ BEGIN
 END $$;
 
 -- Display seeded templates
-SELECT 
+SELECT
     t.key,
     t.name,
     t.current_version,

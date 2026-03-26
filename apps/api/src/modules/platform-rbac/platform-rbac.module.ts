@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { PlatformPermissionsGuard } from '../../common/guards/platform-permissions.guard';
+import { SystemAdminGuard } from '../../common/guards/system-admin.guard';
 import { PlatformRolesRepository } from '../../repositories/platform-rbac/platform-roles.repository';
 import { PlatformRbacSyncService } from './platform-rbac-sync.service';
 import { PlatformRbacService } from './platform-rbac.service';
@@ -12,11 +13,13 @@ import { PlatformRbacService } from './platform-rbac.service';
     PlatformRbacSyncService,
     PlatformRolesRepository,
     PlatformPermissionsGuard,
+    SystemAdminGuard,
   ],
   exports: [
     PlatformRbacService,
     PlatformRolesRepository,
     PlatformPermissionsGuard,
+    SystemAdminGuard,
   ],
 })
 export class PlatformRbacModule {}

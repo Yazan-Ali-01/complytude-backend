@@ -1,13 +1,13 @@
+import { INGESTION_JOB_NAMES, QUEUE_NAMES } from '@lib/queue';
 import {
   BadRequestException,
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { INGESTION_JOB_NAMES, QUEUE_NAMES } from '@lib/queue';
-import { DocumentRepository } from 'src/repositories/documents/document.repository';
+import type { AuthenticatedTenantUser } from 'src/modules/auth/strategies';
 import { DocumentsService } from 'src/modules/documents/documents.service';
 import { StorageService } from 'src/modules/storage/storage.service';
-import type { AuthenticatedTenantUser } from 'src/modules/auth/strategies';
+import { DocumentRepository } from 'src/repositories/documents/document.repository';
 import { createTestTenant, createTestUser } from '../factories';
 import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp } from '../setup/test-app.factory';
@@ -41,9 +41,8 @@ describe('DocumentsService.confirmUpload', () => {
       email: 'test@example.com',
       tenantId,
       role: 'admin',
-      tenantRole: 'admin',
-      tenantPermissions: ['documents:create'],
-    } as AuthenticatedTenantUser;
+      sessionId: 'test-tenant-session-id',
+    };
   }, 15000);
 
   afterAll(async () => {

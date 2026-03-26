@@ -35,7 +35,6 @@ GRANT SELECT, INSERT ON public.audit_logs TO app_user;
 
 -- Auth artifact tables
 -- Note: DELETE is granted for cleanup_expired_tokens() function
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.refresh_tokens TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.email_verifications TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.password_resets TO app_user;
 
@@ -77,7 +76,6 @@ REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.invitations FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.password_resets FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.email_verifications FROM app_user;
-REVOKE SELECT, INSERT, UPDATE, DELETE ON public.refresh_tokens FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.user_tenants FROM app_user;
 REVOKE SELECT, INSERT ON public.audit_logs FROM app_user;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON public.platform_role_permissions FROM app_user;
