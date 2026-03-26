@@ -60,6 +60,7 @@ export const validationSchema = Joi.object({
     .min(60)
     .max(3600)
     .default(120),
+  SESSION_STRICT_MODE: Joi.boolean().default(false),
 
   // Email (Resend)
   EMAIL_PROVIDER: Joi.string()

@@ -18,6 +18,12 @@ import {
   IdentitySessionData,
   TenantSessionData,
 } from '../interfaces/session.interface';
+import type {
+  UserIdentitySessionItem,
+  UserSessionGroup,
+  UserSessionListResult,
+  UserTenantSessionItem,
+} from '../interfaces/session.interface';
 
 /** Sentinel date for Lua script — larger than any real ISO createdAt */
 const OLDEST_SENTINEL = '9999-12-31T23:59:59.999Z';
@@ -68,6 +74,17 @@ export class SessionService {
     const last = new Date(lastActivityAt).getTime();
     const now = Date.now();
     return now - last > this.idleTimeoutSeconds * 1000;
+  }
+
+  /**
+   * Compute remaining absolute TTL from createdAt.
+   * Returns seconds remaining, or 0 if already expired.
+   */
+  private remainingTtlSeconds(createdAt: string): number {
+    const created = new Date(createdAt).getTime();
+    if (Number.isNaN(created)) return this.maxTtlSeconds;
+    const elapsed = Math.floor((Date.now() - created) / 1000);
+    return Math.max(0, this.maxTtlSeconds - elapsed);
   }
 
   // ========== Identity Session CRUD ==========
@@ -188,17 +205,14 @@ export class SessionService {
       })
       .then((data) => {
         if (!data) return;
-        const throttleKey = SESSION_KEYS.sessionActivity(sessionId);
+        const ttl = this.remainingTtlSeconds(data.createdAt);
+        if (ttl <= 0) return;
         const updated: IdentitySessionData = {
           ...data,
           lastActivityAt: new Date().toISOString(),
         };
         return Promise.all([
-          this.redis.set(
-            SESSION_KEYS.identitySession(sessionId),
-            updated,
-            this.maxTtlSeconds,
-          ),
+          this.redis.set(SESSION_KEYS.identitySession(sessionId), updated, ttl),
           this.redis.set(throttleKey, '1', this.activityThrottleSeconds),
         ]);
       })
@@ -232,15 +246,18 @@ export class SessionService {
     const identitySession =
       await this.redis.get<IdentitySessionData>(identityKey);
     if (identitySession) {
-      const updated = {
-        ...identitySession,
-        activeTenantSessionIds: [
-          ...identitySession.activeTenantSessionIds,
-          sessionId,
-        ],
-        lastActivityAt: new Date().toISOString(),
-      };
-      await this.redis.set(identityKey, updated, this.maxTtlSeconds);
+      const ttl = this.remainingTtlSeconds(identitySession.createdAt);
+      if (ttl > 0) {
+        const updated = {
+          ...identitySession,
+          activeTenantSessionIds: [
+            ...identitySession.activeTenantSessionIds,
+            sessionId,
+          ],
+          lastActivityAt: new Date().toISOString(),
+        };
+        await this.redis.set(identityKey, updated, ttl);
+      }
     }
   }
 
@@ -292,18 +309,22 @@ export class SessionService {
         SESSION_KEYS.identitySession(tenantData.identitySessionId),
       );
       if (identitySession) {
-        const updated: IdentitySessionData = {
-          ...identitySession,
-          activeTenantSessionIds: identitySession.activeTenantSessionIds.filter(
-            (id) => id !== sessionId,
-          ),
-        };
-        pipeline.set(
-          SESSION_KEYS.identitySession(tenantData.identitySessionId),
-          JSON.stringify(updated),
-          'EX',
-          this.maxTtlSeconds,
-        );
+        const ttl = this.remainingTtlSeconds(identitySession.createdAt);
+        if (ttl > 0) {
+          const updated: IdentitySessionData = {
+            ...identitySession,
+            activeTenantSessionIds:
+              identitySession.activeTenantSessionIds.filter(
+                (id) => id !== sessionId,
+              ),
+          };
+          pipeline.set(
+            SESSION_KEYS.identitySession(tenantData.identitySessionId),
+            JSON.stringify(updated),
+            'EX',
+            ttl,
+          );
+        }
       }
     }
 
@@ -326,17 +347,15 @@ export class SessionService {
       })
       .then((data) => {
         if (!data) return;
+        const ttl = this.remainingTtlSeconds(data.createdAt);
+        if (ttl <= 0) return;
         const now = new Date().toISOString();
         const updated: TenantSessionData = {
           ...data,
           lastActivityAt: now,
         };
         const promises: Promise<unknown>[] = [
-          this.redis.set(
-            SESSION_KEYS.tenantSession(sessionId),
-            updated,
-            this.maxTtlSeconds,
-          ),
+          this.redis.set(SESSION_KEYS.tenantSession(sessionId), updated, ttl),
           this.redis.set(throttleKey, '1', this.activityThrottleSeconds),
         ];
         if (data.identitySessionId) {
@@ -357,12 +376,10 @@ export class SessionService {
   ): Promise<boolean> {
     const data = await this.findIdentitySessionById(sessionId);
     if (!data || data.userId !== userId) return false;
+    const ttl = this.remainingTtlSeconds(data.createdAt);
+    if (ttl <= 0) return false;
     const updated = { ...data, geoLocation };
-    await this.redis.set(
-      SESSION_KEYS.identitySession(sessionId),
-      updated,
-      this.maxTtlSeconds,
-    );
+    await this.redis.set(SESSION_KEYS.identitySession(sessionId), updated, ttl);
     return true;
   }
 
@@ -374,12 +391,10 @@ export class SessionService {
   ): Promise<boolean> {
     const data = await this.findIdentitySessionById(sessionId);
     if (!data || data.userId !== userId) return false;
+    const ttl = this.remainingTtlSeconds(data.createdAt);
+    if (ttl <= 0) return false;
     const updated = { ...data, sessionName };
-    await this.redis.set(
-      SESSION_KEYS.identitySession(sessionId),
-      updated,
-      this.maxTtlSeconds,
-    );
+    await this.redis.set(SESSION_KEYS.identitySession(sessionId), updated, ttl);
     return true;
   }
 
@@ -396,6 +411,120 @@ export class SessionService {
     return this.redis.smembers(
       SESSION_KEYS.userTenantSessions(userId, tenantId),
     );
+  }
+
+  // ========== User-facing session listings ==========
+
+  /**
+   * List sessions for current tenant only.
+   * Returns identity sessions that have at least one tenant session in the given tenant.
+   */
+  async getUserSessionsForTenant(
+    userId: string,
+    tenantId: string,
+    currentIdentitySessionId?: string,
+    currentTenantSessionId?: string,
+  ): Promise<UserSessionListResult> {
+    const identitySessionIds = await this.getIdentitySessionIds(userId);
+    const tenantSessionIds = await this.getTenantSessionIds(userId, tenantId);
+
+    const identityIdsWithTenantInScope = new Set<string>();
+    for (const tsid of tenantSessionIds) {
+      const ts = await this.findTenantSessionById(tsid);
+      if (ts) identityIdsWithTenantInScope.add(ts.identitySessionId);
+    }
+
+    const sessions: UserSessionGroup[] = [];
+    for (const iid of identitySessionIds) {
+      if (!identityIdsWithTenantInScope.has(iid)) continue;
+      const identitySession = await this.findIdentitySessionById(iid);
+      if (!identitySession) continue;
+
+      const tenantSessions: UserTenantSessionItem[] = [];
+      for (const tsid of identitySession.activeTenantSessionIds) {
+        const ts = await this.findTenantSessionById(tsid);
+        if (!ts || ts.tenantId !== tenantId) continue;
+        tenantSessions.push({
+          sessionId: tsid,
+          tenantId: ts.tenantId,
+          role: ts.role,
+          createdAt: ts.createdAt,
+          lastActivityAt: ts.lastActivityAt,
+          isCurrent: tsid === currentTenantSessionId,
+        });
+      }
+      if (tenantSessions.length === 0) continue;
+
+      sessions.push({
+        identitySession: this.toUserIdentityItem(
+          identitySession,
+          iid,
+          currentIdentitySessionId,
+        ),
+        tenantSessions,
+      });
+    }
+
+    return { sessions };
+  }
+
+  /**
+   * List all sessions across all tenants for a user.
+   */
+  async getUserAllSessions(
+    userId: string,
+    currentIdentitySessionId?: string,
+    currentTenantSessionId?: string,
+  ): Promise<UserSessionListResult> {
+    const identitySessionIds = await this.getIdentitySessionIds(userId);
+    const sessions: UserSessionGroup[] = [];
+
+    for (const iid of identitySessionIds) {
+      const identitySession = await this.findIdentitySessionById(iid);
+      if (!identitySession) continue;
+
+      const tenantSessions: UserTenantSessionItem[] = [];
+      for (const tsid of identitySession.activeTenantSessionIds) {
+        const ts = await this.findTenantSessionById(tsid);
+        if (!ts) continue;
+        tenantSessions.push({
+          sessionId: tsid,
+          tenantId: ts.tenantId,
+          role: ts.role,
+          createdAt: ts.createdAt,
+          lastActivityAt: ts.lastActivityAt,
+          isCurrent: tsid === currentTenantSessionId,
+        });
+      }
+
+      sessions.push({
+        identitySession: this.toUserIdentityItem(
+          identitySession,
+          iid,
+          currentIdentitySessionId,
+        ),
+        tenantSessions,
+      });
+    }
+
+    return { sessions };
+  }
+
+  private toUserIdentityItem(
+    data: IdentitySessionData,
+    sessionId: string,
+    currentIdentitySessionId?: string,
+  ): UserIdentitySessionItem {
+    return {
+      sessionId,
+      deviceInfo: data.deviceInfo,
+      ipAddress: data.ipAddress,
+      geoLocation: data.geoLocation,
+      sessionName: data.sessionName,
+      createdAt: data.createdAt,
+      lastActivityAt: data.lastActivityAt,
+      isCurrent: sessionId === currentIdentitySessionId,
+    };
   }
 
   // ========== System admin (read-only stats + sanitized listings) ==========
@@ -481,36 +610,64 @@ export class SessionService {
   }
 
   /**
-   * Aggregate global session stats from Redis (SCAN). Read-only — does not
-   * delete idle sessions (excludes idle-expired from counts).
+   * Aggregate global session stats from Redis (SCAN + MGET).
+   * Read-only — does not delete idle sessions (excludes idle-expired from counts).
+   *
+   * TODO: Replace SCAN with maintained Redis counters/hashes once session volume
+   * grows large enough for SCAN to become a bottleneck (monitor the timing log).
    */
   async getGlobalSessionStats(): Promise<AdminSessionStatsResponseDto> {
+    const start = Date.now();
     const identityKeys = await this.redis.scanKeys('*identity-session:*');
     const tenantKeys = await this.redis.scanKeys('*tenant-session:*');
+    const scanMs = Date.now() - start;
+    this.logger.log(
+      `SCAN completed: ${identityKeys.length} identity keys, ${tenantKeys.length} tenant keys in ${scanMs}ms`,
+    );
 
     const byTenantId: Record<string, number> = {};
     const byDeviceType: Record<string, number> = {};
     let totalIdentitySessions = 0;
     let totalTenantSessions = 0;
 
-    for (const fullKey of identityKeys) {
-      const sid = this.sessionIdFromScannedKey(fullKey, 'identity-session:');
-      if (!sid) continue;
-      const data = await this.peekIdentitySessionData(sid);
-      if (!data) continue;
-      totalIdentitySessions++;
-      const dt = data.deviceInfo?.deviceType?.trim() || 'unknown';
-      byDeviceType[dt] = (byDeviceType[dt] ?? 0) + 1;
+    const identitySids = identityKeys
+      .map((k) => this.sessionIdFromScannedKey(k, 'identity-session:'))
+      .filter((s): s is string => s !== null);
+
+    if (identitySids.length > 0) {
+      const identityRedisKeys = identitySids.map((sid) =>
+        SESSION_KEYS.identitySession(sid),
+      );
+      const identityDataList: (IdentitySessionData | null)[] =
+        await this.redis.mget<IdentitySessionData>(identityRedisKeys);
+
+      for (const data of identityDataList) {
+        if (!data) continue;
+        if (this.isIdleExpired(data.lastActivityAt)) continue;
+        totalIdentitySessions++;
+        const dt = data.deviceInfo?.deviceType?.trim() || 'unknown';
+        byDeviceType[dt] = (byDeviceType[dt] ?? 0) + 1;
+      }
     }
 
-    for (const fullKey of tenantKeys) {
-      const sid = this.sessionIdFromScannedKey(fullKey, 'tenant-session:');
-      if (!sid) continue;
-      const data = await this.peekTenantSessionData(sid);
-      if (!data) continue;
-      totalTenantSessions++;
-      const tid = data.tenantId;
-      byTenantId[tid] = (byTenantId[tid] ?? 0) + 1;
+    const tenantSids = tenantKeys
+      .map((k) => this.sessionIdFromScannedKey(k, 'tenant-session:'))
+      .filter((s): s is string => s !== null);
+
+    if (tenantSids.length > 0) {
+      const tenantRedisKeys = tenantSids.map((sid) =>
+        SESSION_KEYS.tenantSession(sid),
+      );
+      const tenantDataList: (TenantSessionData | null)[] =
+        await this.redis.mget<TenantSessionData>(tenantRedisKeys);
+
+      for (const data of tenantDataList) {
+        if (!data) continue;
+        if (this.isIdleExpired(data.lastActivityAt)) continue;
+        totalTenantSessions++;
+        const tid = data.tenantId;
+        byTenantId[tid] = (byTenantId[tid] ?? 0) + 1;
+      }
     }
 
     return {
@@ -522,21 +679,33 @@ export class SessionService {
   }
 
   /**
-   * All tenant sessions for a tenant (sanitized). SCAN + filter by tenantId.
+   * All tenant sessions for a tenant (sanitized). SCAN + MGET + filter by tenantId.
    */
   async getSanitizedSessionsForTenant(
     tenantId: string,
   ): Promise<AdminSessionListResponseDto> {
     const tenantKeys = await this.redis.scanKeys('*tenant-session:*');
-    const sessions: AdminSessionGroupDto[] = [];
-    const identitySeen = new Map<string, AdminSanitizedIdentitySessionDto>();
-    const groups = new Map<string, AdminSanitizedTenantSessionDto[]>();
 
-    for (const fullKey of tenantKeys) {
-      const sid = this.sessionIdFromScannedKey(fullKey, 'tenant-session:');
-      if (!sid) continue;
-      const ts = await this.peekTenantSessionData(sid);
-      if (!ts || ts.tenantId !== tenantId) continue;
+    const tenantSids = tenantKeys
+      .map((k) => this.sessionIdFromScannedKey(k, 'tenant-session:'))
+      .filter((s): s is string => s !== null);
+
+    if (tenantSids.length === 0) return { sessions: [] };
+
+    const tenantRedisKeys = tenantSids.map((sid) =>
+      SESSION_KEYS.tenantSession(sid),
+    );
+    const tenantDataList: (TenantSessionData | null)[] =
+      await this.redis.mget<TenantSessionData>(tenantRedisKeys);
+
+    const groups = new Map<string, AdminSanitizedTenantSessionDto[]>();
+    const identityIdsToFetch = new Set<string>();
+
+    tenantDataList.forEach((ts, i) => {
+      if (!ts || ts.tenantId !== tenantId) return;
+      if (this.isIdleExpired(ts.lastActivityAt)) return;
+      const sid = tenantSids[i];
+      if (!sid) return;
 
       const tenantDto = this.toAdminTenantDto(ts, sid);
       const iid = ts.identitySessionId;
@@ -546,15 +715,25 @@ export class SessionService {
         groups.set(iid, list);
       }
       list.push(tenantDto);
+      identityIdsToFetch.add(iid);
+    });
 
-      if (!identitySeen.has(iid)) {
-        const idata = await this.peekIdentitySessionData(iid);
-        if (idata) {
-          identitySeen.set(iid, this.toAdminIdentityDto(idata, iid));
-        }
-      }
-    }
+    const identityIds = Array.from(identityIdsToFetch);
+    const identityRedisKeys = identityIds.map((iid) =>
+      SESSION_KEYS.identitySession(iid),
+    );
+    const identityDataList: (IdentitySessionData | null)[] =
+      await this.redis.mget<IdentitySessionData>(identityRedisKeys);
 
+    const identitySeen = new Map<string, AdminSanitizedIdentitySessionDto>();
+    identityDataList.forEach((idata, i) => {
+      if (!idata || this.isIdleExpired(idata.lastActivityAt)) return;
+      const iid = identityIds[i];
+      if (!iid) return;
+      identitySeen.set(iid, this.toAdminIdentityDto(idata, iid));
+    });
+
+    const sessions: AdminSessionGroupDto[] = [];
     for (const [iid, tenantSessions] of groups) {
       const identitySession = identitySeen.get(iid);
       if (!identitySession) continue;

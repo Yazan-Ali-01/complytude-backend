@@ -45,11 +45,7 @@ import {
   TenantSwitchResponseDto,
   VerifyEmailDto,
 } from './dto';
-import type {
-  SessionGroupItemDto,
-  SessionListResponseDto,
-} from './dto/session-list-response.dto';
-import type { TenantSessionItemDto } from './dto/session-response.dto';
+import type { SessionListResponseDto } from './dto/session-list-response.dto';
 import { GeoLocationService } from './services/geo-location.service';
 import { SessionInvalidationService } from './services/session-invalidation.service';
 import { SessionService } from './services/session.service';
@@ -564,6 +560,12 @@ export class AuthService {
   /**
    * Refresh identity access token.
    * Validates session exists in Redis. Reissues access token only (no refresh rotation).
+   *
+   * SECURITY NOTE: Refresh token rotation was intentionally removed in favour of
+   * Redis session-based revocation. A stolen refresh token can be used until the
+   * session is deleted or expires. Mitigations: SESSION_STRICT_MODE, idle timeout,
+   * and absolute TTL. If token-theft detection is needed later, consider
+   * reuse-detection (family tracking) as a future enhancement.
    */
   async refreshIdentityTokens(
     userId: string,
@@ -684,7 +686,7 @@ export class AuthService {
 
   /**
    * List sessions for current tenant only.
-   * Returns identity sessions that have at least one tenant session in the given tenant.
+   * Delegates to SessionService.
    */
   async getSessionsForCurrentTenant(
     userId: string,
@@ -692,110 +694,28 @@ export class AuthService {
     currentIdentitySessionId?: string,
     currentTenantSessionId?: string,
   ): Promise<SessionListResponseDto> {
-    const identitySessionIds =
-      await this.sessionService.getIdentitySessionIds(userId);
-    const tenantSessionIds = await this.sessionService.getTenantSessionIds(
+    return this.sessionService.getUserSessionsForTenant(
       userId,
       tenantId,
+      currentIdentitySessionId,
+      currentTenantSessionId,
     );
-
-    const identityIdsWithTenantInScope = new Set<string>();
-    for (const tsid of tenantSessionIds) {
-      const ts = await this.sessionService.findTenantSessionById(tsid);
-      if (ts) identityIdsWithTenantInScope.add(ts.identitySessionId);
-    }
-
-    const sessions: SessionGroupItemDto[] = [];
-    for (const iid of identitySessionIds) {
-      if (!identityIdsWithTenantInScope.has(iid)) continue;
-
-      const identitySession =
-        await this.sessionService.findIdentitySessionById(iid);
-      if (!identitySession) continue;
-
-      const tenantSessions: TenantSessionItemDto[] = [];
-      for (const tsid of identitySession.activeTenantSessionIds) {
-        const ts = await this.sessionService.findTenantSessionById(tsid);
-        if (!ts || ts.tenantId !== tenantId) continue;
-
-        tenantSessions.push({
-          sessionId: tsid,
-          tenantId: ts.tenantId,
-          role: ts.role,
-          createdAt: ts.createdAt,
-          lastActivityAt: ts.lastActivityAt,
-          isCurrent: tsid === currentTenantSessionId,
-        });
-      }
-
-      if (tenantSessions.length === 0) continue;
-
-      sessions.push({
-        identitySession: {
-          sessionId: iid,
-          deviceInfo: identitySession.deviceInfo,
-          ipAddress: identitySession.ipAddress,
-          geoLocation: identitySession.geoLocation,
-          sessionName: identitySession.sessionName,
-          createdAt: identitySession.createdAt,
-          lastActivityAt: identitySession.lastActivityAt,
-          isCurrent: iid === currentIdentitySessionId,
-        },
-        tenantSessions,
-      });
-    }
-
-    return { sessions };
   }
 
   /**
    * List all sessions across all tenants.
+   * Delegates to SessionService.
    */
   async getAllSessions(
     userId: string,
     currentIdentitySessionId?: string,
     currentTenantSessionId?: string,
   ): Promise<SessionListResponseDto> {
-    const identitySessionIds =
-      await this.sessionService.getIdentitySessionIds(userId);
-
-    const sessions: SessionGroupItemDto[] = [];
-    for (const iid of identitySessionIds) {
-      const identitySession =
-        await this.sessionService.findIdentitySessionById(iid);
-      if (!identitySession) continue;
-
-      const tenantSessions: TenantSessionItemDto[] = [];
-      for (const tsid of identitySession.activeTenantSessionIds) {
-        const ts = await this.sessionService.findTenantSessionById(tsid);
-        if (!ts) continue;
-
-        tenantSessions.push({
-          sessionId: tsid,
-          tenantId: ts.tenantId,
-          role: ts.role,
-          createdAt: ts.createdAt,
-          lastActivityAt: ts.lastActivityAt,
-          isCurrent: tsid === currentTenantSessionId,
-        });
-      }
-
-      sessions.push({
-        identitySession: {
-          sessionId: iid,
-          deviceInfo: identitySession.deviceInfo,
-          ipAddress: identitySession.ipAddress,
-          geoLocation: identitySession.geoLocation,
-          sessionName: identitySession.sessionName,
-          createdAt: identitySession.createdAt,
-          lastActivityAt: identitySession.lastActivityAt,
-          isCurrent: iid === currentIdentitySessionId,
-        },
-        tenantSessions,
-      });
-    }
-
-    return { sessions };
+    return this.sessionService.getUserAllSessions(
+      userId,
+      currentIdentitySessionId,
+      currentTenantSessionId,
+    );
   }
 
   /**
@@ -831,7 +751,7 @@ export class AuthService {
     }
 
     throw new NotFoundException(
-      this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
+      this.i18n.t(AuthI18n.errors.SESSION_NOT_FOUND),
     );
   }
 
@@ -876,11 +796,11 @@ export class AuthService {
     );
     if (!updated) {
       throw new NotFoundException(
-        this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
+        this.i18n.t(AuthI18n.errors.SESSION_NOT_FOUND),
       );
     }
     this.logger.log(`Renamed session ${sessionId} for user ${userId}`);
-    return { message: 'Session renamed successfully' };
+    return { message: this.i18n.t(AuthI18n.messages.SESSION_RENAMED) };
   }
 
   /**
@@ -1024,7 +944,7 @@ export class AuthService {
         await this.sessionService.identitySessionExists(identitySessionId);
       if (!exists) {
         throw new UnauthorizedException(
-          this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
+          this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
         );
       }
     }

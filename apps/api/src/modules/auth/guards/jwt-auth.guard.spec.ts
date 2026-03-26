@@ -1,4 +1,5 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import passport from 'passport';
 import { SessionService } from '../services/session.service';
@@ -41,6 +42,7 @@ describe('JwtAuthGuard', () => {
       | 'touchTenantActivity'
     >
   >;
+  let configService: jest.Mocked<Pick<ConfigService, 'get'>>;
 
   beforeEach(() => {
     reflector = {
@@ -62,9 +64,14 @@ describe('JwtAuthGuard', () => {
       >
     >;
 
+    configService = {
+      get: jest.fn().mockReturnValue(false),
+    } as unknown as jest.Mocked<Pick<ConfigService, 'get'>>;
+
     guard = new JwtAuthGuard(
       reflector,
       sessionService as unknown as SessionService,
+      configService as unknown as ConfigService,
     );
   });
 

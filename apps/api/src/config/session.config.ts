@@ -32,4 +32,5 @@ export default registerAs('session', () => ({
     process.env.SESSION_ACTIVITY_THROTTLE_SECONDS || '120',
     10,
   ),
+  strictMode: process.env.SESSION_STRICT_MODE === 'true',
 }));

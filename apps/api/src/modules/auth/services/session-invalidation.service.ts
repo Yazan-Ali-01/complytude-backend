@@ -28,6 +28,13 @@ export class SessionInvalidationService {
     );
   }
 
+  private remainingTtlSeconds(createdAt: string): number {
+    const created = new Date(createdAt).getTime();
+    if (Number.isNaN(created)) return this.maxTtlSeconds;
+    const elapsed = Math.floor((Date.now() - created) / 1000);
+    return Math.max(0, this.maxTtlSeconds - elapsed);
+  }
+
   /**
    * Invalidate all sessions for a user (all devices, all tenants).
    * Used for: password change, password reset.
@@ -114,19 +121,22 @@ export class SessionInvalidationService {
           SESSION_KEYS.identitySession(tsData.identitySessionId),
         );
         if (identitySession) {
-          const updated: IdentitySessionData = {
-            ...identitySession,
-            activeTenantSessionIds:
-              identitySession.activeTenantSessionIds.filter(
-                (id) => id !== tsid,
-              ),
-          };
-          pipeline.set(
-            SESSION_KEYS.identitySession(tsData.identitySessionId),
-            JSON.stringify(updated),
-            'EX',
-            this.maxTtlSeconds,
-          );
+          const ttl = this.remainingTtlSeconds(identitySession.createdAt);
+          if (ttl > 0) {
+            const updated: IdentitySessionData = {
+              ...identitySession,
+              activeTenantSessionIds:
+                identitySession.activeTenantSessionIds.filter(
+                  (id) => id !== tsid,
+                ),
+            };
+            pipeline.set(
+              SESSION_KEYS.identitySession(tsData.identitySessionId),
+              JSON.stringify(updated),
+              'EX',
+              ttl,
+            );
+          }
         }
       }
       pipeline.del(SESSION_KEYS.tenantSession(tsid));

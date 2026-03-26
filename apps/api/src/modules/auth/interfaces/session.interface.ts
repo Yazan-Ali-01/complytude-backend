@@ -44,3 +44,34 @@ export interface TenantSessionData {
   createdAt: string; // ISO timestamp
   lastActivityAt: string; // ISO timestamp
 }
+
+// ========== User-facing session listing result types ==========
+
+export interface UserIdentitySessionItem {
+  sessionId: string;
+  deviceInfo: DeviceInfo;
+  ipAddress: string;
+  geoLocation: GeoLocation | null;
+  sessionName: string | null;
+  createdAt: string;
+  lastActivityAt: string;
+  isCurrent: boolean;
+}
+
+export interface UserTenantSessionItem {
+  sessionId: string;
+  tenantId: string;
+  role: string;
+  createdAt: string;
+  lastActivityAt: string;
+  isCurrent: boolean;
+}
+
+export interface UserSessionGroup {
+  identitySession: UserIdentitySessionItem;
+  tenantSessions: UserTenantSessionItem[];
+}
+
+export interface UserSessionListResult {
+  sessions: UserSessionGroup[];
+}
