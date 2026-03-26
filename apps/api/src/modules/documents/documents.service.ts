@@ -302,6 +302,74 @@ export class DocumentsService {
     }
   }
 
+  async triggerAnalysis(
+    documentId: string,
+    user: AuthenticatedTenantUser,
+  ): Promise<AnalyzeDocumentResponseDto> {
+    try {
+      const tenantContext = {
+        tenantId: user.tenantId,
+        schema: 'public' as const,
+      };
+
+      const document = await this.documentRepository.findById(documentId, {
+        tenant: tenantContext,
+      });
+      if (!document) {
+        throw new NotFoundException(
+          this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+        );
+      }
+      if (document.source_type !== 'file_upload') {
+        throw new BadRequestException(
+          this.i18n.t(DocumentsI18n.errors.INVALID_DOCUMENT_TYPE),
+        );
+      }
+      if (document.extraction_status !== 'completed') {
+        throw new BadRequestException(
+          this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_EXTRACTED),
+        );
+      }
+
+      const analysisJob = await this.analysisJobRepository.create(
+        {
+          tenant_id: user.tenantId,
+          document_id: documentId,
+          created_by: user.userId,
+          status: 'queued',
+        },
+        { tenant: tenantContext },
+      );
+
+      await this.queueProducerService.enqueue(
+        QUEUE_NAMES.AI_PROCESSING,
+        AI_JOB_NAMES.DOCUMENT_ANALYSIS,
+        { analysisJobId: analysisJob.id, documentId, tenantId: user.tenantId },
+        { jobId: `doc-analysis-${analysisJob.id}` },
+      );
+
+      this.logger.log(
+        `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJob.id} tenantId=${user.tenantId}`,
+      );
+
+      return { documentId, analysisJobId: analysisJob.id };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `triggerAnalysis failed: documentId=${documentId} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_RETRIEVAL_FAILED),
+      );
+    }
+  }
+
   /**
    * Get the latest analysis job for a document.
    * Tenant-scoped via RLS; returns 404 if document or job not found.

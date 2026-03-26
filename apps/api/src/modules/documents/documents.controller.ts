@@ -220,6 +220,35 @@ export class DocumentsController {
     return this.documentsService.confirmUpload(documentId, user);
   }
 
+  @Post(':documentId/trigger-analysis')
+  @Audit('DOCUMENT_ANALYSIS_TRIGGERED', { resourceType: 'documents' })
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:create')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Trigger compliance analysis on an extracted file-upload document',
+    description:
+      'Creates an analysis job for a file-upload document whose text extraction has completed. ' +
+      'Returns 202 Accepted with the analysis job ID to poll for results. ' +
+      'Requires extraction_status = completed — call after the ingestion pipeline finishes.',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 202,
+    description: 'Analysis job queued',
+    type: AnalyzeDocumentResponseDto,
+  })
+  @ApiNotFoundError('Document')
+  @ApiValidationError()
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to trigger analysis')
+  triggerAnalysis(
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<AnalyzeDocumentResponseDto> {
+    return this.documentsService.triggerAnalysis(documentId, user);
+  }
+
   @Post('analyze')
   @Audit('DOCUMENT_ANALYSIS_TRIGGERED', { resourceType: 'documents' })
   @UseGuards(TenantPermissionsGuard)
