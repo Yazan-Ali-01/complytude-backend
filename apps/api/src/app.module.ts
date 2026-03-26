@@ -9,7 +9,9 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import appConfig from 'src/config/app.config';
 import { validationSchema } from 'src/config/env.schema';
+import geoConfig from 'src/config/geo.config';
 import jwtConfig from 'src/config/jwt.config';
+import sessionConfig from 'src/config/session.config';
 import storageConfig from 'src/config/storage.config';
 import stripeConfig from 'src/config/stripe.config';
 import { AuthModule } from 'src/modules/auth/auth.module';
@@ -33,9 +35,9 @@ import { StorageModule } from './modules/storage/storage.module';
 import { StripeModule } from './modules/stripe/stripe.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TemplatesModule } from './modules/templates/templates.module';
+import { TenantProcessingModule } from './modules/tenant-processing/tenant-processing.module';
 import { TenantRbacModule } from './modules/tenant-rbac/tenant-rbac.module';
 import { TenantModule } from './modules/tenants/tenant.module';
-import { TenantProcessingModule } from './modules/tenant-processing/tenant-processing.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { TenantProcessingModule } from './modules/tenant-processing/tenant-proce
         databaseConfig,
         appConfig,
         jwtConfig,
+        geoConfig,
+        sessionConfig,
         storageConfig,
         stripeConfig,
         redisConfig,

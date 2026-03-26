@@ -47,12 +47,21 @@ export class JwtIdentityAccessStrategy extends PassportStrategy(
       );
     }
 
+    const i18n = I18nContext.current();
+    if (!payload.sessionId?.trim()) {
+      throw new UnauthorizedException(
+        i18n?.t(AuthI18n.errors.INVALID_REFRESH_TOKEN) ??
+          'Session expired or invalid',
+      );
+    }
+
     // Return user information to be attached to request.auth.identity
     return {
       userId: payload.sub,
       email: payload.email,
       isVerified: payload.isVerified ?? false,
       platformRole: payload.platformRole ?? null,
+      sessionId: payload.sessionId,
     };
   }
 }

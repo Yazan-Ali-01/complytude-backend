@@ -107,15 +107,6 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    -- Delete refresh tokens that have been revoked for 30+ days
-    DELETE FROM public.refresh_tokens
-    WHERE revoked_at IS NOT NULL
-      AND revoked_at < NOW() - INTERVAL '30 days';
-
-    -- Delete refresh tokens that expired 30+ days ago
-    DELETE FROM public.refresh_tokens
-    WHERE expires_at < NOW() - INTERVAL '30 days';
-
     -- Delete email verification tokens that expired 7+ days ago
     DELETE FROM public.email_verifications
     WHERE expires_at < NOW() - INTERVAL '7 days';
@@ -128,7 +119,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.cleanup_expired_tokens IS 'Cleanup expired auth tokens: refresh tokens (30+ days), email verifications (7+ days), password resets (7+ days). Run daily via scheduled job.';
+COMMENT ON FUNCTION public.cleanup_expired_tokens IS 'Cleanup expired auth tokens: email verifications (7+ days), password resets (7+ days). Run daily via scheduled job.';
 
 -- Function to mark expired invitations
 CREATE OR REPLACE FUNCTION public.mark_expired_invitations()

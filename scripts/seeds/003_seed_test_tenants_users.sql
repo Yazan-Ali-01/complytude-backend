@@ -136,19 +136,6 @@ INSERT INTO public.user_tenants (user_id, tenant_id, role_key) VALUES
 ON CONFLICT (user_id, tenant_id) DO UPDATE SET
     role_key = EXCLUDED.role_key;
 
--- =========================
--- Refresh Tokens (for auth testing)
--- =========================
-
-INSERT INTO public.refresh_tokens (id, user_id, token_hash, expires_at, revoked_at) VALUES
-    (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '$2b$10$token1hash1hash1hash1hash1hash1hash1hash1hash1hash1hash1h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '$2b$10$token2hash2hash2hash2hash2hash2hash2hash2hash2hash2hash2h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'cccccccc-cccc-cccc-cccc-cccccccccccc', '$2b$10$token3hash3hash3hash3hash3hash3hash3hash3hash3hash3hash3h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'dddddddd-dddd-dddd-dddd-dddddddddddd', '$2b$10$token4hash4hash4hash4hash4hash4hash4hash4hash4hash4hash4h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '$2b$10$token5hash5hash5hash5hash5hash5hash5hash5hash5hash5hash5h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'ffffffff-ffff-ffff-ffff-ffffffffffff', '$2b$10$token6hash6hash6hash6hash6hash6hash6hash6hash6hash6hash6h', now() + interval '7 days', NULL)
-ON CONFLICT (id) DO NOTHING;
-
 -- -- =========================
 -- -- Mock Storage Tracking Table (For Test Verification)
 -- -- =========================

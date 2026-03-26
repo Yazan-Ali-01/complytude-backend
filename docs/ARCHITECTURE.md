@@ -267,26 +267,26 @@ graph TD
 
 ### Core Modules
 
-| Module            | Responsibility                                                     | Dependencies                        |
-| ----------------- | ------------------------------------------------------------------ | ----------------------------------- |
-| **auth**          | JWT authentication, signup, login, token refresh, invitation flows | users, invitations, email, database |
-| **email**         | Email delivery (verification, password reset) via Resend           | config, i18n                        |
-| **users**         | User management, profile updates                                   | database                            |
-| **tenants**       | Tenant creation, management, invitations                           | users, database                     |
-| **invitations**   | Tenant invitations, accept/reject                                  | users, tenants, database            |
-| **tenant-rbac**   | Tenant-scoped RBAC (Global)                                        | database                            |
-| **platform-rbac** | Platform-wide RBAC (Global)                                        | database                            |
-| **entitlements**  | Plan-based feature access, usage tracking, credit system (Global)  | database, subscriptions, queue      |
-| **subscriptions** | Subscription lifecycle (create, change plan, cancel, renew)        | database                            |
-| **audit**         | Audit logging (Global)                                             | database                            |
-| **authorities**   | Regulatory authority management                                    | database                            |
-| **categories**    | Template category management                                       | database                            |
-| **templates**     | Template CRUD, versioning, field extraction                        | storage, database                   |
-| **rulesets**      | Compliance rulesets with versioning                                | database                            |
-| **documents**     | Document generation and management                                 | templates, storage, database        |
-| **storage**       | File upload/download, S3 integration                               | database                            |
-| **health**        | Health checks for services                                         | database, redis                     |
-| **mock**          | Development/testing mock endpoints                                 | entitlements, rbac                  |
+| Module            | Responsibility                                                                     | Dependencies                               |
+| ----------------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
+| **auth**          | JWT authentication, signup, login, token refresh, invitation flows, Redis sessions | users, invitations, email, database, redis |
+| **email**         | Email delivery (verification, password reset) via Resend                           | config, i18n                               |
+| **users**         | User management, profile updates                                                   | database                                   |
+| **tenants**       | Tenant creation, management, invitations                                           | users, database                            |
+| **invitations**   | Tenant invitations, accept/reject                                                  | users, tenants, database                   |
+| **tenant-rbac**   | Tenant-scoped RBAC (Global)                                                        | database                                   |
+| **platform-rbac** | Platform-wide RBAC (Global)                                                        | database                                   |
+| **entitlements**  | Plan-based feature access, usage tracking, credit system (Global)                  | database, subscriptions, queue             |
+| **subscriptions** | Subscription lifecycle (create, change plan, cancel, renew)                        | database                                   |
+| **audit**         | Audit logging (Global)                                                             | database                                   |
+| **authorities**   | Regulatory authority management                                                    | database                                   |
+| **categories**    | Template category management                                                       | database                                   |
+| **templates**     | Template CRUD, versioning, field extraction                                        | storage, database                          |
+| **rulesets**      | Compliance rulesets with versioning                                                | database                                   |
+| **documents**     | Document generation and management                                                 | templates, storage, database               |
+| **storage**       | File upload/download, S3 integration                                               | database                                   |
+| **health**        | Health checks for services                                                         | database, redis                            |
+| **mock**          | Development/testing mock endpoints                                                 | entitlements, rbac                         |
 
 ---
 
@@ -534,6 +534,82 @@ The system uses **four distinct token types**:
 
 All tokens are stored in HTTP-only cookies and refresh tokens are persisted in the database with type tracking (`identity` or `tenant`).
 
+### Redis Session Management (Task 1 + 2)
+
+The authentication system is transitioning to **Redis-backed session management** for instant token revocation and per-device session control.
+
+**Task 1 — Foundation:** SessionService, SessionInvalidationService, Redis key patterns, Lua script, env config.
+
+**Task 2 — JWT Payload & Strategy:** All four JWT payload types and `Authenticated*User` interfaces include `sessionId`. Passport strategies extract and return it. Role-change TODO removed (handled by `SessionInvalidationService.invalidateTenantSessions()`).
+
+**Task 3 — Auth Flow Integration:** Login creates identity session in Redis (User-Agent → DeviceInfo), embeds `sessionId` in tokens. Tenant switch validates identity session, creates tenant session. Refresh uses Redis session check (no token rotation; access token reissued only). Logout deletes sessions from Redis. Reset password invalidates all user sessions. JwtAuthGuard and JwtAuthRefreshGuard validate session existence with graceful Redis degradation. Old tokens without `sessionId` skip validation (transitional).
+
+**Geo Enrichment (MaxMind):** GeoLocationService performs fire-and-forget IP-to-location lookup during login using GeoLite2-City. Sessions are created with `geoLocation: null`; when lookup succeeds, the session is updated asynchronously. Geo is disabled when `MAXMIND_DB_PATH` is empty or the database file is missing. See `scripts/download-geolite2-city.sh` and `scripts/README.md`.
+
+**Session Services:**
+
+- **SessionService** — Core CRUD for identity and tenant sessions, idle timeout enforcement, activity throttling, Lua-based session limit enforcement (max 5 identity sessions per user)
+- **SessionInvalidationService** — Bulk invalidation for security events: `invalidateAllUserSessions(userId)`, `invalidateTenantSessions(userId, tenantId)`
+- **GeoLocationService** — MaxMind GeoLite2-City IP lookup for session enrichment (optional, fire-and-forget)
+
+**User Session Endpoints** (identity token required, tenant token for tenant-scoped):
+
+| Method | Path                        | Description                                                               |
+| ------ | --------------------------- | ------------------------------------------------------------------------- |
+| GET    | `/auth/sessions`            | List identity + tenant sessions for current tenant                        |
+| GET    | `/auth/sessions/all`        | List all sessions across all tenants                                      |
+| DELETE | `/auth/sessions/:sessionId` | Logout specific session (identity cascade-deletes linked tenant sessions) |
+| DELETE | `/auth/sessions`            | Logout all sessions for current tenant                                    |
+| DELETE | `/auth/sessions/all`        | Logout all sessions (all tenants, all devices)                            |
+| PATCH  | `/auth/sessions/:sessionId` | Rename identity session (sessionName)                                     |
+
+List responses include `isCurrent` flag by comparing `sessionId` from JWT with each listed session.
+
+**Tenant Admin Session Endpoints** (tenant token + `sessions:manage` permission):
+
+| Method | Path                                               | Description                                          |
+| ------ | -------------------------------------------------- | ---------------------------------------------------- |
+| GET    | `/tenants/admin/users/:userId/sessions`            | View target user's sessions scoped to current tenant |
+| DELETE | `/tenants/admin/users/:userId/sessions`            | Force logout all target user's sessions in tenant    |
+| DELETE | `/tenants/admin/users/:userId/sessions/:sessionId` | Force logout specific target tenant session          |
+
+These routes are enforced by `TenantPermissionsGuard` with `TENANT_PERMISSIONS.SESSIONS.MANAGE`. Before any session operation, backend verifies target user has active membership in the current tenant (`user_tenants.is_active = true`).
+
+**System Admin Session Endpoints** (identity token + `platformRole === system_admin` via `SystemAdminGuard`):
+
+| Method | Path                                | Description                                                               |
+| ------ | ----------------------------------- | ------------------------------------------------------------------------- |
+| GET    | `/admin/sessions/stats`             | Global session counts (identity + tenant), by tenant id, by device type   |
+| GET    | `/admin/tenants/:tenantId/sessions` | Sanitized sessions for one tenant (no email; IP, device, geo, timestamps) |
+| GET    | `/admin/users/:userId/sessions`     | Sanitized sessions for one user across all tenants                        |
+| DELETE | `/admin/users/:userId/sessions`     | Force-logout user globally (`invalidateAllUserSessions`)                  |
+| DELETE | `/admin/sessions/:sessionId`        | Force-logout one session (identity or tenant; identity cascades)          |
+
+Each read/write is followed by `AuditService.log` with `action: SYSTEM_ADMIN_SESSION_ACCESS`, `details.type: BREAK_GLASS`, and `userRole: system_admin` (break-glass audit). Controller: `AdminSessionsController` in `apps/api/src/modules/auth/admin-sessions.controller.ts`.
+
+**Security event hooks (UsersService):** `UsersModule` imports `AuthModule` and injects `SessionInvalidationService`. Password change calls `invalidateAllUserSessions(userId)`. Remove-from-tenant, role change, and deactivation (`isActive` set to false) call `invalidateTenantSessions(userId, tenantId)`. Placeholder types for suspicious-activity reporting live in `apps/api/src/modules/users/interfaces/suspicious-activity-hook.interface.ts` (implementation: COM-109).
+
+**Redis Key Patterns:**
+
+- `identity-session:{sessionId}` — Identity session data (device, geo, linked tenant sessions)
+- `tenant-session:{sessionId}` — Tenant session data (user, tenant, role)
+- `user:identity-sessions:{userId}` — SET of identity session IDs
+- `user:tenant-sessions:{userId}:{tenantId}` — SET of tenant session IDs
+- `session-activity:{sessionId}` — TTL key for activity throttle (120s default)
+
+**Configuration (env):**
+
+- `SESSION_MAX_TTL` (default: 14d) — Absolute session lifetime
+- `SESSION_IDLE_TIMEOUT` (default: 72h) — Session expires if inactive
+- `SESSION_MAX_PER_USER` (default: 5) — Max identity sessions; oldest evicted on excess
+- `SESSION_ACTIVITY_THROTTLE_SECONDS` (default: 120) — Min interval between activity updates
+- `MAXMIND_LICENSE_KEY` (optional) — MaxMind license key for GeoLite2 download script
+- `MAXMIND_DB_PATH` (default: `./data/GeoLite2-City.mmdb`) — Path to GeoLite2-City database; empty or missing file disables geo lookup
+
+**JWT Payloads (Task 2 — sessionId):**
+
+All four payload types include `sessionId` linking to Redis sessions. Strategies extract and pass it to `Authenticated*User`. Old tokens without `sessionId` receive `''` (transitional).
+
 **Identity Access Token Payload:**
 
 ```json
@@ -542,7 +618,21 @@ All tokens are stored in HTTP-only cookies and refresh tokens are persisted in t
   "email": "user@example.com",
   "isVerified": true,
   "platformRole": "system_admin" | "support" | "auditor" | null,
+  "sessionId": "identity-session-uuid",
   "type": "identity"
+}
+```
+
+**Tenant Access Token Payload** (includes `sessionId` linking to `tenant-session:{id}`):
+
+```json
+{
+  "sub": "user-id",
+  "email": "user@example.com",
+  "tenantId": "tenant-uuid",
+  "role": "legal_counsel",
+  "sessionId": "tenant-session-uuid",
+  "type": "tenant-access"
 }
 ```
 

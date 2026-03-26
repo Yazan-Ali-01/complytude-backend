@@ -60,10 +60,18 @@ export class JwtTenantRefreshStrategy extends PassportStrategy(
       );
     }
 
+    if (!payload.sessionId?.trim()) {
+      throw new UnauthorizedException(
+        i18n?.t(AuthI18n.errors.INVALID_REFRESH_TOKEN) ??
+          'Session expired or invalid',
+      );
+    }
+
     return {
       userId: payload.sub,
       email: payload.email,
       tenantId: payload.tenantId,
+      sessionId: payload.sessionId,
       refreshToken,
     };
   }

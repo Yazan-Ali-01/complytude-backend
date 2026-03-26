@@ -55,6 +55,10 @@ export const TENANT_PERMISSIONS = {
     CHANGE_JURISDICTION: 'settings:change_jurisdiction' as const,
     ALL: 'settings:*' as const,
   },
+  SESSIONS: {
+    MANAGE: 'sessions:manage' as const,
+    ALL: 'sessions:*' as const,
+  },
   // Cross-resource wildcards
   WILDCARDS: {
     READ_ALL: '*:read' as const,

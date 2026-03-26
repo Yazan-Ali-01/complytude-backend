@@ -45,6 +45,7 @@ scripts/
 ├── setup-database.sh        # 🔥 Complete setup (migrations + seeds)
 ├── run-migrations.sh        # Run all migrations
 ├── run-seeds.sh             # Run all seed scripts
+├── download-geolite2-city.sh # Download MaxMind GeoLite2-City (session geo)
 ├── docker-start.sh          # Start Docker PostgreSQL
 ├── wait-for-db.sh           # Wait for database readiness
 ├── setup-roles.sh           # Create database roles
@@ -127,6 +128,33 @@ Populates database with initial data:
 - 7 sample documents (dev/staging)
 
 **Note:** RBAC roles and permissions are auto-synced by `TenantRbacSyncService` on app startup.
+
+### 4. Download GeoLite2-City (Optional — Session Geo Enrichment)
+
+**File:** `download-geolite2-city.sh`
+
+Downloads the MaxMind GeoLite2-City database for IP-to-location lookup during login. Session `geoLocation` is populated asynchronously when the database is present.
+
+**Prerequisites:**
+
+1. [MaxMind account](https://www.maxmind.com/en/geolite2/signup) (free)
+2. [License key](https://www.maxmind.com/en/accounts/current/license-key)
+
+**Usage:**
+
+```bash
+MAXMIND_LICENSE_KEY=your_key ./scripts/download-geolite2-city.sh
+```
+
+**Output:** `./data/GeoLite2-City.mmdb` (or `MAXMIND_DB_PATH` if set)
+
+**Configuration:** Add to `.env`:
+
+```
+MAXMIND_DB_PATH=./data/GeoLite2-City.mmdb
+```
+
+If `MAXMIND_DB_PATH` is empty or the file does not exist, geo lookup is disabled and sessions will have `geoLocation: null`.
 
 ---
 
@@ -237,7 +265,7 @@ COMMIT;
 
 After seeding development data:
 
-**Email:** `admin@tenant1.test`  
+**Email:** `admin@tenant1.test`
 **Password:** `Test123!@#`
 
 See `scripts/seeds/README.md` for complete credential list.
@@ -572,7 +600,7 @@ RETURNING id;
 
 -- Create subscription for tenant
 INSERT INTO public.tenant_subscriptions (
-    tenant_id, plan_id, status, 
+    tenant_id, plan_id, status,
     current_period_start, current_period_end,
     billing_period_start, billing_period_end
 )

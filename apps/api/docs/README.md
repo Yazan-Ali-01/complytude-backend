@@ -9,6 +9,7 @@ Welcome to the Complytude API documentation. This directory contains all documen
 | [API_CONTRACTS.md](API_CONTRACTS.md)                                 | API contract standards, authentication, DTOs          |
 | [API_CONTRACTS_QUICK_REFERENCE.md](API_CONTRACTS_QUICK_REFERENCE.md) | Quick reference for API patterns and examples         |
 | [DEVELOPMENT.md](DEVELOPMENT.md)                                     | Development workflow, module creation, best practices |
+| [APIDOG_SESSION_TESTING_GUIDE.md](APIDOG_SESSION_TESTING_GUIDE.md)   | Apidog testing guide for Redis session management     |
 
 ## Quick Links
 
@@ -101,16 +102,18 @@ pnpm type-check
 
 ### Key Endpoint Groups
 
-| Category       | Endpoints                                                   |
-| -------------- | ----------------------------------------------------------- |
-| Auth           | `POST /api/auth/signup`, `/login`, `/refresh`, `/logout`    |
-| Invitations    | `POST /api/auth/invitations/:id/accept`, `/reject`          |
-| Tenant Invites | `POST /api/tenants/admin/invitations`, `GET`, `DELETE /:id` |
-| Users          | `GET /api/users/me`, `PATCH /api/users/me`                  |
-| Tenants        | `POST /api/tenants`, `GET /api/tenants/:id`                 |
-| Storage        | `POST /api/storage/upload`, `GET /api/storage/list`         |
-| Templates      | `GET /api/templates`, `POST /api/templates`                 |
-| Health         | `GET /api/health`, `/health/db`, `/health/storage`          |
+| Category              | Endpoints                                                                                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth                  | `POST /api/auth/signup`, `/login`, `/refresh`, `/logout`                                                                                                                                                   |
+| Invitations           | `POST /api/auth/invitations/:id/accept`, `/reject`                                                                                                                                                         |
+| Tenant Invites        | `POST /api/tenants/admin/invitations`, `GET`, `DELETE /:id`                                                                                                                                                |
+| Tenant Sessions       | `GET /api/tenants/admin/users/:userId/sessions`, `DELETE /sessions`, `DELETE /sessions/:sessionId`                                                                                                         |
+| System Admin Sessions | `GET /api/admin/sessions/stats`, `GET /api/admin/tenants/:tenantId/sessions`, `GET /api/admin/users/:userId/sessions`, `DELETE /api/admin/users/:userId/sessions`, `DELETE /api/admin/sessions/:sessionId` |
+| Users                 | `GET /api/users/me`, `PATCH /api/users/me`                                                                                                                                                                 |
+| Tenants               | `POST /api/tenants`, `GET /api/tenants/:id`                                                                                                                                                                |
+| Storage               | `POST /api/storage/upload`, `GET /api/storage/list`                                                                                                                                                        |
+| Templates             | `GET /api/templates`, `POST /api/templates`                                                                                                                                                                |
+| Health                | `GET /api/health`, `/health/db`, `/health/storage`                                                                                                                                                         |
 
 ---
 
