@@ -2,7 +2,6 @@ import {
   AI_JOB_NAMES,
   ArabicTranslationJobData,
   DocumentAnalysisJobData,
-  DocumentGenerationJobData,
   TemplateAnalysisJobData,
 } from './interfaces/ai-processing.jobs';
 import {
@@ -36,7 +35,6 @@ import { QUEUE_NAMES } from './queue.constants';
 
 export interface QueueJobMap {
   [QUEUE_NAMES.AI_PROCESSING]: {
-    [AI_JOB_NAMES.DOCUMENT_GENERATION]: DocumentGenerationJobData;
     [AI_JOB_NAMES.TEMPLATE_ANALYSIS]: TemplateAnalysisJobData;
     [AI_JOB_NAMES.ARABIC_TRANSLATION]: ArabicTranslationJobData;
     [AI_JOB_NAMES.DOCUMENT_ANALYSIS]: DocumentAnalysisJobData;

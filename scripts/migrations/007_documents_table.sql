@@ -25,9 +25,6 @@ CREATE TABLE public.documents (
     title                   VARCHAR(255) NOT NULL,
     content                 TEXT,
     metadata                JSONB DEFAULT '{}',
-    template_id             UUID,
-    template_version_id     UUID,
-    generation_metadata     JSONB DEFAULT '{}',
     created_by              UUID,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -49,18 +46,6 @@ CREATE TABLE public.documents (
         ON DELETE CASCADE
         ON UPDATE CASCADE,
 
-    CONSTRAINT fk_documents_template
-        FOREIGN KEY (template_id)
-        REFERENCES public.templates(id)
-        ON DELETE SET NULL
-        ON UPDATE CASCADE,
-
-    CONSTRAINT fk_documents_template_version
-        FOREIGN KEY (template_version_id)
-        REFERENCES public.template_versions(id)
-        ON DELETE SET NULL
-        ON UPDATE CASCADE,
-
     CONSTRAINT fk_documents_created_by
         FOREIGN KEY (created_by)
         REFERENCES public.users(id)
@@ -76,9 +61,6 @@ CREATE TABLE public.documents (
 
 COMMENT ON TABLE public.documents IS 'Tenant-scoped documents with RLS-based tenant isolation';
 COMMENT ON COLUMN public.documents.tenant_id IS 'Tenant identifier - required for RLS isolation';
-COMMENT ON COLUMN public.documents.template_id IS 'Reference to template used for generation';
-COMMENT ON COLUMN public.documents.template_version_id IS 'Specific version of template used for traceability';
-COMMENT ON COLUMN public.documents.generation_metadata IS 'Metadata about document generation process (AI model, parameters, etc.)';
 COMMENT ON COLUMN public.documents.metadata IS 'Additional document metadata (tags, custom fields, etc.)';
 
 -- =========================
@@ -89,8 +71,6 @@ COMMENT ON COLUMN public.documents.metadata IS 'Additional document metadata (ta
 CREATE INDEX idx_documents_tenant_id ON public.documents(tenant_id);
 
 -- Additional indexes for common queries
-CREATE INDEX idx_documents_template_id ON public.documents(template_id);
-CREATE INDEX idx_documents_template_version_id ON public.documents(template_version_id);
 CREATE INDEX idx_documents_created_by ON public.documents(created_by);
 CREATE INDEX idx_documents_created_at ON public.documents(created_at DESC);
 
@@ -100,7 +80,6 @@ CREATE INDEX idx_documents_s3_key ON public.documents(s3_key) WHERE s3_key IS NO
 
 -- Composite indexes for tenant-scoped queries
 CREATE INDEX idx_documents_tenant_created ON public.documents(tenant_id, created_at DESC);
-CREATE INDEX idx_documents_tenant_template ON public.documents(tenant_id, template_id);
 
 -- =========================
 -- TRIGGERS
@@ -155,6 +134,17 @@ WITH CHECK (
 COMMENT ON POLICY documents_update ON public.documents IS 
     'Tenant isolation for UPDATE - tenant users can update their own tenant''s documents; platform admins can update any. Used by workers via platform admin context.';
 
+-- DELETE Policy: Tenant users delete their tenant's documents; platform admins delete any
+CREATE POLICY documents_delete
+ON public.documents
+FOR DELETE
+USING (
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
+);
+
+COMMENT ON POLICY documents_delete ON public.documents IS 
+    'Tenant isolation for DELETE - tenant users can only delete their own tenant''s documents; platform admins can delete any';
+
 -- =========================
 -- VALIDATION FUNCTION
 -- =========================
@@ -202,12 +192,9 @@ DROP POLICY IF EXISTS documents_select ON public.documents;
 -- Drop indexes
 DROP INDEX IF EXISTS public.idx_documents_s3_key;
 DROP INDEX IF EXISTS public.idx_documents_extraction_status;
-DROP INDEX IF EXISTS public.idx_documents_tenant_template;
 DROP INDEX IF EXISTS public.idx_documents_tenant_created;
 DROP INDEX IF EXISTS public.idx_documents_created_at;
 DROP INDEX IF EXISTS public.idx_documents_created_by;
-DROP INDEX IF EXISTS public.idx_documents_template_version_id;
-DROP INDEX IF EXISTS public.idx_documents_template_id;
 DROP INDEX IF EXISTS public.idx_documents_tenant_id;
 
 -- Drop table

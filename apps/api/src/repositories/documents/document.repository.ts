@@ -1,4 +1,10 @@
-import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
+import {
+  BaseRepository,
+  DatabaseService,
+  OffsetPaginationOptions,
+  OffsetPaginationResult,
+  QueryOptions,
+} from '@lib/database';
 import type { DocumentSourceType, ExtractionStatus } from '@lib/queue';
 import { Injectable } from '@nestjs/common';
 
@@ -10,9 +16,6 @@ export interface Document {
   title: string;
   content: string | null;
   metadata: Record<string, unknown>;
-  template_id: string | null;
-  template_version_id: string | null;
-  generation_metadata: Record<string, unknown> | null;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -27,36 +30,51 @@ export interface Document {
   extracted_at: Date | null;
 }
 
-export type CreateDocumentRow = {
+type BaseCreateDocumentRow = {
   tenant_id: string;
   title: string;
-  content?: string | null;
   metadata?: string;
-  template_id?: string | null;
-  template_version_id?: string | null;
-  generation_metadata?: string | null;
   created_by?: string | null;
-  source_type?: DocumentSourceType;
-  s3_key?: string | null;
-  s3_bucket?: string | null;
-  original_filename?: string | null;
-  file_size_bytes?: number | null;
-  mime_type?: string | null;
-  extraction_status?: ExtractionStatus | null;
 };
+
+type CreateTextInputRow = BaseCreateDocumentRow & {
+  source_type: 'text_input';
+  content: string;
+};
+
+type CreateFileUploadRow = BaseCreateDocumentRow & {
+  source_type: 'file_upload';
+  s3_key: string;
+  s3_bucket: string;
+  original_filename: string;
+  file_size_bytes: number;
+  mime_type: string;
+  extraction_status: ExtractionStatus;
+};
+
+export type CreateDocumentRow = CreateTextInputRow | CreateFileUploadRow;
 
 export type UpdateDocumentRow = {
   title?: string;
   content?: string | null;
   metadata?: string;
-  template_id?: string | null;
-  template_version_id?: string | null;
-  generation_metadata?: string | null;
   s3_key?: string | null;
   s3_bucket?: string | null;
   extraction_status?: ExtractionStatus | null;
   extraction_error?: string | null;
   extracted_at?: Date | null;
+};
+
+export interface DocumentFilters {
+  search?: string;
+  sourceType?: DocumentSourceType;
+  extractionStatus?: ExtractionStatus;
+}
+
+const ALLOWED_SORT_COLUMNS: Record<string, string> = {
+  createdAt: 'created_at',
+  title: 'title',
+  updatedAt: 'updated_at',
 };
 
 type DocumentRow = {
@@ -65,9 +83,6 @@ type DocumentRow = {
   title: string;
   content: string | null;
   metadata: string | Record<string, unknown>;
-  template_id: string | null;
-  template_version_id: string | null;
-  generation_metadata: string | Record<string, unknown> | null;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -93,7 +108,7 @@ export class DocumentRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, title, content, metadata, template_id, template_version_id, generation_metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at';
+    return 'id, tenant_id, title, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Document {
@@ -107,14 +122,6 @@ export class DocumentRepository extends BaseRepository<
         typeof data.metadata === 'string'
           ? (JSON.parse(data.metadata) as Record<string, unknown>)
           : data.metadata,
-      template_id: data.template_id,
-      template_version_id: data.template_version_id,
-      generation_metadata:
-        data.generation_metadata === null
-          ? null
-          : typeof data.generation_metadata === 'string'
-            ? (JSON.parse(data.generation_metadata) as Record<string, unknown>)
-            : data.generation_metadata,
       created_by: data.created_by,
       created_at: data.created_at,
       updated_at: data.updated_at,
@@ -153,6 +160,64 @@ export class DocumentRepository extends BaseRepository<
     return result.rows[0]
       ? this.mapRow(result.rows[0] as Record<string, unknown>)
       : null;
+  }
+
+  async findMany(
+    filters: DocumentFilters = {},
+    pagination: OffsetPaginationOptions = { page: 1, limit: 20 },
+    options?: QueryOptions,
+  ): Promise<OffsetPaginationResult<Document>> {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(`title ILIKE $${params.length}`);
+    }
+    if (filters.sourceType) {
+      params.push(filters.sourceType);
+      conditions.push(`source_type = $${params.length}`);
+    }
+    if (filters.extractionStatus) {
+      params.push(filters.extractionStatus);
+      conditions.push(`extraction_status = $${params.length}`);
+    }
+
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countResult = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) as count FROM ${this.tableName} ${whereClause}`,
+      params,
+      options,
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const sortColumn =
+      ALLOWED_SORT_COLUMNS[pagination.sortBy ?? ''] ?? 'created_at';
+    const sortOrder = pagination.sortOrder === 'asc' ? 'ASC' : 'DESC';
+    const offset = (pagination.page - 1) * pagination.limit;
+
+    params.push(pagination.limit, offset);
+    const dataResult = await this.executeQuery<DocumentRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ORDER BY ${sortColumn} ${sortOrder} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+      options,
+    );
+
+    const totalPages = Math.ceil(total / pagination.limit);
+
+    return {
+      data: dataResult.rows.map((row) =>
+        this.mapRow(row as Record<string, unknown>),
+      ),
+      total,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages,
+      hasNextPage: pagination.page < totalPages,
+      hasPreviousPage: pagination.page > 1,
+    };
   }
 
   async findAllByTenant(

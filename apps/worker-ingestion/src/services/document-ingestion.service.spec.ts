@@ -152,7 +152,7 @@ describe('DocumentIngestionService', () => {
 
     it('should throw PermanentError when textract returns empty text', async () => {
       repo.findById.mockResolvedValue(makeDocumentRow());
-      textract.extractText.mockResolvedValue({ text: '' });
+      textract.extractText.mockResolvedValue({ text: '', pageCount: 0 });
 
       const error = await service
         .process(MOCK_JOB_DATA)

@@ -39,4 +39,11 @@ export const validationSchema = Joi.object({
 
   // S3 Storage (for document ingestion)
   ...storageEnvSchema,
+
+  // Textract (document text extraction)
+  TEXTRACT_MAX_PAGES: Joi.number().default(50),
+  TEXTRACT_POLL_INITIAL_DELAY_MS: Joi.number().default(2000),
+  TEXTRACT_POLL_MAX_DELAY_MS: Joi.number().default(30000),
+  TEXTRACT_POLL_MAX_ATTEMPTS: Joi.number().default(60),
+  TEXTRACT_POLL_BACKOFF_MULTIPLIER: Joi.number().default(1.5),
 });

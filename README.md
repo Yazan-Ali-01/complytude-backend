@@ -355,7 +355,7 @@ SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
 # S3/MinIO Storage
 S3_ENDPOINT=http://localhost:9000
-S3_REGION=us-east-1
+S3_REGION=eu-central-1
 S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 S3_BUCKET_PREFIX=complytude

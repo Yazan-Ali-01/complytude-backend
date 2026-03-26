@@ -691,28 +691,25 @@ These tables have **Row-Level Security (RLS) enabled** for tenant isolation.
 
 Tenant-specific documents. Supports both text-input (pasted content) and file-upload (S3-stored) documents.
 
-| Column                | Type                              | Description                                                                               |
-| --------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- |
-| `id`                  | UUID                              | Primary key                                                                               |
-| `tenant_id`           | UUID                              | **RLS isolation key** (FK to tenants)                                                     |
-| `title`               | VARCHAR(255)                      | Document title                                                                            |
-| `content`             | TEXT                              | Document content (required for text-input; populated after extraction for file-upload)    |
-| `metadata`            | JSONB                             | Tags, custom fields, etc.                                                                 |
-| `template_id`         | UUID                              | FK to templates (which template was used)                                                 |
-| `template_version_id` | UUID                              | FK to template_versions (specific version)                                                |
-| `generation_metadata` | JSONB                             | AI model, parameters, etc.                                                                |
-| `created_by`          | UUID                              | FK to users                                                                               |
-| `created_at`          | TIMESTAMPTZ                       | Creation timestamp                                                                        |
-| `updated_at`          | TIMESTAMPTZ                       | Last update timestamp                                                                     |
-| `source_type`         | `document_source_type` ENUM       | `text_input` (default) or `file_upload`                                                   |
-| `s3_key`              | VARCHAR(1024)                     | Full S3 object key (includes tenant prefix). NULL for text-input                          |
-| `s3_bucket`           | VARCHAR(255)                      | Bucket name (`quarantine` or `clean`). NULL for text-input                                |
-| `original_filename`   | VARCHAR(512)                      | User's original filename for display/download                                             |
-| `file_size_bytes`     | BIGINT                            | File size for validation and display                                                      |
-| `mime_type`           | VARCHAR(255)                      | MIME type (e.g. `application/pdf`)                                                        |
-| `extraction_status`   | `document_extraction_status` ENUM | Extraction lifecycle: `pending`, `processing`, `completed`, `failed`. NULL for text-input |
-| `extraction_error`    | TEXT                              | Error message if extraction failed                                                        |
-| `extracted_at`        | TIMESTAMPTZ                       | When text extraction completed                                                            |
+| Column              | Type                              | Description                                                                               |
+| ------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `id`                | UUID                              | Primary key                                                                               |
+| `tenant_id`         | UUID                              | **RLS isolation key** (FK to tenants)                                                     |
+| `title`             | VARCHAR(255)                      | Document title                                                                            |
+| `content`           | TEXT                              | Document content (required for text-input; populated after extraction for file-upload)    |
+| `metadata`          | JSONB                             | Tags, custom fields, etc.                                                                 |
+| `created_by`        | UUID                              | FK to users                                                                               |
+| `created_at`        | TIMESTAMPTZ                       | Creation timestamp                                                                        |
+| `updated_at`        | TIMESTAMPTZ                       | Last update timestamp                                                                     |
+| `source_type`       | `document_source_type` ENUM       | `text_input` (default) or `file_upload`                                                   |
+| `s3_key`            | VARCHAR(1024)                     | Full S3 object key (includes tenant prefix). NULL for text-input                          |
+| `s3_bucket`         | VARCHAR(255)                      | Bucket name (`quarantine` or `clean`). NULL for text-input                                |
+| `original_filename` | VARCHAR(512)                      | User's original filename for display/download                                             |
+| `file_size_bytes`   | BIGINT                            | File size for validation and display                                                      |
+| `mime_type`         | VARCHAR(255)                      | MIME type (e.g. `application/pdf`)                                                        |
+| `extraction_status` | `document_extraction_status` ENUM | Extraction lifecycle: `pending`, `processing`, `completed`, `failed`. NULL for text-input |
+| `extraction_error`  | TEXT                              | Error message if extraction failed                                                        |
+| `extracted_at`      | TIMESTAMPTZ                       | When text extraction completed                                                            |
 
 **Enums:**
 

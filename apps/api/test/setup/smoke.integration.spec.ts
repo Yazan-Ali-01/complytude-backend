@@ -110,13 +110,11 @@ describe('Smoke Test - Test Infrastructure', () => {
     );
     await app.queueProducerService.enqueue(
       QUEUE_NAMES.AI_PROCESSING,
-      AI_JOB_NAMES.DOCUMENT_GENERATION,
+      AI_JOB_NAMES.DOCUMENT_ANALYSIS,
       {
-        tenantId: '00000000-0000-0000-0000-000000000001',
-        templateVersionId: '00000000-0000-0000-0000-000000000002',
-        variables: {},
-        userId: '00000000-0000-0000-0000-000000000003',
-        documentId: '00000000-0000-0000-0000-000000000004',
+        analysisJobId: '00000000-0000-0000-0000-000000000001',
+        documentId: '00000000-0000-0000-0000-000000000002',
+        tenantId: '00000000-0000-0000-0000-000000000003',
       },
     );
     const counts = await queue.getJobCounts();
@@ -126,13 +124,11 @@ describe('Smoke Test - Test Infrastructure', () => {
   it('BullMQ jobs cleared by flush', async () => {
     await app.queueProducerService.enqueue(
       QUEUE_NAMES.AI_PROCESSING,
-      AI_JOB_NAMES.DOCUMENT_GENERATION,
+      AI_JOB_NAMES.DOCUMENT_ANALYSIS,
       {
-        tenantId: '00000000-0000-0000-0000-000000000001',
-        templateVersionId: '00000000-0000-0000-0000-000000000002',
-        variables: {},
-        userId: '00000000-0000-0000-0000-000000000003',
-        documentId: '00000000-0000-0000-0000-000000000004',
+        analysisJobId: '00000000-0000-0000-0000-000000000001',
+        documentId: '00000000-0000-0000-0000-000000000002',
+        tenantId: '00000000-0000-0000-0000-000000000003',
       },
     );
     const queue = app.module.get<Queue>(

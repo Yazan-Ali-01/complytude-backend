@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from 'src/common/dto';
 
 export enum DocumentSortBy {
@@ -21,29 +20,6 @@ export class ListDocumentsQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
-
-  @ApiPropertyOptional({
-    description: 'Filter documents by template key',
-    example: 'dmcc_employment_v1',
-  })
-  @IsOptional()
-  @IsString()
-  templateKey?: string;
-
-  @ApiPropertyOptional({
-    description:
-      'Include soft-deleted documents (admin only - non-admins will be ignored)',
-    example: false,
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return value;
-  })
-  includeDeleted?: boolean;
 
   @ApiPropertyOptional({
     description: 'Sort field',

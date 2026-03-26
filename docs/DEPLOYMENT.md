@@ -420,7 +420,7 @@ SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
 # S3/MinIO Storage (use localhost for hybrid mode)
 S3_ENDPOINT=http://localhost:9000
-S3_REGION=us-east-1
+S3_REGION=eu-central-1
 S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 S3_BUCKET_PREFIX=complytude
@@ -793,7 +793,7 @@ SESSION_MAX_PER_USER=5
 SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
 # S3 Storage - Use AWS S3 in production
-S3_REGION=us-east-1
+S3_REGION=eu-central-1
 S3_ACCESS_KEY=<your-aws-access-key>
 S3_SECRET_KEY=<your-aws-secret-key>
 S3_BUCKET_PREFIX=complytude-production

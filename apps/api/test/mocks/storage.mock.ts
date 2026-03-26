@@ -143,6 +143,8 @@ export class MockStorageService implements PublicApi<StorageService> {
     return { contentLength: 2048576, contentType: 'application/pdf' };
   }
 
+  async deleteObjectFromBucket(_bucket: string, _key: string): Promise<void> {}
+
   async initializeQuarantineBucket(): Promise<void> {}
 
   get quarantineBucketName(): string {

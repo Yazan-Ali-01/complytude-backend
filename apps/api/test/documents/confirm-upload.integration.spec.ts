@@ -53,7 +53,6 @@ describe('DocumentsService.confirmUpload', () => {
     return documentRepository.create({
       tenant_id: tenantId,
       title: 'test-contract.pdf',
-      content: null,
       created_by: userId,
       metadata: JSON.stringify({}),
       source_type: 'file_upload',

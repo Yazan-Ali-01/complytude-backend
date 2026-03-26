@@ -79,7 +79,9 @@ resource "aws_secretsmanager_secret_version" "app" {
     S3_ACCESS_KEY = var.s3_access_key
     S3_SECRET_KEY = var.s3_secret_key
     S3_FORCE_PATH_STYLE = "false"
-    COMPLYTUDE_FILES_BUCKET_NAME = var.s3_quarantine_bucket
+    # Quarantine = upload/Textract source; clean = post-ingestion tenant files (promotion target).
+    # API/worker: QUARANTINE_* for new uploads; COMPLYTUDE_FILES_* is promotion destination (S3PromotionService).
+    COMPLYTUDE_FILES_BUCKET_NAME = var.s3_clean_bucket
     TEMPLATES_BUCKET_NAME        = var.s3_clean_bucket
     QUARANTINE_BUCKET_NAME       = var.s3_quarantine_bucket
     MAX_FILE_SIZE               = "10485760"

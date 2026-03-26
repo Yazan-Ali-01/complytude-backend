@@ -286,8 +286,8 @@ apps/worker-ingestion/
 │   ├── services/
 │   │   ├── ruleset-ingestion.service.ts     # Ruleset chunking + embedding
 │   │   ├── document-ingestion.service.ts    # Document extraction pipeline orchestrator
-│   │   ├── textract.stub.service.ts         # Textract stub (COM-209)
-│   │   └── s3-promotion.stub.service.ts     # S3 promotion stub (COM-210)
+│   │   ├── textract.service.ts             # AWS Textract async text extraction
+│   │   └── s3-promotion.service.ts           # S3 file promotion (quarantine → clean bucket)
 │   └── repositories/
 │       ├── ruleset-version-read.repository.ts # Read ruleset versions
 │       ├── ruleset-chunks.repository.ts       # Write embedded chunks
