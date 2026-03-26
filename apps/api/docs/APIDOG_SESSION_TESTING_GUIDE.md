@@ -340,7 +340,7 @@ Cookie: <identity cookies>
 
 ## Task 6: Security Event Hooks (UsersService)
 
-**What changed:** `UsersService` no longer updates `refresh_tokens` (Redis sessions are the source of truth). Session invalidation is wired as follows.
+**What changed:** Session state is in **Redis** (not PostgreSQL). `UsersService` invalidates via `SessionInvalidationService`. Session invalidation is wired as follows.
 
 | Flow                   | Behavior                                                                                                   |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -618,6 +618,32 @@ X-Forwarded-For: 8.8.8.8
 ### 3. Fire-and-Forget Behavior
 
 **Verify:** Login response returns immediately. Geo enrichment does not block the response. Check logs for `GeoLocationService: GeoLite2-City database loaded` on startup when DB exists.
+
+---
+
+## Automated integration tests (Jest)
+
+| File                                                        | What it covers                                                                                                                                                    |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/test/auth/sessions.lifecycle.integration.spec.ts` | Login → Redis identity session → tenant switch → tenant session → logout → keys removed                                                                           |
+| `apps/api/test/auth/sessions.security.integration.spec.ts`  | Password change clears all sessions; `SessionInvalidationService.invalidateTenantSessions` clears tenant scope (same primitive as role change / deactivate hooks) |
+| `apps/api/test/auth/sessions.endpoints.integration.spec.ts` | HTTP `inject` for `/api/v1/auth/sessions*`, tenant-admin sessions, system-admin stats                                                                             |
+
+Run (Docker Postgres + Redis testcontainers must be up):
+
+```bash
+pnpm test:integration --testPathPattern=sessions --runInBand
+```
+
+`createTestApp()` mirrors production routing: `@fastify/cookie`, `setGlobalPrefix('api')`, URI versioning → use **`/api/v1/...`** in requests.
+
+**Faster session cycles in tests:** `apps/api/.env.test` sets `SESSION_MAX_TTL=60s` and `SESSION_IDLE_TIMEOUT=30s`. Use production-like values in `.env` when validating long-lived sessions manually.
+
+## Multi-tenant switching and tenant sessions
+
+- Each **tenant switch** creates a **tenant session** in Redis, linked to the active **identity session**.
+- The same identity session can have multiple tenant sessions (one per tenant the user has switched to in that browser).
+- After switching, call `GET /api/v1/auth/sessions` (identity + tenant cookies) to list sessions **for the current tenant**; `GET /api/v1/auth/sessions/all` lists across all tenants.
 
 ---
 

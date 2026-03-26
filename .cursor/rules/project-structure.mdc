@@ -336,8 +336,8 @@ Data access layer with repository pattern. All repositories extend `BaseReposito
   - **user.repository.ts** - User CRUD
   - **user-tenant.repository.ts** - User-tenant association
   - **email-verification.repository.ts** - Email verification tokens
-  - **refresh-token.repository.ts** - Refresh token management
-  - **interfaces/** - User, user-tenant, email verification, refresh token interfaces
+  - **interfaces/** - User, user-tenant, email verification interfaces
+  - _(Refresh/session state: Redis via `auth` module `SessionService` / `SessionInvalidationService` — not a PG repository.)_
 
 #### RBAC Repositories
 

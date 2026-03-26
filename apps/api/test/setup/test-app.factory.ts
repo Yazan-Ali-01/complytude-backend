@@ -1,9 +1,15 @@
+import cookie from '@fastify/cookie';
+import { AuditService } from '@lib/audit';
 import { DatabaseService } from '@lib/database';
 import type { Queue } from '@lib/queue';
 import { QUEUE_NAMES, QueueProducerService, getQueueToken } from '@lib/queue';
 import { RedisService } from '@lib/redis';
 import { REDIS_CLIENT } from '@lib/redis/redis.constants';
-import { INestApplication } from '@nestjs/common';
+import {
+  INestApplication,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -11,7 +17,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import Redis from 'ioredis';
 import { AppModule } from 'src/app.module';
-import { AuditService } from '@lib/audit';
+import { validationExceptionFactory } from 'src/common/pipes/validation-exception.factory';
 import { StorageService } from 'src/modules/storage/storage.service';
 import { MockStorageService } from '../mocks/storage.mock';
 import { ensureWorkerDatabase } from './worker-database.setup';
@@ -88,6 +94,27 @@ export async function createTestApp(
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
     new FastifyAdapter(),
+  );
+
+  await app.register(cookie);
+
+  const apiPrefix = process.env.API_PREFIX || 'api';
+  app.setGlobalPrefix(apiPrefix);
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+    prefix: 'v',
+  });
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      exceptionFactory: validationExceptionFactory,
+    }),
   );
 
   await app.init();

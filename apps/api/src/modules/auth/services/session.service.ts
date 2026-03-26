@@ -122,6 +122,17 @@ export class SessionService {
     return data !== null;
   }
 
+  /**
+   * Pure existence check without side effects (no idle-expiry deletion).
+   * Use in guards for graceful degradation.
+   */
+  async identitySessionExistsPure(sessionId: string): Promise<boolean> {
+    const key = SESSION_KEYS.identitySession(sessionId);
+    const data = await this.redis.get<IdentitySessionData>(key);
+    if (!data) return false;
+    return !this.isIdleExpired(data.lastActivityAt);
+  }
+
   /** Delete identity session and cascade to all linked tenant sessions */
   async deleteIdentitySession(
     sessionId: string,
@@ -203,17 +214,23 @@ export class SessionService {
     data: TenantSessionData,
     identitySessionId: string,
   ): Promise<void> {
+    const identityKey = SESSION_KEYS.identitySession(identitySessionId);
+    const identityTtl = await this.redis.ttl(identityKey);
+    const tenantTtl =
+      identityTtl > 0
+        ? Math.min(identityTtl, this.maxTtlSeconds)
+        : this.maxTtlSeconds;
+
     const key = SESSION_KEYS.tenantSession(sessionId);
-    await this.redis.set(key, data, this.maxTtlSeconds);
+    await this.redis.set(key, data, tenantTtl);
 
     await this.redis.sadd(
       SESSION_KEYS.userTenantSessions(data.userId, data.tenantId),
       sessionId,
     );
 
-    const identitySession = await this.redis.get<IdentitySessionData>(
-      SESSION_KEYS.identitySession(identitySessionId),
-    );
+    const identitySession =
+      await this.redis.get<IdentitySessionData>(identityKey);
     if (identitySession) {
       const updated = {
         ...identitySession,
@@ -223,11 +240,7 @@ export class SessionService {
         ],
         lastActivityAt: new Date().toISOString(),
       };
-      await this.redis.set(
-        SESSION_KEYS.identitySession(identitySessionId),
-        updated,
-        this.maxTtlSeconds,
-      );
+      await this.redis.set(identityKey, updated, this.maxTtlSeconds);
     }
   }
 
@@ -247,6 +260,17 @@ export class SessionService {
   async tenantSessionExists(sessionId: string): Promise<boolean> {
     const data = await this.findTenantSessionById(sessionId);
     return data !== null;
+  }
+
+  /**
+   * Pure existence check without side effects (no idle-expiry deletion).
+   * Use in guards for graceful degradation.
+   */
+  async tenantSessionExistsPure(sessionId: string): Promise<boolean> {
+    const key = SESSION_KEYS.tenantSession(sessionId);
+    const data = await this.redis.get<TenantSessionData>(key);
+    if (!data) return false;
+    return !this.isIdleExpired(data.lastActivityAt);
   }
 
   async deleteTenantSession(
@@ -288,6 +312,7 @@ export class SessionService {
 
   /**
    * Touch tenant session activity. Throttled. Fire-and-forget.
+   * Also touches the parent identity session to prevent it from idle-expiring.
    */
   touchTenantActivity(sessionId: string): void {
     const throttleKey = SESSION_KEYS.sessionActivity(sessionId);
@@ -301,18 +326,23 @@ export class SessionService {
       })
       .then((data) => {
         if (!data) return;
+        const now = new Date().toISOString();
         const updated: TenantSessionData = {
           ...data,
-          lastActivityAt: new Date().toISOString(),
+          lastActivityAt: now,
         };
-        return Promise.all([
+        const promises: Promise<unknown>[] = [
           this.redis.set(
             SESSION_KEYS.tenantSession(sessionId),
             updated,
             this.maxTtlSeconds,
           ),
           this.redis.set(throttleKey, '1', this.activityThrottleSeconds),
-        ]);
+        ];
+        if (data.identitySessionId) {
+          this.touchIdentityActivity(data.identitySessionId);
+        }
+        return Promise.all(promises);
       })
       .catch((err) =>
         this.logger.warn(`Failed to touch tenant session activity: ${err}`),

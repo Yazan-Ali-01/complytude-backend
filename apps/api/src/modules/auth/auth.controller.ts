@@ -251,7 +251,7 @@ export class AuthController {
     identityUser: AuthenticatedIdentityRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
-    const { identityAccessToken, identityRefreshToken } =
+    const { identityAccessToken } =
       await this.authService.refreshIdentityTokens(
         identityUser.userId,
         identityUser.email,
@@ -261,7 +261,7 @@ export class AuthController {
     this.authService.setIdentityTokens(
       reply,
       identityAccessToken,
-      identityRefreshToken || identityUser.refreshToken,
+      identityUser.refreshToken,
     );
     return { message: 'Identity tokens refreshed successfully' };
   }
@@ -296,18 +296,17 @@ export class AuthController {
     tenantUser: AuthenticatedTenantRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
-    const { tenantAccessToken, tenantRefreshToken } =
-      await this.authService.refreshTenantTokens(
-        tenantUser.userId,
-        tenantUser.email,
-        tenantUser.tenantId,
-        tenantUser.sessionId,
-      );
+    const { tenantAccessToken } = await this.authService.refreshTenantTokens(
+      tenantUser.userId,
+      tenantUser.email,
+      tenantUser.tenantId,
+      tenantUser.sessionId,
+    );
 
     this.authService.setTenantTokens(
       reply,
       tenantAccessToken,
-      tenantRefreshToken || tenantUser.refreshToken,
+      tenantUser.refreshToken,
     );
     return { message: 'Tenant tokens refreshed successfully' };
   }
@@ -324,9 +323,9 @@ export class AuthController {
   @SwaggerCookieAuth.identityRefreshToken()
   @SwaggerCookieAuth.tenantRefreshToken()
   @ApiOperation({
-    summary: 'Logout from all sessions',
+    summary: 'Logout from current session context',
     description:
-      'Invalidate all refresh tokens (identity + tenant) and clear all authentication cookies.',
+      'Deletes the corresponding Redis session(s) for the refresh token(s) sent (identity and/or tenant), then clears cookies. Use session DELETE endpoints for targeted or global logout.',
   })
   @ApiResponse({
     status: 200,
@@ -363,6 +362,7 @@ export class AuthController {
    */
   @AuthOptions({ identity: true })
   @Get('sessions/all')
+  @Audit('SESSION_LIST_ALL', { resourceType: 'sessions' })
   @SwaggerCookieAuth.identityAccessToken()
   @ApiOperation({
     summary: 'List all sessions',
@@ -391,6 +391,7 @@ export class AuthController {
    */
   @AuthOptions({ identity: true, tenant: true })
   @Get('sessions')
+  @Audit('SESSION_LIST', { resourceType: 'sessions' })
   @SwaggerCookieAuth.identityAccessToken()
   @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
@@ -422,6 +423,7 @@ export class AuthController {
    */
   @AuthOptions({ identity: true })
   @Delete('sessions/all')
+  @Audit('SESSION_LOGOUT_ALL', { resourceType: 'sessions' })
   @SwaggerCookieAuth.identityAccessToken()
   @ApiOperation({
     summary: 'Logout all sessions',
@@ -449,6 +451,7 @@ export class AuthController {
    */
   @AuthOptions({ identity: true, tenant: true })
   @Delete('sessions')
+  @Audit('SESSION_LOGOUT_TENANT', { resourceType: 'sessions' })
   @SwaggerCookieAuth.identityAccessToken()
   @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
@@ -480,6 +483,10 @@ export class AuthController {
    */
   @AuthOptions({ identity: true })
   @Delete('sessions/:sessionId')
+  @Audit('SESSION_DELETED', {
+    resourceType: 'sessions',
+    resourceIdParam: 'sessionId',
+  })
   @SwaggerCookieAuth.identityAccessToken()
   @ApiOperation({
     summary: 'Logout specific session',
@@ -523,6 +530,10 @@ export class AuthController {
    */
   @AuthOptions({ identity: true })
   @Patch('sessions/:sessionId')
+  @Audit('SESSION_RENAMED', {
+    resourceType: 'sessions',
+    resourceIdParam: 'sessionId',
+  })
   @SwaggerCookieAuth.identityAccessToken()
   @ApiOperation({
     summary: 'Rename session',

@@ -14,7 +14,7 @@ BEGIN;
 -- =========================
 
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
-SELECT 
+SELECT
     '20000000-0000-0000-0000-000000000001'::UUID,
     '11111111-1111-4111-8111-111111111111'::UUID,
     '10000000-0000-0000-0000-000000000001'::UUID,
@@ -36,13 +36,13 @@ SELECT
         "salary": 25000,
         "probation_period": 180
     }'::jsonb,
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.templates
 WHERE id = '10000000-0000-0000-0000-000000000001'
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
-SELECT 
+SELECT
     '20000000-0000-0000-0000-000000000002'::UUID,
     '11111111-1111-4111-8111-111111111111'::UUID,
     '10000000-0000-0000-0000-000000000002'::UUID,
@@ -65,13 +65,13 @@ SELECT
         "disclosure_purpose": "Exploration of potential strategic technology partnership",
         "term_years": 2
     }'::jsonb,
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.templates
 WHERE id = '10000000-0000-0000-0000-000000000002'
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
-SELECT 
+SELECT
     '20000000-0000-0000-0000-000000000003'::UUID,
     '11111111-1111-4111-8111-111111111111'::UUID,
     '10000000-0000-0000-0000-000000000005'::UUID,
@@ -89,7 +89,7 @@ SELECT
         "monthly_rent": 45000,
         "security_deposit": 90000
     }'::jsonb,
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID
+    'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'::UUID
 FROM public.templates
 WHERE id = '10000000-0000-0000-0000-000000000005'
 ON CONFLICT (id) DO NOTHING;
@@ -99,7 +99,7 @@ ON CONFLICT (id) DO NOTHING;
 -- =========================
 
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
-SELECT 
+SELECT
     '20000000-0000-0000-0000-000000000004'::UUID,
     '22222222-2222-4222-8222-222222222222'::UUID,
     '10000000-0000-0000-0000-000000000003'::UUID,
@@ -122,13 +122,13 @@ SELECT
         "start_date": "2024-02-01",
         "end_date": "2024-05-31"
     }'::jsonb,
-    'dddddddd-dddd-dddd-dddd-dddddddddddd'::UUID
+    'dddddddd-dddd-4ddd-dddd-dddddddddddd'::UUID
 FROM public.templates
 WHERE id = '10000000-0000-0000-0000-000000000003'
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
-SELECT 
+SELECT
     '20000000-0000-0000-0000-000000000005'::UUID,
     '22222222-2222-4222-8222-222222222222'::UUID,
     '10000000-0000-0000-0000-000000000001'::UUID,
@@ -150,7 +150,7 @@ SELECT
         "salary": 18000,
         "probation_period": 180
     }'::jsonb,
-    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'::UUID
+    'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee'::UUID
 FROM public.templates
 WHERE id = '10000000-0000-0000-0000-000000000001'
 ON CONFLICT (id) DO NOTHING;
@@ -160,7 +160,7 @@ ON CONFLICT (id) DO NOTHING;
 -- =========================
 
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
-SELECT 
+SELECT
     '20000000-0000-0000-0000-000000000006'::UUID,
     '33333333-2222-4222-8222-333333333333'::UUID,
     '10000000-0000-0000-0000-000000000004'::UUID,
@@ -184,13 +184,13 @@ SELECT
         "capital_contribution": 5000000,
         "profit_sharing_ratio": "60:40 as per ownership"
     }'::jsonb,
-    'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID
+    'ffffffff-ffff-4fff-ffff-ffffffffffff'::UUID
 FROM public.templates
 WHERE id = '10000000-0000-0000-0000-000000000004'
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.documents (id, tenant_id, template_id, title, content, metadata, generation_metadata, created_by)
-SELECT 
+SELECT
     '20000000-0000-0000-0000-000000000007'::UUID,
     '33333333-2222-4222-8222-333333333333'::UUID,
     '10000000-0000-0000-0000-000000000002'::UUID,
@@ -214,7 +214,7 @@ SELECT
         "disclosure_purpose": "Development of advanced security systems for Project Phoenix",
         "term_years": 5
     }'::jsonb,
-    'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID
+    'ffffffff-ffff-4fff-ffff-ffffffffffff'::UUID
 FROM public.templates
 WHERE id = '10000000-0000-0000-0000-000000000002'
 ON CONFLICT (id) DO NOTHING;
@@ -236,7 +236,7 @@ BEGIN
     SELECT COUNT(*) INTO doc_tenant2 FROM public.documents WHERE tenant_id = '22222222-2222-4222-8222-222222222222';
     SELECT COUNT(*) INTO doc_tenant3 FROM public.documents WHERE tenant_id = '33333333-2222-4222-8222-333333333333';
     SELECT COUNT(*) INTO total_docs FROM public.documents;
-    
+
     RAISE NOTICE '=========================';
     RAISE NOTICE 'Document Seed Summary:';
     RAISE NOTICE '=========================';
@@ -253,7 +253,7 @@ BEGIN
 END $$;
 
 -- Display seeded documents grouped by tenant
-SELECT 
+SELECT
     t.name as tenant_name,
     t.slug as tenant_slug,
     d.title as document_title,

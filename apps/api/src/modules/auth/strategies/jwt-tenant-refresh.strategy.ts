@@ -40,7 +40,6 @@ export class JwtTenantRefreshStrategy extends PassportStrategy(
     req: FastifyRequest,
     payload: TenantRefreshPayload,
   ): AuthenticatedTenantRefreshUser {
-    // Ensure it's a tenant refresh token
     const i18n = I18nContext.current();
     if (payload.type !== TENANT_REFRESH_PAYLOAD_TYPE) {
       this.logger.warn(
@@ -60,18 +59,11 @@ export class JwtTenantRefreshStrategy extends PassportStrategy(
       );
     }
 
-    if (!payload.sessionId?.trim()) {
-      throw new UnauthorizedException(
-        i18n?.t(AuthI18n.errors.INVALID_REFRESH_TOKEN) ??
-          'Session expired or invalid',
-      );
-    }
-
     return {
       userId: payload.sub,
       email: payload.email,
       tenantId: payload.tenantId,
-      sessionId: payload.sessionId,
+      sessionId: payload.sessionId ?? '',
       refreshToken,
     };
   }

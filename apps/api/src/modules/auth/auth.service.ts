@@ -569,17 +569,16 @@ export class AuthService {
     userId: string,
     email: string,
     sessionId: string,
-  ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
+  ): Promise<{ identityAccessToken: string }> {
     if (!sessionId) {
       throw new UnauthorizedException(
-        this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
+        this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
-
     const exists = await this.sessionService.identitySessionExists(sessionId);
     if (!exists) {
       throw new UnauthorizedException(
-        this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
+        this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
 
@@ -603,7 +602,7 @@ export class AuthService {
 
     this.logger.log(`Identity tokens refreshed for user ${userId}`);
 
-    return { identityAccessToken, identityRefreshToken: '' }; // Caller uses existing refresh token
+    return { identityAccessToken };
   }
 
   /**
@@ -615,17 +614,16 @@ export class AuthService {
     email: string,
     tenantId: string,
     sessionId: string,
-  ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
+  ): Promise<{ tenantAccessToken: string }> {
     if (!sessionId) {
       throw new UnauthorizedException(
-        this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
+        this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
-
     const exists = await this.sessionService.tenantSessionExists(sessionId);
     if (!exists) {
       throw new UnauthorizedException(
-        this.i18n.t(AuthI18n.errors.INVALID_REFRESH_TOKEN),
+        this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
 
@@ -654,7 +652,7 @@ export class AuthService {
       `Tenant tokens refreshed for user ${userId} in tenant ${tenantId}`,
     );
 
-    return { tenantAccessToken, tenantRefreshToken: '' }; // Caller uses existing refresh token
+    return { tenantAccessToken };
   }
 
   /**

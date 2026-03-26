@@ -19,29 +19,29 @@ Complytude is a **NestJS monorepo** with multiple applications and shared librar
 
 ### Applications
 
-| Application | Path | Purpose | Port |
-|------------|------|---------|------|
-| **API** | `apps/api` | Main REST API with Swagger docs | 3000 |
-| **Worker AI** | `apps/worker-ai` | AI processing worker (BullMQ consumer) | N/A |
-| **Worker Ingestion** | `apps/worker-ingestion` | Data ingestion worker (BullMQ consumer) | N/A |
+| Application          | Path                    | Purpose                                 | Port |
+| -------------------- | ----------------------- | --------------------------------------- | ---- |
+| **API**              | `apps/api`              | Main REST API with Swagger docs         | 3000 |
+| **Worker AI**        | `apps/worker-ai`        | AI processing worker (BullMQ consumer)  | N/A  |
+| **Worker Ingestion** | `apps/worker-ingestion` | Data ingestion worker (BullMQ consumer) | N/A  |
 
 ### Shared Libraries
 
-| Library | Path | Purpose |
-|---------|------|---------|
-| **Database** | `libs/database` | PostgreSQL connection, service, base repository |
-| **Embedding** | `libs/embedding` | OpenAI embedding + text chunking services |
-| **Queue** | `libs/queue` | BullMQ queue definitions and producers |
-| **Redis** | `libs/redis` | Redis connection and configuration |
+| Library       | Path             | Purpose                                         |
+| ------------- | ---------------- | ----------------------------------------------- |
+| **Database**  | `libs/database`  | PostgreSQL connection, service, base repository |
+| **Embedding** | `libs/embedding` | OpenAI embedding + text chunking services       |
+| **Queue**     | `libs/queue`     | BullMQ queue definitions and producers          |
+| **Redis**     | `libs/redis`     | Redis connection and configuration              |
 
 ### Infrastructure Services
 
-| Service | Purpose | Port(s) |
-|---------|---------|---------|
-| **PostgreSQL 16** | Database with pgvector extension | 5432 |
-| **Redis 7** | Message queue for BullMQ | 6379 |
-| **MinIO** | S3-compatible object storage | 9000, 9001 |
-| **pgAdmin** | Database management UI (optional) | 5050 |
+| Service           | Purpose                           | Port(s)    |
+| ----------------- | --------------------------------- | ---------- |
+| **PostgreSQL 16** | Database with pgvector extension  | 5432       |
+| **Redis 7**       | Message queue for BullMQ          | 6379       |
+| **MinIO**         | S3-compatible object storage      | 9000, 9001 |
+| **pgAdmin**       | Database management UI (optional) | 5050       |
 
 ---
 
@@ -51,18 +51,18 @@ Complytude supports two Docker deployment approaches to fit different workflows 
 
 ### Overview: Two Deployment Approaches
 
-| Aspect                 | Hybrid Mode               | Fully Dockerized           |
-| ---------------------- | ------------------------- | -------------------------- |
-| **NestJS Applications** | 💻 Local (Node.js)        | 🐳 Docker Container        |
-| **PostgreSQL**         | 🐳 Docker Container       | 🐳 Docker Container        |
-| **Redis**              | 🐳 Docker Container       | 🐳 Docker Container        |
-| **MinIO**              | 🐳 Docker Container       | 🐳 Docker Container        |
-| **Hot Reload**         | ✅ Native & Fast          | ⚠️ Via Volume Mounts       |
-| **Debugging**          | ✅ Direct IDE Integration | ⚠️ Remote Debugging        |
-| **Production-like**    | ⚠️ Partial                | ✅ Identical to Production |
-| **Startup Time**       | ⚡ Fast                   | 🐌 Slower (image build)    |
-| **Best For**           | Active Development        | Staging Deployments, CI/CD |
-| **Command**            | `pnpm dev`                | `pnpm docker:dev` or `pnpm docker:prod` |
+| Aspect                  | Hybrid Mode               | Fully Dockerized                        |
+| ----------------------- | ------------------------- | --------------------------------------- |
+| **NestJS Applications** | 💻 Local (Node.js)        | 🐳 Docker Container                     |
+| **PostgreSQL**          | 🐳 Docker Container       | 🐳 Docker Container                     |
+| **Redis**               | 🐳 Docker Container       | 🐳 Docker Container                     |
+| **MinIO**               | 🐳 Docker Container       | 🐳 Docker Container                     |
+| **Hot Reload**          | ✅ Native & Fast          | ⚠️ Via Volume Mounts                    |
+| **Debugging**           | ✅ Direct IDE Integration | ⚠️ Remote Debugging                     |
+| **Production-like**     | ⚠️ Partial                | ✅ Identical to Production              |
+| **Startup Time**        | ⚡ Fast                   | 🐌 Slower (image build)                 |
+| **Best For**            | Active Development        | Staging Deployments, CI/CD              |
+| **Command**             | `pnpm dev`                | `pnpm docker:dev` or `pnpm docker:prod` |
 
 ### Approach 1: Hybrid Mode (Recommended for Development)
 
@@ -286,15 +286,15 @@ pnpm docker:reset
 
 ### Docker Compose Services Reference
 
-| Service    | Container Name          | Default Port | Configuration | Description                        |
-| ---------- | ----------------------- | ------------ | ------------- | ---------------------------------- |
-| `postgres` | complytude-postgres     | 5432         | Base          | PostgreSQL 16 with pgvector        |
-| `redis`    | complytude-redis        | 6379         | Base          | Redis 7 for BullMQ                 |
-| `minio`    | complytude-minio        | 9000, 9001   | Base          | S3-compatible storage              |
-| `minio-init` | complytude-minio-init | N/A          | Base          | MinIO bucket initialization        |
-| `pgadmin`  | complytude-pgadmin      | 5050         | Profile: tools | Database management UI            |
-| `api`      | complytude-api-dev      | 3000         | Dev compose   | NestJS API (development mode)      |
-| `api`      | complytude-api-prod     | 3000         | Prod compose  | NestJS API (production mode)       |
+| Service      | Container Name        | Default Port | Configuration  | Description                   |
+| ------------ | --------------------- | ------------ | -------------- | ----------------------------- |
+| `postgres`   | complytude-postgres   | 5432         | Base           | PostgreSQL 16 with pgvector   |
+| `redis`      | complytude-redis      | 6379         | Base           | Redis 7 for BullMQ            |
+| `minio`      | complytude-minio      | 9000, 9001   | Base           | S3-compatible storage         |
+| `minio-init` | complytude-minio-init | N/A          | Base           | MinIO bucket initialization   |
+| `pgadmin`    | complytude-pgadmin    | 5050         | Profile: tools | Database management UI        |
+| `api`        | complytude-api-dev    | 3000         | Dev compose    | NestJS API (development mode) |
+| `api`        | complytude-api-prod   | 3000         | Prod compose   | NestJS API (production mode)  |
 
 **Docker Compose Files:**
 
@@ -410,11 +410,13 @@ JWT_ACCESS_SECRET=your-super-secret-jwt-access-key-change-this-in-production
 JWT_REFRESH_SECRET=your-super-secret-jwt-refresh-key-change-this-in-production
 JWT_IDENTITY_SECRET=your-super-secret-jwt-identity-key-change-this-in-production
 JWT_IDENTITY_REFRESH_SECRET=your-super-secret-jwt-identity-refresh-key-change-this-in-production
-JWT_REFRESH_HASH_SECRET=your-super-secret-jwt-refresh-hash-key-change-this-in-production
 JWT_ACCESS_EXPIRES_IN=30m
-JWT_REFRESH_EXPIRES_IN=14d
 JWT_IDENTITY_EXPIRES_IN=15m
-JWT_IDENTITY_REFRESH_EXPIRES_IN=14d
+# Redis-backed sessions — also sets identity + tenant refresh JWT expiry (jwt.refreshExpiresIn)
+SESSION_MAX_TTL=14d
+SESSION_IDLE_TIMEOUT=72h
+SESSION_MAX_PER_USER=5
+SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
 # S3/MinIO Storage (use localhost for hybrid mode)
 S3_ENDPOINT=http://localhost:9000
@@ -665,7 +667,7 @@ deploy:
    ```bash
    # Start all apps in production mode
    NODE_ENV=production pnpm start:all:prod
-   
+
    # Or start individually
    NODE_ENV=production pnpm start:api:prod
    NODE_ENV=production pnpm start:worker-ai:prod
@@ -711,6 +713,7 @@ deploy:
 ### Production Considerations
 
 **Infrastructure:**
+
 - ✅ Use managed PostgreSQL service (AWS RDS, Azure Database, etc.)
 - ✅ Use managed Redis service (AWS ElastiCache, Azure Cache, etc.)
 - ✅ Use AWS S3 instead of MinIO for storage
@@ -719,6 +722,7 @@ deploy:
 - ✅ Enable HTTPS via reverse proxy (nginx, AWS ALB, etc.)
 
 **Security:**
+
 - ✅ Set strong, unique JWT secrets (use `openssl rand -base64 64`)
 - ✅ Configure proper CORS origins (no wildcards)
 - ✅ Use secrets management (AWS Secrets Manager, HashiCorp Vault)
@@ -727,6 +731,7 @@ deploy:
 - ✅ Implement rate limiting and DDoS protection
 
 **Performance:**
+
 - ✅ Configure database connection pooling (DB_MAX_CONNECTIONS)
 - ✅ Scale API horizontally (multiple instances)
 - ✅ Scale workers based on queue depth
@@ -735,6 +740,7 @@ deploy:
 - ✅ Implement caching strategies
 
 **Monitoring & Logging:**
+
 - ✅ Set up application monitoring (health checks, metrics)
 - ✅ Configure centralized logging (CloudWatch, ELK, Datadog)
 - ✅ Monitor queue depth and worker performance
@@ -779,11 +785,12 @@ JWT_ACCESS_SECRET=<generate-with-openssl-rand-base64-64>
 JWT_REFRESH_SECRET=<generate-with-openssl-rand-base64-64>
 JWT_IDENTITY_SECRET=<generate-with-openssl-rand-base64-64>
 JWT_IDENTITY_REFRESH_SECRET=<generate-with-openssl-rand-base64-64>
-JWT_REFRESH_HASH_SECRET=<generate-with-openssl-rand-base64-64>
 JWT_ACCESS_EXPIRES_IN=30m
-JWT_REFRESH_EXPIRES_IN=14d
 JWT_IDENTITY_EXPIRES_IN=15m
-JWT_IDENTITY_REFRESH_EXPIRES_IN=14d
+SESSION_MAX_TTL=14d
+SESSION_IDLE_TIMEOUT=72h
+SESSION_MAX_PER_USER=5
+SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
 # S3 Storage - Use AWS S3 in production
 S3_REGION=us-east-1
@@ -806,7 +813,6 @@ openssl rand -base64 64  # JWT_ACCESS_SECRET
 openssl rand -base64 64  # JWT_REFRESH_SECRET
 openssl rand -base64 64  # JWT_IDENTITY_SECRET
 openssl rand -base64 64  # JWT_IDENTITY_REFRESH_SECRET
-openssl rand -base64 64  # JWT_REFRESH_HASH_SECRET
 
 # Generate database password
 openssl rand -base64 32
@@ -818,14 +824,17 @@ openssl rand -base64 32
 ### Environment Variables by Application
 
 **API Application** (`apps/api/.env`):
+
 - All variables listed above
 
 **Worker AI** (uses same `.env` as API):
+
 - Shares Redis configuration
 - Shares database configuration
 - No HTTP server, so PORT not used
 
 **Worker Ingestion** (uses same `.env` as API):
+
 - Shares Redis configuration
 - Shares database configuration
 - No HTTP server, so PORT not used
@@ -933,6 +942,7 @@ The project includes Bull Board for queue monitoring (development only):
 **Production Queue Monitoring:**
 
 For production, integrate with:
+
 - Redis monitoring tools (RedisInsight, Redis Commander)
 - Application Performance Monitoring (APM) tools
 - Custom metrics exported to Prometheus/Grafana
@@ -1053,11 +1063,13 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT llen bull:ai-processing:failed
 ### Horizontal Scaling
 
 **API Scaling:**
+
 - Deploy multiple API instances behind a load balancer
 - Use sticky sessions if needed (or use Redis for session storage)
 - Scale based on CPU/memory usage or request rate
 
 **Worker Scaling:**
+
 - Deploy multiple worker instances for each worker type
 - Workers automatically compete for jobs from Redis queues
 - Scale based on queue depth and processing time
@@ -1071,7 +1083,7 @@ kind: Deployment
 metadata:
   name: complytude-api
 spec:
-  replicas: 3  # Scale as needed
+  replicas: 3 # Scale as needed
   selector:
     matchLabels:
       app: complytude-api
@@ -1081,14 +1093,14 @@ spec:
         app: complytude-api
     spec:
       containers:
-      - name: api
-        image: complytude-api:latest
-        ports:
-        - containerPort: 3000
-        env:
-        - name: NODE_ENV
-          value: "production"
-        # ... other env vars from ConfigMap/Secret
+        - name: api
+          image: complytude-api:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: 'production'
+          # ... other env vars from ConfigMap/Secret
 
 ---
 # Worker AI Deployment
@@ -1097,7 +1109,7 @@ kind: Deployment
 metadata:
   name: complytude-worker-ai
 spec:
-  replicas: 2  # Scale based on queue depth
+  replicas: 2 # Scale based on queue depth
   selector:
     matchLabels:
       app: complytude-worker-ai
@@ -1107,26 +1119,26 @@ spec:
         app: complytude-worker-ai
     spec:
       containers:
-      - name: worker-ai
-        image: complytude-api:latest
-        command: ["node", "dist/apps/worker-ai/main"]
-        env:
-        - name: NODE_ENV
-          value: "production"
-        # ... other env vars
+        - name: worker-ai
+          image: complytude-api:latest
+          command: ['node', 'dist/apps/worker-ai/main']
+          env:
+            - name: NODE_ENV
+              value: 'production'
+          # ... other env vars
 ```
 
 ### Vertical Scaling
 
 **Resource Recommendations:**
 
-| Service | CPU | Memory | Notes |
-|---------|-----|--------|-------|
-| API | 1-2 cores | 1-2 GB | Scale horizontally for more throughput |
-| Worker AI | 2-4 cores | 2-4 GB | CPU-intensive AI processing |
-| Worker Ingestion | 1-2 cores | 1-2 GB | I/O bound, scale horizontally |
-| PostgreSQL | 4+ cores | 8+ GB | Use managed service recommendations |
-| Redis | 2 cores | 4+ GB | Memory-bound, scale based on queue size |
+| Service          | CPU       | Memory | Notes                                   |
+| ---------------- | --------- | ------ | --------------------------------------- |
+| API              | 1-2 cores | 1-2 GB | Scale horizontally for more throughput  |
+| Worker AI        | 2-4 cores | 2-4 GB | CPU-intensive AI processing             |
+| Worker Ingestion | 1-2 cores | 1-2 GB | I/O bound, scale horizontally           |
+| PostgreSQL       | 4+ cores  | 8+ GB  | Use managed service recommendations     |
+| Redis            | 2 cores   | 4+ GB  | Memory-bound, scale based on queue size |
 
 ---
 

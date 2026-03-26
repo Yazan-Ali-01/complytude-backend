@@ -97,15 +97,19 @@ export class JwtAuthRefreshGuard implements CanActivate {
   ): Promise<void> {
     const i18n = I18nContext.current();
     const msg =
-      i18n?.t(AuthI18n.errors.INVALID_REFRESH_TOKEN) ??
+      i18n?.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID) ??
       'Session expired or invalid';
 
     const validate = async (sessionId: string, type: 'identity' | 'tenant') => {
+      if (!sessionId) {
+        throw new UnauthorizedException(msg);
+      }
+
       try {
         const exists =
           type === 'identity'
-            ? await this.sessionService.identitySessionExists(sessionId)
-            : await this.sessionService.tenantSessionExists(sessionId);
+            ? await this.sessionService.identitySessionExistsPure(sessionId)
+            : await this.sessionService.tenantSessionExistsPure(sessionId);
         if (!exists) {
           throw new UnauthorizedException(msg);
         }
@@ -123,14 +127,10 @@ export class JwtAuthRefreshGuard implements CanActivate {
     };
 
     if (authOptions?.identity && req.auth?.identity) {
-      const sid = req.auth.identity.sessionId;
-      if (!sid) throw new UnauthorizedException(msg);
-      await validate(sid, 'identity');
+      await validate(req.auth.identity.sessionId ?? '', 'identity');
     }
     if (authOptions?.tenant && req.auth?.tenant) {
-      const sid = req.auth.tenant.sessionId;
-      if (!sid) throw new UnauthorizedException(msg);
-      await validate(sid, 'tenant');
+      await validate(req.auth.tenant.sessionId ?? '', 'tenant');
     }
   }
 

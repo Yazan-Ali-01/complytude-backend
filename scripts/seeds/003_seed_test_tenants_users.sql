@@ -84,31 +84,31 @@ INSERT INTO public.users (
     created_at, updated_at
 ) VALUES
     (
-        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'admin@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', 'admin@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Alice', 'Admin', true, NULL, now(), now()
     ),
     (
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'member@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', 'member@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Bob', 'Member', true, NULL, now(), now()
     ),
     (
-        'cccccccc-cccc-cccc-cccc-cccccccccccc', 'viewer@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'cccccccc-cccc-4ccc-cccc-cccccccccccc', 'viewer@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Charlie', 'Viewer', true, NULL, now(), now()
     ),
     (
-        'dddddddd-dddd-dddd-dddd-dddddddddddd', 'admin@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'dddddddd-dddd-4ddd-dddd-dddddddddddd', 'admin@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Diana', 'Admin', true, NULL, now(), now()
     ),
     (
-        'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'member@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', 'member@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Eve', 'Member', true, NULL, now(), now()
     ),
     (
-        'ffffffff-ffff-ffff-ffff-ffffffffffff', 'admin@tenant3.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'ffffffff-ffff-4fff-ffff-ffffffffffff', 'admin@tenant3.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Frank', 'Enterprise', true, NULL, now(), now()
     ),
     (
-        '99999999-9999-9999-9999-999999999999', 'superadmin@complytude.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        '99999999-9999-4999-9999-999999999999', 'superadmin@complytude.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'System', 'Administrator', true, 'system_admin', now(), now()
     )
 ON CONFLICT (id) DO NOTHING;
@@ -120,19 +120,19 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.user_tenants (user_id, tenant_id, role_key) VALUES
     -- Tenant 1 (general_counsel plan) - 3 users
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'tenant_admin'),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-4111-8111-111111111111', 'member'),
-    ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-4111-8111-111111111111', 'viewer'),
+    ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'tenant_admin'),
+    ('bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', '11111111-1111-4111-8111-111111111111', 'member'),
+    ('cccccccc-cccc-4ccc-cccc-cccccccccccc', '11111111-1111-4111-8111-111111111111', 'viewer'),
 
     -- Tenant 2 (shield plan) - 2 users
-    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-4222-8222-222222222222', 'tenant_admin'),
-    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'member'),
+    ('dddddddd-dddd-4ddd-dddd-dddddddddddd', '22222222-2222-4222-8222-222222222222', 'tenant_admin'),
+    ('eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'member'),
 
     -- Tenant 3 (infrastructure plan) - 1 user
-    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-2222-4222-8222-333333333333', 'tenant_admin'),
+    ('ffffffff-ffff-4fff-ffff-ffffffffffff', '33333333-2222-4222-8222-333333333333', 'tenant_admin'),
 
     -- Multi-tenant user: Bob is also a viewer in Tenant 2
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'viewer')
+    ('bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'viewer')
 ON CONFLICT (user_id, tenant_id) DO UPDATE SET
     role_key = EXCLUDED.role_key;
 

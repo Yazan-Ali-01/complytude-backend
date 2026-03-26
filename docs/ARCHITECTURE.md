@@ -303,7 +303,7 @@ The database uses a **multi-tenant architecture** with Row-Level Security (RLS) 
 1. **Core Tables** (3) - `tenants`, `users`, `user_tenants`
 2. **Tenant RBAC Tables** (3) - `tenant_roles`, `tenant_permissions`, `tenant_role_permissions`
 3. **Platform RBAC Tables** (3) - `platform_roles`, `platform_permissions`, `platform_role_permissions`
-4. **Authentication Tables** (4) - `refresh_tokens`, `email_verifications`, `password_resets`, `invitations`
+4. **Authentication Tables** (3) - `email_verifications`, `password_resets`, `invitations` (session state in Redis, not PostgreSQL)
 5. **Global Reference Tables** (6) - `authorities`, `categories`, `templates`, `template_versions`, `rulesets`, `ruleset_versions`
 6. **Entitlement Catalog Tables** (5) - `features`, `plans`, `plan_entitlements`, `addons`, `addon_entitlements`
 7. **Tenant-Scoped Entitlement Tables** (3) - `tenant_subscriptions`, `tenant_addons`, `tenant_overrides`
@@ -532,7 +532,7 @@ The system uses **four distinct token types**:
 3. **Tenant Access Token:** Short-lived (30 minutes), contains user + tenant info, used for tenant-scoped API access
 4. **Tenant Refresh Token:** Long-lived (14 days), tenant-specific, used to obtain new tenant access tokens
 
-All tokens are stored in HTTP-only cookies and refresh tokens are persisted in the database with type tracking (`identity` or `tenant`).
+All tokens are stored in HTTP-only cookies. **Session validity** for refresh and access is enforced via **Redis** (`sessionId` in each JWT): deleting a session revokes tokens immediately; refresh re-issues access tokens without PostgreSQL refresh-token rows.
 
 ### Redis Session Management (Task 1 + 2)
 
@@ -542,7 +542,7 @@ The authentication system is transitioning to **Redis-backed session management*
 
 **Task 2 — JWT Payload & Strategy:** All four JWT payload types and `Authenticated*User` interfaces include `sessionId`. Passport strategies extract and return it. Role-change TODO removed (handled by `SessionInvalidationService.invalidateTenantSessions()`).
 
-**Task 3 — Auth Flow Integration:** Login creates identity session in Redis (User-Agent → DeviceInfo), embeds `sessionId` in tokens. Tenant switch validates identity session, creates tenant session. Refresh uses Redis session check (no token rotation; access token reissued only). Logout deletes sessions from Redis. Reset password invalidates all user sessions. JwtAuthGuard and JwtAuthRefreshGuard validate session existence with graceful Redis degradation. Old tokens without `sessionId` skip validation (transitional).
+**Task 3 — Auth Flow Integration:** Login creates identity session in Redis (User-Agent → DeviceInfo), embeds `sessionId` in tokens. Tenant switch validates identity session, creates tenant session. Refresh uses Redis session check (no token rotation; access token reissued only). Logout deletes sessions from Redis. Reset password invalidates all user sessions. JwtAuthGuard and JwtAuthRefreshGuard validate session existence with graceful Redis degradation (Redis errors fall back to JWT-only validation). Tokens must include `sessionId`; missing `sessionId` is rejected by the guard.
 
 **Geo Enrichment (MaxMind):** GeoLocationService performs fire-and-forget IP-to-location lookup during login using GeoLite2-City. Sessions are created with `geoLocation: null`; when lookup succeeds, the session is updated asynchronously. Geo is disabled when `MAXMIND_DB_PATH` is empty or the database file is missing. See `scripts/download-geolite2-city.sh` and `scripts/README.md`.
 

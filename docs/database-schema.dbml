@@ -42,11 +42,6 @@ Enum invitation_status {
   EXPIRED
 }
 
-Enum refresh_token_type {
-  identity
-  tenant
-}
-
 Enum feature_type {
   boolean
   quota
@@ -178,27 +173,8 @@ Table user_tenants {
 
 // ============================================
 // AUTHENTICATION TABLES
+// (Refresh/session state lives in Redis; not in PostgreSQL.)
 // ============================================
-
-Table refresh_tokens {
-  id uuid [pk, default: `gen_random_uuid()`]
-  user_id uuid [not null, ref: > users.id]
-  token_hash varchar(255) [not null]
-  token_type refresh_token_type [not null, default: 'tenant']
-  tenant_id uuid [null, ref: > tenants.id, note: 'NULL for identity tokens, required for tenant tokens']
-  expires_at timestamptz [not null]
-  created_at timestamptz [not null, default: `now()`]
-  revoked_at timestamptz [null]
-
-  indexes {
-    user_id
-    token_hash
-    (user_id, token_type, tenant_id)
-    expires_at
-  }
-
-  Note: 'JWT refresh tokens for dual-token authentication (identity + tenant)'
-}
 
 Table email_verifications {
   id uuid [pk, default: `gen_random_uuid()`]
@@ -1034,7 +1010,6 @@ TableGroup "Platform RBAC" {
 }
 
 TableGroup "Authentication" {
-  refresh_tokens
   email_verifications
   password_resets
   invitations

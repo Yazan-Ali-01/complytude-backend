@@ -123,6 +123,10 @@ const config = {
       rootDir: '<rootDir>/apps/api',
       roots: ['<rootDir>', '<rootDir>/../../libs'],
       moduleDirectories: ['node_modules', '<rootDir>', '<rootDir>/../../libs'],
+      moduleNameMapper: {
+        ...sharedProjectConfig.moduleNameMapper,
+        '^uuid$': '<rootDir>/test/mocks/uuid.mock.ts',
+      },
       transform: {
         '^.+\\.(t|j)s$': [
           'ts-jest',

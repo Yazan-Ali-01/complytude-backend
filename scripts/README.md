@@ -164,7 +164,7 @@ If `MAXMIND_DB_PATH` is empty or the file does not exist, geo lookup is disabled
 
 | #   | File                           | Description                                               |
 | --- | ------------------------------ | --------------------------------------------------------- |
-| 001 | `core_tables.sql`              | Core schema: tenants, users, user_tenants, refresh_tokens |
+| 001 | `core_tables.sql`              | Core schema: tenants, users, user_tenants, auth artifacts |
 | 002 | `grants_to_app_user.sql`       | Grant permissions to `complytude_app` user                |
 | 003 | `session_context_contract.sql` | Session variables for RLS (tenant_id, user_id, role)      |
 | 004 | `rls_enablement.sql`           | Enable RLS on tenant-specific tables                      |
@@ -278,7 +278,7 @@ See `scripts/seeds/README.md` for complete credential list.
 
 -- Set context for Tenant 1
 SELECT set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', false);
-SELECT set_config('app.user_id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', false);
+SELECT set_config('app.user_id', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', false);
 SELECT set_config('app.role', 'admin', false);
 
 -- Should return 3 documents for Tenant 1

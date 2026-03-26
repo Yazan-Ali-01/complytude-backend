@@ -19,7 +19,7 @@ DECLARE
     v_ded_id   UUID;
     v_dmcc_id  UUID;
     v_difc_id  UUID;
-    v_sysadmin UUID := '99999999-9999-9999-9999-999999999999';
+    v_sysadmin UUID := '99999999-9999-4999-9999-999999999999';
 BEGIN
 
 SELECT id INTO v_ded_id  FROM public.authorities WHERE code = 'DED'  LIMIT 1;

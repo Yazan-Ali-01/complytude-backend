@@ -36,7 +36,6 @@ export class JwtTenantAccessStrategy extends PassportStrategy(
   }
 
   validate(payload: TenantPayload): AuthenticatedTenantUser {
-    // Ensure it's a tenant access token
     if (payload.type !== TENANT_PAYLOAD_TYPE) {
       this.logger.warn(
         `Invalid token type: expected ${String(TENANT_PAYLOAD_TYPE)}, got ${String(payload.type)}`,
@@ -47,21 +46,12 @@ export class JwtTenantAccessStrategy extends PassportStrategy(
       );
     }
 
-    const i18n = I18nContext.current();
-    if (!payload.sessionId?.trim()) {
-      throw new UnauthorizedException(
-        i18n?.t(AuthI18n.errors.INVALID_REFRESH_TOKEN) ??
-          'Session expired or invalid',
-      );
-    }
-
-    // Return user information to be attached to request.auth.tenant
     return {
       userId: payload.sub,
       email: payload.email,
       tenantId: payload.tenantId,
       role: payload.role,
-      sessionId: payload.sessionId,
+      sessionId: payload.sessionId ?? '',
     };
   }
 }
