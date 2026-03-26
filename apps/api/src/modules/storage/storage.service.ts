@@ -106,18 +106,23 @@ export class StorageService {
     this.signedUrlExpiresIn =
       this.configService.get('storage.signedUrl.expiresIn') || 900;
 
+    const explicitCreds =
+      s3Config.accessKeyId?.trim() && s3Config.secretAccessKey?.trim()
+        ? {
+            accessKeyId: s3Config.accessKeyId,
+            secretAccessKey: s3Config.secretAccessKey,
+          }
+        : undefined;
+
     this.s3Client = new S3Client({
-      endpoint: s3Config.endpoint,
+      ...(s3Config.endpoint ? { endpoint: s3Config.endpoint } : {}),
       region: s3Config.region,
-      credentials: {
-        accessKeyId: s3Config.accessKeyId,
-        secretAccessKey: s3Config.secretAccessKey,
-      },
+      ...(explicitCreds ? { credentials: explicitCreds } : {}),
       forcePathStyle: s3Config.forcePathStyle,
     });
 
     this.logger.log(
-      `Storage service initialized with endpoint: ${s3Config.endpoint}`,
+      `Storage service initialized with endpoint: ${s3Config.endpoint || '(default AWS)'}`,
     );
   }
 
@@ -552,6 +557,32 @@ export class StorageService {
   }
 
   /**
+   * Delete an S3 object from any known bucket.
+   * Intended for cleanup when a document record is deleted.
+   * Caller is responsible for authorization (DB-level RLS).
+   * Silently ignores objects that don't exist (already cleaned up).
+   */
+  async deleteObjectFromBucket(bucket: string, key: string): Promise<void> {
+    try {
+      await this.s3Client.send(
+        new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+      );
+      this.logger.log(`S3 object deleted: bucket=${bucket} key=${key}`);
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        this.logger.debug(
+          `S3 object already gone: bucket=${bucket} key=${key}`,
+        );
+        return;
+      }
+      this.logger.error(
+        `Failed to delete S3 object: bucket=${bucket} key=${key} error=${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * List files in tenant's bucket with pagination support
    * @param tenantId - Tenant identifier
    * @param prefix - Optional prefix to filter files
@@ -663,19 +694,75 @@ export class StorageService {
     this.logger.log(`Created bucket ${this.tenantFilesBucket}`);
   }
 
+  private formatS3ClientError(error: unknown): string {
+    if (error == null) return 'unknown';
+    if (typeof error === 'string') return error;
+    if (typeof error === 'number' || typeof error === 'boolean') {
+      return String(error);
+    }
+    if (typeof error !== 'object') {
+      return `[${typeof error}]`;
+    }
+    const e = error as {
+      name?: string;
+      message?: string;
+      Code?: string;
+      $metadata?: { httpStatusCode?: number; requestId?: string };
+      cause?: unknown;
+    };
+    const parts: string[] = [];
+    if (e.name) parts.push(`name=${e.name}`);
+    if (e.message) parts.push(e.message);
+    if (e.Code) parts.push(`Code=${e.Code}`);
+    const meta = e.$metadata;
+    if (meta?.httpStatusCode != null) parts.push(`http=${meta.httpStatusCode}`);
+    if (meta?.requestId) parts.push(`requestId=${meta.requestId}`);
+    const c = e.cause;
+    if (c instanceof Error) {
+      parts.push(`cause=${c.message}`);
+      const code = (c as NodeJS.ErrnoException).code;
+      if (code) parts.push(`errno=${code}`);
+    }
+    return parts.length > 0 ? parts.join(' | ') : JSON.stringify(error);
+  }
+
   private async bucketExists(bucket: string): Promise<boolean> {
     try {
       await this.s3Client.send(new HeadBucketCommand({ Bucket: bucket }));
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
+      const err = error as {
+        name?: string;
+        $metadata?: { httpStatusCode?: number };
+        Code?: string;
+        cause?: unknown;
+      };
       if (
-        error.name === 'NotFound' ||
-        error.$metadata?.httpStatusCode === 404
+        err.name === 'NotFound' ||
+        err.$metadata?.httpStatusCode === 404 ||
+        err.name === 'NoSuchBucket' ||
+        err.Code === 'NoSuchBucket'
       ) {
         return false;
       }
+      const detail = this.formatS3ClientError(error);
+      this.logger.error(`HeadBucket failed for "${bucket}": ${detail}`);
+      const errno =
+        err.cause && typeof err.cause === 'object' && 'code' in err.cause
+          ? String((err.cause as { code: unknown }).code)
+          : '';
+      if (errno === 'ECONNREFUSED' || detail.includes('ECONNREFUSED')) {
+        throw new InternalServerErrorException(
+          `S3/MinIO unreachable (connection refused). Is MinIO running and S3_ENDPOINT correct? (${detail})`,
+        );
+      }
+      if (errno === 'ENOTFOUND' || detail.includes('ENOTFOUND')) {
+        throw new InternalServerErrorException(
+          `S3 host not found — check S3_ENDPOINT. (${detail})`,
+        );
+      }
       throw new InternalServerErrorException(
-        `Failed to check bucket: ${error.message}`,
+        `Failed to check bucket: ${detail}`,
       );
     }
   }

@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +23,7 @@ import {
   ApiAuthErrors,
   ApiConflictError,
   ApiForbiddenError,
+  ApiListResponses,
   ApiNotFoundError,
   ApiValidationError,
 } from 'src/common/swagger/decorators';
@@ -34,6 +37,10 @@ import {
   AnalyzeDocumentDto,
   AnalyzeDocumentResponseDto,
   ConfirmUploadResponseDto,
+  DeleteDocumentResponseDto,
+  DocumentListResponseDto,
+  DocumentResponseDto,
+  ListDocumentsQueryDto,
   UploadUrlDto,
   UploadUrlResponseDto,
 } from './dto';
@@ -52,6 +59,74 @@ function setRetryAfterIfPending(reply: FastifyReply, status: string): void {
 @SwaggerCookieAuth.tenantAccessToken()
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
+
+  @Get()
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:read')
+  @ApiOperation({
+    summary: 'List documents',
+    description:
+      'Returns a paginated list of documents for the authenticated tenant. ' +
+      'Supports search by title, sorting, and pagination.',
+  })
+  @ApiListResponses(DocumentListResponseDto, 'Documents')
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to read documents')
+  list(
+    @Query() query: ListDocumentsQueryDto,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<DocumentListResponseDto> {
+    return this.documentsService.findAll(query, user);
+  }
+
+  @Get(':documentId')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:read')
+  @ApiOperation({
+    summary: 'Get document by ID',
+    description:
+      'Returns the full document details including content, metadata, and file storage information.',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document details',
+    type: DocumentResponseDto,
+  })
+  @ApiNotFoundError('Document')
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to read documents')
+  findOne(
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<DocumentResponseDto> {
+    return this.documentsService.findOne(documentId, user);
+  }
+
+  @Delete(':documentId')
+  @Audit('DOCUMENT_DELETED', { resourceType: 'documents' })
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:delete')
+  @ApiOperation({
+    summary: 'Delete a document',
+    description:
+      'Permanently deletes a document and its associated S3 objects. This action cannot be undone.',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document deleted',
+    type: DeleteDocumentResponseDto,
+  })
+  @ApiNotFoundError('Document')
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to delete documents')
+  remove(
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<DeleteDocumentResponseDto> {
+    return this.documentsService.remove(documentId, user);
+  }
 
   @Get(':documentId/analysis')
   @UseGuards(TenantPermissionsGuard)

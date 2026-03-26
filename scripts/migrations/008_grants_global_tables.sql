@@ -41,7 +41,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.template_version_ruleset_versions
 -- =========================
 
 -- Documents: No UPDATE or DELETE granted
-GRANT SELECT, INSERT ON public.documents TO app_user;
+GRANT SELECT, INSERT, UPDATE ON public.documents TO app_user;
 
 -- =========================
 -- Function Execution Grants

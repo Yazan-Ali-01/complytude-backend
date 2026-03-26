@@ -3,19 +3,18 @@
     "DOCUMENT_NOT_FOUND": "المستند غير موجود",
     "ANALYSIS_JOB_NOT_FOUND": "مهمة التحليل غير موجودة",
     "NO_ANALYSIS_JOB_FOR_DOCUMENT": "لا توجد مهمة تحليل لهذا المستند",
-    "PREVIEW_NOT_IMPLEMENTED": "معاينة المستند غير مطبقة بعد",
-    "GENERATION_NOT_IMPLEMENTED": "إنشاء المستند غير مطبق بعد",
-    "LISTING_NOT_IMPLEMENTED": "عرض قائمة المستندات غير مطبق بعد",
-    "RETRIEVAL_NOT_IMPLEMENTED": "استرجاع المستند غير مطبق بعد",
-    "DELETION_NOT_IMPLEMENTED": "حذف المستند غير مطبق بعد",
     "FILE_SIZE_EXCEEDS_LIMIT": "حجم الملف يتجاوز الحد الأقصى المسموح به",
     "UPLOAD_URL_GENERATION_FAILED": "فشل في إنشاء رابط الرفع. يرجى المحاولة مرة أخرى.",
     "INVALID_DOCUMENT_TYPE": "تأكيد الرفع صالح فقط لمستندات رفع الملفات",
     "UPLOAD_ALREADY_CONFIRMED": "تم تأكيد هذا المستند بالفعل وجُدول للمعالجة",
     "FILE_NOT_UPLOADED": "الملف غير موجود في التخزين. يرجى رفع الملف قبل التأكيد",
-    "FILE_SIZE_MISMATCH": "حجم الملف المرفوع لا يتطابق مع الحجم المعلن"
+    "FILE_SIZE_MISMATCH": "حجم الملف المرفوع لا يتطابق مع الحجم المعلن",
+    "DOCUMENT_LIST_FAILED": "فشل في استرجاع المستندات. يرجى المحاولة مرة أخرى.",
+    "DOCUMENT_RETRIEVAL_FAILED": "فشل في استرجاع تفاصيل المستند. يرجى المحاولة مرة أخرى.",
+    "DOCUMENT_DELETE_FAILED": "فشل في حذف المستند. يرجى المحاولة مرة أخرى."
   },
   "messages": {
-    "UPLOAD_CONFIRMED": "تم تأكيد الرفع. تم وضع استخراج النص في قائمة الانتظار."
+    "UPLOAD_CONFIRMED": "تم تأكيد الرفع. تم وضع استخراج النص في قائمة الانتظار.",
+    "DOCUMENT_DELETED": "تم حذف المستند بنجاح"
   }
 }

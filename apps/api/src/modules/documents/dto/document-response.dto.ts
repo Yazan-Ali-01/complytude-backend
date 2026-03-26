@@ -1,37 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
- * Nested user object for created by information
- */
-export class UserSummaryDto {
-  @ApiProperty({
-    description: 'User unique identifier',
-    example: '550e8400-e29b-41d4-a716-446655440000',
-  })
-  id: string;
-
-  @ApiProperty({
-    description: 'User email address',
-    example: 'user@example.com',
-  })
-  email: string;
-
-  @ApiPropertyOptional({
-    description: 'User first name',
-    example: 'John',
-    nullable: true,
-  })
-  firstName: string | null;
-
-  @ApiPropertyOptional({
-    description: 'User last name',
-    example: 'Doe',
-    nullable: true,
-  })
-  lastName: string | null;
-}
-
-/**
  * Document response DTO for list endpoints (summary view)
  */
 export class DocumentSummaryDto {
@@ -48,28 +17,47 @@ export class DocumentSummaryDto {
   title: string;
 
   @ApiProperty({
-    description: 'Template key used for generation',
-    example: 'dmcc_employment_v1',
+    description: 'How the document was created',
+    example: 'file_upload',
+    enum: ['text_input', 'file_upload'],
   })
-  templateKey: string;
+  sourceType: string;
 
-  @ApiProperty({
-    description: 'Template version used for generation',
-    example: '1.0.0',
+  @ApiPropertyOptional({
+    description: 'Original filename (file_upload documents only)',
+    example: 'employment-contract.pdf',
+    nullable: true,
   })
-  templateVersion: string;
+  originalFilename: string | null;
 
-  @ApiProperty({
-    description: 'Whether the document is soft-deleted',
-    example: false,
+  @ApiPropertyOptional({
+    description: 'MIME type (file_upload documents only)',
+    example: 'application/pdf',
+    nullable: true,
   })
-  isDeleted: boolean;
+  mimeType: string | null;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    description: 'File size in bytes (file_upload documents only)',
+    example: 45678,
+    nullable: true,
+  })
+  fileSizeBytes: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Text extraction status (file_upload documents only)',
+    example: 'completed',
+    nullable: true,
+    enum: ['pending', 'processing', 'completed', 'failed'],
+  })
+  extractionStatus: string | null;
+
+  @ApiPropertyOptional({
     description: 'User ID who created the document',
     example: '550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
   })
-  createdBy: string;
+  createdBy: string | null;
 
   @ApiProperty({
     description: 'Document creation timestamp',
@@ -111,7 +99,8 @@ export class DocumentResponseDto {
   title: string;
 
   @ApiPropertyOptional({
-    description: 'Document text content (reserved for future text extraction)',
+    description:
+      'Document text content (for text_input, or extracted text for file_upload)',
     example: null,
     nullable: true,
   })
@@ -119,90 +108,82 @@ export class DocumentResponseDto {
 
   @ApiProperty({
     description: 'Additional document metadata',
-    example: {
-      originalFilename: 'employment-contract.docx',
-      fileSize: 45678,
-    },
+    example: {},
   })
   metadata: Record<string, unknown>;
 
+  @ApiProperty({
+    description: 'How the document was created',
+    example: 'file_upload',
+    enum: ['text_input', 'file_upload'],
+  })
+  sourceType: string;
+
   @ApiPropertyOptional({
-    description: 'Template ID used for generation',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'S3 object key (file_upload documents only)',
+    example: 'tenants/abc/documents/123/contract.pdf',
     nullable: true,
   })
-  templateId: string | null;
-
-  @ApiProperty({
-    description: 'Template key used for generation',
-    example: 'dmcc_employment_v1',
-  })
-  templateKey: string;
+  s3Key: string | null;
 
   @ApiPropertyOptional({
-    description: 'Template version ID used for generation',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'S3 bucket name (file_upload documents only)',
+    example: 'complytude-quarantine',
     nullable: true,
   })
-  templateVersionId: string | null;
-
-  @ApiProperty({
-    description: 'Template version used for generation',
-    example: '1.0.0',
-  })
-  templateVersion: string;
-
-  @ApiProperty({
-    description: 'Metadata about document generation process',
-    example: {
-      variables: { employee_name: 'John Doe', salary: '5000' },
-      generatedBy: '550e8400-e29b-41d4-a716-446655440000',
-    },
-  })
-  generationMetadata: Record<string, unknown>;
-
-  @ApiProperty({
-    description: 'Signed download URLs for each available format',
-    example: {
-      docx: 'https://s3.example.com/documents/doc.docx?expires=...',
-      pdf: 'https://s3.example.com/documents/doc.pdf?expires=...',
-    },
-  })
-  downloadUrls: Record<string, string>;
-
-  @ApiProperty({
-    description: 'Whether the document is soft-deleted',
-    example: false,
-  })
-  isDeleted: boolean;
+  s3Bucket: string | null;
 
   @ApiPropertyOptional({
-    description: 'Soft-delete timestamp',
+    description: 'Original filename (file_upload documents only)',
+    example: 'employment-contract.pdf',
+    nullable: true,
+  })
+  originalFilename: string | null;
+
+  @ApiPropertyOptional({
+    description: 'File size in bytes (file_upload documents only)',
+    example: 45678,
+    nullable: true,
+  })
+  fileSizeBytes: number | null;
+
+  @ApiPropertyOptional({
+    description: 'MIME type (file_upload documents only)',
+    example: 'application/pdf',
+    nullable: true,
+  })
+  mimeType: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Text extraction status (file_upload documents only)',
+    example: 'completed',
+    nullable: true,
+    enum: ['pending', 'processing', 'completed', 'failed'],
+  })
+  extractionStatus: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Extraction error message (if extraction failed)',
+    example: null,
+    nullable: true,
+  })
+  extractionError: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Timestamp when text extraction completed',
     example: null,
     nullable: true,
     type: 'string',
     format: 'date-time',
   })
-  deletedAt: string | null;
+  extractedAt: string | null;
 
   @ApiPropertyOptional({
-    description: 'User ID who deleted the document',
-    example: null,
-    nullable: true,
-  })
-  deletedBy: string | null;
-
-  @ApiProperty({
     description: 'User ID who created the document',
     example: '550e8400-e29b-41d4-a716-446655440000',
+    nullable: true,
   })
-  createdBy: string;
-
-  @ApiProperty({
-    description: 'User information for document creator',
-    type: UserSummaryDto,
-  })
-  createdByUser: UserSummaryDto;
+  createdBy: string | null;
 
   @ApiProperty({
     description: 'Document creation timestamp',

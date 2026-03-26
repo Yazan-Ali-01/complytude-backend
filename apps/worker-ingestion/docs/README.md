@@ -29,7 +29,7 @@ The Data Ingestion Worker is a standalone NestJS application that consumes jobs 
 2. Fetches the document record, validates status (`pending` → `processing`)
 3. Calls Textract to extract text from the file in S3 (currently a stub — COM-209)
 4. Stores extracted content in the database
-5. Promotes the file from quarantine bucket to clean bucket (currently a stub — COM-210)
+5. Promotes the file from quarantine bucket to clean bucket
 6. Marks the document as `completed` with the new S3 location
 7. On permanent failure or exhausted retries, marks the document as `failed`
 
@@ -48,13 +48,13 @@ Document: Job → Fetch Doc → Validate → Extract Text → Store Content → 
 
 ### Shared Libraries
 
-| Library | Usage |
-|---------|-------|
-| `@lib/database` | PostgreSQL connection for reading rulesets/documents and writing chunks/content |
+| Library          | Usage                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| `@lib/database`  | PostgreSQL connection for reading rulesets/documents and writing chunks/content           |
 | `@lib/embedding` | OpenAI embeddings API + clause-level chunking (ClauseChunkerService, TokenCounterService) |
-| `@lib/queue` | BullMQ consumer registration (AbstractProcessor), job data interfaces |
-| `@lib/redis` | Redis connection for BullMQ |
-| `@lib/storage` | S3 client + basic S3 operations (used by document ingestion pipeline) |
+| `@lib/queue`     | BullMQ consumer registration (AbstractProcessor), job data interfaces                     |
+| `@lib/redis`     | Redis connection for BullMQ                                                               |
+| `@lib/storage`   | S3 client + basic S3 operations (used by document ingestion pipeline)                     |
 
 ### Source Structure
 
@@ -75,8 +75,8 @@ apps/worker-ingestion/src/
 ├── services/
 │   ├── ruleset-ingestion.service.ts     # Ruleset chunking + embedding pipeline
 │   ├── document-ingestion.service.ts    # Document extraction pipeline orchestrator
-│   ├── textract.stub.service.ts         # Textract stub (replace in COM-209)
-│   └── s3-promotion.stub.service.ts     # S3 promotion stub (replace in COM-210)
+│   ├── textract.service.ts             # AWS Textract async text extraction (COM-209)
+│   └── s3-promotion.service.ts           # S3 file promotion (quarantine → clean bucket)
 └── repositories/
     ├── ruleset-version-read.repository.ts # Read ruleset versions + ruleset metadata
     ├── ruleset-chunks.repository.ts       # Delete old chunks, batch insert new ones
@@ -103,13 +103,13 @@ DataIngestionProcessor.handle(job) routes by job.name:
 
 ### Error Handling
 
-| Error Type | Behavior |
-|-----------|----------|
-| `RetryableError` | DB errors, embedding API failures, transient S3 errors → BullMQ retries with exponential backoff |
-| `PermanentError` | Ruleset/version/document not found, invalid status, empty extraction → moves to failed, no retries |
-| Empty clauses (ruleset) | Logs warning, returns early (no error) |
-| Document permanent failure | `onPermanentFailure` hook marks document as `failed` in DB |
-| Document dead letter | `onDeadLetter` hook marks document as `failed` (retries exhausted) |
+| Error Type                 | Behavior                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `RetryableError`           | DB errors, embedding API failures, transient S3 errors → BullMQ retries with exponential backoff   |
+| `PermanentError`           | Ruleset/version/document not found, invalid status, empty extraction → moves to failed, no retries |
+| Empty clauses (ruleset)    | Logs warning, returns early (no error)                                                             |
+| Document permanent failure | `onPermanentFailure` hook marks document as `failed` in DB                                         |
+| Document dead letter       | `onDeadLetter` hook marks document as `failed` (retries exhausted)                                 |
 
 ### Chunk Metadata Schema
 
@@ -178,25 +178,25 @@ cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
 
 ### Key Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WORKER_INGESTION_PORT` | `3002` | HTTP port for health checks |
-| `OPENAI_API_KEY` | (required) | OpenAI API key for embeddings |
-| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
-| `OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Vector dimensions (must match pgvector column) |
-| `EMBEDDING_CHUNK_SIZE` | `512` | Max tokens per chunk |
-| `EMBEDDING_CHUNK_OVERLAP` | `50` | Token overlap between chunks |
-| `WORKER_INGESTION_CONCURRENCY` | `10` | Max concurrent jobs |
-| `WORKER_INGESTION_BATCH_SIZE` | `500` | DB insert batch size |
-| `REDIS_HOST` | `localhost` | Redis host for BullMQ |
-| `DB_HOST` | `localhost` | PostgreSQL host |
-| `S3_ENDPOINT` | `http://localhost:9000` | S3/MinIO endpoint |
-| `S3_REGION` | `us-east-1` | S3 region |
-| `S3_ACCESS_KEY` | (required) | S3 access key |
-| `S3_SECRET_KEY` | (required) | S3 secret key |
-| `S3_FORCE_PATH_STYLE` | `true` | Path-style for MinIO |
-| `COMPLYTUDE_FILES_BUCKET_NAME` | `complytude-files` | Clean files bucket |
-| `QUARANTINE_BUCKET_NAME` | `quarantine` | Quarantine bucket for uploads |
+| Variable                       | Default                  | Description                                    |
+| ------------------------------ | ------------------------ | ---------------------------------------------- |
+| `WORKER_INGESTION_PORT`        | `3002`                   | HTTP port for health checks                    |
+| `OPENAI_API_KEY`               | (required)               | OpenAI API key for embeddings                  |
+| `OPENAI_EMBEDDING_MODEL`       | `text-embedding-3-small` | Embedding model                                |
+| `OPENAI_EMBEDDING_DIMENSIONS`  | `1536`                   | Vector dimensions (must match pgvector column) |
+| `EMBEDDING_CHUNK_SIZE`         | `512`                    | Max tokens per chunk                           |
+| `EMBEDDING_CHUNK_OVERLAP`      | `50`                     | Token overlap between chunks                   |
+| `WORKER_INGESTION_CONCURRENCY` | `10`                     | Max concurrent jobs                            |
+| `WORKER_INGESTION_BATCH_SIZE`  | `500`                    | DB insert batch size                           |
+| `REDIS_HOST`                   | `localhost`              | Redis host for BullMQ                          |
+| `DB_HOST`                      | `localhost`              | PostgreSQL host                                |
+| `S3_ENDPOINT`                  | `http://localhost:9000`  | S3/MinIO endpoint                              |
+| `S3_REGION`                    | `eu-central-1`           | S3 region                                      |
+| `S3_ACCESS_KEY`                | (required)               | S3 access key                                  |
+| `S3_SECRET_KEY`                | (required)               | S3 secret key                                  |
+| `S3_FORCE_PATH_STYLE`          | `true`                   | Path-style for MinIO                           |
+| `COMPLYTUDE_FILES_BUCKET_NAME` | `complytude-files`       | Clean files bucket                             |
+| `QUARANTINE_BUCKET_NAME`       | `quarantine`             | Quarantine bucket for uploads                  |
 
 See `.env.example` for the full list.
 

@@ -24,13 +24,18 @@ export class StorageModule {
               `Creating S3 client: region=${s3.region} endpoint=${s3.endpoint ?? 'default'}`,
             );
 
+            const explicitCreds =
+              s3.accessKeyId?.trim() && s3.secretAccessKey?.trim()
+                ? {
+                    accessKeyId: s3.accessKeyId,
+                    secretAccessKey: s3.secretAccessKey,
+                  }
+                : undefined;
+
             return new S3Client({
               ...(s3.endpoint ? { endpoint: s3.endpoint } : {}),
               region: s3.region,
-              credentials: {
-                accessKeyId: s3.accessKeyId,
-                secretAccessKey: s3.secretAccessKey,
-              },
+              ...(explicitCreds ? { credentials: explicitCreds } : {}),
               forcePathStyle: s3.forcePathStyle,
             });
           },

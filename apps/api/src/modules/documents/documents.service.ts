@@ -12,13 +12,14 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
-  NotImplementedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
-import { DocumentRepository } from 'src/repositories/documents/document.repository';
-import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import {
+  Document,
+  DocumentRepository,
+} from 'src/repositories/documents/document.repository';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
 import { StorageService } from '../storage/storage.service';
 import { DocumentsI18n } from './constants/i18n.constants';
@@ -31,11 +32,8 @@ import type {
   DeleteDocumentResponseDto,
   DocumentListResponseDto,
   DocumentResponseDto,
-  GenerateDocumentDto,
-  GenerateDocumentResponseDto,
+  DocumentSummaryDto,
   ListDocumentsQueryDto,
-  PreviewDocumentDto,
-  PreviewDocumentResponseDto,
   UploadUrlDto,
   UploadUrlResponseDto,
 } from './dto';
@@ -67,6 +65,7 @@ export class DocumentsService {
               {
                 tenant_id: user.tenantId,
                 title: dto.title,
+                source_type: 'text_input',
                 content: dto.content,
                 created_by: user.userId,
                 metadata: JSON.stringify({}),
@@ -148,7 +147,6 @@ export class DocumentsService {
             {
               tenant_id: user.tenantId,
               title: dto.filename,
-              content: null,
               created_by: user.userId,
               metadata: JSON.stringify({}),
               source_type: 'file_upload',
@@ -402,60 +400,174 @@ export class DocumentsService {
     };
   }
 
-  /**
-   * @deprecated stub — will be implemented in a later ticket
-   */
-  preview(
-    _dto: PreviewDocumentDto,
-    _user: AuthenticatedUser,
-  ): Promise<PreviewDocumentResponseDto> {
-    throw new NotImplementedException(
-      this.i18n.t(DocumentsI18n.errors.PREVIEW_NOT_IMPLEMENTED),
-    );
-  }
-
-  /**
-   * @deprecated stub — will be implemented in a later ticket
-   */
-  generate(
-    _dto: GenerateDocumentDto,
-    _user: AuthenticatedUser,
-  ): Promise<GenerateDocumentResponseDto> {
-    throw new NotImplementedException(
-      this.i18n.t(DocumentsI18n.errors.GENERATION_NOT_IMPLEMENTED),
-    );
-  }
-
-  /**
-   * @deprecated stub — will be implemented in a later ticket
-   */
-  findAll(
-    _query: ListDocumentsQueryDto,
-    _user: AuthenticatedUser,
+  async findAll(
+    query: ListDocumentsQueryDto,
+    user: AuthenticatedTenantUser,
   ): Promise<DocumentListResponseDto> {
-    throw new NotImplementedException(
-      this.i18n.t(DocumentsI18n.errors.LISTING_NOT_IMPLEMENTED),
-    );
+    try {
+      const tenantContext = {
+        tenantId: user.tenantId,
+        schema: 'public' as const,
+      };
+
+      const result = await this.documentRepository.findMany(
+        {
+          search: query.search,
+        },
+        {
+          page: query.page ?? 1,
+          limit: query.limit ?? 20,
+          sortBy: query.sortBy,
+          sortOrder: query.sortOrder,
+        },
+        { tenant: tenantContext },
+      );
+
+      return {
+        data: result.data.map((doc) => this.mapToSummary(doc)),
+        meta: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+          hasNextPage: result.hasNextPage,
+          hasPreviousPage: result.hasPreviousPage,
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `findAll failed: tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_LIST_FAILED),
+      );
+    }
   }
 
-  /**
-   * @deprecated stub — will be implemented in a later ticket
-   */
-  findOne(_id: string, _user: AuthenticatedUser): Promise<DocumentResponseDto> {
-    throw new NotImplementedException(
-      this.i18n.t(DocumentsI18n.errors.RETRIEVAL_NOT_IMPLEMENTED),
-    );
+  async findOne(
+    id: string,
+    user: AuthenticatedTenantUser,
+  ): Promise<DocumentResponseDto> {
+    try {
+      const tenantContext = {
+        tenantId: user.tenantId,
+        schema: 'public' as const,
+      };
+
+      const document = await this.documentRepository.findById(id, {
+        tenant: tenantContext,
+      });
+
+      if (!document) {
+        throw new NotFoundException(
+          this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+        );
+      }
+
+      return this.mapToResponse(document);
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.error(
+        `findOne failed: documentId=${id} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_RETRIEVAL_FAILED),
+      );
+    }
   }
 
-  /**
-   * @deprecated stub — will be implemented in a later ticket
-   */
-  remove(
-    _id: string,
-    _user: AuthenticatedUser,
+  async remove(
+    id: string,
+    user: AuthenticatedTenantUser,
   ): Promise<DeleteDocumentResponseDto> {
-    throw new NotImplementedException(
-      this.i18n.t(DocumentsI18n.errors.DELETION_NOT_IMPLEMENTED),
+    const tenantContext = {
+      tenantId: user.tenantId,
+      schema: 'public' as const,
+    };
+
+    const document = await this.documentRepository.findById(id, {
+      tenant: tenantContext,
+    });
+
+    if (!document) {
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+      );
+    }
+
+    try {
+      await this.documentRepository.delete(id, { tenant: tenantContext });
+    } catch (error) {
+      this.logger.error(
+        `remove DB delete failed: documentId=${id} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_DELETE_FAILED),
+      );
+    }
+
+    if (document.s3_key && document.s3_bucket) {
+      try {
+        await this.storageService.deleteObjectFromBucket(
+          document.s3_bucket,
+          document.s3_key,
+        );
+      } catch (error) {
+        this.logger.error(
+          `S3 cleanup failed (document already deleted from DB): documentId=${id} bucket=${document.s3_bucket} key=${document.s3_key} - ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Document deleted: documentId=${id} tenantId=${user.tenantId} userId=${user.userId}`,
     );
+
+    return {
+      id,
+      message: this.i18n.t(DocumentsI18n.messages.DOCUMENT_DELETED),
+      deletedAt: new Date().toISOString(),
+    };
+  }
+
+  private mapToSummary(doc: Document): DocumentSummaryDto {
+    return {
+      id: doc.id,
+      title: doc.title,
+      sourceType: doc.source_type,
+      originalFilename: doc.original_filename,
+      mimeType: doc.mime_type,
+      fileSizeBytes: doc.file_size_bytes,
+      extractionStatus: doc.extraction_status,
+      createdBy: doc.created_by,
+      createdAt: doc.created_at.toISOString(),
+      updatedAt: doc.updated_at.toISOString(),
+    };
+  }
+
+  private mapToResponse(doc: Document): DocumentResponseDto {
+    return {
+      id: doc.id,
+      tenantId: doc.tenant_id,
+      title: doc.title,
+      content: doc.content,
+      metadata: doc.metadata,
+      sourceType: doc.source_type,
+      s3Key: doc.s3_key,
+      s3Bucket: doc.s3_bucket,
+      originalFilename: doc.original_filename,
+      fileSizeBytes: doc.file_size_bytes,
+      mimeType: doc.mime_type,
+      extractionStatus: doc.extraction_status,
+      extractionError: doc.extraction_error,
+      extractedAt: doc.extracted_at?.toISOString() ?? null,
+      createdBy: doc.created_by,
+      createdAt: doc.created_at.toISOString(),
+      updatedAt: doc.updated_at.toISOString(),
+    };
   }
 }

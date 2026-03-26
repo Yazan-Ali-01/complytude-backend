@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 # Quarantine bucket (uploaded files go here first)
 resource "aws_s3_bucket" "quarantine" {
   bucket = "${var.project_name}-${var.environment}-quarantine"
@@ -52,4 +54,29 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "clean" {
       sse_algorithm = "AES256"
     }
   }
+}
+
+# Async Textract reads the object from S3 using the service principal (not the ECS task role).
+resource "aws_s3_bucket_policy" "quarantine_textract" {
+  bucket = aws_s3_bucket.quarantine.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowTextractGetObject"
+        Effect = "Allow"
+        Principal = {
+          Service = "textract.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.quarantine.arn}/*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
 }

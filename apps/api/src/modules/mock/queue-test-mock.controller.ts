@@ -2,7 +2,7 @@
 import {
   AI_JOB_NAMES,
   BILLING_JOB_NAMES,
-  DocumentGenerationJobData,
+  DocumentAnalysisJobData,
   ENTITLEMENT_JOB_NAMES,
   EntitlementProjectionUpdateJobData,
   QUEUE_NAMES,
@@ -39,14 +39,12 @@ export class QueueTestMockController {
   async enqueueAiJob() {
     const job = await this.queueProducer.enqueue(
       QUEUE_NAMES.AI_PROCESSING,
-      AI_JOB_NAMES.DOCUMENT_GENERATION,
+      AI_JOB_NAMES.DOCUMENT_ANALYSIS,
       {
-        tenantId: 'test-tenant-001',
-        templateVersionId: 'test-tv-001',
-        variables: { companyName: 'Test Corp', jurisdiction: 'UAE' },
-        userId: 'test-user-001',
+        analysisJobId: 'test-analysis-001',
         documentId: 'test-doc-001',
-      } satisfies DocumentGenerationJobData,
+        tenantId: 'test-tenant-001',
+      } satisfies DocumentAnalysisJobData,
     );
 
     return {

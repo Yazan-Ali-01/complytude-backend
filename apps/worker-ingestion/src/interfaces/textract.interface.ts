@@ -1,7 +1,8 @@
 export interface TextractResult {
   text: string;
-  pageCount?: number;
+  pageCount: number;
   confidence?: number;
+  textractJobId?: string;
 }
 
 export interface ITextractService {
@@ -13,3 +14,4 @@ export interface ITextractService {
 }
 
 export const TEXTRACT_SERVICE = Symbol('TEXTRACT_SERVICE');
+export const TEXTRACT_CLIENT = Symbol('TEXTRACT_CLIENT');

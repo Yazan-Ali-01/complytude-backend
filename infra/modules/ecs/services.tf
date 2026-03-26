@@ -48,6 +48,11 @@ locals {
     "STRIPE_CATALOG_SYNC_ENABLED",
     "STRIPE_TAX_ENABLED",
     "BILLING_SCHEDULE_ENABLED",
+    # Email (AWS SES)
+    "AWS_REGION",
+    "FROM_EMAIL",
+    "FROM_NAME",
+    "SUPPORT_EMAIL",
   ]
   secrets = [for k in local.secret_keys : { name = k, valueFrom = "${var.secret_arn}:${k}::" }]
 }

@@ -12,6 +12,7 @@
     "start:prod": "node dist/apps/worker-ingestion/main"
   },
   "dependencies": {
+    "@aws-sdk/client-textract": "^3.1016.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",

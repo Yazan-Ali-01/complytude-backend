@@ -723,9 +723,6 @@ Tenant-specific documents. Supports both text-input (pasted content) and file-up
 | `title`               | VARCHAR(255)                      | Document title                                                                         |
 | `content`             | TEXT                              | Document content (required for text-input; populated after extraction for file-upload)  |
 | `metadata`            | JSONB                             | Tags, custom fields, etc.                                                              |
-| `template_id`         | UUID                              | FK to templates (which template was used)                                              |
-| `template_version_id` | UUID                              | FK to template_versions (specific version)                                             |
-| `generation_metadata` | JSONB                             | AI model, parameters, etc.                                                             |
 | `created_by`          | UUID                              | FK to users                                                                            |
 | `created_at`          | TIMESTAMPTZ                       | Creation timestamp                                                                     |
 | `updated_at`          | TIMESTAMPTZ                       | Last update timestamp                                                                  |

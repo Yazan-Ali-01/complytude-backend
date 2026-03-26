@@ -921,9 +921,6 @@ Table documents {
   title varchar(255) [not null]
   content text
   metadata jsonb [default: '{}']
-  template_id uuid [null, ref: > templates.id]
-  template_version_id uuid [null, ref: > template_versions.id]
-  generation_metadata jsonb [default: '{}']
   created_by uuid [null, ref: > users.id]
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
@@ -941,11 +938,8 @@ Table documents {
 
   indexes {
     tenant_id [note: 'Critical for RLS performance']
-    template_id
-    template_version_id
     created_by
     (tenant_id, created_at)
-    (tenant_id, template_id)
     extraction_status [where: 'extraction_status IS NOT NULL']
     s3_key [where: 's3_key IS NOT NULL']
   }
