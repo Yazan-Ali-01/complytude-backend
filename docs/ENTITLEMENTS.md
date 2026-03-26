@@ -397,14 +397,18 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 
 ```typescript
 // TenantService.createTenantForUser() — when planKey omitted
-await this.subscriptionsService.createTrialSubscription(tenant.id, userId, { client });
+await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
+  client,
+});
 ```
 
 **With planKey:** Direct subscription on specified plan
 
 ```typescript
 // TenantService.createTenantForUser() — when planKey provided
-await this.subscriptionsService.createSubscription(tenant.id, planKey, userId, { client });
+await this.subscriptionsService.createSubscription(tenant.id, planKey, userId, {
+  client,
+});
 ```
 
 **Trial Subscription:**
@@ -1103,23 +1107,23 @@ async grantCredits(
 
 ### Event Types
 
-| Event Type                         | Aggregate    | Description                                        |
-| ---------------------------------- | ------------ | -------------------------------------------------- |
-| `usage.recorded`                   | usage        | Usage event appended to ledger                     |
-| `credit.purchased`                 | credit       | Credits purchased                                  |
-| `credit.granted`                   | credit       | Credits granted (promo/admin)                      |
-| `credit.deducted`                  | credit       | Credits used for overage                           |
-| `credit.refunded`                  | credit       | Credits refunded                                   |
-| `credit.expired`                   | credit       | Credits expired                                    |
-| `entitlement.denied`               | entitlement  | Feature access denied (quota exceeded, no credits) |
-| `entitlement.snapshot_created`     | entitlement  | Snapshot created                                   |
-| `entitlement.snapshot_invalidated` | entitlement  | Snapshot invalidated                               |
-| `subscription.created`             | subscription | New subscription created                           |
+| Event Type                         | Aggregate    | Description                                         |
+| ---------------------------------- | ------------ | --------------------------------------------------- |
+| `usage.recorded`                   | usage        | Usage event appended to ledger                      |
+| `credit.purchased`                 | credit       | Credits purchased                                   |
+| `credit.granted`                   | credit       | Credits granted (promo/admin)                       |
+| `credit.deducted`                  | credit       | Credits used for overage                            |
+| `credit.refunded`                  | credit       | Credits refunded                                    |
+| `credit.expired`                   | credit       | Credits expired                                     |
+| `entitlement.denied`               | entitlement  | Feature access denied (quota exceeded, no credits)  |
+| `entitlement.snapshot_created`     | entitlement  | Snapshot created                                    |
+| `entitlement.snapshot_invalidated` | entitlement  | Snapshot invalidated                                |
+| `subscription.created`             | subscription | New subscription created                            |
 | `subscription.trial_started`       | subscription | Trial subscription created (new tenant, no planKey) |
-| `subscription.plan_changed`        | subscription | Plan upgraded/downgraded                           |
-| `subscription.cancelled`           | subscription | Subscription cancelled                             |
-| `subscription.renewed`             | subscription | Billing period renewed                             |
-| `trial.expired`                    | subscription | Trial ended, auto-downgraded to Navigator          |
+| `subscription.plan_changed`        | subscription | Plan upgraded/downgraded                            |
+| `subscription.cancelled`           | subscription | Subscription cancelled                              |
+| `subscription.renewed`             | subscription | Billing period renewed                              |
+| `trial.expired`                    | subscription | Trial ended, auto-downgraded to Navigator           |
 
 ### Querying Events
 
@@ -1654,7 +1658,8 @@ Since async mode introduces eventual consistency, a **reconciliation service** d
 
 - [DATABASE.md](./DATABASE.md) - Database schema for entitlement tables
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture overview
-- [API_CONTRACTS.md](./API_CONTRACTS.md) - API endpoint specifications
+- [BILLING.md](./BILLING.md) - Stripe billing, webhooks, and subscription sync
+- [API_CONTRACTS.md](../apps/api/docs/API_CONTRACTS.md) - API endpoint specifications
 
 ---
 

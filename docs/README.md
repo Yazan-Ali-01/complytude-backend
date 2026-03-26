@@ -27,15 +27,18 @@ complytude/
 
 This directory contains documentation that applies across all applications:
 
-| Document                                     | Description                                        |
-| -------------------------------------------- | -------------------------------------------------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md)           | System architecture and design patterns            |
-| [DATABASE.md](DATABASE.md)                   | Database schema, RLS, and data model               |
-| [RBAC.md](RBAC.md)                           | Role-Based Access Control (Tenant & Platform RBAC) |
-| [ENTITLEMENTS.md](ENTITLEMENTS.md)           | Entitlement system, plans, usage tracking, credits |
-| [database-schema.dbml](database-schema.dbml) | Visual database schema (DBML format)               |
-| [DEPLOYMENT.md](DEPLOYMENT.md)               | Deployment instructions for all apps               |
-| [integrations/](integrations/)               | Frontend integration guides and UI documentation   |
+| Document                                       | Description                                        |
+| ---------------------------------------------- | -------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)             | System architecture and design patterns            |
+| [DATABASE.md](DATABASE.md)                     | Database schema, RLS, and data model               |
+| [RBAC.md](RBAC.md)                             | Role-Based Access Control (Tenant & Platform RBAC) |
+| [ENTITLEMENTS.md](ENTITLEMENTS.md)             | Entitlement system, plans, usage tracking, credits |
+| [BILLING.md](BILLING.md)                       | Stripe billing architecture, webhooks, data flows  |
+| [STRIPE_DEVELOPMENT.md](STRIPE_DEVELOPMENT.md) | Local Stripe setup, CLI, test cards, env vars      |
+| [BILLING_RUNBOOK.md](BILLING_RUNBOOK.md)       | Operations: reconcile webhooks, credits, catalog   |
+| [database-schema.dbml](database-schema.dbml)   | Visual database schema (DBML format)               |
+| [DEPLOYMENT.md](DEPLOYMENT.md)                 | Deployment instructions for all apps               |
+| [integrations/](integrations/)                 | Frontend integration guides and UI documentation   |
 
 ---
 
@@ -56,7 +59,7 @@ Each application has its own documentation:
 
 ### Worker Applications
 
-**AI Worker:** [apps/worker-ai/docs/README.md](../apps/worker-ai/docs/README.md) - AI worker architecture and setup  
+**AI Worker:** [apps/worker-ai/docs/README.md](../apps/worker-ai/docs/README.md) - AI worker architecture and setup
 **Ingestion Worker:** [apps/worker-ingestion/docs/README.md](../apps/worker-ingestion/docs/README.md) - Ingestion worker architecture and setup
 
 ---
@@ -95,6 +98,7 @@ Each application has its own documentation:
 - **Working with the database?** See [Database Schema](DATABASE.md) and [Scripts Guide](../scripts/README.md) for migration guides.
 - **Implementing authorization?** See [RBAC Guide](RBAC.md) for tenant and platform role-based access control.
 - **Implementing entitlements?** See [Entitlement System](ENTITLEMENTS.md) for plans, usage tracking, and credit system.
+- **Working with Stripe billing?** See [BILLING.md](BILLING.md), [STRIPE_DEVELOPMENT.md](STRIPE_DEVELOPMENT.md), and [BILLING_RUNBOOK.md](BILLING_RUNBOOK.md).
 - **Building frontend integrations?** See [Integration Guides](integrations/) for UI implementation patterns.
 - **Deploying?** Check [DEPLOYMENT.md](DEPLOYMENT.md) for deployment instructions.
 - **Understanding the architecture?** See [ARCHITECTURE.md](ARCHITECTURE.md) for system design.

@@ -10,6 +10,7 @@ Welcome to the Complytude API documentation. This directory contains all documen
 | [API_CONTRACTS_QUICK_REFERENCE.md](API_CONTRACTS_QUICK_REFERENCE.md) | Quick reference for API patterns and examples         |
 | [DEVELOPMENT.md](DEVELOPMENT.md)                                     | Development workflow, module creation, best practices |
 | [APIDOG_SESSION_TESTING_GUIDE.md](APIDOG_SESSION_TESTING_GUIDE.md)   | Apidog testing guide for Redis session management     |
+| [BILLING_TESTING.md](BILLING_TESTING.md)                             | Apidog / manual testing for billing & Stripe webhooks |
 
 ## Quick Links
 
@@ -26,6 +27,9 @@ For documentation that applies to the entire monorepo (all apps):
 
 - [Architecture](../../../docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database](../../../docs/DATABASE.md) - Database schema, RLS, and data model
+- [Billing (Stripe)](../../../docs/BILLING.md) - Billing architecture and webhooks
+- [Stripe development](../../../docs/STRIPE_DEVELOPMENT.md) - Local Stripe setup
+- [Billing runbook](../../../docs/BILLING_RUNBOOK.md) - Operations
 - [Deployment](../../../docs/DEPLOYMENT.md) - Deployment instructions for all apps
 - [Scripts](../../../scripts/README.md) - Database migrations and utility scripts
 
