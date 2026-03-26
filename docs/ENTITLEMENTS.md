@@ -1658,7 +1658,7 @@ Since async mode introduces eventual consistency, a **reconciliation service** d
 
 - [DATABASE.md](./DATABASE.md) - Database schema for entitlement tables
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture overview
-- [BILLING.md](./BILLING.md) - Stripe billing, webhooks, and subscription sync
+- [billing/README.md](./billing/README.md) - Stripe billing and credit system documentation
 - [API_CONTRACTS.md](../apps/api/docs/API_CONTRACTS.md) - API endpoint specifications
 
 ---

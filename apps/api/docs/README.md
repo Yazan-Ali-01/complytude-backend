@@ -27,9 +27,7 @@ For documentation that applies to the entire monorepo (all apps):
 
 - [Architecture](../../../docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database](../../../docs/DATABASE.md) - Database schema, RLS, and data model
-- [Billing (Stripe)](../../../docs/BILLING.md) - Billing architecture and webhooks
-- [Stripe development](../../../docs/STRIPE_DEVELOPMENT.md) - Local Stripe setup
-- [Billing runbook](../../../docs/BILLING_RUNBOOK.md) - Operations
+- [Billing](../../../docs/billing/README.md) - Stripe billing architecture and operations
 - [Deployment](../../../docs/DEPLOYMENT.md) - Deployment instructions for all apps
 - [Scripts](../../../scripts/README.md) - Database migrations and utility scripts
 

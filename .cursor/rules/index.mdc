@@ -71,6 +71,7 @@ cursor-rules.mdc ←→ self-improvement.mdc (meta rules)
 
 - **Rules Directory:** `.cursor/rules/`
 - **Documentation:** `docs/`
+- **Billing Documentation:** `docs/billing/` ([README](../docs/billing/README.md))
 - **API Contracts:** `apps/api/docs/API_CONTRACTS.md`
 - **Database Schema:** `docs/DATABASE.md`
 - **Architecture:** `docs/ARCHITECTURE.md`
@@ -81,4 +82,4 @@ cursor-rules.mdc ←→ self-improvement.mdc (meta rules)
 
 ---
 
-**Last Updated:** 2026-03-11 | **Total Rules:** 9 (3 always applied, 6 on-demand) | **Status:** PRE-PRODUCTION
+**Last Updated:** 2026-03-26 | **Total Rules:** 9 (3 always applied, 6 on-demand) | **Status:** PRE-PRODUCTION

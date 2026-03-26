@@ -50,6 +50,7 @@ Documentation that applies to all applications:
 - **RBAC.md** - Comprehensive RBAC guide (tenant + platform)
 - **DEPLOYMENT.md** - Deployment instructions for all apps
 - **database-schema.dbml** - Visual database schema (DBML format)
+- **billing/** - Stripe billing architecture, setup, operations (see [Billing Documentation](billing/README.md))
 
 ### API Application Documentation (`apps/api/docs/`)
 

@@ -1197,7 +1197,7 @@ A Bull Board dashboard is available at `/admin/queues`. When `BULL_BOARD_ADMIN_S
 
 - [DATABASE.md](DATABASE.md) - Detailed database schema
 - [ENTITLEMENTS.md](ENTITLEMENTS.md) - Entitlement system documentation
-- [BILLING.md](BILLING.md) - Stripe billing integration and webhooks
+- [billing/README.md](billing/README.md) - Stripe billing architecture and operations
 - [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment guide for all apps
 - [API Development Guide](../apps/api/docs/DEVELOPMENT.md) - API development workflow
 - [API Contracts](../apps/api/docs/API_CONTRACTS.md) - API specifications
@@ -1205,4 +1205,4 @@ A Bull Board dashboard is available at `/admin/queues`. When `BULL_BOARD_ADMIN_S
 
 ---
 
-**Last Updated:** March 4, 2026
+**Last Updated:** March 26, 2026
