@@ -44,9 +44,13 @@ Documentation that applies to all applications:
 - **ARCHITECTURE.md** - System architecture and design decisions
 - **DATABASE.md** - Database schema, RLS policies, multi-tenancy
 - **ENTITLEMENTS.md** - Entitlement system, plans, usage tracking, credits
+- **BILLING.md** - Stripe billing architecture, webhooks, data flows
+- **STRIPE_DEVELOPMENT.md** - Stripe CLI, test keys, local webhook setup
+- **BILLING_RUNBOOK.md** - Billing operations, reconciliation, troubleshooting
 - **RBAC.md** - Comprehensive RBAC guide (tenant + platform)
 - **DEPLOYMENT.md** - Deployment instructions for all apps
 - **database-schema.dbml** - Visual database schema (DBML format)
+- **billing/** - Stripe billing architecture, setup, operations (see [Billing Documentation](billing/README.md))
 
 ### API Application Documentation (`apps/api/docs/`)
 
@@ -56,6 +60,7 @@ API-specific documentation:
 - **API_CONTRACTS.md** - Complete API endpoint specifications
 - **API_CONTRACTS_QUICK_REFERENCE.md** - Quick API reference
 - **DEVELOPMENT.md** - API development setup and guidelines
+- **BILLING_TESTING.md** - Billing endpoints and Stripe webhook testing (Apidog/cURL)
 
 ### Worker Documentation
 
@@ -817,9 +822,13 @@ apps/api/src/repositories/
 3. **docs/DATABASE.md** - Database design
 4. **docs/RBAC.md** - RBAC documentation
 5. **docs/ENTITLEMENTS.md** - Entitlement system
-6. **apps/api/docs/API_CONTRACTS.md** - API specifications
-7. **apps/api/docs/DEVELOPMENT.md** - API development guide
-8. **apps/api/test/README.md** - Test infrastructure and conventions
+6. **docs/BILLING.md** - Stripe billing architecture and webhooks
+7. **docs/STRIPE_DEVELOPMENT.md** - Stripe local development setup
+8. **docs/BILLING_RUNBOOK.md** - Billing operations and troubleshooting
+9. **apps/api/docs/API_CONTRACTS.md** - API specifications
+10. **apps/api/docs/DEVELOPMENT.md** - API development guide
+11. **apps/api/docs/BILLING_TESTING.md** - Billing API and webhook testing
+12. **apps/api/test/README.md** - Test infrastructure and conventions
 
 ### Critical Scripts
 

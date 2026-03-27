@@ -35,6 +35,7 @@ This directory contains documentation that applies across all applications:
 | [ENTITLEMENTS.md](ENTITLEMENTS.md)           | Entitlement system, plans, usage tracking, credits |
 | [database-schema.dbml](database-schema.dbml) | Visual database schema (DBML format)               |
 | [DEPLOYMENT.md](DEPLOYMENT.md)               | Deployment instructions for all apps               |
+| [billing/](billing/)                         | Stripe billing: architecture, setup, operations    |
 | [integrations/](integrations/)               | Frontend integration guides and UI documentation   |
 
 ---
@@ -56,7 +57,7 @@ Each application has its own documentation:
 
 ### Worker Applications
 
-**AI Worker:** [apps/worker-ai/docs/README.md](../apps/worker-ai/docs/README.md) - AI worker architecture and setup  
+**AI Worker:** [apps/worker-ai/docs/README.md](../apps/worker-ai/docs/README.md) - AI worker architecture and setup
 **Ingestion Worker:** [apps/worker-ingestion/docs/README.md](../apps/worker-ingestion/docs/README.md) - Ingestion worker architecture and setup
 
 ---
@@ -95,6 +96,10 @@ Each application has its own documentation:
 - **Working with the database?** See [Database Schema](DATABASE.md) and [Scripts Guide](../scripts/README.md) for migration guides.
 - **Implementing authorization?** See [RBAC Guide](RBAC.md) for tenant and platform role-based access control.
 - **Implementing entitlements?** See [Entitlement System](ENTITLEMENTS.md) for plans, usage tracking, and credit system.
+  <<<<<<< HEAD
+- # **Working with Stripe billing?** See [BILLING.md](BILLING.md), [STRIPE_DEVELOPMENT.md](STRIPE_DEVELOPMENT.md), and [BILLING_RUNBOOK.md](BILLING_RUNBOOK.md).
+- **Working with billing?** See [Stripe Billing Documentation](billing/) for architecture, setup, and operations.
+  > > > > > > > c293211 (docs(billing): create comprehensive billing documentation folder with architecture and runbooks)
 - **Building frontend integrations?** See [Integration Guides](integrations/) for UI implementation patterns.
 - **Deploying?** Check [DEPLOYMENT.md](DEPLOYMENT.md) for deployment instructions.
 - **Understanding the architecture?** See [ARCHITECTURE.md](ARCHITECTURE.md) for system design.

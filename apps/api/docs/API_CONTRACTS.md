@@ -2,7 +2,7 @@
 
 > **Purpose:** Define standards and conventions for API contract definition across all modules
 
-**Last Updated:** March 14, 2026
+**Last Updated:** March 26, 2026
 **Status:** Foundation Complete
 
 ---
@@ -18,6 +18,9 @@
 - [Error Handling](#error-handling)
 - [Onboarding Metadata Schema](#onboarding-metadata-schema)
 - [Invitation System & Seat Enforcement](#invitation-system--seat-enforcement)
+- [Billing API](#billing-api)
+- [Stripe Webhook Receiver](#stripe-webhook-receiver)
+- [Platform Admin — Stripe](#platform-admin--stripe)
 - [Naming Conventions](#naming-conventions)
 - [Swagger Documentation](#swagger-documentation)
 - [Invitation System](#invitation-system)
@@ -1097,6 +1100,133 @@ The `user_seats` entitlement (capacity feature) is enforced at two points:
 - **Reactivation:** If a user already belongs to the tenant (active or inactive) and accepts an invitation, no new seat is consumed for active members; inactive members being reactivated consume a seat.
 - **Concurrent accept:** CAS in entitlement enforcement handles race conditions when two users accept the last seat simultaneously.
 - **Invite sent before full, accepted after:** Check happens at accept time, not send time.
+
+---
+
+## Billing API
+
+Base path: `/api/v1/billing`
+**Authentication:** Tenant access token cookie (`tenantAccessToken`) for all routes below.
+**Controller:** `BillingController` (`apps/api/src/modules/stripe/controllers/billing.controller.ts`).
+
+Mutation endpoints (POST) additionally require **`billing:manage`** (`TenantPermissionsGuard` + `@RequireAnyTenantPermission`).
+
+### `GET /api/v1/billing/subscription`
+
+Returns the current subscription for the authenticated tenant (404 if none).
+**Response:** `SubscriptionResponseDto` — includes plan, status, period dates, Stripe ids where applicable.
+
+### `GET /api/v1/billing/status`
+
+Single source of truth for billing UI: subscription, `cancel_at_period_end`, optional `pending_plan_change`, optional `dunning` when `status === past_due`.
+**Response:** `BillingStatusResponseDto`.
+
+### `GET /api/v1/billing/plan/pending-change`
+
+Returns pending Stripe subscription schedule info (`PendingPlanChangeResponseDto`). May return `hasPendingChange: false`.
+
+### `POST /api/v1/billing/plan/change`
+
+**Permission:** `billing:manage`
+**Body:** `{ "planKey": "<PlanKey>" }` — `ChangePlanDto` (`ALL_PLAN_KEYS`).
+Schedules plan change at period end via Stripe Subscription Schedules.
+**Response:** `SchedulePlanChangeResponseDto` (`scheduledFor`, `newPlanKey`, `currentPlanKey`, `stripeScheduleId`).
+**Errors:** 400 (no Stripe subscription, invalid transition), 404 (plan).
+
+### `POST /api/v1/billing/plan/cancel-change`
+
+**Permission:** `billing:manage`
+Cancels a scheduled plan change. **204 No Content**.
+
+### `POST /api/v1/billing/subscription/cancel`
+
+**Permission:** `billing:manage`
+Schedules cancellation at end of current period.
+**Response:** `CancelSubscriptionResponseDto` — `{ "cancelsAt": "<ISO date>" }`.
+
+### `POST /api/v1/billing/subscription/reactivate`
+
+**Permission:** `billing:manage`
+Removes pending end-of-period cancellation. **204 No Content**.
+
+### `POST /api/v1/billing/checkout/subscription`
+
+**Permission:** `billing:manage`
+**Body:** `CreateCheckoutSessionDto`
+
+| Field        | Type | Required | Description                                                     |
+| ------------ | ---- | -------- | --------------------------------------------------------------- |
+| `planKey`    | enum | Yes      | `shield`, `general_counsel`, `infrastructure` (paid plans only) |
+| `interval`   | enum | Yes      | `monthly` or `annual`                                           |
+| `successUrl` | URL  | Yes      | Redirect after success                                          |
+| `cancelUrl`  | URL  | Yes      | Redirect if user cancels                                        |
+
+**Response (201):** `CheckoutSessionResponseDto` — `{ checkoutUrl, sessionId }`.
+**Errors:** 409 if tenant already has an active Stripe subscription (use plan-change flow).
+
+### `POST /api/v1/billing/portal/session`
+
+**Permission:** `billing:manage`
+**Body:** `{ "returnUrl": "<URL>" }` — `CreatePortalSessionDto`.
+**Response (201):** `PortalSessionResponseDto` — `{ "url": "<Stripe portal URL>" }`.
+
+### `GET /api/v1/billing/credits/packages`
+
+Lists credit packages from code constants (no extra permission beyond tenant auth).
+**Response:** Array of `CreditPackageCatalogItemDto` — `key`, `name`, `credits`, `price`, `currency`.
+
+### `POST /api/v1/billing/checkout/credits`
+
+**Permission:** `billing:manage`
+**Body:** `CreateCreditCheckoutDto`
+
+| Field        | Type   | Required | Description                                            |
+| ------------ | ------ | -------- | ------------------------------------------------------ |
+| `packageKey` | string | Yes      | One of keys from `CREDIT_PACKAGES` (e.g. `credits_50`) |
+| `successUrl` | URL    | Yes      | Post-payment redirect                                  |
+| `cancelUrl`  | URL    | Yes      | Cancel redirect                                        |
+
+**Response (201):** `CheckoutSessionResponseDto`.
+
+**Architecture note:** Successful payment is applied via Stripe webhook `checkout.session.completed` (see [BILLING.md](../../../docs/BILLING.md)).
+
+---
+
+## Stripe Webhook Receiver
+
+**Endpoint:** `POST /api/v1/stripe/webhook`
+**Authentication:** None — **Stripe signature** (`stripe-signature` header) is required.
+**Controller:** `StripeWebhookController`
+
+**Behavior:**
+
+- Verifies payload with `STRIPE_WEBHOOK_SECRET`.
+- Idempotent on `stripe_event_id` (see `stripe_webhook_events`).
+- Persists event and enqueues `BILLING_PROCESSING` / `STRIPE_WEBHOOK_PROCESSING` job; returns **200** `{ "received": true }` quickly.
+
+**Important:** Request body must be raw bytes for signature verification. Do not send through clients that strip or re-serialize JSON.
+
+**Handled event types:** See [BILLING.md — Webhook Event Catalog](../../../docs/BILLING.md#webhook-event-catalog).
+
+---
+
+## Platform Admin — Stripe
+
+Base path: `/api/v1/admin/stripe`
+**Authentication:** Identity access token (`identityAccessToken`).
+**Authorization:** `PlatformPermissionsGuard` + `@RequireAnyPlatformPermission('entitlements:manage')`.
+**Controller:** `StripeAdminController`
+
+| Method | Path                                         | Description                                                      |
+| ------ | -------------------------------------------- | ---------------------------------------------------------------- |
+| `POST` | `/api/v1/admin/stripe/backfill-customers`    | Create Stripe customers for tenants missing `stripe_customer_id` |
+| `POST` | `/api/v1/admin/stripe/backfill-tax`          | Backfill Stripe Tax (address/TRN) when enabled                   |
+| `POST` | `/api/v1/admin/stripe/reconcile`             | Full Stripe vs DB reconciliation; returns counts and fixes       |
+| `GET`  | `/api/v1/admin/stripe/webhook-stats`         | Query `hours` (default 24) — webhook processing statistics       |
+| `POST` | `/api/v1/admin/stripe/retry-failed-webhooks` | Query `maxRetries` (default 3) — retry failed webhook rows       |
+| `POST` | `/api/v1/admin/stripe/sync-catalog`          | Sync plans, add-ons, credit packages to Stripe Products/Prices   |
+
+All endpoints return **200** with operation-specific JSON unless **403** (insufficient platform permissions).
 
 ---
 
