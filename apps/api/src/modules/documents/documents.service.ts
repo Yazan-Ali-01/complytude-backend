@@ -202,9 +202,10 @@ export class DocumentsService {
 
       // First fetch the document to provide accurate error codes —
       // we need to distinguish "not found" vs "wrong type" vs "already confirmed".
-      const existing = await this.documentRepository.findById(documentId, {
-        tenant: tenantContext,
-      });
+      const existing = await this.documentRepository.findActiveById(
+        documentId,
+        { tenant: tenantContext },
+      );
       if (!existing) {
         throw new NotFoundException(
           this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
@@ -312,9 +313,10 @@ export class DocumentsService {
         schema: 'public' as const,
       };
 
-      const document = await this.documentRepository.findById(documentId, {
-        tenant: tenantContext,
-      });
+      const document = await this.documentRepository.findActiveById(
+        documentId,
+        { tenant: tenantContext },
+      );
       if (!document) {
         throw new NotFoundException(
           this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
@@ -384,9 +386,10 @@ export class DocumentsService {
         schema: 'public' as const,
       };
 
-      const document = await this.documentRepository.findById(documentId, {
-        tenant: tenantContext,
-      });
+      const document = await this.documentRepository.findActiveById(
+        documentId,
+        { tenant: tenantContext },
+      );
       if (!document) {
         throw new NotFoundException(
           this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
@@ -523,7 +526,7 @@ export class DocumentsService {
         schema: 'public' as const,
       };
 
-      const document = await this.documentRepository.findById(id, {
+      const document = await this.documentRepository.findActiveById(id, {
         tenant: tenantContext,
       });
 
@@ -555,7 +558,7 @@ export class DocumentsService {
       schema: 'public' as const,
     };
 
-    const document = await this.documentRepository.findById(id, {
+    const document = await this.documentRepository.findActiveById(id, {
       tenant: tenantContext,
     });
 
@@ -565,11 +568,17 @@ export class DocumentsService {
       );
     }
 
+    let deletedAt: string;
     try {
-      await this.documentRepository.delete(id, { tenant: tenantContext });
+      const deleted = await this.documentRepository.softDelete(
+        id,
+        user.userId,
+        { tenant: tenantContext },
+      );
+      deletedAt = deleted.deleted_at!.toISOString();
     } catch (error) {
       this.logger.error(
-        `remove DB delete failed: documentId=${id} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        `remove soft-delete failed: documentId=${id} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
       );
       throw new InternalServerErrorException(
@@ -578,27 +587,24 @@ export class DocumentsService {
     }
 
     if (document.s3_key && document.s3_bucket) {
-      try {
-        await this.storageService.deleteObjectFromBucket(
-          document.s3_bucket,
-          document.s3_key,
-        );
-      } catch (error) {
-        this.logger.error(
-          `S3 cleanup failed (document already deleted from DB): documentId=${id} bucket=${document.s3_bucket} key=${document.s3_key} - ${error instanceof Error ? error.message : String(error)}`,
-          error instanceof Error ? error.stack : undefined,
-        );
-      }
+      void this.storageService
+        .deleteObjectFromBucket(document.s3_bucket, document.s3_key)
+        .catch((error: unknown) => {
+          this.logger.error(
+            `S3 cleanup failed (document soft-deleted): documentId=${id} bucket=${document.s3_bucket} key=${document.s3_key} - ${error instanceof Error ? error.message : String(error)}`,
+            error instanceof Error ? error.stack : undefined,
+          );
+        });
     }
 
     this.logger.log(
-      `Document deleted: documentId=${id} tenantId=${user.tenantId} userId=${user.userId}`,
+      `Document soft-deleted: documentId=${id} tenantId=${user.tenantId} userId=${user.userId}`,
     );
 
     return {
       id,
       message: this.i18n.t(DocumentsI18n.messages.DOCUMENT_DELETED),
-      deletedAt: new Date().toISOString(),
+      deletedAt,
     };
   }
 

@@ -28,6 +28,8 @@ export interface Document {
   extraction_status: ExtractionStatus | null;
   extraction_error: string | null;
   extracted_at: Date | null;
+  deleted_at: Date | null;
+  deleted_by: string | null;
 }
 
 type BaseCreateDocumentRow = {
@@ -95,6 +97,8 @@ type DocumentRow = {
   extraction_status: ExtractionStatus | null;
   extraction_error: string | null;
   extracted_at: Date | null;
+  deleted_at: Date | null;
+  deleted_by: string | null;
 };
 
 @Injectable()
@@ -108,7 +112,11 @@ export class DocumentRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, title, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at';
+    return 'id, tenant_id, title, content, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by';
+  }
+
+  private getListSelectColumns(): string {
+    return 'id, tenant_id, title, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by';
   }
 
   protected mapRow(row: Record<string, unknown>): Document {
@@ -134,7 +142,39 @@ export class DocumentRepository extends BaseRepository<
       extraction_status: data.extraction_status,
       extraction_error: data.extraction_error,
       extracted_at: data.extracted_at,
+      deleted_at: data.deleted_at ?? null,
+      deleted_by: data.deleted_by ?? null,
     };
+  }
+
+  async findActiveById(
+    id: string,
+    options?: QueryOptions,
+  ): Promise<Document | null> {
+    const result = await this.executeQuery<DocumentRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE id = $1 AND deleted_at IS NULL`,
+      [id],
+      options,
+    );
+    return result.rows[0]
+      ? this.mapRow(result.rows[0] as Record<string, unknown>)
+      : null;
+  }
+
+  async softDelete(
+    id: string,
+    deletedBy: string,
+    options?: QueryOptions,
+  ): Promise<Document> {
+    const result = await this.executeQuery<DocumentRow>(
+      `UPDATE ${this.tableName} SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING ${this.getSelectColumns()}`,
+      [id, deletedBy],
+      options,
+    );
+    if (result.rows.length === 0) {
+      throw new Error(`Document ${id} not found or already deleted`);
+    }
+    return this.mapRow(result.rows[0] as Record<string, unknown>);
   }
 
   /**
@@ -167,7 +207,7 @@ export class DocumentRepository extends BaseRepository<
     pagination: OffsetPaginationOptions = { page: 1, limit: 20 },
     options?: QueryOptions,
   ): Promise<OffsetPaginationResult<Document>> {
-    const conditions: string[] = [];
+    const conditions: string[] = ['deleted_at IS NULL'];
     const params: unknown[] = [];
 
     if (filters.search) {
@@ -183,8 +223,7 @@ export class DocumentRepository extends BaseRepository<
       conditions.push(`extraction_status = $${params.length}`);
     }
 
-    const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     const countResult = await this.executeQuery<{ count: string }>(
       `SELECT COUNT(*) as count FROM ${this.tableName} ${whereClause}`,
@@ -200,7 +239,7 @@ export class DocumentRepository extends BaseRepository<
 
     params.push(pagination.limit, offset);
     const dataResult = await this.executeQuery<DocumentRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ORDER BY ${sortColumn} ${sortOrder} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      `SELECT ${this.getListSelectColumns()} FROM ${this.tableName} ${whereClause} ORDER BY ${sortColumn} ${sortOrder} LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
       options,
     );
@@ -226,7 +265,7 @@ export class DocumentRepository extends BaseRepository<
   ): Promise<Document[]> {
     const columns = this.getSelectColumns();
     const result = await this.executeQuery(
-      `SELECT ${columns} FROM public.documents WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT ${columns} FROM public.documents WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC`,
       [tenantId],
       options,
     );

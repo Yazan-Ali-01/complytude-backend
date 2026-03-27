@@ -40,6 +40,10 @@ CREATE TABLE public.documents (
     extraction_error        TEXT,
     extracted_at            TIMESTAMPTZ,
 
+    -- Soft delete columns
+    deleted_at              TIMESTAMPTZ DEFAULT NULL,
+    deleted_by              UUID DEFAULT NULL,
+
     CONSTRAINT fk_documents_tenant
         FOREIGN KEY (tenant_id)
         REFERENCES public.tenants(id)
@@ -48,6 +52,12 @@ CREATE TABLE public.documents (
 
     CONSTRAINT fk_documents_created_by
         FOREIGN KEY (created_by)
+        REFERENCES public.users(id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_documents_deleted_by
+        FOREIGN KEY (deleted_by)
         REFERENCES public.users(id)
         ON DELETE SET NULL
         ON UPDATE CASCADE,
@@ -62,6 +72,8 @@ CREATE TABLE public.documents (
 COMMENT ON TABLE public.documents IS 'Tenant-scoped documents with RLS-based tenant isolation';
 COMMENT ON COLUMN public.documents.tenant_id IS 'Tenant identifier - required for RLS isolation';
 COMMENT ON COLUMN public.documents.metadata IS 'Additional document metadata (tags, custom fields, etc.)';
+COMMENT ON COLUMN public.documents.deleted_at IS 'Soft-delete timestamp (NULL = active, NOT NULL = deleted)';
+COMMENT ON COLUMN public.documents.deleted_by IS 'User who deleted the document (SET NULL on user delete)';
 
 -- =========================
 -- INDEXES
@@ -80,6 +92,9 @@ CREATE INDEX idx_documents_s3_key ON public.documents(s3_key) WHERE s3_key IS NO
 
 -- Composite indexes for tenant-scoped queries
 CREATE INDEX idx_documents_tenant_created ON public.documents(tenant_id, created_at DESC);
+
+-- Partial index for active (non-deleted) documents — covers the common query path
+CREATE INDEX idx_documents_active_tenant_created ON public.documents(tenant_id, created_at DESC) WHERE deleted_at IS NULL;
 
 -- =========================
 -- TRIGGERS
