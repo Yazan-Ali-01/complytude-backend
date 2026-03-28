@@ -56,6 +56,7 @@ import {
   TenantPayload,
   TenantRefreshPayload,
 } from './strategies';
+import type { SsoOAuthProfile } from './strategies/sso-payload.interface';
 import { parseUserAgent } from './utils/user-agent.util';
 
 @Injectable()
@@ -312,9 +313,158 @@ export class AuthService {
       identityRefreshToken: string;
     }
   > {
-    // Validate user credentials
     const user = await this.validateUser(loginDto.email, loginDto.password);
+    return this.completeIdentityLogin(user, request);
+  }
 
+  /**
+   * OAuth2 SSO: find or create user, then issue the same identity session + JWT pair as email login.
+   */
+  async validateOrCreateSsoUser(
+    profile: SsoOAuthProfile,
+    request: FastifyRequest,
+  ): Promise<{
+    identityAccessToken: string;
+    identityRefreshToken: string;
+  }> {
+    if (!profile.email?.trim()) {
+      throw new BadRequestException(
+        this.i18n.t(AuthI18n.errors.SSO_EMAIL_REQUIRED),
+      );
+    }
+
+    const user = await this.resolveOrCreateSsoUser(profile);
+    const { identityAccessToken, identityRefreshToken } =
+      await this.issueIdentitySessionAndTokens(user, request);
+    return { identityAccessToken, identityRefreshToken };
+  }
+
+  /**
+   * Build absolute URL for browser redirect after OAuth (uses FRONTEND_URL + SSO_*_PATH).
+   */
+  getSsoFrontendRedirectUrl(
+    outcome: 'success' | 'error',
+    extra: Record<string, string> = {},
+  ): string {
+    const base = (
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000'
+    ).replace(/\/$/, '');
+    const defaultPath =
+      outcome === 'success' ? '/auth/callback' : '/auth/error';
+    const pathKey =
+      outcome === 'success'
+        ? 'sso.frontendSuccessPath'
+        : 'sso.frontendErrorPath';
+    const path = this.configService.get<string>(pathKey) ?? defaultPath;
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const params = new URLSearchParams({
+      ...(outcome === 'success' ? { sso: 'success' } : { sso: 'error' }),
+      ...extra,
+    });
+    return `${base}${normalizedPath}?${params.toString()}`;
+  }
+
+  private async resolveOrCreateSsoUser(
+    profile: SsoOAuthProfile,
+  ): Promise<User> {
+    const email = profile.email.trim().toLowerCase();
+
+    if (profile.provider === 'google') {
+      const byGoogle = await this.userRepository.findByGoogleId(
+        profile.providerSubjectId,
+      );
+      if (byGoogle) {
+        return byGoogle;
+      }
+      const byEmail = await this.userRepository.findByEmailRow(email);
+      if (byEmail) {
+        await this.databaseService.transaction(async (client) => {
+          await this.userRepository.update(
+            byEmail.id,
+            {
+              google_id: profile.providerSubjectId,
+              updated_at: new Date(),
+            },
+            { client },
+          );
+        });
+        const updated = await this.userRepository.findById(byEmail.id);
+        if (!updated) {
+          throw new NotFoundException(
+            this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+              args: { userId: byEmail.id },
+            }),
+          );
+        }
+        return updated;
+      }
+      return this.databaseService.transaction(async (client) =>
+        this.userRepository.create(
+          {
+            email,
+            password_hash: null,
+            first_name: profile.firstName,
+            last_name: profile.lastName,
+            is_verified: true,
+            platform_role_key: null,
+            google_id: profile.providerSubjectId,
+            auth_provider: 'google',
+          },
+          { client },
+        ),
+      );
+    }
+
+    const byMicrosoft = await this.userRepository.findByMicrosoftId(
+      profile.providerSubjectId,
+    );
+    if (byMicrosoft) {
+      return byMicrosoft;
+    }
+    const byEmail = await this.userRepository.findByEmailRow(email);
+    if (byEmail) {
+      await this.databaseService.transaction(async (client) => {
+        await this.userRepository.update(
+          byEmail.id,
+          {
+            microsoft_id: profile.providerSubjectId,
+            updated_at: new Date(),
+          },
+          { client },
+        );
+      });
+      const updated = await this.userRepository.findById(byEmail.id);
+      if (!updated) {
+        throw new NotFoundException(
+          this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+            args: { userId: byEmail.id },
+          }),
+        );
+      }
+      return updated;
+    }
+
+    return this.databaseService.transaction(async (client) =>
+      this.userRepository.create(
+        {
+          email,
+          password_hash: null,
+          first_name: profile.firstName,
+          last_name: profile.lastName,
+          is_verified: true,
+          platform_role_key: null,
+          microsoft_id: profile.providerSubjectId,
+          auth_provider: 'microsoft',
+        },
+        { client },
+      ),
+    );
+  }
+
+  private async issueIdentitySessionAndTokens(
+    user: User,
+    request: FastifyRequest,
+  ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     const platformRole = user.platform_role_key ?? null;
     const userAgent = request.headers['user-agent'];
     const ipAddress = request.ip ?? 'unknown';
@@ -354,14 +504,26 @@ export class AuthService {
         ),
       );
 
+    return this.generateIdentityTokens(
+      user.id,
+      user.email,
+      user.is_verified,
+      platformRole,
+      identitySessionId,
+    );
+  }
+
+  private async completeIdentityLogin(
+    user: User,
+    request: FastifyRequest,
+  ): Promise<
+    LoginResponseDto & {
+      identityAccessToken: string;
+      identityRefreshToken: string;
+    }
+  > {
     const { identityAccessToken, identityRefreshToken } =
-      await this.generateIdentityTokens(
-        user.id,
-        user.email,
-        user.is_verified,
-        platformRole,
-        identitySessionId,
-      );
+      await this.issueIdentitySessionAndTokens(user, request);
 
     // Get user's active tenants
     const userTenants = await this.userTenantRepository.getActiveUserTenants(
@@ -418,12 +580,23 @@ export class AuthService {
         'last_name',
         'is_verified',
         'platform_role_key',
+        'auth_provider',
       ],
     });
     if (!user) {
       this.logger.warn(`Login failed: user not found for email`);
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
+      );
+    }
+
+    if (user.password_hash === null || user.password_hash === '') {
+      throw new UnauthorizedException(
+        this.i18n.t(AuthI18n.errors.SSO_ACCOUNT_USE_PASSWORD_PROVIDER, {
+          args: {
+            provider: this.authProviderLabel(user.auth_provider),
+          },
+        }),
       );
     }
 
@@ -437,6 +610,17 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  private authProviderLabel(provider: User['auth_provider']): string {
+    switch (provider) {
+      case 'google':
+        return 'Google';
+      case 'microsoft':
+        return 'Microsoft';
+      default:
+        return 'email';
+    }
   }
 
   /**
@@ -750,9 +934,7 @@ export class AuthService {
       return { message: this.i18n.t(AuthI18n.messages.LOGOUT_SUCCESS) };
     }
 
-    throw new NotFoundException(
-      this.i18n.t(AuthI18n.errors.SESSION_NOT_FOUND),
-    );
+    throw new NotFoundException(this.i18n.t(AuthI18n.errors.SESSION_NOT_FOUND));
   }
 
   /**

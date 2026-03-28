@@ -64,6 +64,8 @@ https://api.complytude.com/api/v1/{resource}
 
 ```
 POST   /api/v1/auth/login
+GET    /api/v1/auth/google
+GET    /api/v1/auth/google/callback
 GET    /api/v1/users/profile
 POST   /api/v1/documents
 GET    /api/v1/tenants
@@ -545,6 +547,33 @@ After completing this flow, users have full tenant access with tenant tokens set
 - Tokens set as HTTP-only cookies
 - List of user's existing tenants returned
 - **For new users:** `tenants` array is empty
+
+---
+
+### OAuth2 SSO (Google / Microsoft)
+
+Optional alternative to email + password. When the corresponding env vars are unset, the API responds with **503** on the start URLs; existing email/password auth is unchanged.
+
+**Endpoints:**
+
+| Method | Path                              | Purpose                                                                   |
+| ------ | --------------------------------- | ------------------------------------------------------------------------- |
+| GET    | `/api/v1/auth/google`             | Redirect browser to Google consent                                        |
+| GET    | `/api/v1/auth/google/callback`    | Google redirects here; API sets identity cookies and redirects to the SPA |
+| GET    | `/api/v1/auth/microsoft`          | Redirect browser to Microsoft consent                                     |
+| GET    | `/api/v1/auth/microsoft/callback` | Microsoft redirects here; same cookie behavior                            |
+
+**Environment (API):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_CALLBACK_URL`, `MICROSOFT_TENANT_ID` (default `common`), plus `FRONTEND_URL` and optional `SSO_FRONTEND_SUCCESS_PATH` / `SSO_FRONTEND_ERROR_PATH` for post-login redirects.
+
+**Callback URLs** must be registered with Google/Microsoft exactly as in `GOOGLE_CALLBACK_URL` / `MICROSOFT_CALLBACK_URL` (e.g. `http://localhost:3000/api/v1/auth/google/callback` when the API listens on port 3000).
+
+**Flow:**
+
+1. SPA navigates to `GET /api/v1/auth/google` (or `microsoft`).
+2. User signs in with the provider.
+3. Provider redirects to the callback route; the API creates or links the user (`is_verified: true`), issues the same identity JWT pair as `POST /auth/login`, sets HTTP-only cookies, then redirects to `FRONTEND_URL` + success path with query `sso=success` (and `provider=google` or `provider=microsoft`).
+
+**Account linking:** If the provider email matches an existing email/password user, the provider id is stored on that row and the user is logged in (no duplicate account). SSO-only users cannot use `POST /auth/login` with a password until a password exists; the API returns **401** with a message to use SSO.
 
 ---
 

@@ -12,9 +12,12 @@ import { TenantModule } from '../tenants/tenant.module';
 import { AdminSessionsController } from './admin-sessions.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleSsoAuthGuard } from './guards/google-sso-auth.guard';
+import { MicrosoftSsoAuthGuard } from './guards/microsoft-sso-auth.guard';
 import { GeoLocationService } from './services/geo-location.service';
 import { SessionInvalidationService } from './services/session-invalidation.service';
 import { SessionService } from './services/session.service';
+import { GoogleSsoStrategy } from './strategies/google-sso.strategy';
 import { JwtIdentityAccessStrategy } from './strategies/jwt-identity-access.strategy';
 import { JwtIdentityRefreshStrategy } from './strategies/jwt-identity-refresh.strategy';
 import {
@@ -22,6 +25,23 @@ import {
   JwtTenantAccessStrategy,
 } from './strategies/jwt-tenant-access.strategy';
 import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strategy';
+import { MicrosoftSsoStrategy } from './strategies/microsoft-sso.strategy';
+
+function isGoogleSsoEnabled(): boolean {
+  return Boolean(
+    process.env.GOOGLE_CLIENT_ID?.trim() &&
+      process.env.GOOGLE_CLIENT_SECRET?.trim() &&
+      process.env.GOOGLE_CALLBACK_URL?.trim(),
+  );
+}
+
+function isMicrosoftSsoEnabled(): boolean {
+  return Boolean(
+    process.env.MICROSOFT_CLIENT_ID?.trim() &&
+      process.env.MICROSOFT_CLIENT_SECRET?.trim() &&
+      process.env.MICROSOFT_CALLBACK_URL?.trim(),
+  );
+}
 
 @Module({
   imports: [
@@ -43,6 +63,10 @@ import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strate
     JwtTenantRefreshStrategy,
     JwtIdentityAccessStrategy,
     JwtIdentityRefreshStrategy,
+    GoogleSsoAuthGuard,
+    MicrosoftSsoAuthGuard,
+    ...(isGoogleSsoEnabled() ? [GoogleSsoStrategy] : []),
+    ...(isMicrosoftSsoEnabled() ? [MicrosoftSsoStrategy] : []),
     UserRepository,
     EmailVerificationRepository,
     UserTenantRepository,

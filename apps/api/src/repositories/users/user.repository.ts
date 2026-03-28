@@ -19,11 +19,14 @@ import {
 export type CreateUserRow = {
   // id: string;
   email: string;
-  password_hash: string;
+  password_hash?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   is_verified?: boolean;
   platform_role_key?: string | null;
+  google_id?: string | null;
+  microsoft_id?: string | null;
+  auth_provider?: 'email' | 'google' | 'microsoft';
   created_at?: Date;
   updated_at?: Date;
 };
@@ -33,22 +36,28 @@ export type CreateUserRow = {
  */
 export type UpdateUserRow = {
   email?: string;
-  password_hash?: string;
+  password_hash?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   is_verified?: boolean;
   platform_role_key?: string | null;
+  google_id?: string | null;
+  microsoft_id?: string | null;
+  auth_provider?: 'email' | 'google' | 'microsoft';
   updated_at?: Date;
 };
 
 type UserRow = {
   id: string;
   email: string;
-  password_hash: string;
+  password_hash: string | null;
   first_name: string | null;
   last_name: string | null;
   is_verified: boolean;
   platform_role_key: string | null;
+  google_id: string | null;
+  microsoft_id: string | null;
+  auth_provider: 'email' | 'google' | 'microsoft';
   created_at: Date;
   updated_at: Date;
 };
@@ -173,7 +182,7 @@ export class UserRepository extends BaseRepository<
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'id, email, password_hash, first_name, last_name, is_verified, platform_role_key, created_at, updated_at';
+    return 'id, email, password_hash, first_name, last_name, is_verified, platform_role_key, google_id, microsoft_id, auth_provider, created_at, updated_at';
   }
 
   /**
@@ -192,9 +201,53 @@ export class UserRepository extends BaseRepository<
       last_name: data.last_name,
       is_verified: data.is_verified,
       platform_role_key: data.platform_role_key,
+      google_id: data.google_id,
+      microsoft_id: data.microsoft_id,
+      auth_provider: data.auth_provider,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
+  }
+
+  async findByGoogleId(
+    googleId: string,
+    options?: QueryOptions,
+  ): Promise<User | null> {
+    const result = await this.executeQuery<UserRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE google_id = $1 LIMIT 1`,
+      [googleId],
+      options,
+    );
+    const row = result.rows[0];
+    return row ? this.mapRow(row as Record<string, unknown>) : null;
+  }
+
+  async findByMicrosoftId(
+    microsoftId: string,
+    options?: QueryOptions,
+  ): Promise<User | null> {
+    const result = await this.executeQuery<UserRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE microsoft_id = $1 LIMIT 1`,
+      [microsoftId],
+      options,
+    );
+    const row = result.rows[0];
+    return row ? this.mapRow(row as Record<string, unknown>) : null;
+  }
+
+  async findByEmailRow(
+    email: string,
+    options?: QueryOptions,
+  ): Promise<User | null> {
+    const normalized = email.trim().toLowerCase();
+    const result = await this.executeQuery<UserRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE LOWER(TRIM(email)) = $1 LIMIT 1`,
+      [normalized],
+      options,
+    );
+    const row = result.rows[0];
+    return row ? this.mapRow(row as Record<string, unknown>) : null;
   }
 
   /**

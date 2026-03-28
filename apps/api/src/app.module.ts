@@ -12,6 +12,7 @@ import { validationSchema } from 'src/config/env.schema';
 import geoConfig from 'src/config/geo.config';
 import jwtConfig from 'src/config/jwt.config';
 import sessionConfig from 'src/config/session.config';
+import ssoConfig from 'src/config/sso.config';
 import storageConfig from 'src/config/storage.config';
 import stripeConfig from 'src/config/stripe.config';
 import { AuthModule } from 'src/modules/auth/auth.module';
@@ -52,6 +53,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
         sessionConfig,
         storageConfig,
         stripeConfig,
+        ssoConfig,
         redisConfig,
       ],
       validationSchema: validationSchema,

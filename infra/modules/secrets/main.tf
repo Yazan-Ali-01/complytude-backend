@@ -112,5 +112,16 @@ resource "aws_secretsmanager_secret_version" "app" {
     FROM_EMAIL     = var.from_email
     FROM_NAME      = var.from_name
     SUPPORT_EMAIL  = var.support_email
+
+    # OAuth2 SSO (optional — empty strings disable strategies in the API)
+    GOOGLE_CLIENT_ID         = var.google_client_id
+    GOOGLE_CLIENT_SECRET       = var.google_client_secret
+    GOOGLE_CALLBACK_URL        = var.google_callback_url
+    MICROSOFT_CLIENT_ID        = var.microsoft_client_id
+    MICROSOFT_CLIENT_SECRET    = var.microsoft_client_secret
+    MICROSOFT_CALLBACK_URL     = var.microsoft_callback_url
+    MICROSOFT_TENANT_ID        = var.microsoft_tenant_id
+    SSO_FRONTEND_SUCCESS_PATH  = var.sso_frontend_success_path
+    SSO_FRONTEND_ERROR_PATH    = var.sso_frontend_error_path
   })
 }

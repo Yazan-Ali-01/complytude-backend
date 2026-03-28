@@ -74,6 +74,49 @@ export class UsersService {
   }
 
   /**
+   * Lookup by Google OAuth subject (for SSO diagnostics / admin tooling).
+   */
+  async findByGoogleId(googleId: string): Promise<User | null> {
+    const result = await this.databaseService.query(
+      `SELECT id, email, password_hash, first_name, last_name, is_verified, platform_role_key,
+              google_id, microsoft_id, auth_provider, created_at, updated_at
+       FROM public.users WHERE google_id = $1`,
+      [googleId],
+    );
+    if (result.rows.length === 0) return null;
+    return new User(result.rows[0]);
+  }
+
+  /**
+   * Lookup by Microsoft OAuth subject (for SSO diagnostics / admin tooling).
+   */
+  async findByMicrosoftId(microsoftId: string): Promise<User | null> {
+    const result = await this.databaseService.query(
+      `SELECT id, email, password_hash, first_name, last_name, is_verified, platform_role_key,
+              google_id, microsoft_id, auth_provider, created_at, updated_at
+       FROM public.users WHERE microsoft_id = $1`,
+      [microsoftId],
+    );
+    if (result.rows.length === 0) return null;
+    return new User(result.rows[0]);
+  }
+
+  /**
+   * Attach an SSO provider id to an existing user (account linking).
+   */
+  async linkSsoProvider(
+    userId: string,
+    provider: 'google' | 'microsoft',
+    providerSubjectId: string,
+  ): Promise<void> {
+    const col = provider === 'google' ? 'google_id' : 'microsoft_id';
+    await this.databaseService.query(
+      `UPDATE public.users SET ${col} = $1, updated_at = now() WHERE id = $2`,
+      [providerSubjectId, userId],
+    );
+  }
+
+  /**
    * Get all tenants accessible by a user
    */
   async getUserTenants(userId: string): Promise<any[]> {
@@ -156,7 +199,13 @@ export class UsersService {
       );
     }
 
-    const user = result.rows[0] as { password_hash: string };
+    const user = result.rows[0] as { password_hash: string | null };
+
+    if (user.password_hash === null || user.password_hash === '') {
+      throw new BadRequestException(
+        this.i18n.t(UsersI18n.errors.SSO_ACCOUNT_NO_LOCAL_PASSWORD),
+      );
+    }
 
     // Verify current password
     const isPasswordValid = await bcrypt.compare(

@@ -53,6 +53,15 @@ locals {
     "FROM_EMAIL",
     "FROM_NAME",
     "SUPPORT_EMAIL",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_CALLBACK_URL",
+    "MICROSOFT_CLIENT_ID",
+    "MICROSOFT_CLIENT_SECRET",
+    "MICROSOFT_CALLBACK_URL",
+    "MICROSOFT_TENANT_ID",
+    "SSO_FRONTEND_SUCCESS_PATH",
+    "SSO_FRONTEND_ERROR_PATH",
   ]
   secrets = [for k in local.secret_keys : { name = k, valueFrom = "${var.secret_arn}:${k}::" }]
 }
