@@ -35,4 +35,5 @@ export interface TemplateField {
   };
   options?: string[] | { label: string; value: string }[];
   order?: number;
+  system_variable_key?: string;
 }

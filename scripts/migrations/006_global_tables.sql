@@ -13,6 +13,7 @@ BEGIN;
 
 CREATE TYPE template_status AS ENUM ('active', 'inactive', 'draft', 'deprecated');
 CREATE TYPE ruleset_status AS ENUM ('active', 'inactive', 'deprecated');
+CREATE TYPE public.template_tier AS ENUM ('essential', 'full');
 
 -- =========================
 -- AUTHORITIES TABLE
@@ -143,6 +144,7 @@ CREATE TABLE public.templates (
     languages         TEXT[] NOT NULL DEFAULT ARRAY['en'],
     current_version   VARCHAR(50) NOT NULL DEFAULT '1.0.0',
     status            template_status NOT NULL DEFAULT 'active',
+    tier              public.template_tier NOT NULL DEFAULT 'essential',
     file_url          TEXT,
     thumbnail_url     TEXT,
     metadata          JSONB DEFAULT '{}',
@@ -297,6 +299,7 @@ CREATE INDEX idx_templates_key ON public.templates(key);
 CREATE INDEX idx_templates_category_id ON public.templates(category_id);
 CREATE INDEX idx_templates_authority_id ON public.templates(authority_id);
 CREATE INDEX idx_templates_status ON public.templates(status);
+CREATE INDEX idx_templates_tier ON public.templates(tier);
 CREATE INDEX idx_templates_created_by ON public.templates(created_by);
 CREATE INDEX idx_templates_languages ON public.templates USING GIN(languages);
 
@@ -428,6 +431,7 @@ DROP INDEX IF EXISTS public.idx_template_versions_version;
 DROP INDEX IF EXISTS public.idx_template_versions_template_id;
 DROP INDEX IF EXISTS public.idx_templates_languages;
 DROP INDEX IF EXISTS public.idx_templates_created_by;
+DROP INDEX IF EXISTS public.idx_templates_tier;
 DROP INDEX IF EXISTS public.idx_templates_status;
 DROP INDEX IF EXISTS public.idx_templates_authority_id;
 DROP INDEX IF EXISTS public.idx_templates_category_id;
@@ -458,6 +462,7 @@ DROP TABLE IF EXISTS public.categories;
 DROP TABLE IF EXISTS public.authorities;
 
 -- Drop ENUMs
+DROP TYPE IF EXISTS public.template_tier;
 DROP TYPE IF EXISTS ruleset_status;
 DROP TYPE IF EXISTS template_status;
 

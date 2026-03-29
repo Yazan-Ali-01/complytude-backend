@@ -30,6 +30,9 @@ export interface Document {
   extracted_at: Date | null;
   deleted_at: Date | null;
   deleted_by: string | null;
+  template_id: string | null;
+  template_version_id: string | null;
+  generation_variables: Record<string, unknown> | null;
 }
 
 type BaseCreateDocumentRow = {
@@ -54,7 +57,22 @@ type CreateFileUploadRow = BaseCreateDocumentRow & {
   extraction_status: ExtractionStatus;
 };
 
-export type CreateDocumentRow = CreateTextInputRow | CreateFileUploadRow;
+type CreateGeneratedRow = BaseCreateDocumentRow & {
+  source_type: 'generated';
+  s3_key: string;
+  s3_bucket: string;
+  original_filename: string;
+  file_size_bytes: number;
+  mime_type: string;
+  template_id: string;
+  template_version_id: string;
+  generation_variables: string;
+};
+
+export type CreateDocumentRow =
+  | CreateTextInputRow
+  | CreateFileUploadRow
+  | CreateGeneratedRow;
 
 export type UpdateDocumentRow = {
   title?: string;
@@ -99,6 +117,9 @@ type DocumentRow = {
   extracted_at: Date | null;
   deleted_at: Date | null;
   deleted_by: string | null;
+  template_id: string | null;
+  template_version_id: string | null;
+  generation_variables: string | Record<string, unknown> | null;
 };
 
 @Injectable()
@@ -112,11 +133,11 @@ export class DocumentRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, title, content, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by';
+    return 'id, tenant_id, title, content, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by, template_id, template_version_id, generation_variables';
   }
 
   private getListSelectColumns(): string {
-    return 'id, tenant_id, title, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by';
+    return 'id, tenant_id, title, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by, template_id, template_version_id, generation_variables';
   }
 
   protected mapRow(row: Record<string, unknown>): Document {
@@ -144,6 +165,12 @@ export class DocumentRepository extends BaseRepository<
       extracted_at: data.extracted_at,
       deleted_at: data.deleted_at ?? null,
       deleted_by: data.deleted_by ?? null,
+      template_id: data.template_id ?? null,
+      template_version_id: data.template_version_id ?? null,
+      generation_variables:
+        typeof data.generation_variables === 'string'
+          ? (JSON.parse(data.generation_variables) as Record<string, unknown>)
+          : (data.generation_variables ?? null),
     };
   }
 

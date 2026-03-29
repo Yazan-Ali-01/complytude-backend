@@ -23,6 +23,7 @@ export type CreateTemplateRow = {
   languages?: string[];
   current_version?: string;
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
+  tier?: 'essential' | 'full';
   file_url?: string | null;
   thumbnail_url?: string | null;
   metadata: string; // Stringified JSONB object
@@ -44,6 +45,7 @@ export type UpdateTemplateRow = {
   languages?: string[];
   current_version?: string;
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
+  tier?: 'essential' | 'full';
   file_url?: string | null;
   thumbnail_url?: string | null;
   metadata?: string; // Stringified JSONB object
@@ -60,6 +62,7 @@ type TemplateRow = {
   languages: string[];
   current_version: string;
   status: Template['status'];
+  tier: Template['tier'];
   file_url: string | null;
   thumbnail_url: string | null;
   metadata: string | Record<string, unknown>;
@@ -182,7 +185,7 @@ export class TemplateRepository extends BaseRepository<
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by, created_at, updated_at';
+    return 'id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by, created_at, updated_at';
   }
 
   /**
@@ -203,6 +206,7 @@ export class TemplateRepository extends BaseRepository<
       languages: data.languages,
       current_version: data.current_version,
       status: data.status,
+      tier: data.tier,
       file_url: data.file_url,
       thumbnail_url: data.thumbnail_url,
       metadata: data.metadata as Record<string, unknown>,

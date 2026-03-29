@@ -6,7 +6,7 @@ export const INGESTION_JOB_NAMES = {
 export type IngestionJobName =
   (typeof INGESTION_JOB_NAMES)[keyof typeof INGESTION_JOB_NAMES];
 
-export type DocumentSourceType = 'text_input' | 'file_upload';
+export type DocumentSourceType = 'text_input' | 'file_upload' | 'generated';
 
 export type ExtractionStatus =
   | 'pending'

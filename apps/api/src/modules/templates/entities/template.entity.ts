@@ -10,6 +10,7 @@ export interface Template {
   languages: string[];
   current_version: string;
   status: 'active' | 'inactive' | 'draft' | 'deprecated';
+  tier: 'essential' | 'full';
   file_url: string | null;
   thumbnail_url: string | null;
   metadata: Record<string, unknown>;

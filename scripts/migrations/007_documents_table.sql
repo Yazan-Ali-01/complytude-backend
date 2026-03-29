@@ -12,7 +12,7 @@ BEGIN;
 -- ENUM TYPES
 -- =========================
 
-CREATE TYPE public.document_source_type AS ENUM ('text_input', 'file_upload');
+CREATE TYPE public.document_source_type AS ENUM ('text_input', 'file_upload', 'generated');
 CREATE TYPE public.document_extraction_status AS ENUM ('pending', 'processing', 'completed', 'failed');
 
 -- =========================
@@ -40,6 +40,11 @@ CREATE TABLE public.documents (
     extraction_error        TEXT,
     extracted_at            TIMESTAMPTZ,
 
+    -- Template generation columns
+    template_id             UUID NULL,
+    template_version_id     UUID NULL,
+    generation_variables    JSONB NULL,
+
     -- Soft delete columns
     deleted_at              TIMESTAMPTZ DEFAULT NULL,
     deleted_by              UUID DEFAULT NULL,
@@ -62,10 +67,27 @@ CREATE TABLE public.documents (
         ON DELETE SET NULL
         ON UPDATE CASCADE,
 
+    CONSTRAINT fk_documents_template
+        FOREIGN KEY (template_id)
+        REFERENCES public.templates(id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_documents_template_version
+        FOREIGN KEY (template_version_id)
+        REFERENCES public.template_versions(id)
+        ON DELETE SET NULL,
+
     CONSTRAINT chk_document_source
         CHECK (
             (source_type = 'text_input' AND content IS NOT NULL) OR
-            (source_type = 'file_upload' AND s3_key IS NOT NULL)
+            (source_type = 'file_upload' AND s3_key IS NOT NULL) OR
+            (source_type = 'generated' AND s3_key IS NOT NULL)
+        ),
+
+    CONSTRAINT chk_generated_document
+        CHECK (
+            (source_type != 'generated') OR
+            (source_type = 'generated' AND template_id IS NOT NULL AND template_version_id IS NOT NULL AND generation_variables IS NOT NULL)
         )
 );
 
@@ -74,6 +96,9 @@ COMMENT ON COLUMN public.documents.tenant_id IS 'Tenant identifier - required fo
 COMMENT ON COLUMN public.documents.metadata IS 'Additional document metadata (tags, custom fields, etc.)';
 COMMENT ON COLUMN public.documents.deleted_at IS 'Soft-delete timestamp (NULL = active, NOT NULL = deleted)';
 COMMENT ON COLUMN public.documents.deleted_by IS 'User who deleted the document (SET NULL on user delete)';
+COMMENT ON COLUMN public.documents.template_id IS 'Template used to generate this document (NULL for non-generated docs)';
+COMMENT ON COLUMN public.documents.template_version_id IS 'Specific template version used for generation';
+COMMENT ON COLUMN public.documents.generation_variables IS 'Variable values supplied during document generation';
 
 -- =========================
 -- INDEXES
@@ -89,6 +114,10 @@ CREATE INDEX idx_documents_created_at ON public.documents(created_at DESC);
 -- File storage indexes (partial — only for rows where value is set)
 CREATE INDEX idx_documents_extraction_status ON public.documents(extraction_status) WHERE extraction_status IS NOT NULL;
 CREATE INDEX idx_documents_s3_key ON public.documents(s3_key) WHERE s3_key IS NOT NULL;
+
+-- Template generation indexes (partial — only for generated documents)
+CREATE INDEX idx_documents_template_id ON public.documents(template_id) WHERE template_id IS NOT NULL;
+CREATE INDEX idx_documents_template_version_id ON public.documents(template_version_id) WHERE template_version_id IS NOT NULL;
 
 -- Composite indexes for tenant-scoped queries
 CREATE INDEX idx_documents_tenant_created ON public.documents(tenant_id, created_at DESC);
@@ -205,9 +234,12 @@ DROP POLICY IF EXISTS documents_insert ON public.documents;
 DROP POLICY IF EXISTS documents_select ON public.documents;
 
 -- Drop indexes
+DROP INDEX IF EXISTS public.idx_documents_template_version_id;
+DROP INDEX IF EXISTS public.idx_documents_template_id;
 DROP INDEX IF EXISTS public.idx_documents_s3_key;
 DROP INDEX IF EXISTS public.idx_documents_extraction_status;
 DROP INDEX IF EXISTS public.idx_documents_tenant_created;
+DROP INDEX IF EXISTS public.idx_documents_active_tenant_created;
 DROP INDEX IF EXISTS public.idx_documents_created_at;
 DROP INDEX IF EXISTS public.idx_documents_created_by;
 DROP INDEX IF EXISTS public.idx_documents_tenant_id;
