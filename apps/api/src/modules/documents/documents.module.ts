@@ -5,11 +5,17 @@ import { StorageModule } from '../storage/storage.module';
 import { AnalysisJobsController } from './analysis-jobs.controller';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
+import { VariableValidationService } from './services/variable-validation.service';
 
 @Module({
   imports: [StorageModule],
   controllers: [DocumentsController, AnalysisJobsController],
-  providers: [DocumentsService, DocumentRepository, AnalysisJobRepository],
-  exports: [DocumentsService],
+  providers: [
+    DocumentsService,
+    DocumentRepository,
+    AnalysisJobRepository,
+    VariableValidationService,
+  ],
+  exports: [DocumentsService, VariableValidationService],
 })
 export class DocumentsModule {}
