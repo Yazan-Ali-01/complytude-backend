@@ -17,6 +17,10 @@ import {
   RulesetIngestionJobData,
 } from './interfaces/data-ingestion.jobs';
 import {
+  DocumentGenerationJobData,
+  GENERATION_JOB_NAMES,
+} from './interfaces/document-generation.jobs';
+import {
   ENTITLEMENT_JOB_NAMES,
   EntitlementCreditEventJobData,
   EntitlementCreditNotificationJobData,
@@ -61,6 +65,9 @@ export interface QueueJobMap {
   };
   [QUEUE_NAMES.TENANT_PROCESSING]: {
     [TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION]: TenantStripeCustomerCreationJobData;
+  };
+  [QUEUE_NAMES.DOCUMENT_GENERATION]: {
+    [GENERATION_JOB_NAMES.DOCUMENT_GENERATION]: DocumentGenerationJobData;
   };
 }
 

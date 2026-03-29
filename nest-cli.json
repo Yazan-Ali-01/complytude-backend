@@ -89,6 +89,15 @@
         "tsConfigPath": "libs/storage/tsconfig.lib.json"
       }
     },
+    "pdf": {
+      "type": "library",
+      "root": "libs/pdf",
+      "entryFile": "index",
+      "sourceRoot": "libs/pdf/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/pdf/tsconfig.lib.json"
+      }
+    },
     "worker-ai": {
       "type": "application",
       "root": "apps/worker-ai",
@@ -106,6 +115,16 @@
       "sourceRoot": "apps/worker-ingestion/src",
       "compilerOptions": {
         "tsConfigPath": "apps/worker-ingestion/tsconfig.app.json",
+        "assets": []
+      }
+    },
+    "worker-generation": {
+      "type": "application",
+      "root": "apps/worker-generation",
+      "entryFile": "main",
+      "sourceRoot": "apps/worker-generation/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/worker-generation/tsconfig.app.json",
         "assets": []
       }
     }

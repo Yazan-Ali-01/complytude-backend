@@ -1,0 +1,26 @@
+{
+  "name": "@complytude/worker-generation",
+  "version": "1.0.0",
+  "description": "Complytude Worker Generation - Document generation worker service",
+  "private": true,
+  "main": "src/main.ts",
+  "scripts": {
+    "build": "nest build worker-generation",
+    "start": "nest start worker-generation",
+    "start:dev": "nest start worker-generation --watch",
+    "start:debug": "nest start worker-generation --debug --watch",
+    "start:prod": "node dist/apps/worker-generation/main"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.0.1",
+    "@types/pg": "^8.15.5",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "joi": "^18.0.1",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  }
+}

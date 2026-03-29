@@ -99,6 +99,41 @@ services:
     networks:
       - complytude-network
 
+  # Gotenberg - PDF conversion service
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: complytude-gotenberg
+    restart: unless-stopped
+    ports:
+      - '${GOTENBERG_PORT:-3004}:3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - complytude-network
+
+  # Worker Generation - Document generation worker
+  worker-generation:
+    build:
+      context: .
+      dockerfile: apps/worker-generation/Dockerfile
+    image: complytude-worker-generation:latest
+    container_name: complytude-worker-generation
+    restart: unless-stopped
+    env_file:
+      - apps/worker-generation/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+    networks:
+      - complytude-network
+
   # MinIO Bucket Initialization
   minio-init:
     image: minio/mc:latest
@@ -114,6 +149,21 @@ services:
       echo 'Buckets created successfully';
       exit 0;
       "
+    networks:
+      - complytude-network
+
+  # Gotenberg - DOCX to PDF conversion
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: complytude-gotenberg
+    restart: unless-stopped
+    ports:
+      - '3100:3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       - complytude-network
 
