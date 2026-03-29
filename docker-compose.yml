@@ -99,17 +99,17 @@ services:
     networks:
       - complytude-network
 
-  # Gotenberg - PDF conversion service
+  # Gotenberg - DOCX to PDF conversion
   gotenberg:
     image: gotenberg/gotenberg:8
     container_name: complytude-gotenberg
     restart: unless-stopped
     ports:
-      - '${GOTENBERG_PORT:-3004}:3000'
+      - '${GOTENBERG_PORT:-3100}:3000'
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
     networks:
       - complytude-network
@@ -149,21 +149,6 @@ services:
       echo 'Buckets created successfully';
       exit 0;
       "
-    networks:
-      - complytude-network
-
-  # Gotenberg - DOCX to PDF conversion
-  gotenberg:
-    image: gotenberg/gotenberg:8
-    container_name: complytude-gotenberg
-    restart: unless-stopped
-    ports:
-      - '3100:3000'
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
-      interval: 10s
-      timeout: 5s
-      retries: 3
     networks:
       - complytude-network
 

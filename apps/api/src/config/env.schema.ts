@@ -115,6 +115,9 @@ export const validationSchema = Joi.object({
   FROM_NAME: Joi.string().default('Complytude Billing'),
   SUPPORT_EMAIL: Joi.string().email().required(),
 
+  // Gotenberg (DOCX → PDF conversion)
+  GOTENBERG_URL: Joi.string().uri().default('http://localhost:3100'),
+
   // Google OAuth2 SSO (optional — omit or leave empty to disable)
   GOOGLE_CLIENT_ID: Joi.string().allow('').optional().default(''),
   GOOGLE_CLIENT_SECRET: Joi.string().allow('').optional().default(''),

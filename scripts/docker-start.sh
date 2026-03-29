@@ -29,8 +29,8 @@ else
 fi
 
 # Start services
-echo "🚀 Starting PostgreSQL, Redis, and MinIO..."
-$DOCKER_COMPOSE up -d postgres redis minio
+echo "🚀 Starting PostgreSQL, Redis, MinIO, and Gotenberg..."
+$DOCKER_COMPOSE up -d postgres redis minio gotenberg
 
 # Wait for services to be ready
 echo "⏳ Waiting for services to be ready..."
@@ -55,6 +55,13 @@ if docker exec complytude-minio curl -f http://localhost:9000/minio/health/live 
     echo "✅ MinIO is ready!"
 else
     echo "⚠️  MinIO started but not ready yet"
+fi
+
+# Check Gotenberg health
+if docker exec complytude-gotenberg curl -f http://localhost:3000/health > /dev/null 2>&1; then
+    echo "✅ Gotenberg (PDF conversion) is ready!"
+else
+    echo "⚠️  Gotenberg started but not ready yet"
 fi
 
 # Check if MinIO buckets were created
@@ -86,6 +93,11 @@ echo "  Console: http://localhost:9001"
 echo "  Access Key: minioadmin"
 echo "  Secret Key: minioadmin"
 echo "  Buckets: complytude-quarantine, complytude-clean"
+echo ""
+echo "Gotenberg (PDF Conversion):"
+echo "  API Endpoint: http://localhost:3100"
+echo "  Health: http://localhost:3100/health"
+echo "  DOCX→PDF: POST http://localhost:3100/forms/libreoffice/convert"
 echo ""
 echo "🚀 Next Steps:"
 echo "  pnpm db:migrate  - Run database migrations"

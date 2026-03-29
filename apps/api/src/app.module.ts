@@ -1,4 +1,5 @@
 import { AuditModule } from '@lib/audit';
+import { PdfModule } from '@lib/pdf';
 import { ContextModule, TracingInterceptor } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
 import { LoggerModule } from '@lib/logger';
@@ -98,6 +99,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
     TenantRbacModule,
     PlatformRbacModule,
     AuditModule.forRoot(),
+    PdfModule,
     MockModule,
     RagMockModule,
   ],

@@ -70,6 +70,12 @@
       "@lib/storage/*": [
         "libs/storage/src/*"
       ],
+      "@lib/pdf": [
+        "libs/pdf/src"
+      ],
+      "@lib/pdf/*": [
+        "libs/pdf/src/*"
+      ],
       "src/*": [
         "apps/api/src/*"
       ]

@@ -125,6 +125,9 @@ importers:
       passport-jwt:
         specifier: ^4.0.1
         version: 4.0.1
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
       pg:
         specifier: ^8.16.3
         version: 8.16.3
@@ -366,9 +369,6 @@ importers:
       passport-microsoft:
         specifier: ^2.1.0
         version: 2.1.0
-      pdf-lib:
-        specifier: ^1.17.1
-        version: 1.17.1
       pg:
         specifier: ^8.16.3
         version: 8.16.3
@@ -389,6 +389,39 @@ importers:
         version: 13.0.0
 
   apps/worker-ai:
+    dependencies:
+      '@nestjs/common':
+        specifier: ^11.0.1
+        version: 11.1.9(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/config':
+        specifier: ^4.0.2
+        version: 4.0.2(@nestjs/common@11.1.9(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: ^11.0.1
+        version: 11.1.9(@nestjs/common@11.1.9(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.9)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@types/pg':
+        specifier: ^8.15.5
+        version: 8.15.6
+      class-transformer:
+        specifier: ^0.5.1
+        version: 0.5.1
+      class-validator:
+        specifier: ^0.14.2
+        version: 0.14.3
+      joi:
+        specifier: ^18.0.1
+        version: 18.0.2
+      pg:
+        specifier: ^8.16.3
+        version: 8.16.3
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: ^7.8.1
+        version: 7.8.2
+
+  apps/worker-generation:
     dependencies:
       '@nestjs/common':
         specifier: ^11.0.1
