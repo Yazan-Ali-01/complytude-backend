@@ -12,7 +12,8 @@
     "DOCUMENT_LIST_FAILED": "Failed to retrieve documents. Please try again.",
     "DOCUMENT_RETRIEVAL_FAILED": "Failed to retrieve document details. Please try again.",
     "DOCUMENT_DELETE_FAILED": "Failed to delete document. Please try again.",
-    "DOCUMENT_NOT_EXTRACTED": "Document text extraction is not complete. Wait for extraction to finish before triggering analysis."
+    "DOCUMENT_NOT_EXTRACTED": "Document text extraction is not complete. Wait for extraction to finish before triggering analysis.",
+    "GENERATION_CONTEXT_FAILED": "Failed to retrieve generation context. Please try again."
   },
   "messages": {
     "UPLOAD_CONFIRMED": "Upload confirmed. Text extraction has been queued.",

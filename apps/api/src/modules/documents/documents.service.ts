@@ -20,6 +20,10 @@ import {
   Document,
   DocumentRepository,
 } from 'src/repositories/documents/document.repository';
+import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
+import { UserRepository } from 'src/repositories/users/user.repository';
+import type { Tenant } from '../tenants/entities/tenant.entity';
+import type { User } from '../users/entities/user.entity';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
 import { StorageService } from '../storage/storage.service';
 import { DocumentsI18n } from './constants/i18n.constants';
@@ -33,10 +37,38 @@ import type {
   DocumentListResponseDto,
   DocumentResponseDto,
   DocumentSummaryDto,
+  GenerationContextResponseDto,
   ListDocumentsQueryDto,
   UploadUrlDto,
   UploadUrlResponseDto,
 } from './dto';
+
+type GenerationContext = {
+  user: User;
+  tenant: Tenant;
+  locale: string;
+};
+
+function formatDateLong(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
+const SYSTEM_VARIABLE_RESOLVERS: Record<
+  string,
+  (ctx: GenerationContext) => string
+> = {
+  generated_date: () => new Date().toISOString().split('T')[0],
+  generated_date_formatted: (ctx) => formatDateLong(new Date(), ctx.locale),
+  tenant_name: (ctx) => ctx.tenant.name ?? '',
+  tenant_trade_license_number: (ctx) => ctx.tenant.trade_license_number ?? '',
+  user_full_name: (ctx) =>
+    [ctx.user.first_name, ctx.user.last_name].filter(Boolean).join(' '),
+  user_email: (ctx) => ctx.user.email,
+};
 
 @Injectable()
 export class DocumentsService {
@@ -50,7 +82,51 @@ export class DocumentsService {
     private readonly storageService: StorageService,
     private readonly configService: ConfigService,
     private readonly i18n: I18nService,
+    private readonly tenantRepository: TenantRepository,
+    private readonly userRepository: UserRepository,
   ) {}
+
+  async getGenerationContext(
+    user: AuthenticatedTenantUser,
+  ): Promise<GenerationContextResponseDto> {
+    try {
+      const [tenant, dbUser] = await Promise.all([
+        this.tenantRepository.findById(user.tenantId),
+        this.userRepository.findById(user.userId),
+      ]);
+
+      if (!tenant) {
+        throw new NotFoundException('Tenant not found');
+      }
+      if (!dbUser) {
+        throw new NotFoundException('User not found');
+      }
+
+      const ctx: GenerationContext = {
+        user: dbUser,
+        tenant,
+        locale: tenant.locale ?? 'en',
+      };
+
+      const systemVariables = Object.fromEntries(
+        Object.entries(SYSTEM_VARIABLE_RESOLVERS).map(([key, resolve]) => [
+          key,
+          resolve(ctx),
+        ]),
+      );
+
+      return { systemVariables };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.error(
+        `getGenerationContext failed: tenantId=${user.tenantId} userId=${user.userId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.GENERATION_CONTEXT_FAILED),
+      );
+    }
+  }
 
   async analyze(
     dto: AnalyzeDocumentDto,

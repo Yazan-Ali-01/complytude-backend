@@ -40,6 +40,7 @@ import {
   DeleteDocumentResponseDto,
   DocumentListResponseDto,
   DocumentResponseDto,
+  GenerationContextResponseDto,
   ListDocumentsQueryDto,
   UploadUrlDto,
   UploadUrlResponseDto,
@@ -94,6 +95,28 @@ export class DocumentsController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<DocumentListResponseDto> {
     return this.documentsService.findAll(query, user);
+  }
+
+  @Get('generation-context')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:create')
+  @ApiOperation({
+    summary: 'Get generation context',
+    description:
+      'Returns system variable values resolved from the current user and tenant context. ' +
+      'Use these to pre-fill form fields that have a system_variable_key set on their template field definitions.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resolved system variables for the current context',
+    type: GenerationContextResponseDto,
+  })
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to create documents')
+  getGenerationContext(
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<GenerationContextResponseDto> {
+    return this.documentsService.getGenerationContext(user);
   }
 
   @Get(':documentId')

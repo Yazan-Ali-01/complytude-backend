@@ -18,6 +18,7 @@ export const DocumentsI18n = {
     DOCUMENT_RETRIEVAL_FAILED: 'documents.errors.DOCUMENT_RETRIEVAL_FAILED',
     DOCUMENT_DELETE_FAILED: 'documents.errors.DOCUMENT_DELETE_FAILED',
     DOCUMENT_NOT_EXTRACTED: 'documents.errors.DOCUMENT_NOT_EXTRACTED',
+    GENERATION_CONTEXT_FAILED: 'documents.errors.GENERATION_CONTEXT_FAILED',
   },
   messages: {
     UPLOAD_CONFIRMED: 'documents.messages.UPLOAD_CONFIRMED',
