@@ -209,26 +209,17 @@ export class UserRepository extends BaseRepository<
     };
   }
 
-  async findByGoogleId(
-    googleId: string,
+  /**
+   * Lookup by SSO provider id column (google_id or microsoft_id).
+   */
+  async findByProviderId(
+    column: 'google_id' | 'microsoft_id',
+    providerSubjectId: string,
     options?: QueryOptions,
   ): Promise<User | null> {
     const result = await this.executeQuery<UserRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE google_id = $1 LIMIT 1`,
-      [googleId],
-      options,
-    );
-    const row = result.rows[0];
-    return row ? this.mapRow(row as Record<string, unknown>) : null;
-  }
-
-  async findByMicrosoftId(
-    microsoftId: string,
-    options?: QueryOptions,
-  ): Promise<User | null> {
-    const result = await this.executeQuery<UserRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE microsoft_id = $1 LIMIT 1`,
-      [microsoftId],
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE ${column} = $1 LIMIT 1`,
+      [providerSubjectId],
       options,
     );
     const row = result.rows[0];
@@ -242,7 +233,7 @@ export class UserRepository extends BaseRepository<
     const normalized = email.trim().toLowerCase();
     const result = await this.executeQuery<UserRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
-       WHERE LOWER(TRIM(email)) = $1 LIMIT 1`,
+       WHERE email = $1 LIMIT 1`,
       [normalized],
       options,
     );

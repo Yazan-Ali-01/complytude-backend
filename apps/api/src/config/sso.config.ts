@@ -1,29 +1,19 @@
 import { registerAs } from '@nestjs/config';
-
-function isTruthyEnv(v: string | undefined): boolean {
-  return Boolean(v?.trim());
-}
+import {
+  isGoogleSsoEnabled,
+  isMicrosoftSsoEnabled,
+} from 'src/modules/auth/utils/sso-enabled.util';
 
 export default registerAs('sso', () => {
-  const googleEnabled =
-    isTruthyEnv(process.env.GOOGLE_CLIENT_ID) &&
-    isTruthyEnv(process.env.GOOGLE_CLIENT_SECRET) &&
-    isTruthyEnv(process.env.GOOGLE_CALLBACK_URL);
-
-  const microsoftEnabled =
-    isTruthyEnv(process.env.MICROSOFT_CLIENT_ID) &&
-    isTruthyEnv(process.env.MICROSOFT_CLIENT_SECRET) &&
-    isTruthyEnv(process.env.MICROSOFT_CALLBACK_URL);
-
   return {
     google: {
-      enabled: googleEnabled,
+      enabled: isGoogleSsoEnabled(),
       clientId: process.env.GOOGLE_CLIENT_ID ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
       callbackUrl: process.env.GOOGLE_CALLBACK_URL ?? '',
     },
     microsoft: {
-      enabled: microsoftEnabled,
+      enabled: isMicrosoftSsoEnabled(),
       clientId: process.env.MICROSOFT_CLIENT_ID ?? '',
       clientSecret: process.env.MICROSOFT_CLIENT_SECRET ?? '',
       callbackUrl: process.env.MICROSOFT_CALLBACK_URL ?? '',

@@ -11,6 +11,7 @@ import {
   Query,
   Req,
   Res,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -57,6 +58,7 @@ import { SignupDto } from './dto/signup.dto';
 import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.filter';
 import {
   GoogleSsoAuthGuard,
   JwtAuthRefreshGuard,
@@ -127,6 +129,7 @@ export class AuthController {
    */
   @Get('google/callback')
   @UseGuards(GoogleSsoAuthGuard)
+  @UseFilters(SsoCallbackExceptionFilter)
   @Audit('AUTH_SSO_GOOGLE_CALLBACK')
   @ApiOperation({
     summary: 'Google OAuth2 callback',
@@ -143,18 +146,7 @@ export class AuthController {
     @Req() request: FastifyRequest & { user: SsoOAuthProfile },
     @Res({ passthrough: false }) reply: FastifyReply,
   ): Promise<void> {
-    const { identityAccessToken, identityRefreshToken } =
-      await this.authService.validateOrCreateSsoUser(request.user, request);
-    this.authService.clearAllAuthCookies(reply);
-    this.authService.setIdentityTokens(
-      reply,
-      identityAccessToken,
-      identityRefreshToken,
-    );
-    const url = this.authService.getSsoFrontendRedirectUrl('success', {
-      provider: 'google',
-    });
-    await reply.redirect(url);
+    return this.handleSsoCallback(request, reply, 'google');
   }
 
   /**
@@ -186,6 +178,7 @@ export class AuthController {
    */
   @Get('microsoft/callback')
   @UseGuards(MicrosoftSsoAuthGuard)
+  @UseFilters(SsoCallbackExceptionFilter)
   @Audit('AUTH_SSO_MICROSOFT_CALLBACK')
   @ApiOperation({
     summary: 'Microsoft OAuth2 callback',
@@ -202,6 +195,14 @@ export class AuthController {
     @Req() request: FastifyRequest & { user: SsoOAuthProfile },
     @Res({ passthrough: false }) reply: FastifyReply,
   ): Promise<void> {
+    return this.handleSsoCallback(request, reply, 'microsoft');
+  }
+
+  private async handleSsoCallback(
+    request: FastifyRequest & { user: SsoOAuthProfile },
+    reply: FastifyReply,
+    provider: string,
+  ): Promise<void> {
     const { identityAccessToken, identityRefreshToken } =
       await this.authService.validateOrCreateSsoUser(request.user, request);
     this.authService.clearAllAuthCookies(reply);
@@ -211,7 +212,7 @@ export class AuthController {
       identityRefreshToken,
     );
     const url = this.authService.getSsoFrontendRedirectUrl('success', {
-      provider: 'microsoft',
+      provider,
     });
     await reply.redirect(url);
   }

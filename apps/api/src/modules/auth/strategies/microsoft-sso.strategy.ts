@@ -21,12 +21,21 @@ export class MicrosoftSsoStrategy extends PassportStrategy(
   MICROSOFT_SSO_STRATEGY_NAME,
 ) {
   constructor(private readonly configService: ConfigService) {
+    const enabled = configService.get<boolean>('sso.microsoft.enabled');
     super({
-      clientID: configService.get<string>('sso.microsoft.clientId')!,
-      clientSecret: configService.get<string>('sso.microsoft.clientSecret')!,
-      callbackURL: configService.get<string>('sso.microsoft.callbackUrl')!,
+      clientID: enabled
+        ? configService.get<string>('sso.microsoft.clientId')!
+        : 'disabled',
+      clientSecret: enabled
+        ? configService.get<string>('sso.microsoft.clientSecret')!
+        : 'disabled',
+      callbackURL: enabled
+        ? configService.get<string>('sso.microsoft.callbackUrl')!
+        : 'http://localhost/disabled',
       scope: ['user.read'],
-      tenant: configService.get<string>('sso.microsoft.tenant')!,
+      tenant: enabled
+        ? configService.get<string>('sso.microsoft.tenant')!
+        : 'common',
     });
   }
 

@@ -12,10 +12,17 @@ export class GoogleSsoStrategy extends PassportStrategy(
   GOOGLE_SSO_STRATEGY_NAME,
 ) {
   constructor(private readonly configService: ConfigService) {
+    const enabled = configService.get<boolean>('sso.google.enabled');
     super({
-      clientID: configService.get<string>('sso.google.clientId')!,
-      clientSecret: configService.get<string>('sso.google.clientSecret')!,
-      callbackURL: configService.get<string>('sso.google.callbackUrl')!,
+      clientID: enabled
+        ? configService.get<string>('sso.google.clientId')!
+        : 'disabled',
+      clientSecret: enabled
+        ? configService.get<string>('sso.google.clientSecret')!
+        : 'disabled',
+      callbackURL: enabled
+        ? configService.get<string>('sso.google.callbackUrl')!
+        : 'http://localhost/disabled',
       scope: ['email', 'profile'],
     });
   }

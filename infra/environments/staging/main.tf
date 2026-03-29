@@ -158,6 +158,17 @@ module "secrets" {
   from_email    = var.from_email
   from_name     = var.from_name
   support_email = var.support_email
+
+  # OAuth2 SSO (optional — empty = disabled)
+  google_client_id          = var.google_client_id
+  google_client_secret      = var.google_client_secret
+  google_callback_url       = var.google_callback_url
+  microsoft_client_id       = var.microsoft_client_id
+  microsoft_client_secret   = var.microsoft_client_secret
+  microsoft_callback_url    = var.microsoft_callback_url
+  microsoft_tenant_id       = var.microsoft_tenant_id
+  sso_frontend_success_path = var.sso_frontend_success_path
+  sso_frontend_error_path   = var.sso_frontend_error_path
 }
 
 module "route53" {

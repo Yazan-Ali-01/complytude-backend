@@ -26,22 +26,7 @@ import {
 } from './strategies/jwt-tenant-access.strategy';
 import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strategy';
 import { MicrosoftSsoStrategy } from './strategies/microsoft-sso.strategy';
-
-function isGoogleSsoEnabled(): boolean {
-  return Boolean(
-    process.env.GOOGLE_CLIENT_ID?.trim() &&
-      process.env.GOOGLE_CLIENT_SECRET?.trim() &&
-      process.env.GOOGLE_CALLBACK_URL?.trim(),
-  );
-}
-
-function isMicrosoftSsoEnabled(): boolean {
-  return Boolean(
-    process.env.MICROSOFT_CLIENT_ID?.trim() &&
-      process.env.MICROSOFT_CLIENT_SECRET?.trim() &&
-      process.env.MICROSOFT_CALLBACK_URL?.trim(),
-  );
-}
+import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.filter';
 
 @Module({
   imports: [
@@ -65,8 +50,9 @@ function isMicrosoftSsoEnabled(): boolean {
     JwtIdentityRefreshStrategy,
     GoogleSsoAuthGuard,
     MicrosoftSsoAuthGuard,
-    ...(isGoogleSsoEnabled() ? [GoogleSsoStrategy] : []),
-    ...(isMicrosoftSsoEnabled() ? [MicrosoftSsoStrategy] : []),
+    SsoCallbackExceptionFilter,
+    GoogleSsoStrategy,
+    MicrosoftSsoStrategy,
     UserRepository,
     EmailVerificationRepository,
     UserTenantRepository,

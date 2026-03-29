@@ -368,37 +368,39 @@ export class AuthService {
     profile: SsoOAuthProfile,
   ): Promise<User> {
     const email = profile.email.trim().toLowerCase();
+    const providerCol =
+      profile.provider === 'google' ? 'google_id' : 'microsoft_id';
 
-    if (profile.provider === 'google') {
-      const byGoogle = await this.userRepository.findByGoogleId(
-        profile.providerSubjectId,
-      );
-      if (byGoogle) {
-        return byGoogle;
-      }
-      const byEmail = await this.userRepository.findByEmailRow(email);
-      if (byEmail) {
-        await this.databaseService.transaction(async (client) => {
-          await this.userRepository.update(
-            byEmail.id,
-            {
-              google_id: profile.providerSubjectId,
-              updated_at: new Date(),
-            },
-            { client },
-          );
+    // 1. Already linked — fast path
+    const byProvider = await this.userRepository.findByProviderId(
+      providerCol,
+      profile.providerSubjectId,
+    );
+    if (byProvider) return byProvider;
+
+    // 2. Email exists — link the provider
+    const byEmail = await this.userRepository.findByEmailRow(email);
+    if (byEmail) {
+      try {
+        return await this.userRepository.update(byEmail.id, {
+          [providerCol]: profile.providerSubjectId,
+          updated_at: new Date(),
         });
-        const updated = await this.userRepository.findById(byEmail.id);
-        if (!updated) {
-          throw new NotFoundException(
-            this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
-              args: { userId: byEmail.id },
-            }),
+      } catch (err: unknown) {
+        if ((err as { code?: string }).code === '23505') {
+          const existing = await this.userRepository.findByProviderId(
+            providerCol,
+            profile.providerSubjectId,
           );
+          if (existing) return existing;
         }
-        return updated;
+        throw err;
       }
-      return this.databaseService.transaction(async (client) =>
+    }
+
+    // 3. Brand new user
+    try {
+      return await this.databaseService.transaction(async (client) =>
         this.userRepository.create(
           {
             email,
@@ -407,58 +409,22 @@ export class AuthService {
             last_name: profile.lastName,
             is_verified: true,
             platform_role_key: null,
-            google_id: profile.providerSubjectId,
-            auth_provider: 'google',
+            [providerCol]: profile.providerSubjectId,
+            auth_provider: profile.provider,
           },
           { client },
         ),
       );
-    }
-
-    const byMicrosoft = await this.userRepository.findByMicrosoftId(
-      profile.providerSubjectId,
-    );
-    if (byMicrosoft) {
-      return byMicrosoft;
-    }
-    const byEmail = await this.userRepository.findByEmailRow(email);
-    if (byEmail) {
-      await this.databaseService.transaction(async (client) => {
-        await this.userRepository.update(
-          byEmail.id,
-          {
-            microsoft_id: profile.providerSubjectId,
-            updated_at: new Date(),
-          },
-          { client },
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '23505') {
+        const existing = await this.userRepository.findByProviderId(
+          providerCol,
+          profile.providerSubjectId,
         );
-      });
-      const updated = await this.userRepository.findById(byEmail.id);
-      if (!updated) {
-        throw new NotFoundException(
-          this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
-            args: { userId: byEmail.id },
-          }),
-        );
+        if (existing) return existing;
       }
-      return updated;
+      throw err;
     }
-
-    return this.databaseService.transaction(async (client) =>
-      this.userRepository.create(
-        {
-          email,
-          password_hash: null,
-          first_name: profile.firstName,
-          last_name: profile.lastName,
-          is_verified: true,
-          platform_role_key: null,
-          microsoft_id: profile.providerSubjectId,
-          auth_provider: 'microsoft',
-        },
-        { client },
-      ),
-    );
   }
 
   private async issueIdentitySessionAndTokens(
@@ -590,7 +556,7 @@ export class AuthService {
       );
     }
 
-    if (user.password_hash === null || user.password_hash === '') {
+    if (user.password_hash === null) {
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.SSO_ACCOUNT_USE_PASSWORD_PROVIDER, {
           args: {
@@ -628,13 +594,13 @@ export class AuthService {
    * Used after login, before tenant selection.
    * SessionId links to Redis identity-session for revocation.
    */
-  async generateIdentityTokens(
+  generateIdentityTokens(
     userId: string,
     email: string,
     isVerified: boolean,
     platformRole: string | null,
     sessionId: string,
-  ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
+  ): { identityAccessToken: string; identityRefreshToken: string } {
     const accessPayload: IdentityPayload = {
       sub: userId,
       email,
@@ -677,13 +643,13 @@ export class AuthService {
    * Used after tenant selection.
    * SessionId links to Redis tenant-session for revocation.
    */
-  async generateTenantTokens(
+  generateTenantTokens(
     userId: string,
     email: string,
     tenantId: string,
     role: string,
     sessionId: string,
-  ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
+  ): { tenantAccessToken: string; tenantRefreshToken: string } {
     const accessPayload: TenantPayload = {
       sub: userId,
       email,
@@ -778,7 +744,7 @@ export class AuthService {
     }
 
     const platformRole = user.platform_role_key ?? null;
-    const { identityAccessToken } = await this.generateIdentityTokens(
+    const { identityAccessToken } = this.generateIdentityTokens(
       userId,
       email,
       user.is_verified,
@@ -826,7 +792,7 @@ export class AuthService {
       );
     }
 
-    const { tenantAccessToken } = await this.generateTenantTokens(
+    const { tenantAccessToken } = this.generateTenantTokens(
       userId,
       email,
       tenantId,
@@ -1160,7 +1126,7 @@ export class AuthService {
       );
 
       const { tenantAccessToken, tenantRefreshToken } =
-        await this.generateTenantTokens(
+        this.generateTenantTokens(
           userId,
           email,
           tenantId,
