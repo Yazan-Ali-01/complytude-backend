@@ -16,6 +16,7 @@ import { TemplateVersionRepository } from '../../repositories/templates/template
 import { TemplateRepository } from '../../repositories/templates/template.repository';
 import { RulesetsModule } from '../rulesets/rulesets.module';
 import { DocxPlaceholderExtractionService } from './services/docx-placeholder-extraction.service';
+import { DocumentGenerationService } from './services/document-generation.service';
 
 @Module({
   imports: [StorageModule, RulesetsModule, TenantModule],
@@ -25,6 +26,7 @@ import { DocxPlaceholderExtractionService } from './services/docx-placeholder-ex
     TemplateVersionsService,
     TemplateValidationService,
     DocxPlaceholderExtractionService,
+    DocumentGenerationService,
     TemplateRepository,
     TemplateVersionRepository,
     CategoryRepository,
@@ -36,6 +38,7 @@ import { DocxPlaceholderExtractionService } from './services/docx-placeholder-ex
     TemplateVersionsService,
     TemplateValidationService,
     DocxPlaceholderExtractionService,
+    DocumentGenerationService,
     TemplateRepository,
     TemplateVersionRepository,
     CategoryRepository,
