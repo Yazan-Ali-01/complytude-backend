@@ -89,6 +89,12 @@ variable "worker_ingestion_environment" {
   default     = {}
 }
 
+variable "worker_generation_environment" {
+  description = "Non-secret environment variables for worker-generation"
+  type        = map(string)
+  default     = {}
+}
+
 # Desired count per service
 variable "api_desired_count" {
   description = "Desired number of API tasks"
@@ -104,6 +110,12 @@ variable "worker_ai_desired_count" {
 
 variable "worker_ingestion_desired_count" {
   description = "Desired number of worker-ingestion tasks"
+  type        = number
+  default     = 1
+}
+
+variable "worker_generation_desired_count" {
+  description = "Desired number of worker-generation tasks"
   type        = number
   default     = 1
 }

@@ -89,7 +89,7 @@ module "ecr" {
 
   project_name     = var.project
   environment      = var.environment
-  repository_names = ["api", "worker-ai", "worker-ingestion"]
+  repository_names = ["api", "worker-ai", "worker-ingestion", "worker-generation"]
 }
 
 module "ses" {
@@ -213,9 +213,11 @@ module "ecs" {
   ]
 
   api_environment = {
-    NODE_ENV      = "production"
-    LOG_LEVEL     = "info"
-    SERVICE_NAME  = "gateway"
+    NODE_ENV       = "production"
+    LOG_LEVEL      = "info"
+    SERVICE_NAME   = "gateway"
+    # Gotenberg sidecar — same task = shared network namespace
+    GOTENBERG_URL  = "http://localhost:3000"
   }
   worker_ai_environment = {
     NODE_ENV      = "production"
@@ -227,10 +229,18 @@ module "ecs" {
     LOG_LEVEL     = "info"
     SERVICE_NAME  = "worker-ingestion"
   }
+  worker_generation_environment = {
+    NODE_ENV       = "production"
+    LOG_LEVEL      = "info"
+    SERVICE_NAME   = "worker-generation"
+    # Gotenberg sidecar — same task = shared network namespace
+    GOTENBERG_URL  = "http://localhost:3000"
+  }
 
-  api_desired_count            = var.ecs_api_desired_count
-  worker_ai_desired_count      = var.ecs_worker_ai_desired_count
-  worker_ingestion_desired_count = var.ecs_worker_ingestion_desired_count
+  api_desired_count               = var.ecs_api_desired_count
+  worker_ai_desired_count         = var.ecs_worker_ai_desired_count
+  worker_ingestion_desired_count  = var.ecs_worker_ingestion_desired_count
+  worker_generation_desired_count = var.ecs_worker_generation_desired_count
 }
 
 module "dns_record" {
@@ -262,6 +272,7 @@ module "monitoring" {
     module.ecs.api_service_name,
     module.ecs.worker_ai_service_name,
     module.ecs.worker_ingestion_service_name,
+    module.ecs.worker_generation_service_name,
   ]
   rds_instance_id              = module.rds.instance_id
   redis_replication_group_id   = module.elasticache.replication_group_id

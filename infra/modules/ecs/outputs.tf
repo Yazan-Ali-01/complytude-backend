@@ -32,3 +32,8 @@ output "worker_ingestion_service_name" {
   description = "Worker Ingestion ECS service name"
   value       = aws_ecs_service.worker_ingestion.name
 }
+
+output "worker_generation_service_name" {
+  description = "Worker Generation ECS service name"
+  value       = aws_ecs_service.worker_generation.name
+}

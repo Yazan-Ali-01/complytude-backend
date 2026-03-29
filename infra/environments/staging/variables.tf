@@ -209,6 +209,12 @@ variable "ecs_worker_ingestion_desired_count" {
   default     = 1
 }
 
+variable "ecs_worker_generation_desired_count" {
+  description = "Desired number of worker-generation tasks"
+  type        = number
+  default     = 1
+}
+
 # ---- Email (AWS SES) ----
 variable "from_email" {
   description = "From email address for sending emails (e.g., billing@complytude.com)"
