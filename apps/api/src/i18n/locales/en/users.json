@@ -7,7 +7,8 @@
     "CURRENT_PASSWORD_INCORRECT": "Current password is incorrect",
     "USER_ALREADY_EXISTS_IN_TENANT": "User already exists in this tenant",
     "CANNOT_MODIFY_OWN_ROLE": "Cannot modify your own role",
-    "CANNOT_REMOVE_YOURSELF": "Cannot remove yourself from the tenant"
+    "CANNOT_REMOVE_YOURSELF": "Cannot remove yourself from the tenant",
+    "SSO_ACCOUNT_NO_LOCAL_PASSWORD": "This account has no password yet. Sign in with your SSO provider, or use the set-password flow when available."
   },
   "messages": {}
 }

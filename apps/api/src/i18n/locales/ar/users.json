@@ -7,7 +7,8 @@
     "CURRENT_PASSWORD_INCORRECT": "كلمة المرور الحالية غير صحيحة",
     "USER_ALREADY_EXISTS_IN_TENANT": "المستخدم موجود بالفعل في هذه المؤسسة",
     "CANNOT_MODIFY_OWN_ROLE": "لا يمكنك تعديل دورك الخاص",
-    "CANNOT_REMOVE_YOURSELF": "لا يمكنك إزالة نفسك من المؤسسة"
+    "CANNOT_REMOVE_YOURSELF": "لا يمكنك إزالة نفسك من المؤسسة",
+    "SSO_ACCOUNT_NO_LOCAL_PASSWORD": "لا توجد كلمة مرور لهذا الحساب بعد. سجّل الدخول عبر مزود الهوية، أو استخدم مسار تعيين كلمة المرور عند توفره."
   },
   "messages": {}
 }

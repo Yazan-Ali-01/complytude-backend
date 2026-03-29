@@ -114,4 +114,19 @@ export const validationSchema = Joi.object({
   FROM_EMAIL: Joi.string().email().required(),
   FROM_NAME: Joi.string().default('Complytude Billing'),
   SUPPORT_EMAIL: Joi.string().email().required(),
+
+  // Google OAuth2 SSO (optional — omit or leave empty to disable)
+  GOOGLE_CLIENT_ID: Joi.string().allow('').optional().default(''),
+  GOOGLE_CLIENT_SECRET: Joi.string().allow('').optional().default(''),
+  GOOGLE_CALLBACK_URL: Joi.string().allow('').optional().default(''),
+
+  // Microsoft OAuth2 SSO (optional — omit or leave empty to disable)
+  MICROSOFT_CLIENT_ID: Joi.string().allow('').optional().default(''),
+  MICROSOFT_CLIENT_SECRET: Joi.string().allow('').optional().default(''),
+  MICROSOFT_CALLBACK_URL: Joi.string().allow('').optional().default(''),
+  MICROSOFT_TENANT_ID: Joi.string().allow('').optional().default('common'),
+
+  // Where the API redirects the browser after OAuth (relative to FRONTEND_URL)
+  SSO_FRONTEND_SUCCESS_PATH: Joi.string().default('/auth/callback'),
+  SSO_FRONTEND_ERROR_PATH: Joi.string().default('/auth/error'),
 });

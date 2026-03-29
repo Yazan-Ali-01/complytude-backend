@@ -156,7 +156,13 @@ export class UsersService {
       );
     }
 
-    const user = result.rows[0] as { password_hash: string };
+    const user = result.rows[0] as { password_hash: string | null };
+
+    if (user.password_hash === null) {
+      throw new BadRequestException(
+        this.i18n.t(UsersI18n.errors.SSO_ACCOUNT_NO_LOCAL_PASSWORD),
+      );
+    }
 
     // Verify current password
     const isPasswordValid = await bcrypt.compare(

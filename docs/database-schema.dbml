@@ -140,15 +140,21 @@ Table tenants {
 Table users {
   id uuid [pk, default: `gen_random_uuid()`]
   email varchar(255) [unique, not null]
-  password_hash varchar(255) [not null]
+  password_hash varchar(255) [null, note: 'NULL for SSO-only until password set']
   first_name varchar(255)
   last_name varchar(255)
   is_verified boolean [not null, default: false]
   platform_role_key varchar(50) [null, note: 'Platform role (e.g., system_admin, support, auditor). NULL for tenant-only users']
+  google_id varchar(255) [null, note: 'Google OAuth sub; unique when set']
+  microsoft_id varchar(255) [null, note: 'Microsoft OAuth id; unique when set']
+  auth_provider varchar(20) [not null, default: 'email', note: 'email | google | microsoft']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
 
-  Note: 'User accounts that can access multiple tenants'
+  Note: '''
+    User accounts that can access multiple tenants.
+    Partial unique indexes (Postgres): google_id, microsoft_id WHERE NOT NULL.
+  '''
 }
 
 Table user_tenants {

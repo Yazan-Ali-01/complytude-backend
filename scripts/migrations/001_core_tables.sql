@@ -96,22 +96,31 @@ COMMENT ON COLUMN public.tenants.deactivation_reason IS 'Tenant deactivation rea
 CREATE TABLE public.users (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email            VARCHAR(255) UNIQUE NOT NULL,
-    password_hash    VARCHAR(255) NOT NULL,
+    password_hash    VARCHAR(255),
     first_name       VARCHAR(255),
     last_name        VARCHAR(255),
     is_verified       BOOLEAN NOT NULL DEFAULT false,
     platform_role_key VARCHAR(50) NULL,
+    google_id        VARCHAR(255),
+    microsoft_id     VARCHAR(255),
+    auth_provider    VARCHAR(20) NOT NULL DEFAULT 'email',
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT check_platform_role_key_format
-        CHECK (platform_role_key IS NULL OR platform_role_key ~ '^[a-z_]+$')
+        CHECK (platform_role_key IS NULL OR platform_role_key ~ '^[a-z_]+$'),
+
+    CONSTRAINT check_auth_provider
+        CHECK (auth_provider IN ('email', 'google', 'microsoft'))
 );
 
 COMMENT ON TABLE public.users IS 'User accounts that can access multiple tenants';
 COMMENT ON COLUMN public.users.id IS 'Unique user identifier (UUID)';
 COMMENT ON COLUMN public.users.email IS 'User email address (unique across platform)';
-COMMENT ON COLUMN public.users.password_hash IS 'Bcrypt hashed password';
+COMMENT ON COLUMN public.users.password_hash IS 'Bcrypt hashed password; NULL for SSO-only accounts until a password is set';
+COMMENT ON COLUMN public.users.google_id IS 'Google OAuth subject (sub); NULL if never linked';
+COMMENT ON COLUMN public.users.microsoft_id IS 'Microsoft OAuth subject (id); NULL if never linked';
+COMMENT ON COLUMN public.users.auth_provider IS 'Primary signup method: email, google, or microsoft';
 COMMENT ON COLUMN public.users.is_verified IS 'Whether user has verified their email address';
 COMMENT ON COLUMN public.users.platform_role_key IS 'Platform-level role key (e.g., system_admin, support, auditor). NULL for regular tenant-only users.';
 
@@ -460,6 +469,8 @@ CREATE INDEX idx_tenants_parent_tenant_id ON public.tenants(parent_tenant_id) WH
 -- Composite index for login queries (WHERE email = ? AND is_verified = ?)
 CREATE INDEX idx_users_email_verified ON public.users(email, is_verified) WHERE is_verified = true;
 CREATE INDEX idx_users_platform_role ON public.users(platform_role_key) WHERE platform_role_key IS NOT NULL;
+CREATE UNIQUE INDEX idx_users_google_id ON public.users(google_id) WHERE google_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_users_microsoft_id ON public.users(microsoft_id) WHERE microsoft_id IS NOT NULL;
 
 -- Tenant Roles
 CREATE INDEX idx_tenant_roles_key ON public.tenant_roles(key);

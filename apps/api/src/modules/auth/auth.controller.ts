@@ -11,6 +11,7 @@ import {
   Query,
   Req,
   Res,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -57,13 +58,19 @@ import { SignupDto } from './dto/signup.dto';
 import { TenantSwitchResponseDto } from './dto/tenant-switch-response.dto';
 import { TenantSwitchDto } from './dto/tenant-switch.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-import { JwtAuthRefreshGuard } from './guards';
+import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.filter';
+import {
+  GoogleSsoAuthGuard,
+  JwtAuthRefreshGuard,
+  MicrosoftSsoAuthGuard,
+} from './guards';
 import type {
   AuthenticatedIdentityRefreshUser,
   AuthenticatedIdentityUser,
   AuthenticatedTenantRefreshUser,
   AuthenticatedTenantUser,
 } from './strategies';
+import type { SsoOAuthProfile } from './strategies/sso-payload.interface';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -91,6 +98,123 @@ export class AuthController {
   @ApiPublicResponses()
   signup(@Body() signupDto: SignupDto): Promise<MessageResponseDto> {
     return this.authService.signup(signupDto);
+  }
+
+  /**
+   * GET /auth/google — OAuth2: redirect to Google consent (identity tokens issued on callback).
+   */
+  @Get('google')
+  @UseGuards(GoogleSsoAuthGuard)
+  @Audit('AUTH_SSO_GOOGLE_START')
+  @ApiOperation({
+    summary: 'Start Google OAuth2 sign-in',
+    description:
+      'Redirects the browser to Google. After consent, Google redirects to GET /auth/google/callback; the API sets identity cookies and redirects to the SPA (FRONTEND_URL + SSO_FRONTEND_SUCCESS_PATH). Disabled when GOOGLE_* env vars are unset.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to Google authorization server',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Google SSO is not configured',
+  })
+  @ApiPublicResponses()
+  googleAuth(): void {
+    /* Passport guard issues redirect; this handler is not used */
+  }
+
+  /**
+   * GET /auth/google/callback — Google OAuth2 callback
+   */
+  @Get('google/callback')
+  @UseGuards(GoogleSsoAuthGuard)
+  @UseFilters(SsoCallbackExceptionFilter)
+  @Audit('AUTH_SSO_GOOGLE_CALLBACK')
+  @ApiOperation({
+    summary: 'Google OAuth2 callback',
+    description:
+      'Handles Google redirect: creates or links user, sets identity cookies, redirects to frontend success URL.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to frontend with cookies set',
+  })
+  @ApiResponse({ status: 503, description: 'Google SSO is not configured' })
+  @ApiPublicResponses()
+  async googleAuthCallback(
+    @Req() request: FastifyRequest & { user: SsoOAuthProfile },
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ): Promise<void> {
+    return this.handleSsoCallback(request, reply, 'google');
+  }
+
+  /**
+   * GET /auth/microsoft — OAuth2: redirect to Microsoft consent
+   */
+  @Get('microsoft')
+  @UseGuards(MicrosoftSsoAuthGuard)
+  @Audit('AUTH_SSO_MICROSOFT_START')
+  @ApiOperation({
+    summary: 'Start Microsoft OAuth2 sign-in',
+    description:
+      'Redirects the browser to Microsoft. Callback: GET /auth/microsoft/callback. Disabled when MICROSOFT_* env vars are unset.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to Microsoft authorization server',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Microsoft SSO is not configured',
+  })
+  @ApiPublicResponses()
+  microsoftAuth(): void {
+    /* Passport guard issues redirect */
+  }
+
+  /**
+   * GET /auth/microsoft/callback — Microsoft OAuth2 callback
+   */
+  @Get('microsoft/callback')
+  @UseGuards(MicrosoftSsoAuthGuard)
+  @UseFilters(SsoCallbackExceptionFilter)
+  @Audit('AUTH_SSO_MICROSOFT_CALLBACK')
+  @ApiOperation({
+    summary: 'Microsoft OAuth2 callback',
+    description:
+      'Handles Microsoft redirect: creates or links user, sets identity cookies, redirects to frontend.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to frontend with cookies set',
+  })
+  @ApiResponse({ status: 503, description: 'Microsoft SSO is not configured' })
+  @ApiPublicResponses()
+  async microsoftAuthCallback(
+    @Req() request: FastifyRequest & { user: SsoOAuthProfile },
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ): Promise<void> {
+    return this.handleSsoCallback(request, reply, 'microsoft');
+  }
+
+  private async handleSsoCallback(
+    request: FastifyRequest & { user: SsoOAuthProfile },
+    reply: FastifyReply,
+    provider: string,
+  ): Promise<void> {
+    const { identityAccessToken, identityRefreshToken } =
+      await this.authService.validateOrCreateSsoUser(request.user, request);
+    this.authService.clearAllAuthCookies(reply);
+    this.authService.setIdentityTokens(
+      reply,
+      identityAccessToken,
+      identityRefreshToken,
+    );
+    const url = this.authService.getSsoFrontendRedirectUrl('success', {
+      provider,
+    });
+    await reply.redirect(url);
   }
 
   /**

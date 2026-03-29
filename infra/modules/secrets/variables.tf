@@ -221,3 +221,60 @@ variable "support_email" {
   description = "Support email address"
   type        = string
 }
+
+# ---- OAuth2 SSO (optional; empty = disabled in app — keys still present in secret JSON) ----
+variable "google_client_id" {
+  description = "Google OAuth client ID (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth client secret (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "google_callback_url" {
+  description = "Google OAuth redirect URI registered in Google Cloud (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_client_id" {
+  description = "Microsoft OAuth application (client) ID (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_client_secret" {
+  description = "Microsoft OAuth client secret (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "microsoft_callback_url" {
+  description = "Microsoft OAuth redirect URI (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_tenant_id" {
+  description = "Microsoft tenant: 'common' for multi-tenant, or a directory ID"
+  type        = string
+  default     = "common"
+}
+
+variable "sso_frontend_success_path" {
+  description = "Path appended to FRONTEND_URL after successful OAuth (optional)"
+  type        = string
+  default     = "/auth/callback"
+}
+
+variable "sso_frontend_error_path" {
+  description = "Path appended to FRONTEND_URL on OAuth error (optional)"
+  type        = string
+  default     = "/auth/error"
+}

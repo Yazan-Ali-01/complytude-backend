@@ -45,11 +45,28 @@ import {
   UploadUrlResponseDto,
 } from './dto';
 
-const RETRY_AFTER_SECONDS = 5;
+const ANALYSIS_JOB_RETRY_AFTER_SECONDS = 5;
+/** Suggested poll interval while text extraction is in flight (GET /documents/:id). */
+const DOCUMENT_EXTRACTION_RETRY_AFTER_SECONDS = 3;
 
-function setRetryAfterIfPending(reply: FastifyReply, status: string): void {
+function setRetryAfterIfAnalysisPending(
+  reply: FastifyReply,
+  status: string,
+): void {
   if (status === 'queued' || status === 'processing') {
-    reply.header('Retry-After', String(RETRY_AFTER_SECONDS));
+    reply.header('Retry-After', String(ANALYSIS_JOB_RETRY_AFTER_SECONDS));
+  }
+}
+
+function setRetryAfterIfExtractionPending(
+  reply: FastifyReply,
+  extractionStatus: string | null,
+): void {
+  if (extractionStatus === 'pending' || extractionStatus === 'processing') {
+    reply.header(
+      'Retry-After',
+      String(DOCUMENT_EXTRACTION_RETRY_AFTER_SECONDS),
+    );
   }
 }
 
@@ -85,7 +102,8 @@ export class DocumentsController {
   @ApiOperation({
     summary: 'Get document by ID',
     description:
-      'Returns the full document details including content, metadata, and file storage information.',
+      'Returns the full document details including content, metadata, and file storage information. ' +
+      'When extraction_status is pending or processing, the response includes Retry-After: 3 for polling.',
   })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   @ApiResponse({
@@ -96,11 +114,14 @@ export class DocumentsController {
   @ApiNotFoundError('Document')
   @ApiAuthErrors()
   @ApiForbiddenError('Insufficient permissions to read documents')
-  findOne(
+  async findOne(
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
+    @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<DocumentResponseDto> {
-    return this.documentsService.findOne(documentId, user);
+    const doc = await this.documentsService.findOne(documentId, user);
+    setRetryAfterIfExtractionPending(reply, doc.extractionStatus);
+    return doc;
   }
 
   @Delete(':documentId')
@@ -155,7 +176,7 @@ export class DocumentsController {
       documentId,
       user,
     );
-    setRetryAfterIfPending(reply, result.status);
+    setRetryAfterIfAnalysisPending(reply, result.status);
     return result;
   }
 

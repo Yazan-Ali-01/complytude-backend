@@ -21,10 +21,7 @@ export async function validateSessions(
     i18n?.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID) ??
     'Session expired or invalid';
 
-  const validate = async (
-    sessionId: string,
-    type: 'identity' | 'tenant',
-  ) => {
+  const validate = async (sessionId: string, type: 'identity' | 'tenant') => {
     if (!sessionId) {
       throw new UnauthorizedException(msg);
     }

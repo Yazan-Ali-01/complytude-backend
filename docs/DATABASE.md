@@ -274,17 +274,22 @@ User accounts that can access multiple tenants.
 | ------------------- | ------------ | ------------------------------------------------------------------------------------------ |
 | `id`                | UUID         | Primary key                                                                                |
 | `email`             | VARCHAR(255) | Unique email address                                                                       |
-| `password_hash`     | VARCHAR(255) | Bcrypt hashed password                                                                     |
+| `password_hash`     | VARCHAR(255) | Bcrypt hashed password; NULL for SSO-only accounts until a password is set                 |
 | `first_name`        | VARCHAR(255) | First name                                                                                 |
 | `last_name`         | VARCHAR(255) | Last name                                                                                  |
 | `is_verified`       | BOOLEAN      | Email verification status                                                                  |
 | `platform_role_key` | VARCHAR(50)  | Platform role key (e.g., `system_admin`, `support`, `auditor`). NULL for tenant-only users |
+| `google_id`         | VARCHAR(255) | Google OAuth subject (`sub`); NULL if not linked                                           |
+| `microsoft_id`      | VARCHAR(255) | Microsoft OAuth subject (`id`); NULL if not linked                                         |
+| `auth_provider`     | VARCHAR(20)  | Primary signup method: `email`, `google`, or `microsoft`                                   |
 | `created_at`        | TIMESTAMPTZ  | Creation timestamp                                                                         |
 | `updated_at`        | TIMESTAMPTZ  | Last update timestamp                                                                      |
 
 **Indexes:**
 
 - Unique constraint on `email` (creates implicit index)
+- Partial unique index on `google_id` WHERE `google_id IS NOT NULL`
+- Partial unique index on `microsoft_id` WHERE `microsoft_id IS NOT NULL`
 
 ### user_tenants
 
