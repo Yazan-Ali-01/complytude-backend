@@ -14,7 +14,7 @@ BEGIN;
 -- Note: created_by references test users from 003_seed_test_tenants_users.sql
 -- Note: category_id and authority_id reference data from 001 and 002
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000001'::UUID,
     'dmcc_employment_limited_en_v1',
@@ -25,16 +25,17 @@ SELECT
     ARRAY['en'],
     '1.0.0',
     'active',
-    'https://s3.complytude.test/templates/dmcc_employment_limited_v1.docx',
-    'https://s3.complytude.test/thumbnails/dmcc_employment_limited_v1.png',
-    '{"pages": 5, "fields_count": 18, "compliance_version": "2024.1", "last_audit": "2024-12-01"}',
+    'essential',
+    NULL,
+    NULL,
+    '{"pages": 5, "fields_count": 8, "compliance_version": "2024.1", "last_audit": "2024-12-01"}',
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'employment' AND a.code = 'DMCC'
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000002'::UUID,
     'difc_nda_mutual_en_v1',
@@ -45,16 +46,17 @@ SELECT
     ARRAY['en'],
     '1.0.0',
     'active',
-    'https://s3.complytude.test/templates/difc_nda_mutual_v1.docx',
-    'https://s3.complytude.test/thumbnails/difc_nda_mutual_v1.png',
-    '{"pages": 3, "fields_count": 12, "compliance_version": "2024.1"}',
+    'essential',
+    NULL,
+    NULL,
+    '{"pages": 3, "fields_count": 7, "compliance_version": "2024.1"}',
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'nda' AND a.code = 'DIFC'
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000003'::UUID,
     'ded_freelance_service_en_v1',
@@ -65,16 +67,17 @@ SELECT
     ARRAY['en'],
     '1.0.0',
     'active',
-    'https://s3.complytude.test/templates/ded_freelance_v1.docx',
-    'https://s3.complytude.test/thumbnails/ded_freelance_v1.png',
-    '{"pages": 4, "fields_count": 15, "compliance_version": "2024.1"}',
+    'essential',
+    NULL,
+    NULL,
+    '{"pages": 4, "fields_count": 8, "compliance_version": "2024.1"}',
     'dddddddd-dddd-4ddd-dddd-dddddddddddd'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'freelance' AND a.code = 'DED'
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000004'::UUID,
     'adgm_partnership_agreement_en_v1',
@@ -85,16 +88,17 @@ SELECT
     ARRAY['en'],
     '2.0.0',
     'active',
-    'https://s3.complytude.test/templates/adgm_partnership_v2.docx',
-    'https://s3.complytude.test/thumbnails/adgm_partnership_v2.png',
-    '{"pages": 8, "fields_count": 25, "compliance_version": "2024.2"}',
+    'full',
+    NULL,
+    NULL,
+    '{"pages": 8, "fields_count": 8, "compliance_version": "2024.2"}',
     'ffffffff-ffff-4fff-ffff-ffffffffffff'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'partnership' AND a.code = 'ADGM'
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000005'::UUID,
     'ifza_commercial_lease_en_v1',
@@ -105,9 +109,10 @@ SELECT
     ARRAY['en'],
     '1.0.0',
     'active',
-    'https://s3.complytude.test/templates/ifza_lease_v1.docx',
-    'https://s3.complytude.test/thumbnails/ifza_lease_v1.png',
-    '{"pages": 6, "fields_count": 20, "compliance_version": "2024.1"}',
+    'full',
+    NULL,
+    NULL,
+    '{"pages": 6, "fields_count": 9, "compliance_version": "2024.1"}',
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
@@ -134,7 +139,7 @@ VALUES (
         {"name": "salary", "type": "number", "required": true, "label": "Monthly Salary (AED)"},
         {"name": "probation_period", "type": "number", "required": false, "label": "Probation Period (days)", "default": 180}
     ]'::jsonb,
-    'https://s3.complytude.test/templates/dmcc_employment_limited_v1.docx',
+    NULL,
     'Initial version - DMCC compliance requirements',
     true,
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
@@ -155,8 +160,53 @@ VALUES (
         {"name": "disclosure_purpose", "type": "textarea", "required": true, "label": "Purpose of Disclosure"},
         {"name": "term_years", "type": "number", "required": true, "label": "Term (Years)", "default": 2}
     ]'::jsonb,
-    'https://s3.complytude.test/templates/difc_nda_mutual_v1.docx',
+    NULL,
     'Initial version - DIFC common law provisions',
+    true,
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
+) ON CONFLICT ON CONSTRAINT uq_template_versions_template_version DO NOTHING;
+
+-- Version for DED Freelance Service Agreement
+INSERT INTO public.template_versions (id, template_id, version, fields, file_url, changelog, is_active, created_by)
+VALUES (
+    gen_random_uuid(),
+    '10000000-0000-0000-0000-000000000003',
+    '1.0.0',
+    '[
+        {"name": "contractor_name", "type": "text", "required": true, "label": "Contractor Full Name"},
+        {"name": "contractor_license", "type": "text", "required": true, "label": "DED License Number"},
+        {"name": "client_company", "type": "text", "required": true, "label": "Client Company Name"},
+        {"name": "service_description", "type": "textarea", "required": true, "label": "Service Description"},
+        {"name": "contract_value", "type": "number", "required": true, "label": "Contract Value (AED)"},
+        {"name": "start_date", "type": "date", "required": true, "label": "Start Date"},
+        {"name": "end_date", "type": "date", "required": true, "label": "End Date"},
+        {"name": "payment_terms", "type": "text", "required": false, "label": "Payment Terms", "default": "Net 30"}
+    ]'::jsonb,
+    NULL,
+    'Initial version - DED mainland freelance agreement',
+    true,
+    'dddddddd-dddd-4ddd-dddd-dddddddddddd'
+) ON CONFLICT ON CONSTRAINT uq_template_versions_template_version DO NOTHING;
+
+-- Version for IFZA Commercial Lease Agreement
+INSERT INTO public.template_versions (id, template_id, version, fields, file_url, changelog, is_active, created_by)
+VALUES (
+    gen_random_uuid(),
+    '10000000-0000-0000-0000-000000000005',
+    '1.0.0',
+    '[
+        {"name": "landlord_name", "type": "text", "required": true, "label": "Landlord Name"},
+        {"name": "tenant_company", "type": "text", "required": true, "label": "Tenant Company Name"},
+        {"name": "tenant_license", "type": "text", "required": true, "label": "IFZA License Number"},
+        {"name": "unit_number", "type": "text", "required": true, "label": "Unit Number"},
+        {"name": "area_sqft", "type": "number", "required": true, "label": "Area (sq ft)"},
+        {"name": "annual_rent", "type": "number", "required": true, "label": "Annual Rent (AED)"},
+        {"name": "lease_start_date", "type": "date", "required": true, "label": "Lease Start Date"},
+        {"name": "lease_end_date", "type": "date", "required": true, "label": "Lease End Date"},
+        {"name": "security_deposit", "type": "number", "required": false, "label": "Security Deposit (AED)"}
+    ]'::jsonb,
+    NULL,
+    'Initial version - IFZA commercial lease',
     true,
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
 ) ON CONFLICT ON CONSTRAINT uq_template_versions_template_version DO NOTHING;
@@ -174,7 +224,7 @@ VALUES (
         {"name": "partner_2_name", "type": "text", "required": true, "label": "Partner 2 Name"},
         {"name": "partner_2_ownership", "type": "number", "required": true, "label": "Partner 2 Ownership %"}
     ]'::jsonb,
-    'https://s3.complytude.test/templates/adgm_partnership_v1.docx',
+    NULL,
     'Initial version',
     false,
     'ffffffff-ffff-4fff-ffff-ffffffffffff'
@@ -196,7 +246,7 @@ VALUES (
         {"name": "capital_contribution", "type": "number", "required": true, "label": "Total Capital (AED)"},
         {"name": "profit_sharing_ratio", "type": "text", "required": true, "label": "Profit Sharing Ratio"}
     ]'::jsonb,
-    'https://s3.complytude.test/templates/adgm_partnership_v2.docx',
+    NULL,
     'Added ADGM license field, capital contribution, and profit sharing provisions',
     true,
     'ffffffff-ffff-4fff-ffff-ffffffffffff'
@@ -230,6 +280,7 @@ SELECT
     t.name,
     t.current_version,
     t.status,
+    t.tier,
     c.name as category,
     a.code as authority
 FROM public.templates t

@@ -78,6 +78,7 @@ import { TenantModule } from './modules/tenants/tenant.module';
       QUEUE_NAMES.DATA_INGESTION,
       QUEUE_NAMES.ENTITLEMENT_PROCESSING,
       QUEUE_NAMES.TENANT_PROCESSING,
+      QUEUE_NAMES.DOCUMENT_GENERATION,
     ]),
     I18nModule,
     DatabaseModule.forRoot(),

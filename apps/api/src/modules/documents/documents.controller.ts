@@ -42,9 +42,12 @@ import {
   DocumentResponseDto,
   GenerationContextResponseDto,
   ListDocumentsQueryDto,
+  PreviewDocumentDto,
+  PreviewDocumentResponseDto,
   UploadUrlDto,
   UploadUrlResponseDto,
 } from './dto';
+import { DocumentPreviewService } from './services/document-preview.service';
 
 const ANALYSIS_JOB_RETRY_AFTER_SECONDS = 5;
 /** Suggested poll interval while text extraction is in flight (GET /documents/:id). */
@@ -76,7 +79,10 @@ function setRetryAfterIfExtractionPending(
 @AuthOptions({ tenant: true })
 @SwaggerCookieAuth.tenantAccessToken()
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly documentPreviewService: DocumentPreviewService,
+  ) {}
 
   @Get()
   @UseGuards(TenantPermissionsGuard)
@@ -117,6 +123,35 @@ export class DocumentsController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<GenerationContextResponseDto> {
     return this.documentsService.getGenerationContext(user);
+  }
+
+  @Post('preview')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:create')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Request a document preview (watermarked PDF)',
+    description:
+      'Validates the template and variables, creates a generation job, and enqueues ' +
+      'an async render pipeline (DOCX → PDF → watermark → S3 upload). ' +
+      'Returns 202 Accepted with a generationJobId to poll via GET /generation-jobs/:id. ' +
+      'No entitlement deduction. No documents table record created. ' +
+      'Template tier access is enforced hierarchically (essential ≤ full).',
+  })
+  @ApiResponse({
+    status: 202,
+    description: 'Preview generation job accepted',
+    type: PreviewDocumentResponseDto,
+  })
+  @ApiValidationError()
+  @ApiNotFoundError('Template or version')
+  @ApiForbiddenError('Template tier not accessible on tenant plan')
+  @ApiAuthErrors()
+  preview(
+    @Body() dto: PreviewDocumentDto,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<PreviewDocumentResponseDto> {
+    return this.documentPreviewService.preview(dto, user);
   }
 
   @Get(':documentId')

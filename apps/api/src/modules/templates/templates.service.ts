@@ -331,6 +331,7 @@ export class TemplatesService {
           'languages',
           'current_version',
           'status',
+          'tier',
           'file_url',
           'metadata',
           'created_by',

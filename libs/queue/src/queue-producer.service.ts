@@ -7,6 +7,9 @@ import { JobMetadata } from './interfaces/job-metadata.interface';
 import { JobDataFor, JobNameFor, QueueName } from './queue-job-map';
 import { QUEUE_NAMES } from './queue.constants';
 
+/** Same value as QUEUE_NAMES.DOCUMENT_GENERATION — local literal for typed `getQueueToken` / Map keys. */
+const DOCUMENT_GENERATION_QUEUE = 'document-generation' as const;
+
 @Injectable()
 export class QueueProducerService {
   private readonly logger = new Logger(QueueProducerService.name);
@@ -29,6 +32,9 @@ export class QueueProducerService {
     @Inject(getQueueToken(QUEUE_NAMES.TENANT_PROCESSING))
     tenantQueue: Queue | null,
     @Optional()
+    @Inject(getQueueToken(DOCUMENT_GENERATION_QUEUE))
+    generationQueue: Queue | null,
+    @Optional()
     private readonly cls: ClsService | null,
   ) {
     if (aiQueue) this.queues.set(QUEUE_NAMES.AI_PROCESSING, aiQueue);
@@ -43,6 +49,9 @@ export class QueueProducerService {
     }
     if (tenantQueue) {
       this.queues.set(QUEUE_NAMES.TENANT_PROCESSING, tenantQueue);
+    }
+    if (generationQueue) {
+      this.queues.set(DOCUMENT_GENERATION_QUEUE, generationQueue);
     }
   }
 

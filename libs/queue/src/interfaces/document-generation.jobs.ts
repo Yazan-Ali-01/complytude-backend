@@ -9,6 +9,7 @@ export interface DocumentGenerationJobData {
   generationJobId: string;
   templateId: string;
   templateVersionId: string;
+  templateVersion: string;
   variables: Record<string, unknown>;
   tenantId: string;
   userId: string;

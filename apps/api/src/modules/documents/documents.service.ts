@@ -91,7 +91,9 @@ export class DocumentsService {
   ): Promise<GenerationContextResponseDto> {
     try {
       const [tenant, dbUser] = await Promise.all([
-        this.tenantRepository.findById(user.tenantId),
+        this.tenantRepository.findById(user.tenantId, {
+          tenant: { tenantId: user.tenantId, schema: 'public' as const },
+        }),
         this.userRepository.findById(user.userId),
       ]);
 
