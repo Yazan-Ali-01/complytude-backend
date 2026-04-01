@@ -52,7 +52,7 @@ apps/api/
 │   │   ├── invitations/     # Tenant invitations
 │   │   ├── templates/       # Template CRUD & versioning
 │   │   ├── documents/       # Document generation
-│   │   ├── storage/         # File storage (S3/MinIO)
+│   │   ├── storage/         # File storage (AWS S3)
 │   │   ├── authorities/     # Regulatory authorities
 │   │   ├── categories/      # Template categories
 │   │   ├── rulesets/        # Compliance rulesets
@@ -127,13 +127,13 @@ pnpm type-check
 | **users**       | User management, roles, multi-tenant membership   | ✅ Complete |
 | **tenants**     | Organization management, subscription plans       | ✅ Complete |
 | **invitations** | Tenant invitations, accept/reject flows           | ✅ Complete |
-| **storage**     | File upload/download via S3/MinIO with isolation  | ✅ Complete |
+| **storage**     | File upload/download via S3 with isolation         | ✅ Complete |
 | **templates**   | Legal document template CRUD & versioning         | 🟡 Partial  |
 | **documents**   | Document generation from templates                | 🟡 Partial  |
 | **authorities** | Regulatory authorities management                 | ✅ Complete |
 | **categories**  | Template categories management                    | ✅ Complete |
 | **rulesets**    | Compliance rulesets with versioning               | ✅ Complete |
-| **health**      | Health checks for database, storage (MinIO/S3)    | ✅ Complete |
+| **health**      | Health checks for database, storage (S3)          | ✅ Complete |
 
 ---
 

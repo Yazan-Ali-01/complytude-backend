@@ -190,11 +190,11 @@ cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
 | `WORKER_INGESTION_BATCH_SIZE`  | `500`                    | DB insert batch size                           |
 | `REDIS_HOST`                   | `localhost`              | Redis host for BullMQ                          |
 | `DB_HOST`                      | `localhost`              | PostgreSQL host                                |
-| `S3_ENDPOINT`                  | `http://localhost:9000`  | S3/MinIO endpoint                              |
+| `S3_ENDPOINT`                  | (empty for AWS S3)       | AWS S3 endpoint                                |
 | `S3_REGION`                    | `eu-central-1`           | S3 region                                      |
-| `S3_ACCESS_KEY`                | (required)               | S3 access key                                  |
-| `S3_SECRET_KEY`                | (required)               | S3 secret key                                  |
-| `S3_FORCE_PATH_STYLE`          | `true`                   | Path-style for MinIO                           |
+| `S3_ACCESS_KEY`                | (required)               | AWS access key                                 |
+| `S3_SECRET_KEY`                | (required)               | AWS secret key                                 |
+| `S3_FORCE_PATH_STYLE`          | `false`                  | Use virtual-hosted style for AWS S3            |
 | `COMPLYTUDE_FILES_BUCKET_NAME` | `complytude-files`       | Clean files bucket                             |
 | `QUARANTINE_BUCKET_NAME`       | `quarantine`             | Quarantine bucket for uploads                  |
 

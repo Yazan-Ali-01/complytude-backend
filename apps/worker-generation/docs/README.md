@@ -119,7 +119,7 @@ cp apps/worker-generation/.env.example apps/worker-generation/.env
 | `WORKER_GENERATION_CONCURRENCY` | `5` | Max concurrent jobs |
 | `REDIS_HOST` | `localhost` | Redis host for BullMQ |
 | `DB_HOST` | `localhost` | PostgreSQL host |
-| `S3_ENDPOINT` | `http://localhost:9000` | S3/MinIO endpoint |
+| `S3_ENDPOINT` | (empty for AWS S3) | AWS S3 endpoint |
 
 See `.env.example` for the full list.
 

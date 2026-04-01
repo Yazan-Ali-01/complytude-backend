@@ -26,7 +26,7 @@ complytude/
 │   └── storage/                # S3 client, config, basic S3 operations
 ├── docs/                       # Monorepo-wide documentation
 ├── scripts/                    # Database and development scripts
-├── docker-compose.yml          # Base Docker services (PostgreSQL, Redis, MinIO, pgAdmin)
+├── docker-compose.yml          # Base Docker services (PostgreSQL, Redis, pgAdmin)
 ├── docker-compose.dev.yml      # Development overlay (API hot-reload in Docker)
 ├── docker-compose.prod.yml     # Production overlay
 ├── package.json                # Root package.json (workspace config)
@@ -748,7 +748,7 @@ Multi-language support (English, Arabic):
 
 ### Docker
 
-- **docker-compose.yml** - Base services (PostgreSQL w/ pgvector, Redis, MinIO, pgAdmin)
+- **docker-compose.yml** - Base services (PostgreSQL w/ pgvector, Redis, pgAdmin)
 - **docker-compose.dev.yml** - Development overlay (API with hot-reload)
 - **docker-compose.prod.yml** - Production overlay
 - **apps/api/Dockerfile** - API container definition

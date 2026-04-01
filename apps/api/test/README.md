@@ -131,7 +131,7 @@ apps/api/test/
 │   ├── tenant-context.helper.ts    # withTenantContext() / withPlatformAdminContext()
 │   └── queue.helper.ts             # waitForQueueIdle() — poll until queue drained
 └── mocks/                          # Shared mock implementations
-    ├── storage.mock.ts             # MockStorageService (replaces S3/MinIO)
+    ├── storage.mock.ts             # MockStorageService (replaces S3)
     └── file-type.mock.ts           # file-type ESM compatibility mock
 ```
 

@@ -49,7 +49,7 @@
 - **User Management** - Role-based access control (Admin, Member, Viewer)
 - **Tenant Invitations** - Secure invitation system with token-based acceptance flow
 - **Template Management** - CRUD operations for legal document templates
-- **S3-Compatible Storage** - Secure file upload/download with tenant isolation (AWS S3 or MinIO)
+- **AWS S3 Storage** - Secure file upload/download with tenant isolation
 - **Plan-Based Features** - Subscription tiers (Early Access, Basic, Pro, Enterprise) with document limits
 - **Health Checks** - Database and storage health monitoring
 - **API Documentation** - Auto-generated Swagger/OpenAPI documentation
@@ -59,7 +59,7 @@
 - **High Performance** - Built on Fastify for low latency and high throughput
 - **Type Safety** - Strict TypeScript with comprehensive validation using `class-validator`
 - **Dependency Injection** - Clean architecture with NestJS DI container
-- **Docker Support** - Containerized PostgreSQL, MinIO, and optional pgAdmin
+- **Docker Support** - Containerized PostgreSQL and optional pgAdmin
 
 ---
 
@@ -73,7 +73,7 @@
 | Authentication   | Passport JWT                        |
 | Validation       | class-validator + class-transformer |
 | Documentation    | Swagger/OpenAPI                     |
-| Storage          | MinIO (dev) / AWS S3 (production)   |
+| Storage          | AWS S3                              |
 | Containerization | Docker + Docker Compose             |
 
 ---
@@ -127,7 +127,6 @@ If you're using Windows, configure pnpm to use Git Bash:
 
    This single command will:
    - ✅ Start PostgreSQL database
-   - ✅ Start MinIO storage
    - ✅ Wait for services to be healthy
    - ✅ Run all database migrations
    - ✅ Verify the setup
@@ -135,8 +134,6 @@ If you're using Windows, configure pnpm to use Git Bash:
 **Services Available:**
 
 - 🗄️ PostgreSQL: `localhost:5432`
-- 📦 MinIO API: `http://localhost:9000`
-- 🖥️ MinIO Console: `http://localhost:9001` (minioadmin/minioadmin)
 
 ---
 
@@ -174,8 +171,6 @@ pnpm dev:all
 - 🚀 API: http://localhost:3000/api
 - 📚 Swagger Docs: http://localhost:3000/docs
 - 🏥 Health Check: http://localhost:3000/api/health
-- 📦 MinIO Console: http://localhost:9001
-
 ---
 
 ### Docker Deployment Options
@@ -184,7 +179,7 @@ Complytude supports three Docker deployment approaches:
 
 #### Option 1: Hybrid Mode (Default - Recommended for Development)
 
-**What you're using:** NestJS apps run locally, infrastructure services (PostgreSQL, Redis, MinIO) run in Docker
+**What you're using:** NestJS apps run locally, infrastructure services (PostgreSQL, Redis) run in Docker
 
 ```bash
 pnpm dev       # Start API only (auto-starts services + hot-reload)
@@ -195,7 +190,7 @@ pnpm dev:all   # Start all apps (API + workers)
 
 #### Option 2: Fully Dockerized - Development Mode
 
-**Everything in containers with hot-reload:** API + Workers + PostgreSQL + Redis + MinIO all in Docker
+**Everything in containers with hot-reload:** API + Workers + PostgreSQL + Redis all in Docker
 
 ```bash
 # Build development image
@@ -298,9 +293,9 @@ complytude/
 | **users**       | User management, roles, multi-tenant membership   | ✅ Complete |
 | **tenant**      | Organization management, subscription plans       | ✅ Complete |
 | **invitations** | Tenant invitations, accept/reject flows           | ✅ Complete |
-| **storage**     | File upload/download via S3/MinIO with isolation  | ✅ Complete |
+| **storage**     | File upload/download via S3 with isolation         | ✅ Complete |
 | **templates**   | Legal document template CRUD & versioning         | 🟡 Partial  |
-| **health**      | Health checks for database, storage (MinIO/S3)    | ✅ Complete |
+| **health**      | Health checks for database, storage (S3)          | ✅ Complete |
 
 ---
 
@@ -353,13 +348,15 @@ SESSION_IDLE_TIMEOUT=72h
 SESSION_MAX_PER_USER=5
 SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
-# S3/MinIO Storage
-S3_ENDPOINT=http://localhost:9000
+# AWS S3 Storage
+S3_ENDPOINT=
 S3_REGION=eu-central-1
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
-S3_BUCKET_PREFIX=complytude
-S3_FORCE_PATH_STYLE=true
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+S3_FORCE_PATH_STYLE=false
+COMPLYTUDE_FILES_BUCKET_NAME=complytude-files
+TEMPLATES_BUCKET_NAME=complytude-templates
+QUARANTINE_BUCKET_NAME=complytude-quarantine
 
 # File Upload Limits
 MAX_FILE_SIZE=10485760
@@ -368,12 +365,6 @@ SIGNED_URL_EXPIRES_IN=900
 # Redis (Docker)
 REDIS_HOST=localhost
 REDIS_PORT=6379
-
-# MinIO (Docker)
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
-MINIO_PORT=9000
-MINIO_CONSOLE_PORT=9001
 
 # pgAdmin (Optional)
 PGADMIN_EMAIL=admin@complytude.com
@@ -387,8 +378,6 @@ PGADMIN_PORT=5050
 - When using fully dockerized mode (`pnpm docker:dev` or `pnpm docker:prod`), Docker Compose automatically overrides:
   - `DB_HOST` → `postgres`
   - `REDIS_HOST` → `redis`
-  - `S3_ENDPOINT` → `http://minio:9000`
-- Keep your `apps/api/.env` with `localhost` values for hybrid mode!
 - For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
@@ -423,7 +412,7 @@ pnpm start:worker-ingestion:prod # Run ingestion worker in production
 pnpm start:all:prod         # Run all apps in production
 
 # Services Only (Hybrid Mode)
-pnpm docker:start           # Start PostgreSQL + MinIO
+pnpm docker:start           # Start PostgreSQL + Redis
 pnpm docker:services        # Same as above
 pnpm docker:stop            # Stop services (keeps data)
 pnpm docker:down            # Stop and remove containers

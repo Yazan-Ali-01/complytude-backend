@@ -72,7 +72,7 @@ export const validationSchema = Joi.object({
   /** When true, email methods return without calling SES (local/tests). */
   EMAIL_SKIP_SEND: Joi.string().valid('true', 'false').default('false'),
 
-  // S3/MinIO Storage
+  // S3 Storage
   S3_ENDPOINT: Joi.string().allow('').default(''),
   S3_REGION: Joi.string().default('eu-central-1'),
   S3_ACCESS_KEY: Joi.string().allow('').default(''),

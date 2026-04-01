@@ -687,7 +687,7 @@ pnpm start:worker-ingestion  # Start ingestion worker with watch mode
 ```bash
 pnpm db:migrate         # Run database migrations
 pnpm db:seed            # Seed database with initial data
-pnpm docker:start       # Start PostgreSQL + Redis + MinIO
+pnpm docker:start       # Start PostgreSQL + Redis
 pnpm docker:reset       # Full reset: down -v + start + migrate
 ```
 

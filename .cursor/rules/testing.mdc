@@ -119,7 +119,7 @@ interface TestApp {
 ```
 
 **Auto-mocked providers:**
-- `StorageService` → `MockStorageService` (no real S3/MinIO needed)
+- `StorageService` → `MockStorageService` (no real S3 needed)
 - `AuditService` → no-op mock
 
 **Override additional providers:**

@@ -753,7 +753,7 @@ Complete reference for all major dependencies, versions, and best practices for 
 - PNPM 9.x
 - PostgreSQL 16+ with pgvector (via Docker: `pgvector/pgvector:pg16`)
 - Redis 7+ (via Docker: `redis:7-alpine`)
-- MinIO (S3-compatible, via Docker)
+- AWS S3 (cloud storage)
 - Docker & Docker Compose
 - Git 2.x
 

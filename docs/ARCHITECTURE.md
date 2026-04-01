@@ -61,8 +61,8 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Data & Infrastructure Layer                 │
 │  ┌──────────────┬──────────────┬──────────────┬──────────────┐ │
-│  │ PostgreSQL 16│    Redis 7   │ S3-Compatible│  OpenAI API  │ │
-│  │ + pgvector   │  (BullMQ)    │ (MinIO/AWS)  │ (Embeddings) │ │
+│  │ PostgreSQL 16│    Redis 7   │   AWS S3     │  OpenAI API  │ │
+│  │ + pgvector   │  (BullMQ)    │  (Storage)   │ (Embeddings) │ │
 │  └──────────────┴──────────────┴──────────────┴──────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -77,7 +77,7 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 | **Authentication**  | JWT with Passport         | Stateless, scalable, industry standard       |
 | **Background Jobs** | BullMQ + Redis            | Reliable job processing, typed payloads      |
 | **AI/LLM**          | OpenAI API                | Document analysis, embedding generation      |
-| **Storage**         | S3-compatible (MinIO/AWS) | Scalable, tenant-isolated buckets            |
+| **Storage**         | AWS S3                    | Scalable, tenant-isolated buckets            |
 | **Validation**      | class-validator           | Declarative, type-safe validation            |
 | **Documentation**   | Swagger/OpenAPI           | Auto-generated, interactive API docs         |
 
@@ -117,8 +117,7 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 
 ### Storage
 
-- **MinIO** (Development) - S3-compatible object storage
-- **AWS S3** (Production) - Cloud object storage
+- **AWS S3** - Cloud object storage
 
 ### Documentation
 

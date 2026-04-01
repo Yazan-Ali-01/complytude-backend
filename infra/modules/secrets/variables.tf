@@ -140,7 +140,7 @@ variable "cors_origins" {
 }
 
 variable "s3_endpoint" {
-  description = "S3 endpoint URL — empty for AWS S3, set for MinIO/localstack"
+  description = "S3 endpoint URL — empty for AWS S3, set for LocalStack or compatible"
   type        = string
   default     = ""
 }

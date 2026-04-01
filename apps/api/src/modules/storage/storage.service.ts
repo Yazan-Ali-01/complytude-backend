@@ -753,7 +753,7 @@ export class StorageService {
           : '';
       if (errno === 'ECONNREFUSED' || detail.includes('ECONNREFUSED')) {
         throw new InternalServerErrorException(
-          `S3/MinIO unreachable (connection refused). Is MinIO running and S3_ENDPOINT correct? (${detail})`,
+          `S3 unreachable (connection refused). Check S3_ENDPOINT and network connectivity. (${detail})`,
         );
       }
       if (errno === 'ENOTFOUND' || detail.includes('ENOTFOUND')) {

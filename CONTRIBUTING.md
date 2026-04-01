@@ -98,7 +98,7 @@ git clone <repository-url>
 cd complytude
 pnpm install
 cp apps/api/.env.example apps/api/.env  # Configure API environment
-pnpm project:setup              # Starts PostgreSQL + MinIO, runs migrations
+pnpm project:setup              # Starts PostgreSQL + Redis, runs migrations
 pnpm db:seed                    # (Optional) Seed test data for development
 
 # Daily development
@@ -125,13 +125,10 @@ docker ps
 
 # Should see:
 # - complytude-postgres (port 5432)
-# - complytude-minio (ports 9000, 9001)
+# - complytude-redis (port 6379)
 
 # Test API
 curl http://localhost:3000/api/health
-
-# Test MinIO
-open http://localhost:9001  # Login: minioadmin/minioadmin
 ```
 
 ---
@@ -491,7 +488,7 @@ apps/api/test/
 │   ├── redis-flush.helper.ts       # Flushes Redis DB + resetTestState()
 │   └── tenant-context.helper.ts    # withTenantContext() / withPlatformAdminContext()
 └── mocks/                          # Shared mocks
-    ├── storage.mock.ts             # MockStorageService (S3/MinIO)
+    ├── storage.mock.ts             # MockStorageService (S3)
     └── file-type.mock.ts           # file-type ESM compatibility mock
 ```
 

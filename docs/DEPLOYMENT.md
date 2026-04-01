@@ -40,7 +40,6 @@ Complytude is a **NestJS monorepo** with multiple applications and shared librar
 | ----------------- | --------------------------------- | ---------- |
 | **PostgreSQL 16** | Database with pgvector extension  | 5432       |
 | **Redis 7**       | Message queue for BullMQ          | 6379       |
-| **MinIO**         | S3-compatible object storage      | 9000, 9001 |
 | **pgAdmin**       | Database management UI (optional) | 5050       |
 
 ---
@@ -56,7 +55,6 @@ Complytude supports two Docker deployment approaches to fit different workflows 
 | **NestJS Applications** | 💻 Local (Node.js)        | 🐳 Docker Container                     |
 | **PostgreSQL**          | 🐳 Docker Container       | 🐳 Docker Container                     |
 | **Redis**               | 🐳 Docker Container       | 🐳 Docker Container                     |
-| **MinIO**               | 🐳 Docker Container       | 🐳 Docker Container                     |
 | **Hot Reload**          | ✅ Native & Fast          | ⚠️ Via Volume Mounts                    |
 | **Debugging**           | ✅ Direct IDE Integration | ⚠️ Remote Debugging                     |
 | **Production-like**     | ⚠️ Partial                | ✅ Identical to Production              |
@@ -66,7 +64,7 @@ Complytude supports two Docker deployment approaches to fit different workflows 
 
 ### Approach 1: Hybrid Mode (Recommended for Development)
 
-**What it is:** NestJS applications run locally with hot-reload, while infrastructure services (PostgreSQL, Redis, MinIO) run in Docker.
+**What it is:** NestJS applications run locally with hot-reload, while infrastructure services (PostgreSQL, Redis) run in Docker.
 
 **Advantages:**
 
@@ -92,7 +90,7 @@ pnpm dev:all
 pnpm dev
   → scripts/start-dev.sh
     → Checks if Docker services are running
-    → Starts PostgreSQL, Redis, MinIO if needed (pnpm docker:start)
+    → Starts PostgreSQL, Redis if needed (pnpm docker:start)
     → Runs pnpm start:api (API with hot-reload)
 
 pnpm dev:all
@@ -111,7 +109,7 @@ DB_HOST=localhost          # Connect to Postgres in Docker
 DB_PORT=5432
 REDIS_HOST=localhost       # Connect to Redis in Docker
 REDIS_PORT=6379
-S3_ENDPOINT=http://localhost:9000  # Connect to MinIO in Docker
+S3_ENDPOINT=                      # Leave empty for AWS S3
 ```
 
 **Available Services:**
@@ -120,8 +118,6 @@ S3_ENDPOINT=http://localhost:9000  # Connect to MinIO in Docker
 - 📚 Swagger: http://localhost:3000/docs
 - 🗄️ PostgreSQL: `localhost:5432`
 - 🔴 Redis: `localhost:6379`
-- 📦 MinIO Console: http://localhost:9001
-
 **Running Individual Applications:**
 
 ```bash
@@ -243,7 +239,7 @@ Docker Compose automatically overrides environment variables for container netwo
 # In apps/api/.env (works for both hybrid and Docker modes)
 DB_HOST=localhost          # Overridden to 'postgres' in Docker
 REDIS_HOST=localhost       # Overridden to 'redis' in Docker
-S3_ENDPOINT=http://localhost:9000  # Overridden to 'http://minio:9000' in Docker
+S3_ENDPOINT=                      # Leave empty for AWS S3
 ```
 
 You don't need to change your `.env` file between modes!
@@ -254,8 +250,6 @@ You don't need to change your `.env` file between modes!
 - 📚 Swagger: http://localhost:3000/docs
 - 🗄️ PostgreSQL: `localhost:5432` (from host)
 - 🔴 Redis: `localhost:6379` (from host)
-- 📦 MinIO Console: http://localhost:9001
-
 **Verify Everything is Running:**
 
 ```bash
@@ -290,15 +284,13 @@ pnpm docker:reset
 | ------------ | --------------------- | ------------ | -------------- | ----------------------------- |
 | `postgres`   | complytude-postgres   | 5432         | Base           | PostgreSQL 16 with pgvector   |
 | `redis`      | complytude-redis      | 6379         | Base           | Redis 7 for BullMQ            |
-| `minio`      | complytude-minio      | 9000, 9001   | Base           | S3-compatible storage         |
-| `minio-init` | complytude-minio-init | N/A          | Base           | MinIO bucket initialization   |
 | `pgadmin`    | complytude-pgadmin    | 5050         | Profile: tools | Database management UI        |
 | `api`        | complytude-api-dev    | 3000         | Dev compose    | NestJS API (development mode) |
 | `api`        | complytude-api-prod   | 3000         | Prod compose   | NestJS API (production mode)  |
 
 **Docker Compose Files:**
 
-- **docker-compose.yml** - Base configuration (PostgreSQL, Redis, MinIO, pgAdmin)
+- **docker-compose.yml** - Base configuration (PostgreSQL, Redis, pgAdmin)
 - **docker-compose.dev.yml** - Development overlay (API with hot-reload)
 - **docker-compose.prod.yml** - Production overlay (API optimized build)
 
@@ -378,7 +370,7 @@ pnpm docker:dev:build   # Development
 | ------------- | ----------------------- | ------------------- |
 | `DB_HOST`     | `localhost`             | `postgres`          |
 | `REDIS_HOST`  | `localhost`             | `redis`             |
-| `S3_ENDPOINT` | `http://localhost:9000` | `http://minio:9000` |
+| `S3_ENDPOINT` | (empty for AWS S3)      | (empty for AWS S3)  |
 
 **Complete Environment Variables for Hybrid Mode:**
 
@@ -418,21 +410,17 @@ SESSION_IDLE_TIMEOUT=72h
 SESSION_MAX_PER_USER=5
 SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
-# S3/MinIO Storage (use localhost for hybrid mode)
-S3_ENDPOINT=http://localhost:9000
+# AWS S3 Storage
+S3_ENDPOINT=
 S3_REGION=eu-central-1
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
-S3_BUCKET_PREFIX=complytude
-S3_FORCE_PATH_STYLE=true
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+S3_FORCE_PATH_STYLE=false
+COMPLYTUDE_FILES_BUCKET_NAME=complytude-files
+TEMPLATES_BUCKET_NAME=complytude-templates
+QUARANTINE_BUCKET_NAME=complytude-quarantine
 MAX_FILE_SIZE=10485760
 SIGNED_URL_EXPIRES_IN=900
-
-# MinIO (Docker Service)
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin
-MINIO_PORT=9000
-MINIO_CONSOLE_PORT=9001
 
 # Redis (Docker Service)
 REDIS_PORT=6379
@@ -454,9 +442,6 @@ Docker Compose automatically overrides environment variables for container netwo
 
 - `DB_HOST` → `postgres`
 - `REDIS_HOST` → `redis`
-- `S3_ENDPOINT` → `http://minio:9000`
-
-You don't need to change your `.env` file between modes!
 
 **Production Environment Variables:**
 
@@ -477,8 +462,6 @@ pnpm docker:logs
 
 # View specific service logs
 pnpm docker:logs:postgres
-pnpm docker:logs:minio
-
 # Restart services
 pnpm docker:stop
 pnpm docker:start
@@ -526,8 +509,6 @@ pnpm docker:dev:logs | grep -i worker
 PORT=3001
 DB_PORT=5433
 REDIS_PORT=6380
-MINIO_PORT=9002
-
 # Restart services
 pnpm docker:stop
 pnpm docker:start
@@ -550,18 +531,6 @@ pnpm docker:dev:up       # or pnpm docker:prod:up
 ```bash
 # If you see permission errors with mounted volumes
 sudo chown -R $USER:$USER ./apps ./libs ./node_modules
-```
-
-**MinIO buckets not created?**
-
-```bash
-# Check minio-init logs
-docker logs complytude-minio-init
-
-# Manually create buckets
-docker exec -it complytude-minio mc alias set myminio http://localhost:9000 minioadmin minioadmin
-docker exec -it complytude-minio mc mb myminio/complytude-quarantine
-docker exec -it complytude-minio mc mb myminio/complytude-clean
 ```
 
 ---
@@ -716,7 +685,7 @@ deploy:
 
 - ✅ Use managed PostgreSQL service (AWS RDS, Azure Database, etc.)
 - ✅ Use managed Redis service (AWS ElastiCache, Azure Cache, etc.)
-- ✅ Use AWS S3 instead of MinIO for storage
+- ✅ Use AWS S3 for storage
 - ✅ Deploy API behind a load balancer for high availability
 - ✅ Run workers as separate services/containers
 - ✅ Enable HTTPS via reverse proxy (nginx, AWS ALB, etc.)
@@ -794,11 +763,13 @@ SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
 # S3 Storage - Use AWS S3 in production
 S3_REGION=eu-central-1
-S3_ACCESS_KEY=<your-aws-access-key>
-S3_SECRET_KEY=<your-aws-secret-key>
-S3_BUCKET_PREFIX=complytude-production
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
 S3_FORCE_PATH_STYLE=false
-# Note: Don't set S3_ENDPOINT for AWS S3 (leave empty or omit)
+COMPLYTUDE_FILES_BUCKET_NAME=complytude-production-clean
+TEMPLATES_BUCKET_NAME=complytude-production-clean
+QUARANTINE_BUCKET_NAME=complytude-production-quarantine
+# Note: Leave S3_ENDPOINT empty for AWS S3; credentials come from IAM role
 
 # File Upload
 MAX_FILE_SIZE=10485760
@@ -1007,10 +978,10 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT info
 
 ```bash
 # Verify S3 credentials
-aws s3 ls s3://$S3_BUCKET_PREFIX
+aws s3 ls s3://$COMPLYTUDE_FILES_BUCKET_NAME
 
 # Test S3 access
-aws s3 cp test.txt s3://$S3_BUCKET_PREFIX/test.txt
+aws s3 cp test.txt s3://$COMPLYTUDE_FILES_BUCKET_NAME/test.txt
 ```
 
 **Application Won't Start**

@@ -4,7 +4,7 @@ export class UploadFileResponseDto {
   @ApiProperty({
     description: 'Signed URL for accessing the uploaded file',
     example:
-      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+      'https://complytude-files.s3.eu-central-1.amazonaws.com/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })
   url: string;
 
@@ -56,7 +56,7 @@ export class FileListItemDto {
     description:
       'Pre-signed URL (not included in list responses). Use GET /signed-url/:fileKey or GET /download/:fileKey endpoints to access files.',
     example:
-      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+      'https://complytude-files.s3.eu-central-1.amazonaws.com/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
     required: false,
   })
   url?: string;
@@ -99,7 +99,7 @@ export class GetSignedUrlResponseDto {
   @ApiProperty({
     description: 'Signed URL for downloading the file',
     example:
-      'http://localhost:9000/complytude-files/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
+      'https://complytude-files.s3.eu-central-1.amazonaws.com/tenants/abc123/1698765432000-document.pdf?X-Amz-Algorithm=...',
   })
   url: string;
 
