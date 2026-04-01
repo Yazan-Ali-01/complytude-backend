@@ -38,6 +38,7 @@ function makeService(
     null,
     null,
     null,
+    null,
     cls,
   );
 }

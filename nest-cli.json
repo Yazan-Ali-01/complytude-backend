@@ -98,6 +98,15 @@
         "tsConfigPath": "libs/pdf/tsconfig.lib.json"
       }
     },
+    "docx-renderer": {
+      "type": "library",
+      "root": "libs/docx-renderer",
+      "entryFile": "index",
+      "sourceRoot": "libs/docx-renderer/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/docx-renderer/tsconfig.lib.json"
+      }
+    },
     "worker-ai": {
       "type": "application",
       "root": "apps/worker-ai",

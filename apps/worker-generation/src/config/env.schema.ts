@@ -17,6 +17,8 @@ export const validationSchema = Joi.object({
 
   WORKER_GENERATION_MAX_PROCESSING_TIME: Joi.number().default(120000),
 
+  GOTENBERG_URL: Joi.string().uri().required(),
+
   ...databaseEnvSchema,
   ...storageEnvSchema,
   ...loggerEnvSchema,

@@ -5,8 +5,10 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Readable } from 'stream';
 import type {
@@ -99,6 +101,33 @@ export class S3Service {
     if (exists) return;
     await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
     this.logger.log(`Created bucket: ${bucket}`);
+  }
+
+  async putObject(
+    bucket: string,
+    key: string,
+    body: Buffer,
+    contentType?: string,
+  ): Promise<void> {
+    await this.s3Client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ...(contentType ? { ContentType: contentType } : {}),
+      }),
+    );
+  }
+
+  async getSignedGetUrl(
+    bucket: string,
+    key: string,
+    expiresInSeconds: number,
+  ): Promise<string> {
+    const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+    return getSignedUrl(this.s3Client, command, {
+      expiresIn: expiresInSeconds,
+    });
   }
 
   private isNotFoundError(error: unknown): boolean {

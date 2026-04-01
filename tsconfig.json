@@ -76,6 +76,12 @@
       "@lib/pdf/*": [
         "libs/pdf/src/*"
       ],
+      "@lib/docx-renderer": [
+        "libs/docx-renderer/src"
+      ],
+      "@lib/docx-renderer/*": [
+        "libs/docx-renderer/src/*"
+      ],
       "src/*": [
         "apps/api/src/*"
       ]

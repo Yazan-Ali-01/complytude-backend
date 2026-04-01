@@ -1,6 +1,8 @@
 import { ContextModule } from '@lib/context';
 import { databaseConfig, DatabaseModule } from '@lib/database';
+import { DocxRendererModule } from '@lib/docx-renderer';
 import { LoggerModule } from '@lib/logger';
+import { PdfModule } from '@lib/pdf';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
 import { redisConfig } from '@lib/redis';
 import { storageConfig, StorageModule } from '@lib/storage';
@@ -9,6 +11,8 @@ import { ConfigModule } from '@nestjs/config';
 import { validationSchema } from './config/env.schema';
 import workerGenerationConfig from './config/worker-generation.config';
 import { DocumentGenerationProcessor } from './processors/document-generation.processor';
+import { DocumentWriteRepository } from './repositories/document-write.repository';
+import { GenerationJobWriteRepository } from './repositories/generation-job-write.repository';
 import { DocumentGenerationWorkerService } from './services/document-generation.service';
 import { WorkerGenerationController } from './worker-generation.controller';
 
@@ -33,9 +37,16 @@ import { WorkerGenerationController } from './worker-generation.controller';
     LoggerModule.forRoot({ serviceName: 'worker-generation' }),
     DatabaseModule.forRoot(),
     StorageModule.forRoot(),
+    DocxRendererModule,
+    PdfModule,
     QueueModule.forRoot([QUEUE_NAMES.DOCUMENT_GENERATION]),
   ],
   controllers: [WorkerGenerationController],
-  providers: [DocumentGenerationProcessor, DocumentGenerationWorkerService],
+  providers: [
+    DocumentGenerationProcessor,
+    DocumentGenerationWorkerService,
+    GenerationJobWriteRepository,
+    DocumentWriteRepository,
+  ],
 })
 export class WorkerGenerationModule {}
