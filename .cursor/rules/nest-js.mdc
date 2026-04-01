@@ -311,6 +311,7 @@ entitlements:
 strategy: "Plan-based feature access with usage tracking and credit fallback"
 architecture: "Event-sourced with append-only ledgers and derived projections"
 sync: "EntitlementSyncService syncs features/plans from constants to DB on startup"
+enforcement_patterns: "See [docs/ENTITLEMENTS.md — Enforcement Pattern Guide](mdc:../docs/ENTITLEMENTS.md) for choosing between guard-based vs in-transaction enforcement"
 
 # Tenant RBAC (Tenant-Scoped Authorization)
 

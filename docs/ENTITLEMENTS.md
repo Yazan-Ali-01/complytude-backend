@@ -830,6 +830,41 @@ async listAllTemplates() {
 
 ---
 
+## Enforcement Pattern Guide
+
+Choose the right enforcement pattern based on the endpoint's characteristics:
+
+| Scenario | Pattern | Why |
+| --- | --- | --- |
+| **Boolean feature gates** (e.g., `redlining_enabled`) | `EntitlementGuard` + `@RequireEntitlement` | No usage to track — just a yes/no access check |
+| **Simple sync quota endpoints** (e.g., a quick API query) | `UsageEnforcementGuard` + `@TrackUsage` | DRY, no resource to link, action is fast and unlikely to fail after deduction |
+| **Async/complex quota operations** (e.g., document generation, analysis) | In-transaction `checkAndRecord()` | Need resource_id linking, atomic rollback on failure, refund path for async job failures |
+| **Capacity checks** (e.g., seat enforcement) | `peekUsage()` + manual check | Pre-flight check without consuming a unit, then enforce in service logic |
+
+### When to Use the Guard vs In-Transaction Enforcement
+
+**Use `UsageEnforcementGuard`** when:
+
+- The action is synchronous and fast
+- There is no resource created that needs to be linked to the usage event
+- Failure after quota deduction is unlikely
+- You want DRY, declarative enforcement via decorators
+
+**Use in-transaction `checkAndRecord()`** when:
+
+- The endpoint creates a resource you want to link to the usage event via `resource_id` (e.g., a generation job)
+- The work is async (BullMQ job) and may fail permanently — requiring the refund handler to locate and void the ledger entry by `resource_id`
+- You need the quota deduction to roll back atomically if the transaction fails (e.g., job creation fails)
+- The operation involves multiple steps that must all succeed or all fail
+
+**Why the guard doesn't work for async operations:**
+
+1. The guard runs *before* the controller — no resource exists yet to link as `resource_id`
+2. The guard executes outside the controller's transaction boundary — if the controller rolls back, the quota deduction is not undone
+3. The refund handler (`UsageRefundHandler`) locates ledger entries by `resource_id` — without it, voiding the correct entry on async failure is unreliable
+
+---
+
 ## API Integration
 
 ### Using EntitlementGuard (Boolean Features)
