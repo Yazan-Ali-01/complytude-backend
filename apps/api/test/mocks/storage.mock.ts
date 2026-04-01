@@ -67,6 +67,16 @@ export class MockStorageService implements PublicApi<StorageService> {
     return 'https://mock-s3/signed/mock-key';
   }
 
+  async generateSignedUrlForBucket(
+    _tenantId: string,
+    _bucket: string,
+    _fileKey: string,
+    _expiresIn?: number,
+  ): Promise<string> {
+    await Promise.resolve();
+    return 'https://mock-s3/signed/mock-key';
+  }
+
   async listFiles(
     _tenantId: string,
     _prefix?: string,

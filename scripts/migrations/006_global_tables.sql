@@ -187,7 +187,7 @@ CREATE TABLE public.template_versions (
     template_id   UUID NOT NULL,
     version       VARCHAR(50) NOT NULL,
     fields        JSONB NOT NULL DEFAULT '[]',
-    file_url      TEXT NOT NULL,
+    file_url      TEXT,
     changelog     TEXT,
     metadata      JSONB DEFAULT '{}',
     is_active     BOOLEAN NOT NULL DEFAULT true,

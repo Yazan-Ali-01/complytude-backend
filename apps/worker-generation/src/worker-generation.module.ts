@@ -39,7 +39,10 @@ import { WorkerGenerationController } from './worker-generation.controller';
     StorageModule.forRoot(),
     DocxRendererModule,
     PdfModule,
-    QueueModule.forRoot([QUEUE_NAMES.DOCUMENT_GENERATION]),
+    QueueModule.forRoot([
+      QUEUE_NAMES.DOCUMENT_GENERATION,
+      QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+    ]),
   ],
   controllers: [WorkerGenerationController],
   providers: [

@@ -6,7 +6,7 @@ echo "================================"
 echo ""
 
 # Start services
-echo "📦 Starting services (PostgreSQL + Redis + Gotenberg)..."
+echo "📦 Starting services (PostgreSQL + Redis)..."
 pnpm docker:start || exit 1
 
 echo ""

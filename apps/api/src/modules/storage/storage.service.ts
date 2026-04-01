@@ -471,6 +471,39 @@ export class StorageService {
     }
   }
 
+  /**
+   * Generate a signed GET URL for a document stored in a specific bucket.
+   * Validates tenant ownership of the key before generating.
+   */
+  async generateSignedUrlForBucket(
+    tenantId: string,
+    bucket: string,
+    fileKey: string,
+    expiresIn?: number,
+  ): Promise<string> {
+    this.validateTenantOwnership(tenantId, fileKey);
+
+    const expires = expiresIn || this.signedUrlExpiresIn;
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: fileKey,
+      });
+
+      return await getSignedUrl(this.s3Client, command, {
+        expiresIn: expires,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate signed URL: bucket=${bucket} key=${fileKey} error=${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(StorageI18n.errors.TEMPORARY_URL_GENERATION_FAILED),
+      );
+    }
+  }
+
   async initializeQuarantineBucket(): Promise<void> {
     if (this.quarantineBucketInitialized) return;
 
@@ -753,7 +786,7 @@ export class StorageService {
           : '';
       if (errno === 'ECONNREFUSED' || detail.includes('ECONNREFUSED')) {
         throw new InternalServerErrorException(
-          `S3 unreachable (connection refused). Check S3_ENDPOINT and network connectivity. (${detail})`,
+          `S3 unreachable (connection refused). Check S3_ENDPOINT configuration. (${detail})`,
         );
       }
       if (errno === 'ENOTFOUND' || detail.includes('ENOTFOUND')) {

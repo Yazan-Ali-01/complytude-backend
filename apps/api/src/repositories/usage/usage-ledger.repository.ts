@@ -18,6 +18,7 @@ type UsageLedgerRow = {
   idempotency_key: string | null;
   recorded_at: Date;
   projected_at: Date | null;
+  voided_at: Date | null;
 };
 
 /**
@@ -37,7 +38,7 @@ export class UsageLedgerRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, feature_id, user_id, units, billing_period, resource_type, resource_id, metadata, idempotency_key, recorded_at, projected_at';
+    return 'id, tenant_id, feature_id, user_id, units, billing_period, resource_type, resource_id, metadata, idempotency_key, recorded_at, projected_at, voided_at';
   }
 
   protected mapRow(row: Record<string, unknown>): UsageLedgerEvent {
@@ -55,6 +56,7 @@ export class UsageLedgerRepository extends BaseRepository<
       idempotency_key: data.idempotency_key ?? undefined,
       recorded_at: data.recorded_at,
       projected_at: data.projected_at ?? undefined,
+      voided_at: data.voided_at ?? undefined,
     };
   }
 
@@ -70,8 +72,9 @@ export class UsageLedgerRepository extends BaseRepository<
   }
 
   /**
-   * Find all usage events for a tenant, feature, and billing period
-   * Phase 3 implementation - used for projection rebuild
+   * Find all non-voided usage events for a tenant, feature, and billing period.
+   * Voided entries (voided_at IS NOT NULL) are excluded — they should not contribute
+   * to projections or reconciliation.
    */
   async findByTenantFeaturePeriod(
     tenantId: string,
@@ -82,12 +85,51 @@ export class UsageLedgerRepository extends BaseRepository<
     const result = await this.executeQuery<UsageLedgerRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE tenant_id = $1 AND feature_id = $2 AND billing_period = $3
+         AND voided_at IS NULL
        ORDER BY recorded_at ASC`,
       [tenantId, featureId, billingPeriod],
       options,
     );
 
     return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Find a usage event by resource_id (e.g., a generation job ID).
+   * Returns the most recent non-voided entry for the given resource.
+   * Used by the usage refund handler to locate the entry to void.
+   */
+  async findByResourceId(
+    resourceId: string,
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<UsageLedgerEvent | null> {
+    const result = await this.executeQuery<UsageLedgerRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE resource_id = $1 AND tenant_id = $2 AND voided_at IS NULL
+       ORDER BY recorded_at DESC
+       LIMIT 1`,
+      [resourceId, tenantId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
+   * Void a usage ledger entry (set voided_at = NOW()).
+   * This is a one-time operation — once voided, the entry is excluded from
+   * projections and reconciliation but remains in the ledger for audit purposes.
+   *
+   * Returns true if the void succeeded (entry existed and was not already voided).
+   * Returns false if the entry was already voided or not found.
+   */
+  async voidEntry(ledgerId: string, options?: QueryOptions): Promise<boolean> {
+    const result = await this.executeQuery(
+      `UPDATE ${this.tableName} SET voided_at = NOW() WHERE id = $1 AND voided_at IS NULL RETURNING id`,
+      [ledgerId],
+      options,
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   /**

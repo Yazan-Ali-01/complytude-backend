@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script to start Docker services (PostgreSQL + Redis + Gotenberg)
-# S3 storage uses real AWS S3 — configure via .env files.
+# Script to start Docker services (PostgreSQL + Redis)
+# This checks if Docker is running before attempting to start services
 
 echo "🐳 Checking Docker status..."
 
@@ -90,3 +90,4 @@ echo "  pnpm docker:stop     - Stop services"
 echo "  pnpm docker:up:all   - Start with pgAdmin too"
 echo "  pnpm docker:reset    - Reset all data (⚠️  destructive)"
 echo ""
+

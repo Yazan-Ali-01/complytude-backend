@@ -7,6 +7,7 @@ export const ENTITLEMENT_JOB_NAMES = {
   CREDIT_NOTIFICATION: 'credit-notification',
   QUOTA_EXCEEDED: 'quota-exceeded',
   TRIAL_EXPIRY_CHECK: 'trial-expiry-check',
+  USAGE_REFUND: 'usage-refund',
 } as const;
 
 export type EntitlementJobName =
@@ -85,4 +86,20 @@ export interface EntitlementQuotaExceededJobData {
   limit: number;
   used: number;
   reason: string;
+}
+
+/**
+ * Payload for USAGE_REFUND jobs.
+ *
+ * Emitted by workers when an async job fails permanently after entitlement
+ * was already deducted on the API side. The handler finds the usage_ledger
+ * entry via resource_id, voids it, and rebuilds the aggregated_usage projection.
+ */
+export interface EntitlementUsageRefundJobData {
+  tenantId: string;
+  /** ID of the failed async job (generation_jobs.id). Used as resource_id lookup key. */
+  resourceId: string;
+  resourceType: string;
+  featureKey: string;
+  units: number;
 }

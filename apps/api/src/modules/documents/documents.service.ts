@@ -34,6 +34,7 @@ import type {
   AnalyzeDocumentResponseDto,
   ConfirmUploadResponseDto,
   DeleteDocumentResponseDto,
+  DocumentDownloadUrlResponseDto,
   DocumentListResponseDto,
   DocumentResponseDto,
   DocumentSummaryDto,
@@ -625,6 +626,46 @@ export class DocumentsService {
         this.i18n.t(DocumentsI18n.errors.DOCUMENT_RETRIEVAL_FAILED),
       );
     }
+  }
+
+  async getDownloadUrl(
+    id: string,
+    user: AuthenticatedTenantUser,
+  ): Promise<DocumentDownloadUrlResponseDto> {
+    const tenantContext = {
+      tenantId: user.tenantId,
+      schema: 'public' as const,
+    };
+
+    const document = await this.documentRepository.findActiveById(id, {
+      tenant: tenantContext,
+    });
+
+    if (!document) {
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_FOUND),
+      );
+    }
+
+    if (!document.s3_key || !document.s3_bucket) {
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_NO_FILE),
+      );
+    }
+
+    const expiresIn: number =
+      this.configService.get<number>('storage.signedUrl.expiresIn') ?? 900;
+
+    const url = await this.storageService.generateSignedUrlForBucket(
+      user.tenantId,
+      document.s3_bucket,
+      document.s3_key,
+      expiresIn,
+    );
+
+    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    return { url, expiresAt };
   }
 
   async remove(

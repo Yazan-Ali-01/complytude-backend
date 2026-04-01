@@ -1,7 +1,12 @@
 import { DocxRendererService } from '@lib/docx-renderer';
 import { PdfConversionService } from '@lib/pdf';
 import type { DocumentGenerationJobData } from '@lib/queue';
-import { PermanentError } from '@lib/queue';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  PermanentError,
+  QUEUE_NAMES,
+  QueueProducerService,
+} from '@lib/queue';
 import { S3Service } from '@lib/storage';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,6 +29,7 @@ export class DocumentGenerationWorkerService {
     private readonly generationJobRepo: GenerationJobWriteRepository,
     private readonly documentWriteRepo: DocumentWriteRepository,
     private readonly configService: ConfigService,
+    private readonly queueProducer: QueueProducerService,
   ) {
     this.templatesBucket =
       this.configService.get<string>('storage.buckets.templatesBucketName') ??
@@ -33,11 +39,16 @@ export class DocumentGenerationWorkerService {
       'complytude-files';
   }
 
-  async generate(data: DocumentGenerationJobData): Promise<void> {
+  async generate(
+    data: DocumentGenerationJobData,
+    attempt: number,
+    maxAttempts: number,
+  ): Promise<void> {
     const { generationJobId, jobType } = data;
+    const isFinalAttempt = attempt >= maxAttempts;
 
     this.logger.log(
-      `Processing generation job [${jobType}] generationJobId=${generationJobId} templateId=${data.templateId} tenantId=${data.tenantId}`,
+      `Processing generation job [${jobType}] generationJobId=${generationJobId} templateId=${data.templateId} tenantId=${data.tenantId} attempt=${attempt}/${maxAttempts}`,
     );
 
     const existingJob = await this.generationJobRepo.findById(generationJobId);
@@ -46,9 +57,16 @@ export class DocumentGenerationWorkerService {
         `Generation job ${generationJobId} not found in database`,
       );
     }
-    if (existingJob.status === 'completed' || existingJob.status === 'failed') {
+    if (existingJob.status === 'completed') {
+      this.logger.warn(`Skipping job ${generationJobId} — already completed`);
+      return;
+    }
+    // Only skip failed if this is NOT a retry — a failed job that BullMQ is
+    // retrying was marked failed too early on a previous attempt, so we reset
+    // it back to processing and try again.
+    if (existingJob.status === 'failed' && attempt === 1) {
       this.logger.warn(
-        `Skipping job ${generationJobId} — already ${existingJob.status}`,
+        `Skipping job ${generationJobId} — already failed (not a BullMQ retry)`,
       );
       return;
     }
@@ -71,21 +89,26 @@ export class DocumentGenerationWorkerService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      await this.generationJobRepo
-        .markFailed(generationJobId, errorMessage)
-        .catch((e: unknown) =>
-          this.logger.error(
-            `Failed to mark job ${generationJobId} as failed: ${e instanceof Error ? e.message : String(e)}`,
-          ),
-        );
+      const permanent = this.isPermanentError(error);
 
-      if (jobType === 'generate') {
-        this.logger.warn(
-          `Generate job ${generationJobId} failed — entitlement refund may be required for tenant ${data.tenantId}`,
-        );
+      // Only write failed status on the last attempt or for permanent errors.
+      // For transient retryable errors on intermediate attempts, leave status
+      // as 'processing' so the next BullMQ retry can claim it.
+      if (isFinalAttempt || permanent) {
+        await this.generationJobRepo
+          .markFailed(generationJobId, errorMessage)
+          .catch((e: unknown) =>
+            this.logger.error(
+              `Failed to mark job ${generationJobId} as failed: ${e instanceof Error ? e.message : String(e)}`,
+            ),
+          );
+
+        if (jobType === 'generate') {
+          await this.emitUsageRefund(data);
+        }
       }
 
-      if (this.isPermanentError(error)) {
+      if (permanent) {
         throw new PermanentError(errorMessage, error as Error);
       }
       throw error;
@@ -273,6 +296,40 @@ export class DocumentGenerationWorkerService {
       }
     }
     return null;
+  }
+
+  /**
+   * Enqueue a USAGE_REFUND job so the API can void the usage_ledger entry and
+   * rebuild the aggregated_usage projection, giving the tenant their quota back.
+   *
+   * Failures here are non-fatal — we log the error and continue so BullMQ can
+   * still mark the generation job as failed. The refund can be re-triggered
+   * manually if needed.
+   */
+  private async emitUsageRefund(
+    data: DocumentGenerationJobData,
+  ): Promise<void> {
+    try {
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.USAGE_REFUND,
+        {
+          tenantId: data.tenantId,
+          resourceId: data.generationJobId,
+          resourceType: 'generation_job',
+          featureKey: 'documents_per_month',
+          units: 1,
+        },
+        { jobId: `usage-refund-${data.generationJobId}` },
+      );
+      this.logger.log(
+        `Enqueued USAGE_REFUND for failed generate job ${data.generationJobId} tenant=${data.tenantId}`,
+      );
+    } catch (refundError) {
+      this.logger.error(
+        `Failed to enqueue USAGE_REFUND for job ${data.generationJobId} tenant=${data.tenantId}: ${refundError instanceof Error ? refundError.message : String(refundError)}`,
+      );
+    }
   }
 
   private isPermanentError(error: unknown): boolean {

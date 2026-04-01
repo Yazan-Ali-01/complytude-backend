@@ -18,6 +18,7 @@ echo ""
 # Check if services are running
 postgres_running=false
 redis_running=false
+
 if docker ps --format '{{.Names}}' | grep -q '^complytude-postgres$'; then
     postgres_running=true
     echo "✅ PostgreSQL is running"

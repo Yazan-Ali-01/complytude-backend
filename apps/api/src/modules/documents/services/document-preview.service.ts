@@ -6,12 +6,15 @@ import {
 } from '@lib/queue';
 import {
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
+import { EntitlementEnforcementService } from 'src/modules/entitlements/services/entitlement-enforcement.service';
 import { EntitlementResolverService } from 'src/modules/entitlements/services/entitlement-resolver.service';
 import type { GenerationJob } from 'src/repositories/generation-jobs/generation-job.repository';
 import { GenerationJobRepository } from 'src/repositories/generation-jobs/generation-job.repository';
@@ -24,7 +27,9 @@ import { TemplateVersionsService } from '../../templates/template-versions.servi
 import { TemplatesService } from '../../templates/templates.service';
 import { DocumentsI18n } from '../constants/i18n.constants';
 import {
+  GenerateDocumentResponseDto,
   GenerationJobResponseDto,
+  type GenerateDocumentDto,
   type PreviewDocumentDto,
   type PreviewDocumentResponseDto,
 } from '../dto';
@@ -42,6 +47,7 @@ export class DocumentPreviewService {
     private readonly generationJobRepository: GenerationJobRepository,
     private readonly queueProducerService: QueueProducerService,
     private readonly entitlementResolver: EntitlementResolverService,
+    private readonly entitlementEnforcement: EntitlementEnforcementService,
     private readonly documentsService: DocumentsService,
     private readonly databaseService: DatabaseService,
     private readonly i18n: I18nService,
@@ -133,6 +139,132 @@ export class DocumentPreviewService {
     }
   }
 
+  async generate(
+    dto: GenerateDocumentDto,
+    user: AuthenticatedTenantUser,
+  ): Promise<GenerateDocumentResponseDto> {
+    const template = await this.templatesService.findByKey(dto.templateKey);
+
+    if (template.status !== 'active' || !template.tier) {
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.TEMPLATE_NOT_FOUND),
+      );
+    }
+
+    const targetVersion = dto.templateVersion ?? template.current_version;
+    const templateVersion = await this.templateVersionsService.getVersion(
+      template.id,
+      targetVersion,
+    );
+
+    await this.enforceTierAccess(user.tenantId, template.tier);
+
+    const { systemVariables } =
+      await this.documentsService.getGenerationContext(user);
+
+    const validatedVariables = this.variableValidationService.validate(
+      templateVersion.fields,
+      dto.variables,
+      systemVariables,
+    );
+
+    try {
+      const generationJob =
+        await this.databaseService.transactionWithTenantContext(
+          { tenantId: user.tenantId },
+          async (client) => {
+            // Create the job first so we have the ID available for entitlement metadata.
+            const job = await this.generationJobRepository.create(
+              {
+                tenant_id: user.tenantId,
+                template_id: template.id,
+                template_version_id: templateVersion.id,
+                job_type: 'generate',
+                status: 'queued',
+                variables: JSON.stringify(validatedVariables),
+                created_by: user.userId,
+              },
+              { client },
+            );
+
+            // Check and record documents_per_month quota within the same transaction.
+            // If denied, the transaction rolls back — no job record is created and no
+            // quota is consumed. Passing resource_id links the usage event to this job
+            // so the refund handler can locate and void it later on permanent failure.
+            const checkResult =
+              await this.entitlementEnforcement.checkAndRecord(
+                {
+                  tenantId: user.tenantId,
+                  featureKey: 'documents_per_month',
+                  userId: user.userId,
+                  units: 1,
+                  metadata: {
+                    resource_id: job.id,
+                    resource_type: 'generation_job',
+                    template_key: dto.templateKey,
+                    template_version: targetVersion,
+                  },
+                },
+                { client },
+              );
+
+            if (!checkResult.allowed) {
+              throw new HttpException(
+                {
+                  statusCode: HttpStatus.PAYMENT_REQUIRED,
+                  message: `Quota exceeded for documents_per_month`,
+                  feature: 'documents_per_month',
+                  limit: checkResult.limit,
+                  used: checkResult.used,
+                  creditsAvailable: checkResult.creditsRemaining ?? 0,
+                  upgradeUrl: '/plans',
+                },
+                HttpStatus.PAYMENT_REQUIRED,
+              );
+            }
+
+            return job;
+          },
+        );
+
+      await this.queueProducerService.enqueue(
+        QUEUE_NAMES.DOCUMENT_GENERATION,
+        GENERATION_JOB_NAMES.DOCUMENT_GENERATION,
+        {
+          generationJobId: generationJob.id,
+          templateId: template.id,
+          templateVersionId: templateVersion.id,
+          templateVersion: targetVersion,
+          variables: validatedVariables,
+          tenantId: user.tenantId,
+          userId: user.userId,
+          jobType: 'generate',
+        },
+        { jobId: `generate-${generationJob.id}` },
+      );
+
+      this.logger.log(
+        `Enqueued generate job: generationJobId=${generationJob.id} templateKey=${dto.templateKey} version=${targetVersion} tenantId=${user.tenantId}`,
+      );
+
+      return { generationJobId: generationJob.id };
+    } catch (error) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException ||
+        error instanceof HttpException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Generate enqueue failed: templateKey=${dto.templateKey} version=${targetVersion} tenantId=${user.tenantId} error=${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_GENERATION_FAILED),
+      );
+    }
+  }
+
   async getGenerationJobById(
     jobId: string,
     user: AuthenticatedTenantUser,
@@ -140,6 +272,7 @@ export class DocumentPreviewService {
     const job = await this.generationJobRepository.findByIdForTenant(
       jobId,
       user.tenantId,
+      { tenant: { tenantId: user.tenantId, schema: 'public' as const } },
     );
 
     if (!job) {

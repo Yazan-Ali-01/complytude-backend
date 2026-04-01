@@ -351,12 +351,10 @@ SESSION_ACTIVITY_THROTTLE_SECONDS=120
 # AWS S3 Storage
 S3_ENDPOINT=
 S3_REGION=eu-central-1
-S3_ACCESS_KEY=
-S3_SECRET_KEY=
+S3_ACCESS_KEY=your-aws-access-key
+S3_SECRET_KEY=your-aws-secret-key
+S3_BUCKET_PREFIX=complytude
 S3_FORCE_PATH_STYLE=false
-COMPLYTUDE_FILES_BUCKET_NAME=complytude-files
-TEMPLATES_BUCKET_NAME=complytude-templates
-QUARANTINE_BUCKET_NAME=complytude-quarantine
 
 # File Upload Limits
 MAX_FILE_SIZE=10485760

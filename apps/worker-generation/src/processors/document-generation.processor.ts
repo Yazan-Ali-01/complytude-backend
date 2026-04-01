@@ -28,6 +28,8 @@ export class DocumentGenerationProcessor extends AbstractProcessor<
       case GENERATION_JOB_NAMES.DOCUMENT_GENERATION:
         return this.documentGenerationService.generate(
           job.data as DocumentGenerationJobData,
+          job.attemptsMade + 1,
+          job.opts?.attempts ?? 3,
         );
       default:
         throw new PermanentError(

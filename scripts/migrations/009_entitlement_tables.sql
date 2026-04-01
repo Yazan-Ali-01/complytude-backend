@@ -247,6 +247,7 @@ CREATE TABLE public.usage_ledger (
     idempotency_key VARCHAR(255),
     recorded_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     projected_at    TIMESTAMPTZ NULL,
+    voided_at       TIMESTAMPTZ NULL,
 
     CONSTRAINT chk_usage_units CHECK (units > 0)
 );
@@ -257,6 +258,7 @@ COMMENT ON COLUMN public.usage_ledger.resource_type IS 'Type of resource created
 COMMENT ON COLUMN public.usage_ledger.resource_id IS 'ID of the resource created';
 COMMENT ON COLUMN public.usage_ledger.idempotency_key IS 'Prevents duplicate event recording';
 COMMENT ON COLUMN public.usage_ledger.projected_at IS 'Timestamp when this event was projected into aggregated_usage (NULL = not yet projected). Used as CAS idempotency guard.';
+COMMENT ON COLUMN public.usage_ledger.voided_at IS 'Timestamp when this event was voided (e.g., async job permanent failure). Voided events are excluded from projections and reconciliation. NULL = not voided.';
 
 -- Usage Allocations: Per-source funding breakdown for usage events
 CREATE TABLE public.usage_allocations (
@@ -322,11 +324,15 @@ COMMENT ON TRIGGER validate_usage_allocations_sum_trigger ON public.usage_alloca
 CREATE OR REPLACE FUNCTION prevent_usage_ledger_modification()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Allow setting projected_at exactly once (NULL → non-NULL).
-    -- All other columns must remain unchanged.
+    -- Two permitted mutations (each is a one-time, NULL → non-NULL transition):
+    --   1. projected_at: set by claimForProjection() after the usage event is
+    --      reflected in aggregated_usage.
+    --   2. voided_at: set by the usage refund handler when an async job fails
+    --      permanently after its entitlement was already deducted. Voided events
+    --      are excluded from projections and reconciliation.
+    -- All other columns are permanently immutable.
     IF TG_OP = 'UPDATE' THEN
-        IF OLD.projected_at IS NULL AND NEW.projected_at IS NOT NULL AND
-           NEW.id               = OLD.id               AND
+        IF NEW.id               = OLD.id               AND
            NEW.tenant_id        = OLD.tenant_id        AND
            NEW.feature_id       = OLD.feature_id       AND
            NEW.user_id          IS NOT DISTINCT FROM OLD.user_id AND
@@ -336,19 +342,25 @@ BEGIN
            NEW.resource_id      IS NOT DISTINCT FROM OLD.resource_id  AND
            NEW.idempotency_key  IS NOT DISTINCT FROM OLD.idempotency_key AND
            NEW.recorded_at      = OLD.recorded_at AND
-           NEW.metadata         IS NOT DISTINCT FROM OLD.metadata
+           NEW.metadata         IS NOT DISTINCT FROM OLD.metadata AND
+           -- projected_at: either unchanged or transitioning NULL → timestamp
+           (NEW.projected_at IS NOT DISTINCT FROM OLD.projected_at OR
+            (OLD.projected_at IS NULL AND NEW.projected_at IS NOT NULL)) AND
+           -- voided_at: either unchanged or transitioning NULL → timestamp
+           (NEW.voided_at IS NOT DISTINCT FROM OLD.voided_at OR
+            (OLD.voided_at IS NULL AND NEW.voided_at IS NOT NULL))
         THEN
             RETURN NEW;
         END IF;
     END IF;
 
-    RAISE EXCEPTION 'usage_ledger is immutable. Only projected_at may be set once (NULL → timestamp).'
+    RAISE EXCEPTION 'usage_ledger is immutable. Only projected_at and voided_at may be set once (NULL → timestamp).'
         USING ERRCODE = '42501',
-              HINT = 'usage_ledger is append-only. Use claimForProjection() to set projected_at.';
+              HINT = 'usage_ledger is append-only. Use claimForProjection() or voidLedgerEntry() for permitted mutations.';
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION prevent_usage_ledger_modification() IS 'Enforces immutability of usage_ledger; only allows setting projected_at once (NULL → timestamp)';
+COMMENT ON FUNCTION prevent_usage_ledger_modification() IS 'Enforces immutability of usage_ledger; only allows setting projected_at and voided_at once (NULL → timestamp)';
 
 CREATE TRIGGER prevent_usage_ledger_update
     BEFORE UPDATE ON public.usage_ledger
@@ -360,7 +372,7 @@ CREATE TRIGGER prevent_usage_ledger_delete
     FOR EACH ROW
     EXECUTE FUNCTION prevent_usage_ledger_modification();
 
-COMMENT ON TRIGGER prevent_usage_ledger_update ON public.usage_ledger IS 'Blocks UPDATE except projected_at (NULL→timestamp) to enforce immutability';
+COMMENT ON TRIGGER prevent_usage_ledger_update ON public.usage_ledger IS 'Blocks UPDATE except projected_at and voided_at (NULL→timestamp) to enforce immutability';
 COMMENT ON TRIGGER prevent_usage_ledger_delete ON public.usage_ledger IS 'Blocks DELETE operations to enforce immutability';
 
 -- Generic immutability for tables with no permitted mutations (usage_allocations, credit_ledger)

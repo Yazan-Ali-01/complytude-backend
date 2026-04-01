@@ -180,6 +180,7 @@ export interface UsageLedgerEvent {
   idempotency_key?: string;
   recorded_at: Date;
   projected_at?: Date;
+  voided_at?: Date;
 }
 
 export interface UsageAllocation {

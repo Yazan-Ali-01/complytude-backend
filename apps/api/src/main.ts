@@ -159,6 +159,9 @@ async function bootstrap() {
         app.get(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING)),
       ),
       new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.TENANT_PROCESSING))),
+      new BullMQAdapter(
+        app.get(getQueueToken(QUEUE_NAMES.DOCUMENT_GENERATION)),
+      ),
     ],
     serverAdapter: bullBoardAdapter,
   });

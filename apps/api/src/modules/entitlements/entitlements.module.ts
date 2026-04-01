@@ -26,6 +26,7 @@ import { ProjectionUpdateHandler } from './processors/projection-update.handler'
 import { QuotaExceededHandler } from './processors/quota-exceeded.handler';
 import { SnapshotRebuildHandler } from './processors/snapshot-rebuild.handler';
 import { TrialExpiryHandler } from './processors/trial-expiry.handler';
+import { UsageRefundHandler } from './processors/usage-refund.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
@@ -95,6 +96,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     QuotaExceededHandler,
     TrialExpiryHandler,
     TrialExpirySchedulerService,
+    UsageRefundHandler,
 
     // Catalog repositories
     FeaturesRepository,

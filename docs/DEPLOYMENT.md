@@ -413,12 +413,10 @@ SESSION_ACTIVITY_THROTTLE_SECONDS=120
 # AWS S3 Storage
 S3_ENDPOINT=
 S3_REGION=eu-central-1
-S3_ACCESS_KEY=
-S3_SECRET_KEY=
+S3_ACCESS_KEY=your-aws-access-key
+S3_SECRET_KEY=your-aws-secret-key
+S3_BUCKET_PREFIX=complytude
 S3_FORCE_PATH_STYLE=false
-COMPLYTUDE_FILES_BUCKET_NAME=complytude-files
-TEMPLATES_BUCKET_NAME=complytude-templates
-QUARANTINE_BUCKET_NAME=complytude-quarantine
 MAX_FILE_SIZE=10485760
 SIGNED_URL_EXPIRES_IN=900
 
@@ -763,13 +761,11 @@ SESSION_ACTIVITY_THROTTLE_SECONDS=120
 
 # S3 Storage - Use AWS S3 in production
 S3_REGION=eu-central-1
-S3_ACCESS_KEY=
-S3_SECRET_KEY=
+S3_ACCESS_KEY=<your-aws-access-key>
+S3_SECRET_KEY=<your-aws-secret-key>
+S3_BUCKET_PREFIX=complytude-production
 S3_FORCE_PATH_STYLE=false
-COMPLYTUDE_FILES_BUCKET_NAME=complytude-production-clean
-TEMPLATES_BUCKET_NAME=complytude-production-clean
-QUARANTINE_BUCKET_NAME=complytude-production-quarantine
-# Note: Leave S3_ENDPOINT empty for AWS S3; credentials come from IAM role
+# Note: Don't set S3_ENDPOINT for AWS S3 (leave empty or omit)
 
 # File Upload
 MAX_FILE_SIZE=10485760
@@ -978,10 +974,10 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT info
 
 ```bash
 # Verify S3 credentials
-aws s3 ls s3://$COMPLYTUDE_FILES_BUCKET_NAME
+aws s3 ls s3://$S3_BUCKET_PREFIX
 
 # Test S3 access
-aws s3 cp test.txt s3://$COMPLYTUDE_FILES_BUCKET_NAME/test.txt
+aws s3 cp test.txt s3://$S3_BUCKET_PREFIX/test.txt
 ```
 
 **Application Won't Start**

@@ -203,6 +203,25 @@ export class DocumentResponseDto {
 }
 
 /**
+ * Response DTO for document download URL
+ */
+export class DocumentDownloadUrlResponseDto {
+  @ApiProperty({
+    description: 'Pre-signed download URL (time-limited)',
+    example: 'https://s3.amazonaws.com/complytude-files/tenants/...',
+  })
+  url: string;
+
+  @ApiProperty({
+    description: 'URL expiration timestamp',
+    example: '2026-04-01T18:15:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  expiresAt: string;
+}
+
+/**
  * Response DTO for document deletion
  */
 export class DeleteDocumentResponseDto {

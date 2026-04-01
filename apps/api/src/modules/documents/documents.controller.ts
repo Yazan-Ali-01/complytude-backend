@@ -38,8 +38,11 @@ import {
   AnalyzeDocumentResponseDto,
   ConfirmUploadResponseDto,
   DeleteDocumentResponseDto,
+  DocumentDownloadUrlResponseDto,
   DocumentListResponseDto,
   DocumentResponseDto,
+  GenerateDocumentDto,
+  GenerateDocumentResponseDto,
   GenerationContextResponseDto,
   ListDocumentsQueryDto,
   PreviewDocumentDto,
@@ -154,6 +157,42 @@ export class DocumentsController {
     return this.documentPreviewService.preview(dto, user);
   }
 
+  @Post('generate')
+  @Audit('DOCUMENT_GENERATION_REQUESTED', { resourceType: 'documents' })
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:create')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Generate a document from a template (async)',
+    description:
+      'Validates the template and variables, enforces the documents_per_month quota ' +
+      '(with credit fallback), creates a generation job, and enqueues an async render ' +
+      'pipeline (DOCX → PDF → S3 upload → document record created). ' +
+      'Returns 202 Accepted with a generationJobId to poll via GET /generation-jobs/:id. ' +
+      'When completed, the job result contains { documentId, s3Key, fileSize }. ' +
+      'Template tier access is enforced hierarchically (essential ≤ full). ' +
+      'Returns 402 Payment Required when the quota is exhausted and no credits are available.',
+  })
+  @ApiResponse({
+    status: 202,
+    description: 'Document generation job accepted',
+    type: GenerateDocumentResponseDto,
+  })
+  @ApiResponse({
+    status: 402,
+    description: 'documents_per_month quota exhausted and no credits available',
+  })
+  @ApiValidationError()
+  @ApiNotFoundError('Template or version')
+  @ApiForbiddenError('Template tier not accessible on tenant plan')
+  @ApiAuthErrors()
+  generate(
+    @Body() dto: GenerateDocumentDto,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<GenerateDocumentResponseDto> {
+    return this.documentPreviewService.generate(dto, user);
+  }
+
   @Get(':documentId')
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:read')
@@ -180,6 +219,32 @@ export class DocumentsController {
     const doc = await this.documentsService.findOne(documentId, user);
     setRetryAfterIfExtractionPending(reply, doc.extractionStatus);
     return doc;
+  }
+
+  @Get(':documentId/download-url')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:read')
+  @ApiOperation({
+    summary: 'Get a time-limited download URL for a document',
+    description:
+      'Generates a pre-signed S3 URL to view or download the document file. ' +
+      'The URL expires after the configured duration (default 15 minutes). ' +
+      'Returns 404 if the document has no associated file (e.g. text_input documents).',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Pre-signed download URL',
+    type: DocumentDownloadUrlResponseDto,
+  })
+  @ApiNotFoundError('Document or file')
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to read documents')
+  getDownloadUrl(
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<DocumentDownloadUrlResponseDto> {
+    return this.documentsService.getDownloadUrl(documentId, user);
   }
 
   @Delete(':documentId')

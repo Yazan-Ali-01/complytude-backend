@@ -310,11 +310,14 @@ export class VariableValidationService {
 
       case 'number': {
         const num = Number(value);
-        const formatted = num.toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
         const currency = field.validation_rules?.custom;
+        // Use decimal formatting only for currency fields; plain integers render
+        // without decimals (e.g. probation_period: 90, not 90.00).
+        const fractionDigits = currency ? 2 : Number.isInteger(num) ? 0 : 2;
+        const formatted = num.toLocaleString('en-US', {
+          minimumFractionDigits: fractionDigits,
+          maximumFractionDigits: fractionDigits,
+        });
         return currency ? `${formatted} ${currency}` : formatted;
       }
 

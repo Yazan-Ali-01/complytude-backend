@@ -22,7 +22,10 @@ export const DocumentsI18n = {
     TEMPLATE_NOT_FOUND: 'documents.errors.TEMPLATE_NOT_FOUND',
     TEMPLATE_TIER_FORBIDDEN: 'documents.errors.TEMPLATE_TIER_FORBIDDEN',
     PREVIEW_GENERATION_FAILED: 'documents.errors.PREVIEW_GENERATION_FAILED',
+    DOCUMENT_GENERATION_FAILED: 'documents.errors.DOCUMENT_GENERATION_FAILED',
     GENERATION_JOB_NOT_FOUND: 'documents.errors.GENERATION_JOB_NOT_FOUND',
+    DOCUMENT_NO_FILE: 'documents.errors.DOCUMENT_NO_FILE',
+    DOWNLOAD_URL_FAILED: 'documents.errors.DOWNLOAD_URL_FAILED',
   },
   messages: {
     UPLOAD_CONFIRMED: 'documents.messages.UPLOAD_CONFIRMED',
