@@ -30,6 +30,7 @@ jwt_access_secret           = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 jwt_refresh_secret         = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 jwt_identity_secret        = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 jwt_identity_refresh_secret = "CHANGE_ME_GENERATE_WITH_OPENSSL"
+jwt_refresh_hash_secret     = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 
 # S3 — create IAM user with S3 permissions, or leave empty for ECS task role
 s3_access_key = ""

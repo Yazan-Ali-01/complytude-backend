@@ -31,9 +31,7 @@ Complete manual testing guide for the entitlement system foundation.
 
 ```bash
 # Stop and reset database
-pnpm docker:stop
-pnpm docker:down
-pnpm docker:start
+pnpm services:reset
 
 # Run migrations
 pnpm db:migrate
