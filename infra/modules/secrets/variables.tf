@@ -96,12 +96,6 @@ variable "jwt_identity_refresh_secret" {
   sensitive   = true
 }
 
-variable "jwt_refresh_hash_secret" {
-  description = "JWT refresh token hash secret"
-  type        = string
-  sensitive   = true
-}
-
 # ---- S3 (from tfvars or IAM role) ----
 variable "s3_region" {
   description = "S3 region"

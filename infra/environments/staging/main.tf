@@ -124,7 +124,6 @@ module "secrets" {
   jwt_refresh_secret        = var.jwt_refresh_secret
   jwt_identity_secret       = var.jwt_identity_secret
   jwt_identity_refresh_secret = var.jwt_identity_refresh_secret
-  jwt_refresh_hash_secret   = var.jwt_refresh_hash_secret
 
   # S3 — from tfvars + module
   s3_region             = var.aws_region

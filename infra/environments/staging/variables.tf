@@ -99,12 +99,6 @@ variable "jwt_identity_refresh_secret" {
   sensitive   = true
 }
 
-variable "jwt_refresh_hash_secret" {
-  description = "Secret used to hash refresh tokens at rest"
-  type        = string
-  sensitive   = true
-}
-
 variable "s3_access_key" {
   description = "S3 access key — create IAM user with S3 permissions, or leave empty for ECS task role"
   type        = string
