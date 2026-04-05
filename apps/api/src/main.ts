@@ -211,11 +211,12 @@ async function bootstrap() {
           '## Cookie-Based Authentication\n' +
           'All authentication uses HTTP-only cookies for security. Tokens are automatically included in requests.\n\n' +
           '**Identity Tokens** (for tenant selection):\n' +
-          '- `identityAccessToken` - 15 min expiry\n' +
-          '- `identityRefreshToken` - 14 day expiry\n\n' +
+          '- `identityAccessToken` - short-lived access token\n' +
+          '- `identityRefreshToken` - long-lived refresh token\n\n' +
           '**Tenant Tokens** (for API access):\n' +
-          '- `tenantAccessToken` - 30 min expiry\n' +
-          '- `tenantRefreshToken` - 14 day expiry',
+          '- `tenantAccessToken` - short-lived access token\n' +
+          '- `tenantRefreshToken` - long-lived refresh token\n\n' +
+          'Token lifetimes are configured via environment variables (`JWT_*_EXPIRES_IN`).',
       )
       .setVersion('1.0.0')
       .setContact(
@@ -235,7 +236,7 @@ async function bootstrap() {
           in: 'cookie',
           name: IDENTITY_TOKEN_COOKIE_NAME,
           description:
-            'Identity access token (15 min) - Used for tenant selection and system admin operations',
+            'Short-lived identity access token - Used for tenant selection and system admin operations',
         },
         IDENTITY_TOKEN_COOKIE_NAME,
       )
@@ -246,7 +247,7 @@ async function bootstrap() {
           in: 'cookie',
           name: IDENTITY_REFRESH_TOKEN_COOKIE_NAME,
           description:
-            'Identity refresh token (14 days) - Used to renew identity access tokens',
+            'Long-lived identity refresh token - Used to renew identity access tokens',
         },
         IDENTITY_REFRESH_TOKEN_COOKIE_NAME,
       )
@@ -257,7 +258,7 @@ async function bootstrap() {
           in: 'cookie',
           name: TENANT_ACCESS_TOKEN_COOKIE_NAME,
           description:
-            'Tenant access token (30 min) - Used for tenant-scoped API operations',
+            'Short-lived tenant access token - Used for tenant-scoped API operations',
         },
         TENANT_ACCESS_TOKEN_COOKIE_NAME,
       )
@@ -268,7 +269,7 @@ async function bootstrap() {
           in: 'cookie',
           name: TENANT_REFRESH_TOKEN_COOKIE_NAME,
           description:
-            'Tenant refresh token (14 days) - Used to renew tenant access tokens',
+            'Long-lived tenant refresh token - Used to renew tenant access tokens',
         },
         TENANT_REFRESH_TOKEN_COOKIE_NAME,
       )

@@ -223,7 +223,7 @@ Or if using Docker:
 
 ```bash
 # Start PostgreSQL container
-pnpm docker:start
+pnpm services:up
 
 # Wait for database to be ready
 ./scripts/wait-for-db.sh

@@ -117,7 +117,7 @@ docker-compose ps  # Shows health status
 **Usage:**
 ```bash
 pnpm dev              # Starts services + API with hot-reload
-pnpm docker:start     # Starts only Docker services
+pnpm services:up      # Starts infrastructure services
 pnpm start:dev        # Starts only API (requires services running)
 ```
 
@@ -216,7 +216,7 @@ redis:
 
 ```bash
 # Start services
-pnpm docker:start
+pnpm services:up
 
 # Expected output:
 # ✅ PostgreSQL (with pgvector) is ready!
@@ -259,25 +259,17 @@ pnpm docker:start
 ## Docker Commands Reference
 
 ```bash
-# Start all services
-pnpm docker:start
-
-# Start services with pgAdmin
-pnpm docker:services:tools
+# Start all infrastructure services (PostgreSQL, Redis, pgAdmin)
+pnpm services:up
 
 # Stop all services
-pnpm docker:stop
-
-# Remove all services and volumes (⚠️  destructive)
-pnpm docker:down
+pnpm services:down
 
 # View logs
-pnpm docker:logs              # All services
-pnpm docker:logs:postgres     # PostgreSQL only
-docker logs complytude-redis  # Redis
+docker-compose logs -f
 
 # Reset everything (⚠️  destructive - removes all data)
-pnpm docker:reset
+pnpm services:reset
 ```
 
 ---
@@ -301,7 +293,7 @@ All acceptance criteria have been implemented and validated:
 1. **Start Docker Desktop** (if not running)
 2. **Test the setup:**
    ```bash
-   pnpm docker:start
+   pnpm services:up
    ```
 3. **Verify all services** are healthy
 4. **Update Linear issue** to "Done" status

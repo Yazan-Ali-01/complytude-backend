@@ -526,10 +526,12 @@ Complytude implements a sophisticated dual-token authentication system that sepa
 
 The system uses **four distinct token types**:
 
-1. **Identity Access Token:** Short-lived (15 minutes), contains user identity (userId, email, `isVerified`), and global roles, used for tenant selection and system admin operations
-2. **Identity Refresh Token:** Long-lived (14 days), used to obtain new identity access tokens
-3. **Tenant Access Token:** Short-lived (30 minutes), contains user + tenant info, used for tenant-scoped API access
-4. **Tenant Refresh Token:** Long-lived (14 days), tenant-specific, used to obtain new tenant access tokens
+1. **Identity Access Token:** Short-lived, contains user identity (userId, email, `isVerified`), and global roles, used for tenant selection and system admin operations
+2. **Identity Refresh Token:** Long-lived, used to obtain new identity access tokens
+3. **Tenant Access Token:** Short-lived, contains user + tenant info, used for tenant-scoped API access
+4. **Tenant Refresh Token:** Long-lived, tenant-specific, used to obtain new tenant access tokens
+
+> Token lifetimes are configured via environment variables (`JWT_IDENTITY_EXPIRES_IN`, `JWT_ACCESS_EXPIRES_IN`, etc.).
 
 All tokens are stored in HTTP-only cookies. **Session validity** for refresh and access is enforced via **Redis** (`sessionId` in each JWT): deleting a session revokes tokens immediately; refresh re-issues access tokens without PostgreSQL refresh-token rows.
 

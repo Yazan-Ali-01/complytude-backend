@@ -88,7 +88,7 @@ export class RedisService implements OnModuleDestroy {
         }
         try {
           results.push(JSON.parse(v) as T);
-        } catch (_err) {
+        } catch {
           results.push(null);
         }
       }

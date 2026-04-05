@@ -214,12 +214,14 @@ app.enableVersioning({
 
 The application uses **HTTP-only cookies** for JWT token management with a **dual-token system**:
 
-| Cookie Name            | Purpose                    | Lifetime | Usage                                                  |
-| ---------------------- | -------------------------- | -------- | ------------------------------------------------------ |
-| `identityAccessToken`  | User identity verification | 15 min   | Identity-based operations, tenant selection, sys admin |
-| `identityRefreshToken` | Identity token renewal     | 14 days  | Used at `/auth/refresh/identity` endpoint              |
-| `tenantAccessToken`    | Tenant-scoped API access   | 30 min   | Sent with tenant-specific API requests                 |
-| `tenantRefreshToken`   | Tenant token renewal       | 14 days  | Used at `/auth/refresh/tenant` endpoint                |
+| Cookie Name            | Purpose                    | Lifetime    | Usage                                                  |
+| ---------------------- | -------------------------- | ----------- | ------------------------------------------------------ |
+| `identityAccessToken`  | User identity verification | Short-lived | Identity-based operations, tenant selection, sys admin |
+| `identityRefreshToken` | Identity token renewal     | Long-lived  | Used at `/auth/refresh/identity` endpoint              |
+| `tenantAccessToken`    | Tenant-scoped API access   | Short-lived | Sent with tenant-specific API requests                 |
+| `tenantRefreshToken`   | Tenant token renewal       | Long-lived  | Used at `/auth/refresh/tenant` endpoint                |
+
+> Token lifetimes are configured via environment variables (`JWT_IDENTITY_EXPIRES_IN`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `JWT_IDENTITY_REFRESH_EXPIRES_IN`).
 
 Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `tenant-session:{id}`). Guards verify the session still exists (with graceful degradation if Redis is unavailable). Refresh endpoints re-issue **access** tokens only; refresh JWTs are not rotated in PostgreSQL.
 
@@ -255,7 +257,7 @@ Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `te
    ↓
 6. Browser automatically sends appropriate tokens with requests
    ↓
-7. Tenant access token expires after 30 minutes
+7. Tenant access token expires (per `JWT_ACCESS_EXPIRES_IN`)
    ↓
 8. Client calls /auth/refresh/tenant
    ↓
@@ -377,8 +379,8 @@ After completing this flow, users have full tenant access with tenant tokens set
 - After **Login**: Check if `tenants.length === 0` to determine if user needs onboarding
 - After **Create Organization**: Must immediately call **Switch Tenant** to activate the tenant
 - **Limbo State**: User is logged in (identity token valid) but not in any tenant (no tenant token) - show onboarding UI
-- **Identity Token Lifetime**: 15 minutes - refresh using `/auth/refresh/identity` endpoint
-- **Tenant Token Lifetime**: 30 minutes - refresh using `/auth/refresh/tenant` endpoint
+- **Identity Token Lifetime**: Configured via `JWT_IDENTITY_EXPIRES_IN` - refresh using `/auth/refresh/identity` endpoint
+- **Tenant Token Lifetime**: Configured via `JWT_ACCESS_EXPIRES_IN` - refresh using `/auth/refresh/tenant` endpoint
 
 ### Step 1: Register New User Account
 
@@ -526,10 +528,10 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 **Cookies Set:**
 
-| Cookie                 | Value | Lifetime | HttpOnly |
-| ---------------------- | ----- | -------- | -------- |
-| `identityAccessToken`  | JWT   | 15 min   | Yes      |
-| `identityRefreshToken` | JWT   | 14 days  | Yes      |
+| Cookie                 | Value | Lifetime    | HttpOnly |
+| ---------------------- | ----- | ----------- | -------- |
+| `identityAccessToken`  | JWT   | Short-lived | Yes      |
+| `identityRefreshToken` | JWT   | Long-lived  | Yes      |
 
 **Error Responses:**
 
@@ -734,8 +736,8 @@ Optional alternative to email + password. When the corresponding env vars are un
 
 | Cookie                 | Value     | Lifetime    | HttpOnly |
 | ---------------------- | --------- | ----------- | -------- |
-| `tenantAccessToken`    | JWT       | 30 min      | Yes      |
-| `tenantRefreshToken`   | JWT       | 14 days     | Yes      |
+| `tenantAccessToken`    | JWT       | Short-lived | Yes      |
+| `tenantRefreshToken`   | JWT       | Long-lived  | Yes      |
 | `identityAccessToken`  | Unchanged | Still valid | Yes      |
 | `identityRefreshToken` | Unchanged | Still valid | Yes      |
 

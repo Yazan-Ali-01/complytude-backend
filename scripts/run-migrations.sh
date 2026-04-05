@@ -45,7 +45,7 @@ if ! PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgre
     echo -e "${RED}❌ Cannot connect to PostgreSQL${NC}"
     echo ""
     echo "Please check:"
-    echo "  1. Docker is running: pnpm docker:start"
+    echo "  1. Docker is running: pnpm services:up"
     echo "  2. Database credentials in apps/api/.env"
     echo "  3. PostgreSQL is accessible on ${DB_HOST}:${DB_PORT}"
     exit 1

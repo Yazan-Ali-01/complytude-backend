@@ -14,10 +14,10 @@ export const COOKIE_SAME_SITE = 'strict' as const;
  * Swagger decorator for cookie-based authentication
  * The application uses HTTP-only cookies for JWT tokens
  *
- * Identity Access Token: Short-lived token (15 minutes) for tenant selection and system admin operations
- * Identity Refresh Token: Long-lived token (14 days) for renewing identity access tokens
- * Tenant Access Token: Short-lived token (30 minutes) for tenant-scoped API access
- * Tenant Refresh Token: Long-lived token (14 days) for renewing tenant access tokens
+ * Identity Access Token: Short-lived token for tenant selection and system admin operations
+ * Identity Refresh Token: Long-lived token for renewing identity access tokens
+ * Tenant Access Token: Short-lived token for tenant-scoped API access
+ * Tenant Refresh Token: Long-lived token for renewing tenant access tokens
  *
  * Authentication Flow:
  * 1. Login with credentials → Receives identity access + identity refresh tokens

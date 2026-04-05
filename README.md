@@ -188,60 +188,13 @@ pnpm dev:all   # Start all apps (API + workers)
 
 ✅ **Best for:** Active development, fast iteration, easy debugging
 
-#### Option 2: Fully Dockerized - Development Mode
-
-**Everything in containers with hot-reload:** API + Workers + PostgreSQL + Redis all in Docker
-
-```bash
-# Build development image
-pnpm docker:dev:build
-
-# Start everything with hot-reload
-pnpm docker:dev
-
-# Or run in background
-pnpm docker:dev:up
-
-# View logs
-pnpm docker:dev:logs
-
-# Stop
-pnpm docker:dev:down
-```
-
-✅ **Best for:** Development with Docker, team consistency, avoiding local Node.js issues
-
-#### Option 3: Fully Dockerized - Production Mode
-
-**Optimized production build:** Everything in containers with production optimizations
-
-```bash
-# Build production image
-pnpm docker:prod:build
-
-# Start production build
-pnpm docker:prod
-
-# Or run in background
-pnpm docker:prod:up
-
-# View logs
-pnpm docker:prod:logs
-
-# Stop
-pnpm docker:prod:down
-```
-
-✅ **Best for:** Staging deployments, CI/CD, production-like environment
-
 **Comparison:**
 
-| Aspect              | Hybrid (Local) | Docker Dev | Docker Prod   |
-| ------------------- | -------------- | ---------- | ------------- |
-| **Hot Reload**      | ✅ Fast        | ✅ Fast    | ❌ No         |
-| **Debugging**       | ✅ Native      | ✅ Good    | ⚠️ Limited    |
-| **Startup**         | ⚡ ~5s         | 🐌 ~30s    | 🐌 ~30s       |
-| **Production-like** | ⚠️ Partial     | ⚠️ Partial | ✅ Identical  |
+| Aspect              | Hybrid (Local) |
+| ------------------- | -------------- |
+| **Hot Reload**      | ✅ Fast        |
+| **Debugging**       | ✅ Native      |
+| **Startup**         | ⚡ ~5s         |
 | **Build Size**      | N/A            | ~300MB     | ~150MB        |
 | **Security**        | N/A            | Root user  | Non-root user |
 
@@ -373,9 +326,6 @@ PGADMIN_PORT=5050
 **📝 Notes:**
 
 - Main configuration is in `apps/api/.env` (shared by all apps)
-- When using fully dockerized mode (`pnpm docker:dev` or `pnpm docker:prod`), Docker Compose automatically overrides:
-  - `DB_HOST` → `postgres`
-  - `REDIS_HOST` → `redis`
 - For production configuration, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
@@ -409,30 +359,15 @@ pnpm start:worker-ai:prod   # Run AI worker in production
 pnpm start:worker-ingestion:prod # Run ingestion worker in production
 pnpm start:all:prod         # Run all apps in production
 
-# Services Only (Hybrid Mode)
-pnpm docker:start           # Start PostgreSQL + Redis
-pnpm docker:services        # Same as above
-pnpm docker:stop            # Stop services (keeps data)
-pnpm docker:down            # Stop and remove containers
+# Infrastructure Services (PostgreSQL, Redis, etc.)
+pnpm services:up            # Start all infrastructure services
+pnpm services:down          # Stop services
+pnpm services:reset         # Wipe volumes and re-migrate (⚠️ destructive)
 
 # Database
 pnpm db:migrate             # Run database migrations
 pnpm db:seed                # Seed database with initial data
 pnpm db:setup:full          # Run migrations + seeds (complete setup)
-
-# Docker - Development Mode (API + Services)
-pnpm docker:dev             # Start everything with hot-reload
-pnpm docker:dev:up          # Start in background
-pnpm docker:dev:down        # Stop and remove containers
-pnpm docker:dev:logs        # View API logs
-pnpm docker:dev:build       # Rebuild development image
-
-# Docker - Production Mode (API + Services)
-pnpm docker:prod            # Start production build
-pnpm docker:prod:up         # Start in background
-pnpm docker:prod:down       # Stop and remove containers
-pnpm docker:prod:logs       # View API logs
-pnpm docker:prod:build      # Rebuild production image
 
 # Code quality
 pnpm lint                   # ESLint with auto-fix
@@ -543,7 +478,7 @@ See [cursor-rules.mdc](.cursor/rules/cursor-rules.mdc) for detailed instructions
 **Services not starting?**
 
 ```bash
-pnpm docker:stop && pnpm docker:start
+pnpm services:down && pnpm services:up
 ```
 
 **Port already in use?**
@@ -556,7 +491,7 @@ PORT=3001
 **Database issues?**
 
 ```bash
-pnpm docker:reset      # ⚠️ Deletes all data
+pnpm services:reset    # ⚠️ Deletes all data
 pnpm db:migrate
 ```
 

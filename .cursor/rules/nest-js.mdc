@@ -209,11 +209,11 @@ authentication:
 strategy: "Dual-token JWT authentication"
 tokens:
 identity:
-access: "15 minutes (identityAccessToken cookie)"
+access: "Short-lived (identityAccessToken cookie, see JWT_IDENTITY_EXPIRES_IN)"
 refresh: "14 days (identityRefreshToken cookie)"
 usage: "User identity verification, tenant selection, system admin operations"
 tenant:
-access: "30 minutes (tenantAccessToken cookie)"
+access: "Short-lived (tenantAccessToken cookie, see JWT_ACCESS_EXPIRES_IN)"
 refresh: "14 days (tenantRefreshToken cookie)"
 usage: "Tenant-scoped API access"
 

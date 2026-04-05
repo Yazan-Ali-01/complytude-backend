@@ -1,5 +1,6 @@
 import { DatabaseService } from '@lib/database';
 import {
+  ENTITLEMENT_JOB_NAMES,
   GENERATION_JOB_NAMES,
   QUEUE_NAMES,
   QueueProducerService,
@@ -227,21 +228,29 @@ export class DocumentPreviewService {
           },
         );
 
-      await this.queueProducerService.enqueue(
-        QUEUE_NAMES.DOCUMENT_GENERATION,
-        GENERATION_JOB_NAMES.DOCUMENT_GENERATION,
-        {
-          generationJobId: generationJob.id,
-          templateId: template.id,
-          templateVersionId: templateVersion.id,
-          templateVersion: targetVersion,
-          variables: validatedVariables,
-          tenantId: user.tenantId,
-          userId: user.userId,
-          jobType: 'generate',
-        },
-        { jobId: `generate-${generationJob.id}` },
-      );
+      try {
+        await this.queueProducerService.enqueue(
+          QUEUE_NAMES.DOCUMENT_GENERATION,
+          GENERATION_JOB_NAMES.DOCUMENT_GENERATION,
+          {
+            generationJobId: generationJob.id,
+            templateId: template.id,
+            templateVersionId: templateVersion.id,
+            templateVersion: targetVersion,
+            variables: validatedVariables,
+            tenantId: user.tenantId,
+            userId: user.userId,
+            jobType: 'generate',
+          },
+          { jobId: `generate-${generationJob.id}` },
+        );
+      } catch (enqueueError) {
+        this.logger.error(
+          `Generate enqueue failed after entitlement deduction: generationJobId=${generationJob.id} tenantId=${user.tenantId} error=${enqueueError instanceof Error ? enqueueError.message : String(enqueueError)}`,
+        );
+        await this.refundUsageOnEnqueueFailure(generationJob.id, user.tenantId);
+        throw enqueueError;
+      }
 
       this.logger.log(
         `Enqueued generate job: generationJobId=${generationJob.id} templateKey=${dto.templateKey} version=${targetVersion} tenantId=${user.tenantId}`,
@@ -257,7 +266,7 @@ export class DocumentPreviewService {
         throw error;
       }
       this.logger.error(
-        `Generate enqueue failed: templateKey=${dto.templateKey} version=${targetVersion} tenantId=${user.tenantId} error=${error instanceof Error ? error.message : String(error)}`,
+        `Generate failed: templateKey=${dto.templateKey} version=${targetVersion} tenantId=${user.tenantId} error=${error instanceof Error ? error.message : String(error)}`,
       );
       throw new InternalServerErrorException(
         this.i18n.t(DocumentsI18n.errors.DOCUMENT_GENERATION_FAILED),
@@ -295,6 +304,38 @@ export class DocumentPreviewService {
     dto.result = job.result;
     dto.error = job.error;
     return dto;
+  }
+
+  /**
+   * Best-effort refund when enqueue fails after the transaction committed.
+   * Enqueues the same USAGE_REFUND job the worker uses so the refund handler
+   * can void the ledger entry and rebuild the projection.
+   */
+  private async refundUsageOnEnqueueFailure(
+    generationJobId: string,
+    tenantId: string,
+  ): Promise<void> {
+    try {
+      await this.queueProducerService.enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.USAGE_REFUND,
+        {
+          tenantId,
+          resourceId: generationJobId,
+          resourceType: 'generation_job',
+          featureKey: 'documents_per_month',
+          units: 1,
+        },
+        { jobId: `usage-refund-enqueue-fail-${generationJobId}` },
+      );
+      this.logger.log(
+        `Enqueued USAGE_REFUND after enqueue failure: generationJobId=${generationJobId} tenantId=${tenantId}`,
+      );
+    } catch (refundError) {
+      this.logger.error(
+        `Failed to enqueue USAGE_REFUND after enqueue failure: generationJobId=${generationJobId} tenantId=${tenantId} error=${refundError instanceof Error ? refundError.message : String(refundError)}`,
+      );
+    }
   }
 
   private isTemplateTier(value: string): value is TemplateTier {

@@ -298,19 +298,14 @@ SELECT * FROM public.documents;
 ### Docker Management
 
 ```bash
-# Start PostgreSQL
-npm run docker:start
-# or
-./scripts/docker-start.sh
+# Start infrastructure services (PostgreSQL, Redis, etc.)
+pnpm services:up
 
-# Stop PostgreSQL
-npm run docker:stop
-
-# View logs
-npm run docker:logs
+# Stop services
+pnpm services:down
 
 # Reset database (⚠️ deletes all data)
-npm run docker:reset
+pnpm services:reset
 ```
 
 ### Role Setup
@@ -411,7 +406,7 @@ sudo apt install postgresql-client
 2. Start database:
 
    ```bash
-   npm run docker:start
+   pnpm services:up
    ```
 
 3. Wait for readiness:
@@ -547,7 +542,7 @@ cp .env.example .env
 # Edit .env with your settings
 
 # 4. Start database
-npm run docker:start
+pnpm services:up
 
 # 5. Setup database
 ./scripts/setup-database.sh development
@@ -564,14 +559,8 @@ open http://localhost:3000/docs
 ⚠️ **Warning: Deletes all data**
 
 ```bash
-# Stop and remove database
-npm run docker:reset
-
-# Start fresh database
-npm run docker:start
-
-# Run migrations and seeds
-./scripts/setup-database.sh development
+# Wipe volumes, restart services, and re-migrate
+pnpm services:reset
 ```
 
 ### Add New Authority
@@ -641,7 +630,7 @@ VALUES ('user-id', 'tenant-id', 'tenant_admin');
 
 1. Read [QUICK_START.md](./QUICK_START.md)
 2. Check error messages carefully
-3. Review PostgreSQL logs: `npm run docker:logs`
+3. Verify services are running: `pnpm services:up`
 4. Verify `.env` configuration
 5. Test connection: `psql -d complytude -c "SELECT 1;"`
 6. Check migration status: `SELECT * FROM schema_migrations;`

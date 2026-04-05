@@ -4,10 +4,12 @@
 
 **Authentication Note:** This API uses a dual-token authentication flow with four token types:
 
-- `identityAccessToken` - Short-lived (15 min) token for user identity verification and system admin operations
-- `identityRefreshToken` - Long-lived (14 days) token for renewing identity access tokens
-- `tenantAccessToken` - Short-lived (30 min) token for tenant-scoped API access
-- `tenantRefreshToken` - Long-lived (14 days) token for renewing tenant access tokens
+- `identityAccessToken` - Short-lived token for user identity verification and system admin operations
+- `identityRefreshToken` - Long-lived token for renewing identity access tokens
+- `tenantAccessToken` - Short-lived token for tenant-scoped API access
+- `tenantRefreshToken` - Long-lived token for renewing tenant access tokens
+
+> Token lifetimes are configured via environment variables (`JWT_*_EXPIRES_IN`).
 
 ---
 

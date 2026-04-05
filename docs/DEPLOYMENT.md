@@ -60,7 +60,7 @@ Complytude supports two Docker deployment approaches to fit different workflows 
 | **Production-like**     | ⚠️ Partial                | ✅ Identical to Production              |
 | **Startup Time**        | ⚡ Fast                   | 🐌 Slower (image build)                 |
 | **Best For**            | Active Development        | Staging Deployments, CI/CD              |
-| **Command**             | `pnpm dev`                | `pnpm docker:dev` or `pnpm docker:prod` |
+| **Command**             | `pnpm dev`                | `docker-compose -f docker-compose.yml -f docker-compose.dev.yml up` |
 
 ### Approach 1: Hybrid Mode (Recommended for Development)
 
@@ -90,7 +90,7 @@ pnpm dev:all
 pnpm dev
   → scripts/start-dev.sh
     → Checks if Docker services are running
-    → Starts PostgreSQL, Redis if needed (pnpm docker:start)
+    → Starts PostgreSQL, Redis if needed (pnpm services:up)
     → Runs pnpm start:api (API with hot-reload)
 
 pnpm dev:all
@@ -141,11 +141,8 @@ pnpm start:worker-ingestion:debug
 If you prefer manual control over services:
 
 ```bash
-# Start infrastructure services only
-pnpm docker:start
-
-# Start services with pgAdmin
-pnpm docker:services:tools
+# Start infrastructure services (PostgreSQL, Redis, pgAdmin, etc.)
+pnpm services:up
 
 # Start applications manually
 pnpm start:api
@@ -153,7 +150,7 @@ pnpm start:worker-ai
 pnpm start:worker-ingestion
 
 # Stop services
-pnpm docker:stop
+pnpm services:down
 ```
 
 ---
@@ -181,45 +178,36 @@ pnpm docker:stop
 **Development Mode (with hot-reload):**
 
 ```bash
-# Build development image (includes dev dependencies)
-pnpm docker:dev:build
+# Build development image
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml build
 
 # Start all services in development mode
-pnpm docker:dev
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 # Or run in detached mode
-pnpm docker:dev:up
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 # View logs
-pnpm docker:dev:logs
-
-# Restart API after changes
-pnpm docker:dev:restart
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f api
 
 # Stop everything
-pnpm docker:dev:down
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
 ```
 
 **Production Mode (optimized):**
 
 ```bash
-# Build production image (minimal, ~150MB)
-pnpm docker:prod:build
+# Build production image (~150MB)
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
 
 # Start all services in production mode
-pnpm docker:prod
-
-# Or run in detached mode
-pnpm docker:prod:up
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # View logs
-pnpm docker:prod:logs
-
-# Restart API
-pnpm docker:prod:restart
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f api
 
 # Stop everything
-pnpm docker:prod:down
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
 ```
 
 **Dockerfile Multi-Stage Build:**
@@ -257,7 +245,7 @@ You don't need to change your `.env` file between modes!
 docker ps
 
 # View logs from API
-pnpm docker:dev:logs  # or pnpm docker:prod:logs
+docker-compose logs -f api
 
 # Check health
 curl http://localhost:3000/api/health
@@ -266,14 +254,11 @@ curl http://localhost:3000/api/health
 **Stopping Services:**
 
 ```bash
-# Development mode
-pnpm docker:dev:down
-
-# Production mode
-pnpm docker:prod:down
+# Stop infrastructure services
+pnpm services:down
 
 # Stop all services and remove data (fresh start)
-pnpm docker:reset
+pnpm services:reset
 ```
 
 ---
@@ -297,17 +282,14 @@ pnpm docker:reset
 **Starting specific services:**
 
 ```bash
-# Infrastructure services only (default - hybrid mode)
-docker-compose up -d
-
-# Infrastructure + pgAdmin
-pnpm docker:services:tools
+# Infrastructure services only (PostgreSQL, Redis, pgAdmin)
+pnpm services:up
 
 # Development mode (infrastructure + API with hot-reload)
-pnpm docker:dev
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 # Production mode (infrastructure + API optimized)
-pnpm docker:prod
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 ---
@@ -325,9 +307,9 @@ docker build -f apps/api/Dockerfile -t complytude-api:latest --target production
 # Development build (includes dev dependencies)
 docker build -f apps/api/Dockerfile -t complytude-api:dev --target development .
 
-# Using pnpm scripts (recommended)
-pnpm docker:prod:build  # Production
-pnpm docker:dev:build   # Development
+# Using docker-compose
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml build  # Production
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml build   # Development
 ```
 
 **Image Optimization Features:**
@@ -436,7 +418,7 @@ PGADMIN_PORT=5050
 
 **Automatic Configuration:**
 
-Docker Compose automatically overrides environment variables for container networking. When you run `pnpm docker:dev` or `pnpm docker:prod`, it automatically overrides:
+Docker Compose automatically overrides environment variables for container networking when running fully dockerized mode:
 
 - `DB_HOST` → `postgres`
 - `REDIS_HOST` → `redis`
@@ -456,23 +438,20 @@ See [Environment Variables](#environment-variables) section below for production
 docker info
 
 # View logs for all services
-pnpm docker:logs
+docker-compose logs -f
 
 # View specific service logs
-pnpm docker:logs:postgres
+docker-compose logs -f postgres
+
 # Restart services
-pnpm docker:stop
-pnpm docker:start
+pnpm services:down && pnpm services:up
 ```
 
 **API container failing in Docker mode?**
 
 ```bash
-# Development mode
-pnpm docker:dev:logs
-
-# Production mode
-pnpm docker:prod:logs
+# View API logs
+docker-compose logs -f api
 
 # Common issues:
 # 1. Database not ready - wait a few seconds
@@ -481,8 +460,8 @@ pnpm docker:prod:logs
 # 4. Port conflict - change PORT in .env
 
 # Rebuild if code changes aren't reflected
-pnpm docker:dev:build    # or pnpm docker:prod:build
-pnpm docker:dev:up       # or pnpm docker:prod:up
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml build && \
+  docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
 **Workers not processing jobs?**
@@ -497,7 +476,7 @@ pnpm start:worker-ingestion
 
 # In Docker mode, workers run inside the API container
 # Check logs for worker activity
-pnpm docker:dev:logs | grep -i worker
+docker-compose logs -f api | grep -i worker
 ```
 
 **Port conflicts?**
@@ -508,20 +487,14 @@ PORT=3001
 DB_PORT=5433
 REDIS_PORT=6380
 # Restart services
-pnpm docker:stop
-pnpm docker:start
+pnpm services:down && pnpm services:up
 ```
 
 **Need a completely fresh start?**
 
 ```bash
 # Nuclear option: delete everything and start fresh
-pnpm docker:reset
-pnpm db:migrate
-
-# For Docker mode
-pnpm docker:dev:build    # or pnpm docker:prod:build
-pnpm docker:dev:up       # or pnpm docker:prod:up
+pnpm services:reset
 ```
 
 **Volume permission issues (Linux)?**
@@ -990,7 +963,7 @@ node -e "console.log(process.env)"
 pnpm start:api
 
 # Check logs (Docker mode)
-pnpm docker:dev:logs  # or pnpm docker:prod:logs
+docker-compose logs -f api
 ```
 
 **Workers Not Processing Jobs**

@@ -41,7 +41,12 @@ export class JwtAuthRefreshGuard implements CanActivate {
       return false;
     }
 
-    const req = context.switchToHttp().getRequest();
+    const req: {
+      auth: {
+        identity?: { sessionId?: string };
+        tenant?: { sessionId?: string };
+      };
+    } = context.switchToHttp().getRequest();
     req.auth = {};
 
     if (authOptions.tenant) {

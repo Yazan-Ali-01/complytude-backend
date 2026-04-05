@@ -7,7 +7,7 @@ echo ""
 
 # Start services
 echo "📦 Starting services (PostgreSQL + Redis)..."
-pnpm docker:start || exit 1
+pnpm services:up || exit 1
 
 echo ""
 echo "⏳ Waiting for database to be ready..."

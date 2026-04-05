@@ -37,7 +37,7 @@ fi
 if [ "$postgres_running" = false ] || [ "$redis_running" = false ]; then
     echo ""
     echo "🚀 Starting services..."
-    pnpm docker:start || exit 1
+    pnpm services:up || exit 1
 fi
 
 echo ""

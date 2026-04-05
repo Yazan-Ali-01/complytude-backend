@@ -3,15 +3,12 @@ name: complytude
 # ============================================
 # Base Docker Compose Configuration
 # ============================================
-# This file contains shared services (PostgreSQL, Redis, pgAdmin)
+# This file contains shared infrastructure services (PostgreSQL, Redis, pgAdmin)
 #
 # Usage:
-#   Development: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
-#
-# Or use the npm scripts:
-#   pnpm docker:dev
-#   pnpm docker:prod
+#   pnpm services:up    - Start all infrastructure services
+#   pnpm services:down  - Stop all services
+#   pnpm services:reset - Wipe volumes and re-migrate
 # ============================================
 
 services:
@@ -112,6 +109,8 @@ services:
         condition: service_healthy
     networks:
       - complytude-network
+    profiles:
+      - workers
 
 
 volumes:

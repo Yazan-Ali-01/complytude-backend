@@ -250,7 +250,7 @@ pnpm db:seed         # Seed database with initial/test data
 pnpm db:setup:full   # Run migrations + seeds (complete setup)
 
 # Database Reset
-pnpm docker:reset    # ⚠️ Reset database (deletes all data)
+pnpm services:reset  # ⚠️ Reset database (deletes all data)
 ```
 
 **When to seed:**
