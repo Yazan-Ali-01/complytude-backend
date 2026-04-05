@@ -168,7 +168,7 @@ jobs:
     needs: quality
     strategy:
       matrix:
-        app: [api, worker-ai, worker-ingestion]
+        app: [api, worker-ai, worker-ingestion, worker-generation]
     steps:
       - uses: actions/checkout@v4
 
@@ -226,6 +226,11 @@ jobs:
             --service complytude-staging-worker-ingestion \
             --force-new-deployment
 
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service complytude-staging-worker-generation \
+            --force-new-deployment
+
       - name: Wait for all services to stabilize
         run: |
           echo "Waiting for API service..."
@@ -245,3 +250,9 @@ jobs:
             --cluster ${{ env.ECS_CLUSTER }} \
             --services complytude-staging-worker-ingestion
           echo "Worker Ingestion service is stable!"
+
+          echo "Waiting for Worker Generation service..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services complytude-staging-worker-generation
+          echo "Worker Generation service is stable!"
