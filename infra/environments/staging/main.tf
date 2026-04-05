@@ -215,8 +215,7 @@ module "ecs" {
     NODE_ENV       = "production"
     LOG_LEVEL      = "info"
     SERVICE_NAME   = "gateway"
-    # Gotenberg sidecar — same task = shared network namespace
-    GOTENBERG_URL  = "http://localhost:3000"
+    GOTENBERG_URL  = "http://localhost:3100"
   }
   worker_ai_environment = {
     NODE_ENV      = "production"
@@ -232,8 +231,7 @@ module "ecs" {
     NODE_ENV       = "production"
     LOG_LEVEL      = "info"
     SERVICE_NAME   = "worker-generation"
-    # Gotenberg sidecar — same task = shared network namespace
-    GOTENBERG_URL  = "http://localhost:3000"
+    GOTENBERG_URL  = "http://localhost:3100"
   }
 
   api_desired_count               = var.ecs_api_desired_count

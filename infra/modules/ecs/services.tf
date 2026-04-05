@@ -122,8 +122,7 @@ resource "aws_ecs_task_definition" "api" {
       name      = "gotenberg"
       image     = "gotenberg/gotenberg:8"
       essential = false
-
-      # No portMappings needed — API reaches it on localhost:3000 (shared network namespace)
+      command   = ["gotenberg", "--api-port=3100"]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -135,7 +134,7 @@ resource "aws_ecs_task_definition" "api" {
       }
 
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:3100/health || exit 1"]
         interval    = 10
         timeout     = 5
         retries     = 3
@@ -373,6 +372,7 @@ resource "aws_ecs_task_definition" "worker_generation" {
       name      = "gotenberg-generation"
       image     = "gotenberg/gotenberg:8"
       essential = false
+      command   = ["gotenberg", "--api-port=3100"]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -384,7 +384,7 @@ resource "aws_ecs_task_definition" "worker_generation" {
       }
 
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:3100/health || exit 1"]
         interval    = 10
         timeout     = 5
         retries     = 3
