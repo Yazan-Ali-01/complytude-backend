@@ -45,6 +45,31 @@ openai_api_key = "sk-..."
 # Cohere — required for worker-ai reranking
 cohere_api_key = ""
 
+# ---- Worker AI Configuration ----
+worker_ai_concurrency         = 5
+worker_ai_max_retries         = 3
+worker_ai_retry_delay         = 5000
+worker_ai_max_processing_time = 300000
+
+openai_chat_model       = "gpt-4o-mini"
+openai_chat_max_tokens  = 4096
+openai_chat_temperature = 0.1
+openai_chat_timeout     = 120000
+
+openai_embedding_model      = "text-embedding-3-small"
+openai_embedding_dimensions = 1536
+openai_max_retries          = 3
+embedding_chunk_size        = 512
+embedding_chunk_overlap     = 50
+
+cohere_rerank_model = "rerank-v3.5"
+rerank_top_n        = 25
+
+rag_top_k_per_query    = 5
+rag_vector_limit       = 30
+rag_bm25_limit         = 30
+rag_max_hybrid_results = 40
+
 # ECS — image tag and desired counts
 ecs_image_tag                  = "latest"
 ecs_api_desired_count          = 1

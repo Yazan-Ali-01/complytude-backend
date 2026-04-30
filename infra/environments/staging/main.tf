@@ -218,9 +218,33 @@ module "ecs" {
     GOTENBERG_URL  = "http://localhost:3100"
   }
   worker_ai_environment = {
-    NODE_ENV      = "production"
-    LOG_LEVEL     = "info"
-    SERVICE_NAME  = "worker-ai"
+    NODE_ENV     = "production"
+    LOG_LEVEL    = "info"
+    SERVICE_NAME = "worker-ai"
+
+    WORKER_AI_CONCURRENCY         = tostring(var.worker_ai_concurrency)
+    WORKER_AI_MAX_RETRIES         = tostring(var.worker_ai_max_retries)
+    WORKER_AI_RETRY_DELAY         = tostring(var.worker_ai_retry_delay)
+    WORKER_AI_MAX_PROCESSING_TIME = tostring(var.worker_ai_max_processing_time)
+
+    OPENAI_CHAT_MODEL       = var.openai_chat_model
+    OPENAI_CHAT_MAX_TOKENS  = tostring(var.openai_chat_max_tokens)
+    OPENAI_CHAT_TEMPERATURE = tostring(var.openai_chat_temperature)
+    OPENAI_CHAT_TIMEOUT     = tostring(var.openai_chat_timeout)
+
+    OPENAI_EMBEDDING_MODEL      = var.openai_embedding_model
+    OPENAI_EMBEDDING_DIMENSIONS = tostring(var.openai_embedding_dimensions)
+    OPENAI_MAX_RETRIES          = tostring(var.openai_max_retries)
+    EMBEDDING_CHUNK_SIZE        = tostring(var.embedding_chunk_size)
+    EMBEDDING_CHUNK_OVERLAP     = tostring(var.embedding_chunk_overlap)
+
+    COHERE_RERANK_MODEL = var.cohere_rerank_model
+    RERANK_TOP_N        = tostring(var.rerank_top_n)
+
+    RAG_TOP_K_PER_QUERY    = tostring(var.rag_top_k_per_query)
+    RAG_VECTOR_LIMIT       = tostring(var.rag_vector_limit)
+    RAG_BM25_LIMIT         = tostring(var.rag_bm25_limit)
+    RAG_MAX_HYBRID_RESULTS = tostring(var.rag_max_hybrid_results)
   }
   worker_ingestion_environment = {
     NODE_ENV      = "production"

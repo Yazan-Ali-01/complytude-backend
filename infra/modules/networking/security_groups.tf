@@ -67,25 +67,29 @@ resource "aws_security_group" "ecs" {
 }
 
 # ---- RDS Security Group ----
-# The database only accepts connections from app containers — completely hidden from the internet.
+# The database only accepts connections from app containers and bastion — completely hidden from the internet.
+# NOTE: Ingress rules are managed via separate aws_security_group_rule resources
+# to avoid conflicts with rules added by other modules (e.g. bastion).
 resource "aws_security_group" "rds" {
   name_prefix = "${var.project_name}-${var.environment}-rds-"
   description = "Security group for RDS PostgreSQL"
   vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs.id]
-    description     = "PostgreSQL from ECS only"
-  }
 
   tags = { Name = "${var.project_name}-${var.environment}-rds-sg" }
 
   lifecycle {
     create_before_destroy = true
   }
+}
+
+resource "aws_security_group_rule" "rds_from_ecs" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.ecs.id
+  security_group_id        = aws_security_group.rds.id
+  description              = "PostgreSQL from ECS"
 }
 
 # ---- Redis Security Group ----
