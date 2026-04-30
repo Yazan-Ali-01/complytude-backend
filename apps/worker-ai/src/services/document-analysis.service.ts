@@ -2,6 +2,7 @@ import { EmbeddingService, TextChunkerService } from '@lib/embedding';
 import type { DocumentAnalysisJobData } from '@lib/queue';
 import { PermanentError, RetryableError } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { ResponseFormatJSONSchema } from 'openai/resources/shared';
 import {
   AnalysisFinding,
@@ -16,11 +17,6 @@ import {
 import { LlmService } from './llm.service';
 import { PromptBuilderService } from './prompt-builder.service';
 import { RerankerService } from './reranker.service';
-
-const TOP_K_PER_QUERY = 5;
-const VECTOR_LIMIT = 30;
-const BM25_LIMIT = 30;
-const MAX_HYBRID_RESULTS = 20;
 
 const ANALYSIS_RESULT_SCHEMA: ResponseFormatJSONSchema.JSONSchema = {
   name: 'analysis_result',
@@ -60,6 +56,11 @@ const ANALYSIS_RESULT_SCHEMA: ResponseFormatJSONSchema.JSONSchema = {
 export class DocumentAnalysisService {
   private readonly logger = new Logger(DocumentAnalysisService.name);
 
+  private readonly topKPerQuery: number;
+  private readonly vectorLimit: number;
+  private readonly bm25Limit: number;
+  private readonly maxHybridResults: number;
+
   constructor(
     private readonly analysisJobWriteRepository: AnalysisJobWriteRepository,
     private readonly documentReadRepository: DocumentReadRepository,
@@ -69,10 +70,25 @@ export class DocumentAnalysisService {
     private readonly promptBuilderService: PromptBuilderService,
     private readonly llmService: LlmService,
     private readonly rerankerService: RerankerService,
-  ) {}
+    configService: ConfigService,
+  ) {
+    this.topKPerQuery = configService.get<number>(
+      'workerAi.ragTopKPerQuery',
+      5,
+    );
+    this.vectorLimit = configService.get<number>('workerAi.ragVectorLimit', 30);
+    this.bm25Limit = configService.get<number>('workerAi.ragBm25Limit', 30);
+    this.maxHybridResults = configService.get<number>(
+      'workerAi.ragMaxHybridResults',
+      40,
+    );
+  }
 
   async analyze(data: DocumentAnalysisJobData): Promise<void> {
     const { analysisJobId, documentId } = data;
+    const rulesetIds: string[] | undefined = Array.isArray(data.rulesetIds)
+      ? data.rulesetIds
+      : undefined;
 
     const job = await this.analysisJobWriteRepository
       .findById(analysisJobId)
@@ -112,7 +128,7 @@ export class DocumentAnalysisService {
 
     const pipelineStart = Date.now();
     try {
-      await this.runPipeline(analysisJobId, documentId);
+      await this.runPipeline(analysisJobId, documentId, rulesetIds);
       this.logger.log(
         `Pipeline completed in ${Date.now() - pipelineStart}ms for job=${analysisJobId}`,
       );
@@ -134,6 +150,7 @@ export class DocumentAnalysisService {
   private async runPipeline(
     analysisJobId: string,
     documentId: string,
+    rulesetIds?: string[],
   ): Promise<void> {
     const document = await this.documentReadRepository
       .findContentById(documentId)
@@ -156,8 +173,10 @@ export class DocumentAnalysisService {
       );
     }
 
+    const scoped = rulesetIds && rulesetIds.length > 0;
     this.logger.log(
-      `Starting RAG pipeline for job=${analysisJobId} document="${document.title}"`,
+      `Starting RAG pipeline for job=${analysisJobId} document="${document.title}"` +
+        (scoped ? ` scoped to ${rulesetIds.length} rulesets` : ' (global)'),
     );
 
     // Chunk the document text
@@ -184,10 +203,11 @@ export class DocumentAnalysisService {
       .hybridSearchBatch(
         embeddings.map((e) => e.embedding),
         bm25Query,
-        TOP_K_PER_QUERY,
-        VECTOR_LIMIT,
-        BM25_LIMIT,
-        MAX_HYBRID_RESULTS,
+        this.topKPerQuery,
+        this.vectorLimit,
+        this.bm25Limit,
+        this.maxHybridResults,
+        rulesetIds,
       )
       .catch((err: unknown) => {
         throw new RetryableError(

@@ -23,4 +23,6 @@ export interface DocumentAnalysisJobData {
   analysisJobId: string;
   documentId: string;
   tenantId: string;
+  /** When present, restrict RAG retrieval to chunks from these rulesets only. */
+  rulesetIds?: string[];
 }

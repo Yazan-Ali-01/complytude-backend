@@ -30,7 +30,13 @@ export const validationSchema = Joi.object({
   // Cohere Re-ranking
   COHERE_API_KEY: Joi.string().required(),
   COHERE_RERANK_MODEL: Joi.string().default('rerank-v3.5'),
-  RERANK_TOP_N: Joi.number().default(10),
+  RERANK_TOP_N: Joi.number().default(25),
+
+  // RAG Retrieval Tuning
+  RAG_TOP_K_PER_QUERY: Joi.number().default(5),
+  RAG_VECTOR_LIMIT: Joi.number().default(30),
+  RAG_BM25_LIMIT: Joi.number().default(30),
+  RAG_MAX_HYBRID_RESULTS: Joi.number().default(40),
 
   // Resource Limits
   WORKER_AI_MEMORY_LIMIT: Joi.string().default('2GB'),

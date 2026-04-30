@@ -20,6 +20,7 @@ import {
   Document,
   DocumentRepository,
 } from 'src/repositories/documents/document.repository';
+import { RulesetRepository } from 'src/repositories/rulesets/ruleset.repository';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
 import type { Tenant } from '../tenants/entities/tenant.entity';
@@ -85,6 +86,7 @@ export class DocumentsService {
     private readonly i18n: I18nService,
     private readonly tenantRepository: TenantRepository,
     private readonly userRepository: UserRepository,
+    private readonly rulesetRepository: RulesetRepository,
   ) {}
 
   async getGenerationContext(
@@ -136,6 +138,11 @@ export class DocumentsService {
     user: AuthenticatedTenantUser,
   ): Promise<AnalyzeDocumentResponseDto> {
     try {
+      const rulesetIds = await this.resolveRulesetIds(
+        dto.rulesetIds,
+        dto.rulesetKeys,
+      );
+
       const { documentId, analysisJobId } =
         await this.databaseService.transactionWithTenantContext(
           { tenantId: user.tenantId },
@@ -173,12 +180,20 @@ export class DocumentsService {
       await this.queueProducerService.enqueue(
         QUEUE_NAMES.AI_PROCESSING,
         AI_JOB_NAMES.DOCUMENT_ANALYSIS,
-        { analysisJobId, documentId, tenantId: user.tenantId },
+        {
+          analysisJobId,
+          documentId,
+          tenantId: user.tenantId,
+          ...(rulesetIds.length > 0 && { rulesetIds }),
+        },
         { jobId: `doc-analysis-${analysisJobId}` },
       );
 
       this.logger.log(
-        `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJobId} tenantId=${user.tenantId}`,
+        `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJobId} tenantId=${user.tenantId}` +
+          (rulesetIds.length > 0
+            ? ` scoped to ${rulesetIds.length} rulesets`
+            : ' (global search)'),
       );
 
       return { documentId, analysisJobId };
@@ -725,6 +740,32 @@ export class DocumentsService {
       message: this.i18n.t(DocumentsI18n.messages.DOCUMENT_DELETED),
       deletedAt,
     };
+  }
+
+  /**
+   * Merge explicit rulesetIds with IDs resolved from rulesetKeys.
+   * Returns deduplicated UUID array; empty array = global (unscoped) search.
+   */
+  private async resolveRulesetIds(
+    rulesetIds?: string[],
+    rulesetKeys?: string[],
+  ): Promise<string[]> {
+    const ids = new Set<string>(rulesetIds ?? []);
+
+    if (rulesetKeys?.length) {
+      const rulesets = await this.rulesetRepository.findByKeys(rulesetKeys);
+      for (const rs of rulesets) {
+        ids.add(rs.id);
+      }
+
+      const resolvedKeys = new Set(rulesets.map((r) => r.key));
+      const missing = rulesetKeys.filter((k) => !resolvedKeys.has(k));
+      if (missing.length > 0) {
+        this.logger.warn(`Ignoring unknown rulesetKeys: ${missing.join(', ')}`);
+      }
+    }
+
+    return Array.from(ids);
   }
 
   private mapToSummary(doc: Document): DocumentSummaryDto {

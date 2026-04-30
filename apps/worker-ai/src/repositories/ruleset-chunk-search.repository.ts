@@ -22,6 +22,7 @@ export class RulesetChunkSearchRepository {
    * 2. BM25 branch: tsvector @@ plainto_tsquery on the generated content_tsv column
    * 3. FULL OUTER JOIN + RRF scoring: 1/(k+rank_vector) + 1/(k+rank_bm25)
    *
+   * When `rulesetIds` is provided, both branches are filtered to only those rulesets.
    * ruleset_chunks has no RLS; bypassRLS is irrelevant.
    */
   async hybridSearchBatch(
@@ -31,10 +32,29 @@ export class RulesetChunkSearchRepository {
     vectorLimit: number,
     bm25Limit: number,
     maxResults: number,
+    rulesetIds?: string[],
   ): Promise<RulesetChunkMatch[]> {
     if (embeddings.length === 0) return [];
 
     const vectorStrings = embeddings.map((e) => `[${e.join(',')}]`);
+    const scoped = rulesetIds && rulesetIds.length > 0;
+
+    const vectorWhereClause = scoped
+      ? 'WHERE ruleset_id = ANY($7::uuid[])'
+      : '';
+    const bm25WhereClause = scoped ? 'AND ruleset_id = ANY($7::uuid[])' : '';
+
+    const params: unknown[] = [
+      vectorStrings,
+      topKPerQuery,
+      vectorLimit,
+      searchText,
+      bm25Limit,
+      maxResults,
+    ];
+    if (scoped) {
+      params.push(rulesetIds);
+    }
 
     const result = await this.databaseService.query<{
       id: string;
@@ -52,6 +72,7 @@ export class RulesetChunkSearchRepository {
           CROSS JOIN LATERAL (
             SELECT id, content, metadata, embedding
             FROM public.ruleset_chunks
+            ${vectorWhereClause}
             ORDER BY embedding <=> q.vec::vector
             LIMIT $2
           ) rc
@@ -66,6 +87,7 @@ export class RulesetChunkSearchRepository {
         FROM public.ruleset_chunks,
              plainto_tsquery('english', $4) query
         WHERE content_tsv @@ query
+        ${bm25WhereClause}
         ORDER BY ts_rank_cd(content_tsv, query) DESC
         LIMIT $5
       ),
@@ -83,14 +105,7 @@ export class RulesetChunkSearchRepository {
       FROM combined
       ORDER BY rrf_score DESC
       LIMIT $6`,
-      [
-        vectorStrings,
-        topKPerQuery,
-        vectorLimit,
-        searchText,
-        bm25Limit,
-        maxResults,
-      ],
+      params,
     );
 
     return result.rows.map((row) => ({
