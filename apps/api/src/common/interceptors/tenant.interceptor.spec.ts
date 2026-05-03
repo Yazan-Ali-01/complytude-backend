@@ -94,7 +94,7 @@ describe('TenantInterceptor', () => {
     });
   });
 
-  it('assigns tenant_id to pino logger', (done) => {
+  it('assigns tenant_id and user_id to pino logger', (done) => {
     reflector.getAllAndOverride.mockReturnValue({ tenant: true });
     const request = {
       auth: {
@@ -111,6 +111,29 @@ describe('TenantInterceptor', () => {
       complete: () => {
         expect(pinoLogger.assign).toHaveBeenCalledWith({
           tenant_id: 'tenant-xyz-789',
+          user_id: 'user-2',
+        });
+        done();
+      },
+    });
+  });
+
+  it('omits user_id when the JWT payload has no userId', (done) => {
+    reflector.getAllAndOverride.mockReturnValue({ tenant: true });
+    const request = {
+      auth: {
+        tenant: {
+          tenantId: 'tenant-no-user',
+          role: 'member',
+        },
+      },
+    };
+    const context = createMockExecutionContext(request);
+
+    interceptor.intercept(context, next).subscribe({
+      complete: () => {
+        expect(pinoLogger.assign).toHaveBeenCalledWith({
+          tenant_id: 'tenant-no-user',
         });
         done();
       },

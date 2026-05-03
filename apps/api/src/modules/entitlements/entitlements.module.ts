@@ -7,9 +7,12 @@ import { TenantOverridesRepository } from 'src/repositories/entitlements/tenant-
 import { FeaturesRepository } from 'src/repositories/features/features.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
+import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
+import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from 'src/repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from 'src/repositories/usage/usage-ledger.repository';
+import { EmailModule } from '../email/email.module';
 import { I18nModule } from '../../i18n/i18n.module';
 import { AddonsRepository } from '../../repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from '../../repositories/entitlements/entitlement-snapshots.repository';
@@ -26,6 +29,7 @@ import { ProjectionUpdateHandler } from './processors/projection-update.handler'
 import { QuotaExceededHandler } from './processors/quota-exceeded.handler';
 import { SnapshotRebuildHandler } from './processors/snapshot-rebuild.handler';
 import { TrialExpiryHandler } from './processors/trial-expiry.handler';
+import { TrialReminderHandler } from './processors/trial-reminder.handler';
 import { UsageRefundHandler } from './processors/usage-refund.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
@@ -60,7 +64,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
  */
 @Global()
 @Module({
-  imports: [I18nModule],
+  imports: [I18nModule, EmailModule],
   controllers: [
     EntitlementsController,
     AddonCatalogController,
@@ -95,6 +99,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
     CreditNotificationHandler,
     QuotaExceededHandler,
     TrialExpiryHandler,
+    TrialReminderHandler,
     TrialExpirySchedulerService,
     UsageRefundHandler,
 
@@ -107,6 +112,8 @@ import { UsageProjectionService } from './services/usage-projection.service';
     TenantAddonsRepository,
     TenantOverridesRepository,
     SubscriptionsRepository,
+    TenantRepository,
+    UserTenantRepository,
 
     // Usage repositories (Phase 3)
     UsageLedgerRepository,

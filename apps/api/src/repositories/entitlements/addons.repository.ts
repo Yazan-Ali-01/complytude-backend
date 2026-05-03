@@ -16,7 +16,6 @@ type CreateAddonRow = {
   price_monthly?: number;
   price_currency?: string;
   is_active?: boolean;
-  metadata?: string;
   stripe_product_id?: string | null;
   stripe_price_id?: string | null;
 };
@@ -27,7 +26,6 @@ type UpdateAddonRow = {
   price_monthly?: number;
   price_currency?: string;
   is_active?: boolean;
-  metadata?: string;
   stripe_product_id?: string | null;
   stripe_price_id?: string | null;
 };
@@ -40,7 +38,6 @@ type AddonRow = {
   price_monthly: number;
   price_currency: string;
   is_active: boolean;
-  metadata: unknown;
   stripe_product_id: string | null;
   stripe_price_id: string | null;
   created_at: Date;
@@ -69,7 +66,7 @@ export class AddonsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, description, price_monthly, price_currency, is_active, metadata, stripe_product_id, stripe_price_id, created_at, updated_at';
+    return 'id, key, name, description, price_monthly, price_currency, is_active, stripe_product_id, stripe_price_id, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Addon {
@@ -82,7 +79,6 @@ export class AddonsRepository extends BaseRepository<
       price_monthly: data.price_monthly,
       price_currency: data.price_currency,
       is_active: data.is_active,
-      metadata: (data.metadata as Record<string, unknown>) ?? {},
       stripe_product_id: data.stripe_product_id,
       stripe_price_id: data.stripe_price_id,
       created_at: data.created_at,
@@ -174,9 +170,9 @@ export class AddonsRepository extends BaseRepository<
     const query = `
       SELECT
         a.id, a.key, a.name, a.description, a.price_monthly, a.price_currency,
-        a.is_active, a.metadata, a.created_at, a.updated_at,
+        a.is_active, a.created_at, a.updated_at,
         ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
-        ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
+        ae.value_text, ae.created_at as entitlement_created_at,
         f.key as feature_key, f.feature_type
       FROM ${this.tableName} a
       LEFT JOIN public.addon_entitlements ae ON ae.addon_id = a.id
@@ -206,7 +202,6 @@ export class AddonsRepository extends BaseRepository<
           value_bool: row.value_bool as boolean | undefined,
           value_int: row.value_int as number | undefined,
           value_text: row.value_text as string | undefined,
-          metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
           created_at: row.entitlement_created_at as Date,
         });
       }

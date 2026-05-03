@@ -107,12 +107,6 @@ export class DocumentResponseDto {
   content: string | null;
 
   @ApiProperty({
-    description: 'Additional document metadata',
-    example: {},
-  })
-  metadata: Record<string, unknown>;
-
-  @ApiProperty({
     description: 'How the document was created',
     example: 'file_upload',
     enum: ['text_input', 'file_upload'],

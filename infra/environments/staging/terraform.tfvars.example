@@ -14,7 +14,7 @@ db_password = "CHANGE_ME_USE_A_STRONG_PASSWORD"
 # Bastion — for SSH tunnel to RDS from your machine
 # Create a key pair in EC2 → Key Pairs if needed
 bastion_key_name          = "your-key-pair-name"
-bastion_ssh_allowed_cidrs = ["YOUR_IP/32"]  # curl -s ifconfig.me to get your IP
+bastion_ssh_allowed_cidrs = ["87.200.134.56/32"]  # curl -s ifconfig.me to get your IP
 
 # ---- Secrets Manager (application secrets) ----
 # App DB: use app_login (production-like) — run setup-app-user-role.sql via bastion first

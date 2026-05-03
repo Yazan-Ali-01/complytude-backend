@@ -17,8 +17,6 @@ export type CreateRulesetRow = {
   description?: string | null;
   authority_id?: string | null;
   status?: RulesetStatus;
-  /** JSON string (stringified by service before passing) */
-  metadata?: string;
   created_by?: string | null;
 };
 
@@ -27,8 +25,6 @@ export type UpdateRulesetRow = {
   description?: string | null;
   authority_id?: string | null;
   status?: RulesetStatus;
-  /** JSON string (stringified by service before passing) */
-  metadata?: string;
 };
 
 export interface RulesetFilters {
@@ -45,7 +41,6 @@ type RulesetRow = {
   authority_id: string | null;
   current_version: string;
   status: RulesetStatus;
-  metadata: Record<string, unknown>;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -208,7 +203,7 @@ export class RulesetRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, description, authority_id, current_version, status, metadata, created_by, created_at, updated_at';
+    return 'id, key, name, description, authority_id, current_version, status, created_by, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Ruleset {
@@ -221,7 +216,6 @@ export class RulesetRepository extends BaseRepository<
       authorityId: data.authority_id,
       currentVersion: data.current_version,
       status: data.status,
-      metadata: data.metadata,
       createdBy: data.created_by,
       createdAt: data.created_at,
       updatedAt: data.updated_at,

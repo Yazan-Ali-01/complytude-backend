@@ -1,10 +1,18 @@
 import { DatabaseService } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 
+export interface DocumentSection {
+  heading: string | null;
+  level: number;
+  content: string;
+  pageStart: number;
+}
+
 export interface DocumentContent {
   id: string;
   title: string;
   content: string;
+  content_structured: DocumentSection[] | null;
   tenant_id: string;
 }
 
@@ -21,7 +29,8 @@ export class DocumentReadRepository {
     return this.databaseService.transactionWithPlatformAdminContext(
       async (client) => {
         const result = await client.query<DocumentContent>(
-          `SELECT id, title, content, tenant_id FROM public.documents WHERE id = $1`,
+          `SELECT id, title, content, content_structured, tenant_id
+           FROM public.documents WHERE id = $1`,
           [id],
         );
         return result.rows[0] ?? null;

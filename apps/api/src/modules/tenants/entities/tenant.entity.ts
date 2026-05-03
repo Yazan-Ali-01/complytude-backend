@@ -29,7 +29,6 @@ export interface Tenant {
   locale: string;
   timezone: string;
   default_jurisdiction?: string | null;
-  settings: Record<string, unknown>;
 
   // Group 6: Branding
   brand_color_primary?: string | null;
@@ -44,7 +43,10 @@ export interface Tenant {
 
   // Group 9: Onboarding Tracking
   onboarding_completed_at?: Date | null;
-  onboarding_metadata: Record<string, unknown>;
+  onboarding_current_step: string;
+  onboarding_team_invite_skipped: boolean;
+  onboarding_first_action_type?: string | null;
+  onboarding_first_action_completed_at?: Date | null;
 
   created_at: Date;
   updated_at: Date;

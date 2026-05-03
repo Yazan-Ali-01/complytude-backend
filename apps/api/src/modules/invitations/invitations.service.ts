@@ -553,16 +553,12 @@ export class InvitationsService {
         `Created invitation ${invitation.id} for ${input.email} to tenant ${input.tenantId}`,
       );
 
-      // Mark inviteTeam step complete in onboarding metadata.
-      // Conditional on currentStep so this is idempotent for subsequent invites.
+      // Advance onboarding past invite_team on first invite sent — idempotent.
       await client.query(
         `UPDATE public.tenants
-         SET onboarding_metadata = jsonb_set(
-           jsonb_set(onboarding_metadata, '{stepsCompleted,inviteTeam}', 'true'),
-           '{currentStep}', '"first_action"'
-         )
+         SET onboarding_current_step = 'first_action', updated_at = now()
          WHERE id = $1
-           AND onboarding_metadata->>'currentStep' = 'invite_team'`,
+           AND onboarding_current_step = 'invite_team'`,
         [input.tenantId],
       );
 

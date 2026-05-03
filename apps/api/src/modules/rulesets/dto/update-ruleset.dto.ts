@@ -1,7 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEnum,
-  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -10,8 +9,8 @@ import {
 import type { RulesetStatus } from '../entities/ruleset.entity';
 
 /**
- * Update ruleset metadata DTO.
- * Only allows changes to name, description, authority, status, and metadata.
+ * Update ruleset DTO.
+ * Only allows changes to name, description, authority, and status.
  * Clauses are immutable per version — use the versioning endpoints instead.
  */
 export class UpdateRulesetDto {
@@ -48,12 +47,4 @@ export class UpdateRulesetDto {
   @IsOptional()
   @IsEnum(['active', 'inactive', 'deprecated'])
   status?: RulesetStatus;
-
-  @ApiPropertyOptional({
-    example: { tags: ['employment', 'updated'] },
-    description: 'Additional metadata',
-  })
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, unknown>;
 }

@@ -391,22 +391,11 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 
 ### 0. Subscription Creation (Tenant Setup)
 
-**Every tenant must have an active subscription.** When a tenant is created via `POST /tenants` or during signup, the system automatically creates a subscription:
-
-**Default (no planKey):** Trial subscription — 14 days on General Counsel plan
+**Every tenant must have an active subscription.** When a tenant is created via `POST /tenants` during signup, the system automatically provisions a **14-day trial of General Counsel** in the same transaction. Plan selection is intentionally **not** exposed at create-time — paid plans are granted only via Stripe Checkout + the `checkout.session.completed` webhook (see `StripeCheckoutService` and `StripeEventHandlersService.handleSubscriptionCheckout`).
 
 ```typescript
-// TenantService.createTenantForUser() — when planKey omitted
+// TenantService.createTenantForUser()
 await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
-  client,
-});
-```
-
-**With planKey:** Direct subscription on specified plan
-
-```typescript
-// TenantService.createTenantForUser() — when planKey provided
-await this.subscriptionsService.createSubscription(tenant.id, planKey, userId, {
   client,
 });
 ```
@@ -418,17 +407,13 @@ await this.subscriptionsService.createSubscription(tenant.id, planKey, userId, {
 - `trial_ends_at` — NOW() + 14 days
 - `current_period_start` — NOW()
 - `current_period_end` — trial_ends_at (aligned)
+- `trial_reminder_sent_at` — `NULL` until the reminder cron sends the email
 
-**Direct Subscription:**
+**Trial Reminder (T-3 days):** The `TRIAL_REMINDER_CHECK` repeatable job runs every 6 hours on the `ENTITLEMENT_PROCESSING` queue. It queries trials whose `trial_ends_at` falls in a 2–4 day window with `trial_reminder_sent_at IS NULL`, sends a "trial ending soon" email to the tenant_admin user and `tenants.billing_email` (when set, deduplicated), then marks `trial_reminder_sent_at = NOW()`. The wide window absorbs missed cron ticks; the flag prevents duplicates. Recipients see a CTA to `${FRONTEND_URL}/billing/upgrade` for self-serve Stripe Checkout.
 
-- `plan_id` — Resolved from plan key via `PlansRepository.findByKey()`
-- `status` — `'active'`
-- `current_period_start` — NOW()
-- `current_period_end` — NOW() + 1 month
+**Trial Expiry:** The `TRIAL_EXPIRY_CHECK` job (also every 6 hours) downgrades expired trials to Navigator (free), invalidates the entitlement snapshot, and emits `trial.expired`.
 
-**Trial Expiry:** A scheduled job (`TRIAL_EXPIRY_CHECK`) runs every 6 hours. Expired trials are auto-downgraded to Navigator, snapshot invalidated, and `trial.expired` domain event emitted.
-
-**Important:** Without an active subscription, `EntitlementResolverService.resolveForTenant()` will throw `NotFoundException`. The subscription is created within the same transaction as the tenant to ensure atomicity.
+**Important:** Without an active subscription, `EntitlementResolverService.resolveForTenant()` will throw `NotFoundException`. The trial subscription is created within the same transaction as the tenant to ensure atomicity.
 
 > **📖 For complete tenant creation flow including RLS context setup, see [ARCHITECTURE.md](ARCHITECTURE.md#tenant-creation-flow)**
 
@@ -1154,7 +1139,7 @@ async grantCredits(
 | `entitlement.snapshot_created`     | entitlement  | Snapshot created                                    |
 | `entitlement.snapshot_invalidated` | entitlement  | Snapshot invalidated                                |
 | `subscription.created`             | subscription | New subscription created                            |
-| `subscription.trial_started`       | subscription | Trial subscription created (new tenant, no planKey) |
+| `subscription.trial_started`       | subscription | Trial subscription created (every new tenant)       |
 | `subscription.plan_changed`        | subscription | Plan upgraded/downgraded                            |
 | `subscription.cancelled`           | subscription | Subscription cancelled                              |
 | `subscription.renewed`             | subscription | Billing period renewed                              |

@@ -17,7 +17,6 @@ type FeatureRow = {
   creditable: boolean;
   credit_cost: number | null;
   is_active: boolean;
-  metadata: unknown;
   created_at: Date;
   updated_at: Date;
 };
@@ -37,7 +36,7 @@ export class FeaturesRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, description, feature_type, unit, creditable, credit_cost, is_active, metadata, created_at, updated_at';
+    return 'id, key, name, description, feature_type, unit, creditable, credit_cost, is_active, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Feature {
@@ -52,7 +51,6 @@ export class FeaturesRepository extends BaseRepository<
       creditable: data.creditable,
       credit_cost: data.credit_cost ?? undefined,
       is_active: data.is_active,
-      metadata: (data.metadata as Record<string, unknown>) ?? {},
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -96,8 +94,8 @@ export class FeaturesRepository extends BaseRepository<
   ): Promise<Feature> {
     const result = await this.executeQuery<FeatureRow>(
       `
-      INSERT INTO ${this.tableName} (key, name, description, feature_type, unit, creditable, credit_cost, is_active, metadata)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO ${this.tableName} (key, name, description, feature_type, unit, creditable, credit_cost, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (key) DO UPDATE SET
         name = EXCLUDED.name,
         description = EXCLUDED.description,
@@ -106,7 +104,6 @@ export class FeaturesRepository extends BaseRepository<
         creditable = EXCLUDED.creditable,
         credit_cost = EXCLUDED.credit_cost,
         is_active = EXCLUDED.is_active,
-        metadata = EXCLUDED.metadata,
         updated_at = now()
       RETURNING ${this.getSelectColumns()}
       `,
@@ -119,7 +116,6 @@ export class FeaturesRepository extends BaseRepository<
         feature.creditable ?? false,
         feature.credit_cost ?? null,
         feature.is_active ?? true,
-        feature.metadata ?? '{}',
       ],
       options,
     );

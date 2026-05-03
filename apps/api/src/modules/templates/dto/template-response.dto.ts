@@ -45,12 +45,6 @@ export class GetTemplateVersionResponseDto {
   changelog: string | null;
 
   @ApiProperty({
-    description: 'Additional metadata for this version',
-    example: { tags: ['employment', 'legal'], reviewedBy: 'legal-team' },
-  })
-  metadata: Record<string, unknown>;
-
-  @ApiProperty({
     description: 'Whether this version is active',
     example: true,
   })
@@ -148,12 +142,6 @@ export class GetTemplateResponseDto {
     nullable: true,
   })
   fileUrl: string | null;
-
-  @ApiProperty({
-    description: 'Additional metadata',
-    example: { tags: ['employment', 'standard'] },
-  })
-  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'ID of user who created this template',

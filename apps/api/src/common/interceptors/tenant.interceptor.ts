@@ -56,7 +56,12 @@ export class TenantInterceptor implements NestInterceptor {
         role: request.auth.tenant.role,
       };
 
-      this.pinoLogger.assign({ tenant_id: request.auth.tenant.tenantId });
+      this.pinoLogger.assign({
+        tenant_id: request.auth.tenant.tenantId,
+        ...(request.auth.tenant.userId
+          ? { user_id: request.auth.tenant.userId }
+          : {}),
+      });
       this.cls.set(CLS_TENANT_ID, request.auth.tenant.tenantId);
 
       this.logger.debug(

@@ -20,8 +20,10 @@ export type CreateTenantRow = {
   slug?: string | null;
   locale?: string;
   timezone?: string;
-  settings?: Record<string, unknown>;
-  onboarding_metadata?: Record<string, unknown>;
+  onboarding_current_step?: string;
+  onboarding_team_invite_skipped?: boolean;
+  onboarding_first_action_type?: string | null;
+  onboarding_first_action_completed_at?: Date | null;
   created_at?: Date;
   updated_at?: Date;
 };
@@ -49,13 +51,15 @@ export type UpdateTenantRow = {
   locale?: string;
   timezone?: string;
   default_jurisdiction?: string | null;
-  settings?: Record<string, unknown>;
   brand_color_primary?: string | null;
   brand_color_secondary?: string | null;
   deactivated_at?: Date | null;
   deactivation_reason?: string | null;
   onboarding_completed_at?: Date | null;
-  onboarding_metadata?: Record<string, unknown>;
+  onboarding_current_step?: string;
+  onboarding_team_invite_skipped?: boolean;
+  onboarding_first_action_type?: string | null;
+  onboarding_first_action_completed_at?: Date | null;
   updated_at?: Date;
 };
 
@@ -80,14 +84,16 @@ type TenantRow = {
   locale: string;
   timezone: string;
   default_jurisdiction?: string | null;
-  settings: Record<string, unknown>;
   brand_color_primary?: string | null;
   brand_color_secondary?: string | null;
   stripe_customer_id?: string | null;
   deactivated_at?: Date | null;
   deactivation_reason?: string | null;
   onboarding_completed_at?: Date | null;
-  onboarding_metadata: Record<string, unknown>;
+  onboarding_current_step: string;
+  onboarding_team_invite_skipped: boolean;
+  onboarding_first_action_type?: string | null;
+  onboarding_first_action_completed_at?: Date | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -272,14 +278,16 @@ export class TenantRepository extends BaseRepository<
       'locale',
       'timezone',
       'default_jurisdiction',
-      'settings',
       'brand_color_primary',
       'brand_color_secondary',
       'stripe_customer_id',
       'deactivated_at',
       'deactivation_reason',
       'onboarding_completed_at',
-      'onboarding_metadata',
+      'onboarding_current_step',
+      'onboarding_team_invite_skipped',
+      'onboarding_first_action_type',
+      'onboarding_first_action_completed_at',
       'created_at',
       'updated_at',
     ].join(', ');
@@ -314,14 +322,18 @@ export class TenantRepository extends BaseRepository<
       locale: data.locale ?? 'en',
       timezone: data.timezone ?? 'Asia/Dubai',
       default_jurisdiction: data.default_jurisdiction ?? null,
-      settings: data.settings ?? {},
       brand_color_primary: data.brand_color_primary ?? null,
       brand_color_secondary: data.brand_color_secondary ?? null,
       stripe_customer_id: data.stripe_customer_id ?? null,
       deactivated_at: data.deactivated_at ?? null,
       deactivation_reason: data.deactivation_reason ?? null,
       onboarding_completed_at: data.onboarding_completed_at ?? null,
-      onboarding_metadata: data.onboarding_metadata ?? {},
+      onboarding_current_step: data.onboarding_current_step ?? 'invite_team',
+      onboarding_team_invite_skipped:
+        data.onboarding_team_invite_skipped ?? false,
+      onboarding_first_action_type: data.onboarding_first_action_type ?? null,
+      onboarding_first_action_completed_at:
+        data.onboarding_first_action_completed_at ?? null,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

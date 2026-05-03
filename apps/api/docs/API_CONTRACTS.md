@@ -587,7 +587,7 @@ Optional alternative to email + password. When the corresponding env vars are un
 
 **Authorization:** User must have verified email
 
-**Request Body (trial — omit planKey):**
+**Request Body:**
 
 ```json
 {
@@ -595,36 +595,25 @@ Optional alternative to email + password. When the corresponding env vars are un
 }
 ```
 
-**Request Body (direct subscription):**
-
-```json
-{
-  "name": "Acme Legal LLC",
-  "planKey": "navigator"
-}
-```
-
 **Request Schema:**
 
-| Field     | Type   | Required | Default | Validation             | Description                                                                   |
-| --------- | ------ | -------- | ------- | ---------------------- | ----------------------------------------------------------------------------- |
-| `name`    | string | Yes      | -       | Min 1, max 255 chars   | Organization name                                                             |
-| `planKey` | enum   | No       | (trial) | One of valid plan keys | If omitted: 14-day trial on General Counsel. If provided: direct subscription |
+| Field  | Type   | Required | Validation           | Description       |
+| ------ | ------ | -------- | -------------------- | ----------------- |
+| `name` | string | Yes      | Min 1, max 255 chars | Organization name |
 
-**Valid Plan Keys:** `navigator`, `shield`, `general_counsel`, `infrastructure` (see entitlements documentation for details)
+> Plan selection is intentionally **not** exposed on this endpoint. New tenants always start on a **14-day trial of General Counsel** (see `TRIAL_CONFIG`). Paid plans are granted only via Stripe Checkout (`POST /api/v1/billing/checkout/session`) and the `checkout.session.completed` webhook — this keeps "only Stripe can grant paid plans" as a hard invariant and prevents a billing bypass at signup.
 
 **Response (201 Created):**
 
 ```json
 {
   "id": "11111111-1111-4111-8111-111111111111",
-  "plan": "navigator",
+  "plan": "general_counsel",
   "is_active": true,
   "name": "Acme Legal LLC",
   "slug": "acme-legal-llc",
   "locale": "en",
   "timezone": "Asia/Dubai",
-  "settings": {},
   "onboarding_metadata": {
     "currentStep": "invite_team",
     "teamInviteSkipped": false,
@@ -652,7 +641,6 @@ Optional alternative to email + password. When the corresponding env vars are un
 | `slug`                | string \| null    | URL-safe identifier (auto-generated from name)                                     |
 | `locale`              | string            | Default locale (e.g., 'en', 'ar')                                                  |
 | `timezone`            | string            | Default timezone (IANA format)                                                     |
-| `settings`            | object            | Flexible JSONB settings (empty by default)                                         |
 | `onboarding_metadata` | object            | Onboarding state tracking (see [Onboarding Metadata](#onboarding-metadata-schema)) |
 | `created_at`          | string (ISO 8601) | Creation timestamp                                                                 |
 | `updated_at`          | string (ISO 8601) | Last update timestamp                                                              |
@@ -661,9 +649,8 @@ Optional alternative to email + password. When the corresponding env vars are un
 
 | Status | Condition                              | Response                 |
 | ------ | -------------------------------------- | ------------------------ |
-| 400    | Validation failed or plan not active   | `BadRequestErrorDto`     |
+| 400    | Validation failed                      | `BadRequestErrorDto`     |
 | 403    | Email not verified                     | `ForbiddenErrorDto`      |
-| 404    | Plan not found                         | `NotFoundErrorDto`       |
 | 409    | User already owns tenant or name taken | `ConflictErrorDto`       |
 | 401    | Missing/invalid identity token         | `UnauthorizedErrorDto`   |
 | 500    | Server error                           | `InternalServerErrorDto` |
@@ -674,13 +661,14 @@ Optional alternative to email + password. When the corresponding env vars are un
 - Tenant created with specified name (required)
 - User linked as `tenant_admin` in `user_tenants` table (within same transaction)
 - `tenant_subscriptions` row created atomically within the same transaction:
-  - **If `planKey` omitted:** Trial subscription — `status` = `'trialing'`, `plan_id` = General Counsel, `trial_ends_at` = NOW() + 14 days, `current_period_end` = trial_ends_at
-  - **If `planKey` provided:** Direct subscription — `plan_id` resolved from `planKey`, `status` = `'active'`, `current_period_start` = NOW(), `current_period_end` = NOW() + 1 month
+  - **Trial subscription:** `status` = `'trialing'`, `plan_id` = General Counsel, `trial_ends_at` = NOW() + 14 days, `current_period_end` = trial_ends_at
   - `getCurrentSubscription(tenantId)` works immediately after creation
 - Entitlements resolved lazily on first access (from subscription)
-- Default settings applied (locale: `en`, timezone: `Asia/Dubai`)
+- Default preferences applied (locale: `en`, timezone: `Asia/Dubai`)
 - Tenant slug is `null` on creation; user can set via `PATCH /tenants/me/slug` later
-- **Stripe:** Fire-and-forget customer creation via `StripeCustomerService.createCustomerForTenant()`. Creates Stripe customer with creator email and `metadata.creator_user_id` for traceability. Skips when `STRIPE_SECRET_KEY` is empty or `STRIPE_SKIP_CUSTOMER_CREATION=true`. Never blocks tenant creation.
+- **Stripe:** Fire-and-forget customer creation via `StripeCustomerService.createCustomerForTenant()`. Creates Stripe customer with creator email and `metadata.creator_user_id` for traceability. Skips when `STRIPE_SECRET_KEY` is empty or `STRIPE_SKIP_CUSTOMER_CREATION=true`. Never blocks tenant creation. **No Stripe Subscription is created here** — paid plans require an explicit Checkout flow.
+- **Trial-ending reminder:** The `TRIAL_REMINDER_CHECK` cron (every 6h) sends a one-shot "trial ending soon" email ~3 days before `trial_ends_at`. Idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
+- **Trial expiry:** The `TRIAL_EXPIRY_CHECK` cron (every 6h) downgrades expired trials to Navigator (free) automatically.
 
 ---
 

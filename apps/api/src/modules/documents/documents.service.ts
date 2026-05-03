@@ -154,7 +154,6 @@ export class DocumentsService {
                 source_type: 'text_input',
                 content: dto.content,
                 created_by: user.userId,
-                metadata: JSON.stringify({}),
               },
               { client },
             );
@@ -242,7 +241,6 @@ export class DocumentsService {
               tenant_id: user.tenantId,
               title: dto.filename,
               created_by: user.userId,
-              metadata: JSON.stringify({}),
               source_type: 'file_upload',
               s3_key: s3Key,
               s3_bucket: quarantineBucket,
@@ -789,7 +787,6 @@ export class DocumentsService {
       tenantId: doc.tenant_id,
       title: doc.title,
       content: doc.content,
-      metadata: doc.metadata,
       sourceType: doc.source_type,
       s3Key: doc.s3_key,
       s3Bucket: doc.s3_bucket,

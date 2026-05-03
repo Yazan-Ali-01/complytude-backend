@@ -121,6 +121,12 @@ export class StripeEventHandlersService {
 
     await this.databaseService.transactionWithPlatformAdminContext(
       async (client) => {
+        const rawInterval = session.metadata?.interval;
+        const billingInterval: 'monthly' | 'annual' | undefined =
+          rawInterval === 'monthly' || rawInterval === 'annual'
+            ? rawInterval
+            : undefined;
+
         const subscription = await this.subscriptionsRepository.upsert(
           {
             tenant_id: tenantId,
@@ -130,6 +136,7 @@ export class StripeEventHandlersService {
             billing_period_end: periodEnd,
             current_period_start: periodStart,
             current_period_end: periodEnd,
+            billing_interval: billingInterval,
             stripe_subscription_id: subscriptionId,
             stripe_current_period_end: periodEnd,
             stripe_status: stripeSub.status,
@@ -288,7 +295,7 @@ export class StripeEventHandlersService {
               billing_period_end: oneMonthLater,
               current_period_start: now,
               current_period_end: oneMonthLater,
-              metadata: JSON.stringify({ downgraded_from_stripe: true }),
+              downgraded_from_stripe: true,
             },
             { client },
           );

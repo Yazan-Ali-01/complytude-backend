@@ -199,7 +199,7 @@ export class DocumentsController {
   @ApiOperation({
     summary: 'Get document by ID',
     description:
-      'Returns the full document details including content, metadata, and file storage information. ' +
+      'Returns the full document details including content and file storage information. ' +
       'When extraction_status is pending or processing, the response includes Retry-After: 3 for polling.',
   })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })

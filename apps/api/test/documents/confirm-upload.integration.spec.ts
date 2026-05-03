@@ -54,7 +54,6 @@ describe('DocumentsService.confirmUpload', () => {
       tenant_id: tenantId,
       title: 'test-contract.pdf',
       created_by: userId,
-      metadata: JSON.stringify({}),
       source_type: 'file_upload',
       s3_key: `tenants/${tenantId}/documents/test-id/test-contract.pdf`,
       s3_bucket: 'mock-quarantine-bucket',
@@ -120,7 +119,6 @@ describe('DocumentsService.confirmUpload', () => {
       title: 'Plain text doc',
       content: 'Some text',
       created_by: userId,
-      metadata: JSON.stringify({}),
       source_type: 'text_input',
     });
 

@@ -9,7 +9,10 @@ import {
   AnalysisResult,
 } from '../interfaces/analysis-result.interface';
 import { AnalysisJobWriteRepository } from '../repositories/analysis-job-write.repository';
-import { DocumentReadRepository } from '../repositories/document-read.repository';
+import {
+  DocumentReadRepository,
+  DocumentSection,
+} from '../repositories/document-read.repository';
 import {
   RulesetChunkMatch,
   RulesetChunkSearchRepository,
@@ -174,16 +177,28 @@ export class DocumentAnalysisService {
     }
 
     const scoped = rulesetIds && rulesetIds.length > 0;
+    const hasStructure =
+      Array.isArray(document.content_structured) &&
+      document.content_structured.length > 0;
+
     this.logger.log(
       `Starting RAG pipeline for job=${analysisJobId} document="${document.title}"` +
-        (scoped ? ` scoped to ${rulesetIds.length} rulesets` : ' (global)'),
+        (scoped ? ` scoped to ${rulesetIds.length} rulesets` : ' (global)') +
+        ` structured=${hasStructure}`,
     );
 
-    // Chunk the document text
-    const documentChunks = this.textChunkerService.chunk(document.content);
+    // Build structured content string when LAYOUT sections are available.
+    // Each section is prefixed with a markdown heading so both the embedding
+    // model and the LLM receive section-boundary context.
+    // Falls back to raw flat text for documents ingested before this feature.
+    const contentForAnalysis = hasStructure
+      ? this.buildStructuredContent(document.content_structured!)
+      : document.content;
+
+    // Chunk the document (structured content gives embeddings better context)
+    const documentChunks = this.textChunkerService.chunk(contentForAnalysis);
     this.logger.log(`Document chunked into ${documentChunks.length} chunks`);
 
-    // Embed all document chunks
     const chunkTexts = documentChunks.map((c) => c.content);
     this.logger.log(
       `Embedding ${chunkTexts.length} document chunks for job=${analysisJobId}`,
@@ -230,11 +245,11 @@ export class DocumentAnalysisService {
       `After rerank: ${rerankedChunks.length} chunks (reranked=${reranked})`,
     );
 
-    // Build prompt
+    // Build prompt — pass structured content so the LLM sees section headings
     const { systemPrompt, userMessage, wasDocumentTruncated } =
       this.promptBuilderService.buildPrompt(
         document.title,
-        document.content,
+        contentForAnalysis,
         rerankedChunks,
       );
 
@@ -294,6 +309,19 @@ export class DocumentAnalysisService {
       `Analysis complete for job=${analysisJobId}: ${result.findings.length} findings, ` +
         `${result.rulesetsConsulted.length} rulesets consulted`,
     );
+  }
+
+  /**
+   * Render DocumentSection[] into a single markdown-formatted string.
+   * Section headings become ## markers so both the embedding model and the LLM
+   * receive explicit section-boundary context. Content within each section is
+   * preserved verbatim.
+   */
+  private buildStructuredContent(sections: DocumentSection[]): string {
+    return sections
+      .map((s) => (s.heading ? `## ${s.heading}\n\n${s.content}` : s.content))
+      .filter(Boolean)
+      .join('\n\n');
   }
 
   /**

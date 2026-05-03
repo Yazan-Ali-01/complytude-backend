@@ -166,13 +166,6 @@ export class SubscriptionResponseDto {
     subscription: TenantSubscription,
     plan?: Plan,
   ): SubscriptionResponseDto {
-    const metadata = subscription.metadata ?? {};
-    const rawInterval = metadata.interval;
-    const billingInterval: 'monthly' | 'annual' | undefined =
-      rawInterval === 'monthly' || rawInterval === 'annual'
-        ? rawInterval
-        : undefined;
-
     const dto = Object.assign(new SubscriptionResponseDto(), {
       id: subscription.id,
       tenant_id: subscription.tenant_id,
@@ -183,14 +176,14 @@ export class SubscriptionResponseDto {
       current_period_start: subscription.current_period_start,
       current_period_end: subscription.current_period_end,
       cancelled_at: subscription.cancelled_at,
-      metadata,
+      metadata: subscription.metadata ?? {},
       created_at: subscription.created_at,
       updated_at: subscription.updated_at,
       plan,
       stripe_subscription_id: subscription.stripe_subscription_id ?? undefined,
       stripe_status: subscription.stripe_status ?? undefined,
-      cancel_at_period_end: metadata.cancel_at_period_end === true,
-      billing_interval: billingInterval,
+      cancel_at_period_end: subscription.cancel_at_period_end,
+      billing_interval: subscription.billing_interval ?? undefined,
       planKey: plan?.key,
     });
 

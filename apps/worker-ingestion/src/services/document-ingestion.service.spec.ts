@@ -22,6 +22,7 @@ function makeDocumentRow(overrides?: Partial<DocumentRow>): DocumentRow {
     tenant_id: 'tenant-456',
     title: 'file.pdf',
     content: null,
+    content_structured: null,
     source_type: 'file_upload',
     s3_key: 'tenants/tenant-456/documents/doc-123/file.pdf',
     s3_bucket: 'complytude-quarantine',
@@ -64,6 +65,7 @@ describe('DocumentIngestionService', () => {
       repo.findById.mockResolvedValue(makeDocumentRow());
       textract.extractText.mockResolvedValue({
         text: 'Extracted document content',
+        sections: [],
         pageCount: 3,
       });
       promotion.promote.mockResolvedValue({
@@ -84,6 +86,7 @@ describe('DocumentIngestionService', () => {
       expect(repo.storeExtractedContent).toHaveBeenCalledWith(
         'doc-123',
         'Extracted document content',
+        [],
       );
       expect(promotion.promote).toHaveBeenCalledWith(
         'complytude-quarantine',
@@ -152,7 +155,11 @@ describe('DocumentIngestionService', () => {
 
     it('should throw PermanentError when textract returns empty text', async () => {
       repo.findById.mockResolvedValue(makeDocumentRow());
-      textract.extractText.mockResolvedValue({ text: '', pageCount: 0 });
+      textract.extractText.mockResolvedValue({
+        text: '',
+        sections: [],
+        pageCount: 0,
+      });
 
       const error = await service
         .process(MOCK_JOB_DATA)

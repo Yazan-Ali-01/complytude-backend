@@ -1,7 +1,7 @@
 /**
  * Onboarding metadata schema and constants.
  *
- * Standardizes the onboarding_metadata JSONB structure so frontend and backend agree.
+ * Standardizes onboarding field values so frontend and backend agree.
  * Used for progressive onboarding UI (create workspace → invite team → first action).
  */
 
@@ -35,20 +35,3 @@ export interface OnboardingMetadata {
   firstActionCompletedAt?: string | null;
   stepsCompleted: StepsCompleted;
 }
-
-/**
- * Default onboarding metadata for new tenants.
- *
- * createWorkspace is always true because this metadata is created during tenant creation.
- */
-export const DEFAULT_ONBOARDING_METADATA: OnboardingMetadata = {
-  currentStep: 'invite_team',
-  teamInviteSkipped: false,
-  firstActionType: null,
-  firstActionCompletedAt: null,
-  stepsCompleted: {
-    createWorkspace: true,
-    inviteTeam: false,
-    firstAction: false,
-  },
-};

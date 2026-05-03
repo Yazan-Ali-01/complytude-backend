@@ -56,12 +56,6 @@ export class RulesetSummaryResponseDto {
   status: 'active' | 'inactive' | 'deprecated';
 
   @ApiProperty({
-    description: 'Additional metadata',
-    example: { tags: ['employment', 'standard'] },
-  })
-  metadata: Record<string, unknown>;
-
-  @ApiProperty({
     description: 'ID of user who created this ruleset',
     example: '550e8400-e29b-41d4-a716-446655440000',
     nullable: true,

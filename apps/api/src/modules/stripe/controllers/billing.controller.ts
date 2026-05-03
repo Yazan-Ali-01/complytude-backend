@@ -128,8 +128,7 @@ export class BillingController {
       subscription.plan,
     );
 
-    const cancel_at_period_end =
-      subscription.metadata?.cancel_at_period_end === true;
+    const cancel_at_period_end = subscription.cancel_at_period_end;
 
     const result: BillingStatusResponseDto = {
       subscription: subscriptionDto,

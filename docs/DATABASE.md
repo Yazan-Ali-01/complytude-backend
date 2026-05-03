@@ -246,7 +246,6 @@ Organizations using the platform. Plan assignment is managed via `tenant_subscri
 | `locale`                  | VARCHAR(50)  | Locale (default: `en`)                            |
 | `timezone`                | VARCHAR(50)  | Timezone                                          |
 | `default_jurisdiction`    | VARCHAR(100) | Default jurisdiction                              |
-| `settings`                | JSONB        | Tenant settings (e.g., `{"notifications": true}`) |
 | `slug`                    | VARCHAR(255) | Unique URL slug                                   |
 | `is_active`               | BOOLEAN      | Soft delete flag                                  |
 | `parent_tenant_id`        | UUID         | FK to tenants (agency/partner hierarchy, MVP+)    |
@@ -264,7 +263,7 @@ Organizations using the platform. Plan assignment is managed via `tenant_subscri
 
 > **Note:** The `tenants.plan` column and `tenant_plan` ENUM have been removed. Tenant plan assignment is now managed exclusively through `tenant_subscriptions`. See [Entitlement System](#entitlement-tables).
 
-**Tenant creation flow:** When a tenant is created via `POST /tenants` (or `TenantService.createTenantForUser()`), a `tenant_subscriptions` row is created atomically within the same transaction. This ensures `getCurrentSubscription(tenantId)` works immediately and entitlement resolution does not throw `NotFoundException`. Default: trial subscription (General Counsel, 14 days) when `planKey` omitted; direct subscription on specified plan when `planKey` provided.
+**Tenant creation flow:** When a tenant is created via `POST /tenants` (or `TenantService.createTenantForUser()`), a `tenant_subscriptions` row is created atomically within the same transaction. This ensures `getCurrentSubscription(tenantId)` works immediately and entitlement resolution does not throw `NotFoundException`. New tenants always start on a **14-day trial** of General Counsel (`status='trialing'`, `trial_ends_at = NOW() + 14 days`). Paid plans are granted only via Stripe Checkout + the `checkout.session.completed` webhook. The `trial_reminder_sent_at` column tracks one-shot delivery of the "trial ending soon" reminder email.
 
 ### users
 
@@ -682,9 +681,9 @@ Similar structure to `templates` with version control.
 
 ### ruleset_versions
 
-Version history for rulesets.
+Version history for rulesets. `clauses` stores the clause array (JSONB). `rolled_back_from_version` is nullable; when set, this row was created as a rollback copy of that semantic version string (audit).
 
-Similar structure to `template_versions`.
+Similar structure to `template_versions` for versioning, but clauses are authoritative content.
 
 ---
 

@@ -21,6 +21,16 @@
     "body": "Your payment requires additional verification (e.g. 3D Secure). Please complete the payment to avoid service interruption.",
     "cta": "Complete Payment"
   },
+  "trial_ending": {
+    "subject": "Your Complytude trial ends in {daysRemaining} days",
+    "title": "Your trial is ending soon",
+    "greeting": "Hello {tenantName},",
+    "body": "Thanks for trying Complytude! Your free trial of the General Counsel plan ends on {trialEndsAt}.",
+    "days_remaining": "You have {daysRemaining} days left.",
+    "after_trial": "After your trial ends, your workspace will automatically downgrade to the Navigator (free) plan with limited features. Upgrade now to keep full access without interruption.",
+    "cta": "Choose a plan",
+    "ignore": "If you'd rather continue on the free Navigator plan, no action is needed — we'll downgrade your workspace automatically."
+  },
   "dunning": {
     "day0": {
       "subject": "Payment Failed - Action Required for {tenantName}",

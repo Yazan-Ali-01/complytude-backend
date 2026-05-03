@@ -413,7 +413,7 @@ Request → JWT Validation → Extract tenant_id → transactionWithTenantContex
 
 ### Tenant Creation Flow
 
-When a new tenant is created (via `POST /tenants` or during signup), the system orchestrates multiple operations in a single transaction:
+When a new tenant is created (via `POST /tenants` during signup), the system orchestrates multiple operations in a single transaction. **Plan selection is intentionally not exposed at this step** — every new tenant starts on a 14-day trial of General Counsel. Paid plans are granted exclusively via Stripe Checkout + the `checkout.session.completed` webhook.
 
 ```typescript
 // TenantService.createTenantForUser()
@@ -434,19 +434,20 @@ await this.executeInTenantScope('', { mode: 'platform' }, async (client) => {
     { client },
   );
 
-  // 3. Create subscription (defaults to 'navigator' plan)
-  await this.subscriptionsService.createSubscription(
-    tenant.id,
-    planKey ?? 'navigator',
-    userId,
-    { client },
-  );
-
-  // 4. Fire-and-forget Stripe customer creation (non-blocking)
-  this.stripeCustomerService.createCustomerForTenant(tenant, email, userId);
+  // 3. Create 14-day trial subscription (TRIAL_CONFIG.PLAN_KEY = 'general_counsel')
+  await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
+    client,
+  });
 
   return tenant;
 });
+
+// 4. After commit: fire-and-forget Stripe customer creation (no Subscription)
+this.queueProducer.enqueue(
+  QUEUE_NAMES.TENANT_PROCESSING,
+  TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION,
+  { tenantId, email, userId },
+);
 ```
 
 **Key Points:**
@@ -454,7 +455,9 @@ await this.executeInTenantScope('', { mode: 'platform' }, async (client) => {
 - **Platform Admin Context:** Runs with `app.platform_role = 'true'` to bypass RLS policies
 - **Atomic Transaction:** All operations succeed or fail together
 - **Subscription Required:** Every tenant must have an active subscription for entitlement resolution
-- **Default Plan:** Navigator (free tier) if not specified
+- **Default = 14-day trial of General Counsel** (full features). Trials downgrade to Navigator (free) on expiry via the `TRIAL_EXPIRY_CHECK` cron.
+- **Trial Reminder:** A "trial ending in ~3 days" email is sent by the `TRIAL_REMINDER_CHECK` cron (every 6h), idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
+- **Paid plans:** Only granted by `StripeCheckoutService.createCheckoutSession` + `handleSubscriptionCheckout` webhook. Never on tenant create.
 - **RBAC Setup:** System roles are synced on app startup, not per-tenant
 - **Entitlement Snapshot:** Created lazily on first access by `EntitlementResolverService`
 - **Stripe Customer:** Fire-and-forget creation with creator email and `metadata.creator_user_id`; never blocks tenant creation

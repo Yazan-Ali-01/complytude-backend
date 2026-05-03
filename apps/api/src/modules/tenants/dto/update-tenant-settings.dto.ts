@@ -1,11 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsIn,
-  IsObject,
-  IsOptional,
-  IsString,
-  IsTimeZone,
-} from 'class-validator';
+import { IsIn, IsOptional, IsString, IsTimeZone } from 'class-validator';
 
 export class UpdateTenantSettingsDto {
   @ApiProperty({
@@ -36,13 +30,4 @@ export class UpdateTenantSettingsDto {
   @IsString()
   @IsOptional()
   default_jurisdiction?: string;
-
-  @ApiProperty({
-    description: 'Additional settings (merged with existing)',
-    example: { notifications_enabled: true },
-    required: false,
-  })
-  @IsObject()
-  @IsOptional()
-  settings?: Record<string, unknown>;
 }

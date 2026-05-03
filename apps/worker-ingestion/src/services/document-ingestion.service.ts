@@ -7,7 +7,9 @@ import {
 } from '../interfaces/s3-promotion.interface';
 import {
   TEXTRACT_SERVICE,
+  type DocumentSection,
   type ITextractService,
+  type TextractResult,
 } from '../interfaces/textract.interface';
 import { DocumentWriteRepository } from '../repositories/document-write.repository';
 
@@ -34,6 +36,8 @@ export class DocumentIngestionService {
     const document = await this.fetchAndValidate(documentId);
 
     // 2. Extract text (skip if content already stored — retry resilience)
+    // content and content_structured are written atomically, so content being
+    // non-null means the full extraction (including structure) already ran.
     const hasContentAlready =
       document.content !== null && document.content.trim().length > 0;
 
@@ -45,15 +49,16 @@ export class DocumentIngestionService {
       );
       extractedText = document.content!;
     } else {
-      extractedText = await this.extractText(
+      const result = await this.extractText(
         documentId,
         s3Bucket,
         s3Key,
         mimeType,
       );
+      extractedText = result.text;
 
-      // Persist extracted text immediately for retry resilience
-      await this.storeContent(documentId, extractedText);
+      // Persist text + structure atomically for retry resilience
+      await this.storeContent(documentId, result.text, result.sections);
     }
 
     // 3. Promote file from quarantine → clean bucket
@@ -114,7 +119,7 @@ export class DocumentIngestionService {
     bucket: string,
     key: string,
     mimeType: string,
-  ): Promise<string> {
+  ): Promise<TextractResult> {
     const result = await this.textractService
       .extractText(bucket, key, mimeType)
       .catch((err: unknown) => {
@@ -133,18 +138,19 @@ export class DocumentIngestionService {
 
     this.logger.log(
       `Textract extraction complete: documentId=${documentId} ` +
-        `textLength=${result.text.length} pages=${result.pageCount ?? 'unknown'}`,
+        `textLength=${result.text.length} sections=${result.sections.length} pages=${result.pageCount ?? 'unknown'}`,
     );
 
-    return result.text;
+    return result;
   }
 
   private async storeContent(
     documentId: string,
     content: string,
+    sections: DocumentSection[],
   ): Promise<void> {
     await this.documentWriteRepository
-      .storeExtractedContent(documentId, content)
+      .storeExtractedContent(documentId, content, sections)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error storing content for document ${documentId}`,
@@ -153,7 +159,7 @@ export class DocumentIngestionService {
       });
 
     this.logger.log(
-      `Extracted text stored: documentId=${documentId} length=${content.length}`,
+      `Extracted text stored: documentId=${documentId} length=${content.length} sections=${sections.length}`,
     );
   }
 

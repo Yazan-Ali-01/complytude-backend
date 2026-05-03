@@ -14,7 +14,7 @@ BEGIN;
 -- Note: created_by references test users from 003_seed_test_tenants_users.sql
 -- Note: category_id and authority_id reference data from 001 and 002
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000001'::UUID,
     'dmcc_employment_limited_en_v1',
@@ -28,14 +28,13 @@ SELECT
     'essential',
     NULL,
     NULL,
-    '{"pages": 5, "fields_count": 8, "compliance_version": "2024.1", "last_audit": "2024-12-01"}',
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'employment' AND a.code = 'DMCC'
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000002'::UUID,
     'difc_nda_mutual_en_v1',
@@ -49,14 +48,13 @@ SELECT
     'essential',
     NULL,
     NULL,
-    '{"pages": 3, "fields_count": 7, "compliance_version": "2024.1"}',
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'nda' AND a.code = 'DIFC'
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000003'::UUID,
     'ded_freelance_service_en_v1',
@@ -70,14 +68,13 @@ SELECT
     'essential',
     NULL,
     NULL,
-    '{"pages": 4, "fields_count": 8, "compliance_version": "2024.1"}',
     'dddddddd-dddd-4ddd-dddd-dddddddddddd'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'freelance' AND a.code = 'DED'
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000004'::UUID,
     'adgm_partnership_agreement_en_v1',
@@ -91,14 +88,13 @@ SELECT
     'full',
     NULL,
     NULL,
-    '{"pages": 8, "fields_count": 8, "compliance_version": "2024.2"}',
     'ffffffff-ffff-4fff-ffff-ffffffffffff'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a
 WHERE c.code = 'partnership' AND a.code = 'ADGM'
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, metadata, created_by)
+INSERT INTO public.templates (id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, created_by)
 SELECT
     '10000000-0000-0000-0000-000000000005'::UUID,
     'ifza_commercial_lease_en_v1',
@@ -112,7 +108,6 @@ SELECT
     'full',
     NULL,
     NULL,
-    '{"pages": 6, "fields_count": 9, "compliance_version": "2024.1"}',
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 FROM public.categories c
 CROSS JOIN public.authorities a

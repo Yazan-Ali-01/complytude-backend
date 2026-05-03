@@ -41,6 +41,9 @@ async function bootstrap() {
         randomUUID()
       );
     },
+    // Honour X-Forwarded-For from the ALB so req.ip exposes the real client.
+    // Only enabled in deployed environments where requests pass through our LB.
+    trustProxy: process.env.NODE_ENV === 'production',
   });
 
   fastifyAdapter

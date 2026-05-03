@@ -205,7 +205,7 @@ export class TemplatesController {
   @ApiOperation({
     summary: 'Get specific template version',
     description:
-      'Retrieve detailed information about a specific version of a template, including all fields and metadata.',
+      'Retrieve detailed information about a specific version of a template, including all fields.',
   })
   @ApiParam({
     name: 'key',

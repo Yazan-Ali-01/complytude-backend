@@ -14,7 +14,7 @@ BEGIN;
 -- NOTE: logo_url is NULL for clean upload testing
 
 INSERT INTO public.tenants (
-    id, is_active, name, slug, logo_url, settings, onboarding_metadata,
+    id, is_active, name, slug, logo_url, onboarding_metadata,
     brand_color_primary, brand_color_secondary, contact_email, billing_email,
     contact_phone, emirate, city, address_line_1, address_line_2, postal_code,
     trade_license_number, legal_entity_type, tax_registration_number, locale,
@@ -23,7 +23,7 @@ INSERT INTO public.tenants (
 ) VALUES
     (
         '11111111-1111-4111-8111-111111111111', true, 'Acme Legal LLC', 'acme-legal', NULL,
-        '{"notifications": true, "theme": "light"}', '{"step": 1, "completed": false}',
+        '{"step": 1, "completed": false}',
         '#0000FF', '#FFFFFF', 'contact@acme-legal.com', 'billing@acme-legal.com',
         '+1234567890', 'Dubai', 'Dubai', 'PO Box 1234', NULL, '12345',
         'TL123456789', 'LLC', 'TRN123456789', 'en', 'Asia/Dubai', 'Dubai', NULL, NULL,
@@ -31,7 +31,7 @@ INSERT INTO public.tenants (
     ),
     (
         '22222222-2222-4222-8222-222222222222', true, 'Shield Corp', 'shield-corp', NULL,
-        '{"notifications": true, "theme": "dark"}', '{"step": 2, "completed": false}',
+        '{"step": 2, "completed": false}',
         '#FF0000', '#000000', 'contact@shield-corp.com', 'billing@shield-corp.com',
         '+0987654321', 'Abu Dhabi', 'Abu Dhabi', 'PO Box 5678', NULL, '54321',
         'TL987654321', 'Corporation', 'TRN987654321', 'en', 'Asia/Dubai', 'Abu Dhabi', NULL, NULL,
@@ -39,7 +39,7 @@ INSERT INTO public.tenants (
     ),
     (
         '33333333-2222-4222-8222-333333333333', true, 'Infrastructure Inc', 'infra-inc', NULL,
-        '{"notifications": false, "theme": "light"}', '{"step": 3, "completed": false}',
+        '{"step": 3, "completed": false}',
         '#00FF00', '#FFFF00', 'contact@infra-inc.com', 'billing@infra-inc.com',
         '+1122334455', 'Sharjah', 'Sharjah', 'PO Box 91011', NULL, '67890',
         'TL112233445', 'Partnership', 'TRN112233445', 'en', 'Asia/Dubai', 'Sharjah', NULL, NULL,
@@ -50,7 +50,6 @@ ON CONFLICT (id) DO UPDATE SET
     name = COALESCE(EXCLUDED.name, tenants.name),
     slug = COALESCE(EXCLUDED.slug, tenants.slug),
     logo_url = NULL,
-    settings = COALESCE(EXCLUDED.settings, tenants.settings),
     onboarding_metadata = COALESCE(EXCLUDED.onboarding_metadata, tenants.onboarding_metadata),
     brand_color_primary = COALESCE(EXCLUDED.brand_color_primary, tenants.brand_color_primary),
     brand_color_secondary = COALESCE(EXCLUDED.brand_color_secondary, tenants.brand_color_secondary),

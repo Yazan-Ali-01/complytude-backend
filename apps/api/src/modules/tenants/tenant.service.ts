@@ -15,8 +15,10 @@ import {
 import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
 import { SystemTenantRole } from '../../common/types/tenant.types';
-import { deepMerge } from '../../common/utils/deep-merge.util';
-import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import {
+  TenantRepository,
+  UpdateTenantRow,
+} from '../../repositories/tenants/tenant.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import {
   QueueProducerService,
@@ -25,10 +27,6 @@ import {
 } from '@lib/queue';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantsI18n } from './constants/i18n.constants';
-import {
-  DEFAULT_ONBOARDING_METADATA,
-  type StepsCompleted,
-} from './constants/onboarding.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { DeactivateTenantDto } from './dto/deactivate-tenant.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
@@ -181,24 +179,27 @@ export class TenantService {
   }
 
   /**
-   * Create a new tenant with default subscription
+   * Create a new tenant with a 14-day trial subscription.
    *
-   * 📝 Creates a tenant record with default plan and active status.
-   * Also creates a default subscription in the same transaction for atomicity.
-   * Does NOT require RLS context since it's inserting new rows (RLS policies typically allow INSERT).
+   * 📝 Creates a tenant record (active by default) and a `trialing` subscription
+   * on the trial plan defined in `TRIAL_CONFIG`. Both writes happen inside the
+   * same transaction for atomicity.
    *
-   * @param createTenantDto - Tenant creation data (optional planKey, defaults to 'navigator')
+   * Plan selection is intentionally not exposed: paid plans are granted only
+   * through Stripe Checkout + webhooks. See `StripeCheckoutService`.
+   *
+   * @param createTenantDto - Tenant creation data (just `name`)
    * @param subscriptionCreatorUserId - User ID for subscription creator (null when created by system)
    * @param options - Optional client for transaction reuse
    * @returns The created Tenant entity with generated ID and timestamps
    *
    * @throws InternalServerErrorException - If database operation fails
-   * @throws NotFoundException - If specified plan not found
-   * @throws BadRequestException - If specified plan is not active
+   * @throws NotFoundException - If trial plan not found in catalog
+   * @throws BadRequestException - If trial plan is not active
    *
    * @example
    * ```ts
-   * const tenant = await tenantService.createTenant({ name: 'Acme', planKey: 'general_counsel' }, userId);
+   * const tenant = await tenantService.createTenant({ name: 'Acme' }, userId);
    * const tenant = await tenantService.createTenant(dto, null, { client }); // Reuse parent transaction
    * ```
    */
@@ -219,31 +220,18 @@ export class TenantService {
           {
             name: createTenantDto.name,
             is_active: true,
-            onboarding_metadata: { ...DEFAULT_ONBOARDING_METADATA },
           },
           { client: txClient },
         );
 
-        if (createTenantDto.planKey) {
-          await this.subscriptionsService.createSubscription(
-            created.id,
-            createTenantDto.planKey,
-            subscriptionCreatorUserId ?? null,
-            { client: txClient },
-          );
-          this.logger.log(
-            `Tenant created with subscription: tenant=${created.id}, plan=${createTenantDto.planKey}`,
-          );
-        } else {
-          await this.subscriptionsService.createTrialSubscription(
-            created.id,
-            subscriptionCreatorUserId ?? null,
-            { client: txClient },
-          );
-          this.logger.log(
-            `Tenant created with trial subscription: tenant=${created.id}`,
-          );
-        }
+        await this.subscriptionsService.createTrialSubscription(
+          created.id,
+          subscriptionCreatorUserId ?? null,
+          { client: txClient },
+        );
+        this.logger.log(
+          `Tenant created with trial subscription: tenant=${created.id}`,
+        );
 
         return created;
       };
@@ -569,21 +557,18 @@ export class TenantService {
   }
 
   /**
-   * Update tenant preferences and settings
+   * Update tenant preferences (locale, timezone, default jurisdiction)
    *
-   * 🔐 RLS: Deep-merges new settings with existing tenant settings.
-   * Fields: locale, timezone, default_jurisdiction, custom settings object.
+   * 🔐 RLS: Partial update of preference fields only.
    *
    * @param tenantId - UUID of the tenant
-   * @param dto - Settings to update (partial, deep-merged)
-   * @returns Updated Tenant entity with merged settings
+   * @param dto - Fields to update
+   * @returns Updated Tenant entity
    *
    * @throws NotFoundException - If tenant not found
-   * @throws InternalServerErrorException - If merge or update fails
+   * @throws InternalServerErrorException - If update fails
    *
    * @permission Requires 'settings:manage' permission
-   * @note Settings are deep-merged: `{ theme: 'dark' }` + existing `{ notifications: true }`
-   *       = `{ theme: 'dark', notifications: true }`
    */
   async updateSettings(
     tenantId: string,
@@ -591,23 +576,23 @@ export class TenantService {
     context?: TenantContext,
   ): Promise<Tenant> {
     return this.executeInTenantScope(tenantId, context, async (client) => {
-      const tenant = await this.findById(tenantId, { client });
-      const mergedSettings = dto.settings
-        ? deepMerge(tenant.settings || {}, dto.settings)
-        : tenant.settings;
+      await this.findById(tenantId, { client });
 
-      return this.updateOrThrow(
-        tenantId,
-        {
-          ...(dto.locale && { locale: dto.locale }),
-          ...(dto.timezone && { timezone: dto.timezone }),
-          ...(dto.default_jurisdiction !== undefined && {
-            default_jurisdiction: dto.default_jurisdiction,
-          }),
-          settings: mergedSettings,
-        },
-        client,
-      );
+      const patch: Record<string, unknown> = {
+        ...(dto.locale && { locale: dto.locale }),
+        ...(dto.timezone && { timezone: dto.timezone }),
+        ...(dto.default_jurisdiction !== undefined && {
+          default_jurisdiction: dto.default_jurisdiction,
+        }),
+      };
+
+      if (Object.keys(patch).length === 0) {
+        throw new BadRequestException(
+          this.i18n.t(TenantsI18n.errors.TENANT_SETTINGS_NO_FIELDS),
+        );
+      }
+
+      return this.updateOrThrow(tenantId, patch, client);
     });
   }
 
@@ -705,12 +690,12 @@ export class TenantService {
   /**
    * Update onboarding progress metadata
    *
-   * 🔐 RLS: Deep-merges onboarding_metadata to track step completion.
+   * 🔐 RLS: Updates typed onboarding columns to track step completion.
    * Used for progressive onboarding UI and analytics.
    *
    * @param tenantId - UUID of the tenant
    * @param dto - Onboarding metadata to merge (partial)
-   * @returns Updated Tenant entity with merged onboarding_metadata
+   * @returns Updated Tenant entity with new onboarding values
    *
    * @throws NotFoundException - If tenant not found
    * @throws InternalServerErrorException - If merge or update fails
@@ -724,38 +709,21 @@ export class TenantService {
     context?: TenantContext,
   ): Promise<Tenant> {
     return this.executeInTenantScope(tenantId, context, async (client) => {
-      const tenant = await this.findById(tenantId, { client });
       const { currentStep, teamInviteSkipped, firstActionType } = dto;
-      const partialMetadata: Record<string, unknown> = Object.fromEntries(
-        Object.entries({
-          currentStep,
-          teamInviteSkipped,
-          firstActionType,
-        }).filter(([, v]) => v !== undefined),
-      );
-
-      // Derive stepsCompleted flags from semantic field changes so the server
-      // always owns these — clients set intent, we set completion.
-      const stepsCompleted: Partial<StepsCompleted> = {};
-      if (teamInviteSkipped === true) {
-        stepsCompleted.inviteTeam = true;
+      const update: UpdateTenantRow = {};
+      if (currentStep !== undefined) {
+        update.onboarding_current_step = currentStep;
       }
-      if (firstActionType != null) {
-        stepsCompleted.firstAction = true;
+      if (teamInviteSkipped !== undefined) {
+        update.onboarding_team_invite_skipped = teamInviteSkipped;
       }
-      if (Object.keys(stepsCompleted).length > 0) {
-        partialMetadata.stepsCompleted = stepsCompleted;
+      if (firstActionType !== undefined) {
+        update.onboarding_first_action_type = firstActionType;
+        if (firstActionType != null) {
+          update.onboarding_first_action_completed_at = new Date();
+        }
       }
-
-      const mergedMetadata = deepMerge(
-        tenant.onboarding_metadata || {},
-        partialMetadata,
-      );
-      return this.updateOrThrow(
-        tenantId,
-        { onboarding_metadata: mergedMetadata },
-        client,
-      );
+      return this.updateOrThrow(tenantId, update, client);
     });
   }
 

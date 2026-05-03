@@ -39,7 +39,6 @@ export interface Feature {
   creditable: boolean;
   credit_cost?: number | null; // Cost in credits per unit (NULL for non-creditable features)
   is_active: boolean;
-  metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }
@@ -54,7 +53,6 @@ export interface Plan {
   billing_period: string;
   is_active: boolean;
   sort_order: number;
-  metadata: Record<string, unknown>;
   stripe_product_id?: string | null;
   stripe_price_id_monthly?: string | null;
   stripe_price_id_annual?: string | null;
@@ -69,7 +67,6 @@ export interface PlanEntitlement {
   value_bool?: boolean;
   value_int?: number;
   value_text?: string;
-  metadata: Record<string, unknown>;
   created_at: Date;
 }
 
@@ -81,7 +78,6 @@ export interface Addon {
   price_monthly: number;
   price_currency: string;
   is_active: boolean;
-  metadata: Record<string, unknown>;
   stripe_product_id?: string | null;
   stripe_price_id?: string | null;
   created_at: Date;
@@ -97,7 +93,6 @@ export interface AddonEntitlement {
   value_bool?: boolean;
   value_int?: number;
   value_text?: string;
-  metadata: Record<string, unknown>;
   created_at: Date;
 }
 
@@ -116,7 +111,12 @@ export interface TenantSubscription {
   current_period_end: Date;
   cancelled_at?: Date;
   trial_ends_at?: Date;
+  /** Set when the "trial ending soon" reminder email was delivered. */
+  trial_reminder_sent_at?: Date | null;
   metadata: Record<string, unknown>;
+  billing_interval?: 'monthly' | 'annual' | null;
+  cancel_at_period_end: boolean;
+  downgraded_from_stripe: boolean;
   stripe_subscription_id?: string | null;
   stripe_schedule_id?: string | null;
   stripe_current_period_end?: Date | null;
@@ -133,7 +133,6 @@ export interface TenantAddon {
   status: string;
   starts_at: Date;
   expires_at?: Date;
-  metadata: Record<string, unknown>;
   stripe_subscription_item_id?: string | null;
   created_at: Date;
   updated_at: Date;
@@ -323,7 +322,6 @@ export interface CreateFeatureRow {
   creditable?: boolean;
   credit_cost?: number | null; // Cost in credits per unit
   is_active?: boolean;
-  metadata?: string; // Stringified JSON
 }
 
 export interface UpdateFeatureRow {
@@ -334,7 +332,6 @@ export interface UpdateFeatureRow {
   creditable?: boolean;
   credit_cost?: number | null; // Cost in credits per unit
   is_active?: boolean;
-  metadata?: string; // Stringified JSON
 }
 
 // Plans
@@ -348,7 +345,6 @@ export interface CreatePlanRow {
   billing_period?: string;
   is_active?: boolean;
   sort_order?: number;
-  metadata?: string; // Stringified JSON
   stripe_product_id?: string | null;
   stripe_price_id_monthly?: string | null;
   stripe_price_id_annual?: string | null;
@@ -362,7 +358,6 @@ export interface UpdatePlanRow {
   billing_period?: string;
   is_active?: boolean;
   sort_order?: number;
-  metadata?: string; // Stringified JSON
   stripe_product_id?: string | null;
   stripe_price_id_monthly?: string | null;
   stripe_price_id_annual?: string | null;
@@ -376,14 +371,12 @@ export interface CreatePlanEntitlementRow {
   value_bool?: boolean;
   value_int?: number;
   value_text?: string;
-  metadata?: string; // Stringified JSON
 }
 
 export interface UpdatePlanEntitlementRow {
   value_bool?: boolean;
   value_int?: number;
   value_text?: string;
-  metadata?: string; // Stringified JSON
 }
 
 // Tenant Subscriptions
@@ -399,6 +392,9 @@ export interface CreateTenantSubscriptionRow {
   cancelled_at?: Date;
   trial_ends_at?: Date;
   metadata?: string; // Stringified JSON
+  billing_interval?: 'monthly' | 'annual' | null;
+  cancel_at_period_end?: boolean;
+  downgraded_from_stripe?: boolean;
   stripe_subscription_id?: string | null;
   stripe_schedule_id?: string | null;
   stripe_current_period_end?: Date | null;
@@ -413,6 +409,9 @@ export interface UpdateTenantSubscriptionRow {
   current_period_end?: Date;
   cancelled_at?: Date | null;
   metadata?: string; // Stringified JSON
+  billing_interval?: 'monthly' | 'annual' | null;
+  cancel_at_period_end?: boolean;
+  downgraded_from_stripe?: boolean;
   stripe_subscription_id?: string | null;
   stripe_schedule_id?: string | null;
   stripe_current_period_end?: Date | null;
@@ -428,7 +427,6 @@ export interface CreateTenantAddonRow {
   status?: string;
   starts_at?: Date;
   expires_at?: Date;
-  metadata?: string; // Stringified JSON
   stripe_subscription_item_id?: string | null;
 }
 
@@ -436,7 +434,6 @@ export interface UpdateTenantAddonRow {
   quantity?: number;
   status?: string;
   expires_at?: Date;
-  metadata?: string; // Stringified JSON
   stripe_subscription_item_id?: string | null;
 }
 

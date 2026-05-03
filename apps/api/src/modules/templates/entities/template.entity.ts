@@ -13,7 +13,6 @@ export interface Template {
   tier: 'essential' | 'full';
   file_url: string | null;
   thumbnail_url: string | null;
-  metadata: Record<string, unknown>;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;

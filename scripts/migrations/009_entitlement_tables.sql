@@ -36,7 +36,6 @@ CREATE TABLE public.features (
     creditable  BOOLEAN NOT NULL DEFAULT false,
     credit_cost INTEGER, -- Cost in credits per unit (NULL for non-creditable features)
     is_active   BOOLEAN NOT NULL DEFAULT true,
-    metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -59,7 +58,6 @@ CREATE TABLE public.plans (
     billing_period            VARCHAR(20) NOT NULL DEFAULT 'monthly',
     is_active                 BOOLEAN NOT NULL DEFAULT true,
     sort_order                INTEGER NOT NULL DEFAULT 0,
-    metadata                  JSONB DEFAULT '{}',
     stripe_product_id         VARCHAR(255) UNIQUE DEFAULT NULL,
     stripe_price_id_monthly   VARCHAR(255) UNIQUE DEFAULT NULL,
     stripe_price_id_annual    VARCHAR(255) UNIQUE DEFAULT NULL,
@@ -83,7 +81,6 @@ CREATE TABLE public.plan_entitlements (
     value_bool  BOOLEAN,
     value_int   INTEGER,
     value_text  VARCHAR(255),
-    metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT uq_plan_entitlements_plan_feature UNIQUE (plan_id, feature_id),
@@ -109,7 +106,6 @@ CREATE TABLE public.addons (
     price_monthly       DECIMAL(10, 2) NOT NULL DEFAULT 0,
     price_currency      VARCHAR(3) NOT NULL DEFAULT 'AED',
     is_active           BOOLEAN NOT NULL DEFAULT true,
-    metadata            JSONB DEFAULT '{}',
     stripe_product_id   VARCHAR(255) UNIQUE DEFAULT NULL,
     stripe_price_id     VARCHAR(255) UNIQUE DEFAULT NULL,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -129,7 +125,6 @@ CREATE TABLE public.addon_entitlements (
     value_bool  BOOLEAN,
     value_int   INTEGER,
     value_text  VARCHAR(255),
-    metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT uq_addon_entitlements_addon_feature UNIQUE (addon_id, feature_id),
@@ -159,7 +154,11 @@ CREATE TABLE public.tenant_subscriptions (
     current_period_end          TIMESTAMPTZ NOT NULL,
     cancelled_at                TIMESTAMPTZ,
     trial_ends_at               TIMESTAMPTZ,
+    trial_reminder_sent_at      TIMESTAMPTZ,
     metadata                    JSONB DEFAULT '{}',
+    billing_interval            VARCHAR(10) DEFAULT NULL CHECK (billing_interval IN ('monthly', 'annual')),
+    cancel_at_period_end        BOOLEAN NOT NULL DEFAULT false,
+    downgraded_from_stripe      BOOLEAN NOT NULL DEFAULT false,
     stripe_subscription_id      VARCHAR(255) UNIQUE DEFAULT NULL,
     stripe_schedule_id          VARCHAR(255) DEFAULT NULL,
     stripe_current_period_end   TIMESTAMPTZ DEFAULT NULL,
@@ -170,6 +169,7 @@ CREATE TABLE public.tenant_subscriptions (
 
 COMMENT ON TABLE public.tenant_subscriptions IS 'Tenant subscription records with billing period tracking';
 COMMENT ON COLUMN public.tenant_subscriptions.trial_ends_at IS 'Trial expiration timestamp (only set when status = trialing)';
+COMMENT ON COLUMN public.tenant_subscriptions.trial_reminder_sent_at IS 'Timestamp when the "trial ending soon" reminder email was sent. NULL until the reminder cron picks it up; ensures one-shot delivery.';
 COMMENT ON COLUMN public.tenant_subscriptions.billing_period_start IS 'Overall subscription start date';
 COMMENT ON COLUMN public.tenant_subscriptions.billing_period_end IS 'Overall subscription end date (NULL for ongoing)';
 COMMENT ON COLUMN public.tenant_subscriptions.current_period_start IS 'Current billing cycle start';
@@ -188,7 +188,6 @@ CREATE TABLE public.tenant_addons (
     status                      VARCHAR(20) NOT NULL DEFAULT 'active',
     starts_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at                  TIMESTAMPTZ,
-    metadata                    JSONB DEFAULT '{}',
     stripe_subscription_item_id VARCHAR(255) DEFAULT NULL,
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -583,6 +582,13 @@ CREATE UNIQUE INDEX idx_tenant_subscriptions_tenant_one_valid
 CREATE INDEX idx_tenant_subscriptions_trial_expiry
     ON public.tenant_subscriptions(trial_ends_at)
     WHERE status = 'trialing';
+
+-- Partial index for the trial-ending-soon reminder job. Targets the same
+-- 'trialing' rows but only those that haven't been notified yet, so the cron
+-- query stays cheap at scale.
+CREATE INDEX idx_tenant_subscriptions_trial_reminder_due
+    ON public.tenant_subscriptions(trial_ends_at)
+    WHERE status = 'trialing' AND trial_reminder_sent_at IS NULL;
 
 -- Tenant Addons
 CREATE INDEX idx_tenant_addons_tenant_id ON public.tenant_addons(tenant_id);

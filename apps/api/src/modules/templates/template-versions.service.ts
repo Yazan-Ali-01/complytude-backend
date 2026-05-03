@@ -32,7 +32,6 @@ export class TemplateVersionsService {
     fields: TemplateField[],
     fileUrl: string,
     changelog: string | undefined,
-    metadata: Record<string, unknown>,
     createdBy: string,
     client?: PoolClient,
   ): Promise<TemplateVersion> {
@@ -63,7 +62,6 @@ export class TemplateVersionsService {
           fields: JSON.stringify(fields ?? []), // Stringify JSONB field
           file_url: fileUrl,
           changelog: changelog ?? null,
-          metadata: JSON.stringify(metadata ?? {}), // Stringify JSONB field
           is_active: true,
           created_by: createdBy,
         },
@@ -119,7 +117,6 @@ export class TemplateVersionsService {
           'fields',
           'file_url',
           'changelog',
-          'metadata',
           'is_active',
           'created_by',
           'created_at',
@@ -161,7 +158,6 @@ export class TemplateVersionsService {
           'fields',
           'file_url',
           'changelog',
-          'metadata',
           'is_active',
           'created_by',
           'created_at',

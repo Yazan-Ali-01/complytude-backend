@@ -1,5 +1,13 @@
+export interface DocumentSection {
+  heading: string | null;
+  level: number;
+  content: string;
+  pageStart: number;
+}
+
 export interface TextractResult {
   text: string;
+  sections: DocumentSection[];
   pageCount: number;
   confidence?: number;
   textractJobId?: string;

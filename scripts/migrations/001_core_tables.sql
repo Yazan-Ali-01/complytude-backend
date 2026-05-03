@@ -36,12 +36,14 @@ CREATE TABLE public.tenants (
     locale             VARCHAR(50) DEFAULT 'en',
     timezone           VARCHAR(50) DEFAULT NULL,
     default_jurisdiction VARCHAR(100) DEFAULT NULL,
-    settings           JSONB DEFAULT '{}',
     slug             VARCHAR(255) UNIQUE DEFAULT NULL,
     is_active        BOOLEAN NOT NULL DEFAULT true,
     parent_tenant_id UUID,
     onboarding_completed_at TIMESTAMPTZ DEFAULT NULL,
-    onboarding_metadata JSONB DEFAULT '{}',
+    onboarding_current_step        VARCHAR(30) NOT NULL DEFAULT 'invite_team',
+    onboarding_team_invite_skipped BOOLEAN NOT NULL DEFAULT false,
+    onboarding_first_action_type   VARCHAR(30) DEFAULT NULL,
+    onboarding_first_action_completed_at TIMESTAMPTZ DEFAULT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deactivated_at   TIMESTAMPTZ DEFAULT NULL,
@@ -81,12 +83,14 @@ COMMENT ON COLUMN public.tenants.tax_registration_number IS 'Tenant tax registra
 COMMENT ON COLUMN public.tenants.locale IS 'Tenant locale (en for English)';
 COMMENT ON COLUMN public.tenants.timezone IS 'Tenant timezone (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.default_jurisdiction IS 'Tenant default jurisdiction (NULL for anonymous tenants)';
-COMMENT ON COLUMN public.tenants.settings IS 'Tenant settings (JSONB)';
 COMMENT ON COLUMN public.tenants.slug IS 'Tenant slug (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.is_active IS 'Whether the tenant account is active (soft delete flag)';
 COMMENT ON COLUMN public.tenants.deactivated_at IS 'Tenant deactivation timestamp (NULL for active tenants)';
 COMMENT ON COLUMN public.tenants.onboarding_completed_at IS 'Tenant onboarding completion timestamp (NULL for incomplete onboarding)';
-COMMENT ON COLUMN public.tenants.onboarding_metadata IS 'Tenant onboarding metadata (JSONB)';
+COMMENT ON COLUMN public.tenants.onboarding_current_step IS 'Active onboarding step (create_workspace | invite_team | first_action | completed)';
+COMMENT ON COLUMN public.tenants.onboarding_team_invite_skipped IS 'True when the user explicitly skipped the invite-team step';
+COMMENT ON COLUMN public.tenants.onboarding_first_action_type IS 'Which first action the user picked (upload_contract | ask_question | analyze_document)';
+COMMENT ON COLUMN public.tenants.onboarding_first_action_completed_at IS 'Timestamp of first action completion (NULL until completed)';
 COMMENT ON COLUMN public.tenants.parent_tenant_id IS 'Parent tenant for Agency/Partner hierarchy (MVP+) - NULL for independent tenants';
 COMMENT ON COLUMN public.tenants.deactivation_reason IS 'Tenant deactivation reason (NULL for active tenants)';
 

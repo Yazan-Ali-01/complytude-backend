@@ -6,7 +6,6 @@ export interface RulesetVersionRow {
   rulesetId: string;
   version: string;
   clauses: unknown[];
-  metadata: Record<string, unknown>;
 }
 
 export interface RulesetWithAuthorityRow {
@@ -27,9 +26,8 @@ export class RulesetVersionReadRepository {
       ruleset_id: string;
       version: string;
       clauses: unknown[];
-      metadata: Record<string, unknown>;
     }>(
-      `SELECT id, ruleset_id, version, clauses, metadata
+      `SELECT id, ruleset_id, version, clauses
        FROM public.ruleset_versions
        WHERE id = $1`,
       [versionId],
@@ -43,7 +41,6 @@ export class RulesetVersionReadRepository {
       rulesetId: row.ruleset_id,
       version: row.version,
       clauses: Array.isArray(row.clauses) ? row.clauses : [],
-      metadata: row.metadata ?? {},
     };
   }
 

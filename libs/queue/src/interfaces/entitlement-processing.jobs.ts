@@ -7,6 +7,7 @@ export const ENTITLEMENT_JOB_NAMES = {
   CREDIT_NOTIFICATION: 'credit-notification',
   QUOTA_EXCEEDED: 'quota-exceeded',
   TRIAL_EXPIRY_CHECK: 'trial-expiry-check',
+  TRIAL_REMINDER_CHECK: 'trial-reminder-check',
   USAGE_REFUND: 'usage-refund',
 } as const;
 
@@ -69,6 +70,15 @@ export interface EntitlementSubscriptionRenewalJobData {
 }
 
 export interface EntitlementTrialExpiryCheckJobData {
+  triggeredAt: string;
+}
+
+/**
+ * Trigger payload for the "trial ending soon" reminder cron.
+ * Carries no per-tenant data — the handler scans the DB for trials in the
+ * configured reminder window and dispatches one email per row.
+ */
+export interface EntitlementTrialReminderCheckJobData {
   triggeredAt: string;
 }
 

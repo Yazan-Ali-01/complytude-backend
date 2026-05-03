@@ -1,5 +1,7 @@
 # Complytude Documentation
 
+> **🎯 Lost? Coming back after time away? Read [LAUNCH_PLAYBOOK.md](LAUNCH_PLAYBOOK.md) first.** It's the single source of truth for what to do next.
+
 Welcome to the Complytude documentation hub. This directory contains documentation that applies to the **entire monorepo** (all applications).
 
 ## Monorepo Structure
@@ -29,6 +31,7 @@ This directory contains documentation that applies across all applications:
 
 | Document                                     | Description                                        |
 | -------------------------------------------- | -------------------------------------------------- |
+| [LAUNCH_PLAYBOOK.md](LAUNCH_PLAYBOOK.md)     | **Single source of truth** for sequencing of work toward launch |
 | [ARCHITECTURE.md](ARCHITECTURE.md)           | System architecture and design patterns            |
 | [DATABASE.md](DATABASE.md)                   | Database schema, RLS, and data model               |
 | [RBAC.md](RBAC.md)                           | Role-Based Access Control (Tenant & Platform RBAC) |

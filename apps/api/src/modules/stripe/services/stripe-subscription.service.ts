@@ -395,10 +395,7 @@ export class StripeSubscriptionService {
           {
             stripe_status: stripeSubscription.status,
             cancelled_at: new Date(),
-            metadata: JSON.stringify({
-              ...(subscription.metadata ?? {}),
-              cancel_at_period_end: true,
-            }),
+            cancel_at_period_end: true,
           },
           { client },
         );
@@ -447,8 +444,7 @@ export class StripeSubscriptionService {
       throw new BadRequestException('No active subscription to reactivate');
     }
 
-    const metadata = subscription.metadata ?? {};
-    if (!metadata.cancel_at_period_end) {
+    if (!subscription.cancel_at_period_end) {
       throw new BadRequestException(
         'Subscription does not have a pending cancellation',
       );
@@ -465,10 +461,7 @@ export class StripeSubscriptionService {
           subscription.id,
           {
             cancelled_at: null,
-            metadata: JSON.stringify({
-              ...metadata,
-              cancel_at_period_end: false,
-            }),
+            cancel_at_period_end: false,
           },
           { client },
         );

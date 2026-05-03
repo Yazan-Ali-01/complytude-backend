@@ -30,18 +30,17 @@ SELECT id INTO v_difc_id FROM public.authorities WHERE code = 'DIFC' LIMIT 1;
 -- Ruleset 1: UAE Federal Labour Law – Employment Terms
 -- =========================
 
-INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, metadata, created_by)
+INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000001',
     'uae_labour_law_employment_v1',
     'UAE Federal Labour Law – Employment Terms',
     'Core employment requirements under UAE Federal Decree-Law No. 33 of 2021 (Private Sector Labour Law). Covers probation, notice periods, working hours, leave, end-of-service gratuity, and termination.',
     v_ded_id, '1.0.0', 'active',
-    '{"source": "Federal Decree-Law No. 33/2021", "effective_date": "2022-02-02", "tags": ["employment", "labour", "mainland"]}',
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, metadata, is_active, created_by)
+INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, rolled_back_from_version, is_active, created_by)
 VALUES (
     '20000000-0000-0000-0001-000000000001',
     '20000000-0000-0000-0000-000000000001',
@@ -59,7 +58,7 @@ VALUES (
         {"id":"uae_lab_10","title":"Wage Payment Requirements","content":"Wages must be paid in UAE Dirhams (AED) through approved financial institutions (WPS – Wage Protection System). Payment must be made no later than ten (10) days from the due date. The employer may not deduct more than half of the employee monthly wage for debt repayment. Wage deductions require written employee consent, except for legally mandated deductions.","order":10,"is_required":true,"metadata":{"article":"Art. 22-26","severity":"critical"}}
     ]'::jsonb,
     'Initial version – UAE Federal Decree-Law No. 33/2021',
-    '{"clause_count": 10}',
+    NULL,
     true,
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
@@ -68,18 +67,17 @@ VALUES (
 -- Ruleset 2: DMCC Employment Regulations
 -- =========================
 
-INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, metadata, created_by)
+INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000002',
     'dmcc_employment_regulations_v1',
     'DMCC Employment Regulations',
     'Employment regulations specific to DMCC free zone companies. Covers DMCC-specific requirements for employment contracts, visa sponsorship, medical insurance, and termination procedures.',
     v_dmcc_id, '1.0.0', 'active',
-    '{"source": "DMCC Authority Rules & Regulations", "effective_date": "2023-01-01", "tags": ["employment", "dmcc", "free-zone"]}',
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, metadata, is_active, created_by)
+INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, rolled_back_from_version, is_active, created_by)
 VALUES (
     '20000000-0000-0000-0001-000000000002',
     '20000000-0000-0000-0000-000000000002',
@@ -95,7 +93,7 @@ VALUES (
         {"id":"dmcc_emp_08","title":"Gratuity for DMCC Employees","content":"End-of-service gratuity for DMCC employees follows UAE Federal Labour Law provisions. The employer must calculate and pay gratuity within fourteen (14) days of the last working day. DMCC companies may establish a savings scheme or DEWS (DIFC Employee Workplace Savings) equivalent as an alternative to gratuity, subject to DMCC Authority approval. Any alternative arrangement must provide benefits at least equal to the statutory gratuity.","order":8,"is_required":true,"metadata":{"section":"DMCC-HR-08","severity":"critical"}}
     ]'::jsonb,
     'Initial version – DMCC Employment Regulations',
-    '{"clause_count": 8}',
+    NULL,
     true,
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
@@ -104,18 +102,17 @@ VALUES (
 -- Ruleset 3: UAE Personal Data Protection Law (PDPL)
 -- =========================
 
-INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, metadata, created_by)
+INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000003',
     'uae_data_protection_pdpl_v1',
     'UAE Personal Data Protection Law (PDPL)',
     'Requirements under UAE Federal Decree-Law No. 45 of 2021 on the Protection of Personal Data. Covers lawful processing, consent, data subject rights, cross-border transfers, breach notification, and data protection officer requirements.',
     v_ded_id, '1.0.0', 'active',
-    '{"source": "Federal Decree-Law No. 45/2021", "effective_date": "2022-01-02", "tags": ["data-protection", "privacy", "pdpl"]}',
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, metadata, is_active, created_by)
+INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, rolled_back_from_version, is_active, created_by)
 VALUES (
     '20000000-0000-0000-0001-000000000003',
     '20000000-0000-0000-0000-000000000003',
@@ -131,7 +128,7 @@ VALUES (
         {"id":"pdpl_08","title":"Privacy Notice","content":"The controller must provide data subjects with a clear and accessible privacy notice at the time of data collection. The notice must include: (a) identity and contact details of the controller, (b) contact details of the DPO if appointed, (c) purposes of processing and lawful basis, (d) categories of personal data collected, (e) recipients or categories of recipients, (f) details of cross-border transfers, (g) retention period, (h) data subject rights, and (i) right to lodge a complaint with the Data Office. The notice must be provided in Arabic and may also be provided in English.","order":8,"is_required":true,"metadata":{"article":"Art. 12","severity":"high"}}
     ]'::jsonb,
     'Initial version – UAE PDPL (Federal Decree-Law No. 45/2021)',
-    '{"clause_count": 8}',
+    NULL,
     true,
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
@@ -140,18 +137,17 @@ VALUES (
 -- Ruleset 4: UAE Commercial Transactions Law
 -- =========================
 
-INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, metadata, created_by)
+INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000004',
     'uae_commercial_transactions_v1',
     'UAE Commercial Transactions Law',
     'Key requirements for commercial contracts under UAE Federal Law No. 18 of 1993 (Commercial Transactions Law) and related commercial code provisions. Covers payment terms, limitation of liability, dispute resolution, warranties, and intellectual property.',
     v_ded_id, '1.0.0', 'active',
-    '{"source": "Federal Law No. 18/1993 + Commercial Code", "effective_date": "1993-04-01", "tags": ["commercial", "contracts", "transactions"]}',
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, metadata, is_active, created_by)
+INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, rolled_back_from_version, is_active, created_by)
 VALUES (
     '20000000-0000-0000-0001-000000000004',
     '20000000-0000-0000-0000-000000000004',
@@ -167,7 +163,7 @@ VALUES (
         {"id":"comm_08","title":"Intellectual Property Rights","content":"Contracts involving creation or transfer of intellectual property must address: (a) ownership of pre-existing IP, (b) ownership of newly created IP (work product), (c) licensing terms and scope, (d) moral rights where applicable, and (e) IP infringement indemnification. Under UAE Federal Law No. 38 of 2021 on Copyrights and Neighbouring Rights, the creator retains moral rights even if economic rights are transferred. IP assignment must be in writing and clearly specify the rights transferred.","order":8,"is_required":true,"metadata":{"article":"Fed. Law 38/2021","severity":"high"}}
     ]'::jsonb,
     'Initial version – UAE Commercial Transactions & Civil Code',
-    '{"clause_count": 8}',
+    NULL,
     true,
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
@@ -176,18 +172,17 @@ VALUES (
 -- Ruleset 5: DIFC Employment Law No. 2 of 2019
 -- =========================
 
-INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, metadata, created_by)
+INSERT INTO public.rulesets (id, key, name, description, authority_id, current_version, status, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000005',
     'difc_employment_law_v1',
     'DIFC Employment Law No. 2 of 2019',
     'Employment law applicable within the DIFC free zone. Distinct from UAE mainland labour law – covers DIFC-specific requirements for employment contracts, gratuity (DEWS), probation, notice, discrimination, and data protection in employment.',
     v_difc_id, '1.0.0', 'active',
-    '{"source": "DIFC Law No. 2 of 2019", "effective_date": "2019-08-28", "tags": ["employment", "difc", "common-law"]}',
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, metadata, is_active, created_by)
+INSERT INTO public.ruleset_versions (id, ruleset_id, version, clauses, changelog, rolled_back_from_version, is_active, created_by)
 VALUES (
     '20000000-0000-0000-0001-000000000005',
     '20000000-0000-0000-0000-000000000005',
@@ -203,7 +198,7 @@ VALUES (
         {"id":"difc_emp_08","title":"Employee Data Protection in DIFC","content":"DIFC employers must comply with DIFC Data Protection Law No. 5 of 2020 in respect of employee personal data. The employer must: (a) have a lawful basis for processing employee data, (b) provide a privacy notice to employees, (c) limit data collection to what is necessary, (d) maintain appropriate security measures, (e) not transfer data outside DIFC without adequate safeguards, and (f) appoint a Data Protection Officer if processing on a large scale. Employee monitoring (email, CCTV, internet) requires prior notice and must be proportionate.","order":8,"is_required":true,"metadata":{"article":"DIFC DP Law No. 5/2020","severity":"high"}}
     ]'::jsonb,
     'Initial version – DIFC Employment Law No. 2 of 2019',
-    '{"clause_count": 8}',
+    NULL,
     true,
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;

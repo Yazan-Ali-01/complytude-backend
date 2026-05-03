@@ -31,6 +31,18 @@ export interface PaymentActionRequiredEmailData {
   supportEmail: string;
 }
 
+export interface TrialEndingEmailData {
+  /** One or more recipients (tenant_admin user email and/or billing_email). */
+  recipients: string[];
+  tenantName?: string;
+  /** Days remaining until trial ends (used for subject and body). */
+  daysRemaining: number;
+  /** Absolute trial end timestamp. Localised for display. */
+  trialEndsAt: Date;
+  /** Frontend pricing/upgrade page URL. */
+  upgradeUrl: string;
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -355,6 +367,144 @@ ${this.i18n.t('email.dunning.common.amount', { lang: locale })}: ${formattedAmou
 ${this.i18n.t('email.payment_action_required.cta', { lang: locale })}: ${data.hostedInvoiceUrl}
 
 ${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportEmail: data.supportEmail } })}
+
+${this.i18n.t('email.dunning.common.signature', { lang: locale })}
+`.trim();
+  }
+
+  /**
+   * Send the "trial ending soon" reminder email to one or more recipients.
+   *
+   * Recipients are deduplicated. Designed to be called from the trial-reminder
+   * cron handler exactly once per subscription (idempotency tracked at the
+   * subscription row via `trial_reminder_sent_at`).
+   */
+  async sendTrialEndingEmail(
+    data: TrialEndingEmailData,
+    locale: string = 'en',
+  ): Promise<void> {
+    const uniqueRecipients = Array.from(new Set(data.recipients)).filter(
+      (r) => !!r,
+    );
+    if (uniqueRecipients.length === 0) {
+      this.logger.warn(
+        `Trial ending email: no recipients resolved, tenantName=${data.tenantName ?? 'unknown'}`,
+      );
+      return;
+    }
+    if (this.skipSend) {
+      this.logger.log(
+        `Skipping trial ending email (EMAIL_SKIP_SEND): to=${uniqueRecipients.join(',')}`,
+      );
+      return;
+    }
+
+    const tenantName = data.tenantName || 'Your Organization';
+    const subject = this.i18n.t('email.trial_ending.subject', {
+      lang: locale,
+      args: { daysRemaining: data.daysRemaining },
+    });
+    const htmlBody = this.renderTrialEndingHtml(data, tenantName, locale);
+    const textBody = this.renderTrialEndingText(data, tenantName, locale);
+
+    try {
+      const command = new SendEmailCommand({
+        Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+        Destination: { ToAddresses: uniqueRecipients },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            Text: { Data: textBody, Charset: 'UTF-8' },
+          },
+        },
+        Tags: [{ Name: 'EmailType', Value: 'trial_ending' }],
+      });
+
+      await this.sesClient.send(command);
+      this.logger.log(
+        `Trial ending email sent: to=${uniqueRecipients.join(',')}, daysRemaining=${data.daysRemaining}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send trial ending email: to=${uniqueRecipients.join(',')}`,
+        (error as Error).stack,
+      );
+      throw error;
+    }
+  }
+
+  private renderTrialEndingHtml(
+    data: TrialEndingEmailData,
+    tenantName: string,
+    locale: string,
+  ): string {
+    const formattedDate = new Date(data.trialEndsAt).toLocaleDateString(
+      locale === 'ar' ? 'ar-AE' : 'en-US',
+      { year: 'numeric', month: 'long', day: 'numeric' },
+    );
+    return `
+<!DOCTYPE html>
+<html lang="${locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t('email.trial_ending.title', { lang: locale })}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #e7f3ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #b3d9ff; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+        .info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${this.i18n.t('email.trial_ending.title', { lang: locale })}</h1>
+    </div>
+    <div class="content">
+        <p>${this.i18n.t('email.trial_ending.greeting', { lang: locale, args: { tenantName } })}</p>
+        <p>${this.i18n.t('email.trial_ending.body', { lang: locale, args: { trialEndsAt: formattedDate } })}</p>
+        <div class="info">
+            <p><strong>${this.i18n.t('email.trial_ending.days_remaining', { lang: locale, args: { daysRemaining: data.daysRemaining } })}</strong></p>
+        </div>
+        <p>${this.i18n.t('email.trial_ending.after_trial', { lang: locale })}</p>
+        <a href="${data.upgradeUrl}" class="cta-button">
+            ${this.i18n.t('email.trial_ending.cta', { lang: locale })}
+        </a>
+        <p style="font-size: 14px; color: #666;">${this.i18n.t('email.trial_ending.ignore', { lang: locale })}</p>
+    </div>
+    <div class="footer">
+        <p>${this.i18n.t('email.dunning.common.signature', { lang: locale })}</p>
+    </div>
+</body>
+</html>`;
+  }
+
+  private renderTrialEndingText(
+    data: TrialEndingEmailData,
+    tenantName: string,
+    locale: string,
+  ): string {
+    const formattedDate = new Date(data.trialEndsAt).toLocaleDateString(
+      locale === 'ar' ? 'ar-AE' : 'en-US',
+      { year: 'numeric', month: 'long', day: 'numeric' },
+    );
+    return `
+${this.i18n.t('email.trial_ending.title', { lang: locale })}
+
+${this.i18n.t('email.trial_ending.greeting', { lang: locale, args: { tenantName } })}
+
+${this.i18n.t('email.trial_ending.body', { lang: locale, args: { trialEndsAt: formattedDate } })}
+
+${this.i18n.t('email.trial_ending.days_remaining', { lang: locale, args: { daysRemaining: data.daysRemaining } })}
+
+${this.i18n.t('email.trial_ending.after_trial', { lang: locale })}
+
+${this.i18n.t('email.trial_ending.cta', { lang: locale })}: ${data.upgradeUrl}
+
+${this.i18n.t('email.trial_ending.ignore', { lang: locale })}
 
 ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
 `.trim();

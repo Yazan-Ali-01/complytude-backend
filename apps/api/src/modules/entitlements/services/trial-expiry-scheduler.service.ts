@@ -6,12 +6,23 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
 
 /**
- * Schedules the trial expiry check job to run every 6 hours.
- * Uses BullMQ repeatable job - configured on app startup.
+ * Schedules trial-related repeatable cron jobs on the ENTITLEMENT_PROCESSING
+ * queue:
+ *
+ * - `TRIAL_EXPIRY_CHECK`: downgrades trials whose `trial_ends_at` has passed.
+ * - `TRIAL_REMINDER_CHECK`: sends a "trial ending soon" email ~3 days before
+ *   expiry. The handler uses a wide 2–4 day window + a `trial_reminder_sent_at`
+ *   flag, so a missed tick still picks up the row on the next run without
+ *   double-sending.
+ *
+ * Both run every 6 hours. Existing repeatable jobs with the same name are
+ * pruned and re-registered on boot to keep the schedule authoritative.
  */
 @Injectable()
 export class TrialExpirySchedulerService implements OnModuleInit {
   private readonly logger = new Logger(TrialExpirySchedulerService.name);
+
+  private static readonly CRON_PATTERN = '0 */6 * * *';
 
   constructor(
     @InjectQueue(QUEUE_NAMES.ENTITLEMENT_PROCESSING)
@@ -19,35 +30,47 @@ export class TrialExpirySchedulerService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    await this.registerRepeatable(
+      ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK,
+      'Trial expiry check',
+    );
+    await this.registerRepeatable(
+      ENTITLEMENT_JOB_NAMES.TRIAL_REMINDER_CHECK,
+      'Trial reminder check',
+    );
+  }
+
+  private async registerRepeatable(
+    jobName: string,
+    description: string,
+  ): Promise<void> {
     try {
       const repeatableJobs = await this.entitlementQueue.getRepeatableJobs();
-      const existingJobs = repeatableJobs.filter(
-        (j) => j.name === ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK,
-      );
+      const existingJobs = repeatableJobs.filter((j) => j.name === jobName);
       for (const j of existingJobs) {
         await this.entitlementQueue.removeRepeatableByKey(j.key);
       }
       if (existingJobs.length > 0) {
         this.logger.log(
-          `Removed ${existingJobs.length} existing trial expiry repeatable job(s)`,
+          `Removed ${existingJobs.length} existing "${jobName}" repeatable job(s)`,
         );
       }
 
       await this.entitlementQueue.add(
-        ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK,
+        jobName,
         { triggeredAt: new Date().toISOString() },
         {
           repeat: {
-            pattern: '0 */6 * * *',
+            pattern: TrialExpirySchedulerService.CRON_PATTERN,
           },
         },
       );
       this.logger.log(
-        'Trial expiry check repeatable job registered (every 6 hours)',
+        `${description} repeatable job registered (cron="${TrialExpirySchedulerService.CRON_PATTERN}")`,
       );
     } catch (error) {
       this.logger.error(
-        `Failed to register trial expiry repeatable job: ${(error as Error).message}`,
+        `Failed to register ${jobName} repeatable job: ${(error as Error).message}`,
       );
     }
   }

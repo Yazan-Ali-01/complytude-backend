@@ -19,7 +19,11 @@ type TenantSubscriptionRow = {
   current_period_end: Date;
   cancelled_at: Date | null;
   trial_ends_at: Date | null;
+  trial_reminder_sent_at: Date | null;
   metadata: unknown;
+  billing_interval: string | null;
+  cancel_at_period_end: boolean;
+  downgraded_from_stripe: boolean;
   stripe_subscription_id: string | null;
   stripe_schedule_id: string | null;
   stripe_current_period_end: Date | null;
@@ -47,7 +51,7 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, plan_id, status, billing_period_start, billing_period_end, current_period_start, current_period_end, cancelled_at, trial_ends_at, metadata, stripe_subscription_id, stripe_schedule_id, stripe_current_period_end, stripe_status, created_at, updated_at';
+    return 'id, tenant_id, plan_id, status, billing_period_start, billing_period_end, current_period_start, current_period_end, cancelled_at, trial_ends_at, trial_reminder_sent_at, metadata, billing_interval, cancel_at_period_end, downgraded_from_stripe, stripe_subscription_id, stripe_schedule_id, stripe_current_period_end, stripe_status, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): TenantSubscription {
@@ -65,7 +69,17 @@ export class SubscriptionsRepository extends BaseRepository<
       trial_ends_at: data.trial_ends_at
         ? new Date(data.trial_ends_at)
         : undefined,
+      trial_reminder_sent_at: data.trial_reminder_sent_at
+        ? new Date(data.trial_reminder_sent_at)
+        : null,
       metadata: (data.metadata as Record<string, unknown>) ?? {},
+      billing_interval: data.billing_interval as
+        | 'monthly'
+        | 'annual'
+        | null
+        | undefined,
+      cancel_at_period_end: data.cancel_at_period_end ?? false,
+      downgraded_from_stripe: data.downgraded_from_stripe ?? false,
       stripe_subscription_id: data.stripe_subscription_id,
       stripe_schedule_id: data.stripe_schedule_id,
       stripe_current_period_end: data.stripe_current_period_end,
@@ -152,13 +166,14 @@ export class SubscriptionsRepository extends BaseRepository<
       SELECT
         ts.id, ts.tenant_id, ts.plan_id, ts.status, ts.billing_period_start,
         ts.billing_period_end, ts.current_period_start, ts.current_period_end,
-        ts.cancelled_at, ts.trial_ends_at, ts.metadata, ts.stripe_subscription_id,
-        ts.stripe_schedule_id, ts.stripe_current_period_end, ts.stripe_status,
-        ts.created_at, ts.updated_at,
+        ts.cancelled_at, ts.trial_ends_at, ts.trial_reminder_sent_at, ts.metadata,
+        ts.billing_interval, ts.cancel_at_period_end, ts.downgraded_from_stripe,
+        ts.stripe_subscription_id, ts.stripe_schedule_id, ts.stripe_current_period_end,
+        ts.stripe_status, ts.created_at, ts.updated_at,
         p.key as plan_key, p.name as plan_name,
         p.description as plan_description, p.price_monthly, p.price_currency,
         p.billing_period as plan_billing_period, p.is_active as plan_is_active,
-        p.sort_order, p.metadata as plan_metadata, p.created_at as plan_created_at,
+        p.sort_order, p.created_at as plan_created_at,
         p.updated_at as plan_updated_at
       FROM ${this.tableName} ts
       JOIN public.plans p ON p.id = ts.plan_id
@@ -186,7 +201,6 @@ export class SubscriptionsRepository extends BaseRepository<
       billing_period: row.plan_billing_period as string,
       is_active: row.plan_is_active as boolean,
       sort_order: row.sort_order as number,
-      metadata: (row.plan_metadata as Record<string, unknown>) ?? {},
       created_at: row.plan_created_at as Date,
       updated_at: row.plan_updated_at as Date,
     };
@@ -211,10 +225,11 @@ export class SubscriptionsRepository extends BaseRepository<
         billing_period_start, billing_period_end,
         current_period_start, current_period_end,
         trial_ends_at, metadata,
+        billing_interval, cancel_at_period_end, downgraded_from_stripe,
         stripe_subscription_id, stripe_schedule_id,
         stripe_current_period_end, stripe_status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       ON CONFLICT (tenant_id) WHERE (status IN ('active', 'trialing'))
       DO UPDATE SET
         plan_id = EXCLUDED.plan_id,
@@ -224,6 +239,9 @@ export class SubscriptionsRepository extends BaseRepository<
         current_period_end = EXCLUDED.current_period_end,
         trial_ends_at = EXCLUDED.trial_ends_at,
         metadata = EXCLUDED.metadata,
+        billing_interval = COALESCE(EXCLUDED.billing_interval, ${this.tableName}.billing_interval),
+        cancel_at_period_end = EXCLUDED.cancel_at_period_end,
+        downgraded_from_stripe = EXCLUDED.downgraded_from_stripe,
         stripe_subscription_id = COALESCE(EXCLUDED.stripe_subscription_id, ${this.tableName}.stripe_subscription_id),
         stripe_schedule_id = COALESCE(EXCLUDED.stripe_schedule_id, ${this.tableName}.stripe_schedule_id),
         stripe_current_period_end = COALESCE(EXCLUDED.stripe_current_period_end, ${this.tableName}.stripe_current_period_end),
@@ -241,6 +259,9 @@ export class SubscriptionsRepository extends BaseRepository<
         subscription.current_period_end,
         subscription.trial_ends_at ?? null,
         subscription.metadata ?? '{}',
+        subscription.billing_interval ?? null,
+        subscription.cancel_at_period_end ?? false,
+        subscription.downgraded_from_stripe ?? false,
         subscription.stripe_subscription_id ?? null,
         subscription.stripe_schedule_id ?? null,
         subscription.stripe_current_period_end ?? null,
@@ -388,6 +409,61 @@ export class SubscriptionsRepository extends BaseRepository<
     );
 
     return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Find trials about to expire that haven't been reminded yet.
+   *
+   * Returns trials whose `trial_ends_at` falls in the configurable window
+   * (default 2–4 days ahead). The window is wider than 1 day on purpose so a
+   * missed cron tick still picks up the row on the next run; the
+   * `trial_reminder_sent_at` flag prevents duplicate sends. Pairs with the
+   * partial index `idx_tenant_subscriptions_trial_reminder_due`.
+   *
+   * @param windowStartDays - Earliest "days from now" the trial may end (inclusive)
+   * @param windowEndDays   - Latest "days from now" the trial may end (exclusive)
+   * @param limit           - Batch size for the cron handler
+   */
+  async findTrialsEndingSoon(
+    windowStartDays: number,
+    windowEndDays: number,
+    limit = 100,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription[]> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `SELECT ${this.getSelectColumns()}
+       FROM ${this.tableName}
+       WHERE status = 'trialing'
+         AND trial_reminder_sent_at IS NULL
+         AND trial_ends_at >= now() + ($1 || ' days')::interval
+         AND trial_ends_at <  now() + ($2 || ' days')::interval
+       ORDER BY trial_ends_at ASC
+       LIMIT $3`,
+      [windowStartDays, windowEndDays, limit],
+      options,
+    );
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Mark the "trial ending soon" reminder as sent for a subscription.
+   * Idempotent: subsequent calls only update the timestamp.
+   */
+  async markTrialReminderSent(
+    id: string,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription | null> {
+    const result = await this.executeQuery<TenantSubscriptionRow>(
+      `UPDATE ${this.tableName}
+       SET trial_reminder_sent_at = now(), updated_at = now()
+       WHERE id = $1
+       RETURNING ${this.getSelectColumns()}`,
+      [id],
+      options,
+    );
+
+    return result.rows.length > 0 ? this.mapRow(result.rows[0]) : null;
   }
 
   /**

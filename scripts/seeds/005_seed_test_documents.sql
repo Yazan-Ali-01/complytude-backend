@@ -13,50 +13,32 @@ BEGIN;
 -- Documents for Tenant 1 (Pro Plan)
 -- =========================
 
-INSERT INTO public.documents (id, tenant_id, title, content, metadata, created_by)
+INSERT INTO public.documents (id, tenant_id, title, content, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000001'::UUID,
     '11111111-1111-4111-8111-111111111111'::UUID,
     'John Smith - DMCC Employment Contract',
     'Limited employment contract for software engineer position at TechCorp DMCC',
-    '{
-        "status": "draft",
-        "document_type": "employment_contract",
-        "authority": "DMCC",
-        "category": "employment"
-    }'::jsonb,
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.documents (id, tenant_id, title, content, metadata, created_by)
+INSERT INTO public.documents (id, tenant_id, title, content, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000002'::UUID,
     '11111111-1111-4111-8111-111111111111'::UUID,
     'TechCorp - InnovateLabs NDA',
     'Mutual NDA for technology partnership discussions between TechCorp and InnovateLabs',
-    '{
-        "status": "signed",
-        "document_type": "nda",
-        "authority": "DIFC",
-        "category": "nda"
-    }'::jsonb,
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.documents (id, tenant_id, title, content, metadata, created_by)
+INSERT INTO public.documents (id, tenant_id, title, content, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000003'::UUID,
     '11111111-1111-4111-8111-111111111111'::UUID,
     'Office Lease - Downtown Dubai',
     'Commercial office space lease agreement for Building 5, IFZA Business Park',
-    '{
-        "status": "pending_review",
-        "document_type": "lease",
-        "authority": "IFZA",
-        "category": "lease"
-    }'::jsonb,
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
@@ -65,34 +47,22 @@ ON CONFLICT (id) DO NOTHING;
 -- Documents for Tenant 2 (Basic Plan)
 -- =========================
 
-INSERT INTO public.documents (id, tenant_id, title, content, metadata, created_by)
+INSERT INTO public.documents (id, tenant_id, title, content, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000004'::UUID,
     '22222222-2222-4222-8222-222222222222'::UUID,
     'Sarah Johnson - Freelance Design Services',
     'Freelance graphic design services agreement for brand identity project',
-    '{
-        "status": "signed",
-        "document_type": "freelance",
-        "authority": "DED",
-        "category": "freelance"
-    }'::jsonb,
     'dddddddd-dddd-dddd-dddd-dddddddddddd'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.documents (id, tenant_id, title, content, metadata, created_by)
+INSERT INTO public.documents (id, tenant_id, title, content, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000005'::UUID,
     '22222222-2222-4222-8222-222222222222'::UUID,
     'Ahmed Ali - DMCC Employment Contract',
     'Limited employment contract for marketing manager position',
-    '{
-        "status": "draft",
-        "document_type": "employment_contract",
-        "authority": "DMCC",
-        "category": "employment"
-    }'::jsonb,
     'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
@@ -101,35 +71,22 @@ ON CONFLICT (id) DO NOTHING;
 -- Documents for Tenant 3 (Enterprise Plan)
 -- =========================
 
-INSERT INTO public.documents (id, tenant_id, title, content, metadata, created_by)
+INSERT INTO public.documents (id, tenant_id, title, content, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000006'::UUID,
     '33333333-2222-4222-8222-333333333333'::UUID,
     'Enterprise Global - Mega Corp Partnership',
     'Strategic partnership agreement for joint ventures in ADGM',
-    '{
-        "status": "signed",
-        "document_type": "partnership",
-        "authority": "ADGM",
-        "category": "partnership"
-    }'::jsonb,
     'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.documents (id, tenant_id, title, content, metadata, created_by)
+INSERT INTO public.documents (id, tenant_id, title, content, created_by)
 VALUES (
     '20000000-0000-0000-0000-000000000007'::UUID,
     '33333333-2222-4222-8222-333333333333'::UUID,
     'Confidential Project NDA - Project Phoenix',
     'High-security NDA for classified enterprise project development',
-    '{
-        "status": "signed",
-        "document_type": "nda",
-        "authority": "DIFC",
-        "category": "nda",
-        "security_level": "confidential"
-    }'::jsonb,
     'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
@@ -171,7 +128,6 @@ SELECT
     t.name as tenant_name,
     t.slug as tenant_slug,
     d.title as document_title,
-    d.metadata->>'status' as status,
     u.email as created_by_email,
     d.created_at
 FROM public.documents d

@@ -5,7 +5,6 @@ export interface TemplateVersion {
   fields: TemplateField[];
   file_url: string;
   changelog: string | null;
-  metadata: Record<string, unknown>;
   is_active: boolean;
   created_by: string | null;
   created_at: Date;

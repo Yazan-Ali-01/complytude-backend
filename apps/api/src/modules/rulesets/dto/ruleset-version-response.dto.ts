@@ -53,10 +53,12 @@ export class RulesetVersionResponseDto {
   changelog: string | null;
 
   @ApiProperty({
-    description: 'Additional metadata for this version',
-    example: { tags: ['updated', 'compliance'], reviewedBy: 'legal-team' },
+    description:
+      'When set, this version was created as a rollback copy of this prior semantic version',
+    example: '1.2.0',
+    nullable: true,
   })
-  metadata: Record<string, unknown>;
+  rolledBackFromVersion: string | null;
 
   @ApiProperty({
     description: 'Whether this version is active',

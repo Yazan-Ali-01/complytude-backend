@@ -15,7 +15,6 @@ export interface Document {
   tenant_id: string;
   title: string;
   content: string | null;
-  metadata: Record<string, unknown>;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -38,7 +37,6 @@ export interface Document {
 type BaseCreateDocumentRow = {
   tenant_id: string;
   title: string;
-  metadata?: string;
   created_by?: string | null;
 };
 
@@ -77,7 +75,6 @@ export type CreateDocumentRow =
 export type UpdateDocumentRow = {
   title?: string;
   content?: string | null;
-  metadata?: string;
   s3_key?: string | null;
   s3_bucket?: string | null;
   extraction_status?: ExtractionStatus | null;
@@ -102,7 +99,6 @@ type DocumentRow = {
   tenant_id: string;
   title: string;
   content: string | null;
-  metadata: string | Record<string, unknown>;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -133,11 +129,11 @@ export class DocumentRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, title, content, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by, template_id, template_version_id, generation_variables';
+    return 'id, tenant_id, title, content, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by, template_id, template_version_id, generation_variables';
   }
 
   private getListSelectColumns(): string {
-    return 'id, tenant_id, title, metadata, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by, template_id, template_version_id, generation_variables';
+    return 'id, tenant_id, title, created_by, created_at, updated_at, source_type, s3_key, s3_bucket, original_filename, file_size_bytes, mime_type, extraction_status, extraction_error, extracted_at, deleted_at, deleted_by, template_id, template_version_id, generation_variables';
   }
 
   protected mapRow(row: Record<string, unknown>): Document {
@@ -147,10 +143,6 @@ export class DocumentRepository extends BaseRepository<
       tenant_id: data.tenant_id,
       title: data.title,
       content: data.content,
-      metadata:
-        typeof data.metadata === 'string'
-          ? (JSON.parse(data.metadata) as Record<string, unknown>)
-          : data.metadata,
       created_by: data.created_by,
       created_at: data.created_at,
       updated_at: data.updated_at,

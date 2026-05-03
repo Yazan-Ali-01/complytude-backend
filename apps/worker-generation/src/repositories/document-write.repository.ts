@@ -19,6 +19,11 @@ export interface CreatedDocument {
   id: string;
 }
 
+/**
+ * documents has RLS with FORCE ROW LEVEL SECURITY.
+ * worker-generation has no tenant context, so all queries must use
+ * transactionWithPlatformAdminContext to satisfy the is_platform_admin() policy.
+ */
 @Injectable()
 export class DocumentWriteRepository {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -26,28 +31,32 @@ export class DocumentWriteRepository {
   async createGenerated(
     params: CreateGeneratedDocumentParams,
   ): Promise<CreatedDocument> {
-    const result = await this.databaseService.query<{ id: string }>(
-      `INSERT INTO public.documents (
-        tenant_id, title, source_type, s3_key, s3_bucket,
-        original_filename, file_size_bytes, mime_type,
-        template_id, template_version_id, generation_variables,
-        created_by, metadata
-      ) VALUES ($1, $2, 'generated', $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, '{}'::jsonb)
-      RETURNING id`,
-      [
-        params.tenantId,
-        params.title,
-        params.s3Key,
-        params.s3Bucket,
-        params.originalFilename,
-        params.fileSizeBytes,
-        params.mimeType,
-        params.templateId,
-        params.templateVersionId,
-        JSON.stringify(params.generationVariables),
-        params.createdBy,
-      ],
+    return this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const result = await client.query<{ id: string }>(
+          `INSERT INTO public.documents (
+            tenant_id, title, source_type, s3_key, s3_bucket,
+            original_filename, file_size_bytes, mime_type,
+            template_id, template_version_id, generation_variables,
+            created_by, metadata
+          ) VALUES ($1, $2, 'generated', $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, '{}'::jsonb)
+          RETURNING id`,
+          [
+            params.tenantId,
+            params.title,
+            params.s3Key,
+            params.s3Bucket,
+            params.originalFilename,
+            params.fileSizeBytes,
+            params.mimeType,
+            params.templateId,
+            params.templateVersionId,
+            JSON.stringify(params.generationVariables),
+            params.createdBy,
+          ],
+        );
+        return { id: result.rows[0].id };
+      },
     );
-    return { id: result.rows[0].id };
   }
 }

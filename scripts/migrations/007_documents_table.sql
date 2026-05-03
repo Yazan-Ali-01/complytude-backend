@@ -24,7 +24,7 @@ CREATE TABLE public.documents (
     tenant_id               UUID NOT NULL,
     title                   VARCHAR(255) NOT NULL,
     content                 TEXT,
-    metadata                JSONB DEFAULT '{}',
+    content_structured      JSONB DEFAULT NULL,
     created_by              UUID,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -93,7 +93,7 @@ CREATE TABLE public.documents (
 
 COMMENT ON TABLE public.documents IS 'Tenant-scoped documents with RLS-based tenant isolation';
 COMMENT ON COLUMN public.documents.tenant_id IS 'Tenant identifier - required for RLS isolation';
-COMMENT ON COLUMN public.documents.metadata IS 'Additional document metadata (tags, custom fields, etc.)';
+COMMENT ON COLUMN public.documents.content_structured IS 'Structured sections from Textract LAYOUT analysis. NULL for pre-feature docs or text_input source type. Empty array means LAYOUT returned no blocks (fallback to flat text).';
 COMMENT ON COLUMN public.documents.deleted_at IS 'Soft-delete timestamp (NULL = active, NOT NULL = deleted)';
 COMMENT ON COLUMN public.documents.deleted_by IS 'User who deleted the document (SET NULL on user delete)';
 COMMENT ON COLUMN public.documents.template_id IS 'Template used to generate this document (NULL for non-generated docs)';

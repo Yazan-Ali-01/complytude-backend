@@ -223,9 +223,9 @@ export class RulesetsController {
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
-    summary: 'Update ruleset metadata',
+    summary: 'Update ruleset',
     description:
-      'Update ruleset name, description, authority, status, or metadata. Clauses are immutable per version. Restricted to platform administrators.',
+      'Update ruleset name, description, authority, or status. Clauses are immutable per version. Restricted to platform administrators.',
   })
   @ApiParam({
     name: 'key',
@@ -396,7 +396,6 @@ export class RulesetsController {
       authorityId: ruleset.authorityId,
       currentVersion: ruleset.currentVersion,
       status: ruleset.status,
-      metadata: ruleset.metadata,
       createdBy: ruleset.createdBy,
       createdAt: ruleset.createdAt.toISOString(),
       updatedAt: ruleset.updatedAt.toISOString(),
@@ -424,7 +423,7 @@ export class RulesetsController {
       version: version.version,
       clauses: version.clauses,
       changelog: version.changelog,
-      metadata: version.metadata,
+      rolledBackFromVersion: version.rolledBackFromVersion,
       isActive: version.isActive,
       createdBy: version.createdBy,
       createdAt: version.createdAt.toISOString(),

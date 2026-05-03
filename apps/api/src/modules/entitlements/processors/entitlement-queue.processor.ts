@@ -7,6 +7,7 @@ import {
   EntitlementQuotaExceededJobData,
   EntitlementSnapshotRebuildJobData,
   EntitlementTrialExpiryCheckJobData,
+  EntitlementTrialReminderCheckJobData,
   EntitlementUsageRefundJobData,
   Job,
   PermanentError,
@@ -20,6 +21,7 @@ import { ProjectionUpdateHandler } from './projection-update.handler';
 import { QuotaExceededHandler } from './quota-exceeded.handler';
 import { SnapshotRebuildHandler } from './snapshot-rebuild.handler';
 import { TrialExpiryHandler } from './trial-expiry.handler';
+import { TrialReminderHandler } from './trial-reminder.handler';
 import { UsageRefundHandler } from './usage-refund.handler';
 
 /**
@@ -47,6 +49,7 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
     private readonly creditNotificationHandler: CreditNotificationHandler,
     private readonly quotaExceededHandler: QuotaExceededHandler,
     private readonly trialExpiryHandler: TrialExpiryHandler,
+    private readonly trialReminderHandler: TrialReminderHandler,
     private readonly usageRefundHandler: UsageRefundHandler,
   ) {
     super();
@@ -82,6 +85,11 @@ export class EntitlementQueueProcessor extends AbstractProcessor<unknown> {
       case ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK:
         return this.trialExpiryHandler.execute(
           job as Job<EntitlementTrialExpiryCheckJobData>,
+        );
+
+      case ENTITLEMENT_JOB_NAMES.TRIAL_REMINDER_CHECK:
+        return this.trialReminderHandler.execute(
+          job as Job<EntitlementTrialReminderCheckJobData>,
         );
 
       case ENTITLEMENT_JOB_NAMES.USAGE_REFUND:

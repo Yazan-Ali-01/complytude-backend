@@ -4,7 +4,6 @@ import {
   ArrayMinSize,
   IsArray,
   IsNotEmpty,
-  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -58,12 +57,4 @@ export class CreateRulesetVersionDto {
   @IsString()
   @IsOptional()
   changelog?: string;
-
-  @ApiPropertyOptional({
-    description: 'Additional metadata for this version',
-    example: { tags: ['updated', 'compliance'], reviewedBy: 'legal-team' },
-  })
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, unknown>;
 }

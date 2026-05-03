@@ -1,6 +1,6 @@
 import {
-  GetDocumentTextDetectionCommand,
-  StartDocumentTextDetectionCommand,
+  GetDocumentAnalysisCommand,
+  StartDocumentAnalysisCommand,
   type Block,
   type TextractClient,
 } from '@aws-sdk/client-textract';
@@ -9,6 +9,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   TEXTRACT_CLIENT,
+  type DocumentSection,
   type ITextractService,
   type TextractResult,
 } from '../interfaces/textract.interface';
@@ -19,6 +20,17 @@ const SUPPORTED_MIME_TYPES = new Set([
   'image/png',
   'image/tiff',
 ]);
+
+// LAYOUT block types to skip (page furniture, not document content)
+const SKIP_LAYOUT_TYPES = new Set([
+  'LAYOUT_HEADER',
+  'LAYOUT_FOOTER',
+  'LAYOUT_PAGE_NUMBER',
+  'LAYOUT_FIGURE',
+]);
+
+// LAYOUT block types that start a new section
+const HEADING_LAYOUT_TYPES = new Set(['LAYOUT_TITLE', 'LAYOUT_SECTION_HEADER']);
 
 interface TextractPollingConfig {
   maxPages: number;
@@ -66,14 +78,14 @@ export class TextractService implements ITextractService {
   ): Promise<TextractResult> {
     this.validateMimeType(mimeType, key);
 
-    const jobId = await this.startTextDetection(bucket, key);
+    const jobId = await this.startDocumentAnalysis(bucket, key);
     this.logger.log(
-      `Textract job started: jobId=${jobId} bucket=${bucket} key=${key}`,
+      `Textract LAYOUT job started: jobId=${jobId} bucket=${bucket} key=${key}`,
     );
 
     const blocks = await this.pollUntilComplete(jobId);
 
-    return parseTextractBlocks(blocks, jobId, this.config.maxPages);
+    return parseLayoutBlocks(blocks, jobId, this.config.maxPages);
   }
 
   private validateMimeType(mimeType: string, key: string): void {
@@ -85,28 +97,29 @@ export class TextractService implements ITextractService {
     }
   }
 
-  private async startTextDetection(
+  private async startDocumentAnalysis(
     bucket: string,
     key: string,
   ): Promise<string> {
     try {
       const response = await this.textractClient.send(
-        new StartDocumentTextDetectionCommand({
+        new StartDocumentAnalysisCommand({
           DocumentLocation: {
             S3Object: { Bucket: bucket, Name: key },
           },
+          FeatureTypes: ['LAYOUT'],
         }),
       );
 
       if (!response.JobId) {
         throw new RetryableError(
-          'Textract StartDocumentTextDetection returned no JobId',
+          'Textract StartDocumentAnalysis returned no JobId',
         );
       }
 
       return response.JobId;
     } catch (error: unknown) {
-      throw this.classifyAwsError(error, `StartDocumentTextDetection`);
+      throw this.classifyAwsError(error, `StartDocumentAnalysis`);
     }
   }
 
@@ -118,7 +131,7 @@ export class TextractService implements ITextractService {
       await sleep(delay);
 
       const { status, blocks, nextToken, statusMessage } =
-        await this.getDetectionResult(jobId, undefined);
+        await this.getAnalysisResult(jobId, undefined);
 
       if (status === 'IN_PROGRESS') {
         if (attempt % 5 === 0) {
@@ -145,13 +158,11 @@ export class TextractService implements ITextractService {
         );
       }
 
-      // SUCCEEDED or PARTIAL_SUCCESS — collect blocks from all pages
       allBlocks.push(...blocks);
 
-      // Handle paginated results (large documents)
       let token = nextToken;
       while (token) {
-        const page = await this.getDetectionResult(jobId, token);
+        const page = await this.getAnalysisResult(jobId, token);
         allBlocks.push(...page.blocks);
         token = page.nextToken;
       }
@@ -168,7 +179,7 @@ export class TextractService implements ITextractService {
     );
   }
 
-  private async getDetectionResult(
+  private async getAnalysisResult(
     jobId: string,
     nextToken: string | undefined,
   ): Promise<{
@@ -179,7 +190,7 @@ export class TextractService implements ITextractService {
   }> {
     try {
       const response = await this.textractClient.send(
-        new GetDocumentTextDetectionCommand({
+        new GetDocumentAnalysisCommand({
           JobId: jobId,
           NextToken: nextToken,
         }),
@@ -192,7 +203,7 @@ export class TextractService implements ITextractService {
         statusMessage: response.StatusMessage,
       };
     } catch (error: unknown) {
-      throw this.classifyAwsError(error, `GetDocumentTextDetection`);
+      throw this.classifyAwsError(error, `GetDocumentAnalysis`);
     }
   }
 
@@ -228,25 +239,22 @@ export class TextractService implements ITextractService {
 }
 
 /**
- * Parse Textract Blocks into concatenated plain text.
+ * Parse Textract blocks from a LAYOUT-featured analysis job into structured sections
+ * and a flat text fallback.
  *
- * 1. Filter to LINE blocks only
- * 2. Sort by page number, then vertical position (reading order)
- * 3. Concatenate with newlines between lines, double-newline between pages
+ * LAYOUT blocks (LAYOUT_SECTION_HEADER, LAYOUT_TEXT, etc.) carry spatial hierarchy.
+ * Each LAYOUT block's text is resolved by following CHILD relationships to LINE blocks.
+ * Sections are delimited by LAYOUT_TITLE and LAYOUT_SECTION_HEADER blocks.
+ *
+ * Falls back to LINE-block concatenation when no LAYOUT blocks are returned
+ * (e.g. image-only PDFs where LAYOUT feature produced nothing).
  */
-export function parseTextractBlocks(
+export function parseLayoutBlocks(
   blocks: Block[],
   jobId: string,
   maxPages: number,
 ): TextractResult {
-  const lineBlocks = blocks.filter((b) => b.BlockType === 'LINE');
-
-  if (lineBlocks.length === 0) {
-    return { text: '', pageCount: 0, confidence: 0, textractJobId: jobId };
-  }
-
-  const pages = new Set(lineBlocks.map((b) => b.Page ?? 1));
-  const pageCount = pages.size;
+  const pageCount = new Set(blocks.map((b) => b.Page ?? 1)).size;
 
   if (pageCount > maxPages) {
     throw new PermanentError(
@@ -255,6 +263,109 @@ export function parseTextractBlocks(
     );
   }
 
+  // Build ID → block lookup for resolving CHILD relationships
+  const blockMap = new Map<string, Block>();
+  for (const block of blocks) {
+    if (block.Id) blockMap.set(block.Id, block);
+  }
+
+  const getBlockText = (block: Block): string => {
+    const childIds =
+      block.Relationships?.filter((r) => r.Type === 'CHILD')?.flatMap(
+        (r) => r.Ids ?? [],
+      ) ?? [];
+
+    return childIds
+      .map((id) => blockMap.get(id))
+      .filter((b): b is Block => b?.BlockType === 'LINE' && !!b.Text)
+      .map((b) => b.Text!)
+      .join(' ')
+      .trim();
+  };
+
+  const layoutBlocks = blocks
+    .filter((b) => b.BlockType?.startsWith('LAYOUT_'))
+    .sort((a, b) => {
+      const pageDiff = (a.Page ?? 1) - (b.Page ?? 1);
+      if (pageDiff !== 0) return pageDiff;
+      return (
+        (a.Geometry?.BoundingBox?.Top ?? 0) -
+        (b.Geometry?.BoundingBox?.Top ?? 0)
+      );
+    });
+
+  // Compute confidence from LINE blocks (available regardless of LAYOUT)
+  const lineBlocks = blocks.filter((b) => b.BlockType === 'LINE');
+  const confidences = lineBlocks
+    .filter((b) => b.Confidence != null)
+    .map((b) => b.Confidence!);
+  const avgConfidence =
+    confidences.length > 0
+      ? confidences.reduce((sum, c) => sum + c, 0) / confidences.length
+      : 0;
+  const confidence = Math.round(avgConfidence * 100) / 100;
+
+  // Fallback: no LAYOUT blocks (scanned image without LAYOUT output)
+  if (layoutBlocks.length === 0) {
+    const text = flattenLineBlocks(lineBlocks);
+    return { text, sections: [], pageCount, confidence, textractJobId: jobId };
+  }
+
+  // Group content under section headings
+  const sections: DocumentSection[] = [];
+  let current: {
+    heading: string | null;
+    level: number;
+    lines: string[];
+    pageStart: number;
+  } = { heading: null, level: 1, lines: [], pageStart: 1 };
+
+  for (const block of layoutBlocks) {
+    const type = block.BlockType!;
+    if (SKIP_LAYOUT_TYPES.has(type)) continue;
+
+    const text = getBlockText(block);
+    if (!text) continue;
+
+    if (HEADING_LAYOUT_TYPES.has(type)) {
+      if (current.lines.length > 0 || current.heading !== null) {
+        sections.push({
+          heading: current.heading,
+          level: current.level,
+          content: current.lines.join('\n'),
+          pageStart: current.pageStart,
+        });
+      }
+      current = {
+        heading: text,
+        level: type === 'LAYOUT_TITLE' ? 0 : 1,
+        lines: [],
+        pageStart: block.Page ?? 1,
+      };
+    } else {
+      current.lines.push(text);
+    }
+  }
+
+  if (current.lines.length > 0 || current.heading !== null) {
+    sections.push({
+      heading: current.heading,
+      level: current.level,
+      content: current.lines.join('\n'),
+      pageStart: current.pageStart,
+    });
+  }
+
+  // Build flat text from sections for backward compat (documents.content column)
+  const text = sections
+    .map((s) => (s.heading ? `${s.heading}\n${s.content}` : s.content))
+    .filter(Boolean)
+    .join('\n\n');
+
+  return { text, sections, pageCount, confidence, textractJobId: jobId };
+}
+
+function flattenLineBlocks(lineBlocks: Block[]): string {
   lineBlocks.sort((a, b) => {
     const pageDiff = (a.Page ?? 1) - (b.Page ?? 1);
     if (pageDiff !== 0) return pageDiff;
@@ -270,25 +381,10 @@ export function parseTextractBlocks(
     if (block.Text) textByPage.get(page)!.push(block.Text);
   }
 
-  const sortedPages = [...textByPage.keys()].sort((a, b) => a - b);
-  const text = sortedPages
+  return [...textByPage.keys()]
+    .sort((a, b) => a - b)
     .map((page) => textByPage.get(page)!.join('\n'))
     .join('\n\n');
-
-  const confidences = lineBlocks
-    .filter((b) => b.Confidence != null)
-    .map((b) => b.Confidence!);
-  const avgConfidence =
-    confidences.length > 0
-      ? confidences.reduce((sum, c) => sum + c, 0) / confidences.length
-      : 0;
-
-  return {
-    text,
-    pageCount,
-    confidence: Math.round(avgConfidence * 100) / 100,
-    textractJobId: jobId,
-  };
 }
 
 function sleep(ms: number): Promise<void> {

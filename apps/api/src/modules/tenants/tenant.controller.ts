@@ -94,15 +94,15 @@ export class TenantController {
    * - Email must be verified (enforced by VerifiedUserGuard)
    *
    * What this endpoint does:
-   * - Creates tenant with optional name (defaults to "{email}'s Organization")
-   * - Creates subscription with specified plan (defaults to 'navigator')
+   * - Creates tenant with the provided organization name
+   * - Always creates a 14-day trial subscription on the trial plan
+   *   (`TRIAL_CONFIG.PLAN_KEY`). Paid plans are granted only via Stripe
+   *   Checkout + webhooks; this endpoint never charges the user.
    * - Links user as tenant_admin in user_tenants table
    * - Returns created tenant
    *
    * @throws ForbiddenException if user email not verified
    * @throws ConflictException if user already owns a tenant or tenant name is taken
-   * @throws NotFoundException if specified plan not found
-   * @throws BadRequestException if specified plan not active
    */
   @Post()
   @Audit('TENANT_CREATED', { resourceType: 'tenants' })
@@ -112,7 +112,7 @@ export class TenantController {
   @ApiOperation({
     summary: 'Create a new tenant (organization)',
     description:
-      'Self-service tenant creation for verified users. Creates tenant, subscription, and links user as tenant_admin. User must have identity token (logged in) and verified email.',
+      'Self-service tenant creation for verified users. Creates the tenant, a 14-day trial subscription on the trial plan, and links the user as tenant_admin. Paid plans are granted only via Stripe Checkout. User must have an identity token (logged in) and a verified email.',
   })
   @ApiBody({ type: CreateTenantDto })
   @ApiResponse({
@@ -124,14 +124,6 @@ export class TenantController {
     status: 409,
     description: 'User already has a tenant or tenant name is taken',
   })
-  @ApiResponse({
-    status: 404,
-    description: 'Specified plan not found',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Specified plan is not active',
-  })
   async createTenant(
     @Body() createTenantDto: CreateTenantDto,
     @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
@@ -142,8 +134,10 @@ export class TenantController {
       createTenantDto,
     );
 
-    const planKey = createTenantDto.planKey ?? TRIAL_CONFIG.PLAN_KEY;
-    const input: TenantResponseInput = { ...tenant, plan: planKey };
+    const input: TenantResponseInput = {
+      ...tenant,
+      plan: TRIAL_CONFIG.PLAN_KEY,
+    };
     return new TenantResponseDto(input);
   }
 
@@ -159,7 +153,7 @@ export class TenantController {
   @ApiOperation({
     summary: 'Get my tenant information',
     description:
-      'Retrieve full tenant profile including organization details, contact info, UAE location, business registration, settings, branding, lifecycle status, and onboarding progress.',
+      'Retrieve full tenant profile including organization details, contact info, UAE location, business registration, branding, lifecycle status, and onboarding progress.',
   })
   @ApiResponse({
     status: 200,
@@ -278,14 +272,13 @@ export class TenantController {
   // ============================================================================
 
   /**
-   * Update tenant preferences (deep-merge JSONB)
+   * Update tenant preferences (locale, timezone, default jurisdiction)
    *
-   * Fields: locale (en/ar), timezone (IANA), default_jurisdiction, settings (JSONB).
-   * JSONB fields are deep-merged: new keys added, existing preserved.
+   * Fields: locale (en/ar), timezone (IANA), default_jurisdiction.
    *
-   * @param dto - Settings to update (partial)
+   * @param dto - Preference fields to update (at least one required)
    * @param user - Authenticated tenant user
-   * @returns Updated tenant with merged settings
+   * @returns Updated tenant
    *
    * @permission settings:manage
    */
@@ -299,7 +292,7 @@ export class TenantController {
   @ApiOperation({
     summary: 'Update tenant preferences',
     description:
-      'Update locale, timezone, jurisdiction, and flexible JSONB settings. Deep-merged update.',
+      'Update locale, timezone, and/or default jurisdiction. At least one field must be provided.',
   })
   @ApiBody({ type: UpdateTenantSettingsDto })
   @ApiResponse({
@@ -307,7 +300,10 @@ export class TenantController {
     description: 'Settings updated',
     type: TenantResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid locale/timezone value' })
+  @ApiResponse({
+    status: 400,
+    description: 'No fields to update or invalid value',
+  })
   async updateSettings(
     @Body() dto: UpdateTenantSettingsDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
@@ -543,7 +539,7 @@ export class TenantController {
    *
    * @param dto - Onboarding metadata to merge (partial)
    * @param user - Authenticated tenant user
-   * @returns Updated tenant with merged onboarding_metadata
+   * @returns Updated tenant with new onboarding values
    *
    * @permission settings:manage
    */
