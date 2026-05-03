@@ -19,7 +19,7 @@ VALUES (
     '11111111-1111-4111-8111-111111111111'::UUID,
     'John Smith - DMCC Employment Contract',
     'Limited employment contract for software engineer position at TechCorp DMCC',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -29,7 +29,7 @@ VALUES (
     '11111111-1111-4111-8111-111111111111'::UUID,
     'TechCorp - InnovateLabs NDA',
     'Mutual NDA for technology partnership discussions between TechCorp and InnovateLabs',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -39,7 +39,7 @@ VALUES (
     '11111111-1111-4111-8111-111111111111'::UUID,
     'Office Lease - Downtown Dubai',
     'Commercial office space lease agreement for Building 5, IFZA Business Park',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID
+    'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -53,7 +53,7 @@ VALUES (
     '22222222-2222-4222-8222-222222222222'::UUID,
     'Sarah Johnson - Freelance Design Services',
     'Freelance graphic design services agreement for brand identity project',
-    'dddddddd-dddd-dddd-dddd-dddddddddddd'::UUID
+    'dddddddd-dddd-4ddd-dddd-dddddddddddd'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -63,7 +63,7 @@ VALUES (
     '22222222-2222-4222-8222-222222222222'::UUID,
     'Ahmed Ali - DMCC Employment Contract',
     'Limited employment contract for marketing manager position',
-    'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'::UUID
+    'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -77,7 +77,7 @@ VALUES (
     '33333333-2222-4222-8222-333333333333'::UUID,
     'Enterprise Global - Mega Corp Partnership',
     'Strategic partnership agreement for joint ventures in ADGM',
-    'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID
+    'ffffffff-ffff-4fff-ffff-ffffffffffff'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -87,7 +87,7 @@ VALUES (
     '33333333-2222-4222-8222-333333333333'::UUID,
     'Confidential Project NDA - Project Phoenix',
     'High-security NDA for classified enterprise project development',
-    'ffffffff-ffff-ffff-ffff-ffffffffffff'::UUID
+    'ffffffff-ffff-4fff-ffff-ffffffffffff'::UUID
 )
 ON CONFLICT (id) DO NOTHING;
 
