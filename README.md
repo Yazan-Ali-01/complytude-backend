@@ -13,6 +13,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Lead Engineer & Architect's Note](#lead-engineer--architects-note)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
@@ -25,6 +26,20 @@
 - [Documentation](#documentation)
 - [Support](#support)
 - [License](#license)
+
+---
+
+## Lead Engineer & Architect's Note
+
+**Project Context:** I architected Complytude from the ground up and led a dedicated team of developers to execute the vision. This repository serves as a showcase of my core engineering philosophy: building pragmatic, highly scalable, and maintainable backend systems.
+
+**Architectural Highlights:**
+- **Pragmatic Scale (Path to Microservices):** The application is currently structured as a tightly disciplined, domain-driven modular monolith. By utilizing a message broker (BullMQ/Redis) for background processing (AI workers and data ingestion), the system is inherently event-driven. This allows domains to be trivially extracted into independent microservices as business needs scale, avoiding premature optimization while guaranteeing future flexibility.
+- **Cloud-Native AWS Infrastructure:** Designed for robust cloud deployments. The architecture uses isolated S3 buckets for tenant storage and is fully containerized for seamless orchestration via AWS ECS (Elastic Container Service) or Fargate, ensuring high availability and minimal operational overhead.
+- **Multi-Tenant Security:** Implemented comprehensive Row-Level Security (RLS) within PostgreSQL, paired with a custom dual-token JWT authentication flow, ensuring strict, uncompromisable data isolation between competing organizations.
+- **Engineering Discipline:** Established the technical standards for the team, including strict TypeScript validation, localized Docker environments (Hybrid/Dev/Prod modes) for rapid iteration, and heavily documented API contracts to ensure clean, predictable delivery.
+
+---
 
 ---
 
