@@ -106,6 +106,17 @@ This means tests running in parallel never interfere with each other.
 
 The `unit` project explicitly excludes `*.integration.spec.ts` files to prevent overlap.
 
+### Which Kind of Test to Write
+
+| Write a unit test (`*.spec.ts`, dependencies mocked) for | Write an integration test (`*.integration.spec.ts`, real Postgres + Redis) for |
+| --- | --- |
+| Pure business logic in services (no DB calls) | Repository operations (real SQL) |
+| Utility functions | Service methods that touch the database |
+| DTO validation | RLS policy enforcement |
+| Mappers and transformers | Multi-step workflows (create tenant → add user → check permissions) |
+| | Queue job dispatch and processing |
+| | New factories |
+
 ---
 
 ## Directory Structure
@@ -276,6 +287,18 @@ await waitForQueueIdle(queue, 15000);
 | `tenant.factory.ts` | `createTestTenant(module, overrides?)` | Creates a tenant with random slug |
 | `user.factory.ts` | `createTestUser(module, overrides?)` | Creates a user (requires tenant) |
 | `subscription.factory.ts` | `createTestSubscription(module, tenantId, overrides?)` | Creates a subscription for a tenant |
+
+#### Adding a Factory
+
+1. Create `apps/api/test/factories/{entity}.factory.ts` exporting `createTest{Entity}(module, overrides?)`.
+2. Build the row through the entity's real repository (`module.get(EntityRepository)`), not raw SQL, so the factory breaks when the repository contract changes.
+3. Export it from `apps/api/test/factories/index.ts`.
+4. Cover it in `factories.integration.spec.ts`.
+5. Add it to the table above and to the directory trees here and in `CONTRIBUTING.md`.
+
+### Keeping This README Current
+
+Update this file when you add or change shared test infrastructure: a factory, helper, mock or setup file, or the container lifecycle. For lifecycle changes, also update the CI section of `apps/api/docs/DEVELOPMENT.md`. Adding an ordinary test file needs no doc change.
 
 ---
 

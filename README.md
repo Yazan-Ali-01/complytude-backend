@@ -448,29 +448,7 @@ async findAll(@CurrentUserTenant() user: AuthenticatedTenantUser) {
 
 ## AI Development Guidelines
 
-This project uses Cursor AI rules for consistent development patterns and best practices. These rules help maintain code quality and architectural consistency across the codebase.
-
-### Available Rules
-
-- **[.cursor/rules/nest-js.mdc](.cursor/rules/nest-js.mdc)** - Core NestJS patterns, database architecture, and development conventions
-- **[.cursor/rules/project-structure.mdc](.cursor/rules/project-structure.mdc)** - Complete project navigation and file organization guide
-- **[.cursor/rules/technology-stack.mdc](.cursor/rules/technology-stack.mdc)** - Dependencies, versions, and compatibility matrix
-- **[.cursor/rules/cursor-rules.mdc](.cursor/rules/cursor-rules.mdc)** - How to create and maintain Cursor rules
-- **[.cursor/rules/self-improvement.mdc](.cursor/rules/self-improvement.mdc)** - Guidelines for updating rules
-
-### Using the Rules
-
-The rules are automatically applied when using Cursor AI to:
-
-- Generate new modules and features
-- Refactor existing code
-- Answer questions about the codebase
-- Suggest improvements and best practices
-
-### Updating Rules
-
-See [cursor-rules.mdc](.cursor/rules/cursor-rules.mdc) for detailed instructions on creating and updating rules. For information on when to update rules, refer to [self-improvement.mdc](.cursor/rules/self-improvement.mdc).
-
+Instructions for AI coding assistants (commands, architecture, conventions, and which docs to update after a change) live in [`CLAUDE.md`](CLAUDE.md).
 ---
 
 ## Troubleshooting
