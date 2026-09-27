@@ -1207,7 +1207,13 @@ This prevents job loss during rolling deployments.
 
 ### Queue Monitoring (Bull Board)
 
-A Bull Board dashboard is available at `/admin/queues`. When `BULL_BOARD_ADMIN_SECRET` is set (required in production), requests must include `Authorization: Bearer <secret>` or `X-Admin-Secret: <secret>`. Omit the env var in development for unauthenticated access. All three queues are visible there and included in the `GET /health/queues` health check endpoint.
+A Bull Board dashboard for every queue in `QUEUE_NAMES` is served at `/admin/queues` on its own port, `BULL_BOARD_PORT` (default 3010). It is never on the public API port, so the ALB can't reach it. `apps/api/src/bull-board/bull-board.server.ts` runs it as a separate Fastify instance, started from `main.ts`, outside Nest's guards.
+
+- `BULL_BOARD_ADMIN_SECRET` is required when `NODE_ENV=production` (at least 32 characters; boot fails otherwise). When set, the dashboard listens on `0.0.0.0`. Every request needs `Authorization: Bearer <secret>`, `X-Admin-Secret: <secret>`, or HTTP Basic auth with the secret as the password. The secret is compared in constant time.
+- Without the secret (local development), the dashboard is open but bound to `127.0.0.1`, so no other machine can reach it.
+- On AWS, the ECS security group admits the port from the bastion's security group only. Reach it with an SSH tunnel (see `infra/README.md`).
+
+`GET /health/queues` checks only `ai-processing`, `data-ingestion` and `entitlement-processing`.
 
 ---
 

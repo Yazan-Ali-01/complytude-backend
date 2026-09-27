@@ -22,6 +22,11 @@ provider "aws" {
   }
 }
 
+# Bull Board's internal port in the API task; opened to the bastion only
+locals {
+  bull_board_port = 3010
+}
+
 module "networking" {
   source = "../../modules/networking"
 
@@ -75,6 +80,8 @@ module "bastion" {
   key_name               = var.bastion_key_name
   ssh_allowed_cidrs      = var.bastion_ssh_allowed_cidrs
   rds_security_group_id  = module.networking.rds_security_group_id
+  ecs_security_group_id  = module.networking.ecs_security_group_id
+  bull_board_port        = local.bull_board_port
 }
 
 module "s3" {
@@ -135,6 +142,9 @@ module "secrets" {
 
   # App
   cors_origins = var.cors_origins
+
+  # Bull Board (API only)
+  bull_board_admin_secret = var.bull_board_admin_secret
 
   # OpenAI (for workers)
   openai_api_key = var.openai_api_key
@@ -217,6 +227,7 @@ module "ecs" {
     SERVICE_NAME   = "gateway"
     GOTENBERG_URL  = "http://localhost:3100"
   }
+  bull_board_port = local.bull_board_port
   worker_ai_environment = {
     NODE_ENV     = "production"
     LOG_LEVEL    = "info"

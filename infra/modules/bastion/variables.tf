@@ -32,3 +32,14 @@ variable "rds_security_group_id" {
   description = "RDS security group ID — bastion will be allowed to connect on 5432"
   type        = string
 }
+
+variable "ecs_security_group_id" {
+  description = "ECS tasks security group ID — bastion will be allowed to reach Bull Board on bull_board_port"
+  type        = string
+}
+
+variable "bull_board_port" {
+  description = "Bull Board's internal port in the API task (must match the ECS module's bull_board_port)"
+  type        = number
+  default     = 3010
+}

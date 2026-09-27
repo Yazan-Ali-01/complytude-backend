@@ -44,6 +44,17 @@ resource "aws_security_group_rule" "bastion_to_rds" {
   description              = "PostgreSQL from bastion"
 }
 
+# ---- Allow bastion → Bull Board (API internal port; SSH tunnel only) ----
+resource "aws_security_group_rule" "bastion_to_bull_board" {
+  type                     = "ingress"
+  from_port                = var.bull_board_port
+  to_port                  = var.bull_board_port
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.bastion.id
+  security_group_id        = var.ecs_security_group_id
+  description              = "Bull Board from bastion"
+}
+
 # ---- Bastion EC2 ----
 data "aws_ami" "amazon_linux" {
   most_recent = true

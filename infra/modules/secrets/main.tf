@@ -91,6 +91,9 @@ resource "aws_secretsmanager_secret_version" "app" {
     # App
     CORS_ORIGINS = var.cors_origins
 
+    # Bull Board: the ECS module maps this key into the API task only
+    BULL_BOARD_ADMIN_SECRET = var.bull_board_admin_secret
+
     # OpenAI (for worker-ai, worker-ingestion)
     OPENAI_API_KEY = var.openai_api_key
 

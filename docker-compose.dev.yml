@@ -34,6 +34,9 @@ services:
       SERVICE_NAME: gateway
     ports:
       - '${PORT:-3000}:3000'
+      # Bull Board: reachable from the host only when BULL_BOARD_ADMIN_SECRET is set
+      # (without it the dashboard binds to the container's loopback)
+      - '${BULL_BOARD_PORT:-3010}:3010'
     volumes:
       # Mount source code for hot-reload
       - ./apps/api/src:/app/apps/api/src

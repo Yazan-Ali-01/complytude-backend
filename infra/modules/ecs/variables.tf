@@ -77,6 +77,12 @@ variable "api_environment" {
   default     = {}
 }
 
+variable "bull_board_port" {
+  description = "Internal port Bull Board listens on in the API task (set as BULL_BOARD_PORT). Not behind the ALB; reach it through the bastion."
+  type        = number
+  default     = 3010
+}
+
 variable "worker_ai_environment" {
   description = "Non-secret environment variables for worker-ai"
   type        = map(string)

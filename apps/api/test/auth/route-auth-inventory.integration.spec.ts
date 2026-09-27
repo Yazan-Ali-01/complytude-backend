@@ -271,6 +271,8 @@ describe('Route authentication inventory', () => {
       booted = await bootApp({
         NODE_ENV: 'production',
         ENABLE_MOCK_ROUTES: 'false',
+        // Required in production (env.schema.ts)
+        BULL_BOARD_ADMIN_SECRET: 'route-auth-inventory-secret-0123456789',
       });
       server = booted.testApp.app
         .getHttpAdapter()

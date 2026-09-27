@@ -126,7 +126,7 @@ The controller delegates to `DocumentsService.analyze()`, which creates a `docum
 
 ### Bull Board (Queue Dashboard)
 
-The API exposes **Bull Board** at `http://localhost:3000/admin/queues` for visual queue monitoring. You can inspect:
+The API exposes **Bull Board** at `http://localhost:3010/admin/queues` (its own port, `BULL_BOARD_PORT`) for visual queue monitoring. You can inspect:
 
 - `ai-processing` — analysis jobs (pending, active, completed, failed)
 - `data-ingestion` — ruleset ingestion jobs

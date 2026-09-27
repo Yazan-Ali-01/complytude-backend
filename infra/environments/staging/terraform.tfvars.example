@@ -31,6 +31,10 @@ jwt_refresh_secret         = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 jwt_identity_secret        = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 jwt_identity_refresh_secret = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 
+# Bull Board — required, at least 32 characters. Generate with: openssl rand -hex 32
+# Served only on the API's internal port 3010 (not through the ALB); reach it via the bastion (see infra/README.md).
+bull_board_admin_secret = "CHANGE_ME_GENERATE_WITH_OPENSSL"
+
 # S3 — create IAM user with S3 permissions, or leave empty for ECS task role
 s3_access_key = ""
 s3_secret_key = ""

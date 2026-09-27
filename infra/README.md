@@ -76,7 +76,7 @@ cp terraform.tfvars.example terraform.tfvars
 
 Application secrets (DB, JWT, Redis, S3) are stored in AWS Secrets Manager as a single JSON secret: `complytude/<env>/app`.
 
-**Required tfvars:** `app_db_password`, `jwt_*_secret`, `cors_origins`, `alarm_email` (for CloudWatch alarm notifications). For S3, use `s3_access_key`/`s3_secret_key` or leave empty to use ECS task role.
+**Required tfvars:** `app_db_password`, `jwt_*_secret`, `bull_board_admin_secret` (at least 32 characters, `openssl rand -hex 32`), `cors_origins`, `alarm_email` (for CloudWatch alarm notifications). For S3, use `s3_access_key`/`s3_secret_key` or leave empty to use ECS task role.
 
 **Using app_login (production-like):** After RDS is up, run `scripts/setup-app-user-role.sql` via bastion SSH tunnel:
 
@@ -93,6 +93,20 @@ Use the same `app_password` as `app_db_password` in tfvars.
 **OAuth2 SSO (Google / Microsoft):** Optional keys `GOOGLE_*`, `MICROSOFT_*`, `SSO_FRONTEND_*` are included in the same JSON secret (defaults empty = SSO disabled in the API). Set the SPA base URL as `FRONTEND_URL` via ECS task **environment** (`api_environment` in the ECS module) or extend secrets — the API uses it for post-OAuth browser redirects.
 
 **Rotation:** Update the secret in AWS Console or via `aws secretsmanager put-secret-value`. Terraform will overwrite on next apply — for rotation, use AWS Console or a separate rotation Lambda.
+
+## Bull Board (queue dashboard)
+
+Bull Board is not behind the ALB: `https://<api>/admin/queues` returns 404. The API serves it on its internal port 3010 (`local.bull_board_port` in the environment's `main.tf`). The ECS security group admits that port from the bastion's security group only, and `BULL_BOARD_ADMIN_SECRET` goes to the API task only (never the workers). To open it, tunnel through the bastion to an API task:
+
+```bash
+CLUSTER=$(terraform output -raw ecs_cluster_name)
+TASK=$(aws ecs list-tasks --cluster $CLUSTER --service-name $CLUSTER-api --query 'taskArns[0]' --output text)
+TASK_IP=$(aws ecs describe-tasks --cluster $CLUSTER --tasks $TASK \
+  --query "tasks[0].attachments[0].details[?name=='privateIPv4Address'].value" --output text)
+ssh -i ~/.ssh/<bastion-key>.pem -N -L 3010:$TASK_IP:3010 ec2-user@$(terraform output -raw bastion_public_ip)
+```
+
+Then open `http://localhost:3010/admin/queues`. The browser asks for credentials: any username, with `bull_board_admin_secret` as the password. From the command line, send `Authorization: Bearer <secret>` or `X-Admin-Secret: <secret>` instead.
 
 ## ECS Deployment (Build, Push, Apply)
 

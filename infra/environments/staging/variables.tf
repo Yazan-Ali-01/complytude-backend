@@ -99,6 +99,17 @@ variable "jwt_identity_refresh_secret" {
   sensitive   = true
 }
 
+variable "bull_board_admin_secret" {
+  description = "Bull Board shared secret (API internal port). Required; the API refuses to boot in production without it. Generate with: openssl rand -hex 32"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.bull_board_admin_secret) >= 32
+    error_message = "bull_board_admin_secret must be at least 32 characters (openssl rand -hex 32)."
+  }
+}
+
 variable "s3_access_key" {
   description = "S3 access key — create IAM user with S3 permissions, or leave empty for ECS task role"
   type        = string

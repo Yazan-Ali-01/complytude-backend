@@ -133,6 +133,17 @@ variable "cors_origins" {
   type        = string
 }
 
+variable "bull_board_admin_secret" {
+  description = "Shared secret for Bull Board on the API's internal port. The API refuses to boot in production without it. Generate with: openssl rand -hex 32"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.bull_board_admin_secret) >= 32
+    error_message = "bull_board_admin_secret must be at least 32 characters."
+  }
+}
+
 variable "s3_endpoint" {
   description = "S3 endpoint URL — empty for AWS S3, set for localstack"
   type        = string

@@ -1,11 +1,5 @@
-import { createBullBoard } from '@bull-board/api';
-import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
-import { FastifyAdapter as BullBoardFastifyAdapter } from '@bull-board/fastify';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
-import { QUEUE_NAMES } from '@lib/queue';
-// eslint-disable-next-line no-restricted-imports
-import { getQueueToken } from '@nestjs/bullmq';
 import {
   Logger as NestLogger,
   ValidationPipe,
@@ -23,6 +17,11 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
+import {
+  BULL_BOARD_BASE_PATH,
+  bullBoardHost,
+  startBullBoardServer,
+} from './bull-board/bull-board.server';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import {
   IDENTITY_REFRESH_TOKEN_COOKIE_NAME,
@@ -146,57 +145,23 @@ async function bootstrap() {
     }),
   );
 
-  // Bull Board — queue monitoring dashboard at /admin/queues
-  const bullBoardAdminSecret = configService.get<string | null>(
-    'app.bullBoardAdminSecret',
-  );
-  const bullBoardAdapter = new BullBoardFastifyAdapter();
-  bullBoardAdapter.setBasePath('/admin/queues');
-
-  createBullBoard({
-    queues: [
-      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.AI_PROCESSING))),
-      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.BILLING_PROCESSING))),
-      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.DATA_INGESTION))),
-      new BullMQAdapter(
-        app.get(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING)),
-      ),
-      new BullMQAdapter(app.get(getQueueToken(QUEUE_NAMES.TENANT_PROCESSING))),
-      new BullMQAdapter(
-        app.get(getQueueToken(QUEUE_NAMES.DOCUMENT_GENERATION)),
-      ),
-    ],
-    serverAdapter: bullBoardAdapter,
+  // Bull Board runs on its own internal port, never on the public API listener
+  const bullBoardAdminSecret =
+    configService.get<string | null>('app.bullBoard.adminSecret') ?? null;
+  const bullBoardPort = configService.get<number>('app.bullBoard.port') ?? 3010;
+  const bullBoard = await startBullBoardServer(app, {
+    adminSecret: bullBoardAdminSecret,
+    port: bullBoardPort,
   });
-
-  // Protect Bull Board when BULL_BOARD_ADMIN_SECRET is set
-  const bullBoardPlugin = bullBoardAdapter.registerPlugin();
-  if (bullBoardAdminSecret) {
-    const wrappedPlugin = async (instance: any) => {
-      instance.addHook('onRequest', async (request: any, reply: any) => {
-        const authHeader = request.headers?.authorization;
-        const bearer = authHeader?.startsWith('Bearer ')
-          ? authHeader.slice(7)
-          : null;
-        const headerSecret = request.headers?.['x-admin-secret'];
-        const valid =
-          bearer === bullBoardAdminSecret ||
-          headerSecret === bullBoardAdminSecret;
-        if (!valid) {
-          await reply.status(401).send({
-            statusCode: 401,
-            error: 'Unauthorized',
-            message:
-              'Bull Board requires Authorization: Bearer <BULL_BOARD_ADMIN_SECRET> or X-Admin-Secret header',
-          });
-        }
-      });
-      await instance.register(bullBoardPlugin);
-    };
-    await app.register(wrappedPlugin, { prefix: '/admin/queues' });
-  } else {
-    await app.register(bullBoardPlugin, { prefix: '/admin/queues' });
-  }
+  fastifyInstance.addHook('onClose', async () => {
+    await bullBoard.close();
+  });
+  logger.log(
+    `📊 Bull Board: http://${bullBoardHost(bullBoardAdminSecret)}:${bullBoardPort}${BULL_BOARD_BASE_PATH}` +
+      (bullBoardAdminSecret
+        ? ' (secret required)'
+        : ' (no secret: loopback only)'),
+  );
 
   // ========================================================================
   // SWAGGER CONFIGURATION - Dev/staging only; disabled in production

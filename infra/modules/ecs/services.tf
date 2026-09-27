@@ -61,6 +61,10 @@ locals {
     "SSO_FRONTEND_ERROR_PATH",
   ]
   secrets = [for k in local.secret_keys : { name = k, valueFrom = "${var.secret_arn}:${k}::" }]
+
+  # Keys only the API task receives; the workers never see them
+  api_only_secret_keys = ["BULL_BOARD_ADMIN_SECRET"]
+  api_secrets = concat(local.secrets, [for k in local.api_only_secret_keys : { name = k, valueFrom = "${var.secret_arn}:${k}::" }])
 }
 
 # ---- API Task Definition ----
@@ -84,14 +88,19 @@ resource "aws_ecs_task_definition" "api" {
         {
           containerPort = 3000
           protocol     = "tcp"
+        },
+        # Bull Board: internal only. The ALB targets 3000; the ECS security group admits this port from the bastion alone.
+        {
+          containerPort = var.bull_board_port
+          protocol      = "tcp"
         }
       ]
 
       environment = [
-        for k, v in var.api_environment : { name = k, value = v }
+        for k, v in merge(var.api_environment, { BULL_BOARD_PORT = tostring(var.bull_board_port) }) : { name = k, value = v }
       ]
 
-      secrets = local.secrets
+      secrets = local.api_secrets
 
       logConfiguration = {
         logDriver = "awslogs"

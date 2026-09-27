@@ -896,7 +896,7 @@ pnpm services:reset
 
 - API: http://localhost:3000/api
 - Swagger: http://localhost:3000/docs
-- Bull Board: http://localhost:3000/admin/queues
+- Bull Board: http://localhost:3010/admin/queues (own port, `BULL_BOARD_PORT`; open on loopback when `BULL_BOARD_ADMIN_SECRET` is unset)
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
 

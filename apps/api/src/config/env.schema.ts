@@ -115,9 +115,21 @@ export const validationSchema = Joi.object({
   // Billing Scheduler
   BILLING_SCHEDULE_ENABLED: Joi.boolean().default(false),
 
-  // Bull Board — when set, /admin/queues requires Authorization: Bearer <secret>
-  // In production, this MUST be set. In development, omit to allow unauthenticated access.
-  BULL_BOARD_ADMIN_SECRET: Joi.string().optional().allow(''),
+  // Bull Board (/admin/queues) listens on BULL_BOARD_PORT, never on the public API port.
+  // Required in production. Without it the dashboard is open and bound to 127.0.0.1 (local dev).
+  BULL_BOARD_ADMIN_SECRET: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(32).required().messages({
+      'any.required':
+        'BULL_BOARD_ADMIN_SECRET is required when NODE_ENV=production',
+      'string.empty':
+        'BULL_BOARD_ADMIN_SECRET is required when NODE_ENV=production',
+      'string.min':
+        'BULL_BOARD_ADMIN_SECRET must be at least 32 characters when NODE_ENV=production',
+    }),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  BULL_BOARD_PORT: Joi.number().port().default(3010),
 
   // AWS SES (verification, password reset, billing notices)
   AWS_REGION: Joi.string().default('eu-central-1'),
