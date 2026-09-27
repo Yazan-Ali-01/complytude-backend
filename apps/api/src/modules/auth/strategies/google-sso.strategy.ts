@@ -6,6 +6,11 @@ import { SsoOAuthProfile } from './sso-payload.interface';
 
 export const GOOGLE_SSO_STRATEGY_NAME = 'google';
 
+/** Google sends `email_verified` as a boolean; older endpoints used the string "true". */
+function isTrueClaim(value: unknown): boolean {
+  return value === true || value === 'true';
+}
+
 @Injectable()
 export class GoogleSsoStrategy extends PassportStrategy(
   Strategy,
@@ -40,6 +45,9 @@ export class GoogleSsoStrategy extends PassportStrategy(
       provider: 'google',
       providerSubjectId: profile.id,
       email,
+      emailVerified:
+        isTrueClaim(profile.emails?.[0]?.verified) ||
+        isTrueClaim(profile._json?.email_verified),
       firstName,
       lastName,
     };

@@ -578,9 +578,21 @@ Optional alternative to email + password. When the corresponding env vars are un
 
 1. SPA navigates to `GET /api/v1/auth/google` (or `microsoft`).
 2. User signs in with the provider.
-3. Provider redirects to the callback route; the API creates or links the user (`is_verified: true`), issues the same identity JWT pair as `POST /auth/login`, sets HTTP-only cookies, then redirects to `FRONTEND_URL` + success path with query `sso=success` (and `provider=google` or `provider=microsoft`).
+3. Provider redirects to the callback route. The API finds, links or creates the user (rules below), issues the same identity JWT pair as `POST /auth/login`, sets HTTP-only cookies, then redirects to `FRONTEND_URL` + success path with query `sso=success` (and `provider=google` or `provider=microsoft`). On any failure it redirects to `FRONTEND_URL` + error path with `sso=error`, `provider` and a translated `reason`, and sets no identity cookies.
 
-**Account linking:** If the provider email matches an existing email/password user, the provider id is stored on that row and the user is logged in (no duplicate account). SSO-only users cannot use `POST /auth/login` with a password until a password exists; the API returns **401** with a message to use SSO.
+**Which account the provider identity signs in to:**
+
+1. **Already linked:** the user whose `google_id` / `microsoft_id` equals the provider's subject ID. The email the provider reports now doesn't matter.
+2. **Email matches an existing user:** the provider is linked to that account and signs it in only when **all** of these hold:
+   - the provider asserts the email is verified. Google's `email_verified` counts. Microsoft never counts, because Graph `mail` and `userPrincipalName` are directory attributes any Entra tenant admin can set;
+   - the account's own email is verified (`is_verified`);
+   - the account has no platform role;
+   - the account isn't already linked to a different identity from that provider.
+
+   Otherwise the login is refused with `SSO_ACCOUNT_EXISTS` ("An account with this email already exists. Sign in with the method you used before."), and the account is left unchanged.
+3. **New email:** a new account is created. It's `is_verified: true` only when the provider verified the email (Google). Otherwise (every Microsoft sign-up) it starts unverified and gets the same verification email as `POST /auth/signup`.
+
+SSO-only users cannot use `POST /auth/login` with a password until a password exists; the API returns **401** with a message to use SSO.
 
 ---
 

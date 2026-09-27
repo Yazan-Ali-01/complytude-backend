@@ -1,4 +1,4 @@
-import { DatabaseService } from '@lib/database';
+import { DatabaseService, type QueryOptions } from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
@@ -255,29 +255,11 @@ export class AuthService {
         { client },
       );
 
-      // Create email verification record
-      const verificationToken = crypto.randomBytes(32).toString('hex');
-      const hashedToken = crypto
-        .createHash('sha256')
-        .update(verificationToken)
-        .digest('hex');
-
-      const expiresAt = new Date(
-        Date.now() +
-          this.parseExpiresIn(
-            this.configService.get<string>('email.verificationExpiresIn') ||
-              '1d',
-          ),
-      );
       this.logger.log(
         `Creating email verification record for ${signupDto.email}`,
       );
-      await this.emailVerificationRepository.createEmailVerification(
-        {
-          userId,
-          token: hashedToken,
-          expiresAt,
-        },
+      const verificationToken = await this.createEmailVerificationRecord(
+        userId,
         { client },
       );
 
@@ -364,6 +346,31 @@ export class AuthService {
     return `${base}${normalizedPath}?${params.toString()}`;
   }
 
+  /**
+   * Stores a hashed email-verification token for the user and returns the raw token to email.
+   */
+  private async createEmailVerificationRecord(
+    userId: string,
+    options: QueryOptions,
+  ): Promise<string> {
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(verificationToken)
+      .digest('hex');
+    const expiresAt = new Date(
+      Date.now() +
+        this.parseExpiresIn(
+          this.configService.get<string>('email.verificationExpiresIn') || '1d',
+        ),
+    );
+    await this.emailVerificationRepository.createEmailVerification(
+      { userId, token: hashedToken, expiresAt },
+      options,
+    );
+    return verificationToken;
+  }
+
   private async resolveOrCreateSsoUser(
     profile: SsoOAuthProfile,
   ): Promise<User> {
@@ -378,9 +385,27 @@ export class AuthService {
     );
     if (byProvider) return byProvider;
 
-    // 2. Email exists — link the provider
+    // 2. Email exists. Link only when the provider verified the email AND the account owner
+    //    verified it too (an unverified password account may belong to someone who never owned
+    //    the mailbox), never into a platform-admin account, and never over another identity from
+    //    the same provider. Anything else is refused: no session for that account.
     const byEmail = await this.userRepository.findByEmailRow(email);
     if (byEmail) {
+      const canLink =
+        profile.emailVerified &&
+        byEmail.is_verified &&
+        !byEmail.platform_role_key &&
+        !byEmail[providerCol];
+      if (!canLink) {
+        this.logger.warn(
+          `SSO ${profile.provider} sign-in refused for existing user ${byEmail.id}: ` +
+            `emailVerified=${profile.emailVerified} accountVerified=${byEmail.is_verified} ` +
+            `platformRole=${Boolean(byEmail.platform_role_key)} linkedElsewhere=${Boolean(byEmail[providerCol])}`,
+        );
+        throw new ConflictException(
+          this.i18n.t(AuthI18n.errors.SSO_ACCOUNT_EXISTS),
+        );
+      }
       try {
         return await this.userRepository.update(byEmail.id, {
           [providerCol]: profile.providerSubjectId,
@@ -398,23 +423,29 @@ export class AuthService {
       }
     }
 
-    // 3. Brand new user
+    // 3. Brand new user. The email counts as verified only when the provider says so; otherwise
+    //    the user confirms it through the same emailed link as a password signup.
+    let created: { user: User; verificationToken: string | null };
     try {
-      return await this.databaseService.transaction(async (client) =>
-        this.userRepository.create(
+      created = await this.databaseService.transaction(async (client) => {
+        const user = await this.userRepository.create(
           {
             email,
             password_hash: null,
             first_name: profile.firstName,
             last_name: profile.lastName,
-            is_verified: true,
+            is_verified: profile.emailVerified,
             platform_role_key: null,
             [providerCol]: profile.providerSubjectId,
             auth_provider: profile.provider,
           },
           { client },
-        ),
-      );
+        );
+        const verificationToken = profile.emailVerified
+          ? null
+          : await this.createEmailVerificationRecord(user.id, { client });
+        return { user, verificationToken };
+      });
     } catch (err: unknown) {
       if ((err as { code?: string }).code === '23505') {
         const existing = await this.userRepository.findByProviderId(
@@ -425,6 +456,18 @@ export class AuthService {
       }
       throw err;
     }
+
+    if (created.verificationToken) {
+      this.emailService
+        .sendVerificationEmail(email, created.verificationToken)
+        .catch((error: unknown) => {
+          this.logger.error(
+            `Failed to send verification email to new SSO user ${created.user.id}`,
+            error instanceof Error ? error.stack : String(error),
+          );
+        });
+    }
+    return created.user;
   }
 
   private async issueIdentitySessionAndTokens(

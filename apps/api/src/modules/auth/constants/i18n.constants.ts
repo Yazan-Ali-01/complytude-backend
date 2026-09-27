@@ -33,6 +33,7 @@ export const AuthI18n = {
     SSO_EMAIL_REQUIRED: 'auth.errors.SSO_EMAIL_REQUIRED',
     SSO_ACCOUNT_USE_PASSWORD_PROVIDER:
       'auth.errors.SSO_ACCOUNT_USE_PASSWORD_PROVIDER',
+    SSO_ACCOUNT_EXISTS: 'auth.errors.SSO_ACCOUNT_EXISTS',
   },
   messages: {
     EMAIL_VERIFIED: 'auth.messages.EMAIL_VERIFIED',

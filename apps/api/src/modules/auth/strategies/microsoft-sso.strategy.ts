@@ -57,6 +57,9 @@ export class MicrosoftSsoStrategy extends PassportStrategy(
       provider: 'microsoft',
       providerSubjectId: profile.id,
       email,
+      // Graph `mail` / `userPrincipalName` are directory attributes that any Entra tenant admin
+      // can set to any address, so they never prove the user owns the mailbox ("nOAuth").
+      emailVerified: false,
       firstName,
       lastName,
     };
