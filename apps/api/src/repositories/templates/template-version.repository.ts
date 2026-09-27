@@ -23,7 +23,6 @@ export type CreateTemplateVersionRow = {
   fields: string; // Stringified JSONB array
   file_url: string;
   changelog?: string | null;
-  metadata: string; // Stringified JSONB object
   is_active?: boolean;
   created_by?: string | null;
   created_at?: Date;
@@ -38,7 +37,6 @@ export type UpdateTemplateVersionRow = {
   fields?: string; // Stringified JSONB array
   file_url?: string;
   changelog?: string | null;
-  metadata?: string; // Stringified JSONB object
   is_active?: boolean;
 };
 
@@ -49,7 +47,6 @@ type TemplateVersionRow = {
   fields: string | TemplateField[];
   file_url: string;
   changelog: string | null;
-  metadata: string | Record<string, unknown>;
   is_active: boolean;
   created_by: string | null;
   created_at: Date;
@@ -142,7 +139,7 @@ export class TemplateVersionRepository extends BaseRepository<
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'id, template_id, version, fields, file_url, changelog, metadata, is_active, created_by, created_at';
+    return 'id, template_id, version, fields, file_url, changelog, is_active, created_by, created_at';
   }
 
   /**
@@ -160,7 +157,6 @@ export class TemplateVersionRepository extends BaseRepository<
       fields: data.fields as TemplateField[],
       file_url: data.file_url,
       changelog: data.changelog,
-      metadata: data.metadata as Record<string, unknown>,
       is_active: data.is_active,
       created_by: data.created_by,
       created_at: data.created_at,

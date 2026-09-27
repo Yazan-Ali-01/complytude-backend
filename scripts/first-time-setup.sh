@@ -6,8 +6,8 @@ echo "================================"
 echo ""
 
 # Start services
-echo "📦 Starting services (PostgreSQL + MinIO)..."
-pnpm docker:start || exit 1
+echo "📦 Starting services (PostgreSQL + Redis)..."
+pnpm services:up || exit 1
 
 echo ""
 echo "⏳ Waiting for database to be ready..."
@@ -28,7 +28,6 @@ echo ""
 echo "  2. Visit your application:"
 echo "     • API: http://localhost:3000/api"
 echo "     • Docs: http://localhost:3000/docs"
-echo "     • MinIO Console: http://localhost:9001"
 echo ""
 echo "  3. Run tests:"
 echo "     pnpm test:e2e"

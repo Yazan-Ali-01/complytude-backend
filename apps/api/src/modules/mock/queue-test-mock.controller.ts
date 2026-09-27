@@ -1,7 +1,8 @@
 /* eslint-disable no-restricted-imports */
 import {
   AI_JOB_NAMES,
-  DocumentGenerationJobData,
+  BILLING_JOB_NAMES,
+  DocumentAnalysisJobData,
   ENTITLEMENT_JOB_NAMES,
   EntitlementProjectionUpdateJobData,
   QUEUE_NAMES,
@@ -9,9 +10,15 @@ import {
 } from '@lib/queue';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiExcludeController,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Queue } from 'bullmq';
 
+@ApiExcludeController()
 @Controller('admin/queue-test')
 @ApiTags('Queue Test (Dev Only)')
 export class QueueTestMockController {
@@ -23,6 +30,8 @@ export class QueueTestMockController {
     private readonly ingestionQueue: Queue,
     @InjectQueue(QUEUE_NAMES.ENTITLEMENT_PROCESSING)
     private readonly entitlementQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.BILLING_PROCESSING)
+    private readonly billingQueue: Queue,
   ) {}
 
   @Post('enqueue/ai')
@@ -30,14 +39,12 @@ export class QueueTestMockController {
   async enqueueAiJob() {
     const job = await this.queueProducer.enqueue(
       QUEUE_NAMES.AI_PROCESSING,
-      AI_JOB_NAMES.DOCUMENT_GENERATION,
+      AI_JOB_NAMES.DOCUMENT_ANALYSIS,
       {
-        tenantId: 'test-tenant-001',
-        templateVersionId: 'test-tv-001',
-        variables: { companyName: 'Test Corp', jurisdiction: 'UAE' },
-        userId: 'test-user-001',
+        analysisJobId: 'test-analysis-001',
         documentId: 'test-doc-001',
-      } satisfies DocumentGenerationJobData,
+        tenantId: 'test-tenant-001',
+      } satisfies DocumentAnalysisJobData,
     );
 
     return {
@@ -95,9 +102,34 @@ export class QueueTestMockController {
     };
   }
 
+  @Post('enqueue/billing/reconciliation')
+  @ApiOperation({
+    summary: 'Manually trigger Stripe reconciliation job',
+    description:
+      'Enqueues a Stripe reconciliation job to sync DB with Stripe. Same as the scheduled daily job.',
+  })
+  async enqueueReconciliationJob() {
+    const job = await this.queueProducer.enqueue(
+      QUEUE_NAMES.BILLING_PROCESSING,
+      BILLING_JOB_NAMES.STRIPE_RECONCILIATION,
+      { reason: 'manual' },
+    );
+
+    return {
+      jobId: job.id,
+      name: job.name,
+      queue: QUEUE_NAMES.BILLING_PROCESSING,
+      status: 'enqueued',
+      note: 'This job will reconcile all tenant subscriptions and add-ons with Stripe',
+    };
+  }
+
   @Get('jobs/:queueName')
   @ApiOperation({ summary: 'List recent jobs by state for a queue' })
-  @ApiParam({ name: 'queueName', enum: ['ai', 'ingestion', 'entitlement'] })
+  @ApiParam({
+    name: 'queueName',
+    enum: ['ai', 'ingestion', 'entitlement', 'billing'],
+  })
   async getJobs(@Param('queueName') queueName: string) {
     let queue: Queue;
     let queueLabel: string;
@@ -108,6 +140,9 @@ export class QueueTestMockController {
     } else if (queueName === 'entitlement') {
       queue = this.entitlementQueue;
       queueLabel = QUEUE_NAMES.ENTITLEMENT_PROCESSING;
+    } else if (queueName === 'billing') {
+      queue = this.billingQueue;
+      queueLabel = QUEUE_NAMES.BILLING_PROCESSING;
     } else {
       queue = this.ingestionQueue;
       queueLabel = QUEUE_NAMES.DATA_INGESTION;

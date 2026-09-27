@@ -1,8 +1,9 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
-import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
 import { SystemTenantRole } from 'src/common/types';
+import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,19 +13,18 @@ import { ChangePlanDto, SubscriptionResponseDto } from './dto';
 import { SubscriptionsService } from './subscriptions.service';
 
 /**
- * Subscriptions Controller - Phase 6
+ * Subscriptions Controller
  *
- * Manages tenant subscriptions: view current, change plan, cancel, and renew.
+ * Manages tenant subscriptions: view current and renew.
  *
  * Endpoints:
  * - GET /subscriptions/current - View current subscription
- * - POST /subscriptions/change-plan - Change plan (requires billing:manage permission)
- * - POST /subscriptions/cancel - Cancel subscription (requires billing:manage permission)
  * - POST /subscriptions/renew - Force renew current period (tenant_admin only, for testing)
+ *
+ * Note: Plan changes and cancellations use /billing/* endpoints (StripeSubscriptionService).
  *
  * Authorization:
  * - All endpoints require tenant token (@AuthOptions({ tenant: true }))
- * - Plan changes and cancellations require billing:manage permission
  * - Manual renewal requires tenant_admin role (debug/testing only)
  */
 @Controller('subscriptions')
@@ -77,6 +77,10 @@ export class SubscriptionsController {
    * Requires: billing:manage permission (typically tenant_admin or billing manager)
    */
   @Post('change-plan')
+  @Audit('SUBSCRIPTION_PLAN_CHANGED', {
+    resourceType: 'subscriptions',
+    includeBody: true,
+  })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({
@@ -128,6 +132,9 @@ export class SubscriptionsController {
    * Requires: billing:manage permission (typically tenant_admin or billing manager)
    */
   @Post('cancel')
+  @Audit('SUBSCRIPTION_CANCELLED', {
+    resourceType: 'subscriptions',
+  })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('billing:manage')
   @ApiOperation({
@@ -167,6 +174,9 @@ export class SubscriptionsController {
    * Requires: tenant_admin role
    */
   @Post('renew')
+  @Audit('SUBSCRIPTION_RENEWED', {
+    resourceType: 'subscriptions',
+  })
   @UseGuards(RolesGuard)
   @Roles(SystemTenantRole.TENANT_ADMIN)
   @ApiOperation({

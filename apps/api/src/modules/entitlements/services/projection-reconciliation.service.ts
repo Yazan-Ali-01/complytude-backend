@@ -139,9 +139,21 @@ export class ProjectionReconciliationService {
           }
         }
 
-        // Batch-fetch all aggregated_usage rows for the affected subscriptions.
-        const subscriptionIds = [
+        // Batch-fetch all aggregated_usage rows for subscriptions with ledger entries
+        // OR with existing projections (for orphan detection).
+        const subscriptionIdsFromLedger = [
           ...new Set([...expectedMap.values()].map((e) => e.subscriptionId)),
+        ];
+        const subscriptionIdsFromProjections =
+          await this.aggregatedUsageRepository.findSubscriptionIdsWithProjections(
+            tenantId,
+            { client },
+          );
+        const subscriptionIds = [
+          ...new Set([
+            ...subscriptionIdsFromLedger,
+            ...subscriptionIdsFromProjections,
+          ]),
         ];
         const projections =
           await this.aggregatedUsageRepository.findBySubscriptionIds(
@@ -166,15 +178,36 @@ export class ProjectionReconciliationService {
     const details: ReconciliationResult['details'] = [];
     const failedDetails: ReconciliationResult['failedDetails'] = [];
 
-    // TODO(COM-XXX): Reconciliation only iterates over ledger entries — it does not
-    // detect "orphan" aggregated_usage rows that have no corresponding ledger events
-    // in the current billing period (e.g., stale rows from a previous period that
-    // weren't reset during subscription rollover).
-    //
-    // The intended fix is for billing period rollover to reset aggregated_usage when
-    // transitioning to a new period, which eliminates orphans at the source.
-    // Until that's implemented, a stale projection from a prior period will persist
-    // uncorrected.  Track in a follow-up ticket.
+    // Phase 2a — Detect and remove orphan aggregated_usage rows (no ledger in current period)
+    let _orphansRemoved = 0;
+    for (const [key, projection] of projectionMap) {
+      if (expectedMap.has(key)) continue;
+      try {
+        await this.databaseService.transactionWithTenantContext(
+          { tenantId: projection.tenant_id },
+          async (client) => {
+            await this.aggregatedUsageRepository.delete(projection.id, {
+              client,
+            });
+          },
+        );
+        _orphansRemoved++;
+        this.logger.log(
+          `[projection.orphan_removed] subscription=${projection.subscription_id} ` +
+            `feature=${projection.feature_id} tenant=${projection.tenant_id} ` +
+            `billing_period=${projection.billing_period}`,
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `[projection.orphan_removal_failed] subscription=${projection.subscription_id} ` +
+            `feature=${projection.feature_id} error=${message}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+      }
+    }
+
+    // Phase 2b — Compare and correct drifted entries
     for (const [, expected] of expectedMap) {
       checked++;
 

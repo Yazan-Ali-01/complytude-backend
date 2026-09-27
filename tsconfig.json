@@ -46,6 +46,42 @@
       "@lib/database/*": [
         "libs/database/src/*"
       ],
+      "@lib/context": [
+        "libs/context/src"
+      ],
+      "@lib/context/*": [
+        "libs/context/src/*"
+      ],
+      "@lib/audit": [
+        "libs/audit/src"
+      ],
+      "@lib/audit/*": [
+        "libs/audit/src/*"
+      ],
+      "@lib/logger": [
+        "libs/logger/src"
+      ],
+      "@lib/logger/*": [
+        "libs/logger/src/*"
+      ],
+      "@lib/storage": [
+        "libs/storage/src"
+      ],
+      "@lib/storage/*": [
+        "libs/storage/src/*"
+      ],
+      "@lib/pdf": [
+        "libs/pdf/src"
+      ],
+      "@lib/pdf/*": [
+        "libs/pdf/src/*"
+      ],
+      "@lib/docx-renderer": [
+        "libs/docx-renderer/src"
+      ],
+      "@lib/docx-renderer/*": [
+        "libs/docx-renderer/src/*"
+      ],
       "src/*": [
         "apps/api/src/*"
       ]

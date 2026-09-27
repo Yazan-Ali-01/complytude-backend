@@ -19,7 +19,8 @@
     "FILE_EMPTY": "الملف فارغ",
     "FILE_SIZE_EXCEEDS_MAX": "حجم الملف يتجاوز الحد الأقصى المسموح ({maxSizeMb} ميجابايت)",
     "FILE_TYPE_NOT_ALLOWED": "نوع الملف '{mimeType}' غير مسموح. الأنواع المسموحة: {allowedTypes}",
-    "FILE_EXTENSION_MISMATCH": "امتداد الملف '.{extension}' لا يتطابق مع نوع الملف '{mimeType}'"
+    "FILE_EXTENSION_MISMATCH": "امتداد الملف '.{extension}' لا يتطابق مع نوع الملف '{mimeType}'",
+    "QUARANTINE_OBJECT_CHECK_FAILED": "فشل في التحقق من الملف المرفوع في تخزين الحجر"
   },
   "messages": {}
 }

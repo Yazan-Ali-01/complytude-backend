@@ -9,6 +9,8 @@ Welcome to the Complytude API documentation. This directory contains all documen
 | [API_CONTRACTS.md](API_CONTRACTS.md)                                 | API contract standards, authentication, DTOs          |
 | [API_CONTRACTS_QUICK_REFERENCE.md](API_CONTRACTS_QUICK_REFERENCE.md) | Quick reference for API patterns and examples         |
 | [DEVELOPMENT.md](DEVELOPMENT.md)                                     | Development workflow, module creation, best practices |
+| [APIDOG_SESSION_TESTING_GUIDE.md](APIDOG_SESSION_TESTING_GUIDE.md)   | Apidog testing guide for Redis session management     |
+| [BILLING_TESTING.md](BILLING_TESTING.md)                             | Apidog / manual testing for billing & Stripe webhooks |
 
 ## Quick Links
 
@@ -25,6 +27,7 @@ For documentation that applies to the entire monorepo (all apps):
 
 - [Architecture](../../../docs/ARCHITECTURE.md) - System architecture and design patterns
 - [Database](../../../docs/DATABASE.md) - Database schema, RLS, and data model
+- [Billing](../../../docs/billing/README.md) - Stripe billing architecture and operations
 - [Deployment](../../../docs/DEPLOYMENT.md) - Deployment instructions for all apps
 - [Scripts](../../../scripts/README.md) - Database migrations and utility scripts
 
@@ -49,7 +52,7 @@ apps/api/
 │   │   ├── invitations/     # Tenant invitations
 │   │   ├── templates/       # Template CRUD & versioning
 │   │   ├── documents/       # Document generation
-│   │   ├── storage/         # File storage (S3/MinIO)
+│   │   ├── storage/         # File storage (AWS S3)
 │   │   ├── authorities/     # Regulatory authorities
 │   │   ├── categories/      # Template categories
 │   │   ├── rulesets/        # Compliance rulesets
@@ -101,16 +104,18 @@ pnpm type-check
 
 ### Key Endpoint Groups
 
-| Category       | Endpoints                                                   |
-| -------------- | ----------------------------------------------------------- |
-| Auth           | `POST /api/auth/signup`, `/login`, `/refresh`, `/logout`    |
-| Invitations    | `POST /api/auth/invitations/:id/accept`, `/reject`          |
-| Tenant Invites | `POST /api/tenants/admin/invitations`, `GET`, `DELETE /:id` |
-| Users          | `GET /api/users/me`, `PATCH /api/users/me`                  |
-| Tenants        | `POST /api/tenants`, `GET /api/tenants/:id`                 |
-| Storage        | `POST /api/storage/upload`, `GET /api/storage/list`         |
-| Templates      | `GET /api/templates`, `POST /api/templates`                 |
-| Health         | `GET /api/health`, `/health/db`, `/health/storage`          |
+| Category              | Endpoints                                                                                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth                  | `POST /api/auth/signup`, `/login`, `/refresh`, `/logout`                                                                                                                                                   |
+| Invitations           | `POST /api/auth/invitations/:id/accept`, `/reject`                                                                                                                                                         |
+| Tenant Invites        | `POST /api/tenants/admin/invitations`, `GET`, `DELETE /:id`                                                                                                                                                |
+| Tenant Sessions       | `GET /api/tenants/admin/users/:userId/sessions`, `DELETE /sessions`, `DELETE /sessions/:sessionId`                                                                                                         |
+| System Admin Sessions | `GET /api/admin/sessions/stats`, `GET /api/admin/tenants/:tenantId/sessions`, `GET /api/admin/users/:userId/sessions`, `DELETE /api/admin/users/:userId/sessions`, `DELETE /api/admin/sessions/:sessionId` |
+| Users                 | `GET /api/users/me`, `PATCH /api/users/me`                                                                                                                                                                 |
+| Tenants               | `POST /api/tenants`, `GET /api/tenants/:id`                                                                                                                                                                |
+| Storage               | `POST /api/storage/upload`, `GET /api/storage/list`                                                                                                                                                        |
+| Templates             | `GET /api/templates`, `POST /api/templates`                                                                                                                                                                |
+| Health                | `GET /api/health`, `/health/db`, `/health/storage`                                                                                                                                                         |
 
 ---
 
@@ -122,13 +127,13 @@ pnpm type-check
 | **users**       | User management, roles, multi-tenant membership   | ✅ Complete |
 | **tenants**     | Organization management, subscription plans       | ✅ Complete |
 | **invitations** | Tenant invitations, accept/reject flows           | ✅ Complete |
-| **storage**     | File upload/download via S3/MinIO with isolation  | ✅ Complete |
+| **storage**     | File upload/download via S3 with isolation         | ✅ Complete |
 | **templates**   | Legal document template CRUD & versioning         | 🟡 Partial  |
 | **documents**   | Document generation from templates                | 🟡 Partial  |
 | **authorities** | Regulatory authorities management                 | ✅ Complete |
 | **categories**  | Template categories management                    | ✅ Complete |
 | **rulesets**    | Compliance rulesets with versioning               | ✅ Complete |
-| **health**      | Health checks for database, storage (MinIO/S3)    | ✅ Complete |
+| **health**      | Health checks for database, storage (S3)          | ✅ Complete |
 
 ---
 

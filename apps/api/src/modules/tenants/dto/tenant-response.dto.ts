@@ -3,8 +3,11 @@ import { ALL_PLAN_KEYS } from '../../../common/constants/plan-entitlements.const
 import type { PlanKey } from '../../../common/types/entitlement.types';
 import { Tenant } from '../entities/tenant.entity';
 
+/** Input for TenantResponseDto - Tenant plus optional plan (from subscription) */
+export type TenantResponseInput = Tenant & { plan?: PlanKey };
+
 export class TenantResponseDto {
-  constructor(data: Tenant) {
+  constructor(data: TenantResponseInput) {
     Object.assign(this, data);
   }
   @ApiProperty({
@@ -129,11 +132,6 @@ export class TenantResponseDto {
   default_jurisdiction?: string | null;
 
   @ApiProperty({
-    example: {},
-  })
-  settings: Record<string, unknown>;
-
-  @ApiProperty({
     example: '#1A73E8',
     nullable: true,
   })
@@ -164,9 +162,24 @@ export class TenantResponseDto {
   onboarding_completed_at?: Date | null;
 
   @ApiProperty({
-    example: {},
+    example: 'invite_team',
+    enum: ['create_workspace', 'invite_team', 'first_action', 'completed'],
   })
-  onboarding_metadata: Record<string, unknown>;
+  onboarding_current_step: string;
+
+  @ApiProperty({ example: false })
+  onboarding_team_invite_skipped: boolean;
+
+  @ApiProperty({
+    example: null,
+    nullable: true,
+    enum: ['upload_contract', 'ask_question', 'analyze_document'],
+    required: false,
+  })
+  onboarding_first_action_type?: string | null;
+
+  @ApiProperty({ example: null, nullable: true, required: false })
+  onboarding_first_action_completed_at?: Date | null;
 
   @ApiProperty({
     example: '2026-01-01T00:00:00.000Z',

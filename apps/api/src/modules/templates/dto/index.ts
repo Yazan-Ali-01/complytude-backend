@@ -6,7 +6,6 @@
 // Request DTOs
 export * from './create-template-version.dto';
 export * from './create-template.dto';
-export * from './generate-document.dto';
 export * from './link-rulesets.dto';
 export * from './rollback-version.dto';
 export * from './template-download-query.dto';

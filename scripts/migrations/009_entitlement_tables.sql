@@ -36,7 +36,6 @@ CREATE TABLE public.features (
     creditable  BOOLEAN NOT NULL DEFAULT false,
     credit_cost INTEGER, -- Cost in credits per unit (NULL for non-creditable features)
     is_active   BOOLEAN NOT NULL DEFAULT true,
-    metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -50,24 +49,29 @@ COMMENT ON COLUMN public.features.credit_cost IS 'Cost in credits per unit of us
 
 -- Plans: Subscription tier catalog
 CREATE TABLE public.plans (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    key             VARCHAR(50) UNIQUE NOT NULL,
-    name            VARCHAR(255) NOT NULL,
-    description     TEXT,
-    price_monthly   DECIMAL(10, 2) NOT NULL DEFAULT 0,
-    price_currency  VARCHAR(3) NOT NULL DEFAULT 'AED',
-    billing_period  VARCHAR(20) NOT NULL DEFAULT 'monthly',
-    is_active       BOOLEAN NOT NULL DEFAULT true,
-    sort_order      INTEGER NOT NULL DEFAULT 0,
-    metadata        JSONB DEFAULT '{}',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key                       VARCHAR(50) UNIQUE NOT NULL,
+    name                      VARCHAR(255) NOT NULL,
+    description               TEXT,
+    price_monthly             DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    price_currency            VARCHAR(3) NOT NULL DEFAULT 'AED',
+    billing_period            VARCHAR(20) NOT NULL DEFAULT 'monthly',
+    is_active                 BOOLEAN NOT NULL DEFAULT true,
+    sort_order                INTEGER NOT NULL DEFAULT 0,
+    stripe_product_id         VARCHAR(255) UNIQUE DEFAULT NULL,
+    stripe_price_id_monthly   VARCHAR(255) UNIQUE DEFAULT NULL,
+    stripe_price_id_annual    VARCHAR(255) UNIQUE DEFAULT NULL,
+    created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 COMMENT ON TABLE public.plans IS 'Subscription plan catalog (navigator, shield, general_counsel, infrastructure)';
 COMMENT ON COLUMN public.plans.key IS 'Unique plan key (e.g., navigator, shield, general_counsel, infrastructure)';
 COMMENT ON COLUMN public.plans.billing_period IS 'Billing cycle: monthly, yearly';
 COMMENT ON COLUMN public.plans.sort_order IS 'Display order for plan listing';
+COMMENT ON COLUMN public.plans.stripe_product_id IS 'Stripe product ID (prod_xxx), NULL for Navigator (free) plan';
+COMMENT ON COLUMN public.plans.stripe_price_id_monthly IS 'Stripe price ID for monthly billing (price_xxx)';
+COMMENT ON COLUMN public.plans.stripe_price_id_annual IS 'Stripe price ID for annual billing (price_xxx)';
 
 -- Plan Entitlements: What each plan grants
 CREATE TABLE public.plan_entitlements (
@@ -77,7 +81,6 @@ CREATE TABLE public.plan_entitlements (
     value_bool  BOOLEAN,
     value_int   INTEGER,
     value_text  VARCHAR(255),
-    metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT uq_plan_entitlements_plan_feature UNIQUE (plan_id, feature_id),
@@ -96,20 +99,23 @@ COMMENT ON CONSTRAINT chk_plan_entitlements_value ON public.plan_entitlements IS
 
 -- Add-ons: Purchasable extras
 CREATE TABLE public.addons (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    key             VARCHAR(100) UNIQUE NOT NULL,
-    name            VARCHAR(255) NOT NULL,
-    description     TEXT,
-    price_monthly   DECIMAL(10, 2) NOT NULL DEFAULT 0,
-    price_currency  VARCHAR(3) NOT NULL DEFAULT 'AED',
-    is_active       BOOLEAN NOT NULL DEFAULT true,
-    metadata        JSONB DEFAULT '{}',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key                 VARCHAR(100) UNIQUE NOT NULL,
+    name                VARCHAR(255) NOT NULL,
+    description         TEXT,
+    price_monthly       DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    price_currency      VARCHAR(3) NOT NULL DEFAULT 'AED',
+    is_active           BOOLEAN NOT NULL DEFAULT true,
+    stripe_product_id   VARCHAR(255) UNIQUE DEFAULT NULL,
+    stripe_price_id     VARCHAR(255) UNIQUE DEFAULT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 COMMENT ON TABLE public.addons IS 'Add-on catalog for supplemental entitlements';
 COMMENT ON COLUMN public.addons.key IS 'Unique add-on key (e.g., extra_50_documents, extra_5_seats)';
+COMMENT ON COLUMN public.addons.stripe_product_id IS 'Stripe product ID (prod_xxx), NULL until synced';
+COMMENT ON COLUMN public.addons.stripe_price_id IS 'Stripe price ID (price_xxx), NULL until synced';
 
 -- Add-on Entitlements: What each add-on grants
 CREATE TABLE public.addon_entitlements (
@@ -119,7 +125,6 @@ CREATE TABLE public.addon_entitlements (
     value_bool  BOOLEAN,
     value_int   INTEGER,
     value_text  VARCHAR(255),
-    metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT uq_addon_entitlements_addon_feature UNIQUE (addon_id, feature_id),
@@ -139,38 +144,53 @@ COMMENT ON CONSTRAINT chk_addon_entitlements_value ON public.addon_entitlements 
 
 -- Tenant Subscriptions: Active plan binding with billing periods
 CREATE TABLE public.tenant_subscriptions (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id           UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    plan_id             UUID NOT NULL REFERENCES public.plans(id),
-    status              subscription_status NOT NULL DEFAULT 'active',
-    billing_period_start TIMESTAMPTZ NOT NULL,
-    billing_period_end   TIMESTAMPTZ NOT NULL,
-    current_period_start TIMESTAMPTZ NOT NULL,
-    current_period_end   TIMESTAMPTZ NOT NULL,
-    cancelled_at        TIMESTAMPTZ,
-    metadata            JSONB DEFAULT '{}',
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    plan_id                     UUID NOT NULL REFERENCES public.plans(id),
+    status                      subscription_status NOT NULL DEFAULT 'active',
+    billing_period_start        TIMESTAMPTZ NOT NULL,
+    billing_period_end          TIMESTAMPTZ NOT NULL,
+    current_period_start        TIMESTAMPTZ NOT NULL,
+    current_period_end          TIMESTAMPTZ NOT NULL,
+    cancelled_at                TIMESTAMPTZ,
+    trial_ends_at               TIMESTAMPTZ,
+    trial_reminder_sent_at      TIMESTAMPTZ,
+    metadata                    JSONB DEFAULT '{}',
+    billing_interval            VARCHAR(10) DEFAULT NULL CHECK (billing_interval IN ('monthly', 'annual')),
+    cancel_at_period_end        BOOLEAN NOT NULL DEFAULT false,
+    downgraded_from_stripe      BOOLEAN NOT NULL DEFAULT false,
+    stripe_subscription_id      VARCHAR(255) UNIQUE DEFAULT NULL,
+    stripe_schedule_id          VARCHAR(255) DEFAULT NULL,
+    stripe_current_period_end   TIMESTAMPTZ DEFAULT NULL,
+    stripe_status               VARCHAR(50) DEFAULT NULL,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 COMMENT ON TABLE public.tenant_subscriptions IS 'Tenant subscription records with billing period tracking';
+COMMENT ON COLUMN public.tenant_subscriptions.trial_ends_at IS 'Trial expiration timestamp (only set when status = trialing)';
+COMMENT ON COLUMN public.tenant_subscriptions.trial_reminder_sent_at IS 'Timestamp when the "trial ending soon" reminder email was sent. NULL until the reminder cron picks it up; ensures one-shot delivery.';
 COMMENT ON COLUMN public.tenant_subscriptions.billing_period_start IS 'Overall subscription start date';
 COMMENT ON COLUMN public.tenant_subscriptions.billing_period_end IS 'Overall subscription end date (NULL for ongoing)';
 COMMENT ON COLUMN public.tenant_subscriptions.current_period_start IS 'Current billing cycle start';
 COMMENT ON COLUMN public.tenant_subscriptions.current_period_end IS 'Current billing cycle end';
+COMMENT ON COLUMN public.tenant_subscriptions.stripe_subscription_id IS 'Stripe subscription ID (sub_xxx), NULL for Navigator (free) plan';
+COMMENT ON COLUMN public.tenant_subscriptions.stripe_schedule_id IS 'Stripe subscription schedule ID (sub_sched_xxx), set when a plan change is pending';
+COMMENT ON COLUMN public.tenant_subscriptions.stripe_current_period_end IS 'Stripe billing period end (source of truth for billing cycle)';
+COMMENT ON COLUMN public.tenant_subscriptions.stripe_status IS 'Stripe subscription status (active, past_due, canceled, etc.)';
 
 -- Tenant Add-ons: Active add-on bindings
 CREATE TABLE public.tenant_addons (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    addon_id    UUID NOT NULL REFERENCES public.addons(id),
-    quantity    INTEGER NOT NULL DEFAULT 1,
-    status      VARCHAR(20) NOT NULL DEFAULT 'active',
-    starts_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at  TIMESTAMPTZ,
-    metadata    JSONB DEFAULT '{}',
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                   UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    addon_id                    UUID NOT NULL REFERENCES public.addons(id),
+    quantity                    INTEGER NOT NULL DEFAULT 1,
+    status                      VARCHAR(20) NOT NULL DEFAULT 'active',
+    starts_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at                  TIMESTAMPTZ,
+    stripe_subscription_item_id VARCHAR(255) DEFAULT NULL,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT chk_tenant_addons_quantity CHECK (quantity > 0)
 );
@@ -178,6 +198,7 @@ CREATE TABLE public.tenant_addons (
 COMMENT ON TABLE public.tenant_addons IS 'Tenant add-on subscriptions';
 COMMENT ON COLUMN public.tenant_addons.quantity IS 'Number of add-on units purchased';
 COMMENT ON COLUMN public.tenant_addons.expires_at IS 'Add-on expiration (NULL for ongoing)';
+COMMENT ON COLUMN public.tenant_addons.stripe_subscription_item_id IS 'Stripe subscription item ID (si_xxx) linking this add-on to a Stripe subscription';
 
 -- Tenant Overrides: Admin-applied entitlement overrides
 CREATE TABLE public.tenant_overrides (
@@ -225,6 +246,7 @@ CREATE TABLE public.usage_ledger (
     idempotency_key VARCHAR(255),
     recorded_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     projected_at    TIMESTAMPTZ NULL,
+    voided_at       TIMESTAMPTZ NULL,
 
     CONSTRAINT chk_usage_units CHECK (units > 0)
 );
@@ -235,6 +257,7 @@ COMMENT ON COLUMN public.usage_ledger.resource_type IS 'Type of resource created
 COMMENT ON COLUMN public.usage_ledger.resource_id IS 'ID of the resource created';
 COMMENT ON COLUMN public.usage_ledger.idempotency_key IS 'Prevents duplicate event recording';
 COMMENT ON COLUMN public.usage_ledger.projected_at IS 'Timestamp when this event was projected into aggregated_usage (NULL = not yet projected). Used as CAS idempotency guard.';
+COMMENT ON COLUMN public.usage_ledger.voided_at IS 'Timestamp when this event was voided (e.g., async job permanent failure). Voided events are excluded from projections and reconciliation. NULL = not voided.';
 
 -- Usage Allocations: Per-source funding breakdown for usage events
 CREATE TABLE public.usage_allocations (
@@ -300,11 +323,15 @@ COMMENT ON TRIGGER validate_usage_allocations_sum_trigger ON public.usage_alloca
 CREATE OR REPLACE FUNCTION prevent_usage_ledger_modification()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Allow setting projected_at exactly once (NULL → non-NULL).
-    -- All other columns must remain unchanged.
+    -- Two permitted mutations (each is a one-time, NULL → non-NULL transition):
+    --   1. projected_at: set by claimForProjection() after the usage event is
+    --      reflected in aggregated_usage.
+    --   2. voided_at: set by the usage refund handler when an async job fails
+    --      permanently after its entitlement was already deducted. Voided events
+    --      are excluded from projections and reconciliation.
+    -- All other columns are permanently immutable.
     IF TG_OP = 'UPDATE' THEN
-        IF OLD.projected_at IS NULL AND NEW.projected_at IS NOT NULL AND
-           NEW.id               = OLD.id               AND
+        IF NEW.id               = OLD.id               AND
            NEW.tenant_id        = OLD.tenant_id        AND
            NEW.feature_id       = OLD.feature_id       AND
            NEW.user_id          IS NOT DISTINCT FROM OLD.user_id AND
@@ -314,19 +341,25 @@ BEGIN
            NEW.resource_id      IS NOT DISTINCT FROM OLD.resource_id  AND
            NEW.idempotency_key  IS NOT DISTINCT FROM OLD.idempotency_key AND
            NEW.recorded_at      = OLD.recorded_at AND
-           NEW.metadata         IS NOT DISTINCT FROM OLD.metadata
+           NEW.metadata         IS NOT DISTINCT FROM OLD.metadata AND
+           -- projected_at: either unchanged or transitioning NULL → timestamp
+           (NEW.projected_at IS NOT DISTINCT FROM OLD.projected_at OR
+            (OLD.projected_at IS NULL AND NEW.projected_at IS NOT NULL)) AND
+           -- voided_at: either unchanged or transitioning NULL → timestamp
+           (NEW.voided_at IS NOT DISTINCT FROM OLD.voided_at OR
+            (OLD.voided_at IS NULL AND NEW.voided_at IS NOT NULL))
         THEN
             RETURN NEW;
         END IF;
     END IF;
 
-    RAISE EXCEPTION 'usage_ledger is immutable. Only projected_at may be set once (NULL → timestamp).'
+    RAISE EXCEPTION 'usage_ledger is immutable. Only projected_at and voided_at may be set once (NULL → timestamp).'
         USING ERRCODE = '42501',
-              HINT = 'usage_ledger is append-only. Use claimForProjection() to set projected_at.';
+              HINT = 'usage_ledger is append-only. Use claimForProjection() or voidLedgerEntry() for permitted mutations.';
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION prevent_usage_ledger_modification() IS 'Enforces immutability of usage_ledger; only allows setting projected_at once (NULL → timestamp)';
+COMMENT ON FUNCTION prevent_usage_ledger_modification() IS 'Enforces immutability of usage_ledger; only allows setting projected_at and voided_at once (NULL → timestamp)';
 
 CREATE TRIGGER prevent_usage_ledger_update
     BEFORE UPDATE ON public.usage_ledger
@@ -338,7 +371,7 @@ CREATE TRIGGER prevent_usage_ledger_delete
     FOR EACH ROW
     EXECUTE FUNCTION prevent_usage_ledger_modification();
 
-COMMENT ON TRIGGER prevent_usage_ledger_update ON public.usage_ledger IS 'Blocks UPDATE except projected_at (NULL→timestamp) to enforce immutability';
+COMMENT ON TRIGGER prevent_usage_ledger_update ON public.usage_ledger IS 'Blocks UPDATE except projected_at and voided_at (NULL→timestamp) to enforce immutability';
 COMMENT ON TRIGGER prevent_usage_ledger_delete ON public.usage_ledger IS 'Blocks DELETE operations to enforce immutability';
 
 -- Generic immutability for tables with no permitted mutations (usage_allocations, credit_ledger)
@@ -369,19 +402,20 @@ COMMENT ON TRIGGER prevent_usage_allocations_delete ON public.usage_allocations 
 
 -- Credit Ledger: Append-only credit transaction store (SOURCE OF TRUTH)
 CREATE TABLE public.credit_ledger (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    transaction_type credit_transaction_type NOT NULL,
-    amount          INTEGER NOT NULL,
-    balance_after   INTEGER NOT NULL,
-    feature_id      UUID REFERENCES public.features(id),
-    usage_ledger_id UUID REFERENCES public.usage_ledger(id),
-    reason          TEXT,
-    applied_by      UUID REFERENCES public.users(id),
-    expires_at      TIMESTAMPTZ,
-    metadata        JSONB DEFAULT '{}',
-    idempotency_key VARCHAR(255),
-    recorded_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    transaction_type        credit_transaction_type NOT NULL,
+    amount                  INTEGER NOT NULL,
+    balance_after           INTEGER NOT NULL,
+    feature_id              UUID REFERENCES public.features(id),
+    usage_ledger_id         UUID REFERENCES public.usage_ledger(id),
+    reason                  TEXT,
+    applied_by              UUID REFERENCES public.users(id),
+    expires_at              TIMESTAMPTZ,
+    metadata                JSONB DEFAULT '{}',
+    idempotency_key         VARCHAR(255),
+    stripe_payment_intent_id VARCHAR(255) DEFAULT NULL,
+    recorded_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 COMMENT ON TABLE public.credit_ledger IS 'Append-only credit transaction ledger (immutable source of truth)';
@@ -390,6 +424,7 @@ COMMENT ON COLUMN public.credit_ledger.balance_after IS 'Running balance after t
 COMMENT ON COLUMN public.credit_ledger.feature_id IS 'Feature for which credits were used (NULL for general credits)';
 COMMENT ON COLUMN public.credit_ledger.usage_ledger_id IS 'Link to usage event that triggered credit deduction';
 COMMENT ON COLUMN public.credit_ledger.expires_at IS 'Credit expiration date (NULL for non-expiring)';
+COMMENT ON COLUMN public.credit_ledger.stripe_payment_intent_id IS 'Stripe payment intent ID (pi_xxx) for purchase transactions';
 
 -- Immutability enforcement for credit_ledger (using triggers)
 CREATE TRIGGER prevent_credit_ledger_update
@@ -536,12 +571,24 @@ CREATE INDEX idx_tenant_subscriptions_tenant_id ON public.tenant_subscriptions(t
 CREATE INDEX idx_tenant_subscriptions_plan_id ON public.tenant_subscriptions(plan_id);
 CREATE INDEX idx_tenant_subscriptions_status ON public.tenant_subscriptions(status);
 CREATE INDEX idx_tenant_subscriptions_tenant_active ON public.tenant_subscriptions(tenant_id, status)
-    WHERE status = 'active';
+    WHERE status IN ('active', 'trialing');
 
--- Unique constraint: only one active subscription per tenant (for upsert in SubscriptionsRepository)
-CREATE UNIQUE INDEX idx_tenant_subscriptions_tenant_active_unique
+-- Unique constraint: only one active or trialing subscription per tenant
+CREATE UNIQUE INDEX idx_tenant_subscriptions_tenant_one_valid
     ON public.tenant_subscriptions(tenant_id)
-    WHERE status = 'active';
+    WHERE status IN ('active', 'trialing');
+
+-- Partial index for trial expiry job (efficient lookup of expired trials)
+CREATE INDEX idx_tenant_subscriptions_trial_expiry
+    ON public.tenant_subscriptions(trial_ends_at)
+    WHERE status = 'trialing';
+
+-- Partial index for the trial-ending-soon reminder job. Targets the same
+-- 'trialing' rows but only those that haven't been notified yet, so the cron
+-- query stays cheap at scale.
+CREATE INDEX idx_tenant_subscriptions_trial_reminder_due
+    ON public.tenant_subscriptions(trial_ends_at)
+    WHERE status = 'trialing' AND trial_reminder_sent_at IS NULL;
 
 -- Tenant Addons
 CREATE INDEX idx_tenant_addons_tenant_id ON public.tenant_addons(tenant_id);

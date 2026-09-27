@@ -71,6 +71,35 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
+   * Get multiple values from Redis in a single round-trip (MGET).
+   * Keys must include the logical prefix (ioredis keyPrefix is applied automatically).
+   * @param keys Redis keys
+   * @returns Array of parsed values (null for missing keys)
+   */
+  async mget<T>(keys: string[]): Promise<(T | null)[]> {
+    if (keys.length === 0) return [];
+    try {
+      const values = await this.redis.mget(...keys);
+      const results: (T | null)[] = [];
+      for (const v of values) {
+        if (!v) {
+          results.push(null);
+          continue;
+        }
+        try {
+          results.push(JSON.parse(v) as T);
+        } catch {
+          results.push(null);
+        }
+      }
+      return results;
+    } catch (error) {
+      this.logger.error(`Error mget for ${keys.length} keys:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete one or more keys from Redis
    * @param keys Redis keys to delete
    * @returns Number of keys deleted

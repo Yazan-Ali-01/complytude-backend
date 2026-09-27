@@ -21,13 +21,13 @@ NC='\033[0m' # No Color
 
 # Load environment variables (check new location first, then fallback)
 if [ -f apps/api/.env ]; then
-    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | sed 's/[[:space:]]*#.*$//' | xargs)
     echo "📝 Loaded environment from apps/api/.env"
 elif [ -f .env.api ]; then
-    export $(cat .env.api | grep -v '^#' | grep -v '^\s*$' | xargs)
+    export $(cat .env.api | grep -v '^#' | grep -v '^\s*$' | sed 's/[[:space:]]*#.*$//' | xargs)
     echo "📝 Loaded environment from .env.api (legacy)"
 elif [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    export $(cat .env | grep -v '^#' | grep -v '^\s*$' | sed 's/[[:space:]]*#.*$//' | xargs)
     echo "📝 Loaded environment from .env"
 else
     echo -e "${YELLOW}⚠️  No .env file found. Using environment variables from shell.${NC}"
@@ -45,7 +45,7 @@ if ! PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgre
     echo -e "${RED}❌ Cannot connect to PostgreSQL${NC}"
     echo ""
     echo "Please check:"
-    echo "  1. Docker is running: pnpm docker:start"
+    echo "  1. Docker is running: pnpm services:up"
     echo "  2. Database credentials in apps/api/.env"
     echo "  3. PostgreSQL is accessible on ${DB_HOST}:${DB_PORT}"
     exit 1

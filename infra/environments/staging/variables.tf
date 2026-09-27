@@ -99,12 +99,6 @@ variable "jwt_identity_refresh_secret" {
   sensitive   = true
 }
 
-variable "jwt_refresh_hash_secret" {
-  description = "JWT refresh token hash secret"
-  type        = string
-  sensitive   = true
-}
-
 variable "s3_access_key" {
   description = "S3 access key — create IAM user with S3 permissions, or leave empty for ECS task role"
   type        = string
@@ -132,6 +126,13 @@ variable "cors_origins" {
 
 variable "openai_api_key" {
   description = "OpenAI API key — required for worker-ai and worker-ingestion"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "cohere_api_key" {
+  description = "Cohere API key — required for worker-ai reranking"
   type        = string
   default     = ""
   sensitive   = true
@@ -170,6 +171,13 @@ variable "stripe_tax_enabled" {
   default     = "false"
 }
 
+# ---- Billing Scheduler ----
+variable "billing_schedule_enabled" {
+  description = "Enable scheduled billing jobs (daily Stripe reconciliation at 3 AM)"
+  type        = bool
+  default     = true
+}
+
 # ---- DNS & SSL ----
 variable "domain_name" {
   description = "Root domain for the project (e.g. complytude.com)"
@@ -199,6 +207,208 @@ variable "ecs_worker_ingestion_desired_count" {
   description = "Desired number of worker-ingestion tasks"
   type        = number
   default     = 1
+}
+
+variable "ecs_worker_generation_desired_count" {
+  description = "Desired number of worker-generation tasks"
+  type        = number
+  default     = 1
+}
+
+# ---- Worker AI Configuration ----
+variable "worker_ai_concurrency" {
+  description = "Max concurrent jobs for worker-ai"
+  type        = number
+  default     = 5
+}
+
+variable "worker_ai_max_retries" {
+  description = "Max retries per worker-ai job"
+  type        = number
+  default     = 3
+}
+
+variable "worker_ai_retry_delay" {
+  description = "Retry delay in ms for worker-ai jobs"
+  type        = number
+  default     = 5000
+}
+
+variable "worker_ai_max_processing_time" {
+  description = "Max processing time in ms per worker-ai job"
+  type        = number
+  default     = 300000
+}
+
+variable "openai_chat_model" {
+  description = "OpenAI chat model for compliance analysis"
+  type        = string
+  default     = "gpt-4o-mini"
+}
+
+variable "openai_chat_max_tokens" {
+  description = "Max output tokens for OpenAI chat completion"
+  type        = number
+  default     = 4096
+}
+
+variable "openai_chat_temperature" {
+  description = "Temperature for OpenAI chat completion (0.0-2.0)"
+  type        = number
+  default     = 0.1
+}
+
+variable "openai_chat_timeout" {
+  description = "Timeout in ms for OpenAI chat API calls"
+  type        = number
+  default     = 120000
+}
+
+variable "openai_embedding_model" {
+  description = "OpenAI embedding model"
+  type        = string
+  default     = "text-embedding-3-small"
+}
+
+variable "openai_embedding_dimensions" {
+  description = "Embedding vector dimensions"
+  type        = number
+  default     = 1536
+}
+
+variable "openai_max_retries" {
+  description = "Max retries for OpenAI API calls"
+  type        = number
+  default     = 3
+}
+
+variable "embedding_chunk_size" {
+  description = "Token size per embedding chunk"
+  type        = number
+  default     = 512
+}
+
+variable "embedding_chunk_overlap" {
+  description = "Token overlap between embedding chunks"
+  type        = number
+  default     = 50
+}
+
+variable "cohere_rerank_model" {
+  description = "Cohere rerank model"
+  type        = string
+  default     = "rerank-v3.5"
+}
+
+variable "rerank_top_n" {
+  description = "Number of top chunks to keep after Cohere reranking (passed to LLM)"
+  type        = number
+  default     = 25
+}
+
+variable "rag_top_k_per_query" {
+  description = "Top-K vector results per query embedding in hybrid search"
+  type        = number
+  default     = 5
+}
+
+variable "rag_vector_limit" {
+  description = "Max deduplicated vector results before RRF merge"
+  type        = number
+  default     = 30
+}
+
+variable "rag_bm25_limit" {
+  description = "Max BM25 full-text results before RRF merge"
+  type        = number
+  default     = 30
+}
+
+variable "rag_max_hybrid_results" {
+  description = "Max chunks after RRF merge (fed to reranker)"
+  type        = number
+  default     = 40
+}
+
+# ---- Email (AWS SES) ----
+variable "from_email" {
+  description = "From email address for sending emails (e.g., billing@complytude.com)"
+  type        = string
+}
+
+variable "from_name" {
+  description = "From name for sending emails"
+  type        = string
+  default     = "Complytude Billing"
+}
+
+variable "support_email" {
+  description = "Support email address (e.g., support@complytude.com)"
+  type        = string
+}
+
+# ---- OAuth2 SSO (optional — leave empty to disable) ----
+variable "google_client_id" {
+  description = "Google OAuth client ID"
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth client secret"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "google_callback_url" {
+  description = "Google OAuth redirect URI (e.g. https://api-staging.complytude.com/api/v1/auth/google/callback)"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_client_id" {
+  description = "Microsoft OAuth application (client) ID"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_client_secret" {
+  description = "Microsoft OAuth client secret"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "microsoft_callback_url" {
+  description = "Microsoft OAuth redirect URI"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_tenant_id" {
+  description = "Microsoft tenant: 'common' for multi-tenant, or a directory ID"
+  type        = string
+  default     = "common"
+}
+
+variable "sso_frontend_success_path" {
+  description = "Path appended to FRONTEND_URL after successful OAuth"
+  type        = string
+  default     = "/auth/callback"
+}
+
+variable "sso_frontend_error_path" {
+  description = "Path appended to FRONTEND_URL on OAuth error"
+  type        = string
+  default     = "/auth/error"
+}
+
+# ---- Developer IAM Users ----
+variable "developer_usernames" {
+  description = "IAM usernames for developers (e.g. [\"john\", \"alice\"]). Each gets access keys with scoped permissions."
+  type        = list(string)
+  default     = []
 }
 
 # ---- Monitoring ----

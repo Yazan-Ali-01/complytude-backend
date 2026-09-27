@@ -5,56 +5,107 @@ export interface RulesetChunkMatch {
   id: string;
   content: string;
   metadata: Record<string, unknown>;
-  distance: number;
+  score: number;
 }
+
+const RRF_K = 60;
 
 @Injectable()
 export class RulesetChunkSearchRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
   /**
-   * Batch similarity search: for each query embedding find the top-K nearest ruleset
-   * chunks, then deduplicate across all queries keeping the best (lowest) distance per
-   * chunk, and return the top `maxUnique` overall.
+   * Hybrid search combining pgvector cosine similarity and BM25 full-text search
+   * via Reciprocal Rank Fusion (RRF).
    *
-   * Uses a LATERAL join so the HNSW index is exercised for every individual query vector
-   * rather than being bypassed by a plain cross-join.
+   * 1. Vector branch: LATERAL join per query embedding (HNSW index, top-K per query)
+   * 2. BM25 branch: tsvector @@ plainto_tsquery on the generated content_tsv column
+   * 3. FULL OUTER JOIN + RRF scoring: 1/(k+rank_vector) + 1/(k+rank_bm25)
    *
+   * When `rulesetIds` is provided, both branches are filtered to only those rulesets.
    * ruleset_chunks has no RLS; bypassRLS is irrelevant.
    */
-  async searchSimilarBatch(
+  async hybridSearchBatch(
     embeddings: number[][],
+    searchText: string,
     topKPerQuery: number,
-    maxUnique: number,
+    vectorLimit: number,
+    bm25Limit: number,
+    maxResults: number,
+    rulesetIds?: string[],
   ): Promise<RulesetChunkMatch[]> {
     if (embeddings.length === 0) return [];
 
-    // pg driver serialises a string[] as a PostgreSQL text[], so we format each
-    // vector as the text representation pgvector expects: "[x1,x2,...]"
     const vectorStrings = embeddings.map((e) => `[${e.join(',')}]`);
+    const scoped = rulesetIds && rulesetIds.length > 0;
+
+    const vectorWhereClause = scoped
+      ? 'WHERE ruleset_id = ANY($7::uuid[])'
+      : '';
+    const bm25WhereClause = scoped ? 'AND ruleset_id = ANY($7::uuid[])' : '';
+
+    const params: unknown[] = [
+      vectorStrings,
+      topKPerQuery,
+      vectorLimit,
+      searchText,
+      bm25Limit,
+      maxResults,
+    ];
+    if (scoped) {
+      params.push(rulesetIds);
+    }
 
     const result = await this.databaseService.query<{
       id: string;
       content: string;
       metadata: Record<string, unknown>;
-      distance: number;
+      rrf_score: number;
     }>(
-      `SELECT id, content, metadata, MIN(distance) AS distance
-       FROM (
-         SELECT rc.id, rc.content, rc.metadata,
-                (rc.embedding <=> q.vec::vector) AS distance
-         FROM unnest($1::text[]) AS q(vec)
-         CROSS JOIN LATERAL (
-           SELECT id, content, metadata, embedding
-           FROM public.ruleset_chunks
-           ORDER BY embedding <=> q.vec::vector
-           LIMIT $2
-         ) rc
-       ) sub
-       GROUP BY id, content, metadata
-       ORDER BY distance
-       LIMIT $3`,
-      [vectorStrings, topKPerQuery, maxUnique],
+      `WITH vector_results AS (
+        SELECT id, content, metadata,
+               ROW_NUMBER() OVER (ORDER BY distance) AS vrank
+        FROM (
+          SELECT rc.id, rc.content, rc.metadata,
+                 MIN(rc.embedding <=> q.vec::vector) AS distance
+          FROM unnest($1::text[]) AS q(vec)
+          CROSS JOIN LATERAL (
+            SELECT id, content, metadata, embedding
+            FROM public.ruleset_chunks
+            ${vectorWhereClause}
+            ORDER BY embedding <=> q.vec::vector
+            LIMIT $2
+          ) rc
+          GROUP BY rc.id, rc.content, rc.metadata
+        ) deduped
+        ORDER BY distance
+        LIMIT $3
+      ),
+      bm25_results AS (
+        SELECT id, content, metadata,
+               ROW_NUMBER() OVER (ORDER BY ts_rank_cd(content_tsv, query) DESC) AS brank
+        FROM public.ruleset_chunks,
+             plainto_tsquery('english', $4) query
+        WHERE content_tsv @@ query
+        ${bm25WhereClause}
+        ORDER BY ts_rank_cd(content_tsv, query) DESC
+        LIMIT $5
+      ),
+      combined AS (
+        SELECT
+          COALESCE(v.id, b.id) AS id,
+          COALESCE(v.content, b.content) AS content,
+          COALESCE(v.metadata, b.metadata) AS metadata,
+          COALESCE(1.0 / (${RRF_K} + v.vrank), 0)
+            + COALESCE(1.0 / (${RRF_K} + b.brank), 0) AS rrf_score
+        FROM vector_results v
+        FULL OUTER JOIN bm25_results b ON v.id = b.id
+      )
+      SELECT id, content, metadata, rrf_score
+      FROM combined
+      ORDER BY rrf_score DESC
+      LIMIT $6`,
+      params,
     );
 
     return result.rows.map((row) => ({
@@ -64,7 +115,7 @@ export class RulesetChunkSearchRepository {
         typeof row.metadata === 'string'
           ? (JSON.parse(row.metadata) as Record<string, unknown>)
           : row.metadata,
-      distance: parseFloat(row.distance as unknown as string),
+      score: parseFloat(row.rrf_score as unknown as string),
     }));
   }
 }

@@ -47,24 +47,42 @@ export abstract class BaseRepository<
       }, tenant=${options?.tenant?.tenantId ?? 'none'}, ${options?.isAuthflow ? 'isAuthflow=true' : ''}, sql=${query}, params=${JSON.stringify(params)}`,
     );
     const { client, tenant, isAuthflow = false } = options ?? {};
-    if (client) {
-      return this.runWithClient<T>(query, params, {
-        client,
-        tenant,
-        isAuthflow,
-      });
-    }
+    try {
+      if (client) {
+        return await this.runWithClient<T>(query, params, {
+          client,
+          tenant,
+          isAuthflow,
+        });
+      }
 
-    if (tenant) {
-      return this.databaseService.transactionWithTenantContext(
-        { tenantId: tenant.tenantId },
-        async (client) => {
-          return await client.query<T>(query, params);
-        },
+      if (tenant) {
+        return await this.databaseService.transactionWithTenantContext(
+          { tenantId: tenant.tenantId },
+          async (txClient) => {
+            return await txClient.query<T>(query, params);
+          },
+        );
+      }
+
+      return await this.databaseService.query<T>(query, params);
+    } catch (error) {
+      const operationType = this.getOperationType(query);
+      this.logger.error(
+        `Repository query failed: table=${this.tableName} operation=${operationType} error=${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
       );
+      throw error;
     }
+  }
 
-    return this.databaseService.query<T>(query, params);
+  private getOperationType(query: string): string {
+    const trimmed = query.trim().toUpperCase();
+    if (trimmed.startsWith('SELECT')) return 'SELECT';
+    if (trimmed.startsWith('INSERT')) return 'INSERT';
+    if (trimmed.startsWith('UPDATE')) return 'UPDATE';
+    if (trimmed.startsWith('DELETE')) return 'DELETE';
+    return 'QUERY';
   }
 
   private async runWithClient<T extends QueryResultRow = QueryResultRow>(
@@ -80,16 +98,11 @@ export abstract class BaseRepository<
       }, ${isAuthflow ? 'isAuthflow=true' : ''}, params=${JSON.stringify(params)}`,
     );
 
-    try {
-      if (isAuthflow) {
-        await client.query("SET LOCAL app.is_auth_flow = 'true'");
-      }
-
-      return await client.query<T>(query, params);
-    } catch (error) {
-      this.logger.error(`Error executing query: ${error}`);
-      throw error;
+    if (isAuthflow) {
+      await client.query("SET LOCAL app.is_auth_flow = 'true'");
     }
+
+    return await client.query<T>(query, params);
   }
 
   async findById(id: string, options?: QueryOptions): Promise<TEntity | null> {
@@ -150,6 +163,37 @@ export abstract class BaseRepository<
 
     this.logger.debug(
       `create: table=${this.tableName}, columns=${keys.join(
+        ', ',
+      )}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
+    );
+    const columns = keys.join(', ');
+    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
+
+    const query = `
+      INSERT INTO ${this.tableName} (${columns})
+      VALUES (${placeholders})
+      RETURNING *
+    `;
+
+    const result = await this.executeQuery(query, values, options);
+    return this.mapRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  /**
+   * Create an entity with a pre-generated ID.
+   * Useful when the ID must be known before insertion (e.g. to build S3 keys).
+   */
+  async createWithId(
+    id: string,
+    data: TCreate,
+    options?: QueryOptions,
+  ): Promise<TEntity> {
+    const dataWithId = { id, ...(data as Record<string, unknown>) };
+    const keys = Object.keys(dataWithId);
+    const values = Object.values(dataWithId);
+
+    this.logger.debug(
+      `createWithId: table=${this.tableName}, id=${id}, columns=${keys.join(
         ', ',
       )}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
     );

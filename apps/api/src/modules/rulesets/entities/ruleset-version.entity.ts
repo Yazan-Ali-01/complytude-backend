@@ -6,7 +6,8 @@ export interface RulesetVersion {
   version: string;
   clauses: RulesetClause[];
   changelog: string | null;
-  metadata: Record<string, unknown>;
+  /** Set when this row was created via rollback from this prior version string */
+  rolledBackFromVersion: string | null;
   isActive: boolean;
   createdBy: string | null;
   createdAt: Date;

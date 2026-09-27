@@ -2,7 +2,7 @@ import { registerAs } from '@nestjs/config';
 
 export default registerAs('storage', () => ({
   s3: {
-    endpoint: process.env.S3_ENDPOINT!,
+    endpoint: process.env.S3_ENDPOINT?.trim() || undefined,
     region: process.env.S3_REGION!,
     accessKeyId: process.env.S3_ACCESS_KEY!,
     secretAccessKey: process.env.S3_SECRET_KEY!,
@@ -10,6 +10,9 @@ export default registerAs('storage', () => ({
   },
   bucket: {
     filesBucketName: process.env.COMPLYTUDE_FILES_BUCKET_NAME!,
+  },
+  quarantine: {
+    bucketName: process.env.QUARANTINE_BUCKET_NAME!,
   },
   templates: {
     bucketName: process.env.TEMPLATES_BUCKET_NAME!,

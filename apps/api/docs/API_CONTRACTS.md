@@ -2,7 +2,7 @@
 
 > **Purpose:** Define standards and conventions for API contract definition across all modules
 
-**Last Updated:** March 10, 2026
+**Last Updated:** March 26, 2026
 **Status:** Foundation Complete
 
 ---
@@ -12,9 +12,15 @@
 - [Overview](#overview)
 - [API Versioning](#api-versioning)
 - [Authentication Strategy](#authentication-strategy)
+- [Complete Signup-to-Operational Flow](#complete-signup-to-operational-flow)
 - [Request Contracts](#request-contracts)
 - [Response Contracts](#response-contracts)
 - [Error Handling](#error-handling)
+- [Onboarding Metadata Schema](#onboarding-metadata-schema)
+- [Invitation System & Seat Enforcement](#invitation-system--seat-enforcement)
+- [Billing API](#billing-api)
+- [Stripe Webhook Receiver](#stripe-webhook-receiver)
+- [Platform Admin — Stripe](#platform-admin--stripe)
 - [Naming Conventions](#naming-conventions)
 - [Swagger Documentation](#swagger-documentation)
 - [Invitation System](#invitation-system)
@@ -58,6 +64,8 @@ https://api.complytude.com/api/v1/{resource}
 
 ```
 POST   /api/v1/auth/login
+GET    /api/v1/auth/google
+GET    /api/v1/auth/google/callback
 GET    /api/v1/users/profile
 POST   /api/v1/documents
 GET    /api/v1/tenants
@@ -206,12 +214,31 @@ app.enableVersioning({
 
 The application uses **HTTP-only cookies** for JWT token management with a **dual-token system**:
 
-| Cookie Name            | Purpose                    | Lifetime | Usage                                                  |
-| ---------------------- | -------------------------- | -------- | ------------------------------------------------------ |
-| `identityAccessToken`  | User identity verification | 15 min   | Identity-based operations, tenant selection, sys admin |
-| `identityRefreshToken` | Identity token renewal     | 14 days  | Used at `/auth/refresh/identity` endpoint              |
-| `tenantAccessToken`    | Tenant-scoped API access   | 30 min   | Sent with tenant-specific API requests                 |
-| `tenantRefreshToken`   | Tenant token renewal       | 14 days  | Used at `/auth/refresh/tenant` endpoint                |
+| Cookie Name            | Purpose                    | Lifetime    | Usage                                                  |
+| ---------------------- | -------------------------- | ----------- | ------------------------------------------------------ |
+| `identityAccessToken`  | User identity verification | Short-lived | Identity-based operations, tenant selection, sys admin |
+| `identityRefreshToken` | Identity token renewal     | Long-lived  | Used at `/auth/refresh/identity` endpoint              |
+| `tenantAccessToken`    | Tenant-scoped API access   | Short-lived | Sent with tenant-specific API requests                 |
+| `tenantRefreshToken`   | Tenant token renewal       | Long-lived  | Used at `/auth/refresh/tenant` endpoint                |
+
+> Token lifetimes are configured via environment variables (`JWT_IDENTITY_EXPIRES_IN`, `JWT_ACCESS_EXPIRES_IN`). Refresh JWT expiry is derived from `SESSION_MAX_TTL` (default `14d`).
+
+Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `tenant-session:{id}`). Guards verify the session still exists (with graceful degradation if Redis is unavailable). Refresh endpoints re-issue **access** tokens only; refresh JWTs are not rotated in PostgreSQL.
+
+### Session management API (`/api/v1/auth/sessions*`, admin)
+
+| Method   | Path                               | Auth                             | Description                                                      |
+| -------- | ---------------------------------- | -------------------------------- | ---------------------------------------------------------------- |
+| `GET`    | `/api/v1/auth/sessions/all`        | Identity access cookie           | List all identity + linked tenant sessions for the user          |
+| `GET`    | `/api/v1/auth/sessions`            | Identity + tenant access cookies | List sessions scoped to the current tenant                       |
+| `PATCH`  | `/api/v1/auth/sessions/:sessionId` | Identity access                  | Rename an identity session (`sessionName`)                       |
+| `DELETE` | `/api/v1/auth/sessions/:sessionId` | Identity access                  | Invalidate one session (identity deletes linked tenant sessions) |
+| `DELETE` | `/api/v1/auth/sessions`            | Identity + tenant                | Invalidate all tenant sessions for current tenant (cross-device) |
+| `DELETE` | `/api/v1/auth/sessions/all`        | Identity                         | Invalidate every session for the user (all tenants / devices)    |
+
+**Tenant admin** (`sessions:manage`): `GET|DELETE /api/v1/tenants/admin/users/:userId/sessions` and `DELETE .../sessions/:sessionId`.
+
+**System admin** (`platformRole === system_admin`): `GET /api/v1/admin/sessions/stats`, `GET /api/v1/admin/tenants/:tenantId/sessions`, `GET /api/v1/admin/users/:userId/sessions`, `DELETE /api/v1/admin/users/:userId/sessions`, `DELETE /api/v1/admin/sessions/:sessionId`. All audited as break-glass.
 
 ### Authentication Flow
 
@@ -230,7 +257,7 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
    ↓
 6. Browser automatically sends appropriate tokens with requests
    ↓
-7. Tenant access token expires after 30 minutes
+7. Tenant access token expires (per `JWT_ACCESS_EXPIRES_IN`)
    ↓
 8. Client calls /auth/refresh/tenant
    ↓
@@ -315,10 +342,9 @@ async createDocument() { ... }
 
 // Platform permission-protected endpoint
 @AuthOptions({ identity: true })
-@UseGuards(PlatformPermissionsGuard)
-@RequireAnyPlatformPermission('tenants:create')
-@ApiProtectedResponses('Requires tenants:create permission')
-@Post('admin/tenants')
+@UseGuards(VerifiedUserGuard)
+@ApiProtectedResponses('Requires verified email')
+@Post('tenants')
 async createTenant() { ... }
 
 // Role-protected endpoint (simple role check)
@@ -328,6 +354,420 @@ async createTenant() { ... }
 @ApiProtectedResponses('Requires tenant_admin role')
 @Post('admin-settings')
 async updateAdminSettings() { ... }
+```
+
+---
+
+## Complete Signup-to-Operational Flow
+
+This section documents the entire user journey from initial signup to operational access within a tenant.
+
+### Overview
+
+New users follow this 5-step flow:
+
+1. **Register** - Create account (email + password)
+2. **Verify** - Confirm email address
+3. **Login** - Authenticate and receive identity tokens
+4. **Create Organization** - Create first tenant (self-service)
+5. **Switch Tenant** - Activate tenant and receive tenant tokens
+
+After completing this flow, users have full tenant access with tenant tokens set as cookies.
+
+### Frontend Integration Notes
+
+- After **Login**: Check if `tenants.length === 0` to determine if user needs onboarding
+- After **Create Organization**: Must immediately call **Switch Tenant** to activate the tenant
+- **Limbo State**: User is logged in (identity token valid) but not in any tenant (no tenant token) - show onboarding UI
+- **Identity Token Lifetime**: Configured via `JWT_IDENTITY_EXPIRES_IN` - refresh using `/auth/refresh/identity` endpoint
+- **Tenant Token Lifetime**: Configured via `JWT_ACCESS_EXPIRES_IN` - refresh using `/auth/refresh/tenant` endpoint
+
+### Step 1: Register New User Account
+
+**Endpoint:** `POST /api/v1/auth/signup`
+
+**Authentication:** None (public endpoint)
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "Test123!@#",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+```
+
+**Request Schema:**
+
+| Field       | Type   | Required | Validation           | Description        |
+| ----------- | ------ | -------- | -------------------- | ------------------ |
+| `email`     | string | Yes      | Valid email          | User email address |
+| `password`  | string | Yes      | Min 8 chars, max 100 | User password      |
+| `firstName` | string | No       | Max 255 chars        | First name         |
+| `lastName`  | string | No       | Max 255 chars        | Last name          |
+
+**Response (201 Created):**
+
+```json
+{
+  "message": "User registered successfully. Verification email sent."
+}
+```
+
+**Error Responses:**
+
+| Status | Condition                | Response                 |
+| ------ | ------------------------ | ------------------------ |
+| 400    | Validation failed        | `ValidationErrorDto`     |
+| 409    | Email already registered | `ConflictErrorDto`       |
+| 500    | Server error             | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- User account created with email and hashed password
+- Email verification token generated
+- Verification email sent via AWS SES (link: `{FRONTEND_URL}/verify-email?token={token}`). Fire-and-forget (`void`); unhandled SES errors may still surface as promise rejections. With `EMAIL_SKIP_SEND=true`, no SES call is made (useful for local/tests).
+- User account is created but **email is not verified** (cannot proceed until verified)
+
+---
+
+### Step 2: Verify Email Address
+
+**Endpoint:** `POST /api/v1/auth/verify-email`
+
+**Authentication:** None (public endpoint)
+
+**Request Body:**
+
+```json
+{
+  "token": "abc123def456ghi789"
+}
+```
+
+**Request Schema:**
+
+| Field   | Type   | Required | Description                         |
+| ------- | ------ | -------- | ----------------------------------- |
+| `token` | string | Yes      | Email verification token from email |
+
+**Response (200 OK):**
+
+```json
+{
+  "message": "Email verified successfully"
+}
+```
+
+**Error Responses:**
+
+| Status | Condition             | Response                 |
+| ------ | --------------------- | ------------------------ |
+| 400    | Invalid/expired token | `ValidationErrorDto`     |
+| 500    | Server error          | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- Verification token validated
+- User's `email_verified_at` timestamp updated
+- User can now proceed to login and create tenant
+
+---
+
+### Step 3: Login
+
+**Endpoint:** `POST /api/v1/auth/login`
+
+**Authentication:** None (public endpoint)
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "Test123!@#"
+}
+```
+
+**Request Schema:**
+
+| Field      | Type   | Required | Description   |
+| ---------- | ------ | -------- | ------------- |
+| `email`    | string | Yes      | User email    |
+| `password` | string | Yes      | User password |
+
+**Response (200 OK):**
+
+```json
+{
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "platformRole": null
+  },
+  "tenants": [],
+  "pendingInvitationsCount": 0
+}
+```
+
+**Response Schema:**
+
+| Field                     | Type           | Description                                                       |
+| ------------------------- | -------------- | ----------------------------------------------------------------- |
+| `user.id`                 | UUID           | User unique identifier                                            |
+| `user.email`              | string         | User email address                                                |
+| `user.firstName`          | string \| null | First name or null                                                |
+| `user.lastName`           | string \| null | Last name or null                                                 |
+| `user.platformRole`       | string \| null | Platform role (null for regular users, 'system_admin' for admins) |
+| `tenants`                 | array          | List of tenants user belongs to (empty array for new users)       |
+| `pendingInvitationsCount` | number         | Number of pending tenant invitations                              |
+
+**Cookies Set:**
+
+| Cookie                 | Value | Lifetime    | HttpOnly |
+| ---------------------- | ----- | ----------- | -------- |
+| `identityAccessToken`  | JWT   | Short-lived | Yes      |
+| `identityRefreshToken` | JWT   | Long-lived  | Yes      |
+
+**Error Responses:**
+
+| Status | Condition                                 | Response                 |
+| ------ | ----------------------------------------- | ------------------------ |
+| 400    | Validation failed                         | `ValidationErrorDto`     |
+| 401    | Invalid credentials or email not verified | `UnauthorizedErrorDto`   |
+| 500    | Server error                              | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- Email and password validated
+- User's email must be verified (enforced)
+- Identity tokens generated (short + long-lived)
+- Tokens set as HTTP-only cookies
+- List of user's existing tenants returned
+- **For new users:** `tenants` array is empty
+
+---
+
+### OAuth2 SSO (Google / Microsoft)
+
+Optional alternative to email + password. When the corresponding env vars are unset, the API responds with **503** on the start URLs; existing email/password auth is unchanged.
+
+**Endpoints:**
+
+| Method | Path                              | Purpose                                                                   |
+| ------ | --------------------------------- | ------------------------------------------------------------------------- |
+| GET    | `/api/v1/auth/google`             | Redirect browser to Google consent                                        |
+| GET    | `/api/v1/auth/google/callback`    | Google redirects here; API sets identity cookies and redirects to the SPA |
+| GET    | `/api/v1/auth/microsoft`          | Redirect browser to Microsoft consent                                     |
+| GET    | `/api/v1/auth/microsoft/callback` | Microsoft redirects here; same cookie behavior                            |
+
+**Environment (API):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_CALLBACK_URL`, `MICROSOFT_TENANT_ID` (default `common`), plus `FRONTEND_URL` and optional `SSO_FRONTEND_SUCCESS_PATH` / `SSO_FRONTEND_ERROR_PATH` for post-login redirects.
+
+**Callback URLs** must be registered with Google/Microsoft exactly as in `GOOGLE_CALLBACK_URL` / `MICROSOFT_CALLBACK_URL` (e.g. `http://localhost:3000/api/v1/auth/google/callback` when the API listens on port 3000).
+
+**Flow:**
+
+1. SPA navigates to `GET /api/v1/auth/google` (or `microsoft`).
+2. User signs in with the provider.
+3. Provider redirects to the callback route; the API creates or links the user (`is_verified: true`), issues the same identity JWT pair as `POST /auth/login`, sets HTTP-only cookies, then redirects to `FRONTEND_URL` + success path with query `sso=success` (and `provider=google` or `provider=microsoft`).
+
+**Account linking:** If the provider email matches an existing email/password user, the provider id is stored on that row and the user is logged in (no duplicate account). SSO-only users cannot use `POST /auth/login` with a password until a password exists; the API returns **401** with a message to use SSO.
+
+---
+
+### Step 4: Create Organization (Self-Service)
+
+**Endpoint:** `POST /api/v1/tenants`
+
+**Authentication:** Identity token required (from Step 3)
+
+**Authorization:** User must have verified email
+
+**Request Body:**
+
+```json
+{
+  "name": "Acme Legal LLC"
+}
+```
+
+**Request Schema:**
+
+| Field  | Type   | Required | Validation           | Description       |
+| ------ | ------ | -------- | -------------------- | ----------------- |
+| `name` | string | Yes      | Min 1, max 255 chars | Organization name |
+
+> Plan selection is intentionally **not** exposed on this endpoint. New tenants always start on a **14-day trial of General Counsel** (see `TRIAL_CONFIG`). Paid plans are granted only via Stripe Checkout (`POST /api/v1/billing/checkout/session`) and the `checkout.session.completed` webhook — this keeps "only Stripe can grant paid plans" as a hard invariant and prevents a billing bypass at signup.
+
+**Response (201 Created):**
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "plan": "general_counsel",
+  "is_active": true,
+  "name": "Acme Legal LLC",
+  "slug": "acme-legal-llc",
+  "locale": "en",
+  "timezone": "Asia/Dubai",
+  "onboarding_metadata": {
+    "currentStep": "invite_team",
+    "teamInviteSkipped": false,
+    "firstActionType": null,
+    "firstActionCompletedAt": null,
+    "stepsCompleted": {
+      "createWorkspace": true,
+      "inviteTeam": false,
+      "firstAction": false
+    }
+  },
+  "created_at": "2026-03-14T10:00:00.000Z",
+  "updated_at": "2026-03-14T10:00:00.000Z"
+}
+```
+
+**Response Schema:**
+
+| Field                 | Type              | Description                                                                        |
+| --------------------- | ----------------- | ---------------------------------------------------------------------------------- |
+| `id`                  | UUID              | Tenant unique identifier                                                           |
+| `plan`                | string            | Subscription plan key                                                              |
+| `is_active`           | boolean           | Tenant is active and operational                                                   |
+| `name`                | string \| null    | Organization name                                                                  |
+| `slug`                | string \| null    | URL-safe identifier (auto-generated from name)                                     |
+| `locale`              | string            | Default locale (e.g., 'en', 'ar')                                                  |
+| `timezone`            | string            | Default timezone (IANA format)                                                     |
+| `onboarding_metadata` | object            | Onboarding state tracking (see [Onboarding Metadata](#onboarding-metadata-schema)) |
+| `created_at`          | string (ISO 8601) | Creation timestamp                                                                 |
+| `updated_at`          | string (ISO 8601) | Last update timestamp                                                              |
+
+**Error Responses:**
+
+| Status | Condition                              | Response                 |
+| ------ | -------------------------------------- | ------------------------ |
+| 400    | Validation failed                      | `BadRequestErrorDto`     |
+| 403    | Email not verified                     | `ForbiddenErrorDto`      |
+| 409    | User already owns tenant or name taken | `ConflictErrorDto`       |
+| 401    | Missing/invalid identity token         | `UnauthorizedErrorDto`   |
+| 500    | Server error                           | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- **Transaction (all-or-nothing):** Entire operation runs in a single database transaction via `transactionWithPlatformAdminContext`. If any step fails, everything rolls back.
+- Tenant created with specified name (required)
+- User linked as `tenant_admin` in `user_tenants` table (within same transaction)
+- `tenant_subscriptions` row created atomically within the same transaction:
+  - **Trial subscription:** `status` = `'trialing'`, `plan_id` = General Counsel, `trial_ends_at` = NOW() + 14 days, `current_period_end` = trial_ends_at
+  - `getCurrentSubscription(tenantId)` works immediately after creation
+- Entitlements resolved lazily on first access (from subscription)
+- Default preferences applied (locale: `en`, timezone: `Asia/Dubai`)
+- Tenant slug is `null` on creation; user can set via `PATCH /tenants/me/slug` later
+- **Stripe:** Fire-and-forget customer creation via `StripeCustomerService.createCustomerForTenant()`. Creates Stripe customer with creator email and `metadata.creator_user_id` for traceability. Skips when `STRIPE_SECRET_KEY` is empty or `STRIPE_SKIP_CUSTOMER_CREATION=true`. Never blocks tenant creation. **No Stripe Subscription is created here** — paid plans require an explicit Checkout flow.
+- **Trial-ending reminder:** The `TRIAL_REMINDER_CHECK` cron (every 6h) sends a one-shot "trial ending soon" email ~3 days before `trial_ends_at`. Idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
+- **Trial expiry:** The `TRIAL_EXPIRY_CHECK` cron (every 6h) downgrades expired trials to Navigator (free) automatically.
+
+---
+
+### Step 5: Switch to Tenant (Activate)
+
+**Endpoint:** `POST /api/v1/auth/tenant-switch`
+
+**Authentication:** Identity token required (from Step 3)
+
+**Request Body:**
+
+```json
+{
+  "tenantId": "11111111-1111-4111-8111-111111111111"
+}
+```
+
+**Request Schema:**
+
+| Field      | Type | Required | Description            |
+| ---------- | ---- | -------- | ---------------------- |
+| `tenantId` | UUID | Yes      | Tenant ID to switch to |
+
+**Response (200 OK):**
+
+```json
+{
+  "tenant": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "Acme Legal LLC"
+  },
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "role": "tenant_admin",
+    "roleName": "Tenant Admin"
+  }
+}
+```
+
+**Response Schema:**
+
+| Field           | Type   | Description                                              |
+| --------------- | ------ | -------------------------------------------------------- |
+| `tenant.id`     | UUID   | Selected tenant ID                                       |
+| `tenant.name`   | string | Organization name                                        |
+| `user.id`       | UUID   | User ID                                                  |
+| `user.email`    | string | User email                                               |
+| `user.role`     | string | User role within tenant (e.g., 'tenant_admin', 'member') |
+| `user.roleName` | string | Role display name                                        |
+
+**Cookies Set:**
+
+| Cookie                 | Value     | Lifetime    | HttpOnly |
+| ---------------------- | --------- | ----------- | -------- |
+| `tenantAccessToken`    | JWT       | Short-lived | Yes      |
+| `tenantRefreshToken`   | JWT       | Long-lived  | Yes      |
+| `identityAccessToken`  | Unchanged | Still valid | Yes      |
+| `identityRefreshToken` | Unchanged | Still valid | Yes      |
+
+**Error Responses:**
+
+| Status | Condition                      | Response                 |
+| ------ | ------------------------------ | ------------------------ |
+| 400    | Validation failed              | `ValidationErrorDto`     |
+| 401    | Missing/invalid identity token | `UnauthorizedErrorDto`   |
+| 403    | User doesn't belong to tenant  | `ForbiddenErrorDto`      |
+| 404    | Tenant not found               | `NotFoundErrorDto`       |
+| 500    | Server error                   | `InternalServerErrorDto` |
+
+**Behind the Scenes:**
+
+- User's membership in specified tenant validated
+- Tenant access permissions verified
+- Tenant tokens generated (short + long-lived)
+- Tokens set as HTTP-only cookies
+- Identity tokens remain valid (user still authenticated)
+- Both identity and tenant contexts available to subsequent requests
+
+---
+
+### Complete Flow Example
+
+```
+USER JOURNEY:
+1. Frontend calls POST /auth/signup
+   ↓ User receives verification email
+2. User clicks link, Frontend extracts token
+3. Frontend calls POST /auth/verify-email with token
+   ↓ Email verified
+4. Frontend calls POST /auth/login
+   ↓ Identity tokens set as cookies, response shows tenants: []
+5. Frontend detects empty tenants array, shows "Create Organization" form
+6. Frontend calls POST /tenants with name + plan
+   ↓ Tenant created, subscription started
+7. Frontend calls POST /auth/tenant-switch with tenantId
+   ↓ Tenant tokens set as cookies
+8. Frontend shows main app - user now has full tenant access
+   ↓ Subsequent requests use tenantAccessToken automatically (browser sends cookies)
 ```
 
 ---
@@ -593,6 +1033,219 @@ async ingest(@Param() params: RulesetKeyParamDto) { ... }
 ```
 
 For create/update responses that trigger background ingestion (e.g. ruleset create, version create, rollback), include `ingestionStatus: 'enqueued' | 'failed'` so callers know if the job was enqueued. Creation still succeeds on enqueue failure; use the manual ingest endpoint to retry.
+
+---
+
+## Onboarding Metadata Schema
+
+The `onboarding_metadata` JSONB on tenants follows a structured schema for progressive onboarding UI.
+
+### Structure
+
+```typescript
+interface OnboardingMetadata {
+  currentStep:
+    | 'create_workspace'
+    | 'invite_team'
+    | 'first_action'
+    | 'completed';
+  teamInviteSkipped: boolean;
+  firstActionType?:
+    | 'upload_contract'
+    | 'ask_question'
+    | 'analyze_document'
+    | null;
+  firstActionCompletedAt?: string | null; // ISO 8601
+  stepsCompleted: {
+    createWorkspace: boolean;
+    inviteTeam: boolean; // true if sent invites OR skipped
+    firstAction: boolean;
+  };
+}
+```
+
+### Default (New Tenants)
+
+New tenants are created with:
+
+```json
+{
+  "currentStep": "invite_team",
+  "teamInviteSkipped": false,
+  "firstActionType": null,
+  "firstActionCompletedAt": null,
+  "stepsCompleted": {
+    "createWorkspace": true,
+    "inviteTeam": false,
+    "firstAction": false
+  }
+}
+```
+
+### PATCH /tenants/me/onboarding
+
+**Authentication:** Tenant token + `settings:manage` permission
+
+**Request Body (all fields optional):**
+
+| Field               | Type    | Description                                                            |
+| ------------------- | ------- | ---------------------------------------------------------------------- |
+| `currentStep`       | enum    | One of: `create_workspace`, `invite_team`, `first_action`, `completed` |
+| `teamInviteSkipped` | boolean | Whether user skipped the team invite step                              |
+| `firstActionType`   | enum    | One of: `upload_contract`, `ask_question`, `analyze_document`          |
+
+**Note:** `stepsCompleted` is updated server-side based on actions; clients cannot set it directly.
+
+---
+
+## Invitation System & Seat Enforcement
+
+### Seat Capacity Enforcement
+
+The `user_seats` entitlement (capacity feature) is enforced at two points:
+
+1. **Invitation Accept** (`POST /auth/invitations/:id/accept`): Before adding a new member, the system checks seat capacity via `EntitlementEnforcementService.checkAndRecord`. If at capacity, returns **403 Forbidden**.
+2. **Invitation Create** (`POST /tenants/admin/invitations`): Before creating a pending invitation, the system checks that `active_members + pending_invitations < seat_limit`. If at or over limit, returns **403 Forbidden**.
+
+### 403 Errors (Seat Limit)
+
+| Endpoint          | Key                             | Message                                                                                                                         |
+| ----------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Accept invitation | `SEAT_LIMIT_REACHED`            | "Workspace has reached its seat limit. Contact the workspace admin to upgrade."                                                 |
+| Create invitation | `SEAT_LIMIT_REACHED_FOR_INVITE` | "Cannot send invitation. Workspace has reached its seat limit including pending invitations. Upgrade to add more team members." |
+
+### Edge Cases
+
+- **Reactivation:** If a user already belongs to the tenant (active or inactive) and accepts an invitation, no new seat is consumed for active members; inactive members being reactivated consume a seat.
+- **Concurrent accept:** CAS in entitlement enforcement handles race conditions when two users accept the last seat simultaneously.
+- **Invite sent before full, accepted after:** Check happens at accept time, not send time.
+
+---
+
+## Billing API
+
+Base path: `/api/v1/billing`
+**Authentication:** Tenant access token cookie (`tenantAccessToken`) for all routes below.
+**Controller:** `BillingController` (`apps/api/src/modules/stripe/controllers/billing.controller.ts`).
+
+Mutation endpoints (POST) additionally require **`billing:manage`** (`TenantPermissionsGuard` + `@RequireAnyTenantPermission`).
+
+### `GET /api/v1/billing/subscription`
+
+Returns the current subscription for the authenticated tenant (404 if none).
+**Response:** `SubscriptionResponseDto` — includes plan, status, period dates, Stripe ids where applicable.
+
+### `GET /api/v1/billing/status`
+
+Single source of truth for billing UI: subscription, `cancel_at_period_end`, optional `pending_plan_change`, optional `dunning` when `status === past_due`.
+**Response:** `BillingStatusResponseDto`.
+
+### `GET /api/v1/billing/plan/pending-change`
+
+Returns pending Stripe subscription schedule info (`PendingPlanChangeResponseDto`). May return `hasPendingChange: false`.
+
+### `POST /api/v1/billing/plan/change`
+
+**Permission:** `billing:manage`
+**Body:** `{ "planKey": "<PlanKey>" }` — `ChangePlanDto` (`ALL_PLAN_KEYS`).
+Schedules plan change at period end via Stripe Subscription Schedules.
+**Response:** `SchedulePlanChangeResponseDto` (`scheduledFor`, `newPlanKey`, `currentPlanKey`, `stripeScheduleId`).
+**Errors:** 400 (no Stripe subscription, invalid transition), 404 (plan).
+
+### `POST /api/v1/billing/plan/cancel-change`
+
+**Permission:** `billing:manage`
+Cancels a scheduled plan change. **204 No Content**.
+
+### `POST /api/v1/billing/subscription/cancel`
+
+**Permission:** `billing:manage`
+Schedules cancellation at end of current period.
+**Response:** `CancelSubscriptionResponseDto` — `{ "cancelsAt": "<ISO date>" }`.
+
+### `POST /api/v1/billing/subscription/reactivate`
+
+**Permission:** `billing:manage`
+Removes pending end-of-period cancellation. **204 No Content**.
+
+### `POST /api/v1/billing/checkout/subscription`
+
+**Permission:** `billing:manage`
+**Body:** `CreateCheckoutSessionDto`
+
+| Field        | Type | Required | Description                                                     |
+| ------------ | ---- | -------- | --------------------------------------------------------------- |
+| `planKey`    | enum | Yes      | `shield`, `general_counsel`, `infrastructure` (paid plans only) |
+| `interval`   | enum | Yes      | `monthly` or `annual`                                           |
+| `successUrl` | URL  | Yes      | Redirect after success                                          |
+| `cancelUrl`  | URL  | Yes      | Redirect if user cancels                                        |
+
+**Response (201):** `CheckoutSessionResponseDto` — `{ checkoutUrl, sessionId }`.
+**Errors:** 409 if tenant already has an active Stripe subscription (use plan-change flow).
+
+### `POST /api/v1/billing/portal/session`
+
+**Permission:** `billing:manage`
+**Body:** `{ "returnUrl": "<URL>" }` — `CreatePortalSessionDto`.
+**Response (201):** `PortalSessionResponseDto` — `{ "url": "<Stripe portal URL>" }`.
+
+### `GET /api/v1/billing/credits/packages`
+
+Lists credit packages from code constants (no extra permission beyond tenant auth).
+**Response:** Array of `CreditPackageCatalogItemDto` — `key`, `name`, `credits`, `price`, `currency`.
+
+### `POST /api/v1/billing/checkout/credits`
+
+**Permission:** `billing:manage`
+**Body:** `CreateCreditCheckoutDto`
+
+| Field        | Type   | Required | Description                                            |
+| ------------ | ------ | -------- | ------------------------------------------------------ |
+| `packageKey` | string | Yes      | One of keys from `CREDIT_PACKAGES` (e.g. `credits_50`) |
+| `successUrl` | URL    | Yes      | Post-payment redirect                                  |
+| `cancelUrl`  | URL    | Yes      | Cancel redirect                                        |
+
+**Response (201):** `CheckoutSessionResponseDto`.
+
+**Architecture note:** Successful payment is applied via Stripe webhook `checkout.session.completed` (see [BILLING.md](../../../docs/BILLING.md)).
+
+---
+
+## Stripe Webhook Receiver
+
+**Endpoint:** `POST /api/v1/stripe/webhook`
+**Authentication:** None — **Stripe signature** (`stripe-signature` header) is required.
+**Controller:** `StripeWebhookController`
+
+**Behavior:**
+
+- Verifies payload with `STRIPE_WEBHOOK_SECRET`.
+- Idempotent on `stripe_event_id` (see `stripe_webhook_events`).
+- Persists event and enqueues `BILLING_PROCESSING` / `STRIPE_WEBHOOK_PROCESSING` job; returns **200** `{ "received": true }` quickly.
+
+**Important:** Request body must be raw bytes for signature verification. Do not send through clients that strip or re-serialize JSON.
+
+**Handled event types:** See [BILLING.md — Webhook Event Catalog](../../../docs/BILLING.md#webhook-event-catalog).
+
+---
+
+## Platform Admin — Stripe
+
+Base path: `/api/v1/admin/stripe`
+**Authentication:** Identity access token (`identityAccessToken`).
+**Authorization:** `PlatformPermissionsGuard` + `@RequireAnyPlatformPermission('entitlements:manage')`.
+**Controller:** `StripeAdminController`
+
+| Method | Path                                         | Description                                                      |
+| ------ | -------------------------------------------- | ---------------------------------------------------------------- |
+| `POST` | `/api/v1/admin/stripe/backfill-customers`    | Create Stripe customers for tenants missing `stripe_customer_id` |
+| `POST` | `/api/v1/admin/stripe/backfill-tax`          | Backfill Stripe Tax (address/TRN) when enabled                   |
+| `POST` | `/api/v1/admin/stripe/reconcile`             | Full Stripe vs DB reconciliation; returns counts and fixes       |
+| `GET`  | `/api/v1/admin/stripe/webhook-stats`         | Query `hours` (default 24) — webhook processing statistics       |
+| `POST` | `/api/v1/admin/stripe/retry-failed-webhooks` | Query `maxRetries` (default 3) — retry failed webhook rows       |
+| `POST` | `/api/v1/admin/stripe/sync-catalog`          | Sync plans, add-ons, credit packages to Stripe Products/Prices   |
+
+All endpoints return **200** with operation-specific JSON unless **403** (insufficient platform permissions).
 
 ---
 

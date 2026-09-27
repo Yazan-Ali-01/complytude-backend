@@ -12,6 +12,7 @@ import {
   PlanKey,
   TenantSubscription,
 } from 'src/common/types/entitlement.types';
+import { TRIAL_CONFIG } from 'src/common/constants/trial-config.constant';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import {
@@ -22,24 +23,15 @@ import { DomainEventsService } from '../entitlements/services/domain-events.serv
 import { SubscriptionsI18n } from './constants/i18n.constants';
 
 /**
- * Subscriptions Service - Phase 6
+ * Subscriptions Service
  *
- * Manages tenant subscriptions: plan changes, cancellations, renewals, and billing periods.
+ * Internal service for reading subscription state and managing Navigator (free) subscription lifecycle.
+ * All paid subscription mutations go through StripeSubscriptionService or Stripe webhooks.
  *
- * Key responsibilities:
- * - View current subscription
- * - Change plan (upgrade/downgrade)
- * - Cancel subscription
- * - Create new subscription
- * - Renew billing period (advance to next month)
- * - Batch renewal for all due subscriptions
- *
- * BullMQ Integration (TODO):
- * - Plan changes → async job for prorated billing, email notification
- * - Cancellations → async job for cancellation email, schedule downgrade
- * - Renewals → scheduled cron job to call renewAllDuePeriods()
- *
- * For now, all operations are synchronous with TODO comments.
+ * Responsibilities:
+ * - Read current subscription (populated by Stripe webhooks for paid plans)
+ * - Renew billing period for Navigator (free) subscriptions
+ * - Batch renewal cron for Navigator-only subscriptions
  */
 @Injectable()
 export class SubscriptionsService {
@@ -55,11 +47,10 @@ export class SubscriptionsService {
   ) {}
 
   /**
-   * Get current subscription for a tenant with plan details
+   * Get current subscription for a tenant with plan details.
+   * Returns active, past_due, or trialing subscriptions.
    *
-   * @param tenantId - Tenant ID
-   * @returns Active subscription with plan details
-   * @throws NotFoundException if no active subscription found
+   * @throws NotFoundException if no non-cancelled subscription found
    */
   async getCurrentSubscription(
     tenantId: string,
@@ -67,7 +58,7 @@ export class SubscriptionsService {
   ): Promise<TenantSubscriptionWithPlan> {
     const execute = async (client: PoolClient) => {
       const subscription =
-        await this.subscriptionsRepository.findActiveByTenantWithPlan(
+        await this.subscriptionsRepository.findCurrentByTenantWithPlan(
           tenantId,
           { client },
         );
@@ -90,7 +81,9 @@ export class SubscriptionsService {
   }
 
   /**
-   * Change plan for a tenant
+   * Renew billing period for a Navigator (free) tenant.
+   * For Stripe-backed subscriptions, period renewal is driven by the
+   * invoice.paid webhook in StripeEventHandlersService.
    *
    * Flow:
    * 1. Validate new plan exists and is active
@@ -166,10 +159,20 @@ export class SubscriptionsService {
         { client },
       );
 
-      // Step 6: Update plan
-      const updatedSubscription = await this.subscriptionsRepository.updatePlan(
+      // Step 6: If trialing, activate first (clears trial_ends_at and promotes status)
+      if (currentSubscription.status === 'trialing') {
+        await this.subscriptionsRepository.updateStatus(
+          currentSubscription.id,
+          'active',
+          undefined,
+          { client },
+        );
+      }
+
+      // Step 7: Update plan
+      const updatedSubscription = await this.subscriptionsRepository.update(
         currentSubscription.id,
-        newPlan.id,
+        { plan_id: newPlan.id },
         { client },
       );
 
@@ -332,7 +335,7 @@ export class SubscriptionsService {
    * 1. Check no active subscription exists
    * 2. Find plan by key
    * 3. Calculate billing period (start = now, end = +1 month)
-   * 4. Create via upsert
+   * 4. Create subscription row
    * 5. Emit domain event
    * 6. Return new subscription
    *
@@ -355,94 +358,22 @@ export class SubscriptionsService {
         `Creating subscription: tenant=${tenantId}, plan=${planKey}, actor=${actorId ?? 'system'}`,
       );
 
-      // Step 1: Check no active subscription exists
-      const existingSubscription =
-        await this.subscriptionsRepository.findActiveByTenant(tenantId, {
-          client,
-        });
-
-      if (existingSubscription) {
-        throw new BadRequestException(
-          this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_ALREADY_EXISTS),
-        );
-      }
-
-      // Step 2: Find plan
-      const plan = await this.plansRepository.findByKey(planKey, { client });
-      if (!plan) {
-        throw new NotFoundException(
-          this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_FOUND),
-        );
-      }
-
-      if (!plan.is_active) {
-        throw new BadRequestException(
-          this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_ACTIVE),
-        );
-      }
-
-      // Step 3: Calculate billing period
       const now = new Date();
-      const oneMonthLater = new Date(now);
-      oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-      // Step 4: Create subscription (plain INSERT — step 1 already guards against duplicates,
-      // unique partial index provides DB-level race condition safety)
-      let newSubscription: TenantSubscription;
-      try {
-        newSubscription = await this.subscriptionsRepository.create(
-          {
-            tenant_id: tenantId,
-            plan_id: plan.id,
-            status: 'active',
-            billing_period_start: now,
-            billing_period_end: oneMonthLater,
-            current_period_start: now,
-            current_period_end: oneMonthLater,
-            metadata: '{}',
-          },
-          { client },
-        );
-      } catch (error) {
-        if (error?.code === '23505') {
-          throw new ConflictException(
-            this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_ALREADY_EXISTS),
-          );
-        }
-        throw error;
-      }
-
-      // Invalidate any stale entitlement snapshot (relevant for re-subscription after cancellation)
-      await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+      const subscription = await this._createSubscription(
+        tenantId,
+        planKey,
+        actorId,
+        { status: 'active', now, periodEnd, eventType: 'subscription.created' },
         client,
-      });
-
-      // Emit domain event
-      await this.domainEventsService.emit(
-        {
-          tenant_id: tenantId,
-          event_type: 'subscription.created',
-          aggregate_type: 'subscription',
-          aggregate_id: newSubscription.id,
-          actor_id: actorId ?? undefined,
-          actor_type: actorId ? 'user' : 'system',
-          payload: JSON.stringify({
-            subscription_id: newSubscription.id,
-            plan_id: plan.id,
-            plan_key: plan.key,
-          }),
-          metadata: JSON.stringify({
-            timestamp: new Date().toISOString(),
-          }),
-        },
-        { client },
       );
 
       this.logger.log(
         `Subscription created: tenant=${tenantId}, plan=${planKey}`,
       );
-
-      return newSubscription;
+      return subscription;
     };
 
     if (options?.client) {
@@ -453,6 +384,163 @@ export class SubscriptionsService {
       { tenantId },
       execute,
     );
+  }
+
+  /**
+   * Create trial subscription for a new tenant
+   *
+   * Trial subscriptions:
+   * - status: 'trialing'
+   * - plan: general_counsel (full features to hook users)
+   * - trial_ends_at: NOW() + 14 days
+   * - current_period aligned with trial end
+   *
+   * @param tenantId - Tenant ID
+   * @param actorId - User ID performing the creation (null for system-initiated)
+   * @param options - Optional database client for transaction support
+   * @returns New trial subscription
+   */
+  async createTrialSubscription(
+    tenantId: string,
+    actorId: string | null,
+    options?: QueryOptions,
+  ): Promise<TenantSubscription> {
+    const execute = async (client: PoolClient) => {
+      this.logger.log(
+        `Creating trial subscription: tenant=${tenantId}, actor=${actorId ?? 'system'}`,
+      );
+
+      const now = new Date();
+      const trialEndsAt = new Date(now);
+      trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_CONFIG.DURATION_DAYS);
+
+      const subscription = await this._createSubscription(
+        tenantId,
+        TRIAL_CONFIG.PLAN_KEY,
+        actorId,
+        {
+          status: 'trialing',
+          now,
+          periodEnd: trialEndsAt,
+          trialEndsAt,
+          eventType: 'subscription.trial_started',
+        },
+        client,
+      );
+
+      this.logger.log(
+        `Trial subscription created: tenant=${tenantId}, trialEndsAt=${trialEndsAt.toISOString()}`,
+      );
+      return subscription;
+    };
+
+    if (options?.client) {
+      return execute(options.client);
+    }
+
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      execute,
+    );
+  }
+
+  /**
+   * Shared implementation for createSubscription and createTrialSubscription.
+   *
+   * Handles: duplicate check, plan lookup/validation, row insert (with 23505 guard),
+   * snapshot invalidation, and domain event emission.
+   */
+  private async _createSubscription(
+    tenantId: string,
+    planKey: PlanKey,
+    actorId: string | null,
+    config: {
+      status: 'active' | 'trialing';
+      now: Date;
+      periodEnd: Date;
+      trialEndsAt?: Date;
+      eventType: 'subscription.created' | 'subscription.trial_started';
+    },
+    client: PoolClient,
+  ): Promise<TenantSubscription> {
+    const existingSubscription =
+      await this.subscriptionsRepository.findActiveByTenant(tenantId, {
+        client,
+      });
+
+    if (existingSubscription) {
+      throw new BadRequestException(
+        this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_ALREADY_EXISTS),
+      );
+    }
+
+    const plan = await this.plansRepository.findByKey(planKey, { client });
+    if (!plan) {
+      throw new NotFoundException(
+        this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_FOUND),
+      );
+    }
+    if (!plan.is_active) {
+      throw new BadRequestException(
+        this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_ACTIVE),
+      );
+    }
+
+    // Plain INSERT — app-level check above guards against duplicates;
+    // unique partial index provides DB-level race condition safety.
+    let newSubscription: TenantSubscription;
+    try {
+      newSubscription = await this.subscriptionsRepository.create(
+        {
+          tenant_id: tenantId,
+          plan_id: plan.id,
+          status: config.status,
+          billing_period_start: config.now,
+          billing_period_end: config.periodEnd,
+          current_period_start: config.now,
+          current_period_end: config.periodEnd,
+          ...(config.trialEndsAt !== undefined
+            ? { trial_ends_at: config.trialEndsAt }
+            : {}),
+          metadata: '{}',
+        },
+        { client },
+      );
+    } catch (error) {
+      if (error?.code === '23505') {
+        throw new ConflictException(
+          this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_ALREADY_EXISTS),
+        );
+      }
+      throw error;
+    }
+
+    await this.entitlementSnapshotsRepository.invalidate(tenantId, { client });
+
+    const eventPayload: Record<string, unknown> = {
+      subscription_id: newSubscription.id,
+      plan_id: plan.id,
+      plan_key: plan.key,
+    };
+    if (config.trialEndsAt !== undefined) {
+      eventPayload.trial_ends_at = config.trialEndsAt.toISOString();
+    }
+
+    await this.domainEventsService.emit(
+      {
+        tenant_id: tenantId,
+        event_type: config.eventType,
+        aggregate_type: 'subscription',
+        aggregate_id: newSubscription.id,
+        actor_id: actorId ?? undefined,
+        actor_type: actorId ? 'user' : 'system',
+        payload: JSON.stringify(eventPayload),
+        metadata: JSON.stringify({ timestamp: new Date().toISOString() }),
+      },
+      { client },
+    );
+
+    return newSubscription;
   }
 
   /**
@@ -473,6 +561,7 @@ export class SubscriptionsService {
    *
    * @param tenantId - Tenant ID
    * @returns Updated subscription with new period
+   *
    * @throws NotFoundException if no active subscription found
    */
   async renewPeriod(
@@ -482,7 +571,6 @@ export class SubscriptionsService {
     const execute = async (client: PoolClient) => {
       this.logger.log(`Renewing billing period: tenant=${tenantId}`);
 
-      // Step 1: Find active subscription
       const subscription =
         await this.subscriptionsRepository.findActiveByTenant(tenantId, {
           client,
@@ -494,12 +582,10 @@ export class SubscriptionsService {
         );
       }
 
-      // Step 2: Calculate new period
       const newPeriodStart = subscription.current_period_end;
       const newPeriodEnd = new Date(newPeriodStart);
       newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
 
-      // Step 3: Update within transaction
       const renewedSubscription =
         await this.subscriptionsRepository.updatePeriod(
           subscription.id,
@@ -508,7 +594,6 @@ export class SubscriptionsService {
           { client },
         );
 
-      // Emit domain event
       await this.domainEventsService.emit(
         {
           tenant_id: tenantId,
@@ -535,16 +620,6 @@ export class SubscriptionsService {
         `Billing period renewed: tenant=${tenantId}, newStart=${newPeriodStart.toISOString()}, newEnd=${newPeriodEnd.toISOString()}`,
       );
 
-      // TODO: BullMQ - This method would be called by a scheduled cron job
-      // When BullMQ is available:
-      // - Create a cron job that runs daily at midnight
-      // - Job calls renewAllDuePeriods() to renew all subscriptions where current_period_end <= now()
-      // - Each renewal triggers async jobs for:
-      //   1. Invoice generation
-      //   2. Payment processing
-      //   3. Email notification
-      //   4. Usage report for previous period
-
       return renewedSubscription;
     };
 
@@ -559,18 +634,17 @@ export class SubscriptionsService {
   }
 
   /**
-   * Batch renewal for all subscriptions due for renewal
-   *
-   * Finds all subscriptions where current_period_end <= now() and status = 'active',
-   * then calls renewPeriod() for each.
-   * Uses platform admin context to see all subscriptions (batch job runs without tenant context).
+   * Batch renewal for all Navigator (free) subscriptions due for period renewal.
+   * Stripe-backed subscriptions are excluded (stripe_subscription_id IS NULL filter).
+   * Intended to be called by a scheduled cron job.
    *
    * @returns Count of renewed subscriptions
    */
   async renewAllDuePeriods(): Promise<number> {
-    this.logger.log('Starting batch renewal for all due subscriptions');
+    this.logger.log(
+      'Starting batch renewal for Navigator subscriptions due for renewal',
+    );
 
-    // Find all due subscriptions (platform admin context - batch job sees all tenants)
     const dueSubscriptions =
       await this.databaseService.transactionWithPlatformAdminContext(
         async (client) =>
@@ -578,7 +652,7 @@ export class SubscriptionsService {
       );
 
     this.logger.log(
-      `Found ${dueSubscriptions.length} subscriptions due for renewal`,
+      `Found ${dueSubscriptions.length} Navigator subscriptions due for renewal`,
     );
 
     let renewedCount = 0;
@@ -591,24 +665,12 @@ export class SubscriptionsService {
         this.logger.error(
           `Failed to renew subscription for tenant=${subscription.tenant_id}: ${error.message}`,
         );
-        // Continue with next subscription
       }
     }
 
     this.logger.log(
       `Batch renewal complete: ${renewedCount} subscriptions renewed`,
     );
-
-    // TODO: BullMQ - Replace with scheduled cron job
-    // When BullMQ is available:
-    // - Create a cron job using @nestjs/bullmq
-    // - Schedule: Daily at midnight UTC
-    // - Job calls this method
-    // - Example:
-    //   @Cron('0 0 * * *')
-    //   async handleBillingPeriodRenewal() {
-    //     await this.subscriptionsService.renewAllDuePeriods();
-    //   }
 
     return renewedCount;
   }

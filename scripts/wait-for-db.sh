@@ -16,6 +16,6 @@ while [ $attempt -lt $max_attempts ]; do
 done
 
 echo "❌ Database failed to become ready after ${max_attempts} seconds"
-echo "Try running: pnpm docker:logs"
+echo "Try running: pnpm services:up"
 exit 1
 

@@ -12,7 +12,6 @@ BEGIN;
 -- =========================
 
 CREATE TYPE invitation_status AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'REVOKED', 'EXPIRED');
-CREATE TYPE refresh_token_type AS ENUM ('identity', 'tenant');
 
 -- =========================
 -- Tenants
@@ -37,16 +36,19 @@ CREATE TABLE public.tenants (
     locale             VARCHAR(50) DEFAULT 'en',
     timezone           VARCHAR(50) DEFAULT NULL,
     default_jurisdiction VARCHAR(100) DEFAULT NULL,
-    settings           JSONB DEFAULT '{}',
     slug             VARCHAR(255) UNIQUE DEFAULT NULL,
     is_active        BOOLEAN NOT NULL DEFAULT true,
     parent_tenant_id UUID,
     onboarding_completed_at TIMESTAMPTZ DEFAULT NULL,
-    onboarding_metadata JSONB DEFAULT '{}',
+    onboarding_current_step        VARCHAR(30) NOT NULL DEFAULT 'invite_team',
+    onboarding_team_invite_skipped BOOLEAN NOT NULL DEFAULT false,
+    onboarding_first_action_type   VARCHAR(30) DEFAULT NULL,
+    onboarding_first_action_completed_at TIMESTAMPTZ DEFAULT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deactivated_at   TIMESTAMPTZ DEFAULT NULL,
     deactivation_reason TEXT DEFAULT NULL,
+    stripe_customer_id VARCHAR(255) UNIQUE DEFAULT NULL,
 
     CONSTRAINT fk_tenants_parent
         FOREIGN KEY (parent_tenant_id)
@@ -55,9 +57,15 @@ CREATE TABLE public.tenants (
         ON UPDATE CASCADE
 );
 
+-- Case-insensitive unique constraint on tenant name (allows multiple NULLs)
+CREATE UNIQUE INDEX idx_tenants_name_lower_unique
+  ON public.tenants (LOWER(name))
+  WHERE name IS NOT NULL;
+
 COMMENT ON TABLE public.tenants IS 'Organizations/companies using the platform';
 COMMENT ON COLUMN public.tenants.id IS 'Unique tenant identifier (UUID)';
 COMMENT ON COLUMN public.tenants.name IS 'Tenant name (NULL for anonymous tenants)';
+COMMENT ON COLUMN public.tenants.stripe_customer_id IS 'Stripe customer ID (cus_xxx), NULL until billing is set up';
 COMMENT ON COLUMN public.tenants.logo_url IS 'Tenant logo URL (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.brand_color_primary IS 'Tenant brand color primary (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.brand_color_secondary IS 'Tenant brand color secondary (NULL for anonymous tenants)';
@@ -75,12 +83,14 @@ COMMENT ON COLUMN public.tenants.tax_registration_number IS 'Tenant tax registra
 COMMENT ON COLUMN public.tenants.locale IS 'Tenant locale (en for English)';
 COMMENT ON COLUMN public.tenants.timezone IS 'Tenant timezone (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.default_jurisdiction IS 'Tenant default jurisdiction (NULL for anonymous tenants)';
-COMMENT ON COLUMN public.tenants.settings IS 'Tenant settings (JSONB)';
 COMMENT ON COLUMN public.tenants.slug IS 'Tenant slug (NULL for anonymous tenants)';
 COMMENT ON COLUMN public.tenants.is_active IS 'Whether the tenant account is active (soft delete flag)';
 COMMENT ON COLUMN public.tenants.deactivated_at IS 'Tenant deactivation timestamp (NULL for active tenants)';
 COMMENT ON COLUMN public.tenants.onboarding_completed_at IS 'Tenant onboarding completion timestamp (NULL for incomplete onboarding)';
-COMMENT ON COLUMN public.tenants.onboarding_metadata IS 'Tenant onboarding metadata (JSONB)';
+COMMENT ON COLUMN public.tenants.onboarding_current_step IS 'Active onboarding step (create_workspace | invite_team | first_action | completed)';
+COMMENT ON COLUMN public.tenants.onboarding_team_invite_skipped IS 'True when the user explicitly skipped the invite-team step';
+COMMENT ON COLUMN public.tenants.onboarding_first_action_type IS 'Which first action the user picked (upload_contract | ask_question | analyze_document)';
+COMMENT ON COLUMN public.tenants.onboarding_first_action_completed_at IS 'Timestamp of first action completion (NULL until completed)';
 COMMENT ON COLUMN public.tenants.parent_tenant_id IS 'Parent tenant for Agency/Partner hierarchy (MVP+) - NULL for independent tenants';
 COMMENT ON COLUMN public.tenants.deactivation_reason IS 'Tenant deactivation reason (NULL for active tenants)';
 
@@ -90,22 +100,31 @@ COMMENT ON COLUMN public.tenants.deactivation_reason IS 'Tenant deactivation rea
 CREATE TABLE public.users (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email            VARCHAR(255) UNIQUE NOT NULL,
-    password_hash    VARCHAR(255) NOT NULL,
+    password_hash    VARCHAR(255),
     first_name       VARCHAR(255),
     last_name        VARCHAR(255),
     is_verified       BOOLEAN NOT NULL DEFAULT false,
     platform_role_key VARCHAR(50) NULL,
+    google_id        VARCHAR(255),
+    microsoft_id     VARCHAR(255),
+    auth_provider    VARCHAR(20) NOT NULL DEFAULT 'email',
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT check_platform_role_key_format
-        CHECK (platform_role_key IS NULL OR platform_role_key ~ '^[a-z_]+$')
+        CHECK (platform_role_key IS NULL OR platform_role_key ~ '^[a-z_]+$'),
+
+    CONSTRAINT check_auth_provider
+        CHECK (auth_provider IN ('email', 'google', 'microsoft'))
 );
 
 COMMENT ON TABLE public.users IS 'User accounts that can access multiple tenants';
 COMMENT ON COLUMN public.users.id IS 'Unique user identifier (UUID)';
 COMMENT ON COLUMN public.users.email IS 'User email address (unique across platform)';
-COMMENT ON COLUMN public.users.password_hash IS 'Bcrypt hashed password';
+COMMENT ON COLUMN public.users.password_hash IS 'Bcrypt hashed password; NULL for SSO-only accounts until a password is set';
+COMMENT ON COLUMN public.users.google_id IS 'Google OAuth subject (sub); NULL if never linked';
+COMMENT ON COLUMN public.users.microsoft_id IS 'Microsoft OAuth subject (id); NULL if never linked';
+COMMENT ON COLUMN public.users.auth_provider IS 'Primary signup method: email, google, or microsoft';
 COMMENT ON COLUMN public.users.is_verified IS 'Whether user has verified their email address';
 COMMENT ON COLUMN public.users.platform_role_key IS 'Platform-level role key (e.g., system_admin, support, auditor). NULL for regular tenant-only users.';
 
@@ -269,16 +288,18 @@ COMMENT ON TABLE public.platform_role_permissions IS 'Many-to-many: platform rol
 -- =========================
 CREATE TABLE public.audit_logs (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id     UUID,
-    user_id       UUID,
+    tenant_id     UUID,                                        -- NULL for system-level actions
+    actor_id      UUID,                                        -- NULL for anonymous/system actors
+    actor_type    VARCHAR(50) NOT NULL DEFAULT 'user',         -- 'user', 'system', 'api_key'
     user_role     VARCHAR(50),
     action        VARCHAR(100) NOT NULL,
-    resource_type VARCHAR(50),
-    resource_id   UUID,
+    resource_type VARCHAR(100) NOT NULL,
+    resource_id   TEXT,
     details       JSONB DEFAULT '{}',
     ai_model_used VARCHAR(100),
     ip_address    VARCHAR(45),
     user_agent    TEXT,
+    trace_id      VARCHAR(64),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT fk_audit_logs_tenant
@@ -287,24 +308,28 @@ CREATE TABLE public.audit_logs (
         ON DELETE SET NULL
         ON UPDATE CASCADE,
 
-    CONSTRAINT fk_audit_logs_user
-        FOREIGN KEY (user_id)
+    CONSTRAINT fk_audit_logs_actor
+        FOREIGN KEY (actor_id)
         REFERENCES public.users(id)
         ON DELETE SET NULL
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT check_actor_type CHECK (actor_type IN ('user', 'system', 'api_key'))
 );
 
-COMMENT ON TABLE public.audit_logs IS 'Audit trail for all user actions';
+COMMENT ON TABLE public.audit_logs IS 'Immutable audit trail for all user and system actions';
 COMMENT ON COLUMN public.audit_logs.tenant_id IS 'Tenant ID (NULL for system-level actions)';
-COMMENT ON COLUMN public.audit_logs.user_id IS 'User who performed the action';
+COMMENT ON COLUMN public.audit_logs.actor_id IS 'User who performed the action (NULL for system/anonymous)';
+COMMENT ON COLUMN public.audit_logs.actor_type IS 'Type of actor: user, system, or api_key';
 COMMENT ON COLUMN public.audit_logs.user_role IS 'Role key at time of action (for historical record)';
-COMMENT ON COLUMN public.audit_logs.action IS 'Action performed (e.g., documents:create, settings:change_jurisdiction)';
+COMMENT ON COLUMN public.audit_logs.action IS 'Action performed (e.g., documents:create, settings:update)';
 COMMENT ON COLUMN public.audit_logs.resource_type IS 'Type of resource affected (e.g., documents, templates)';
-COMMENT ON COLUMN public.audit_logs.resource_id IS 'ID of the affected resource (if applicable)';
+COMMENT ON COLUMN public.audit_logs.resource_id IS 'ID or key of the affected resource (if applicable)';
 COMMENT ON COLUMN public.audit_logs.details IS 'Additional context (JSONB)';
-COMMENT ON COLUMN public.audit_logs.ai_model_used IS 'AI model used for AI operations (prepared for future)';
+COMMENT ON COLUMN public.audit_logs.ai_model_used IS 'AI model used for AI operations';
 COMMENT ON COLUMN public.audit_logs.ip_address IS 'IP address of the request';
 COMMENT ON COLUMN public.audit_logs.user_agent IS 'User agent of the request';
+COMMENT ON COLUMN public.audit_logs.trace_id IS 'Correlates with request/job traces (from CLS_TRACE_ID)';
 
 -- =========================
 -- User ↔ Tenant Membership
@@ -343,35 +368,6 @@ COMMENT ON CONSTRAINT check_role_key_format ON public.user_tenants IS 'Ensures r
 -- =========================
 -- Auth Artifacts
 -- =========================
-CREATE TABLE public.refresh_tokens (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id      UUID NOT NULL,
-    token_hash   VARCHAR(255) NOT NULL,
-    token_type   refresh_token_type NOT NULL DEFAULT 'tenant',
-    tenant_id    UUID,
-    expires_at   TIMESTAMPTZ NOT NULL,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    revoked_at   TIMESTAMPTZ,
-
-    CONSTRAINT fk_refresh_tokens_user
-        FOREIGN KEY (user_id)
-        REFERENCES public.users(id)
-        ON DELETE CASCADE
-        ON UPDATE CASCADE,
-
-    CONSTRAINT fk_refresh_tokens_tenant
-        FOREIGN KEY (tenant_id)
-        REFERENCES public.tenants(id)
-        ON DELETE CASCADE
-        ON UPDATE CASCADE
-);
-
-COMMENT ON TABLE public.refresh_tokens IS 'Refresh tokens for session management (JWT refresh flow)';
-COMMENT ON COLUMN public.refresh_tokens.token_hash IS 'Hashed refresh token value';
-COMMENT ON COLUMN public.refresh_tokens.token_type IS 'Token type: identity, tenant';
-COMMENT ON COLUMN public.refresh_tokens.tenant_id IS 'Tenant ID for tenant-scoped refresh tokens (NULL for identity tokens)';
-COMMENT ON COLUMN public.refresh_tokens.revoked_at IS 'Timestamp when token was revoked (NULL if still valid)';
-
 CREATE TABLE public.email_verifications (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID NOT NULL,
@@ -477,6 +473,8 @@ CREATE INDEX idx_tenants_parent_tenant_id ON public.tenants(parent_tenant_id) WH
 -- Composite index for login queries (WHERE email = ? AND is_verified = ?)
 CREATE INDEX idx_users_email_verified ON public.users(email, is_verified) WHERE is_verified = true;
 CREATE INDEX idx_users_platform_role ON public.users(platform_role_key) WHERE platform_role_key IS NOT NULL;
+CREATE UNIQUE INDEX idx_users_google_id ON public.users(google_id) WHERE google_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_users_microsoft_id ON public.users(microsoft_id) WHERE microsoft_id IS NOT NULL;
 
 -- Tenant Roles
 CREATE INDEX idx_tenant_roles_key ON public.tenant_roles(key);
@@ -506,10 +504,13 @@ CREATE INDEX idx_platform_role_permissions_permission_id ON public.platform_role
 
 -- Audit Logs
 CREATE INDEX idx_audit_logs_tenant_id ON public.audit_logs(tenant_id);
-CREATE INDEX idx_audit_logs_user_id ON public.audit_logs(user_id);
+CREATE INDEX idx_audit_logs_actor_id ON public.audit_logs(actor_id);
+CREATE INDEX idx_audit_logs_actor_type ON public.audit_logs(actor_type);
 CREATE INDEX idx_audit_logs_action ON public.audit_logs(action);
 CREATE INDEX idx_audit_logs_created_at ON public.audit_logs(created_at DESC);
 CREATE INDEX idx_audit_logs_tenant_created ON public.audit_logs(tenant_id, created_at DESC);
+CREATE INDEX idx_audit_logs_resource ON public.audit_logs(resource_type, resource_id);
+CREATE INDEX idx_audit_logs_trace_id ON public.audit_logs(trace_id);
 
 -- User Tenants
 -- Composite index for user's active tenants (WHERE user_id = ? AND is_active = true)
@@ -522,25 +523,6 @@ WHERE is_active = true;
 
 -- Index for tenant-based queries (WHERE tenant_id = ?)
 CREATE INDEX idx_user_tenants_tenant_id ON public.user_tenants(tenant_id);
-
--- Refresh Tokens
--- Composite partial index for identity token refresh
--- Covers: WHERE user_id = ? AND token_hash = ? AND token_type = 'identity' AND revoked_at IS NULL
-CREATE INDEX idx_refresh_tokens_user_token_identity ON public.refresh_tokens(user_id, token_hash, token_type)
-WHERE token_type = 'identity' AND revoked_at IS NULL;
-
--- Composite partial index for tenant token refresh
--- Covers: WHERE user_id = ? AND tenant_id = ? AND token_hash = ? AND token_type = 'tenant' AND revoked_at IS NULL
-CREATE INDEX idx_refresh_tokens_user_tenant_token ON public.refresh_tokens(user_id, tenant_id, token_hash, token_type)
-WHERE token_type = 'tenant' AND revoked_at IS NULL;
-
--- Index for revoking all user tokens (WHERE user_id = ? AND revoked_at IS NULL)
-CREATE INDEX idx_refresh_tokens_user_active ON public.refresh_tokens(user_id)
-WHERE revoked_at IS NULL;
-
--- Index for cleanup queries (WHERE expires_at < NOW())
-CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at)
-WHERE revoked_at IS NULL;
 
 -- Email Verifications
 -- Composite partial index for verification lookup
@@ -593,6 +575,34 @@ CREATE INDEX idx_tenants_emirate ON public.tenants(emirate);
 
 -- Quick lookup of deactivated tenants
 CREATE INDEX idx_tenants_deactivated ON public.tenants(deactivated_at) WHERE deactivated_at IS NOT NULL;
+
+-- Stripe customer lookup (partial: only indexes non-NULL values)
+CREATE UNIQUE INDEX idx_tenants_stripe_customer_id ON public.tenants(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
+
+
+-- =========================
+-- THIS IS THE CODE FOR THE GLOBAL SLUG CHECK
+-- =========================
+-- -- Add this to your RLS migration file
+-- CREATE OR REPLACE FUNCTION public.is_platform_context()
+-- RETURNS BOOLEAN
+-- LANGUAGE SQL
+-- STABLE
+-- AS $$
+--     SELECT current_setting('app.platform_context', true)::boolean;
+-- $$;
+
+-- -- Update tenant_select policy
+-- DROP POLICY IF EXISTS tenant_select ON public.tenants;
+-- CREATE POLICY tenant_select
+-- ON public.tenants
+-- FOR SELECT
+-- USING (
+--     id = current_tenant_id_or_null()
+--     OR is_auth_flow()
+--     OR is_platform_admin()
+--     OR is_platform_context()  -- ← Allows global slug checks
+-- );
 
 -- =========================
 -- Triggers
@@ -785,11 +795,6 @@ DROP INDEX IF EXISTS public.idx_tenant_roles_key_system;
 DROP INDEX IF EXISTS public.idx_password_resets_token_active;
 DROP INDEX IF EXISTS public.idx_email_verifications_token_active;
 
-DROP INDEX IF EXISTS public.idx_refresh_tokens_expires_at;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_user_active;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_user_tenant_token;
-DROP INDEX IF EXISTS public.idx_refresh_tokens_user_token_identity;
-
 DROP INDEX IF EXISTS public.idx_user_tenants_tenant_id;
 DROP INDEX IF EXISTS public.idx_user_tenants_user_tenant_active;
 DROP INDEX IF EXISTS public.idx_user_tenants_user_active;
@@ -797,11 +802,13 @@ DROP INDEX IF EXISTS public.idx_user_tenants_user_active;
 DROP INDEX IF EXISTS public.idx_users_email_verified;
 DROP INDEX IF EXISTS public.idx_users_platform_role;
 
+DROP INDEX IF EXISTS public.idx_tenants_stripe_customer_id;
 DROP INDEX IF EXISTS public.idx_tenants_parent_tenant_id;
 DROP INDEX IF EXISTS public.idx_tenants_is_active;
 DROP INDEX IF EXISTS public.idx_tenants_deactivated;
 DROP INDEX IF EXISTS public.idx_tenants_emirate;
 DROP INDEX IF EXISTS public.idx_tenants_slug;
+DROP INDEX IF EXISTS public.idx_tenants_name_lower_unique;
 
 
 DROP INDEX IF EXISTS public.idx_invitations_email_tenant_pending;
@@ -811,10 +818,13 @@ DROP INDEX IF EXISTS public.idx_invitations_email_pending;
 DROP INDEX IF EXISTS public.idx_invitations_email_tenant_status;
 DROP INDEX IF EXISTS public.idx_invitations_token_pending;
 
+DROP INDEX IF EXISTS public.idx_audit_logs_trace_id;
+DROP INDEX IF EXISTS public.idx_audit_logs_resource;
+DROP INDEX IF EXISTS public.idx_audit_logs_actor_type;
 DROP INDEX IF EXISTS public.idx_audit_logs_tenant_created;
 DROP INDEX IF EXISTS public.idx_audit_logs_created_at;
 DROP INDEX IF EXISTS public.idx_audit_logs_action;
-DROP INDEX IF EXISTS public.idx_audit_logs_user_id;
+DROP INDEX IF EXISTS public.idx_audit_logs_actor_id;
 DROP INDEX IF EXISTS public.idx_audit_logs_tenant_id;
 
 DROP INDEX IF EXISTS public.idx_tenant_role_permissions_permission_id;
@@ -838,7 +848,6 @@ DROP INDEX IF EXISTS public.idx_platform_roles_key;
 DROP TABLE IF EXISTS public.invitations;
 DROP TABLE IF EXISTS public.password_resets;
 DROP TABLE IF EXISTS public.email_verifications;
-DROP TABLE IF EXISTS public.refresh_tokens;
 DROP TABLE IF EXISTS public.user_tenants;
 DROP TABLE IF EXISTS public.audit_logs;
 DROP TABLE IF EXISTS public.platform_role_permissions;
@@ -851,7 +860,6 @@ DROP TABLE IF EXISTS public.users;
 DROP TABLE IF EXISTS public.tenants;
 
 -- Drop ENUMs
-DROP TYPE IF EXISTS refresh_token_type;
 DROP TYPE IF EXISTS invitation_status;
 
 COMMIT;

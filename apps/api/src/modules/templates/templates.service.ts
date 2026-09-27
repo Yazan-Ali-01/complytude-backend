@@ -166,7 +166,6 @@ export class TemplatesService {
               current_version: version,
               status: createTemplateDto.status || 'active',
               file_url: null,
-              metadata: JSON.stringify(createTemplateDto.metadata ?? {}), // Stringify JSONB field
               created_by: createdBy,
             },
             { client },
@@ -197,7 +196,6 @@ export class TemplatesService {
             createTemplateDto.fields,
             uploadResult.url, // Use URL from upload
             'Initial version',
-            createTemplateDto.metadata || {},
             createdBy,
             client,
           );
@@ -331,8 +329,8 @@ export class TemplatesService {
           'languages',
           'current_version',
           'status',
+          'tier',
           'file_url',
-          'metadata',
           'created_by',
           'created_at',
           'updated_at',
@@ -471,10 +469,6 @@ export class TemplatesService {
             existing.id,
             {
               ...updateTemplateDto,
-              metadata:
-                updateTemplateDto.metadata === undefined
-                  ? JSON.stringify(updateTemplateDto.metadata)
-                  : undefined,
               updated_at: new Date(),
             },
             { client },
@@ -636,7 +630,6 @@ export class TemplatesService {
           createVersionDto.fields,
           fileUrl,
           createVersionDto.changelog,
-          createVersionDto.metadata || {},
           createdBy,
           client,
         );
@@ -765,23 +758,5 @@ export class TemplatesService {
         ),
       );
     }
-  }
-
-  /**
-   * Parse JSONB fields from database
-   */
-  private parseTemplate(
-    template: Record<string, unknown> & {
-      metadata?: string | Record<string, unknown>;
-    },
-  ): Template {
-    const parsed = {
-      ...template,
-      metadata:
-        typeof template.metadata === 'string'
-          ? (JSON.parse(template.metadata) as Record<string, unknown>)
-          : (template.metadata ?? {}),
-    };
-    return parsed as Template;
   }
 }

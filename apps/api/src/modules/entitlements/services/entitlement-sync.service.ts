@@ -69,7 +69,6 @@ export class EntitlementSyncService implements OnModuleInit {
             creditable: 'creditable' in feature ? feature.creditable : false,
             credit_cost: 'credit_cost' in feature ? feature.credit_cost : null,
             is_active: true,
-            metadata: '{}',
           },
           { client },
         );
@@ -124,7 +123,6 @@ export class EntitlementSyncService implements OnModuleInit {
             billing_period: plan.billing_period,
             is_active: true,
             sort_order: plan.sort_order,
-            metadata: '{}',
           },
           { client },
         );
@@ -191,7 +189,6 @@ export class EntitlementSyncService implements OnModuleInit {
           value_bool: boolean | null;
           value_int: number | null;
           value_text: string | null;
-          metadata: string;
         }> = [];
 
         for (const featureKey of featureKeys) {
@@ -211,7 +208,6 @@ export class EntitlementSyncService implements OnModuleInit {
             value_bool: value.value_bool ?? null,
             value_int: value.value_int ?? null,
             value_text: value.value_text ?? null,
-            metadata: '{}',
           });
         }
 

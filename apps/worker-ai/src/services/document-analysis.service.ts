@@ -2,22 +2,67 @@ import { EmbeddingService, TextChunkerService } from '@lib/embedding';
 import type { DocumentAnalysisJobData } from '@lib/queue';
 import { PermanentError, RetryableError } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
-import { AnalysisResult } from '../interfaces/analysis-result.interface';
+import { ConfigService } from '@nestjs/config';
+import type { ResponseFormatJSONSchema } from 'openai/resources/shared';
+import {
+  AnalysisFinding,
+  AnalysisResult,
+} from '../interfaces/analysis-result.interface';
 import { AnalysisJobWriteRepository } from '../repositories/analysis-job-write.repository';
-import { DocumentReadRepository } from '../repositories/document-read.repository';
+import {
+  DocumentReadRepository,
+  DocumentSection,
+} from '../repositories/document-read.repository';
 import {
   RulesetChunkMatch,
   RulesetChunkSearchRepository,
 } from '../repositories/ruleset-chunk-search.repository';
 import { LlmService } from './llm.service';
 import { PromptBuilderService } from './prompt-builder.service';
+import { RerankerService } from './reranker.service';
 
-const TOP_K_PER_QUERY = 5;
-const MAX_UNIQUE_CHUNKS = 20;
+const ANALYSIS_RESULT_SCHEMA: ResponseFormatJSONSchema.JSONSchema = {
+  name: 'analysis_result',
+  strict: true,
+  schema: {
+    type: 'object',
+    properties: {
+      findings: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            clauseRef: { type: 'string' },
+            riskLevel: { type: 'string', enum: ['high', 'medium', 'low'] },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            suggestion: { type: 'string' },
+          },
+          required: [
+            'clauseRef',
+            'riskLevel',
+            'title',
+            'description',
+            'suggestion',
+          ],
+          additionalProperties: false,
+        },
+      },
+      summary: { type: 'string' },
+    },
+    required: ['findings', 'summary'],
+    additionalProperties: false,
+  },
+};
 
 @Injectable()
 export class DocumentAnalysisService {
   private readonly logger = new Logger(DocumentAnalysisService.name);
+
+  private readonly topKPerQuery: number;
+  private readonly vectorLimit: number;
+  private readonly bm25Limit: number;
+  private readonly maxHybridResults: number;
 
   constructor(
     private readonly analysisJobWriteRepository: AnalysisJobWriteRepository,
@@ -27,12 +72,27 @@ export class DocumentAnalysisService {
     private readonly embeddingService: EmbeddingService,
     private readonly promptBuilderService: PromptBuilderService,
     private readonly llmService: LlmService,
-  ) {}
+    private readonly rerankerService: RerankerService,
+    configService: ConfigService,
+  ) {
+    this.topKPerQuery = configService.get<number>(
+      'workerAi.ragTopKPerQuery',
+      5,
+    );
+    this.vectorLimit = configService.get<number>('workerAi.ragVectorLimit', 30);
+    this.bm25Limit = configService.get<number>('workerAi.ragBm25Limit', 30);
+    this.maxHybridResults = configService.get<number>(
+      'workerAi.ragMaxHybridResults',
+      40,
+    );
+  }
 
   async analyze(data: DocumentAnalysisJobData): Promise<void> {
     const { analysisJobId, documentId } = data;
+    const rulesetIds: string[] | undefined = Array.isArray(data.rulesetIds)
+      ? data.rulesetIds
+      : undefined;
 
-    // Step 1: Verify the analysis job exists
     const job = await this.analysisJobWriteRepository
       .findById(analysisJobId)
       .catch((err: unknown) => {
@@ -54,7 +114,6 @@ export class DocumentAnalysisService {
       );
     }
 
-    // Step 2: Atomically claim the job — guards against a concurrent worker on the same job
     const claimed = await this.analysisJobWriteRepository
       .markProcessing(analysisJobId)
       .catch((err: unknown) => {
@@ -70,10 +129,9 @@ export class DocumentAnalysisService {
       );
     }
 
-    // Wrap remaining work so failures update status to 'failed'
     const pipelineStart = Date.now();
     try {
-      await this.runPipeline(analysisJobId, documentId);
+      await this.runPipeline(analysisJobId, documentId, rulesetIds);
       this.logger.log(
         `Pipeline completed in ${Date.now() - pipelineStart}ms for job=${analysisJobId}`,
       );
@@ -95,8 +153,8 @@ export class DocumentAnalysisService {
   private async runPipeline(
     analysisJobId: string,
     documentId: string,
+    rulesetIds?: string[],
   ): Promise<void> {
-    // Step 3: Fetch document content
     const document = await this.documentReadRepository
       .findContentById(documentId)
       .catch((err: unknown) => {
@@ -118,16 +176,29 @@ export class DocumentAnalysisService {
       );
     }
 
+    const scoped = rulesetIds && rulesetIds.length > 0;
+    const hasStructure =
+      Array.isArray(document.content_structured) &&
+      document.content_structured.length > 0;
+
     this.logger.log(
-      `Starting RAG pipeline for job=${analysisJobId} document="${document.title}"`,
+      `Starting RAG pipeline for job=${analysisJobId} document="${document.title}"` +
+        (scoped ? ` scoped to ${rulesetIds.length} rulesets` : ' (global)') +
+        ` structured=${hasStructure}`,
     );
 
-    // Step 4: Chunk the document text
-    const documentChunks = this.textChunkerService.chunk(document.content);
+    // Build structured content string when LAYOUT sections are available.
+    // Each section is prefixed with a markdown heading so both the embedding
+    // model and the LLM receive section-boundary context.
+    // Falls back to raw flat text for documents ingested before this feature.
+    const contentForAnalysis = hasStructure
+      ? this.buildStructuredContent(document.content_structured!)
+      : document.content;
 
+    // Chunk the document (structured content gives embeddings better context)
+    const documentChunks = this.textChunkerService.chunk(contentForAnalysis);
     this.logger.log(`Document chunked into ${documentChunks.length} chunks`);
 
-    // Step 5: Embed all document chunks
     const chunkTexts = documentChunks.map((c) => c.content);
     this.logger.log(
       `Embedding ${chunkTexts.length} document chunks for job=${analysisJobId}`,
@@ -141,30 +212,45 @@ export class DocumentAnalysisService {
         );
       });
 
-    // Steps 6–8: Batch similarity search, deduplicate, rank (single DB round-trip)
+    // Hybrid search: vector similarity + BM25 full-text, merged via RRF
+    const bm25Query = this.buildBm25Query(document.title, chunkTexts);
     const topChunks = await this.rulesetChunkSearchRepository
-      .searchSimilarBatch(
+      .hybridSearchBatch(
         embeddings.map((e) => e.embedding),
-        TOP_K_PER_QUERY,
-        MAX_UNIQUE_CHUNKS,
+        bm25Query,
+        this.topKPerQuery,
+        this.vectorLimit,
+        this.bm25Limit,
+        this.maxHybridResults,
+        rulesetIds,
       )
       .catch((err: unknown) => {
         throw new RetryableError(
-          'pgvector similarity search error',
+          'Hybrid search (vector + BM25) error',
           err instanceof Error ? err : undefined,
         );
       });
 
     this.logger.log(
-      `Retrieved ${topChunks.length} unique ruleset chunks via similarity search`,
+      `Retrieved ${topChunks.length} chunks via hybrid search (vector + BM25)`,
     );
 
-    // Step 9: Build prompt
+    // Re-rank via Cohere
+    const rerankQuery =
+      `${document.title} ${chunkTexts.slice(0, 2).join(' ')}`.slice(0, 500);
+    const { chunks: rerankedChunks, reranked } =
+      await this.rerankerService.rerank(rerankQuery, topChunks);
+
+    this.logger.log(
+      `After rerank: ${rerankedChunks.length} chunks (reranked=${reranked})`,
+    );
+
+    // Build prompt — pass structured content so the LLM sees section headings
     const { systemPrompt, userMessage, wasDocumentTruncated } =
       this.promptBuilderService.buildPrompt(
         document.title,
-        document.content,
-        topChunks,
+        contentForAnalysis,
+        rerankedChunks,
       );
 
     if (wasDocumentTruncated) {
@@ -173,9 +259,13 @@ export class DocumentAnalysisService {
       );
     }
 
-    // Step 10: Call LLM
+    // Call LLM with structured output enforcement
     const rawResponse = await this.llmService
-      .chatCompletion({ systemPrompt, userMessage })
+      .chatCompletion({
+        systemPrompt,
+        userMessage,
+        responseSchema: ANALYSIS_RESULT_SCHEMA,
+      })
       .catch((err: unknown) => {
         throw new RetryableError(
           `LLM API error for job ${analysisJobId}`,
@@ -183,25 +273,29 @@ export class DocumentAnalysisService {
         );
       });
 
-    // Step 11: Parse and validate LLM response
-    const parsedResult = this.parseAndValidateLlmResponse(
-      rawResponse,
-      analysisJobId,
-    );
+    // OpenAI structured outputs guarantee schema conformance; light sanity check
+    const parsed = rawResponse as {
+      findings: AnalysisFinding[];
+      summary: string;
+    };
+    if (!Array.isArray(parsed.findings) || typeof parsed.summary !== 'string') {
+      throw new PermanentError(
+        `LLM structured output for job ${analysisJobId} did not match expected shape`,
+      );
+    }
 
-    // Step 12: Build final result with metadata
-    const rulesetsConsulted = this.extractRulesetsConsulted(topChunks);
+    const rulesetsConsulted = this.extractRulesetsConsulted(rerankedChunks);
 
     const result: AnalysisResult = {
-      findings: parsedResult.findings,
-      summary: parsedResult.summary,
+      findings: parsed.findings,
+      summary: parsed.summary,
       model: this.llmService.getModel(),
       documentChunks: documentChunks.length,
-      rulesetChunksMatched: topChunks.length,
+      rulesetChunksMatched: rerankedChunks.length,
       rulesetsConsulted,
+      reranked,
     };
 
-    // Step 13: Store result and mark completed
     await this.analysisJobWriteRepository
       .markCompleted(analysisJobId, result)
       .catch((err: unknown) => {
@@ -217,72 +311,28 @@ export class DocumentAnalysisService {
     );
   }
 
-  private parseAndValidateLlmResponse(
-    raw: unknown,
-    jobId: string,
-  ): { findings: AnalysisResult['findings']; summary: string } {
-    if (typeof raw !== 'object' || raw === null) {
-      throw new PermanentError(
-        `LLM response for job ${jobId} is not a JSON object`,
-      );
-    }
+  /**
+   * Render DocumentSection[] into a single markdown-formatted string.
+   * Section headings become ## markers so both the embedding model and the LLM
+   * receive explicit section-boundary context. Content within each section is
+   * preserved verbatim.
+   */
+  private buildStructuredContent(sections: DocumentSection[]): string {
+    return sections
+      .map((s) => (s.heading ? `## ${s.heading}\n\n${s.content}` : s.content))
+      .filter(Boolean)
+      .join('\n\n');
+  }
 
-    const obj = raw as Record<string, unknown>;
-
-    if (!Array.isArray(obj.findings)) {
-      throw new PermanentError(
-        `LLM response for job ${jobId} missing 'findings' array`,
-      );
-    }
-
-    if (typeof obj.summary !== 'string' || !obj.summary.trim()) {
-      throw new PermanentError(
-        `LLM response for job ${jobId} missing 'summary' string`,
-      );
-    }
-
-    const findings = obj.findings.map((f: unknown, i: number) => {
-      if (typeof f !== 'object' || f === null) {
-        throw new PermanentError(
-          `LLM response job ${jobId}: finding[${i}] is not an object`,
-        );
-      }
-      const finding = f as Record<string, unknown>;
-
-      for (const field of [
-        'clauseRef',
-        'riskLevel',
-        'title',
-        'description',
-        'suggestion',
-      ] as const) {
-        if (
-          typeof finding[field] !== 'string' ||
-          !String(finding[field]).trim()
-        ) {
-          throw new PermanentError(
-            `LLM response job ${jobId}: finding[${i}].${field} is missing or empty`,
-          );
-        }
-      }
-
-      const riskLevel = finding.riskLevel as string;
-      if (!['high', 'medium', 'low'].includes(riskLevel)) {
-        throw new PermanentError(
-          `LLM response job ${jobId}: finding[${i}].riskLevel is '${riskLevel}', expected high|medium|low`,
-        );
-      }
-
-      return {
-        clauseRef: finding.clauseRef as string,
-        riskLevel: riskLevel as AnalysisResult['findings'][0]['riskLevel'],
-        title: finding.title as string,
-        description: finding.description as string,
-        suggestion: finding.suggestion as string,
-      };
-    });
-
-    return { findings, summary: obj.summary };
+  /**
+   * Build a concise BM25 search query from the document title and first few chunk texts.
+   * PostgreSQL's plainto_tsquery handles stopword removal and stemming.
+   * Cap at ~500 chars to keep the tsquery plan efficient.
+   */
+  private buildBm25Query(title: string, chunkTexts: string[]): string {
+    const preview = chunkTexts.slice(0, 3).join(' ');
+    const combined = `${title} ${preview}`;
+    return combined.slice(0, 500);
   }
 
   private extractRulesetsConsulted(chunks: RulesetChunkMatch[]): string[] {

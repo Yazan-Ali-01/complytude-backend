@@ -1,6 +1,8 @@
 import { databaseEnvSchema } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
+import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
+import { storageEnvSchema } from '@lib/storage';
 import * as Joi from 'joi';
 
 export const validationSchema = Joi.object({
@@ -29,6 +31,19 @@ export const validationSchema = Joi.object({
   // Embedding (OpenAI)
   ...embeddingEnvSchema,
 
+  // Logging
+  ...loggerEnvSchema,
+
   // Redis (for BullMQ)
   ...redisEnvSchema,
+
+  // S3 Storage (for document ingestion)
+  ...storageEnvSchema,
+
+  // Textract (document text extraction)
+  TEXTRACT_MAX_PAGES: Joi.number().default(50),
+  TEXTRACT_POLL_INITIAL_DELAY_MS: Joi.number().default(2000),
+  TEXTRACT_POLL_MAX_DELAY_MS: Joi.number().default(30000),
+  TEXTRACT_POLL_MAX_ATTEMPTS: Joi.number().default(60),
+  TEXTRACT_POLL_BACKOFF_MULTIPLIER: Joi.number().default(1.5),
 });

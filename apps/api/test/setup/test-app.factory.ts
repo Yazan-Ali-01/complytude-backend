@@ -1,31 +1,45 @@
+import cookie from '@fastify/cookie';
+import { AuditService } from '@lib/audit';
 import { DatabaseService } from '@lib/database';
-import { REDIS_CLIENT } from '@lib/redis/redis.constants';
-import { RedisService } from '@lib/redis';
-import { QUEUE_NAMES, QueueProducerService, getQueueToken } from '@lib/queue';
 import type { Queue } from '@lib/queue';
-import { Test, TestingModule } from '@nestjs/testing';
+import { QUEUE_NAMES, QueueProducerService, getQueueToken } from '@lib/queue';
+import { RedisService } from '@lib/redis';
+import { REDIS_CLIENT } from '@lib/redis/redis.constants';
+import {
+  INestApplication,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import { Test, TestingModule } from '@nestjs/testing';
 import Redis from 'ioredis';
-import { INestApplication } from '@nestjs/common';
 import { AppModule } from 'src/app.module';
+import { validationExceptionFactory } from 'src/common/pipes/validation-exception.factory';
 import { StorageService } from 'src/modules/storage/storage.service';
-import { AuditService } from 'src/modules/audit/audit.service';
 import { MockStorageService } from '../mocks/storage.mock';
 import { ensureWorkerDatabase } from './worker-database.setup';
 
 class MockAuditService {
-  async log(): Promise<void> {}
-  async getAuditLogs(): Promise<unknown[]> {
-    return [];
+  log(): Promise<void> {
+    return Promise.resolve();
   }
-  async getUserAuditLogs(): Promise<unknown[]> {
-    return [];
+  logBatch(): Promise<void> {
+    return Promise.resolve();
   }
-  async countAuditLogs(): Promise<number> {
-    return 0;
+  logSystemEvent(): Promise<void> {
+    return Promise.resolve();
+  }
+  getAuditLogs(): Promise<unknown[]> {
+    return Promise.resolve([]);
+  }
+  getActorAuditLogs(): Promise<unknown[]> {
+    return Promise.resolve([]);
+  }
+  countAuditLogs(): Promise<number> {
+    return Promise.resolve(0);
   }
 }
 
@@ -80,6 +94,27 @@ export async function createTestApp(
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
     new FastifyAdapter(),
+  );
+
+  await app.register(cookie);
+
+  const apiPrefix = process.env.API_PREFIX || 'api';
+  app.setGlobalPrefix(apiPrefix);
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+    prefix: 'v',
+  });
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      exceptionFactory: validationExceptionFactory,
+    }),
   );
 
   await app.init();

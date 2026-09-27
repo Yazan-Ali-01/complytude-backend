@@ -139,6 +139,7 @@ export class UsageAllocationsRepository extends BaseRepository<
        WHERE ul.tenant_id = $1
          AND ul.feature_id = $2
          AND ul.billing_period = $3
+         AND ul.voided_at IS NULL
        ORDER BY ul.recorded_at ASC, ua.created_at ASC`,
       [tenantId, featureId, billingPeriod],
       options,

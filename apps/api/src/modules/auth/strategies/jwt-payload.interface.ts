@@ -7,14 +7,18 @@ export const IDENTITY_PAYLOAD_TYPE = 'identity';
 export interface IdentityPayload {
   sub: string; // userId
   email: string;
+  isVerified: boolean; // Email verification status
   platformRole: string | null; // 'system_admin', 'support', 'auditor', or null
+  sessionId: string; // Links to identity-session:{sessionId} in Redis
   type: typeof IDENTITY_PAYLOAD_TYPE;
 }
 
 export interface AuthenticatedIdentityUser {
   userId: string;
   email: string;
+  isVerified: boolean;
   platformRole: string | null;
+  sessionId: string;
 }
 
 /**
@@ -26,12 +30,14 @@ export const IDENTITY_REFRESH_PAYLOAD_TYPE = 'identity-refresh';
 export interface IdentityRefreshPayload {
   sub: string; // userId
   email: string;
+  sessionId: string; // Links to identity-session:{sessionId} in Redis
   type: typeof IDENTITY_REFRESH_PAYLOAD_TYPE;
 }
 
 export interface AuthenticatedIdentityRefreshUser {
   userId: string;
   email: string;
+  sessionId: string;
   refreshToken: string;
 }
 
@@ -39,12 +45,8 @@ export interface AuthenticatedIdentityRefreshUser {
  * Payload for tenant access token (used after tenant selection)
  * Used for: tenant-scoped API operations
  *
- * TODO: Implement token revocation for role changes. Currently, if a user's role
- * is changed (e.g., demoted from legal_counsel to member), the old token retains
- * the elevated role until it expires (30-minute window). Consider:
- * - Adding a role version/hash to the token and verifying on critical operations
- * - Implementing a token blacklist for role changes
- * - Using short-lived tokens with more frequent refresh
+ * Role changes are handled by SessionInvalidationService.invalidateTenantSessions()
+ * — deleting the tenant session in Redis invalidates tokens immediately.
  */
 export const TENANT_PAYLOAD_TYPE = 'tenant-access';
 
@@ -53,6 +55,7 @@ export interface TenantPayload {
   email: string;
   tenantId: string;
   role: string;
+  sessionId: string; // Links to tenant-session:{sessionId} in Redis
   type: typeof TENANT_PAYLOAD_TYPE;
 }
 
@@ -61,6 +64,7 @@ export interface AuthenticatedTenantUser {
   email: string;
   tenantId: string;
   role: string;
+  sessionId: string;
 }
 
 /**
@@ -73,6 +77,7 @@ export interface TenantRefreshPayload {
   sub: string; // userId
   email: string;
   tenantId: string;
+  sessionId: string; // Links to tenant-session:{sessionId} in Redis
   type: typeof TENANT_REFRESH_PAYLOAD_TYPE;
 }
 
@@ -80,5 +85,6 @@ export interface AuthenticatedTenantRefreshUser {
   userId: string;
   email: string;
   tenantId: string;
+  sessionId: string;
   refreshToken: string;
 }

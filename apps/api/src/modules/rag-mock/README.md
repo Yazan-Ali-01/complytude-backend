@@ -10,7 +10,7 @@ The RAG (Retrieval-Augmented Generation) mock provides:
 - **5 seeded rulesets** — UAE Labour Law, DMCC Employment, PDPL, Commercial Transactions, DIFC Employment
 - **Pre-computed embeddings** — Ruleset chunks with vector embeddings for similarity search (either via seed or live ingestion)
 
-The analysis flow: upload contract → worker-ai embeds it → vector search against `ruleset_chunks` → LLM compares contract vs. retrieved rules → returns violations.
+The analysis flow: upload contract → worker-ai embeds it → hybrid search (vector + BM25) against `ruleset_chunks` → Cohere re-rank → LLM compares contract vs. retrieved rules (structured output) → returns violations.
 
 ## Prerequisites
 
@@ -120,7 +120,7 @@ rag-mock/
 └── README.md                     This file
 ```
 
-The controller delegates to `DocumentsService.analyze()`, which creates a `documents` row, an `analysis_jobs` row, and enqueues a job on the `ai-processing` queue. The `worker-ai` picks it up, runs vector similarity search against `ruleset_chunks`, builds a prompt, calls the LLM, and writes results back to `analysis_jobs.result`.
+The controller delegates to `DocumentsService.analyze()`, which creates a `documents` row, an `analysis_jobs` row, and enqueues a job on the `ai-processing` queue. The `worker-ai` picks it up, runs hybrid search (vector + BM25 via RRF) against `ruleset_chunks`, re-ranks via Cohere, builds a prompt, calls the LLM with structured output (JSON Schema), and writes results back to `analysis_jobs.result`.
 
 ## Debugging & Observability
 
@@ -131,8 +131,8 @@ The API exposes **Bull Board** at `http://localhost:3000/admin/queues` for visua
 - `ai-processing` — analysis jobs (pending, active, completed, failed)
 - `data-ingestion` — ruleset ingestion jobs
 - `entitlement-processing` — entitlement async jobs
-
-**Note:** Bull Board is currently unprotected; protect with platform RBAC or basic auth before production.
+- `billing-processing` — billing reconciliation jobs
+- `tenant-processing` — tenant lifecycle jobs
 
 ### Worker Logs
 
@@ -141,7 +141,7 @@ Each worker logs job lifecycle and pipeline stages to stdout:
 **worker-ai** (`DocumentAnalysisService`, `AbstractProcessor`):
 
 - Job started/completed (with job id, attempt, elapsed ms)
-- Pipeline stages: document fetch, chunking, embedding, similarity search, LLM call, result storage
+- Pipeline stages: document fetch, chunking, embedding, hybrid search, re-rank, LLM call, result storage
 - Job failed (retryable vs permanent), exhausted retries, dead letter
 
 **worker-ingestion** (`RulesetIngestionService`, `AbstractProcessor`):

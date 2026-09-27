@@ -223,8 +223,11 @@ export class EntitlementResolverService {
           `Plan data missing for active subscription of tenant ${tenantId}`,
         );
       }
-      // Get all plan entitlements (in-memory)
+
+      // Plan is derived from tenant_subscriptions (source of truth), default to navigator
       const planKey = subscription.plan.key;
+
+      // Get all plan entitlements (in-memory)
       const planEntitlements = getAllPlanEntitlements(planKey);
       const resolved: ResolvedEntitlements = {} as ResolvedEntitlements;
 

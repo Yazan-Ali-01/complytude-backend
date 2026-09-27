@@ -1,32 +1,55 @@
-import { QUEUE_NAMES } from './queue.constants';
 import {
   AI_JOB_NAMES,
   ArabicTranslationJobData,
   DocumentAnalysisJobData,
-  DocumentGenerationJobData,
   TemplateAnalysisJobData,
 } from './interfaces/ai-processing.jobs';
+import {
+  BILLING_JOB_NAMES,
+  DunningEmailJobData,
+  PaymentActionRequiredJobData,
+  StripeReconciliationJobData,
+  StripeWebhookProcessingJobData,
+} from './interfaces/billing-processing.jobs';
 import {
   DocumentIngestionJobData,
   INGESTION_JOB_NAMES,
   RulesetIngestionJobData,
 } from './interfaces/data-ingestion.jobs';
 import {
+  DocumentGenerationJobData,
+  GENERATION_JOB_NAMES,
+} from './interfaces/document-generation.jobs';
+import {
   ENTITLEMENT_JOB_NAMES,
   EntitlementCreditEventJobData,
   EntitlementCreditNotificationJobData,
   EntitlementDomainEventFanoutJobData,
   EntitlementProjectionUpdateJobData,
+  EntitlementQuotaExceededJobData,
   EntitlementSnapshotRebuildJobData,
   EntitlementSubscriptionRenewalJobData,
+  EntitlementTrialExpiryCheckJobData,
+  EntitlementTrialReminderCheckJobData,
+  EntitlementUsageRefundJobData,
 } from './interfaces/entitlement-processing.jobs';
+import {
+  TENANT_JOB_NAMES,
+  TenantStripeCustomerCreationJobData,
+} from './interfaces/tenant-processing.jobs';
+import { QUEUE_NAMES } from './queue.constants';
 
 export interface QueueJobMap {
   [QUEUE_NAMES.AI_PROCESSING]: {
-    [AI_JOB_NAMES.DOCUMENT_GENERATION]: DocumentGenerationJobData;
     [AI_JOB_NAMES.TEMPLATE_ANALYSIS]: TemplateAnalysisJobData;
     [AI_JOB_NAMES.ARABIC_TRANSLATION]: ArabicTranslationJobData;
     [AI_JOB_NAMES.DOCUMENT_ANALYSIS]: DocumentAnalysisJobData;
+  };
+  [QUEUE_NAMES.BILLING_PROCESSING]: {
+    [BILLING_JOB_NAMES.DUNNING_EMAIL]: DunningEmailJobData;
+    [BILLING_JOB_NAMES.PAYMENT_ACTION_REQUIRED]: PaymentActionRequiredJobData;
+    [BILLING_JOB_NAMES.STRIPE_RECONCILIATION]: StripeReconciliationJobData;
+    [BILLING_JOB_NAMES.STRIPE_WEBHOOK_PROCESSING]: StripeWebhookProcessingJobData;
   };
   [QUEUE_NAMES.DATA_INGESTION]: {
     [INGESTION_JOB_NAMES.DOCUMENT_INGESTION]: DocumentIngestionJobData;
@@ -39,6 +62,16 @@ export interface QueueJobMap {
     [ENTITLEMENT_JOB_NAMES.PROJECTION_UPDATE]: EntitlementProjectionUpdateJobData;
     [ENTITLEMENT_JOB_NAMES.SUBSCRIPTION_RENEWAL]: EntitlementSubscriptionRenewalJobData;
     [ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION]: EntitlementCreditNotificationJobData;
+    [ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED]: EntitlementQuotaExceededJobData;
+    [ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK]: EntitlementTrialExpiryCheckJobData;
+    [ENTITLEMENT_JOB_NAMES.TRIAL_REMINDER_CHECK]: EntitlementTrialReminderCheckJobData;
+    [ENTITLEMENT_JOB_NAMES.USAGE_REFUND]: EntitlementUsageRefundJobData;
+  };
+  [QUEUE_NAMES.TENANT_PROCESSING]: {
+    [TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION]: TenantStripeCustomerCreationJobData;
+  };
+  [QUEUE_NAMES.DOCUMENT_GENERATION]: {
+    [GENERATION_JOB_NAMES.DOCUMENT_GENERATION]: DocumentGenerationJobData;
   };
 }
 

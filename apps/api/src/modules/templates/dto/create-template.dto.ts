@@ -5,7 +5,6 @@ import {
   IsArray,
   IsEnum,
   IsNotEmpty,
-  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -140,15 +139,6 @@ export class CreateTemplateDto {
   @IsOptional()
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
 
-  @ApiPropertyOptional({
-    example: { tags: ['employment', 'standard'] },
-    description: 'Additional metadata',
-  })
-  @JsonField()
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, unknown>;
-
   /**
    * File upload validated via custom validators
    * Populated by interceptor with the uploaded file object
@@ -169,7 +159,7 @@ export class CreateTemplateDto {
 // todo: remove later
 /**
  * Update template request DTO
- * Used to update template metadata and create a new version with optional file upload
+ * Used to update template attributes and create a new version with optional file upload
  */
 export class UpdateTemplateDto {
   @ApiPropertyOptional({
@@ -239,12 +229,4 @@ export class UpdateTemplateDto {
   @IsEnum(['active', 'inactive', 'draft', 'deprecated'])
   @IsOptional()
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
-
-  @ApiPropertyOptional({
-    example: {},
-    description: 'Additional metadata',
-  })
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, unknown>;
 }

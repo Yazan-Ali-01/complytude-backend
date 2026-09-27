@@ -8,6 +8,7 @@ import {
   PlanWithEntitlements,
   UpdatePlanRow,
 } from 'src/common/types/entitlement.types';
+import { DEFAULT_CURRENCY } from 'src/common/constants/billing.constant';
 
 type PlanRow = {
   id: string;
@@ -19,7 +20,9 @@ type PlanRow = {
   billing_period: string;
   is_active: boolean;
   sort_order: number;
-  metadata: unknown;
+  stripe_product_id: string | null;
+  stripe_price_id_monthly: string | null;
+  stripe_price_id_annual: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -39,7 +42,7 @@ export class PlansRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, description, price_monthly, price_currency, billing_period, is_active, sort_order, metadata, created_at, updated_at';
+    return 'id, key, name, description, price_monthly, price_currency, billing_period, is_active, sort_order, stripe_product_id, stripe_price_id_monthly, stripe_price_id_annual, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Plan {
@@ -54,7 +57,9 @@ export class PlansRepository extends BaseRepository<
       billing_period: data.billing_period,
       is_active: data.is_active,
       sort_order: data.sort_order,
-      metadata: (data.metadata as Record<string, unknown>) ?? {},
+      stripe_product_id: data.stripe_product_id,
+      stripe_price_id_monthly: data.stripe_price_id_monthly,
+      stripe_price_id_annual: data.stripe_price_id_annual,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -96,9 +101,9 @@ export class PlansRepository extends BaseRepository<
     const query = `
       SELECT
         p.id, p.key, p.name, p.description, p.price_monthly, p.price_currency,
-        p.billing_period, p.is_active, p.sort_order, p.metadata, p.created_at, p.updated_at,
+        p.billing_period, p.is_active, p.sort_order, p.created_at, p.updated_at,
         pe.id as entitlement_id, pe.feature_id, pe.value_bool, pe.value_int, pe.value_text,
-        pe.metadata as entitlement_metadata, pe.created_at as entitlement_created_at,
+        pe.created_at as entitlement_created_at,
         f.key as feature_key
       FROM ${this.tableName} p
       LEFT JOIN public.plan_entitlements pe ON pe.plan_id = p.id
@@ -126,7 +131,6 @@ export class PlansRepository extends BaseRepository<
         value_bool: row.value_bool as boolean | undefined,
         value_int: row.value_int as number | undefined,
         value_text: row.value_text as string | undefined,
-        metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
         created_at: row.entitlement_created_at as Date,
       }));
 
@@ -134,6 +138,59 @@ export class PlansRepository extends BaseRepository<
       ...plan,
       entitlements,
     };
+  }
+
+  /**
+   * Update the Stripe product ID for a plan
+   */
+  async updateStripeProductId(
+    id: string,
+    stripeProductId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET stripe_product_id = $1, updated_at = now() WHERE id = $2`,
+      [stripeProductId, id],
+      options,
+    );
+  }
+
+  /**
+   * Update a Stripe price ID for a plan (monthly or annual)
+   */
+  async updateStripePriceId(
+    id: string,
+    interval: 'monthly' | 'annual',
+    priceId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    const column =
+      interval === 'monthly'
+        ? 'stripe_price_id_monthly'
+        : 'stripe_price_id_annual';
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET ${column} = $1, updated_at = now() WHERE id = $2`,
+      [priceId, id],
+      options,
+    );
+  }
+
+  /**
+   * Find plan by Stripe price ID (monthly or annual)
+   */
+  async findByStripePriceId(
+    stripePriceId: string,
+    options?: QueryOptions,
+  ): Promise<Plan | null> {
+    const result = await this.executeQuery<PlanRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE stripe_price_id_monthly = $1 OR stripe_price_id_annual = $1
+       LIMIT 1`,
+      [stripePriceId],
+      options,
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
   /**
@@ -145,8 +202,8 @@ export class PlansRepository extends BaseRepository<
   ): Promise<Plan> {
     const result = await this.executeQuery<PlanRow>(
       `
-      INSERT INTO ${this.tableName} (key, name, description, price_monthly, price_currency, billing_period, is_active, sort_order, metadata)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO ${this.tableName} (key, name, description, price_monthly, price_currency, billing_period, is_active, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (key) DO UPDATE SET
         name = EXCLUDED.name,
         description = EXCLUDED.description,
@@ -155,7 +212,6 @@ export class PlansRepository extends BaseRepository<
         billing_period = EXCLUDED.billing_period,
         is_active = EXCLUDED.is_active,
         sort_order = EXCLUDED.sort_order,
-        metadata = EXCLUDED.metadata,
         updated_at = now()
       RETURNING ${this.getSelectColumns()}
       `,
@@ -164,11 +220,10 @@ export class PlansRepository extends BaseRepository<
         plan.name,
         plan.description ?? null,
         plan.price_monthly ?? 0,
-        plan.price_currency ?? 'AED',
+        plan.price_currency ?? DEFAULT_CURRENCY,
         plan.billing_period ?? 'monthly',
         plan.is_active ?? true,
         plan.sort_order ?? 0,
-        plan.metadata ?? '{}',
       ],
       options,
     );

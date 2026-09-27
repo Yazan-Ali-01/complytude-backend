@@ -4,9 +4,7 @@ import type { PlanKey } from 'src/common/types/entitlement.types';
 import { ALL_PLAN_KEYS } from '../../../common/constants/plan-entitlements.constant';
 
 /**
- * Change Plan DTO
- *
- * Used for POST /subscriptions/change-plan endpoint
+ * Change Plan DTO — used by POST /billing/plan/change
  */
 export class ChangePlanDto {
   @ApiProperty({

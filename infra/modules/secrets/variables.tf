@@ -96,12 +96,6 @@ variable "jwt_identity_refresh_secret" {
   sensitive   = true
 }
 
-variable "jwt_refresh_hash_secret" {
-  description = "JWT refresh token hash secret"
-  type        = string
-  sensitive   = true
-}
-
 # ---- S3 (from tfvars or IAM role) ----
 variable "s3_region" {
   description = "S3 region"
@@ -140,13 +134,20 @@ variable "cors_origins" {
 }
 
 variable "s3_endpoint" {
-  description = "S3 endpoint URL — empty for AWS S3, set for MinIO/localstack"
+  description = "S3 endpoint URL — empty for AWS S3, set for localstack"
   type        = string
   default     = ""
 }
 
 variable "openai_api_key" {
   description = "OpenAI API key — required for worker-ai and worker-ingestion"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "cohere_api_key" {
+  description = "Cohere API key — required for worker-ai reranking"
   type        = string
   default     = ""
   sensitive   = true
@@ -183,4 +184,91 @@ variable "stripe_tax_enabled" {
   description = "Enable Stripe Tax"
   type        = string
   default     = "false"
+}
+
+# ---- Billing Scheduler ----
+variable "billing_schedule_enabled" {
+  description = "Enable scheduled billing jobs (daily Stripe reconciliation at 3 AM)"
+  type        = bool
+  default     = true
+}
+
+# ---- Email (AWS SES) ----
+variable "aws_region" {
+  description = "AWS region for SES"
+  type        = string
+  default     = "eu-central-1"
+}
+
+variable "from_email" {
+  description = "From email address for sending emails"
+  type        = string
+}
+
+variable "from_name" {
+  description = "From name for sending emails"
+  type        = string
+  default     = "Complytude Billing"
+}
+
+variable "support_email" {
+  description = "Support email address"
+  type        = string
+}
+
+# ---- OAuth2 SSO (optional; empty = disabled in app — keys still present in secret JSON) ----
+variable "google_client_id" {
+  description = "Google OAuth client ID (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth client secret (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "google_callback_url" {
+  description = "Google OAuth redirect URI registered in Google Cloud (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_client_id" {
+  description = "Microsoft OAuth application (client) ID (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_client_secret" {
+  description = "Microsoft OAuth client secret (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "microsoft_callback_url" {
+  description = "Microsoft OAuth redirect URI (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_tenant_id" {
+  description = "Microsoft tenant: 'common' for multi-tenant, or a directory ID"
+  type        = string
+  default     = "common"
+}
+
+variable "sso_frontend_success_path" {
+  description = "Path appended to FRONTEND_URL after successful OAuth (optional)"
+  type        = string
+  default     = "/auth/callback"
+}
+
+variable "sso_frontend_error_path" {
+  description = "Path appended to FRONTEND_URL on OAuth error (optional)"
+  type        = string
+  default     = "/auth/error"
 }

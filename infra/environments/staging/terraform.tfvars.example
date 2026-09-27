@@ -14,7 +14,7 @@ db_password = "CHANGE_ME_USE_A_STRONG_PASSWORD"
 # Bastion — for SSH tunnel to RDS from your machine
 # Create a key pair in EC2 → Key Pairs if needed
 bastion_key_name          = "your-key-pair-name"
-bastion_ssh_allowed_cidrs = ["YOUR_IP/32"]  # curl -s ifconfig.me to get your IP
+bastion_ssh_allowed_cidrs = ["87.200.134.56/32"]  # curl -s ifconfig.me to get your IP
 
 # ---- Secrets Manager (application secrets) ----
 # App DB: use app_login (production-like) — run setup-app-user-role.sql via bastion first
@@ -30,7 +30,6 @@ jwt_access_secret           = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 jwt_refresh_secret         = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 jwt_identity_secret        = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 jwt_identity_refresh_secret = "CHANGE_ME_GENERATE_WITH_OPENSSL"
-jwt_refresh_hash_secret    = "CHANGE_ME_GENERATE_WITH_OPENSSL"
 
 # S3 — create IAM user with S3 permissions, or leave empty for ECS task role
 s3_access_key = ""
@@ -38,10 +37,38 @@ s3_secret_key = ""
 s3_endpoint   = ""  # Empty for AWS S3
 
 # CORS — comma-separated origins
-cors_origins = "https://staging.complytude.com"
+cors_origins = "https://api-staging.complytude.com"
 
 # OpenAI — required for worker-ai and worker-ingestion
 openai_api_key = "sk-..."
+
+# Cohere — required for worker-ai reranking
+cohere_api_key = ""
+
+# ---- Worker AI Configuration ----
+worker_ai_concurrency         = 5
+worker_ai_max_retries         = 3
+worker_ai_retry_delay         = 5000
+worker_ai_max_processing_time = 300000
+
+openai_chat_model       = "gpt-4o-mini"
+openai_chat_max_tokens  = 4096
+openai_chat_temperature = 0.1
+openai_chat_timeout     = 120000
+
+openai_embedding_model      = "text-embedding-3-small"
+openai_embedding_dimensions = 1536
+openai_max_retries          = 3
+embedding_chunk_size        = 512
+embedding_chunk_overlap     = 50
+
+cohere_rerank_model = "rerank-v3.5"
+rerank_top_n        = 25
+
+rag_top_k_per_query    = 5
+rag_vector_limit       = 30
+rag_bm25_limit         = 30
+rag_max_hybrid_results = 40
 
 # ECS — image tag and desired counts
 ecs_image_tag                  = "latest"
@@ -49,5 +76,24 @@ ecs_api_desired_count          = 1
 ecs_worker_ai_desired_count    = 1
 ecs_worker_ingestion_desired_count = 1
 
+# Email (AWS SES) — for dunning and notifications
+from_email    = "billing@complytude.com"
+from_name     = "Complytude Company Billing"
+support_email = "support@complytude.com"
+
+# Billing Scheduler — enables daily Stripe reconciliation at 3 AM
+billing_schedule_enabled = true
+
+# OAuth2 SSO (optional — leave empty to disable)
+# google_client_id     = ""
+# google_client_secret = ""
+# google_callback_url  = "https://api-staging.complytude.com/api/v1/auth/google/callback"
+# microsoft_client_id     = ""
+# microsoft_client_secret = ""
+# microsoft_callback_url  = "https://api-staging.complytude.com/api/v1/auth/microsoft/callback"
+# microsoft_tenant_id     = "common"
+# sso_frontend_success_path = "/auth/callback"
+# sso_frontend_error_path   = "/auth/error"
+
 # Monitoring — email for CloudWatch alarms (must confirm SNS subscription after first apply)
-alarm_email = "your-email@example.com"
+alarm_email = "yazan.ali.dev@gmail.com"

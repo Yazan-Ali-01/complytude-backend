@@ -857,7 +857,7 @@ matchPermission('*:read', 'documents:create') // ❌ false
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and authentication flow
 - **[DATABASE.md](DATABASE.md)** - Complete database schema including RBAC tables
 - **[API_CONTRACTS.md](../apps/api/docs/API_CONTRACTS.md)** - API authentication and authorization patterns
-- **[nest-js.mdc](../.cursor/rules/nest-js.mdc)** - NestJS RBAC implementation guidelines
+- **[CLAUDE.md](../CLAUDE.md)** - RBAC usage conventions (guards, decorators, adding permissions)
 
 ---
 

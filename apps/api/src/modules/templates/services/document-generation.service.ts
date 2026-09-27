@@ -1,316 +1,154 @@
 import {
-  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { Readable } from 'stream';
+import { StorageService } from '../../storage/storage.service';
+import { TEMPLATE_PLACEHOLDER_DELIMITERS } from '../constants/template.constants';
 
-import {
-  GenerateDocumentDto,
-  GenerateDocumentResponseDto,
-} from '../dto/generate-document.dto';
+interface DocxtemplaterRenderError {
+  message: string;
+  properties?: {
+    errors?: Array<{ message: string; name: string }>;
+    explanation?: string;
+  };
+}
 
-import { DatabaseService } from '@lib/database';
-import { StorageService } from 'src/modules/storage/storage.service';
-import { TemplateVersionsService } from 'src/modules/templates/template-versions.service';
-import { TemplatesService } from 'src/modules/templates/templates.service';
-import { TenantService } from 'src/modules/tenants/tenant.service';
-import { I18nService } from 'nestjs-i18n';
+export interface RenderResult {
+  buffer: Buffer;
+  templateId: string;
+  version: string;
+}
 
-import { ValidationException } from 'src/common/exceptions/validation.exception';
-import { TemplatesI18n } from '../constants/i18n.constants';
-import { TEMPLATE_PLACEHOLDER_DELIMITERS } from 'src/modules/templates/constants/template.constants';
-import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
-import { Template } from 'src/modules/templates/entities/template.entity';
-import { TemplateValidationService } from './template-validation.service';
+/**
+ * Core document rendering service.
+ *
+ * Responsibility: given a DOCX template buffer + a validated variable map,
+ * produce a fully-rendered DOCX buffer using docxtemplater.
+ *
+ * Two entry points:
+ * - `renderBuffer` — pure, synchronous (no I/O). Useful for previews when
+ *   the caller already has the template bytes.
+ * - `render` — async full-pipeline: fetches the template from S3, then
+ *   delegates to `renderBuffer`.
+ */
 @Injectable()
 export class DocumentGenerationService {
   private readonly logger = new Logger(DocumentGenerationService.name);
 
-  constructor(
-    private readonly templatesService: TemplatesService,
-    private readonly templateVersionsService: TemplateVersionsService,
-    private readonly storageService: StorageService,
-    private readonly databaseService: DatabaseService,
-    private readonly tenantService: TenantService,
-    private readonly templateValidationService: TemplateValidationService,
-    private readonly i18n: I18nService,
-  ) {}
+  constructor(private readonly storageService: StorageService) {}
 
   /**
-   * Convert Readable stream to Buffer
-   * Uses async iteration for efficient memory handling
+   * Renders a DOCX buffer with the supplied variable map.
+   *
+   * Variables that are missing from the map are silently replaced with an
+   * empty string — required-field validation must happen upstream (via
+   * VariableValidationService) before calling this method.
+   *
+   * @throws InternalServerErrorException if the buffer is not a valid ZIP/DOCX.
+   * @throws InternalServerErrorException if docxtemplater fails to render.
    */
-  private async streamToBuffer(stream: Readable): Promise<Buffer> {
-    const chunks: Buffer[] = [];
-
-    for await (const chunk of stream) {
-      chunks.push(chunk as Buffer);
-    }
-
-    return Buffer.concat(chunks);
-  }
-
-  /**
-   * Validate template and its version
-   * Ensures template is active and has a current version
-   * Validates user variables against template field definitions
-   */
-  private async validateTemplateAndVersion(
-    templateKey: string,
-    variables: Record<string, unknown>,
-  ): Promise<{ template: Template; templateVersion: TemplateVersion }> {
-    const template: Template =
-      await this.templatesService.findByKey(templateKey);
-
-    if (template.status !== 'active') {
-      throw new BadRequestException(`Template ${template.key} is not active`);
-    }
-
-    const templateVersion: TemplateVersion | null =
-      await this.templateVersionsService.getCurrentVersion(template.id);
-
-    if (!templateVersion) {
-      throw new NotFoundException(
-        `No active version found for template ${template.key}`,
-      );
-    }
-
-    const validationResult = this.templateValidationService.validateVariables(
-      templateVersion.fields,
-      variables,
-    );
-
-    if (!validationResult.valid) {
-      throw new ValidationException(validationResult.errors || []);
-    }
-
-    return { template, templateVersion };
-  }
-
-  /**
-   * Fetch template file from storage and convert to buffer
-   */
-  private async fetchTemplateFile(
-    templateId: string,
-    version: string,
-  ): Promise<Buffer> {
-    try {
-      const templateFileStream = await this.storageService.getTemplateFile(
-        templateId,
-        version,
-      );
-
-      return await this.streamToBuffer(templateFileStream);
-    } catch (error) {
-      this.logger.error(
-        `Failed to fetch template file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw new NotFoundException(
-        this.i18n.t(TemplatesI18n.errors.TEMPLATE_FILE_NOT_FOUND),
-      );
-    }
-  }
-
-  /**
-   * Process document template with provided variables
-   * Sanitizes errors to avoid exposing internal template structure
-   */
-  private processDocumentTemplate(
+  renderBuffer(
     templateBuffer: Buffer,
     variables: Record<string, unknown>,
   ): Buffer {
+    let zip: PizZip;
     try {
-      // loading our file to PizZip to load it into the memory
-      const zip = new PizZip(templateBuffer);
-      // creating a new docxtemplater instance
-      const doc = new Docxtemplater(zip, {
+      zip = new PizZip(templateBuffer);
+    } catch (err) {
+      this.logger.error(
+        'Failed to parse DOCX buffer as ZIP — template may be corrupt',
+        err instanceof Error ? err.stack : String(err),
+      );
+      throw new InternalServerErrorException(
+        'Template file is corrupt or not a valid DOCX',
+      );
+    }
+
+    let doc: Docxtemplater;
+    try {
+      doc = new Docxtemplater(zip, {
         delimiters: TEMPLATE_PLACEHOLDER_DELIMITERS,
         paragraphLoop: true,
         linebreaks: true,
+        nullGetter: () => '',
       });
-
-      doc.setData(variables);
-      doc.render();
-
-      return doc.toBuffer();
-    } catch (error) {
+    } catch (err) {
       this.logger.error(
-        `Failed to process document template: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error instanceof Error ? error.stack : undefined,
+        'Failed to initialize docxtemplater',
+        err instanceof Error ? err.stack : String(err),
       );
-      throw new BadRequestException(
-        this.i18n.t(TemplatesI18n.errors.FAILED_TO_RENDER_DOCUMENT),
+      throw new InternalServerErrorException(
+        'Failed to initialize template renderer',
       );
     }
+
+    try {
+      doc.render(variables);
+    } catch (err) {
+      const dtErr = err as DocxtemplaterRenderError;
+      const details =
+        dtErr.properties?.errors?.map((e) => e.message).join('; ') ??
+        dtErr.properties?.explanation ??
+        dtErr.message;
+      this.logger.error(`Template rendering failed: ${details}`);
+      throw new InternalServerErrorException('Document rendering failed');
+    }
+
+    return doc.getZip().generate({ type: 'nodebuffer' }) as Buffer;
   }
 
   /**
-   * Save generated document with transaction safety
-   * Uploads file to S3 and stores metadata in database
-   * Rolls back file upload if metadata save fails
+   * Fetches a template file from S3 by templateId + version, then renders it.
+   *
+   * NotFoundException from StorageService propagates unchanged so the caller
+   * can return a 404 without extra wrapping.
    */
-  private async saveGeneratedDocument(
-    tenantId: string,
-    userId: string,
-    template: Template,
-    templateVersion: TemplateVersion,
-    outputBuffer: Buffer,
+  async render(
+    templateId: string,
+    version: string,
     variables: Record<string, unknown>,
-  ): Promise<{ documentId: string; downloadUrl: string }> {
-    let uploadedFileKey: string | null = null;
+  ): Promise<RenderResult> {
+    this.logger.log(
+      `Rendering template: templateId=${templateId} version=${version}`,
+    );
 
-    try {
-      // Generate filename with timestamp
-      const timestamp = Date.now();
-      const filename = `${userId}_${template.key}_${timestamp}.docx`;
+    const stream = await this.storageService.getTemplateFile(
+      templateId,
+      version,
+    );
 
-      // Upload file to S3
-      const uploadResult = await this.storageService.uploadFile(
-        tenantId,
-        outputBuffer,
-        filename,
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        userId,
-      );
-      uploadedFileKey = uploadResult.key;
+    const templateBuffer = await this.streamToBuffer(stream);
+    const buffer = this.renderBuffer(templateBuffer, variables);
 
-      // Generate signed URL
-      const downloadUrl = await this.storageService.generateSignedUrl(
-        tenantId,
-        uploadResult.key,
-      );
+    this.logger.log(
+      `Template rendered: templateId=${templateId} version=${version} outputBytes=${buffer.length}`,
+    );
 
-      // Prepare metadata
-      const documentMetadata = {
-        size: uploadResult.size,
-        contentType: uploadResult.contentType,
-        filename: filename,
-      };
-
-      const generationMetadata = {
-        variables: variables,
-        generatedAt: new Date().toISOString(),
-        templateId: template.id,
-      };
-
-      // Store document metadata in public.documents table with RLS
-      await this.databaseService.transactionWithTenantContext(
-        { tenantId },
-        async (client) => {
-          await client.query(
-            `INSERT INTO public.documents (
-              id, tenant_id, title, content, metadata,
-              template_key, template_version, generation_metadata, created_by, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-            [
-              uploadResult.key,
-              tenantId,
-              `${template.name || template.key} - Generated Document`,
-              null,
-              JSON.stringify(documentMetadata),
-              template.key,
-              templateVersion.version,
-              JSON.stringify(generationMetadata),
-              userId,
-            ],
-          );
-        },
-      );
-
-      return { documentId: uploadResult.key, downloadUrl };
-    } catch (error) {
-      // Rollback: delete uploaded file if metadata insert failed
-      if (uploadedFileKey) {
-        try {
-          await this.storageService.deleteFile(tenantId, uploadedFileKey);
-        } catch (deleteError) {
-          this.logger.warn(
-            `Failed to cleanup orphaned file: ${uploadedFileKey}`,
-            deleteError instanceof Error ? deleteError.stack : undefined,
-          );
-        }
-      }
-
-      this.logger.error(
-        `Failed to save generated document: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw new InternalServerErrorException(
-        this.i18n.t(TemplatesI18n.errors.FAILED_TO_SAVE_GENERATED_DOCUMENT),
-      );
-    }
+    return { buffer, templateId, version };
   }
 
-  async generateDocument(
-    tenantId: string,
-    userId: string,
-    key: string,
-    generateDocumentDto: GenerateDocumentDto,
-  ): Promise<GenerateDocumentResponseDto> {
-    try {
-      // 1. Validate template and version
-      const {
-        template,
-        templateVersion,
-      }: { template: Template; templateVersion: TemplateVersion } =
-        await this.validateTemplateAndVersion(
-          key,
-          generateDocumentDto.variables,
+  private streamToBuffer(stream: Readable): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      stream.on('data', (chunk: Buffer | string) =>
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
+      );
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', (err) => {
+        this.logger.error(
+          'Error reading template stream from storage',
+          err instanceof Error ? err.stack : String(err),
         );
-
-      // 2. Fetch template file
-      const templateBuffer = await this.fetchTemplateFile(
-        template.id,
-        templateVersion.version,
-      );
-
-      // 3. Process document
-      const outputBuffer = this.processDocumentTemplate(
-        templateBuffer,
-        generateDocumentDto.variables,
-      );
-
-      // 4. Save with transaction safety
-      const { documentId, downloadUrl } = await this.saveGeneratedDocument(
-        tenantId,
-        userId,
-        template,
-        templateVersion,
-        outputBuffer,
-        generateDocumentDto.variables,
-      );
-
-      // 5. Return response
-      return {
-        documentId,
-        downloadUrl,
-        templateKey: template.key,
-        templateVersion: templateVersion.version,
-        generatedAt: new Date(),
-      };
-    } catch (error) {
-      // specific business errors pass through
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException ||
-        error instanceof ValidationException
-      ) {
-        throw error;
-      }
-      // Generic error for everything else
-      this.logger.error(
-        'Document generation failed',
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw new InternalServerErrorException(
-        this.i18n.t(TemplatesI18n.errors.FAILED_TO_GENERATE_DOCUMENT),
-      );
-    }
+        reject(
+          new InternalServerErrorException(
+            'Failed to read template file from storage',
+          ),
+        );
+      });
+    });
   }
 }

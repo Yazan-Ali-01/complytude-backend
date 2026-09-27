@@ -1,5 +1,6 @@
 import { databaseEnvSchema } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
+import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
 
@@ -26,6 +27,17 @@ export const validationSchema = Joi.object({
   OPENAI_CHAT_TEMPERATURE: Joi.number().default(0.1),
   OPENAI_CHAT_TIMEOUT: Joi.number().default(120000),
 
+  // Cohere Re-ranking
+  COHERE_API_KEY: Joi.string().required(),
+  COHERE_RERANK_MODEL: Joi.string().default('rerank-v3.5'),
+  RERANK_TOP_N: Joi.number().default(25),
+
+  // RAG Retrieval Tuning
+  RAG_TOP_K_PER_QUERY: Joi.number().default(5),
+  RAG_VECTOR_LIMIT: Joi.number().default(30),
+  RAG_BM25_LIMIT: Joi.number().default(30),
+  RAG_MAX_HYBRID_RESULTS: Joi.number().default(40),
+
   // Resource Limits
   WORKER_AI_MEMORY_LIMIT: Joi.string().default('2GB'),
   WORKER_AI_CPU_LIMIT: Joi.string().default('2'),
@@ -35,6 +47,9 @@ export const validationSchema = Joi.object({
 
   // Embedding (OpenAI)
   ...embeddingEnvSchema,
+
+  // Logging
+  ...loggerEnvSchema,
 
   // Redis (for BullMQ)
   ...redisEnvSchema,

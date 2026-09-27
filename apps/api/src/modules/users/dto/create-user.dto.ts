@@ -19,7 +19,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'User password (minimum 8 characters)',
-    example: 'SecurePassword123!',
+    example: 'Test123!@#',
     minLength: 8,
   })
   @IsString()

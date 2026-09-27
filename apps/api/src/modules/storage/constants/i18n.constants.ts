@@ -25,6 +25,8 @@ export const StorageI18n = {
     FILE_SIZE_EXCEEDS_MAX: 'storage.errors.FILE_SIZE_EXCEEDS_MAX',
     FILE_TYPE_NOT_ALLOWED: 'storage.errors.FILE_TYPE_NOT_ALLOWED',
     FILE_EXTENSION_MISMATCH: 'storage.errors.FILE_EXTENSION_MISMATCH',
+    QUARANTINE_OBJECT_CHECK_FAILED:
+      'storage.errors.QUARANTINE_OBJECT_CHECK_FAILED',
   },
   messages: {},
 } as const;

@@ -1,1 +1,32 @@
+if git diff --cached --name-only | grep -q 'package\.json'; then
+  if ! git diff --cached --name-only | grep -q 'pnpm-lock\.yaml'; then
+    DEPS_CHANGED=$(node <<'NODESCRIPT'
+const { execSync } = require('child_process');
+const files = execSync('git diff --cached --name-only', { encoding: 'utf8' })
+  .trim().split('\n').filter(f => f.endsWith('package.json'));
+const depFields = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies', 'overrides', 'pnpm'];
+let changed = false;
+for (const file of files) {
+  try {
+    const staged = JSON.parse(execSync('git show :' + file, { encoding: 'utf8' }));
+    let head;
+    try { head = JSON.parse(execSync('git show HEAD:' + file, { encoding: 'utf8' })); }
+    catch { changed = true; break; }
+    if (depFields.some(f => JSON.stringify(staged[f]) !== JSON.stringify(head[f]))) {
+      changed = true;
+      break;
+    }
+  } catch { changed = true; break; }
+}
+process.stdout.write(changed ? 'true' : 'false');
+NODESCRIPT
+    )
+    if [ "$DEPS_CHANGED" = "true" ]; then
+      echo "ERROR: package.json dependencies changed but pnpm-lock.yaml is not staged."
+      echo "Run 'pnpm install' and stage the updated lockfile."
+      exit 1
+    fi
+  fi
+fi
+
 pnpm type-check && pnpm lint-staged

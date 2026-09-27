@@ -13,7 +13,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PoolClient } from 'pg';
-import { getFeatureDefinition } from '../../../common/constants/plan-entitlements.constant';
+import {
+  FeatureKey,
+  getFeatureDefinition,
+} from '../../../common/constants/plan-entitlements.constant';
 import {
   AllocationResolution,
   BuildProjectionJobInput,
@@ -35,6 +38,7 @@ import { UsageLedgerRepository } from '../../../repositories/usage/usage-ledger.
 import { buildUsageRecordedEvent } from '../utils/usage-event-payload.util';
 import { CreditLedgerService } from './credit-ledger.service';
 import { DomainEventsService } from './domain-events.service';
+import { EntitlementCacheService } from './entitlement-cache.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
@@ -75,8 +79,8 @@ class EntitlementDeniedException extends Error {
  * 5. Record usage with source attribution
  * 6. Emit domain events
  *
- * TODO: BullMQ - After denial, emit quota.exceeded event to queue for
- * async notification (email/webhook to tenant admin with upgrade prompt).
+ * todo: add new ticket for quota.exceeded async notification (email/webhook to tenant admin) is
+ * tracked as a separate feature and is out of scope for this epic.
  */
 @Injectable()
 export class EntitlementEnforcementService {
@@ -95,8 +99,81 @@ export class EntitlementEnforcementService {
     private readonly usageLedgerRepository: UsageLedgerRepository,
     private readonly configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
+    private readonly entitlementCache: EntitlementCacheService,
   ) {}
 
+  /**
+   * Read current projected usage and limit for a capacity/quota feature without
+   * writing to the ledger or projection. Use this for pre-flight checks where
+   * you need the same source of truth as `checkAndRecord` but must not consume
+   * a unit (e.g. checking seat availability before creating an invitation).
+   */
+  async peekUsage(
+    input: { tenantId: string; featureKey: FeatureKey },
+    options?: QueryOptions,
+  ): Promise<{ used: number; limit: number }> {
+    const execute = async (client: PoolClient) => {
+      const entitlement = await this.entitlementResolver.resolveForTenant(
+        input.tenantId,
+        input.featureKey,
+        { client },
+      );
+      if (!entitlement) {
+        throw new NotFoundException(`Feature not found: ${input.featureKey}`);
+      }
+      const subscription =
+        await this.subscriptionsRepository.findActiveByTenant(input.tenantId, {
+          client,
+        });
+      if (!subscription) {
+        throw new NotFoundException(
+          `No active subscription for tenant: ${input.tenantId}`,
+        );
+      }
+      const usage = await this.usageProjectionService.getCurrentUsage(
+        input.tenantId,
+        subscription.id,
+        input.featureKey,
+        { client },
+      );
+      return {
+        used: usage?.total_units ?? 0,
+        limit: entitlement.value_int ?? 0,
+      };
+    };
+
+    return options?.client
+      ? execute(options.client)
+      : this.databaseService.transactionWithTenantContext(
+          { tenantId: input.tenantId },
+          execute,
+        );
+  }
+
+  /**
+   * Check entitlement and record usage (with credit fallback if applicable)
+   *
+   * This is the main entry point for runtime enforcement. It orchestrates:
+   * 1. Entitlement resolution
+   * 2. Usage quota checking
+   * 3. Credit fallback for creditable features
+   * 4. Usage recording with source attribution
+   * 5. Domain event emission
+   *
+   * All operations run in a single transaction for atomicity.
+   *
+   * @param input - Input data
+   *   tenantId - Tenant ID
+   *   featureKey - Feature key to check and record
+   *   userId - User ID (optional)
+   *   units - Number of units to consume (default 1)
+   *   metadata - Additional metadata for usage event
+   * @param options - Query options (optional client for shared transactions)
+   *   client - Client for shared transactions
+   * @returns Check result with allowed flag, source, and remaining info
+   *   result - Check result
+   *   projectionJob - Projection job data
+   */
   async checkAndRecord(
     input: CheckAndRecordInput,
     options?: QueryOptions,
@@ -151,17 +228,16 @@ export class EntitlementEnforcementService {
         );
       }
 
-      // Step 4: Handle rate_limit features (future implementation)
+      // Step 4: Handle rate_limit features — deny until implemented
+      // Previously treated as unlimited (revenue risk). Now explicitly denied.
       if (entitlement.feature_type === 'rate_limit') {
-        // TODO: Implement rate limit enforcement
-        // For now, treat as unlimited
         this.logger.warn(
-          `Rate limit enforcement not yet implemented for ${featureKey}`,
+          `Rate limit enforcement not yet implemented for ${featureKey} — denying access`,
         );
         return {
           result: {
-            allowed: true,
-            source: entitlement.source,
+            allowed: false,
+            reason: 'rate_limit_not_implemented',
           },
         };
       }
@@ -205,17 +281,68 @@ export class EntitlementEnforcementService {
   ): Promise<EnforceResult> {
     const { tenantId, featureKey, entitlement, userId, units, metadata } =
       input;
-    const subscription = await this.subscriptionsRepository.findActiveByTenant(
-      tenantId,
-      { client },
-    );
+    // Try to get subscription from cache first
+    const cachedSubscription = this.entitlementCache.getSubscription(tenantId);
+    let subscription;
+    if (!cachedSubscription) {
+      // Cache miss - fetch from database and cache
+      const dbSubscription =
+        await this.subscriptionsRepository.findCurrentByTenant(tenantId, {
+          client,
+        });
+      if (!dbSubscription) {
+        throw new NotFoundException(
+          `No active subscription for tenant: ${tenantId}`,
+        );
+      }
 
-    if (!subscription) {
-      throw new NotFoundException(
-        `No active subscription for tenant: ${tenantId}`,
-      );
+      // Cache the subscription
+      this.entitlementCache.setSubscription(tenantId, {
+        id: dbSubscription.id,
+        tenant_id: dbSubscription.tenant_id,
+        plan_id: dbSubscription.plan_id,
+        status: dbSubscription.status,
+        current_period_start: dbSubscription.current_period_start,
+        current_period_end: dbSubscription.current_period_end,
+      });
+      subscription = dbSubscription;
+    } else {
+      // Use cached subscription data
+      subscription = cachedSubscription;
     }
 
+    // Try to get feature from cache first
+    const cachedFeature = this.entitlementCache.getFeature(featureKey);
+    let feature;
+    if (!cachedFeature) {
+      // Cache miss - fetch from database and cache
+      const dbFeature = await this.featuresRepository.findByKey(featureKey, {
+        client,
+      });
+      if (!dbFeature) {
+        throw new NotFoundException(`Feature not found: ${featureKey}`);
+      }
+
+      // Cache the feature
+      this.entitlementCache.setFeature(featureKey, {
+        id: dbFeature.id,
+        key: featureKey,
+        name: dbFeature.name,
+        feature_type: dbFeature.feature_type,
+        is_active: dbFeature.is_active,
+        credit_cost: dbFeature.credit_cost,
+      });
+      feature = dbFeature;
+    } else {
+      // Use cached feature data
+      feature = cachedFeature;
+    }
+
+    if (!feature.is_active) {
+      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
+    }
+
+    /* eslint-disable @typescript-eslint/no-unsafe-argument -- subscription/feature from findCurrentByTenantWithPlan */
     const usage = await this.usageProjectionService.getCurrentUsage(
       tenantId,
       subscription.id,
@@ -225,17 +352,8 @@ export class EntitlementEnforcementService {
 
     const limit = entitlement.value_int ?? 0;
     const used = usage?.total_units ?? 0;
-    const feature = await this.featuresRepository.findByKey(featureKey, {
-      client,
-    });
-    if (!feature) {
-      throw new NotFoundException(`Feature not found: ${featureKey}`);
-    }
-    if (!feature.is_active) {
-      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
-    }
     const billingPeriod = deriveBillingPeriod(
-      subscription.current_period_start,
+      subscription.current_period_start as Date,
     );
 
     // Unlimited -> always async path (no strict CAS needed).
@@ -971,7 +1089,24 @@ export class EntitlementEnforcementService {
       { client },
     );
 
-    // TODO: BullMQ - Emit quota.exceeded event to queue for async notification
-    // (email/webhook to tenant admin with upgrade prompt)
+    try {
+      await this.queueProducer.enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED,
+        {
+          tenantId,
+          featureKey,
+          requestedUnits: units,
+          limit,
+          used,
+          reason,
+        },
+        { attempts: 3, backoff: { type: 'exponential', delay: 500 } },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[quota.exceeded] Failed to enqueue notification: tenant=${tenantId} feature=${featureKey} — ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 }

@@ -10,7 +10,6 @@
 #
 # Usage:
 #   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-#   Or: pnpm docker:dev
 # ============================================
 
 services:
@@ -29,8 +28,10 @@ services:
       # Override for Docker networking
       DB_HOST: postgres
       DB_PORT: 5432
-      S3_ENDPOINT: http://minio:9000
       REDIS_HOST: redis
+      GOTENBERG_URL: http://gotenberg:3000
+      LOG_LEVEL: debug
+      SERVICE_NAME: gateway
     ports:
       - '${PORT:-3000}:3000'
     volumes:
@@ -45,8 +46,6 @@ services:
       - /app/node_modules
     depends_on:
       postgres:
-        condition: service_healthy
-      minio:
         condition: service_healthy
       redis:
         condition: service_healthy

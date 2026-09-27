@@ -8,6 +8,7 @@
  */
 
 import { FeatureType } from '../constants/entitlement-constants';
+import { DEFAULT_CURRENCY } from './billing.constant';
 
 // =========================
 // FEATURE DEFINITIONS
@@ -138,6 +139,16 @@ export const FEATURE_CATALOG = {
     storage_type: 'bool',
     description: 'Export reports with tenant branding',
   },
+  document_scans: {
+    name: 'Document Scans',
+    feature_type: 'quota',
+    storage_type: 'int',
+    unit: 'scans',
+    creditable: true,
+    credit_cost: 5,
+    description:
+      'Number of document file scans (Textract extraction) per billing period',
+  },
 } as const satisfies Record<string, FeatureCatalogEntry>;
 
 export type FeatureKey = keyof typeof FEATURE_CATALOG;
@@ -169,15 +180,15 @@ export const PLAN_CATALOG = {
     name: 'Navigator',
     description: 'Lead magnet — Regulatory Watch + basic Chat with Law',
     price_monthly: 0,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 1,
   },
   shield: {
     name: 'Shield',
     description: 'Solo entrepreneurs — Essential templates + basic analysis',
-    price_monthly: 249,
-    price_currency: 'AED',
+    price_monthly: 349,
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 2,
   },
@@ -185,7 +196,7 @@ export const PLAN_CATALOG = {
     name: 'General Counsel',
     description: 'Active SMEs — Full library + Jais-native Arabic + redlining',
     price_monthly: 599,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 3,
   },
@@ -193,7 +204,7 @@ export const PLAN_CATALOG = {
     name: 'Infrastructure',
     description: 'Agencies — Silo isolation + custom playbooks + white-label',
     price_monthly: 2499,
-    price_currency: 'AED',
+    price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
     sort_order: 4,
   },
@@ -205,6 +216,19 @@ export type PlanKey = keyof typeof PLAN_CATALOG;
  * Runtime array of all plan keys (for DTO validators)
  */
 export const ALL_PLAN_KEYS = Object.keys(PLAN_CATALOG) as PlanKey[]; // Safe: Object.keys returns string[], but catalog keys are PlanKey
+
+/**
+ * Plan with key (for catalog sync / iteration)
+ */
+export type PlanDefinition = { key: PlanKey } & PlanCatalogEntry;
+
+/**
+ * All plans as array (for Stripe catalog sync etc.)
+ */
+export const ALL_PLANS: PlanDefinition[] = ALL_PLAN_KEYS.map((key) => ({
+  key,
+  ...PLAN_CATALOG[key],
+}));
 
 // =========================
 // PLAN ENTITLEMENTS
@@ -242,6 +266,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'shared' },
     custom_playbooks: { value_bool: false },
     white_label_exports: { value_bool: false },
+    document_scans: { value_int: 0 },
   },
   shield: {
     documents_per_month: { value_int: 25 },
@@ -259,6 +284,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'shared' },
     custom_playbooks: { value_bool: false },
     white_label_exports: { value_bool: false },
+    document_scans: { value_int: 10 },
   },
   general_counsel: {
     documents_per_month: { value_int: 100 },
@@ -276,6 +302,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'row_level' },
     custom_playbooks: { value_bool: false },
     white_label_exports: { value_bool: false },
+    document_scans: { value_int: 50 },
   },
   infrastructure: {
     documents_per_month: { value_int: -1 }, // unlimited
@@ -293,6 +320,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'silo' },
     custom_playbooks: { value_bool: true },
     white_label_exports: { value_bool: true },
+    document_scans: { value_int: -1 }, // unlimited
   },
 };
 

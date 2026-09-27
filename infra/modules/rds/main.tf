@@ -32,7 +32,8 @@ resource "aws_db_instance" "main" {
   # Networking
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [var.security_group_id]
-  publicly_accessible    = false # Only reachable from within the VPC
+  # false = no public IP; use bastion SSH tunnel or VPC-only clients
+  publicly_accessible = false
 
   # Backups — keep 7 days of automated backups
   backup_retention_period = 1

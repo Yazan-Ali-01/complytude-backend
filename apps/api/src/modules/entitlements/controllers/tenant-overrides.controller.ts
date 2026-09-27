@@ -11,13 +11,14 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
-import { EntitlementsI18n } from '../constants/i18n.constants';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
+import { Audit } from '../../../common/decorators/audit.decorator';
 import { MessageResponseDto } from '../../../common/dto';
 import { AuthOptions } from '../../auth/decorators/auth-options.decorator';
 import { CurrentUserIdentity } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedIdentityUser } from '../../auth/strategies/jwt-payload.interface';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 import {
   ApplyOverrideDto,
   OverrideResponseDto,
@@ -59,6 +60,10 @@ export class TenantOverridesController {
   }
 
   @Post()
+  @Audit('OVERRIDE_CREATED', {
+    resourceIdParam: 'tenantId',
+    resourceType: 'overrides',
+  })
   @ApiOperation({ summary: '[ADMIN] Apply entitlement override' })
   @ApiParam({ name: 'tenantId', description: 'Target tenant ID' })
   @ApiResponse({
@@ -82,6 +87,10 @@ export class TenantOverridesController {
   }
 
   @Patch(':id')
+  @Audit('OVERRIDE_UPDATED', {
+    resourceIdParam: 'id',
+    resourceType: 'overrides',
+  })
   @ApiOperation({ summary: '[ADMIN] Update entitlement override' })
   @ApiParam({ name: 'tenantId', description: 'Target tenant ID' })
   @ApiParam({ name: 'id', description: 'Override ID' })
@@ -106,6 +115,10 @@ export class TenantOverridesController {
   }
 
   @Delete(':id')
+  @Audit('OVERRIDE_REVOKED', {
+    resourceIdParam: 'id',
+    resourceType: 'overrides',
+  })
   @ApiOperation({ summary: '[ADMIN] Revoke entitlement override' })
   @ApiParam({ name: 'tenantId', description: 'Target tenant ID' })
   @ApiParam({ name: 'id', description: 'Override ID' })

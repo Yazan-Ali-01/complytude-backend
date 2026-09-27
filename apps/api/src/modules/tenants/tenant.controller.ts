@@ -20,25 +20,38 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { I18nService } from 'nestjs-i18n';
 import { RequireEntitlement } from 'src/common/decorators/require-entitlement.decorator';
 import { RequireAnyTenantPermission } from 'src/common/decorators/tenant-permissions.decorator';
 import { EntitlementGuard } from 'src/common/guards/entitlement.guard';
 import { TenantPermissionsGuard } from 'src/common/guards/tenant-permissions.guard';
+import { VerifiedUserGuard } from 'src/common/guards/verified-user.guard';
 import { FastifyMultipartInterceptor } from 'src/common/interceptors/fastify-multipart.interceptor';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
+import { Audit } from '../../common/decorators/audit.decorator';
 import type { MulterLikeFile } from '../../common/interfaces/multer-file.interface';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
-import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
-import type { AuthenticatedTenantUser } from '../auth/strategies';
-import { TenantResponseDto } from './dto/tenant-response.dto';
+import {
+  CurrentUserIdentity,
+  CurrentUserTenant,
+} from '../auth/decorators/current-user.decorator';
+import type {
+  AuthenticatedIdentityUser,
+  AuthenticatedTenantUser,
+} from '../auth/strategies';
+import { TRIAL_CONFIG } from 'src/common/constants/trial-config.constant';
+import { TenantsI18n } from './constants/i18n.constants';
+import { CreateTenantDto } from './dto/create-tenant.dto';
+import {
+  TenantResponseDto,
+  TenantResponseInput,
+} from './dto/tenant-response.dto';
 import { UpdateOnboardingDto } from './dto/update-onboarding.dto';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
 import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UpdateTenantSlugDto } from './dto/update-tenant-slug.dto';
 import { TenantService } from './tenant.service';
-import { I18nService } from 'nestjs-i18n';
-import { TenantsI18n } from './constants/i18n.constants';
 
 /**
  * Tenant self-management controller
@@ -62,6 +75,72 @@ export class TenantController {
   // READ
   // ============================================================================
 
+  // ============================================================================
+  // SELF-SERVICE TENANT CREATION
+  // ============================================================================
+
+  /**
+   * Create a new tenant (self-service signup)
+   *
+   * Flow:
+   * 1. User signs up (POST /auth/signup)
+   * 2. User verifies email (POST /auth/verify-email)
+   * 3. User logs in (POST /auth/login) → gets identity token, tenants = []
+   * 4. User creates tenant (POST /tenants) ← THIS ENDPOINT
+   * 5. User switches to tenant (POST /auth/tenant-switch) → gets tenant token
+   *
+   * Requirements:
+   * - Identity token (user must be logged in)
+   * - Email must be verified (enforced by VerifiedUserGuard)
+   *
+   * What this endpoint does:
+   * - Creates tenant with the provided organization name
+   * - Always creates a 14-day trial subscription on the trial plan
+   *   (`TRIAL_CONFIG.PLAN_KEY`). Paid plans are granted only via Stripe
+   *   Checkout + webhooks; this endpoint never charges the user.
+   * - Links user as tenant_admin in user_tenants table
+   * - Returns created tenant
+   *
+   * @throws ForbiddenException if user email not verified
+   * @throws ConflictException if user already owns a tenant or tenant name is taken
+   */
+  @Post()
+  @Audit('TENANT_CREATED', { resourceType: 'tenants' })
+  @AuthOptions({ identity: true, tenant: false })
+  @UseGuards(VerifiedUserGuard)
+  @SwaggerCookieAuth.identityAccessToken()
+  @ApiOperation({
+    summary: 'Create a new tenant (organization)',
+    description:
+      'Self-service tenant creation for verified users. Creates the tenant, a 14-day trial subscription on the trial plan, and links the user as tenant_admin. Paid plans are granted only via Stripe Checkout. User must have an identity token (logged in) and a verified email.',
+  })
+  @ApiBody({ type: CreateTenantDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Tenant created successfully',
+    type: TenantResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'User already has a tenant or tenant name is taken',
+  })
+  async createTenant(
+    @Body() createTenantDto: CreateTenantDto,
+    @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
+  ): Promise<TenantResponseDto> {
+    const tenant = await this.tenantService.createTenantForUser(
+      identityUser.userId,
+      identityUser.email,
+      createTenantDto,
+    );
+
+    const input: TenantResponseInput = {
+      ...tenant,
+      plan: TRIAL_CONFIG.PLAN_KEY,
+    };
+    return new TenantResponseDto(input);
+  }
+
   /**
    * Get authenticated user's tenant profile
    *
@@ -74,7 +153,7 @@ export class TenantController {
   @ApiOperation({
     summary: 'Get my tenant information',
     description:
-      'Retrieve full tenant profile including organization details, contact info, UAE location, business registration, settings, branding, lifecycle status, and onboarding progress.',
+      'Retrieve full tenant profile including organization details, contact info, UAE location, business registration, branding, lifecycle status, and onboarding progress.',
   })
   @ApiResponse({
     status: 200,
@@ -114,6 +193,7 @@ export class TenantController {
    * @permission settings:manage
    */
   @Patch('me/profile')
+  @Audit('TENANT_PROFILE_UPDATED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
@@ -159,6 +239,7 @@ export class TenantController {
    * @throws ConflictException if slug already taken
    */
   @Patch('me/slug')
+  @Audit('TENANT_SLUG_UPDATED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
@@ -191,24 +272,27 @@ export class TenantController {
   // ============================================================================
 
   /**
-   * Update tenant preferences (deep-merge JSONB)
+   * Update tenant preferences (locale, timezone, default jurisdiction)
    *
-   * Fields: locale (en/ar), timezone (IANA), default_jurisdiction, settings (JSONB).
-   * JSONB fields are deep-merged: new keys added, existing preserved.
+   * Fields: locale (en/ar), timezone (IANA), default_jurisdiction.
    *
-   * @param dto - Settings to update (partial)
+   * @param dto - Preference fields to update (at least one required)
    * @param user - Authenticated tenant user
-   * @returns Updated tenant with merged settings
+   * @returns Updated tenant
    *
    * @permission settings:manage
    */
   @Patch('me/settings')
+  @Audit('TENANT_SETTINGS_UPDATED', {
+    resourceType: 'tenants',
+    includeBody: true,
+  })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Update tenant preferences',
     description:
-      'Update locale, timezone, jurisdiction, and flexible JSONB settings. Deep-merged update.',
+      'Update locale, timezone, and/or default jurisdiction. At least one field must be provided.',
   })
   @ApiBody({ type: UpdateTenantSettingsDto })
   @ApiResponse({
@@ -216,7 +300,10 @@ export class TenantController {
     description: 'Settings updated',
     type: TenantResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid locale/timezone value' })
+  @ApiResponse({
+    status: 400,
+    description: 'No fields to update or invalid value',
+  })
   async updateSettings(
     @Body() dto: UpdateTenantSettingsDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
@@ -247,6 +334,7 @@ export class TenantController {
    * @permission settings:manage + white_label_exports entitlement
    */
   @Patch('me/branding')
+  @Audit('TENANT_BRANDING_UPDATED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard, EntitlementGuard)
   @RequireAnyTenantPermission('settings:manage')
   @RequireEntitlement('white_label_exports')
@@ -296,6 +384,7 @@ export class TenantController {
    * @consumes multipart/form-data
    */
   @Post('me/logo')
+  @Audit('TENANT_LOGO_UPLOADED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @UseInterceptors(FastifyMultipartInterceptor(class LogoUploadDto {}))
@@ -379,6 +468,7 @@ export class TenantController {
    * @permission settings:manage
    */
   @Delete('me/logo')
+  @Audit('TENANT_LOGO_DELETED', { resourceType: 'tenants' })
   @HttpCode(HttpStatus.OK)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
@@ -419,6 +509,7 @@ export class TenantController {
    * @idempotent true
    */
   @Post('me/onboarding/complete')
+  @Audit('TENANT_ONBOARDING_COMPLETED', { resourceType: 'tenants' })
   @HttpCode(HttpStatus.OK)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
@@ -448,16 +539,18 @@ export class TenantController {
    *
    * @param dto - Onboarding metadata to merge (partial)
    * @param user - Authenticated tenant user
-   * @returns Updated tenant with merged onboarding_metadata
+   * @returns Updated tenant with new onboarding values
    *
    * @permission settings:manage
    */
   @Patch('me/onboarding')
+  @Audit('TENANT_ONBOARDING_UPDATED', { resourceType: 'tenants' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('settings:manage')
   @ApiOperation({
     summary: 'Update onboarding progress',
-    description: 'Update onboarding step tracking. JSONB deep-merged.',
+    description:
+      'Update onboarding metadata (currentStep, teamInviteSkipped, firstActionType). Deep-merged with existing. stepsCompleted is server-side only.',
   })
   @ApiBody({ type: UpdateOnboardingDto })
   @ApiResponse({

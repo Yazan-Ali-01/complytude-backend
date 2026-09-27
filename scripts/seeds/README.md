@@ -176,7 +176,7 @@ After seeding, you can test Row-Level Security with these queries:
 ```sql
 -- Set context for Tenant 1 Admin
 SELECT set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', false);
-SELECT set_config('app.user_id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', false);
+SELECT set_config('app.user_id', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', false);
 SELECT set_config('app.role', 'admin', false);
 
 -- Should return 3 documents for Tenant 1
@@ -184,7 +184,7 @@ SELECT * FROM public.documents;
 
 -- Change to Tenant 2 context
 SELECT set_config('app.tenant_id', '22222222-2222-4222-8222-222222222222', false);
-SELECT set_config('app.user_id', 'dddddddd-dddd-dddd-dddd-dddddddddddd', false);
+SELECT set_config('app.user_id', 'dddddddd-dddd-4ddd-dddd-dddddddddddd', false);
 
 -- Should return 2 documents for Tenant 2 (different set)
 SELECT * FROM public.documents;

@@ -43,7 +43,7 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 | Tenant-Scoped Tables | 2     |
 | Junction Tables      | 4     |
 | Audit Tables         | 1     |
-| Enums                | 9     |
+| Enums                | 11    |
 
 ---
 
@@ -181,16 +181,15 @@ Production-grade entitlement engine with usage tracking and credit system:
 
 Tables for JWT-based authentication and user onboarding:
 
-- `refresh_tokens` - Session management (stores both identity and tenant refresh tokens)
 - `email_verifications` - Email verification flow
 - `password_resets` - Password reset flow
 - `invitations` - Tenant invitation management
 
-**Note:** The application uses a **dual-token authentication flow**:
+**Note:** The application uses a **dual-token authentication flow** with **Redis-backed sessions** (identity + tenant session keys). Refresh JWTs are stateless and validated against live sessions in Redis (`sessionId` in JWT); there is **no** `refresh_tokens` PostgreSQL table.
 
-1. Login → `identityAccessToken` + `identityRefreshToken` cookies (15 min / 14 days)
-2. Tenant selection → `tenantAccessToken` + `tenantRefreshToken` cookies (30 min / 14 days)
-3. All refresh tokens are stored in the `refresh_tokens` table with type tracking (`identity` or `tenant`)
+1. Login → `identityAccessToken` + `identityRefreshToken` cookies (access TTL from env; refresh aligned with `SESSION_MAX_TTL`)
+2. Tenant selection → `tenantAccessToken` + `tenantRefreshToken` cookies
+3. Session lifecycle, revocation, and limits are enforced in Redis (see architecture / API docs)
 
 ### 4. Global Reference Data
 
@@ -226,37 +225,36 @@ Tables with tenant isolation:
 
 Organizations using the platform. Plan assignment is managed via `tenant_subscriptions` (single source of truth).
 
-| Column                     | Type         | Description                                                    |
-| -------------------------- | ------------ | -------------------------------------------------------------- |
-| `id`                       | UUID         | Primary key                                                    |
-| `name`                     | VARCHAR(255) | Tenant name (NULL for anonymous tenants)                       |
-| `logo_url`                 | TEXT         | Logo URL                                                       |
-| `brand_color_primary`      | VARCHAR(7)   | Primary brand color hex code                                   |
-| `brand_color_secondary`    | VARCHAR(7)   | Secondary brand color hex code                                 |
-| `contact_email`            | VARCHAR(255) | Contact email                                                  |
-| `billing_email`            | VARCHAR(255) | Billing email                                                  |
-| `contact_phone`            | VARCHAR(50)  | Contact phone                                                  |
-| `emirate`                  | VARCHAR(50)  | UAE emirate                                                    |
-| `city`                     | VARCHAR(100) | City                                                           |
-| `address_line_1`           | VARCHAR(500) | Address line 1                                                 |
-| `address_line_2`           | VARCHAR(500) | Address line 2                                                 |
-| `postal_code`              | VARCHAR(20)  | Postal code                                                    |
-| `trade_license_number`     | VARCHAR(100) | Trade license number                                           |
-| `legal_entity_type`        | VARCHAR(50)  | Legal entity type                                              |
-| `tax_registration_number`  | VARCHAR(100) | Tax registration number                                        |
-| `locale`                   | VARCHAR(50)  | Locale (default: `en`)                                         |
-| `timezone`                 | VARCHAR(50)  | Timezone                                                       |
-| `default_jurisdiction`     | VARCHAR(100) | Default jurisdiction                                           |
-| `settings`                 | JSONB        | Tenant settings (e.g., `{"notifications": true}`)              |
-| `slug`                     | VARCHAR(255) | Unique URL slug                                                |
-| `is_active`                | BOOLEAN      | Soft delete flag                                               |
-| `parent_tenant_id`         | UUID         | FK to tenants (agency/partner hierarchy, MVP+)                 |
-| `onboarding_completed_at`  | TIMESTAMPTZ  | When onboarding was completed                                  |
-| `onboarding_metadata`      | JSONB        | Onboarding progress metadata                                   |
-| `deactivated_at`           | TIMESTAMPTZ  | When tenant was deactivated                                    |
-| `deactivation_reason`      | TEXT         | Reason for deactivation                                        |
-| `created_at`               | TIMESTAMPTZ  | Creation timestamp                                             |
-| `updated_at`               | TIMESTAMPTZ  | Last update timestamp                                          |
+| Column                    | Type         | Description                                       |
+| ------------------------- | ------------ | ------------------------------------------------- |
+| `id`                      | UUID         | Primary key                                       |
+| `name`                    | VARCHAR(255) | Tenant name (NULL for anonymous tenants)          |
+| `logo_url`                | TEXT         | Logo URL                                          |
+| `brand_color_primary`     | VARCHAR(7)   | Primary brand color hex code                      |
+| `brand_color_secondary`   | VARCHAR(7)   | Secondary brand color hex code                    |
+| `contact_email`           | VARCHAR(255) | Contact email                                     |
+| `billing_email`           | VARCHAR(255) | Billing email                                     |
+| `contact_phone`           | VARCHAR(50)  | Contact phone                                     |
+| `emirate`                 | VARCHAR(50)  | UAE emirate                                       |
+| `city`                    | VARCHAR(100) | City                                              |
+| `address_line_1`          | VARCHAR(500) | Address line 1                                    |
+| `address_line_2`          | VARCHAR(500) | Address line 2                                    |
+| `postal_code`             | VARCHAR(20)  | Postal code                                       |
+| `trade_license_number`    | VARCHAR(100) | Trade license number                              |
+| `legal_entity_type`       | VARCHAR(50)  | Legal entity type                                 |
+| `tax_registration_number` | VARCHAR(100) | Tax registration number                           |
+| `locale`                  | VARCHAR(50)  | Locale (default: `en`)                            |
+| `timezone`                | VARCHAR(50)  | Timezone                                          |
+| `default_jurisdiction`    | VARCHAR(100) | Default jurisdiction                              |
+| `slug`                    | VARCHAR(255) | Unique URL slug                                   |
+| `is_active`               | BOOLEAN      | Soft delete flag                                  |
+| `parent_tenant_id`        | UUID         | FK to tenants (agency/partner hierarchy, MVP+)    |
+| `onboarding_completed_at` | TIMESTAMPTZ  | When onboarding was completed                     |
+| `onboarding_metadata`     | JSONB        | Onboarding progress metadata                      |
+| `deactivated_at`          | TIMESTAMPTZ  | When tenant was deactivated                       |
+| `deactivation_reason`     | TEXT         | Reason for deactivation                           |
+| `created_at`              | TIMESTAMPTZ  | Creation timestamp                                |
+| `updated_at`              | TIMESTAMPTZ  | Last update timestamp                             |
 
 **Indexes:**
 
@@ -264,6 +262,8 @@ Organizations using the platform. Plan assignment is managed via `tenant_subscri
 - `idx_tenants_is_active` - Active tenants only (partial)
 
 > **Note:** The `tenants.plan` column and `tenant_plan` ENUM have been removed. Tenant plan assignment is now managed exclusively through `tenant_subscriptions`. See [Entitlement System](#entitlement-tables).
+
+**Tenant creation flow:** When a tenant is created via `POST /tenants` (or `TenantService.createTenantForUser()`), a `tenant_subscriptions` row is created atomically within the same transaction. This ensures `getCurrentSubscription(tenantId)` works immediately and entitlement resolution does not throw `NotFoundException`. New tenants always start on a **14-day trial** of General Counsel (`status='trialing'`, `trial_ends_at = NOW() + 14 days`). Paid plans are granted only via Stripe Checkout + the `checkout.session.completed` webhook. The `trial_reminder_sent_at` column tracks one-shot delivery of the "trial ending soon" reminder email.
 
 ### users
 
@@ -273,17 +273,22 @@ User accounts that can access multiple tenants.
 | ------------------- | ------------ | ------------------------------------------------------------------------------------------ |
 | `id`                | UUID         | Primary key                                                                                |
 | `email`             | VARCHAR(255) | Unique email address                                                                       |
-| `password_hash`     | VARCHAR(255) | Bcrypt hashed password                                                                     |
+| `password_hash`     | VARCHAR(255) | Bcrypt hashed password; NULL for SSO-only accounts until a password is set                 |
 | `first_name`        | VARCHAR(255) | First name                                                                                 |
 | `last_name`         | VARCHAR(255) | Last name                                                                                  |
 | `is_verified`       | BOOLEAN      | Email verification status                                                                  |
 | `platform_role_key` | VARCHAR(50)  | Platform role key (e.g., `system_admin`, `support`, `auditor`). NULL for tenant-only users |
+| `google_id`         | VARCHAR(255) | Google OAuth subject (`sub`); NULL if not linked                                           |
+| `microsoft_id`      | VARCHAR(255) | Microsoft OAuth subject (`id`); NULL if not linked                                         |
+| `auth_provider`     | VARCHAR(20)  | Primary signup method: `email`, `google`, or `microsoft`                                   |
 | `created_at`        | TIMESTAMPTZ  | Creation timestamp                                                                         |
 | `updated_at`        | TIMESTAMPTZ  | Last update timestamp                                                                      |
 
 **Indexes:**
 
 - Unique constraint on `email` (creates implicit index)
+- Partial unique index on `google_id` WHERE `google_id IS NOT NULL`
+- Partial unique index on `microsoft_id` WHERE `microsoft_id IS NOT NULL`
 
 ### user_tenants
 
@@ -326,18 +331,21 @@ Tables for **Tenant RBAC** and **Platform RBAC** with permission-based authoriza
 **Important:** RBAC tables are **automatically synchronized** from code constants on every application startup. You should never manually insert or update these records.
 
 **Tenant RBAC Sync:**
+
 - Service: `TenantRbacSyncService`
 - Source: `TENANT_PERMISSIONS` object (single source) and `TENANT_SYSTEM_ROLE_PERMISSIONS` map
 - Derived: `ALL_TENANT_PERMISSIONS` array (automatically generated from object)
 - Tables: `tenant_permissions`, `tenant_roles`, `tenant_role_permissions`
 
 **Platform RBAC Sync:**
+
 - Service: `PlatformRbacSyncService`
 - Source: `PLATFORM_PERMISSIONS` object (single source) and `PLATFORM_SYSTEM_ROLE_PERMISSIONS` map
 - Derived: `ALL_PLATFORM_PERMISSIONS` array (automatically generated from object)
 - Tables: `platform_permissions`, `platform_roles`, `platform_role_permissions`
 
 **Sync Behavior:**
+
 - **Permissions:** Add new, update existing, delete removed
 - **System Roles:** Add new, update existing, sync role-permission mappings
 - **Custom Roles:** Never touched
@@ -423,11 +431,11 @@ Tenant-level permissions for RBAC. **Automatically synced from `TENANT_PERMISSIO
 
 Many-to-many relationship between tenant roles and tenant permissions.
 
-| Column          | Type        | Description               |
-| --------------- | ----------- | ------------------------- |
-| `role_id`       | UUID        | FK to tenant_roles        |
-| `permission_id` | UUID        | FK to tenant_permissions  |
-| `created_at`    | TIMESTAMPTZ | Creation timestamp |
+| Column          | Type        | Description              |
+| --------------- | ----------- | ------------------------ |
+| `role_id`       | UUID        | FK to tenant_roles       |
+| `permission_id` | UUID        | FK to tenant_permissions |
+| `created_at`    | TIMESTAMPTZ | Creation timestamp       |
 
 **Primary Key:** `(role_id, permission_id)`
 
@@ -452,16 +460,16 @@ Tables for platform-wide authorization (system administration, tenant management
 
 Platform-level roles for system-wide access control.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `key` | VARCHAR(50) | Role key (e.g., `system_admin`, `support`, `auditor`) |
-| `name` | VARCHAR(100) | Display name (e.g., `System Admin`) |
-| `description` | TEXT | Role description |
-| `is_system` | BOOLEAN | TRUE for system roles, FALSE for custom platform roles |
-| `is_active` | BOOLEAN | Active status |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
-| `updated_at` | TIMESTAMPTZ | Last update timestamp |
+| Column        | Type         | Description                                            |
+| ------------- | ------------ | ------------------------------------------------------ |
+| `id`          | UUID         | Primary key                                            |
+| `key`         | VARCHAR(50)  | Role key (e.g., `system_admin`, `support`, `auditor`)  |
+| `name`        | VARCHAR(100) | Display name (e.g., `System Admin`)                    |
+| `description` | TEXT         | Role description                                       |
+| `is_system`   | BOOLEAN      | TRUE for system roles, FALSE for custom platform roles |
+| `is_active`   | BOOLEAN      | Active status                                          |
+| `created_at`  | TIMESTAMPTZ  | Creation timestamp                                     |
+| `updated_at`  | TIMESTAMPTZ  | Last update timestamp                                  |
 
 **Indexes:**
 
@@ -470,25 +478,25 @@ Platform-level roles for system-wide access control.
 
 **System Roles (synced from code):**
 
-| Key | Name | Permissions | Description |
-|-----|------|-------------|-------------|
-| `system_admin` | System Admin | `*:*` | Full access to all platform features |
-| `support` | Support | Read-only permissions | Customer support access |
-| `auditor` | Auditor | Audit-focused permissions | Audit and compliance access |
+| Key            | Name         | Permissions               | Description                          |
+| -------------- | ------------ | ------------------------- | ------------------------------------ |
+| `system_admin` | System Admin | `*:*`                     | Full access to all platform features |
+| `support`      | Support      | Read-only permissions     | Customer support access              |
+| `auditor`      | Auditor      | Audit-focused permissions | Audit and compliance access          |
 
 ### platform_permissions
 
 Platform-level permissions for system-wide RBAC.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `key` | VARCHAR(100) | Permission key (e.g., `tenants:create`, `users:manage_roles`) |
-| `name` | VARCHAR(100) | Display name (e.g., `Create Tenants`) |
-| `resource` | VARCHAR(50) | Resource type (e.g., `tenants`, `users`) |
-| `action` | VARCHAR(50) | Action type (e.g., `create`, `manage`) |
-| `description` | TEXT | Permission description |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| Column        | Type         | Description                                                   |
+| ------------- | ------------ | ------------------------------------------------------------- |
+| `id`          | UUID         | Primary key                                                   |
+| `key`         | VARCHAR(100) | Permission key (e.g., `tenants:create`, `users:manage_roles`) |
+| `name`        | VARCHAR(100) | Display name (e.g., `Create Tenants`)                         |
+| `resource`    | VARCHAR(50)  | Resource type (e.g., `tenants`, `users`)                      |
+| `action`      | VARCHAR(50)  | Action type (e.g., `create`, `manage`)                        |
+| `description` | TEXT         | Permission description                                        |
+| `created_at`  | TIMESTAMPTZ  | Creation timestamp                                            |
 
 **Indexes:**
 
@@ -498,30 +506,30 @@ Platform-level permissions for system-wide RBAC.
 
 **Available Permissions (synced from code):**
 
-| Resource | Permissions |
-|----------|-------------|
-| `tenants` | `tenants:create`, `tenants:read`, `tenants:update`, `tenants:delete`, `tenants:*` |
-| `users` | `users:read`, `users:update`, `users:delete`, `users:manage_roles`, `users:*` |
-| `plans` | `plans:read`, `plans:manage`, `plans:*` |
-| `subscriptions` | `subscriptions:read`, `subscriptions:manage`, `subscriptions:*` |
-| `templates` | `templates:read`, `templates:manage`, `templates:*` |
-| `rulesets` | `rulesets:read`, `rulesets:manage`, `rulesets:*` |
-| `authorities` | `authorities:read`, `authorities:manage`, `authorities:*` |
-| `categories` | `categories:read`, `categories:manage`, `categories:*` |
-| `entitlements` | `entitlements:read`, `entitlements:manage`, `entitlements:*` |
-| `audit` | `audit:read`, `audit:*` |
-| `support` | `support:access`, `support:impersonate`, `support:*` |
-| `*` (cross) | `*:read`, `*:manage`, `*:*` |
+| Resource        | Permissions                                                                       |
+| --------------- | --------------------------------------------------------------------------------- |
+| `tenants`       | `tenants:create`, `tenants:read`, `tenants:update`, `tenants:delete`, `tenants:*` |
+| `users`         | `users:read`, `users:update`, `users:delete`, `users:manage_roles`, `users:*`     |
+| `plans`         | `plans:read`, `plans:manage`, `plans:*`                                           |
+| `subscriptions` | `subscriptions:read`, `subscriptions:manage`, `subscriptions:*`                   |
+| `templates`     | `templates:read`, `templates:manage`, `templates:*`                               |
+| `rulesets`      | `rulesets:read`, `rulesets:manage`, `rulesets:*`                                  |
+| `authorities`   | `authorities:read`, `authorities:manage`, `authorities:*`                         |
+| `categories`    | `categories:read`, `categories:manage`, `categories:*`                            |
+| `entitlements`  | `entitlements:read`, `entitlements:manage`, `entitlements:*`                      |
+| `audit`         | `audit:read`, `audit:*`                                                           |
+| `support`       | `support:access`, `support:impersonate`, `support:*`                              |
+| `*` (cross)     | `*:read`, `*:manage`, `*:*`                                                       |
 
 ### platform_role_permissions
 
 Many-to-many relationship between platform roles and permissions.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `role_id` | UUID | FK to platform_roles |
-| `permission_id` | UUID | FK to platform_permissions |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
+| Column          | Type        | Description                |
+| --------------- | ----------- | -------------------------- |
+| `role_id`       | UUID        | FK to platform_roles       |
+| `permission_id` | UUID        | FK to platform_permissions |
+| `created_at`    | TIMESTAMPTZ | Creation timestamp         |
 
 **Primary Key:** `(role_id, permission_id)`
 
@@ -530,30 +538,6 @@ Many-to-many relationship between platform roles and permissions.
 ---
 
 ## Authentication Tables
-
-### refresh_tokens
-
-JWT refresh tokens for session management (both identity and tenant tokens).
-
-| Column       | Type         | Description                                                   |
-| ------------ | ------------ | ------------------------------------------------------------- |
-| `id`         | UUID         | Primary key                                                   |
-| `user_id`    | UUID         | FK to users                                                   |
-| `token_hash` | VARCHAR(255) | Hashed refresh token                                          |
-| `token_type` | VARCHAR(20)  | Token type: `identity` or `tenant` (default: `tenant`)        |
-| `tenant_id`  | UUID         | FK to tenants (NULL for identity tokens, required for tenant) |
-| `expires_at` | TIMESTAMPTZ  | Token expiration                                              |
-| `created_at` | TIMESTAMPTZ  | Creation timestamp                                            |
-| `revoked_at` | TIMESTAMPTZ  | Revocation timestamp (NULL if valid)                          |
-
-**Indexes:**
-
-- `idx_refresh_tokens_user_type_tenant` - Composite index on (user_id, token_type, tenant_id)
-
-**Token Types:**
-
-- **Identity tokens:** `token_type = 'identity'`, `tenant_id = NULL` - Used for user identity verification
-- **Tenant tokens:** `token_type = 'tenant'`, `tenant_id = <uuid>` - Used for tenant-scoped access
 
 ### email_verifications
 
@@ -697,9 +681,9 @@ Similar structure to `templates` with version control.
 
 ### ruleset_versions
 
-Version history for rulesets.
+Version history for rulesets. `clauses` stores the clause array (JSONB). `rolled_back_from_version` is nullable; when set, this row was created as a rollback copy of that semantic version string (audit).
 
-Similar structure to `template_versions`.
+Similar structure to `template_versions` for versioning, but clauses are authoritative content.
 
 ---
 
@@ -709,25 +693,42 @@ These tables have **Row-Level Security (RLS) enabled** for tenant isolation.
 
 ### documents
 
-Tenant-specific generated documents.
+Tenant-specific documents. Supports both text-input (pasted content) and file-upload (S3-stored) documents.
 
-| Column                | Type         | Description                                |
-| --------------------- | ------------ | ------------------------------------------ |
-| `id`                  | UUID         | Primary key                                |
-| `tenant_id`           | UUID         | **RLS isolation key** (FK to tenants)      |
-| `title`               | VARCHAR(255) | Document title                             |
-| `content`             | TEXT         | Document content                           |
-| `metadata`            | JSONB        | Tags, custom fields, etc.                  |
-| `template_id`         | UUID         | FK to templates (which template was used)  |
-| `template_version_id` | UUID         | FK to template_versions (specific version) |
-| `generation_metadata` | JSONB        | AI model, parameters, etc.                 |
-| `created_by`          | UUID         | FK to users                                |
-| `created_at`          | TIMESTAMPTZ  | Creation timestamp                         |
-| `updated_at`          | TIMESTAMPTZ  | Last update timestamp                      |
+| Column              | Type                              | Description                                                                               |
+| ------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- |
+| `id`                | UUID                              | Primary key                                                                               |
+| `tenant_id`         | UUID                              | **RLS isolation key** (FK to tenants)                                                     |
+| `title`             | VARCHAR(255)                      | Document title                                                                            |
+| `content`           | TEXT                              | Document content (required for text-input; populated after extraction for file-upload)    |
+| `metadata`          | JSONB                             | Tags, custom fields, etc.                                                                 |
+| `created_by`        | UUID                              | FK to users                                                                               |
+| `created_at`        | TIMESTAMPTZ                       | Creation timestamp                                                                        |
+| `updated_at`        | TIMESTAMPTZ                       | Last update timestamp                                                                     |
+| `source_type`       | `document_source_type` ENUM       | `text_input` (default) or `file_upload`                                                   |
+| `s3_key`            | VARCHAR(1024)                     | Full S3 object key (includes tenant prefix). NULL for text-input                          |
+| `s3_bucket`         | VARCHAR(255)                      | Bucket name (`quarantine` or `clean`). NULL for text-input                                |
+| `original_filename` | VARCHAR(512)                      | User's original filename for display/download                                             |
+| `file_size_bytes`   | BIGINT                            | File size for validation and display                                                      |
+| `mime_type`         | VARCHAR(255)                      | MIME type (e.g. `application/pdf`)                                                        |
+| `extraction_status` | `document_extraction_status` ENUM | Extraction lifecycle: `pending`, `processing`, `completed`, `failed`. NULL for text-input |
+| `extraction_error`  | TEXT                              | Error message if extraction failed                                                        |
+| `extracted_at`      | TIMESTAMPTZ                       | When text extraction completed                                                            |
 
-**Critical Index:**
+**Enums:**
+
+- `document_source_type`: `text_input`, `file_upload`
+- `document_extraction_status`: `pending`, `processing`, `completed`, `failed`
+
+**Check Constraint:**
+
+- `chk_document_source`: text-input docs must have `content`; file-upload docs must have `s3_key`
+
+**Critical Indexes:**
 
 - `idx_documents_tenant_id` - **Required for RLS performance**
+- `idx_documents_extraction_status` - Partial index (WHERE extraction_status IS NOT NULL)
+- `idx_documents_s3_key` - Partial index (WHERE s3_key IS NOT NULL)
 
 **RLS Policies:**
 
@@ -735,21 +736,27 @@ Tenant-specific generated documents.
 -- SELECT Policy
 CREATE POLICY documents_select ON documents
 FOR SELECT USING (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
 
 -- INSERT Policy
 CREATE POLICY documents_insert ON documents
 FOR INSERT WITH CHECK (
-    tenant_id = current_tenant_id_or_null()
+    tenant_id = current_tenant_id_or_null() OR is_platform_admin()
 );
+
+-- UPDATE Policy
+CREATE POLICY documents_update ON documents
+FOR UPDATE
+USING (tenant_id = current_tenant_id_or_null() OR is_platform_admin())
+WITH CHECK (tenant_id = current_tenant_id_or_null() OR is_platform_admin());
 ```
 
 **What this means:**
 
-- Users can only see documents for their current tenant
-- Users can only create documents for their current tenant
-- No cross-tenant data access is possible
+- Users can only see/create/update documents for their current tenant
+- Platform admins (workers) can read and update any document via `transactionWithPlatformAdminContext`
+- No cross-tenant data access is possible for regular users
 
 ---
 
@@ -997,4 +1004,4 @@ psql -d complytude -c "
 
 ---
 
-**Last Updated:** March 4, 2026
+**Last Updated:** March 25, 2026

@@ -18,7 +18,6 @@ echo ""
 # Check if services are running
 postgres_running=false
 redis_running=false
-minio_running=false
 
 if docker ps --format '{{.Names}}' | grep -q '^complytude-postgres$'; then
     postgres_running=true
@@ -34,18 +33,11 @@ else
     echo "📦 Redis is not running"
 fi
 
-if docker ps --format '{{.Names}}' | grep -q '^complytude-minio$'; then
-    minio_running=true
-    echo "✅ MinIO is running"
-else
-    echo "📦 MinIO is not running"
-fi
-
 # Start services if needed
-if [ "$postgres_running" = false ] || [ "$redis_running" = false ] || [ "$minio_running" = false ]; then
+if [ "$postgres_running" = false ] || [ "$redis_running" = false ]; then
     echo ""
     echo "🚀 Starting services..."
-    pnpm docker:start || exit 1
+    pnpm services:up || exit 1
 fi
 
 echo ""
@@ -53,7 +45,7 @@ echo "🔍 Checking database migrations..."
 
 # Load environment from apps/api/.env if it exists
 if [ -f apps/api/.env ]; then
-    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | xargs)
+    export $(cat apps/api/.env | grep -v '^#' | grep -v '^\s*$' | sed 's/[[:space:]]*#.*$//' | xargs)
 fi
 
 # Check if migrations are needed
@@ -94,7 +86,6 @@ echo "📚 Available at:"
 echo "  • API: http://localhost:3000/api"
 echo "  • Swagger: http://localhost:3000/docs"
 echo "  • Health: http://localhost:3000/api/health"
-echo "  • MinIO Console: http://localhost:9001"
 echo ""
 echo "💡 To start all apps (API + Workers):"
 echo "  pnpm dev:all"

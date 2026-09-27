@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { UserTenant } from 'src/modules/users/entities/user-tenant.entity';
 import {
   LinkUserTenantInput,
@@ -241,6 +242,27 @@ export class UserTenantRepository extends BaseRepository<
   }
 
   /**
+   * Count active members for a tenant.
+   *
+   * @param tenantId - Tenant ID
+   * @param options - Query options
+   * @returns Number of active user_tenants rows
+   */
+  async countActiveByTenant(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<number> {
+    const result = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) as count
+       FROM ${this.tableName}
+       WHERE tenant_id = $1 AND is_active = true`,
+      [tenantId],
+      options,
+    );
+    return parseInt(result.rows[0]?.count || '0', 10);
+  }
+
+  /**
    * Find user tenants, without pagination.
    * Supports filtering by user_id, tenant_id, and is_active.
    *
@@ -389,6 +411,28 @@ export class UserTenantRepository extends BaseRepository<
   }
 
   /**
+   * Check if user is tenant_admin of any tenant.
+   *
+   * @param userId - User ID
+   * @param options - Query options (tenant context, client, etc.)
+   * @returns true if user has tenant_admin role in at least one tenant
+   */
+  async userIsTenantAdminOfAny(
+    userId: string,
+    options?: QueryOptions,
+  ): Promise<boolean> {
+    const result = await this.executeQuery<{ exists: boolean }>(
+      `SELECT EXISTS(
+        SELECT 1 FROM ${this.tableName}
+        WHERE user_id = $1 AND role_key = $2
+      ) as exists`,
+      [userId, SystemTenantRole.TENANT_ADMIN],
+      options,
+    );
+    return result.rows[0]?.exists ?? false;
+  }
+
+  /**
    * Get user tenants.
    *
    * @param userId - User ID
@@ -436,6 +480,28 @@ export class UserTenantRepository extends BaseRepository<
         { client, ...options },
       ).then((result) => result.rows.map((row) => this.mapRow(row)));
     });
+  }
+
+  /**
+   * Find the email of the first tenant_admin user in the given tenant.
+   * Used by Stripe customer creation to populate customer email.
+   * Caller must provide a platform admin context client so RLS permits the SELECT.
+   */
+  async findTenantAdminEmail(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<string | null> {
+    const result = await this.executeQuery<{ email: string }>(
+      `SELECT u.email
+       FROM ${this.tableName} ut
+       JOIN public.users u ON ut.user_id = u.id
+       WHERE ut.tenant_id = $1 AND ut.role_key = 'tenant_admin'
+       ORDER BY ut.joined_at ASC
+       LIMIT 1`,
+      [tenantId],
+      options,
+    );
+    return result.rows[0]?.email ?? null;
   }
 
   /**

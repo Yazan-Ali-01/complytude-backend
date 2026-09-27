@@ -13,6 +13,7 @@ BEGIN;
 
 CREATE TYPE template_status AS ENUM ('active', 'inactive', 'draft', 'deprecated');
 CREATE TYPE ruleset_status AS ENUM ('active', 'inactive', 'deprecated');
+CREATE TYPE public.template_tier AS ENUM ('essential', 'full');
 
 -- =========================
 -- AUTHORITIES TABLE
@@ -69,7 +70,6 @@ CREATE TABLE public.rulesets (
     authority_id      UUID,
     current_version   VARCHAR(50) NOT NULL DEFAULT '1.0.0',
     status            ruleset_status NOT NULL DEFAULT 'active',
-    metadata          JSONB DEFAULT '{}',
     created_by        UUID,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -91,7 +91,6 @@ COMMENT ON TABLE public.rulesets IS 'Legal rulesets containing authority-specifi
 COMMENT ON COLUMN public.rulesets.key IS 'Unique ruleset identifier (e.g., dmcc_employment_rules_v1)';
 COMMENT ON COLUMN public.rulesets.current_version IS 'Current active version number';
 COMMENT ON COLUMN public.rulesets.status IS 'Ruleset status: active, inactive, or deprecated';
-COMMENT ON COLUMN public.rulesets.metadata IS 'Additional metadata about the ruleset';
 
 -- =========================
 -- RULESET VERSIONS TABLE
@@ -103,7 +102,7 @@ CREATE TABLE public.ruleset_versions (
     version       VARCHAR(50) NOT NULL,
     clauses       JSONB NOT NULL DEFAULT '[]',
     changelog     TEXT,
-    metadata      JSONB DEFAULT '{}',
+    rolled_back_from_version VARCHAR(50) NULL,
     is_active     BOOLEAN NOT NULL DEFAULT true,
     created_by    UUID,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -128,6 +127,7 @@ COMMENT ON TABLE public.ruleset_versions IS 'Version history for rulesets - immu
 COMMENT ON COLUMN public.ruleset_versions.clauses IS 'Array of legal clauses/rules in JSONB format';
 COMMENT ON COLUMN public.ruleset_versions.is_active IS 'Whether this version is currently active';
 COMMENT ON COLUMN public.ruleset_versions.changelog IS 'Description of changes in this version';
+COMMENT ON COLUMN public.ruleset_versions.rolled_back_from_version IS 'When set, this version was created as a rollback copy of this prior semantic version (audit only)';
 
 -- =========================
 -- TEMPLATES TABLE
@@ -143,9 +143,9 @@ CREATE TABLE public.templates (
     languages         TEXT[] NOT NULL DEFAULT ARRAY['en'],
     current_version   VARCHAR(50) NOT NULL DEFAULT '1.0.0',
     status            template_status NOT NULL DEFAULT 'active',
+    tier              public.template_tier NOT NULL DEFAULT 'essential',
     file_url          TEXT,
     thumbnail_url     TEXT,
-    metadata          JSONB DEFAULT '{}',
     created_by        UUID,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -169,7 +169,7 @@ CREATE TABLE public.templates (
         ON UPDATE CASCADE
 );
 
-COMMENT ON TABLE public.templates IS 'Template metadata - main template registry';
+COMMENT ON TABLE public.templates IS 'Main template registry';
 COMMENT ON COLUMN public.templates.key IS 'Unique template identifier (e.g., dmcc_employment_v1)';
 COMMENT ON COLUMN public.templates.current_version IS 'Current active version number';
 COMMENT ON COLUMN public.templates.status IS 'Template status: active, inactive, draft, or deprecated';
@@ -185,9 +185,8 @@ CREATE TABLE public.template_versions (
     template_id   UUID NOT NULL,
     version       VARCHAR(50) NOT NULL,
     fields        JSONB NOT NULL DEFAULT '[]',
-    file_url      TEXT NOT NULL,
+    file_url      TEXT,
     changelog     TEXT,
-    metadata      JSONB DEFAULT '{}',
     is_active     BOOLEAN NOT NULL DEFAULT true,
     created_by    UUID,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -297,6 +296,7 @@ CREATE INDEX idx_templates_key ON public.templates(key);
 CREATE INDEX idx_templates_category_id ON public.templates(category_id);
 CREATE INDEX idx_templates_authority_id ON public.templates(authority_id);
 CREATE INDEX idx_templates_status ON public.templates(status);
+CREATE INDEX idx_templates_tier ON public.templates(tier);
 CREATE INDEX idx_templates_created_by ON public.templates(created_by);
 CREATE INDEX idx_templates_languages ON public.templates USING GIN(languages);
 
@@ -428,6 +428,7 @@ DROP INDEX IF EXISTS public.idx_template_versions_version;
 DROP INDEX IF EXISTS public.idx_template_versions_template_id;
 DROP INDEX IF EXISTS public.idx_templates_languages;
 DROP INDEX IF EXISTS public.idx_templates_created_by;
+DROP INDEX IF EXISTS public.idx_templates_tier;
 DROP INDEX IF EXISTS public.idx_templates_status;
 DROP INDEX IF EXISTS public.idx_templates_authority_id;
 DROP INDEX IF EXISTS public.idx_templates_category_id;
@@ -458,6 +459,7 @@ DROP TABLE IF EXISTS public.categories;
 DROP TABLE IF EXISTS public.authorities;
 
 -- Drop ENUMs
+DROP TYPE IF EXISTS public.template_tier;
 DROP TYPE IF EXISTS ruleset_status;
 DROP TYPE IF EXISTS template_status;
 

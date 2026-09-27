@@ -11,7 +11,6 @@ import { Template } from 'src/modules/templates/entities/template.entity';
 
 /**
  * Type for creating a new template row in the database.
- * JSON/JSONB fields must be pre-stringified.
  */
 export type CreateTemplateRow = {
   id?: string;
@@ -23,9 +22,9 @@ export type CreateTemplateRow = {
   languages?: string[];
   current_version?: string;
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
+  tier?: 'essential' | 'full';
   file_url?: string | null;
   thumbnail_url?: string | null;
-  metadata: string; // Stringified JSONB object
   created_by?: string | null;
   created_at?: Date;
   updated_at?: Date;
@@ -33,7 +32,6 @@ export type CreateTemplateRow = {
 
 /**
  * Type for updating an existing template row in the database.
- * JSON/JSONB fields must be pre-stringified.
  */
 export type UpdateTemplateRow = {
   key?: string;
@@ -44,9 +42,9 @@ export type UpdateTemplateRow = {
   languages?: string[];
   current_version?: string;
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
+  tier?: 'essential' | 'full';
   file_url?: string | null;
   thumbnail_url?: string | null;
-  metadata?: string; // Stringified JSONB object
   updated_at?: Date;
 };
 
@@ -60,9 +58,9 @@ type TemplateRow = {
   languages: string[];
   current_version: string;
   status: Template['status'];
+  tier: Template['tier'];
   file_url: string | null;
   thumbnail_url: string | null;
-  metadata: string | Record<string, unknown>;
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
@@ -182,7 +180,7 @@ export class TemplateRepository extends BaseRepository<
    * Get the list of columns to select in queries.
    */
   protected getSelectColumns(): string {
-    return 'id, key, name, description, category_id, authority_id, languages, current_version, status, file_url, thumbnail_url, metadata, created_by, created_at, updated_at';
+    return 'id, key, name, description, category_id, authority_id, languages, current_version, status, tier, file_url, thumbnail_url, created_by, created_at, updated_at';
   }
 
   /**
@@ -203,9 +201,9 @@ export class TemplateRepository extends BaseRepository<
       languages: data.languages,
       current_version: data.current_version,
       status: data.status,
+      tier: data.tier,
       file_url: data.file_url,
       thumbnail_url: data.thumbnail_url,
-      metadata: data.metadata as Record<string, unknown>,
       created_by: data.created_by,
       created_at: data.created_at,
       updated_at: data.updated_at,

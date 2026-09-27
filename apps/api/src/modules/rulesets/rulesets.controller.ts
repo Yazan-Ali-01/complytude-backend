@@ -37,6 +37,7 @@ import {
 import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
 import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
 import type { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { IngestionStatus } from './constants/ingestion-status.constants';
 import {
   CreateRulesetDto,
@@ -195,6 +196,7 @@ export class RulesetsController {
   // ─── Write Endpoints (identity token + rulesets:manage) ────────
 
   @Post()
+  @Audit('RULESET_CREATED', { resourceType: 'rulesets', includeBody: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -213,12 +215,17 @@ export class RulesetsController {
   }
 
   @Patch(':key')
+  @Audit('RULESET_UPDATED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+    includeBody: true,
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
-    summary: 'Update ruleset metadata',
+    summary: 'Update ruleset',
     description:
-      'Update ruleset name, description, authority, status, or metadata. Clauses are immutable per version. Restricted to platform administrators.',
+      'Update ruleset name, description, authority, or status. Clauses are immutable per version. Restricted to platform administrators.',
   })
   @ApiParam({
     name: 'key',
@@ -235,6 +242,10 @@ export class RulesetsController {
   }
 
   @Delete(':key')
+  @Audit('RULESET_DEACTIVATED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -256,6 +267,10 @@ export class RulesetsController {
   }
 
   @Post(':key/versions')
+  @Audit('RULESET_VERSION_CREATED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -284,6 +299,10 @@ export class RulesetsController {
   }
 
   @Post(':key/versions/:version/rollback')
+  @Audit('RULESET_VERSION_ROLLBACK', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
   @ApiOperation({
@@ -322,6 +341,10 @@ export class RulesetsController {
   }
 
   @Post(':key/ingest')
+  @Audit('RULESET_INGESTION_TRIGGERED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
   @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('rulesets:manage')
@@ -373,7 +396,6 @@ export class RulesetsController {
       authorityId: ruleset.authorityId,
       currentVersion: ruleset.currentVersion,
       status: ruleset.status,
-      metadata: ruleset.metadata,
       createdBy: ruleset.createdBy,
       createdAt: ruleset.createdAt.toISOString(),
       updatedAt: ruleset.updatedAt.toISOString(),
@@ -401,7 +423,7 @@ export class RulesetsController {
       version: version.version,
       clauses: version.clauses,
       changelog: version.changelog,
-      metadata: version.metadata,
+      rolledBackFromVersion: version.rolledBackFromVersion,
       isActive: version.isActive,
       createdBy: version.createdBy,
       createdAt: version.createdAt.toISOString(),

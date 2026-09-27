@@ -4,7 +4,6 @@ import {
   ArrayMinSize,
   IsArray,
   IsNotEmpty,
-  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -67,12 +66,4 @@ export class CreateRulesetDto {
   @Type(() => ClauseItemDto)
   @ArrayMinSize(1)
   clauses: ClauseItemDto[];
-
-  @ApiPropertyOptional({
-    example: { tags: ['employment', 'standard'] },
-    description: 'Additional metadata',
-  })
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, unknown>;
 }

@@ -14,7 +14,11 @@ import { SupportedLanguages } from './i18n.types';
     NestI18nModule.forRoot({
       fallbackLanguage: SupportedLanguages.ENGLISH,
       loaderOptions: {
-        path: path.join(__dirname, 'locales'),
+        path:
+          __dirname.includes(`${path.sep}dist${path.sep}`) ||
+          __dirname.endsWith(`${path.sep}dist`)
+            ? path.join(__dirname, 'i18n', 'locales')
+            : path.join(__dirname, 'locales'),
         watch: process.env.NODE_ENV !== 'production',
       },
       resolvers: [

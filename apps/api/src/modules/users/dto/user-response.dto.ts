@@ -1,9 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { SystemTenantRole } from 'src/common/types';
-import {
-  ALL_PLAN_KEYS,
-  type PlanKey,
-} from '../../../common/constants/plan-entitlements.constant';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 /**
  * User profile response DTO
@@ -116,9 +112,8 @@ export class UserTenantResponseDto {
  */
 // TODO to use this approach and not follow the lazy approach
 export class TenantInfoResponseDto {
-  constructor(data: Tenant, planKey?: PlanKey) {
+  constructor(data: Tenant) {
     this.id = data.id;
-    this.planKey = planKey ?? null;
     this.isActive = data.is_active;
     this.createdAt = data.created_at.toISOString();
     this.updatedAt = data.updated_at.toISOString();
@@ -129,15 +124,6 @@ export class TenantInfoResponseDto {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   id: string;
-
-  @ApiProperty({
-    description:
-      'Current subscription plan key (null if no active subscription)',
-    enum: ALL_PLAN_KEYS,
-    example: 'general_counsel',
-    nullable: true,
-  })
-  planKey: PlanKey | null;
 
   @ApiProperty({
     description: 'Whether tenant is active',

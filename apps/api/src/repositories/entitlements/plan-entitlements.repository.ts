@@ -13,7 +13,6 @@ type PlanEntitlementRow = {
   value_bool: boolean | null;
   value_int: number | null;
   value_text: string | null;
-  metadata: unknown;
   created_at: Date;
 };
 
@@ -32,7 +31,7 @@ export class PlanEntitlementsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, plan_id, feature_id, value_bool, value_int, value_text, metadata, created_at';
+    return 'id, plan_id, feature_id, value_bool, value_int, value_text, created_at';
   }
 
   protected mapRow(row: Record<string, unknown>): PlanEntitlement {
@@ -44,7 +43,6 @@ export class PlanEntitlementsRepository extends BaseRepository<
       value_bool: data.value_bool ?? undefined,
       value_int: data.value_int ?? undefined,
       value_text: data.value_text ?? undefined,
-      metadata: (data.metadata as Record<string, unknown>) ?? {},
       created_at: data.created_at,
     };
   }
@@ -94,7 +92,6 @@ export class PlanEntitlementsRepository extends BaseRepository<
       value_bool: boolean | null;
       value_int: number | null;
       value_text: string | null;
-      metadata: string;
     }>,
     options?: QueryOptions,
   ): Promise<string[]> {
@@ -105,9 +102,9 @@ export class PlanEntitlementsRepository extends BaseRepository<
     const valuesClauses: string[] = [];
 
     entitlements.forEach((ent, idx) => {
-      const offset = idx * 6;
+      const offset = idx * 5;
       valuesClauses.push(
-        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`,
+        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5})`,
       );
       values.push(
         ent.plan_id,
@@ -115,19 +112,17 @@ export class PlanEntitlementsRepository extends BaseRepository<
         ent.value_bool,
         ent.value_int,
         ent.value_text,
-        ent.metadata,
       );
     });
 
     const result = await this.executeQuery<{ id: string }>(
       `
-      INSERT INTO ${this.tableName} (plan_id, feature_id, value_bool, value_int, value_text, metadata)
+      INSERT INTO ${this.tableName} (plan_id, feature_id, value_bool, value_int, value_text)
       VALUES ${valuesClauses.join(', ')}
       ON CONFLICT (plan_id, feature_id) DO UPDATE SET
         value_bool = EXCLUDED.value_bool,
         value_int = EXCLUDED.value_int,
-        value_text = EXCLUDED.value_text,
-        metadata = EXCLUDED.metadata
+        value_text = EXCLUDED.value_text
       RETURNING id
       `,
       values,

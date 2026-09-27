@@ -6,7 +6,6 @@ export interface Ruleset {
   authorityId: string | null;
   currentVersion: string;
   status: RulesetStatus;
-  metadata: Record<string, unknown>;
   createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;

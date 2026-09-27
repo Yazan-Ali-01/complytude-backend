@@ -15,8 +15,7 @@ export type CreateRulesetVersionRow = {
   /** JSON string (stringified by service before passing) */
   clauses: string;
   changelog?: string | null;
-  /** JSON string (stringified by service before passing) */
-  metadata?: string;
+  rolled_back_from_version?: string | null;
   is_active?: boolean;
   created_by?: string | null;
 };
@@ -27,7 +26,7 @@ type RulesetVersionRow = {
   version: string;
   clauses: RulesetClause[];
   changelog: string | null;
-  metadata: Record<string, unknown>;
+  rolled_back_from_version: string | null;
   is_active: boolean;
   created_by: string | null;
   created_at: Date;
@@ -109,7 +108,7 @@ export class RulesetVersionRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, ruleset_id, version, clauses, changelog, metadata, is_active, created_by, created_at';
+    return 'id, ruleset_id, version, clauses, changelog, rolled_back_from_version, is_active, created_by, created_at';
   }
 
   protected mapRow(row: Record<string, unknown>): RulesetVersion {
@@ -120,7 +119,7 @@ export class RulesetVersionRepository extends BaseRepository<
       version: data.version,
       clauses: data.clauses,
       changelog: data.changelog,
-      metadata: data.metadata,
+      rolledBackFromVersion: data.rolled_back_from_version,
       isActive: data.is_active,
       createdBy: data.created_by,
       createdAt: data.created_at,

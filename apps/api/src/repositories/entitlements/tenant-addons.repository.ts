@@ -18,7 +18,7 @@ type TenantAddonRow = {
   status: string;
   starts_at: Date;
   expires_at: Date | null;
-  metadata: unknown;
+  stripe_subscription_item_id: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -38,7 +38,7 @@ export class TenantAddonsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, tenant_id, addon_id, quantity, status, starts_at, expires_at, metadata, created_at, updated_at';
+    return 'id, tenant_id, addon_id, quantity, status, starts_at, expires_at, stripe_subscription_item_id, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): TenantAddon {
@@ -51,7 +51,7 @@ export class TenantAddonsRepository extends BaseRepository<
       status: data.status,
       starts_at: data.starts_at,
       expires_at: data.expires_at ?? undefined,
-      metadata: (data.metadata as Record<string, unknown>) ?? {},
+      stripe_subscription_item_id: data.stripe_subscription_item_id,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -86,10 +86,10 @@ export class TenantAddonsRepository extends BaseRepository<
     const query = `
       SELECT
         ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at,
-        ta.expires_at, ta.metadata, ta.created_at, ta.updated_at,
+        ta.expires_at, ta.created_at, ta.updated_at,
         a.key as addon_key, a.name as addon_name,
         ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
-        ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
+        ae.value_text, ae.created_at as entitlement_created_at,
         f.key as feature_key, f.feature_type
       FROM ${this.tableName} ta
       LEFT JOIN public.addons a ON a.id = ta.addon_id
@@ -130,7 +130,6 @@ export class TenantAddonsRepository extends BaseRepository<
           value_bool: row.value_bool as boolean | undefined,
           value_int: row.value_int as number | undefined,
           value_text: row.value_text as string | undefined,
-          metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
           created_at: row.entitlement_created_at as Date,
         };
         addonsMap.get(addonId)!.entitlements.push(entitlement);
@@ -150,10 +149,10 @@ export class TenantAddonsRepository extends BaseRepository<
     const query = `
       SELECT
         ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at,
-        ta.expires_at, ta.metadata, ta.created_at, ta.updated_at,
+        ta.expires_at, ta.created_at, ta.updated_at,
         a.key as addon_key, a.name as addon_name,
         ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
-        ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
+        ae.value_text, ae.created_at as entitlement_created_at,
         f.key as feature_key, f.feature_type
       FROM ${this.tableName} ta
       LEFT JOIN public.addons a ON a.id = ta.addon_id
@@ -193,7 +192,6 @@ export class TenantAddonsRepository extends BaseRepository<
           value_bool: row.value_bool as boolean | undefined,
           value_int: row.value_int as number | undefined,
           value_text: row.value_text as string | undefined,
-          metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
           created_at: row.entitlement_created_at as Date,
         };
         addonsMap.get(addonId)!.entitlements.push(entitlement);
@@ -201,6 +199,43 @@ export class TenantAddonsRepository extends BaseRepository<
     });
 
     return Array.from(addonsMap.values());
+  }
+
+  /**
+   * Find a tenant add-on by Stripe subscription item ID (any status).
+   * Used during webhook reconciliation to detect existing records before creating duplicates.
+   */
+  async findByStripeSubscriptionItemId(
+    stripeSubscriptionItemId: string,
+    options?: QueryOptions,
+  ): Promise<TenantAddon | null> {
+    const result = await this.executeQuery<TenantAddonRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE stripe_subscription_item_id = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [stripeSubscriptionItemId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
+  /**
+   * Find a single tenant add-on by its ID, scoped to the given tenant.
+   * Returns null if not found or belongs to a different tenant.
+   */
+  async findByIdAndTenant(
+    id: string,
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<TenantAddon | null> {
+    const result = await this.executeQuery<TenantAddonRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId],
+      options,
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
   /**
@@ -214,10 +249,10 @@ export class TenantAddonsRepository extends BaseRepository<
     const query = `
       SELECT
         ta.id, ta.tenant_id, ta.addon_id, ta.quantity, ta.status, ta.starts_at,
-        ta.expires_at, ta.metadata, ta.created_at, ta.updated_at,
+        ta.expires_at, ta.created_at, ta.updated_at,
         a.key as addon_key, a.name as addon_name,
         ae.id as entitlement_id, ae.feature_id, ae.value_bool, ae.value_int,
-        ae.value_text, ae.metadata as entitlement_metadata, ae.created_at as entitlement_created_at,
+        ae.value_text, ae.created_at as entitlement_created_at,
         f.key as feature_key, f.feature_type
       FROM ${this.tableName} ta
       JOIN public.addons a ON a.id = ta.addon_id
@@ -260,7 +295,6 @@ export class TenantAddonsRepository extends BaseRepository<
         value_bool: row.value_bool as boolean | undefined,
         value_int: row.value_int as number | undefined,
         value_text: row.value_text as string | undefined,
-        metadata: (row.entitlement_metadata as Record<string, unknown>) ?? {},
         created_at: row.entitlement_created_at as Date,
       };
       addonsMap.get(addonId)!.entitlements.push(entitlement);

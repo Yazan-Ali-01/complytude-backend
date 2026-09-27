@@ -72,7 +72,6 @@ export class RulesetsService {
             name: dto.name,
             description: dto.description ?? null,
             authority_id: dto.authority_id ?? null,
-            metadata: JSON.stringify(dto.metadata ?? {}),
             created_by: createdBy,
           },
           { client },
@@ -84,7 +83,6 @@ export class RulesetsService {
             version: '1.0.0',
             clauses: JSON.stringify(dto.clauses ?? []),
             changelog: 'Initial version',
-            metadata: JSON.stringify({}),
             is_active: true,
             created_by: createdBy,
           },
@@ -176,8 +174,6 @@ export class RulesetsService {
       if (dto.authority_id !== undefined)
         updateData.authority_id = dto.authority_id;
       if (dto.status !== undefined) updateData.status = dto.status;
-      if (dto.metadata !== undefined)
-        updateData.metadata = JSON.stringify(dto.metadata);
 
       const updated =
         Object.keys(updateData).length === 0
@@ -242,7 +238,6 @@ export class RulesetsService {
         version: dto.version,
         clauses: JSON.stringify(dto.clauses ?? []),
         changelog: dto.changelog ?? null,
-        metadata: JSON.stringify(dto.metadata ?? {}),
         is_active: true,
         created_by: createdBy,
       });
@@ -351,7 +346,7 @@ export class RulesetsService {
         version: newVersion,
         clauses: JSON.stringify(source.clauses),
         changelog: changelog ?? `Rolled back to version ${sourceVersion}`,
-        metadata: JSON.stringify({ rolledBackFrom: sourceVersion }),
+        rolled_back_from_version: sourceVersion,
         is_active: true,
         created_by: createdBy,
       });

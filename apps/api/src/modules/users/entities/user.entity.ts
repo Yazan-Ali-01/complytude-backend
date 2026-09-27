@@ -9,7 +9,27 @@ export class User {
   email: string;
 
   @Exclude()
-  password_hash: string;
+  password_hash: string | null;
+
+  @ApiProperty({
+    description: 'Primary signup / identity provider',
+    enum: ['email', 'google', 'microsoft'],
+  })
+  auth_provider: 'email' | 'google' | 'microsoft';
+
+  @ApiProperty({
+    description: 'Linked Google account subject (sub)',
+    nullable: true,
+    required: false,
+  })
+  google_id: string | null;
+
+  @ApiProperty({
+    description: 'Linked Microsoft account subject (id)',
+    nullable: true,
+    required: false,
+  })
+  microsoft_id: string | null;
 
   @ApiProperty({ description: 'User first name' })
   first_name: string | null;

@@ -24,6 +24,7 @@ export class MockStorageService implements PublicApi<StorageService> {
     contentType: string,
     _userId: string,
   ): Promise<UploadResult> {
+    await Promise.resolve();
     return {
       key: 'mock-key',
       bucket: 'mock-bucket',
@@ -34,6 +35,7 @@ export class MockStorageService implements PublicApi<StorageService> {
   }
 
   async getFile(_fileKey: string): Promise<FileWithMetadata> {
+    await Promise.resolve();
     return {
       stream: Readable.from(Buffer.from('mock')),
       metadata: null,
@@ -44,6 +46,7 @@ export class MockStorageService implements PublicApi<StorageService> {
     _tenantId: string,
     fileKey: string,
   ): Promise<DownloadableFile> {
+    await Promise.resolve();
     const parts = fileKey.split('/');
     const filename = parts[parts.length - 1] ?? 'mock-file';
     return {
@@ -60,6 +63,17 @@ export class MockStorageService implements PublicApi<StorageService> {
     _fileKey: string,
     _expiresIn?: number,
   ): Promise<string> {
+    await Promise.resolve();
+    return 'https://mock-s3/signed/mock-key';
+  }
+
+  async generateSignedUrlForBucket(
+    _tenantId: string,
+    _bucket: string,
+    _fileKey: string,
+    _expiresIn?: number,
+  ): Promise<string> {
+    await Promise.resolve();
     return 'https://mock-s3/signed/mock-key';
   }
 
@@ -69,6 +83,7 @@ export class MockStorageService implements PublicApi<StorageService> {
     _limit?: number,
     _continuationToken?: string,
   ): Promise<PaginatedFileList> {
+    await Promise.resolve();
     return { files: [], hasMore: false };
   }
 
@@ -84,6 +99,7 @@ export class MockStorageService implements PublicApi<StorageService> {
     contentType: string,
     _userId: string,
   ): Promise<UploadResult> {
+    await Promise.resolve();
     return {
       key: 'mock-template-key',
       bucket: 'mock-templates-bucket',
@@ -97,6 +113,7 @@ export class MockStorageService implements PublicApi<StorageService> {
     _templateId: string,
     _version: string,
   ): Promise<Readable> {
+    await Promise.resolve();
     return Readable.from(Buffer.from('mock'));
   }
 
@@ -104,6 +121,7 @@ export class MockStorageService implements PublicApi<StorageService> {
     _fileKey: string,
     _expiresIn?: number,
   ): Promise<string> {
+    await Promise.resolve();
     return 'https://mock-s3/signed/mock-template-key';
   }
 
@@ -114,6 +132,32 @@ export class MockStorageService implements PublicApi<StorageService> {
     _limit?: number,
     _continuationToken?: string,
   ): Promise<PaginatedFileList> {
+    await Promise.resolve();
     return { files: [], hasMore: false };
+  }
+
+  async generatePresignedPutUrl(
+    _s3Key: string,
+    _contentType: string,
+    _expiresIn?: number,
+  ): Promise<string> {
+    await Promise.resolve();
+    return 'https://mock-s3/presigned-put/mock-key';
+  }
+
+  async getQuarantineObjectMetadata(_s3Key: string): Promise<{
+    contentLength: number;
+    contentType: string | undefined;
+  } | null> {
+    await Promise.resolve();
+    return { contentLength: 2048576, contentType: 'application/pdf' };
+  }
+
+  async deleteObjectFromBucket(_bucket: string, _key: string): Promise<void> {}
+
+  async initializeQuarantineBucket(): Promise<void> {}
+
+  get quarantineBucketName(): string {
+    return 'mock-quarantine-bucket';
   }
 }

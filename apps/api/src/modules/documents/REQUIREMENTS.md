@@ -227,7 +227,7 @@ Preview files (POST /documents/preview) should be stored separately:
 The DocumentsService implementation will require:
 
 1. **DatabaseService** - Database operations
-2. **StorageService** - S3/MinIO file operations
+2. **StorageService** - S3 file operations
 3. **TemplatesService** - Template retrieval and validation
 4. **DocumentGenerationService** - Document generation logic (may already exist in templates module)
 

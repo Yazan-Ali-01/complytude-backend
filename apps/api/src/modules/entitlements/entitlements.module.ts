@@ -7,9 +7,12 @@ import { TenantOverridesRepository } from 'src/repositories/entitlements/tenant-
 import { FeaturesRepository } from 'src/repositories/features/features.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
+import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
+import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageAllocationsRepository } from 'src/repositories/usage/usage-allocations.repository';
 import { UsageLedgerRepository } from 'src/repositories/usage/usage-ledger.repository';
+import { EmailModule } from '../email/email.module';
 import { I18nModule } from '../../i18n/i18n.module';
 import { AddonsRepository } from '../../repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from '../../repositories/entitlements/entitlement-snapshots.repository';
@@ -19,11 +22,20 @@ import { TenantAddonsController } from './controllers/tenant-addons.controller';
 import { TenantOverridesReadController } from './controllers/tenant-overrides-read.controller';
 import { TenantOverridesController } from './controllers/tenant-overrides.controller';
 import { EntitlementsController } from './entitlements.controller';
+import { CreditNotificationHandler } from './processors/credit-notification.handler';
+import { DomainEventFanoutHandler } from './processors/domain-event-fanout.handler';
 import { EntitlementQueueProcessor } from './processors/entitlement-queue.processor';
 import { ProjectionUpdateHandler } from './processors/projection-update.handler';
+import { QuotaExceededHandler } from './processors/quota-exceeded.handler';
+import { SnapshotRebuildHandler } from './processors/snapshot-rebuild.handler';
+import { TrialExpiryHandler } from './processors/trial-expiry.handler';
+import { TrialReminderHandler } from './processors/trial-reminder.handler';
+import { UsageRefundHandler } from './processors/usage-refund.handler';
 import { CreditBalanceService } from './services/credit-balance.service';
 import { CreditLedgerService } from './services/credit-ledger.service';
 import { DomainEventsService } from './services/domain-events.service';
+import { EntitlementCacheService } from './services/entitlement-cache.service';
+import { EntitlementCacheCleanupService } from './services/entitlement-cache-cleanup.service';
 import { EntitlementEnforcementService } from './services/entitlement-enforcement.service';
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
 import { EntitlementSnapshotService } from './services/entitlement-snapshot.service';
@@ -31,6 +43,7 @@ import { EntitlementSyncService } from './services/entitlement-sync.service';
 import { ProjectionReconciliationService } from './services/projection-reconciliation.service';
 import { TenantAddonsService } from './services/tenant-addons.service';
 import { TenantOverridesService } from './services/tenant-overrides.service';
+import { TrialExpirySchedulerService } from './services/trial-expiry-scheduler.service';
 import { UsageIngestionService } from './services/usage-ingestion.service';
 import { UsageProjectionService } from './services/usage-projection.service';
 
@@ -51,7 +64,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
  */
 @Global()
 @Module({
-  imports: [I18nModule],
+  imports: [I18nModule, EmailModule],
   controllers: [
     EntitlementsController,
     AddonCatalogController,
@@ -64,6 +77,8 @@ import { UsageProjectionService } from './services/usage-projection.service';
     // Core services
     EntitlementResolverService,
     EntitlementSyncService,
+    EntitlementCacheService, // Performance optimization for enforcement
+    EntitlementCacheCleanupService, // Periodic cache cleanup
     UsageIngestionService, // Phase 3
     UsageProjectionService, // Phase 3
     EntitlementEnforcementService, // Phase 4
@@ -79,6 +94,14 @@ import { UsageProjectionService } from './services/usage-projection.service';
     // Queue processor + handlers
     EntitlementQueueProcessor,
     ProjectionUpdateHandler,
+    SnapshotRebuildHandler,
+    DomainEventFanoutHandler,
+    CreditNotificationHandler,
+    QuotaExceededHandler,
+    TrialExpiryHandler,
+    TrialReminderHandler,
+    TrialExpirySchedulerService,
+    UsageRefundHandler,
 
     // Catalog repositories
     FeaturesRepository,
@@ -89,6 +112,8 @@ import { UsageProjectionService } from './services/usage-projection.service';
     TenantAddonsRepository,
     TenantOverridesRepository,
     SubscriptionsRepository,
+    TenantRepository,
+    UserTenantRepository,
 
     // Usage repositories (Phase 3)
     UsageLedgerRepository,
@@ -103,6 +128,7 @@ import { UsageProjectionService } from './services/usage-projection.service';
   exports: [
     // Services
     EntitlementResolverService,
+    EntitlementCacheService, // Performance optimization for enforcement
     UsageIngestionService, // Phase 3
     UsageProjectionService, // Phase 3
     EntitlementEnforcementService, // Phase 4

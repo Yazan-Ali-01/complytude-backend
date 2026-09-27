@@ -45,6 +45,7 @@ scripts/
 ├── setup-database.sh        # 🔥 Complete setup (migrations + seeds)
 ├── run-migrations.sh        # Run all migrations
 ├── run-seeds.sh             # Run all seed scripts
+├── download-geolite2-city.sh # Download MaxMind GeoLite2-City (session geo)
 ├── docker-start.sh          # Start Docker PostgreSQL
 ├── wait-for-db.sh           # Wait for database readiness
 ├── setup-roles.sh           # Create database roles
@@ -128,6 +129,33 @@ Populates database with initial data:
 
 **Note:** RBAC roles and permissions are auto-synced by `TenantRbacSyncService` on app startup.
 
+### 4. Download GeoLite2-City (Optional — Session Geo Enrichment)
+
+**File:** `download-geolite2-city.sh`
+
+Downloads the MaxMind GeoLite2-City database for IP-to-location lookup during login. Session `geoLocation` is populated asynchronously when the database is present.
+
+**Prerequisites:**
+
+1. [MaxMind account](https://www.maxmind.com/en/geolite2/signup) (free)
+2. [License key](https://www.maxmind.com/en/accounts/current/license-key)
+
+**Usage:**
+
+```bash
+MAXMIND_LICENSE_KEY=your_key ./scripts/download-geolite2-city.sh
+```
+
+**Output:** `./data/GeoLite2-City.mmdb` (or `MAXMIND_DB_PATH` if set)
+
+**Configuration:** Add to `.env`:
+
+```
+MAXMIND_DB_PATH=./data/GeoLite2-City.mmdb
+```
+
+If `MAXMIND_DB_PATH` is empty or the file does not exist, geo lookup is disabled and sessions will have `geoLocation: null`.
+
 ---
 
 ## 📋 Migrations
@@ -136,7 +164,7 @@ Populates database with initial data:
 
 | #   | File                           | Description                                               |
 | --- | ------------------------------ | --------------------------------------------------------- |
-| 001 | `core_tables.sql`              | Core schema: tenants, users, user_tenants, refresh_tokens |
+| 001 | `core_tables.sql`              | Core schema: tenants, users, user_tenants, auth artifacts |
 | 002 | `grants_to_app_user.sql`       | Grant permissions to `complytude_app` user                |
 | 003 | `session_context_contract.sql` | Session variables for RLS (tenant_id, user_id, role)      |
 | 004 | `rls_enablement.sql`           | Enable RLS on tenant-specific tables                      |
@@ -237,7 +265,7 @@ COMMIT;
 
 After seeding development data:
 
-**Email:** `admin@tenant1.test`  
+**Email:** `admin@tenant1.test`
 **Password:** `Test123!@#`
 
 See `scripts/seeds/README.md` for complete credential list.
@@ -250,7 +278,7 @@ See `scripts/seeds/README.md` for complete credential list.
 
 -- Set context for Tenant 1
 SELECT set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', false);
-SELECT set_config('app.user_id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', false);
+SELECT set_config('app.user_id', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', false);
 SELECT set_config('app.role', 'admin', false);
 
 -- Should return 3 documents for Tenant 1
@@ -270,19 +298,14 @@ SELECT * FROM public.documents;
 ### Docker Management
 
 ```bash
-# Start PostgreSQL
-npm run docker:start
-# or
-./scripts/docker-start.sh
+# Start infrastructure services (PostgreSQL, Redis, etc.)
+pnpm services:up
 
-# Stop PostgreSQL
-npm run docker:stop
-
-# View logs
-npm run docker:logs
+# Stop services
+pnpm services:down
 
 # Reset database (⚠️ deletes all data)
-npm run docker:reset
+pnpm services:reset
 ```
 
 ### Role Setup
@@ -383,7 +406,7 @@ sudo apt install postgresql-client
 2. Start database:
 
    ```bash
-   npm run docker:start
+   pnpm services:up
    ```
 
 3. Wait for readiness:
@@ -519,7 +542,7 @@ cp .env.example .env
 # Edit .env with your settings
 
 # 4. Start database
-npm run docker:start
+pnpm services:up
 
 # 5. Setup database
 ./scripts/setup-database.sh development
@@ -536,14 +559,8 @@ open http://localhost:3000/docs
 ⚠️ **Warning: Deletes all data**
 
 ```bash
-# Stop and remove database
-npm run docker:reset
-
-# Start fresh database
-npm run docker:start
-
-# Run migrations and seeds
-./scripts/setup-database.sh development
+# Wipe volumes, restart services, and re-migrate
+pnpm services:reset
 ```
 
 ### Add New Authority
@@ -572,7 +589,7 @@ RETURNING id;
 
 -- Create subscription for tenant
 INSERT INTO public.tenant_subscriptions (
-    tenant_id, plan_id, status, 
+    tenant_id, plan_id, status,
     current_period_start, current_period_end,
     billing_period_start, billing_period_end
 )
@@ -613,7 +630,7 @@ VALUES ('user-id', 'tenant-id', 'tenant_admin');
 
 1. Read [QUICK_START.md](./QUICK_START.md)
 2. Check error messages carefully
-3. Review PostgreSQL logs: `npm run docker:logs`
+3. Verify services are running: `pnpm services:up`
 4. Verify `.env` configuration
 5. Test connection: `psql -d complytude -c "SELECT 1;"`
 6. Check migration status: `SELECT * FROM schema_migrations;`

@@ -3,15 +3,12 @@ name: complytude
 # ============================================
 # Base Docker Compose Configuration
 # ============================================
-# This file contains shared services (PostgreSQL, MinIO, Redis, pgAdmin)
+# This file contains shared infrastructure services (PostgreSQL, Redis, pgAdmin)
 #
 # Usage:
-#   Development: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
-#
-# Or use the npm scripts:
-#   pnpm docker:dev
-#   pnpm docker:prod
+#   pnpm services:up    - Start all infrastructure services
+#   pnpm services:down  - Stop all services
+#   pnpm services:reset - Wipe volumes and re-migrate
 # ============================================
 
 services:
@@ -77,45 +74,44 @@ services:
     networks:
       - complytude-network
 
-  # MinIO - S3-Compatible Object Storage
-  minio:
-    image: minio/minio:latest
-    container_name: complytude-minio
+
+  # Gotenberg - DOCX to PDF conversion
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: complytude-gotenberg
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - '${MINIO_PORT:-9000}:9000'
-      - '${MINIO_CONSOLE_PORT:-9001}:9001'
-    volumes:
-      - minio_data:/data
+      - '${GOTENBERG_PORT:-3100}:3000'
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
-      interval: 30s
-      timeout: 10s
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
       retries: 3
     networks:
       - complytude-network
 
-  # MinIO Bucket Initialization
-  minio-init:
-    image: minio/mc:latest
-    container_name: complytude-minio-init
+  # Worker Generation - Document generation worker
+  worker-generation:
+    build:
+      context: .
+      dockerfile: apps/worker-generation/Dockerfile
+    image: complytude-worker-generation:latest
+    container_name: complytude-worker-generation
+    restart: unless-stopped
+    env_file:
+      - apps/worker-generation/.env
     depends_on:
-      minio:
+      postgres:
         condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
-      /usr/bin/mc mb myminio/complytude-quarantine --ignore-existing;
-      /usr/bin/mc mb myminio/complytude-clean --ignore-existing;
-      echo 'Buckets created successfully';
-      exit 0;
-      "
+      redis:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
     networks:
       - complytude-network
+    profiles:
+      - workers
+
 
 volumes:
   postgres_data:
@@ -124,9 +120,6 @@ volumes:
     driver: local
   redis_data:
     driver: local
-  minio_data:
-    driver: local
-
 networks:
   complytude-network:
     driver: bridge

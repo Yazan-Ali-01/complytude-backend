@@ -180,15 +180,16 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 The system uses a **dual-mode enforcement strategy** that balances performance (async projection updates) with correctness (strict mode near limits):
 
-| Mode | Condition | Projection Update | Concurrency Safety |
-|------|-----------|-------------------|-------------------|
-| **Async** | `remaining > threshold` | BullMQ job (async) with sync fallback | Eventual consistency (safe: far from limit) |
-| **Strict** | `remaining ≤ threshold` | CAS (`conditionalIncrement`) in-transaction | Strong consistency (prevents over-quota) |
-| **Unlimited** | `limit = -1` | BullMQ job (async) | N/A (no quota) |
+| Mode          | Condition               | Projection Update                           | Concurrency Safety                          |
+| ------------- | ----------------------- | ------------------------------------------- | ------------------------------------------- |
+| **Async**     | `remaining > threshold` | BullMQ job (async) with sync fallback       | Eventual consistency (safe: far from limit) |
+| **Strict**    | `remaining ≤ threshold` | CAS (`conditionalIncrement`) in-transaction | Strong consistency (prevents over-quota)    |
+| **Unlimited** | `limit = -1`            | BullMQ job (async)                          | N/A (no quota)                              |
 
 **Threshold:** Configurable via `app.entitlement.strictThresholdPercent` (default: 5% of limit, minimum 3 units).
 
 **Async Path Details:**
+
 - Usage is written to the append-only ledger within the main transaction
 - After commit, a `PROJECTION_UPDATE` job is enqueued to BullMQ
 - `ProjectionUpdateHandler` processes the job: claims event via `projected_at` CAS, increments `aggregated_usage`, emits domain event
@@ -196,10 +197,27 @@ The system uses a **dual-mode enforcement strategy** that balances performance (
 - Idempotency: `claimForProjection()` uses CAS on `projected_at` column — prevents double-projection on retries
 
 **Strict Path Details:**
+
 - Uses PostgreSQL savepoints for atomic rollback on CAS failure
 - `conditionalIncrement()` atomically increments `aggregated_usage` only if current total hasn't exceeded the limit
 - If CAS returns null (concurrent request consumed remaining quota), the savepoint is rolled back and the request is denied with `concurrent_quota_race` reason
 - Domain event is emitted in-transaction (not async)
+
+### Latency Benchmark (COM-136)
+
+A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRecord()` calls.
+
+**Run:** `pnpm test:benchmark` (requires Docker for testcontainers)
+
+**Sample results** (local dev, 50 concurrent):
+
+| Metric | Sync (strict) | Async  | Improvement |
+| ------ | ------------- | ------ | ----------- |
+| p50    | ~270ms        | ~160ms | ~41%        |
+| p95    | ~440ms        | ~230ms | ~48%        |
+| p99    | ~450ms        | ~240ms | ~48%        |
+
+**Rationale:** Sync path updates `aggregated_usage` in the same transaction as the ledger write, causing row lock contention under concurrency. Async path only writes to the ledger and enqueues a job, reducing request-path latency.
 
 ### Data Layer
 
@@ -253,23 +271,23 @@ The system uses a **dual-mode enforcement strategy** that balances performance (
 
 ### Complete Feature List
 
-| Feature Key                    | Type     | Unit      | Creditable | Credit Cost | Description                                        |
-| ------------------------------ | -------- | --------- | ---------- | ----------- | -------------------------------------------------- |
-| `documents_per_month`          | quota    | documents | ✅ Yes     | 5 credits   | Documents that can be generated per billing period |
-| `template_library`             | boolean  | -         | ❌ No      | -           | Access to template library (essential/full)        |
-| `bilingual_quality`            | boolean  | -         | ❌ No      | -           | Bilingual quality (standard/jais_native)           |
-| `contract_reviews_per_month`   | quota    | reviews   | ❌ No      | -           | AI contract reviews per billing period             |
-| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | Risk analysis level (none/critical_only/full)      |
-| `redlining_enabled`            | boolean  | -         | ❌ No      | -           | AI suggests alternative compliant wording          |
-| `localizer_check`              | boolean  | -         | ❌ No      | -           | Flags governing law/jurisdiction mismatches        |
-| `regulatory_hub_access`        | boolean  | -         | ❌ No      | -           | Access to compliance dashboard                     |
-| `regulatory_queries_per_month` | quota    | queries   | ✅ Yes     | 3 credits   | Chat-with-Law queries per billing period           |
-| `license_verifier_lookups`     | quota    | lookups   | ❌ No      | -           | DED API lookups per billing period                 |
-| `jurisdictions`                | boolean  | -         | ❌ No      | -           | Access to jurisdictions (single/all)               |
-| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant                  |
-| `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)       |
-| `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions      |
-| `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                |
+| Feature Key                    | Type     | Unit      | Creditable | Credit Cost | Description                                                                                                                                                                                  |
+| ------------------------------ | -------- | --------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `documents_per_month`          | quota    | documents | ✅ Yes     | 5 credits   | Documents that can be generated per billing period                                                                                                                                           |
+| `template_library`             | boolean  | -         | ❌ No      | -           | Access to template library (essential/full)                                                                                                                                                  |
+| `bilingual_quality`            | boolean  | -         | ❌ No      | -           | Bilingual quality (standard/jais_native)                                                                                                                                                     |
+| `contract_reviews_per_month`   | quota    | reviews   | ❌ No      | -           | AI contract reviews per billing period                                                                                                                                                       |
+| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | Risk analysis level (none/critical_only/full)                                                                                                                                                |
+| `redlining_enabled`            | boolean  | -         | ❌ No      | -           | AI suggests alternative compliant wording                                                                                                                                                    |
+| `localizer_check`              | boolean  | -         | ❌ No      | -           | Flags governing law/jurisdiction mismatches                                                                                                                                                  |
+| `regulatory_hub_access`        | boolean  | -         | ❌ No      | -           | Access to compliance dashboard                                                                                                                                                               |
+| `regulatory_queries_per_month` | quota    | queries   | ✅ Yes     | 3 credits   | Chat-with-Law queries per billing period                                                                                                                                                     |
+| `license_verifier_lookups`     | quota    | lookups   | ❌ No      | -           | DED API lookups per billing period                                                                                                                                                           |
+| `jurisdictions`                | boolean  | -         | ❌ No      | -           | Access to jurisdictions (single/all)                                                                                                                                                         |
+| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant. Enforced on invitation accept and create (see [API Contracts: Invitation System](../apps/api/docs/API_CONTRACTS.md#invitation-system--seat-enforcement)). |
+| `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)                                                                                                                                                 |
+| `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions                                                                                                                                                |
+| `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                                                                                                                                                          |
 
 ---
 
@@ -370,6 +388,34 @@ The system uses a **dual-mode enforcement strategy** that balances performance (
 ---
 
 ## How It Works
+
+### 0. Subscription Creation (Tenant Setup)
+
+**Every tenant must have an active subscription.** When a tenant is created via `POST /tenants` during signup, the system automatically provisions a **14-day trial of General Counsel** in the same transaction. Plan selection is intentionally **not** exposed at create-time — paid plans are granted only via Stripe Checkout + the `checkout.session.completed` webhook (see `StripeCheckoutService` and `StripeEventHandlersService.handleSubscriptionCheckout`).
+
+```typescript
+// TenantService.createTenantForUser()
+await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
+  client,
+});
+```
+
+**Trial Subscription:**
+
+- `plan_id` — General Counsel (full features to hook users)
+- `status` — `'trialing'`
+- `trial_ends_at` — NOW() + 14 days
+- `current_period_start` — NOW()
+- `current_period_end` — trial_ends_at (aligned)
+- `trial_reminder_sent_at` — `NULL` until the reminder cron sends the email
+
+**Trial Reminder (T-3 days):** The `TRIAL_REMINDER_CHECK` repeatable job runs every 6 hours on the `ENTITLEMENT_PROCESSING` queue. It queries trials whose `trial_ends_at` falls in a 2–4 day window with `trial_reminder_sent_at IS NULL`, sends a "trial ending soon" email to the tenant_admin user and `tenants.billing_email` (when set, deduplicated), then marks `trial_reminder_sent_at = NOW()`. The wide window absorbs missed cron ticks; the flag prevents duplicates. Recipients see a CTA to `${FRONTEND_URL}/billing/upgrade` for self-serve Stripe Checkout.
+
+**Trial Expiry:** The `TRIAL_EXPIRY_CHECK` job (also every 6 hours) downgrades expired trials to Navigator (free), invalidates the entitlement snapshot, and emits `trial.expired`.
+
+**Important:** Without an active subscription, `EntitlementResolverService.resolveForTenant()` will throw `NotFoundException`. The trial subscription is created within the same transaction as the tenant to ensure atomicity.
+
+> **📖 For complete tenant creation flow including RLS context setup, see [ARCHITECTURE.md](ARCHITECTURE.md#tenant-creation-flow)**
 
 ### 1. Entitlement Resolution
 
@@ -769,6 +815,41 @@ async listAllTemplates() {
 
 ---
 
+## Enforcement Pattern Guide
+
+Choose the right enforcement pattern based on the endpoint's characteristics:
+
+| Scenario | Pattern | Why |
+| --- | --- | --- |
+| **Boolean feature gates** (e.g., `redlining_enabled`) | `EntitlementGuard` + `@RequireEntitlement` | No usage to track — just a yes/no access check |
+| **Simple sync quota endpoints** (e.g., a quick API query) | `UsageEnforcementGuard` + `@TrackUsage` | DRY, no resource to link, action is fast and unlikely to fail after deduction |
+| **Async/complex quota operations** (e.g., document generation, analysis) | In-transaction `checkAndRecord()` | Need resource_id linking, atomic rollback on failure, refund path for async job failures |
+| **Capacity checks** (e.g., seat enforcement) | `peekUsage()` + manual check | Pre-flight check without consuming a unit, then enforce in service logic |
+
+### When to Use the Guard vs In-Transaction Enforcement
+
+**Use `UsageEnforcementGuard`** when:
+
+- The action is synchronous and fast
+- There is no resource created that needs to be linked to the usage event
+- Failure after quota deduction is unlikely
+- You want DRY, declarative enforcement via decorators
+
+**Use in-transaction `checkAndRecord()`** when:
+
+- The endpoint creates a resource you want to link to the usage event via `resource_id` (e.g., a generation job)
+- The work is async (BullMQ job) and may fail permanently — requiring the refund handler to locate and void the ledger entry by `resource_id`
+- You need the quota deduction to roll back atomically if the transaction fails (e.g., job creation fails)
+- The operation involves multiple steps that must all succeed or all fail
+
+**Why the guard doesn't work for async operations:**
+
+1. The guard runs *before* the controller — no resource exists yet to link as `resource_id`
+2. The guard executes outside the controller's transaction boundary — if the controller rolls back, the quota deduction is not undone
+3. The refund handler (`UsageRefundHandler`) locates ledger entries by `resource_id` — without it, voiding the correct entry on async failure is unreliable
+
+---
+
 ## API Integration
 
 ### Using EntitlementGuard (Boolean Features)
@@ -1046,21 +1127,23 @@ async grantCredits(
 
 ### Event Types
 
-| Event Type                         | Aggregate    | Description                                        |
-| ---------------------------------- | ------------ | -------------------------------------------------- |
-| `usage.recorded`                   | usage        | Usage event appended to ledger                     |
-| `credit.purchased`                 | credit       | Credits purchased                                  |
-| `credit.granted`                   | credit       | Credits granted (promo/admin)                      |
-| `credit.deducted`                  | credit       | Credits used for overage                           |
-| `credit.refunded`                  | credit       | Credits refunded                                   |
-| `credit.expired`                   | credit       | Credits expired                                    |
-| `entitlement.denied`               | entitlement  | Feature access denied (quota exceeded, no credits) |
-| `entitlement.snapshot_created`     | entitlement  | Snapshot created                                   |
-| `entitlement.snapshot_invalidated` | entitlement  | Snapshot invalidated                               |
-| `subscription.created`             | subscription | New subscription created                           |
-| `subscription.plan_changed`        | subscription | Plan upgraded/downgraded                           |
-| `subscription.cancelled`           | subscription | Subscription cancelled                             |
-| `subscription.renewed`             | subscription | Billing period renewed                             |
+| Event Type                         | Aggregate    | Description                                         |
+| ---------------------------------- | ------------ | --------------------------------------------------- |
+| `usage.recorded`                   | usage        | Usage event appended to ledger                      |
+| `credit.purchased`                 | credit       | Credits purchased                                   |
+| `credit.granted`                   | credit       | Credits granted (promo/admin)                       |
+| `credit.deducted`                  | credit       | Credits used for overage                            |
+| `credit.refunded`                  | credit       | Credits refunded                                    |
+| `credit.expired`                   | credit       | Credits expired                                     |
+| `entitlement.denied`               | entitlement  | Feature access denied (quota exceeded, no credits)  |
+| `entitlement.snapshot_created`     | entitlement  | Snapshot created                                    |
+| `entitlement.snapshot_invalidated` | entitlement  | Snapshot invalidated                                |
+| `subscription.created`             | subscription | New subscription created                            |
+| `subscription.trial_started`       | subscription | Trial subscription created (every new tenant)       |
+| `subscription.plan_changed`        | subscription | Plan upgraded/downgraded                            |
+| `subscription.cancelled`           | subscription | Subscription cancelled                              |
+| `subscription.renewed`             | subscription | Billing period renewed                              |
+| `trial.expired`                    | subscription | Trial ended, auto-downgraded to Navigator           |
 
 ### Querying Events
 
@@ -1115,7 +1198,9 @@ export class AuditService {
     "allocations": [{ "source": "plan", "units": 1 }],
     "billing_period": "2026-02",
     "resource_type": "document",
-    "resource_id": "document_uuid"
+    "resource_id": "document_uuid",
+    "enforcement_mode": "async",
+    "fallback": false
   },
   "recorded_at": "2026-02-07T10:30:00Z"
 }
@@ -1593,7 +1678,8 @@ Since async mode introduces eventual consistency, a **reconciliation service** d
 
 - [DATABASE.md](./DATABASE.md) - Database schema for entitlement tables
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture overview
-- [API_CONTRACTS.md](./API_CONTRACTS.md) - API endpoint specifications
+- [billing/README.md](./billing/README.md) - Stripe billing and credit system documentation
+- [API_CONTRACTS.md](../apps/api/docs/API_CONTRACTS.md) - API endpoint specifications
 
 ---
 

@@ -1,6 +1,8 @@
 import { OnWorkerEvent, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger, Optional } from '@nestjs/common';
 import { Job, UnrecoverableError } from 'bullmq';
+import { PinoLogger } from 'nestjs-pino';
+import { JobMetadata } from './interfaces/job-metadata.interface';
 
 export class RetryableError extends Error {
   constructor(
@@ -28,19 +30,45 @@ export abstract class AbstractProcessor<
 > extends WorkerHost {
   protected abstract readonly logger: Logger;
 
+  @Optional()
+  @Inject(PinoLogger)
+  protected readonly pinoLogger?: PinoLogger;
+
   abstract handle(job: Job<TData>): Promise<TResult>;
 
   async process(job: Job<TData>): Promise<TResult> {
     const startTime = Date.now();
+    const queueName = job.queueName;
     const meta = {
       jobId: job.id,
       jobName: job.name,
       attempt: job.attemptsMade + 1,
     };
 
+    const metadata = (job.data as Record<string, unknown>)?._metadata as
+      | JobMetadata
+      | undefined;
+
+    if (this.pinoLogger) {
+      try {
+        const logContext: Record<string, string> = {};
+        if (metadata?.traceId) logContext.trace_id = metadata.traceId;
+        if (metadata?.tenantId) logContext.tenant_id = metadata.tenantId;
+        logContext.queue_name = queueName;
+        if (job.id) logContext.job_id = job.id;
+        logContext.job_name = job.name;
+        this.pinoLogger.assign(logContext);
+      } catch {
+        // PinoLogger.assign throws outside HTTP request scope (e.g. BullMQ workers).
+        // Skip metadata assignment; Nest Logger still works.
+      }
+    }
+
     this.logger.log(
       `Job started [${meta.jobName}] id=${meta.jobId} attempt=${meta.attempt}`,
     );
+
+    this.logJobPayloadSummary(job);
 
     try {
       const result = await this.handle(job);
@@ -77,6 +105,21 @@ export abstract class AbstractProcessor<
         `Job exhausted all retries [${job.name}] id=${job.id} attempts=${job.attemptsMade}: ${error.message}`,
       );
       this.onDeadLetter(job, error);
+    }
+  }
+
+  private logJobPayloadSummary(job: Job<TData>): void {
+    try {
+      const data = { ...(job.data as Record<string, unknown>) };
+      delete data._metadata;
+      const keys = Object.keys(data);
+      if (keys.length > 0) {
+        this.logger.debug(
+          `Job payload [${job.name}] id=${job.id} keys=[${keys.join(',')}]`,
+        );
+      }
+    } catch {
+      // Never fail on debug logging
     }
   }
 

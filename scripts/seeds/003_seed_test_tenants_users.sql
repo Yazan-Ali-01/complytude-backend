@@ -14,7 +14,7 @@ BEGIN;
 -- NOTE: logo_url is NULL for clean upload testing
 
 INSERT INTO public.tenants (
-    id, is_active, name, slug, logo_url, settings, onboarding_metadata,
+    id, is_active, name, slug, logo_url,
     brand_color_primary, brand_color_secondary, contact_email, billing_email,
     contact_phone, emirate, city, address_line_1, address_line_2, postal_code,
     trade_license_number, legal_entity_type, tax_registration_number, locale,
@@ -23,7 +23,6 @@ INSERT INTO public.tenants (
 ) VALUES
     (
         '11111111-1111-4111-8111-111111111111', true, 'Acme Legal LLC', 'acme-legal', NULL,
-        '{"notifications": true, "theme": "light"}', '{"step": 1, "completed": false}',
         '#0000FF', '#FFFFFF', 'contact@acme-legal.com', 'billing@acme-legal.com',
         '+1234567890', 'Dubai', 'Dubai', 'PO Box 1234', NULL, '12345',
         'TL123456789', 'LLC', 'TRN123456789', 'en', 'Asia/Dubai', 'Dubai', NULL, NULL,
@@ -31,7 +30,6 @@ INSERT INTO public.tenants (
     ),
     (
         '22222222-2222-4222-8222-222222222222', true, 'Shield Corp', 'shield-corp', NULL,
-        '{"notifications": true, "theme": "dark"}', '{"step": 2, "completed": false}',
         '#FF0000', '#000000', 'contact@shield-corp.com', 'billing@shield-corp.com',
         '+0987654321', 'Abu Dhabi', 'Abu Dhabi', 'PO Box 5678', NULL, '54321',
         'TL987654321', 'Corporation', 'TRN987654321', 'en', 'Asia/Dubai', 'Abu Dhabi', NULL, NULL,
@@ -39,7 +37,6 @@ INSERT INTO public.tenants (
     ),
     (
         '33333333-2222-4222-8222-333333333333', true, 'Infrastructure Inc', 'infra-inc', NULL,
-        '{"notifications": false, "theme": "light"}', '{"step": 3, "completed": false}',
         '#00FF00', '#FFFF00', 'contact@infra-inc.com', 'billing@infra-inc.com',
         '+1122334455', 'Sharjah', 'Sharjah', 'PO Box 91011', NULL, '67890',
         'TL112233445', 'Partnership', 'TRN112233445', 'en', 'Asia/Dubai', 'Sharjah', NULL, NULL,
@@ -50,8 +47,6 @@ ON CONFLICT (id) DO UPDATE SET
     name = COALESCE(EXCLUDED.name, tenants.name),
     slug = COALESCE(EXCLUDED.slug, tenants.slug),
     logo_url = NULL,
-    settings = COALESCE(EXCLUDED.settings, tenants.settings),
-    onboarding_metadata = COALESCE(EXCLUDED.onboarding_metadata, tenants.onboarding_metadata),
     brand_color_primary = COALESCE(EXCLUDED.brand_color_primary, tenants.brand_color_primary),
     brand_color_secondary = COALESCE(EXCLUDED.brand_color_secondary, tenants.brand_color_secondary),
     contact_email = COALESCE(EXCLUDED.contact_email, tenants.contact_email),
@@ -84,31 +79,31 @@ INSERT INTO public.users (
     created_at, updated_at
 ) VALUES
     (
-        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'admin@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', 'admin@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Alice', 'Admin', true, NULL, now(), now()
     ),
     (
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'member@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', 'member@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Bob', 'Member', true, NULL, now(), now()
     ),
     (
-        'cccccccc-cccc-cccc-cccc-cccccccccccc', 'viewer@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'cccccccc-cccc-4ccc-cccc-cccccccccccc', 'viewer@tenant1.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Charlie', 'Viewer', true, NULL, now(), now()
     ),
     (
-        'dddddddd-dddd-dddd-dddd-dddddddddddd', 'admin@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'dddddddd-dddd-4ddd-dddd-dddddddddddd', 'admin@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Diana', 'Admin', true, NULL, now(), now()
     ),
     (
-        'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'member@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', 'member@tenant2.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Eve', 'Member', true, NULL, now(), now()
     ),
     (
-        'ffffffff-ffff-ffff-ffff-ffffffffffff', 'admin@tenant3.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        'ffffffff-ffff-4fff-ffff-ffffffffffff', 'admin@tenant3.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'Frank', 'Enterprise', true, NULL, now(), now()
     ),
     (
-        '99999999-9999-9999-9999-999999999999', 'superadmin@complytude.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
+        '99999999-9999-4999-9999-999999999999', 'superadmin@complytude.test', '$2b$10$y8/jPXlBV3c6gPcO5.S6r.0QhUKTnaZ6NqbpM8flBwJ9ba4PpoziW',
         'System', 'Administrator', true, 'system_admin', now(), now()
     )
 ON CONFLICT (id) DO NOTHING;
@@ -120,34 +115,21 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.user_tenants (user_id, tenant_id, role_key) VALUES
     -- Tenant 1 (general_counsel plan) - 3 users
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'tenant_admin'),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-4111-8111-111111111111', 'member'),
-    ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-4111-8111-111111111111', 'viewer'),
+    ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'tenant_admin'),
+    ('bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', '11111111-1111-4111-8111-111111111111', 'member'),
+    ('cccccccc-cccc-4ccc-cccc-cccccccccccc', '11111111-1111-4111-8111-111111111111', 'viewer'),
 
     -- Tenant 2 (shield plan) - 2 users
-    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-4222-8222-222222222222', 'tenant_admin'),
-    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'member'),
+    ('dddddddd-dddd-4ddd-dddd-dddddddddddd', '22222222-2222-4222-8222-222222222222', 'tenant_admin'),
+    ('eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', '22222222-2222-4222-8222-222222222222', 'member'),
 
     -- Tenant 3 (infrastructure plan) - 1 user
-    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '33333333-2222-4222-8222-333333333333', 'tenant_admin'),
+    ('ffffffff-ffff-4fff-ffff-ffffffffffff', '33333333-2222-4222-8222-333333333333', 'tenant_admin'),
 
     -- Multi-tenant user: Bob is also a viewer in Tenant 2
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'viewer')
+    ('bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', '22222222-2222-4222-8222-222222222222', 'viewer')
 ON CONFLICT (user_id, tenant_id) DO UPDATE SET
     role_key = EXCLUDED.role_key;
-
--- =========================
--- Refresh Tokens (for auth testing)
--- =========================
-
-INSERT INTO public.refresh_tokens (id, user_id, token_hash, expires_at, revoked_at) VALUES
-    (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '$2b$10$token1hash1hash1hash1hash1hash1hash1hash1hash1hash1hash1h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '$2b$10$token2hash2hash2hash2hash2hash2hash2hash2hash2hash2hash2h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'cccccccc-cccc-cccc-cccc-cccccccccccc', '$2b$10$token3hash3hash3hash3hash3hash3hash3hash3hash3hash3hash3h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'dddddddd-dddd-dddd-dddd-dddddddddddd', '$2b$10$token4hash4hash4hash4hash4hash4hash4hash4hash4hash4hash4h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '$2b$10$token5hash5hash5hash5hash5hash5hash5hash5hash5hash5hash5h', now() + interval '7 days', NULL),
-    (gen_random_uuid(), 'ffffffff-ffff-ffff-ffff-ffffffffffff', '$2b$10$token6hash6hash6hash6hash6hash6hash6hash6hash6hash6hash6h', now() + interval '7 days', NULL)
-ON CONFLICT (id) DO NOTHING;
 
 -- -- =========================
 -- -- Mock Storage Tracking Table (For Test Verification)

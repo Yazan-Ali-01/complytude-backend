@@ -48,7 +48,7 @@ WHERE
                      '22222222-2222-4222-8222-222222222222',
                      '33333333-2222-4222-8222-333333333333')
         AND p.key = 'navigator')
-ON CONFLICT (tenant_id) WHERE status = 'active'
+ON CONFLICT (tenant_id) WHERE (status IN ('active', 'trialing'))
 DO UPDATE SET
     plan_id = EXCLUDED.plan_id,
     billing_period_start = EXCLUDED.billing_period_start,

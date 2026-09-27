@@ -29,7 +29,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm type-check
 
-  migrate-and-seed:
+  migrate:
     runs-on: ubuntu-latest
     needs: quality
     steps:
@@ -93,7 +93,7 @@ jobs:
             --group-id ${{ steps.infra.outputs.bastion_sg_id }} \
             --protocol tcp \
             --port 22 \
-            --cidr ${{ steps.runner-ip.outputs.ip }}/32
+            --cidr ${{ steps.runner-ip.outputs.ip }}/32 || true
 
       - name: Allow bastion access to RDS
         run: |
@@ -101,7 +101,7 @@ jobs:
             --group-id ${{ steps.infra.outputs.rds_sg_id }} \
             --protocol tcp \
             --port 5432 \
-            --source-group ${{ steps.infra.outputs.bastion_sg_id }}
+            --source-group ${{ steps.infra.outputs.bastion_sg_id }} || true
 
       - name: Open SSH tunnel to RDS
         run: |
@@ -119,7 +119,7 @@ jobs:
       - name: Setup database roles
         env:
           DB_HOST: localhost
-          DB_PORT: "15432"
+          DB_PORT: '15432'
           DB_NAME: complytude
           DB_USER: postgres
           DB_PASSWORD: ${{ secrets.STAGING_DB_ADMIN_PASSWORD }}
@@ -130,20 +130,11 @@ jobs:
       - name: Run migrations
         env:
           DB_HOST: localhost
-          DB_PORT: "15432"
+          DB_PORT: '15432'
           DB_NAME: complytude
           DB_USER: postgres
           DB_PASSWORD: ${{ secrets.STAGING_DB_ADMIN_PASSWORD }}
         run: bash scripts/run-migrations.sh
-
-      - name: Run seeds
-        env:
-          DB_HOST: localhost
-          DB_PORT: "15432"
-          DB_NAME: complytude
-          DB_USER: postgres
-          DB_PASSWORD: ${{ secrets.STAGING_DB_ADMIN_PASSWORD }}
-        run: bash scripts/run-seeds.sh staging
 
       - name: Cleanup
         if: always()
@@ -168,7 +159,7 @@ jobs:
     needs: quality
     strategy:
       matrix:
-        app: [api, worker-ai, worker-ingestion]
+        app: [api, worker-ai, worker-ingestion, worker-generation]
     steps:
       - uses: actions/checkout@v4
 
@@ -200,7 +191,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [build-and-push, migrate-and-seed]
+    needs: [build-and-push, migrate]
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -226,6 +217,11 @@ jobs:
             --service complytude-staging-worker-ingestion \
             --force-new-deployment
 
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service complytude-staging-worker-generation \
+            --force-new-deployment
+
       - name: Wait for all services to stabilize
         run: |
           echo "Waiting for API service..."
@@ -245,3 +241,9 @@ jobs:
             --cluster ${{ env.ECS_CLUSTER }} \
             --services complytude-staging-worker-ingestion
           echo "Worker Ingestion service is stable!"
+
+          echo "Waiting for Worker Generation service..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services complytude-staging-worker-generation
+          echo "Worker Generation service is stable!"

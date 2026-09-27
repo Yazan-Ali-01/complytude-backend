@@ -4,7 +4,6 @@ import {
   ArrayMinSize,
   IsArray,
   IsNotEmpty,
-  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -73,15 +72,6 @@ export class CreateTemplateVersionDto {
   @ArrayMinSize(1)
   fields: TemplateFieldItemDto[];
 
-  @ApiPropertyOptional({
-    example: { tags: ['employment', 'updated'] },
-    description: 'Additional metadata for this version',
-  })
-  @JsonField()
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, unknown>;
-
   @ApiProperty({
     description:
       'DOCX template file (required, max 5MB, content type: application/vnd.openxmlformats-officedocument.wordprocessingml.document)',
@@ -144,12 +134,6 @@ export class CreateTemplateVersionResponseDto {
     isArray: true,
   })
   fields: TemplateFieldItemDto[];
-
-  @ApiProperty({
-    description: 'Additional metadata for this version',
-    example: { tags: ['employment', 'updated'] },
-  })
-  metadata: Record<string, unknown>;
 
   @ApiProperty({
     description: 'Created timestamp',

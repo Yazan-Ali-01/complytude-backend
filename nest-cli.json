@@ -53,6 +53,24 @@
         "tsConfigPath": "libs/queue/tsconfig.lib.json"
       }
     },
+    "context": {
+      "type": "library",
+      "root": "libs/context",
+      "entryFile": "index",
+      "sourceRoot": "libs/context/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/context/tsconfig.lib.json"
+      }
+    },
+    "logger": {
+      "type": "library",
+      "root": "libs/logger",
+      "entryFile": "index",
+      "sourceRoot": "libs/logger/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/logger/tsconfig.lib.json"
+      }
+    },
     "redis": {
       "type": "library",
       "root": "libs/redis",
@@ -60,6 +78,33 @@
       "sourceRoot": "libs/redis/src",
       "compilerOptions": {
         "tsConfigPath": "libs/redis/tsconfig.lib.json"
+      }
+    },
+    "storage": {
+      "type": "library",
+      "root": "libs/storage",
+      "entryFile": "index",
+      "sourceRoot": "libs/storage/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/storage/tsconfig.lib.json"
+      }
+    },
+    "pdf": {
+      "type": "library",
+      "root": "libs/pdf",
+      "entryFile": "index",
+      "sourceRoot": "libs/pdf/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/pdf/tsconfig.lib.json"
+      }
+    },
+    "docx-renderer": {
+      "type": "library",
+      "root": "libs/docx-renderer",
+      "entryFile": "index",
+      "sourceRoot": "libs/docx-renderer/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/docx-renderer/tsconfig.lib.json"
       }
     },
     "worker-ai": {
@@ -79,6 +124,16 @@
       "sourceRoot": "apps/worker-ingestion/src",
       "compilerOptions": {
         "tsConfigPath": "apps/worker-ingestion/tsconfig.app.json",
+        "assets": []
+      }
+    },
+    "worker-generation": {
+      "type": "application",
+      "root": "apps/worker-generation",
+      "entryFile": "main",
+      "sourceRoot": "apps/worker-generation/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/worker-generation/tsconfig.app.json",
         "assets": []
       }
     }

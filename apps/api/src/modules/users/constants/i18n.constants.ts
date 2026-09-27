@@ -11,6 +11,7 @@ export const UsersI18n = {
     USER_ALREADY_EXISTS_IN_TENANT: 'users.errors.USER_ALREADY_EXISTS_IN_TENANT',
     CANNOT_MODIFY_OWN_ROLE: 'users.errors.CANNOT_MODIFY_OWN_ROLE',
     CANNOT_REMOVE_YOURSELF: 'users.errors.CANNOT_REMOVE_YOURSELF',
+    SSO_ACCOUNT_NO_LOCAL_PASSWORD: 'users.errors.SSO_ACCOUNT_NO_LOCAL_PASSWORD',
   },
   messages: {},
 } as const;

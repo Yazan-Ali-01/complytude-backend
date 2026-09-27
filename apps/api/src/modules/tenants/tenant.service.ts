@@ -14,8 +14,17 @@ import {
 } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { deepMerge } from '../../common/utils/deep-merge.util';
-import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { SystemTenantRole } from '../../common/types/tenant.types';
+import {
+  TenantRepository,
+  UpdateTenantRow,
+} from '../../repositories/tenants/tenant.repository';
+import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
+import {
+  QueueProducerService,
+  QUEUE_NAMES,
+  TENANT_JOB_NAMES,
+} from '@lib/queue';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantsI18n } from './constants/i18n.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -68,7 +77,9 @@ export class TenantService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
+    private readonly queueProducer: QueueProducerService,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly userTenantRepository: UserTenantRepository,
     private readonly i18n: I18nService,
   ) {}
 
@@ -168,64 +179,70 @@ export class TenantService {
   }
 
   /**
-   * Create a new tenant with default subscription
+   * Create a new tenant with a 14-day trial subscription.
    *
-   * 📝 Creates a tenant record with default plan and active status.
-   * Also creates a default subscription in the same transaction for atomicity.
-   * Does NOT require RLS context since it's inserting new rows (RLS policies typically allow INSERT).
+   * 📝 Creates a tenant record (active by default) and a `trialing` subscription
+   * on the trial plan defined in `TRIAL_CONFIG`. Both writes happen inside the
+   * same transaction for atomicity.
    *
-   * @param createTenantDto - Tenant creation data (optional planKey, defaults to 'navigator')
-   * @param options - Optional database client for transaction support (used by parent transactions)
+   * Plan selection is intentionally not exposed: paid plans are granted only
+   * through Stripe Checkout + webhooks. See `StripeCheckoutService`.
+   *
+   * @param createTenantDto - Tenant creation data (just `name`)
+   * @param subscriptionCreatorUserId - User ID for subscription creator (null when created by system)
+   * @param options - Optional client for transaction reuse
    * @returns The created Tenant entity with generated ID and timestamps
    *
    * @throws InternalServerErrorException - If database operation fails
-   * @throws NotFoundException - If specified plan not found
-   * @throws BadRequestException - If specified plan is not active
+   * @throws NotFoundException - If trial plan not found in catalog
+   * @throws BadRequestException - If trial plan is not active
    *
    * @example
    * ```ts
-   * const tenant = await tenantService.createTenant({ planKey: 'general_counsel' });
-   * const tenant = await tenantService.createTenant({}); // Uses default 'navigator' plan
+   * const tenant = await tenantService.createTenant({ name: 'Acme' }, userId);
+   * const tenant = await tenantService.createTenant(dto, null, { client }); // Reuse parent transaction
    * ```
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
-    options?: { client?: PoolClient },
+    subscriptionCreatorUserId: string | null,
+    options?: {
+      client?: PoolClient;
+    },
   ): Promise<Tenant> {
     const { client } = options ?? {};
 
+    let tenant: Tenant;
+
     try {
-      const tenantCreation = async (client: PoolClient) => {
-        // Step 1: Create the tenant
-        const tenant = await this.tenantRepository.create(
+      const tenantCreation = async (txClient: PoolClient) => {
+        const created = await this.tenantRepository.create(
           {
+            name: createTenantDto.name,
             is_active: true,
           },
-          { client },
+          { client: txClient },
         );
 
-        // Step 2: Create default subscription with the specified plan (or 'navigator' default)
-        const planKey = createTenantDto.planKey ?? 'navigator';
-        await this.subscriptionsService.createSubscription(
-          tenant.id,
-          planKey,
-          null,
-          { client },
+        await this.subscriptionsService.createTrialSubscription(
+          created.id,
+          subscriptionCreatorUserId ?? null,
+          { client: txClient },
         );
-
         this.logger.log(
-          `Tenant created with subscription: tenant=${tenant.id}, plan=${planKey}`,
+          `Tenant created with trial subscription: tenant=${created.id}`,
         );
 
-        return tenant;
+        return created;
       };
 
       if (client) {
-        return await tenantCreation(client);
+        tenant = await tenantCreation(client);
       } else {
-        return await this.databaseService.transactionWithPlatformAdminContext(
-          tenantCreation,
-        );
+        tenant =
+          await this.databaseService.transactionWithPlatformAdminContext(
+            tenantCreation,
+          );
       }
     } catch (error) {
       if (
@@ -236,11 +253,103 @@ export class TenantService {
       ) {
         throw error;
       }
+      // Unique violation (23505) = duplicate tenant name (race condition)
+      if ((error as { code?: string })?.code === '23505') {
+        throw new ConflictException(
+          this.i18n.t(TenantsI18n.errors.TENANT_NAME_TAKEN, {
+            args: { name: createTenantDto.name },
+          }),
+        );
+      }
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
-      throw new InternalServerErrorException(
-        this.i18n.t(TenantsI18n.errors.TENANT_CREATION_FAILED),
-      );
+      throw new InternalServerErrorException('Failed to create tenant');
     }
+
+    return tenant;
+  }
+
+  /**
+   * Create tenant for user (self-service signup or admin creation)
+   *
+   * Orchestrates tenant creation in a single transaction:
+   * 1. Create tenant record
+   * 2. Link user as tenant_admin
+   * 3. Create subscription (defaults to 'navigator' plan)
+   *
+   * Runs in platform admin context to bypass RLS. RBAC roles are synced on app startup.
+   * Entitlement snapshots are created lazily on first access.
+   *
+   * @throws ConflictException - If user already owns a tenant or tenant name is taken
+   * @throws NotFoundException - If specified plan not found
+   * @throws BadRequestException - If specified plan not active
+   */
+  async createTenantForUser(
+    userId: string,
+    email: string,
+    createTenantDto: CreateTenantDto,
+  ): Promise<Tenant> {
+    const tenant = await this.executeInTenantScope(
+      '',
+      { mode: 'platform' },
+      async (client) => {
+        this.logger.log(`Creating tenant for user: ${userId}`);
+
+        const isAdminOfAnyTenant =
+          await this.userTenantRepository.userIsTenantAdminOfAny(userId, {
+            client,
+          });
+        if (isAdminOfAnyTenant) {
+          throw new ConflictException(
+            this.i18n.t(TenantsI18n.errors.USER_ALREADY_HAS_TENANT),
+          );
+        }
+
+        const isNameTaken = await this.tenantRepository.isNameTaken(
+          createTenantDto.name,
+          undefined,
+          { client },
+        );
+        if (isNameTaken) {
+          throw new ConflictException(
+            this.i18n.t(TenantsI18n.errors.TENANT_NAME_TAKEN, {
+              args: { name: createTenantDto.name },
+            }),
+          );
+        }
+
+        const created = await this.createTenant(createTenantDto, userId, {
+          client,
+        });
+
+        await this.userTenantRepository.linkUserToTenant(
+          {
+            userId,
+            tenantId: created.id,
+            roleKey: SystemTenantRole.TENANT_ADMIN,
+            isActive: true,
+          },
+          { client },
+        );
+
+        this.logger.log(
+          `Tenant creation complete: id=${created.id}, user=${userId}`,
+        );
+
+        return created;
+      },
+      {
+        allowCrossTenantRead: true,
+      },
+    );
+
+    void this.queueProducer.enqueue(
+      QUEUE_NAMES.TENANT_PROCESSING,
+      TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION,
+      { tenantId: tenant.id, email, userId },
+      { attempts: 5, backoff: { type: 'exponential', delay: 1000 } },
+    );
+
+    return tenant;
   }
 
   /**
@@ -448,21 +557,18 @@ export class TenantService {
   }
 
   /**
-   * Update tenant preferences and settings
+   * Update tenant preferences (locale, timezone, default jurisdiction)
    *
-   * 🔐 RLS: Deep-merges new settings with existing tenant settings.
-   * Fields: locale, timezone, default_jurisdiction, custom settings object.
+   * 🔐 RLS: Partial update of preference fields only.
    *
    * @param tenantId - UUID of the tenant
-   * @param dto - Settings to update (partial, deep-merged)
-   * @returns Updated Tenant entity with merged settings
+   * @param dto - Fields to update
+   * @returns Updated Tenant entity
    *
    * @throws NotFoundException - If tenant not found
-   * @throws InternalServerErrorException - If merge or update fails
+   * @throws InternalServerErrorException - If update fails
    *
    * @permission Requires 'settings:manage' permission
-   * @note Settings are deep-merged: `{ theme: 'dark' }` + existing `{ notifications: true }`
-   *       = `{ theme: 'dark', notifications: true }`
    */
   async updateSettings(
     tenantId: string,
@@ -470,23 +576,23 @@ export class TenantService {
     context?: TenantContext,
   ): Promise<Tenant> {
     return this.executeInTenantScope(tenantId, context, async (client) => {
-      const tenant = await this.findById(tenantId, { client });
-      const mergedSettings = dto.settings
-        ? deepMerge(tenant.settings || {}, dto.settings)
-        : tenant.settings;
+      await this.findById(tenantId, { client });
 
-      return this.updateOrThrow(
-        tenantId,
-        {
-          ...(dto.locale && { locale: dto.locale }),
-          ...(dto.timezone && { timezone: dto.timezone }),
-          ...(dto.default_jurisdiction !== undefined && {
-            default_jurisdiction: dto.default_jurisdiction,
-          }),
-          settings: mergedSettings,
-        },
-        client,
-      );
+      const patch: Record<string, unknown> = {
+        ...(dto.locale && { locale: dto.locale }),
+        ...(dto.timezone && { timezone: dto.timezone }),
+        ...(dto.default_jurisdiction !== undefined && {
+          default_jurisdiction: dto.default_jurisdiction,
+        }),
+      };
+
+      if (Object.keys(patch).length === 0) {
+        throw new BadRequestException(
+          this.i18n.t(TenantsI18n.errors.TENANT_SETTINGS_NO_FIELDS),
+        );
+      }
+
+      return this.updateOrThrow(tenantId, patch, client);
     });
   }
 
@@ -584,12 +690,12 @@ export class TenantService {
   /**
    * Update onboarding progress metadata
    *
-   * 🔐 RLS: Deep-merges onboarding_metadata to track step completion.
+   * 🔐 RLS: Updates typed onboarding columns to track step completion.
    * Used for progressive onboarding UI and analytics.
    *
    * @param tenantId - UUID of the tenant
    * @param dto - Onboarding metadata to merge (partial)
-   * @returns Updated Tenant entity with merged onboarding_metadata
+   * @returns Updated Tenant entity with new onboarding values
    *
    * @throws NotFoundException - If tenant not found
    * @throws InternalServerErrorException - If merge or update fails
@@ -603,16 +709,21 @@ export class TenantService {
     context?: TenantContext,
   ): Promise<Tenant> {
     return this.executeInTenantScope(tenantId, context, async (client) => {
-      const tenant = await this.findById(tenantId, { client });
-      const mergedMetadata = deepMerge(
-        tenant.onboarding_metadata || {},
-        dto.onboarding_metadata || {},
-      );
-      return this.updateOrThrow(
-        tenantId,
-        { onboarding_metadata: mergedMetadata },
-        client,
-      );
+      const { currentStep, teamInviteSkipped, firstActionType } = dto;
+      const update: UpdateTenantRow = {};
+      if (currentStep !== undefined) {
+        update.onboarding_current_step = currentStep;
+      }
+      if (teamInviteSkipped !== undefined) {
+        update.onboarding_team_invite_skipped = teamInviteSkipped;
+      }
+      if (firstActionType !== undefined) {
+        update.onboarding_first_action_type = firstActionType;
+        if (firstActionType != null) {
+          update.onboarding_first_action_completed_at = new Date();
+        }
+      }
+      return this.updateOrThrow(tenantId, update, client);
     });
   }
 
@@ -711,18 +822,66 @@ export class TenantService {
         );
       }
 
-      const updated = await this.updateOrThrow(
+      const updated = await this.tenantRepository.update(
         tenantId,
         {
           is_active: true,
           deactivated_at: null,
           deactivation_reason: null,
         },
-        client,
+        { client },
       );
+      if (!updated) {
+        throw new NotFoundException(`Tenant ${tenantId} not found`);
+      }
 
       this.logger.log(`Tenant ${tenantId} reactivated by admin`);
       return updated;
     });
+  }
+
+  /**
+   * Admin update tenant profile (bypasses some user permissions)
+   *
+   * 🔐 RLS: Admin operation that can update any tenant's profile.
+   * Similar to updateProfile() but available to system admins for support tasks.
+   *
+   * @param tenantId - UUID of the tenant to update
+   * @param dto - Profile fields to update (partial)
+   * @returns Updated Tenant entity
+   *
+   * @throws NotFoundException - If tenant not found
+   * @throws InternalServerErrorException - If update fails
+   *
+   * @security Requires system_admin role
+   * @note Use for support/admin tasks - regular users should use /me/profile endpoint
+   */
+  async adminUpdateProfile(
+    tenantId: string,
+    dto: UpdateTenantProfileDto,
+  ): Promise<Tenant> {
+    try {
+      return await this.databaseService.transactionWithTenantContext(
+        { tenantId: tenantId },
+        async (client) => {
+          const updated = await this.tenantRepository.update(
+            tenantId,
+            { ...dto },
+            { client },
+          );
+          if (!updated) {
+            throw new NotFoundException(`Tenant ${tenantId} not found`);
+          }
+          return updated;
+        },
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.error(
+        `[ADMIN] Failed to update tenant profile: ${error.message}`,
+        error,
+      );
+      throw new InternalServerErrorException('Failed to update tenant profile');
+    }
   }
 }

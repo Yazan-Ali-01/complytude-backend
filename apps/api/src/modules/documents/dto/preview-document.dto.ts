@@ -1,37 +1,50 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsObject, IsString } from 'class-validator';
-
-export enum DocumentFormat {
-  DOCX = 'docx',
-  PDF = 'pdf',
-}
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 export class PreviewDocumentDto {
   @ApiProperty({
-    description: 'Template key to use for document generation',
-    example: 'dmcc_employment_v1',
+    description: 'Template key (e.g. "dmcc-employment-contract")',
+    example: 'dmcc-employment-contract',
   })
   @IsString()
   @IsNotEmpty()
   templateKey: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Semver template version. Defaults to current_version if omitted.',
+    example: '1.0.0',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d+\.\d+\.\d+$/, {
+    message: 'templateVersion must follow semver format (e.g. 1.0.0)',
+  })
+  templateVersion?: string;
+
   @ApiProperty({
-    description: 'Variables to replace placeholders in the template',
+    description: 'Variable values to fill the template placeholders',
     example: {
       employee_name: 'John Doe',
-      salary: '5000',
-      start_date: '2026-01-01',
-      position: 'Software Engineer',
+      salary: 15000,
+      start_date: '2026-04-01',
     },
   })
   @IsObject()
+  @IsNotEmpty()
   variables: Record<string, unknown>;
+}
 
+export class PreviewDocumentResponseDto {
   @ApiProperty({
-    description: 'Document format for preview',
-    enum: DocumentFormat,
-    example: DocumentFormat.DOCX,
+    description: 'Generation job ID to poll for status',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @IsEnum(DocumentFormat)
-  format: DocumentFormat;
+  generationJobId: string;
 }
