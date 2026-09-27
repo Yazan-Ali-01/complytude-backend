@@ -9,7 +9,7 @@ import {
   QueueProducerService,
 } from '@lib/queue';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Controller, Get, Param, Post } from '@nestjs/common';
+import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import {
   ApiExcludeController,
   ApiOperation,
@@ -17,10 +17,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Queue } from 'bullmq';
+import { SystemAdminGuard } from 'src/common/guards/system-admin.guard';
+import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 
 @ApiExcludeController()
 @Controller('admin/queue-test')
 @ApiTags('Queue Test (Dev Only)')
+@AuthOptions({ identity: true })
+@UseGuards(SystemAdminGuard)
 export class QueueTestMockController {
   constructor(
     private readonly queueProducer: QueueProducerService,

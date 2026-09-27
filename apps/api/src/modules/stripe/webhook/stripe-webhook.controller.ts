@@ -16,6 +16,7 @@ import {
   QueueProducerService,
   QUEUE_NAMES,
 } from '@lib/queue';
+import { Public } from '../../auth/decorators/auth-options.decorator';
 import { StripeService } from '../stripe.service';
 import { StripeWebhookService } from './stripe-webhook.service';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
@@ -41,6 +42,7 @@ export class StripeWebhookController {
    * - Returns 500 for database errors during initial event storage.
    */
   @Post('webhook')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiExcludeEndpoint()
   async handleWebhook(

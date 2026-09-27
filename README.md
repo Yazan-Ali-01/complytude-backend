@@ -104,11 +104,11 @@ hidden behind an abstraction — and keeps generated query plans predictable.
 | `categories` | Template and document taxonomy |
 | `authorities` | UAE authority definitions (DMCC, IFZA, DED, RAKEZ) |
 | `rulesets` | Compliance rules per authority |
-| `rag-mock` | Retrieval-augmented compliance analysis (mock provider) |
+| `rag-mock` | Retrieval-augmented compliance analysis (mock provider; dev only, `ENABLE_MOCK_ROUTES`) |
 | `storage` | Tenant-isolated S3 upload/download with presigned URLs |
 | `email` | Transactional email via AWS SES |
 | `health` | Liveness and dependency health checks |
-| `mock` | Deterministic providers for local development |
+| `mock` | Deterministic providers for local development (dev only, `ENABLE_MOCK_ROUTES`) |
 
 **Shared libraries** (`libs/`): `audit` (audit trail) · `context` (request/trace context) ·
 `database` · `docx-renderer` · `embedding` · `logger` · `pdf` (Gotenberg conversion) · `queue` ·

@@ -6,7 +6,7 @@ import {
   getFeatureDefinition,
 } from '../../common/constants/plan-entitlements.constant';
 import { PlansRepository } from '../../repositories/plans/plans.repository';
-import { AuthOptions } from '../auth/decorators/auth-options.decorator';
+import { AuthOptions, Public } from '../auth/decorators/auth-options.decorator';
 import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
 import {
@@ -71,6 +71,7 @@ export class EntitlementsController {
    * Get all available plans with their entitlements
    */
   @Get('plans')
+  @Public()
   @ApiOperation({ summary: 'List all available plans' })
   @ApiResponse({
     status: 200,
@@ -115,6 +116,7 @@ export class EntitlementsController {
    * Get specific plan details with entitlements
    */
   @Get('plans/:key')
+  @Public()
   @ApiOperation({ summary: 'Get plan details by key' })
   @ApiResponse({
     status: 200,

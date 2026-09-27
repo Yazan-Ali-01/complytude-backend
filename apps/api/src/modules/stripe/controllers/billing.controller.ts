@@ -68,7 +68,6 @@ import { StripeSubscriptionService } from '../services/stripe-subscription.servi
 @ApiTags('billing')
 @Controller('billing')
 @AuthOptions({ tenant: true })
-@UseGuards(TenantPermissionsGuard)
 @SwaggerCookieAuth.tenantAccessToken()
 export class BillingController {
   constructor(
@@ -182,6 +181,7 @@ export class BillingController {
 
   @Post('plan/change')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
   @ApiOperation({
     summary: 'Schedule a plan change at period end',
@@ -214,6 +214,7 @@ export class BillingController {
 
   @Post('plan/cancel-change')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
   @ApiOperation({
     summary: 'Cancel a pending plan change',
@@ -261,6 +262,7 @@ export class BillingController {
 
   @Post('subscription/cancel')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
   @ApiOperation({
     summary: 'Cancel subscription at end of current billing period',
@@ -290,6 +292,7 @@ export class BillingController {
 
   @Post('subscription/reactivate')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
   @ApiOperation({
     summary: 'Undo a pending end-of-period subscription cancellation',
@@ -321,6 +324,7 @@ export class BillingController {
 
   @Post('checkout/subscription')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
   @ApiOperation({
     summary: 'Create a Stripe Checkout Session for a subscription plan',
@@ -353,6 +357,7 @@ export class BillingController {
 
   @Post('portal/session')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
   @ApiOperation({
     summary: 'Create a Stripe Customer Portal session',
@@ -408,6 +413,7 @@ export class BillingController {
 
   @Post('checkout/credits')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
   @ApiOperation({
     summary: 'Create a Stripe Checkout Session for a credit purchase',

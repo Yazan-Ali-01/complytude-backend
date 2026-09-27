@@ -105,6 +105,7 @@ All shared libraries are imported via path aliases: `@lib/database`, `@lib/queue
 - **File names:** `{feature}.module.ts`, `{feature}.controller.ts`, `{feature}.service.ts`, `{feature}.repository.ts`, DTOs as `{action}-{feature}.dto.ts`.
 - **Modules:** dependency injection only (never `new` a service). No circular module imports. Export only the providers other modules need.
 - **Global modules:** `DatabaseModule`, `ContextModule`, `TenantRbacModule`, `PlatformRbacModule`, `EntitlementsModule`, and the Stripe webhook/billing modules are `@Global()`. Use their providers directly; don't add them to a feature module's `imports`.
+- **Mock modules:** `modules/mock` and `modules/rag-mock` are dev-only demo routes. `app.module.ts` mounts them only when `ENABLE_MOCK_ROUTES=true` and `NODE_ENV` isn't `production` (the env schema rejects the flag in production). Never import them from another module.
 - **Config:** every env var is validated at startup by the Joi schema in `apps/api/src/config/env.schema.ts`. When you add, rename or remove one, update `apps/api/.env.example` in the same change. Never hardcode secrets.
 - **Types:** no `any`. Give function parameters and return values explicit types.
 - **Swagger:** document every endpoint (`@ApiOperation`, `@ApiResponse` with a response DTO, `@ApiProperty` on DTO fields).
@@ -159,8 +160,10 @@ Use `@AuthOptions()` decorator on controllers:
 @AuthOptions({ identity: true })         // identity token only
 @AuthOptions({ tenant: true })           // tenant token only
 @AuthOptions({ identity: true, tenant: true })  // both
-// No decorator = public endpoint
+@Public()                                // no token (login, signup, webhooks, health)
 ```
+
+The global `JwtAuthGuard` is deny-by-default: a route with none of `@AuthOptions`, `@AuthRefreshOptions` (refresh endpoints, checked by `JwtAuthRefreshGuard`) or `@Public()` returns 401. `apps/api/test/auth/route-auth-inventory.integration.spec.ts` lists every public route, so a new one fails that test until it's added there.
 
 Use `@CurrentUserIdentity()` and `@CurrentUserTenant()` to extract user info from the request.
 
@@ -183,6 +186,8 @@ Two independent RBAC systems, both are **global modules** — never import them 
 ```
 
 `RequireAny*Permission(...)` passes if the user has **any** of the listed permissions; `RequireAll*Permissions(...)` needs **all** of them. Wildcards are supported (`documents:*`, `*:*`).
+
+`TenantPermissionsGuard`, `PlatformPermissionsGuard` and `RolesGuard` return 403 when applied without their metadata, so put each `@UseGuards(...)` next to the `@Require…`/`@Roles(...)` it enforces rather than on a class whose handlers don't all declare one.
 
 System roles: tenant `tenant_admin`, `legal_counsel`, `member`, `viewer`; platform `system_admin`, `support`, `auditor`. Their permission sets are in-memory maps in `common/constants/{tenant,platform}-system-roles.constant.ts`.
 

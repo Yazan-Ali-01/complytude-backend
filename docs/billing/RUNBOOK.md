@@ -68,7 +68,7 @@ Mismatch between Stripe and DB after an incident usually means a webhook failed 
 **Options:**
 
 1. **Engineering path (production-safe):** Invoke `CreditLedgerService.grant()` from a controlled internal script or REPL with correct tenant context, reason, and actor id — same semantics as product code; ensure audit requirements are met.
-2. **Development / non-production:** The mock module may expose test endpoints under `mock/credits` (see `CreditsMockController`) — **do not use in production**.
+2. **Local development only:** with `ENABLE_MOCK_ROUTES=true`, the mock module exposes test endpoints under `mock/credits` (see `CreditsMockController`). They are never mounted when `NODE_ENV=production`.
 
 Always record a **reason** and verify `domain_events` / `credit_ledger` after the operation.
 

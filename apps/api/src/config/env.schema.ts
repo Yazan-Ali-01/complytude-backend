@@ -8,6 +8,16 @@ export const validationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
+  // Dev-only demo routes (MockModule, RagMockModule); see app.module.ts
+  ENABLE_MOCK_ROUTES: Joi.boolean()
+    .default(false)
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.valid(false).messages({
+        'any.only':
+          'ENABLE_MOCK_ROUTES must not be true when NODE_ENV=production',
+      }),
+    }),
   PORT: Joi.number().default(3000),
   API_PREFIX: Joi.string().default('api'),
   CORS_ORIGINS: Joi.string().required(),

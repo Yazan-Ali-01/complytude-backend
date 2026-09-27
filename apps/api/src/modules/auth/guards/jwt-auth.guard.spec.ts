@@ -1,7 +1,16 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import passport from 'passport';
+import {
+  AUTH_OPTIONS_KEY,
+  AUTH_REFRESH_OPTIONS_KEY,
+  IS_PUBLIC_KEY,
+} from '../decorators/auth-options.decorator';
 import { SessionService } from '../services/session.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -75,11 +84,76 @@ describe('JwtAuthGuard', () => {
     );
   });
 
-  it('allows access when no auth options are set', async () => {
-    reflector.getAllAndOverride.mockReturnValue(undefined);
-    const ok = await guard.canActivate(createContext({}));
-    expect(ok).toBe(true);
-    expect(sessionService.identitySessionExistsPure).not.toHaveBeenCalled();
+  function setMetadata(byKey: Record<string, unknown>): void {
+    reflector.getAllAndOverride.mockImplementation(
+      (key: unknown) => byKey[key as string],
+    );
+  }
+
+  describe('deny by default', () => {
+    let loggerError: jest.SpyInstance;
+
+    beforeEach(() => {
+      (passport.authenticate as jest.Mock).mockClear();
+      loggerError = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+    });
+
+    afterEach(() => loggerError.mockRestore());
+
+    it('denies a route with no @AuthOptions, @AuthRefreshOptions or @Public()', async () => {
+      setMetadata({});
+      await expect(guard.canActivate(createContext({}))).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(loggerError).toHaveBeenCalled();
+      expect((passport.authenticate as jest.Mock).mock.calls).toHaveLength(0);
+    });
+
+    it('denies @AuthOptions that require no token', async () => {
+      setMetadata({
+        [AUTH_OPTIONS_KEY]: { tenant: false, identity: false },
+      });
+      await expect(guard.canActivate(createContext({}))).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('allows a @Public() route without authenticating', async () => {
+      setMetadata({ [IS_PUBLIC_KEY]: true });
+      await expect(guard.canActivate(createContext({}))).resolves.toBe(true);
+      expect((passport.authenticate as jest.Mock).mock.calls).toHaveLength(0);
+      expect(sessionService.identitySessionExistsPure).not.toHaveBeenCalled();
+    });
+
+    it('lets an @AuthRefreshOptions route through to JwtAuthRefreshGuard', async () => {
+      setMetadata({ [AUTH_REFRESH_OPTIONS_KEY]: { identity: true } });
+      await expect(guard.canActivate(createContext({}))).resolves.toBe(true);
+      expect((passport.authenticate as jest.Mock).mock.calls).toHaveLength(0);
+    });
+
+    it('lets @AuthOptions win over @Public()', async () => {
+      setMetadata({
+        [AUTH_OPTIONS_KEY]: { tenant: true, identity: false },
+        [IS_PUBLIC_KEY]: true,
+      });
+      (passport.authenticate as jest.Mock).mockImplementation(
+        (
+          _s: string,
+          _o: unknown,
+          cb: (e: Error | null, u?: unknown) => void,
+        ) => {
+          return () => cb(null, undefined);
+        },
+      );
+      await expect(
+        guard.canActivate(createContext({ auth: {} })),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(
+        (passport.authenticate as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(0);
+    });
   });
 
   it('throws when tenant token required but passport did not attach user', async () => {

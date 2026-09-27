@@ -9,14 +9,24 @@ import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
 import passport from 'passport';
+import { CommonI18n } from 'src/common/constants/i18n.constants';
 import { AuthI18n } from '../constants/i18n.constants';
-import { AUTH_OPTIONS_KEY } from '../decorators/auth-options.decorator';
+import {
+  AUTH_OPTIONS_KEY,
+  AUTH_REFRESH_OPTIONS_KEY,
+  IS_PUBLIC_KEY,
+} from '../decorators/auth-options.decorator';
 import { SessionService } from '../services/session.service';
 import {
   JWT_IDENTITY_ACCESS_STRATEGY,
   JWT_TENANT_ACCESS_STRATEGY,
 } from '../strategies';
 import { validateSessions } from '../utils/validate-sessions.util';
+
+interface AuthTokenOptions {
+  tenant?: boolean;
+  identity?: boolean;
+}
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -29,16 +39,31 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const authOptions = this.reflector.getAllAndOverride<{
-      tenant?: boolean;
-      identity?: boolean;
-    }>(AUTH_OPTIONS_KEY, [context.getHandler(), context.getClass()]);
+    const targets = [context.getHandler(), context.getClass()];
+    const authOptions = this.reflector.getAllAndOverride<
+      AuthTokenOptions | undefined
+    >(AUTH_OPTIONS_KEY, targets);
 
-    if (
-      !authOptions ||
-      (authOptions.tenant === false && authOptions.identity === false)
-    ) {
-      return true;
+    if (!authOptions?.tenant && !authOptions?.identity) {
+      if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, targets)) {
+        return true;
+      }
+      // Refresh endpoints are authenticated by JwtAuthRefreshGuard.
+      if (
+        this.reflector.getAllAndOverride<AuthTokenOptions | undefined>(
+          AUTH_REFRESH_OPTIONS_KEY,
+          targets,
+        )
+      ) {
+        return true;
+      }
+      this.logger.error(
+        `Denied ${context.getClass().name}.${context.getHandler().name}: route has no @AuthOptions, @AuthRefreshOptions or @Public()`,
+      );
+      throw new UnauthorizedException(
+        I18nContext.current()?.t(CommonI18n.errors.UNAUTHORIZED) ??
+          'Unauthorized access',
+      );
     }
 
     const req: {

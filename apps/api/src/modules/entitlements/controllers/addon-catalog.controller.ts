@@ -1,6 +1,7 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { I18nService } from 'nestjs-i18n';
+import { Public } from '../../auth/decorators/auth-options.decorator';
 import { EntitlementsI18n } from '../constants/i18n.constants';
 import {
   AddonCatalogDetailResponseDto,
@@ -20,6 +21,7 @@ import {
  */
 @Controller('addons')
 @ApiTags('addons')
+@Public()
 export class AddonCatalogController {
   constructor(
     private readonly tenantAddonsService: TenantAddonsService,

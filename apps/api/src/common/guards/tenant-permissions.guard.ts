@@ -7,8 +7,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18nContext } from 'nestjs-i18n';
 import { AuthenticatedTenantUser } from '../../modules/auth/strategies';
 import { TenantRbacService } from '../../modules/tenant-rbac/tenant-rbac.service';
+import { CommonI18n } from '../constants/i18n.constants';
 import {
   TENANT_PERMISSIONS_KEY,
   TenantPermissionMetadata,
@@ -41,13 +43,15 @@ export class TenantPermissionsGuard implements CanActivate {
         [context.getHandler(), context.getClass()],
       );
 
-    // If no permissions are required, allow access
-    if (
-      !permissionMetadata ||
-      !permissionMetadata.permissions ||
-      permissionMetadata.permissions.length === 0
-    ) {
-      return true;
+    // Applied without @Require*TenantPermission(s): a wiring mistake, so deny
+    if (!permissionMetadata?.permissions?.length) {
+      this.logger.error(
+        `Denied ${context.getClass().name}.${context.getHandler().name}: TenantPermissionsGuard applied without @RequireAnyTenantPermission/@RequireAllTenantPermissions`,
+      );
+      throw new ForbiddenException(
+        I18nContext.current()?.t(CommonI18n.errors.FORBIDDEN) ??
+          'Access forbidden',
+      );
     }
 
     const request = context.switchToHttp().getRequest();

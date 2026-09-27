@@ -196,6 +196,8 @@ These are not secret and are set directly in the task definition by Terraform (v
 | `SERVICE_NAME` | `gateway` |
 | `GOTENBERG_URL` | `http://localhost:3100` |
 
+Leave `ENABLE_MOCK_ROUTES` unset. It defaults to `false`, and the API refuses to boot if it is `true` with `NODE_ENV=production`.
+
 **Worker AI task:**
 
 | Variable | Source |

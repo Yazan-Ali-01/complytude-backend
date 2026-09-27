@@ -280,12 +280,14 @@ Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `te
 
 ### Endpoint Authentication
 
-| Decorator                                        | When to Use                                                 | Status Codes           |
-| ------------------------------------------------ | ----------------------------------------------------------- | ---------------------- |
-| No decorator                                     | Public endpoints (no auth required)                         | -                      |
-| `@AuthOptions({ identity: true })`               | Identity-based auth (tenant selection, platform operations) | 401 if unauthenticated |
-| `@AuthOptions({ tenant: true })`                 | Tenant-scoped endpoints (tenant operations)                 | 401 if unauthenticated |
-| `@AuthOptions({ identity: true, tenant: true })` | Requires both identity and tenant tokens                    | 401 if unauthenticated |
+| Decorator                                          | When to Use                                                 | Status Codes            |
+| -------------------------------------------------- | ----------------------------------------------------------- | ----------------------- |
+| `@Public()`                                        | Public endpoints (no auth required)                         | -                       |
+| `@AuthOptions({ identity: true })`                 | Identity-based auth (tenant selection, platform operations) | 401 if unauthenticated  |
+| `@AuthOptions({ tenant: true })`                   | Tenant-scoped endpoints (tenant operations)                 | 401 if unauthenticated  |
+| `@AuthOptions({ identity: true, tenant: true })`   | Requires both identity and tenant tokens                    | 401 if unauthenticated  |
+| `@AuthRefreshOptions(...)` + `JwtAuthRefreshGuard` | Token refresh and logout                                    | 401 if no refresh token |
+| No decorator                                       | Denied: the global guard is deny-by-default                 | Always 401              |
 
 ### Authorization Guards
 
@@ -306,6 +308,8 @@ Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `te
 | `PlatformPermissionsGuard` + `@RequireAnyPlatformPermission()`  | Platform permission check                 | `@RequireAnyPlatformPermission('tenants:create')`              |
 | `PlatformPermissionsGuard` + `@RequireAllPlatformPermissions()` | Multiple platform permissions (AND logic) | `@RequireAllPlatformPermissions('tenants:read', 'users:read')` |
 
+These guards deny by default: applied without their `@Require…` / `@Roles()` metadata, they return 403 for every caller.
+
 **Status Codes:**
 
 - `401 Unauthorized` - Missing or invalid authentication token
@@ -315,6 +319,7 @@ Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `te
 
 ```typescript
 // Public endpoint
+@Public()
 @ApiPublicResponses()
 @Post('login')
 async login() { ... }

@@ -198,6 +198,8 @@ async adminOnlyAction(@CurrentUserTenant() user: AuthenticatedTenantUser) {
 }
 ```
 
+The guards deny by default. `TenantPermissionsGuard`, `PlatformPermissionsGuard` and `RolesGuard` return 403 when applied to a handler without `@Require…Permission(s)` or `@Roles()`. Put `@UseGuards(...)` on the handlers that declare a requirement. A class-level guard is fine only when every handler (or the class itself) declares one. A handler that any tenant member may call just needs `@AuthOptions({ tenant: true })` and no permission guard.
+
 ### Tenant Permission Check Flow
 
 ```

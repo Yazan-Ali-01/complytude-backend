@@ -7,8 +7,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { I18nContext } from 'nestjs-i18n';
 import { AuthenticatedIdentityUser } from '../../modules/auth/strategies';
 import { PlatformRbacService } from '../../modules/platform-rbac/platform-rbac.service';
+import { CommonI18n } from '../constants/i18n.constants';
 import {
   PLATFORM_PERMISSIONS_KEY,
   PlatformPermissionMetadata,
@@ -34,12 +36,15 @@ export class PlatformPermissionsGuard implements CanActivate {
         [context.getHandler(), context.getClass()],
       );
 
-    if (
-      !permissionMetadata ||
-      !permissionMetadata.permissions ||
-      permissionMetadata.permissions.length === 0
-    ) {
-      return true;
+    // Applied without @Require*PlatformPermission(s): a wiring mistake, so deny
+    if (!permissionMetadata?.permissions?.length) {
+      this.logger.error(
+        `Denied ${context.getClass().name}.${context.getHandler().name}: PlatformPermissionsGuard applied without @RequireAnyPlatformPermission/@RequireAllPlatformPermissions`,
+      );
+      throw new ForbiddenException(
+        I18nContext.current()?.t(CommonI18n.errors.FORBIDDEN) ??
+          'Access forbidden',
+      );
     }
 
     const request = context.switchToHttp().getRequest();

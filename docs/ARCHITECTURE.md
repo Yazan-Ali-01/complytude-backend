@@ -293,7 +293,7 @@ graph TD
 | **documents**     | Document generation and management                                                 | templates, storage, database               |
 | **storage**       | File upload/download, S3 integration                                               | database                                   |
 | **health**        | Health checks for services                                                         | database, redis                            |
-| **mock**          | Development/testing mock endpoints                                                 | entitlements, rbac                         |
+| **mock**          | Dev-only mock endpoints, mounted only with `ENABLE_MOCK_ROUTES=true`               | entitlements, rbac                         |
 
 ---
 
@@ -650,7 +650,7 @@ All four payload types include `sessionId` linking to Redis sessions. Strategies
 
 ### Authorization Levels
 
-1. **Route-Level:** `JwtAuthGuard` with `@AuthOptions()` decorator validates required tokens
+1. **Route-Level:** `JwtAuthGuard` (global, deny-by-default) validates the tokens `@AuthOptions()` requires. Routes without `@AuthOptions()` must be marked `@Public()` or `@AuthRefreshOptions()`, or they return 401
 2. **Identity-Level:** Identity tokens for user verification and system admin access
 3. **Verified User-Level:** `VerifiedUserGuard` ensures email verification before critical operations (e.g., tenant creation)
 4. **Tenant-Level:** Tenant tokens provide tenant-scoped access
@@ -661,7 +661,9 @@ All four payload types include `sessionId` linking to Redis sessions. Strategies
 ### Authentication Decorators
 
 ```typescript
-// Public endpoint (no authentication)
+// Public endpoint (no authentication). Must be explicit: a route with no
+// @AuthOptions, @AuthRefreshOptions or @Public() is denied with 401.
+@Public()
 @Get('public')
 async publicEndpoint() { }
 
@@ -705,6 +707,10 @@ async createTenant(
   @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
 ) { }
 ```
+
+`TenantPermissionsGuard`, `PlatformPermissionsGuard` and `RolesGuard` also deny by default: applied without `@Require…Permission(s)` / `@Roles()`, they return 403. `apps/api/test/auth/route-auth-inventory.integration.spec.ts` boots the app with `NODE_ENV=production` and checks every route against these rules and an explicit list of public routes.
+
+The dev-only `MockModule` and `RagMockModule` (demo routes under `mock/*`, `admin/queue-test/*`, `rag-mock/*`) are mounted only when `ENABLE_MOCK_ROUTES=true` and `NODE_ENV` is not `production`. The env schema rejects `ENABLE_MOCK_ROUTES=true` in production, so boot fails.
 
 ---
 

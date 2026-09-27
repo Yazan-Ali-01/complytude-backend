@@ -6,7 +6,7 @@ import { LoggerModule } from '@lib/logger';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
 import { redisConfig, RedisModule } from '@lib/redis';
 import { Module, RequestMethod } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConditionalModule, ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import appConfig from 'src/config/app.config';
 import { validationSchema } from 'src/config/env.schema';
@@ -40,6 +40,12 @@ import { TemplatesModule } from './modules/templates/templates.module';
 import { TenantProcessingModule } from './modules/tenant-processing/tenant-processing.module';
 import { TenantRbacModule } from './modules/tenant-rbac/tenant-rbac.module';
 import { TenantModule } from './modules/tenants/tenant.module';
+
+// Dev-only demo routes. Opt-in, so a deploy that forgets NODE_ENV (which defaults to
+// 'development') still doesn't mount them; env.schema.ts rejects the flag in production.
+const mockRoutesEnabled = (env: NodeJS.ProcessEnv): boolean =>
+  env.NODE_ENV !== 'production' &&
+  env.ENABLE_MOCK_ROUTES?.toLowerCase() === 'true';
 
 @Module({
   imports: [
@@ -101,8 +107,8 @@ import { TenantModule } from './modules/tenants/tenant.module';
     PlatformRbacModule,
     AuditModule.forRoot(),
     PdfModule,
-    MockModule,
-    RagMockModule,
+    ConditionalModule.registerWhen(MockModule, mockRoutesEnabled),
+    ConditionalModule.registerWhen(RagMockModule, mockRoutesEnabled),
   ],
   controllers: [AppController],
   providers: [

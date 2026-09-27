@@ -37,6 +37,7 @@ import { AuthService } from './auth.service';
 import {
   AuthOptions,
   AuthRefreshOptions,
+  Public,
 } from './decorators/auth-options.decorator';
 import {
   CurrentUserIdentity,
@@ -82,6 +83,7 @@ export class AuthController {
    * Register new user account without creating a tenant
    */
   @Post('signup')
+  @Public()
   @Audit('AUTH_SIGNUP')
   @ApiOperation({
     summary: 'Register a new user account',
@@ -104,6 +106,7 @@ export class AuthController {
    * GET /auth/google — OAuth2: redirect to Google consent (identity tokens issued on callback).
    */
   @Get('google')
+  @Public()
   @UseGuards(GoogleSsoAuthGuard)
   @Audit('AUTH_SSO_GOOGLE_START')
   @ApiOperation({
@@ -128,6 +131,7 @@ export class AuthController {
    * GET /auth/google/callback — Google OAuth2 callback
    */
   @Get('google/callback')
+  @Public()
   @UseGuards(GoogleSsoAuthGuard)
   @UseFilters(SsoCallbackExceptionFilter)
   @Audit('AUTH_SSO_GOOGLE_CALLBACK')
@@ -153,6 +157,7 @@ export class AuthController {
    * GET /auth/microsoft — OAuth2: redirect to Microsoft consent
    */
   @Get('microsoft')
+  @Public()
   @UseGuards(MicrosoftSsoAuthGuard)
   @Audit('AUTH_SSO_MICROSOFT_START')
   @ApiOperation({
@@ -177,6 +182,7 @@ export class AuthController {
    * GET /auth/microsoft/callback — Microsoft OAuth2 callback
    */
   @Get('microsoft/callback')
+  @Public()
   @UseGuards(MicrosoftSsoAuthGuard)
   @UseFilters(SsoCallbackExceptionFilter)
   @Audit('AUTH_SSO_MICROSOFT_CALLBACK')
@@ -222,6 +228,7 @@ export class AuthController {
    * Verify email address using token
    */
   @Post('verify-email')
+  @Public()
   @Audit('AUTH_EMAIL_VERIFIED')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -249,6 +256,7 @@ export class AuthController {
    * Login and receive identity tokens for tenant selection or system admin operations
    */
   @Post('login')
+  @Public()
   @Audit('AUTH_LOGIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -696,6 +704,7 @@ export class AuthController {
    * Send password reset email
    */
   @Post('forgot-password')
+  @Public()
   @Audit('AUTH_PASSWORD_RESET_REQUESTED')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -721,6 +730,7 @@ export class AuthController {
    * Reset password using token
    */
   @Post('reset-password')
+  @Public()
   @Audit('AUTH_PASSWORD_RESET')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -748,6 +758,7 @@ export class AuthController {
    * Resolve invitation token to get invitation details
    */
   @Get('invitations/resolve')
+  @Public()
   @ApiOperation({
     summary: 'Resolve invitation token',
     description:
