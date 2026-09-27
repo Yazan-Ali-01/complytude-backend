@@ -17,11 +17,11 @@ environment on AWS. I architected it and led the engineering team that built it.
 
 | | |
 |---|---|
-| **Scale** | ~45,600 lines of TypeScript across 388 files |
-| **Services** | 3 deployable apps (API + 2 queue workers), 4 shared libraries |
-| **Domain modules** | 18 |
-| **Database** | 28 SQL migrations, row-level security, no ORM |
-| **Infrastructure** | 13 Terraform modules, staging + production environments |
+| **Scale** | ~70,900 lines of TypeScript across 569 files (`apps/` + `libs/`) |
+| **Services** | 4 deployable apps (API + 3 queue workers), 10 shared libraries |
+| **Domain modules** | 21 |
+| **Database** | 22 SQL migrations, row-level security, no ORM |
+| **Infrastructure** | 15 Terraform modules; staging deployed, production scaffolded only |
 | **Pipeline** | GitHub Actions → ECR → ECS, with automated migrations |
 
 ---
@@ -66,12 +66,13 @@ deliberate refactor after plan checks began drifting between modules.
 
 ### Event-driven monolith, structured for extraction
 
-The API is a domain-driven modular monolith. Long-running work — document analysis,
-embedding generation, ingestion — is dispatched over BullMQ to separate worker processes
-that deploy independently. Each domain can be lifted into its own service without
-rewriting call sites, because everything already crosses a queue boundary.
+The API is a domain-driven modular monolith. Long-running work — text extraction and
+embedding, compliance analysis, DOCX → PDF document generation — is dispatched over BullMQ
+to three separate worker processes that deploy independently. Each domain can be lifted
+into its own service without rewriting call sites, because everything already crosses a
+queue boundary.
 
-→ [`libs/queue`](libs/queue) · [`apps/worker-ai`](apps/worker-ai) · [`apps/worker-ingestion`](apps/worker-ingestion)
+→ [`libs/queue`](libs/queue) · [`apps/worker-ai`](apps/worker-ai) · [`apps/worker-ingestion`](apps/worker-ingestion) · [`apps/worker-generation`](apps/worker-generation)
 
 ### A repository layer over raw SQL, no ORM
 
@@ -94,17 +95,24 @@ hidden behind an abstraction — and keeps generated query plans predictable.
 | `platform-rbac` | Platform staff roles, internal access control |
 | `invitations` | Token-based invite, accept, reject flows |
 | `subscriptions` | Plan assignment and billing state |
+| `stripe` | Checkout, customers, subscriptions, add-ons, billing portal, tax, catalog sync, webhooks |
+| `billing` | Webhook processing, Stripe reconciliation, dunning emails |
 | `entitlements` | Quota and feature-gate resolution |
-| `documents` | Document lifecycle and analysis jobs |
+| `tenant-processing` | Async tenant lifecycle side effects (Stripe customer creation) over a queue |
+| `documents` | Upload, text extraction, analysis and generation jobs |
 | `templates` | Legal template CRUD and versioning |
 | `categories` | Template and document taxonomy |
 | `authorities` | UAE authority definitions (DMCC, IFZA, DED, RAKEZ) |
 | `rulesets` | Compliance rules per authority |
 | `rag-mock` | Retrieval-augmented compliance analysis (mock provider) |
 | `storage` | Tenant-isolated S3 upload/download with presigned URLs |
-| `audit` | Audit trail for privileged actions |
+| `email` | Transactional email via AWS SES |
 | `health` | Liveness and dependency health checks |
 | `mock` | Deterministic providers for local development |
+
+**Shared libraries** (`libs/`): `audit` (audit trail) · `context` (request/trace context) ·
+`database` · `docx-renderer` · `embedding` · `logger` · `pdf` (Gotenberg conversion) · `queue` ·
+`redis` · `storage`
 
 ---
 
@@ -114,14 +122,14 @@ Fully declared in Terraform under [`infra/`](infra) — no console-clicked resou
 
 **Modules:** `networking` (VPC, subnets, NAT) · `ecs` (Fargate services) · `rds`
 (PostgreSQL) · `elasticache` (Redis) · `alb` · `acm` · `route53` · `route53-record` ·
-`s3` · `ecr` · `bastion` · `secrets` (Secrets Manager) · `monitoring` (CloudWatch alarms,
-SNS)
+`s3` · `ecr` · `bastion` · `secrets` (Secrets Manager) · `ses` (transactional email) ·
+`developers` (IAM access for engineers) · `monitoring` (CloudWatch alarms, SNS)
 
-**Environments:** [`infra/environments/staging`](infra/environments/staging) ·
-[`infra/environments/production`](infra/environments/production)
+**Environments:** [`infra/environments/staging`](infra/environments/staging) (deployed) ·
+[`infra/environments/production`](infra/environments/production) (provider scaffold only; never built out)
 
 **Pipeline** ([`.github/workflows/deploy-staging.yml`](.github/workflows/deploy-staging.yml)):
-lint and type-check → run migrations and seeds through a bastion-tunnelled job with
+lint and type-check → run migrations through a bastion-tunnelled job with
 dynamically scoped security-group rules → build and push to ECR → deploy to ECS.
 
 → [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
@@ -144,10 +152,19 @@ pnpm test:integration  # integration (requires Docker)
 pnpm test:coverage
 ```
 
-**What's missing, stated plainly:** the harness landed shortly before development stopped,
-so coverage is currently a single smoke test verifying the infrastructure itself. The
-suites it was built for — RLS isolation, the dual-token flow, entitlement enforcement, queue
-round-trips — were never written. CI runs lint and type-check but does not yet run tests.
+**What's covered:** 9 integration suites (62 tests) — session lifecycle, session security and
+session endpoints (the dual-token flow), the entitlement projection pipeline plus a latency
+benchmark, the audit repository, document upload confirmation, the test factories, and the
+harness smoke test — alongside 20 unit spec files (279 tests).
+
+**What's missing, stated plainly:** tenant isolation is barely tested. The API under test
+connects as a Postgres superuser, which bypasses row-level security. RLS is exercised only
+where a test switches role through the `withTenantContext` helper, and just one test checks
+that one tenant cannot read another's rows. Billing, Stripe webhooks and the document
+pipeline have no tests. The suites also drifted after development stopped:
+`apps/api/.env.test` lacks two Stripe variables the config now requires, and 4 unit and 4
+integration tests fail on stale expectations. CI runs lint and type-check but does not run
+tests, which is why none of this was caught.
 
 This is the repository's most significant gap and it is not hidden here.
 
@@ -162,17 +179,17 @@ git clone https://github.com/Yazan-Ali-01/complytude-backend.git
 cd complytude-backend
 pnpm install
 cp apps/api/.env.example apps/api/.env
-pnpm project:setup    # starts Postgres, Redis, MinIO; runs migrations
+pnpm project:setup    # starts Postgres and Redis; runs migrations
 pnpm dev              # API with hot reload
 ```
 
-- API — `http://localhost:3000/api`
+- API — `http://localhost:3000/api/v1`
 - Swagger — `http://localhost:3000/docs`
 - Health — `http://localhost:3000/api/health`
 
-Apps run locally against containerised infrastructure by default. Fully containerised
-development and production-parity modes are available via `pnpm docker:dev` and
-`pnpm docker:prod`.
+Apps run locally against containerised infrastructure by default (`pnpm services:up`,
+`services:down`, `services:reset`). Fully containerised overlays live in
+`docker-compose.dev.yml` and `docker-compose.prod.yml`.
 
 → [`apps/api/docs/DEVELOPMENT.md`](apps/api/docs/DEVELOPMENT.md) for environment variables,
 the full script reference, and module scaffolding conventions.
@@ -198,7 +215,7 @@ Schema diagram source: [`docs/database-schema.dbml`](docs/database-schema.dbml)
 ## Engineering conventions
 
 Conventional commits enforced by commitlint · pre-commit hooks via Husky · strict
-TypeScript with `any` eliminated from application code · ESLint and Prettier ·
+TypeScript with `any` down to 10 occurrences in application code · ESLint and Prettier ·
 URI-based API versioning · i18n with per-module message constants · all work merged
 through pull requests.
 
