@@ -660,19 +660,21 @@ async listAllTemplates() {
 
 ```
 1. Tenant admin clicks "Upgrade to Shield"
-2. Frontend calls: POST /api/subscriptions/change-plan
-   Body: { planKey: "shield" }
-3. SubscriptionsService.changePlan():
-   - Validate new plan exists
-   - Update subscription.plan_id
+2. Frontend calls Stripe-backed billing endpoints (billing:manage):
+   - no paid subscription yet: POST /api/v1/billing/checkout/subscription → Stripe Checkout
+   - already on a paid plan:   POST /api/v1/billing/plan/change  Body: { planKey: "shield" }
+3. Stripe confirms, and its webhook updates the local subscription:
+   - checkout.session.completed / customer.subscription.updated set plan_id and status
    - Invalidate entitlement snapshot
-   - Emit 'subscription.plan_changed' event
+   - Emit the subscription domain event
 4. Next API request:
    - Snapshot cache MISS
    - Resolve fresh entitlements (Shield limits)
    - Create new snapshot
 5. Tenant now has Shield entitlements
 ```
+
+A Stripe-backed subscription's plan, status and period change only through Stripe and its webhooks. There are no local change-plan, cancel or renew routes. `SubscriptionsService.changePlan`, `cancel` and `renewPeriod` refuse a subscription with a `stripe_subscription_id` (409 `SUBSCRIPTION_MANAGED_BY_STRIPE`), and the trial-expiry job skips such subscriptions. Local changes are only for trials and the free Navigator plan (e.g. the batch renewal of Navigator periods).
 
 ### Flow 3: Document Generation (Within Quota)
 

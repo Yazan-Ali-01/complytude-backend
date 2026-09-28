@@ -4,7 +4,8 @@
     "SUBSCRIPTION_ALREADY_EXISTS": "Tenant already has an active subscription. Use changePlan to switch plans.",
     "PLAN_NOT_FOUND": "Plan not found",
     "PLAN_NOT_ACTIVE": "Plan is not active",
-    "ALREADY_ON_PLAN": "Tenant is already on this plan"
+    "ALREADY_ON_PLAN": "Tenant is already on this plan",
+    "SUBSCRIPTION_MANAGED_BY_STRIPE": "This subscription is billed through Stripe. Change or cancel it through the billing endpoints."
   },
   "messages": {}
 }

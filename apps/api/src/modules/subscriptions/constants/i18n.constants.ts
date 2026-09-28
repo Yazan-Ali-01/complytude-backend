@@ -9,6 +9,8 @@ export const SubscriptionsI18n = {
     PLAN_NOT_FOUND: 'subscriptions.errors.PLAN_NOT_FOUND',
     PLAN_NOT_ACTIVE: 'subscriptions.errors.PLAN_NOT_ACTIVE',
     ALREADY_ON_PLAN: 'subscriptions.errors.ALREADY_ON_PLAN',
+    SUBSCRIPTION_MANAGED_BY_STRIPE:
+      'subscriptions.errors.SUBSCRIPTION_MANAGED_BY_STRIPE',
   },
   messages: {},
 } as const;

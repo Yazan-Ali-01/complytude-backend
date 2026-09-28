@@ -391,8 +391,8 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   /**
-   * Find expired trial subscriptions for batch processing
-   * Used by the trial expiry job
+   * Find expired local trials for batch processing (the trial expiry job).
+   * Stripe-backed subscriptions are excluded: Stripe owns their trial and status.
    */
   async findExpiredTrials(
     limit = 100,
@@ -402,6 +402,7 @@ export class SubscriptionsRepository extends BaseRepository<
       `SELECT ${this.getSelectColumns()}
        FROM ${this.tableName}
        WHERE status = 'trialing' AND trial_ends_at <= NOW()
+         AND stripe_subscription_id IS NULL
        ORDER BY trial_ends_at ASC
        LIMIT $1`,
       [limit],
@@ -467,7 +468,8 @@ export class SubscriptionsRepository extends BaseRepository<
   }
 
   /**
-   * Update subscription for trial expiry: set status to active, change plan, set new period, clear trial_ends_at
+   * Update subscription for trial expiry: set status to active, change plan, set new period, clear trial_ends_at.
+   * Never touches a Stripe-backed subscription.
    */
   async updateForTrialExpiry(
     id: string,
@@ -482,7 +484,7 @@ export class SubscriptionsRepository extends BaseRepository<
            billing_period_start = $2, billing_period_end = $3,
            current_period_start = $2, current_period_end = $3,
            trial_ends_at = NULL, updated_at = now()
-       WHERE id = $4 AND status = 'trialing'
+       WHERE id = $4 AND status = 'trialing' AND stripe_subscription_id IS NULL
        RETURNING ${this.getSelectColumns()}`,
       [planId, periodStart, periodEnd, id],
       options,

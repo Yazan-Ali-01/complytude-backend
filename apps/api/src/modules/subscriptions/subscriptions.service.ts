@@ -81,6 +81,19 @@ export class SubscriptionsService {
   }
 
   /**
+   * Local plan, status and period changes are for subscriptions this service owns (trials, the
+   * free plan). A Stripe-backed subscription changes only through Stripe (the /billing/*
+   * endpoints) and its webhooks; changing it here would skip payment or keep charging the card.
+   */
+  private assertNotStripeManaged(subscription: TenantSubscription): void {
+    if (subscription.stripe_subscription_id) {
+      throw new ConflictException(
+        this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_MANAGED_BY_STRIPE),
+      );
+    }
+  }
+
+  /**
    * Renew billing period for a Navigator (free) tenant.
    * For Stripe-backed subscriptions, period renewal is driven by the
    * invoice.paid webhook in StripeEventHandlersService.
@@ -145,6 +158,8 @@ export class SubscriptionsService {
           client,
         });
       }
+
+      this.assertNotStripeManaged(currentSubscription);
 
       // Step 4: Check if already on this plan
       if (currentSubscription.plan_id === newPlan.id) {
@@ -270,6 +285,8 @@ export class SubscriptionsService {
           this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_NOT_FOUND),
         );
       }
+
+      this.assertNotStripeManaged(subscription);
 
       // Step 2: Update within transaction
       const cancelledSubscription =
@@ -581,6 +598,8 @@ export class SubscriptionsService {
           this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_NOT_FOUND),
         );
       }
+
+      this.assertNotStripeManaged(subscription);
 
       const newPeriodStart = subscription.current_period_end;
       const newPeriodEnd = new Date(newPeriodStart);
