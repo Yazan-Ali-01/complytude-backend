@@ -163,7 +163,7 @@ export class RulesetRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Ruleset[]> {
     const result = await this.executeQuery<RulesetRow>(
-      `SELECT r.${this.getSelectColumns()
+      `SELECT ${this.getSelectColumns()
         .split(', ')
         .map((c) => `r.${c.trim()}`)
         .join(', ')}

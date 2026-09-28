@@ -1,7 +1,7 @@
 import {
-  CursorPaginationOptions,
-  CursorPaginationResult,
   DatabaseService,
+  OffsetPaginationOptions,
+  OffsetPaginationResult,
 } from '@lib/database';
 import {
   BadRequestException,
@@ -13,7 +13,10 @@ import {
 } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
-import { TemplateVersion } from 'src/modules/templates/entities/template-version.entity';
+import {
+  TemplateField,
+  TemplateVersion,
+} from 'src/modules/templates/entities/template-version.entity';
 import {
   Template,
   TemplateWithDetails,
@@ -21,17 +24,17 @@ import {
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { CategoryRepository } from '../../repositories/categories/category.repository';
 import { RulesetRepository } from '../../repositories/rulesets/ruleset.repository';
-import { TemplateRepository } from '../../repositories/templates/template.repository';
+import {
+  TemplateFilters,
+  TemplateRepository,
+} from '../../repositories/templates/template.repository';
 import { StorageService } from '../storage/storage.service';
 import { TemplatesI18n } from './constants/i18n.constants';
 import {
   TEMPLATE_ALLOWED_MIME_TYPES,
   TEMPLATE_DOWNLOAD_URL_EXPIRES_IN,
 } from './constants/template.constants';
-import {
-  CreateTemplateVersionDto,
-  CreateTemplateVersionResponseDto,
-} from './dto/create-template-version.dto';
+import { CreateTemplateVersionDto } from './dto/create-template-version.dto';
 import {
   CreateTemplateDto,
   UpdateTemplateDto,
@@ -140,14 +143,13 @@ export class TemplatesService {
             createTemplateDto.fields,
           );
       } catch (error) {
+        if (error instanceof BadRequestException) throw error;
         this.logger.error(
           `Failed to process template file: ${error.message}`,
           error.stack,
         );
         throw new InternalServerErrorException(
-          this.i18n.t(
-            TemplatesI18n.errors.TEMPLATE_TEMPORARY_URL_GENERATION_FAILED,
-          ),
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_FILE_PROCESSING_FAILED),
         );
       }
 
@@ -165,6 +167,7 @@ export class TemplatesService {
               languages: createTemplateDto.languages,
               current_version: version,
               status: createTemplateDto.status || 'active',
+              tier: createTemplateDto.tier ?? 'essential',
               file_url: null,
               created_by: createdBy,
             },
@@ -254,24 +257,11 @@ export class TemplatesService {
   }
 
   async findAll(
-    status?: string,
-    categoryId?: string,
-    authorityId?: string,
-    language?: string,
-    cursorOptions?: CursorPaginationOptions,
-  ): Promise<CursorPaginationResult<Template>> {
+    filters: TemplateFilters,
+    pagination: OffsetPaginationOptions,
+  ): Promise<OffsetPaginationResult<Template>> {
     try {
-      const result = await this.templateRepository.findMany(
-        {
-          status,
-          categoryId,
-          authorityId,
-          language,
-        },
-        cursorOptions,
-      );
-
-      return result;
+      return await this.templateRepository.findMany(filters, pagination);
     } catch (error) {
       this.logger.error(`Failed to fetch templates: ${error.message}`);
       throw new InternalServerErrorException(
@@ -512,23 +502,38 @@ export class TemplatesService {
   }
 
   async deactivate(key: string): Promise<Template> {
+    return this.setStatus(key, 'inactive');
+  }
+
+  async activate(key: string): Promise<Template> {
+    return this.setStatus(key, 'active');
+  }
+
+  private async setStatus(
+    key: string,
+    status: Template['status'],
+  ): Promise<Template> {
     try {
       const template = await this.templateRepository.updateStatusByKey(
         key,
-        'inactive',
+        status,
       );
 
       if (!template) {
-        throw new NotFoundException(`Template with key "${key}" not found`);
+        throw new NotFoundException(
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_NOT_FOUND, {
+            args: { id: key },
+          }),
+        );
       }
 
-      this.logger.log(`Deactivated template: ${key}`);
+      this.logger.log(`Template ${key} is now ${status}`);
       return template;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Failed to deactivate template: ${error.message}`);
+      this.logger.error(`Failed to set template status: ${error.message}`);
       throw new InternalServerErrorException(
         this.i18n.t(TemplatesI18n.errors.TEMPLATE_UPDATE_FAILED),
       );
@@ -562,37 +567,28 @@ export class TemplatesService {
     key: string,
     createVersionDto: CreateTemplateVersionDto,
     createdBy: string,
-  ): Promise<CreateTemplateVersionResponseDto> {
-    // Find template by key
+  ): Promise<{
+    version: TemplateVersion;
+    placeholders: string[];
+    validation: PlaceholderValidationResult;
+  }> {
     const template = await this.findByKey(key);
+    await this.assertVersionIsNew(template.id, createVersionDto.version);
 
-    // Check if version already exists
-    const existingVersion = await this.databaseService.query(
-      'SELECT id FROM public.template_versions WHERE template_id = $1 AND version = $2',
-      [template.id, createVersionDto.version],
-    );
-    if (existingVersion.rows.length > 0) {
-      throw new ConflictException(
-        this.i18n.t(TemplatesI18n.errors.TEMPLATE_VERSION_CONFLICT),
-      );
-    }
-
-    // Extract placeholders from DOCX
-    let placeholders: string[] = [];
+    let placeholders: string[];
     let validationResult: PlaceholderValidationResult;
-
     try {
       placeholders =
         await this.placeholderExtractionService.extractPlaceholders(
           createVersionDto.file.buffer,
         );
-
       validationResult =
         this.placeholderExtractionService.validateFieldsMatchPlaceholders(
           placeholders,
           createVersionDto.fields,
         );
     } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       this.logger.error(
         `Failed to process template file: ${error.message}`,
         error.stack,
@@ -602,51 +598,162 @@ export class TemplatesService {
       );
     }
 
-    let versionRecord: TemplateVersion | undefined;
-    let fileUrl: string;
+    const versionRecord = await this.publishVersion(template.id, {
+      version: createVersionDto.version,
+      fields: createVersionDto.fields,
+      file: createVersionDto.file.buffer,
+      fileName: createVersionDto.file.originalname || 'template.docx',
+      mimeType:
+        createVersionDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0],
+      changelog: createVersionDto.changelog,
+      createdBy,
+    });
 
+    return {
+      version: versionRecord,
+      placeholders,
+      validation: validationResult,
+    };
+  }
+
+  /**
+   * Publishes a new version from an older one: same fields and DOCX, new version number. The old
+   * version stays as it was (versions are immutable).
+   */
+  async rollback(
+    key: string,
+    fromVersion: string,
+    newVersion: string,
+    changelog: string | undefined,
+    createdBy: string,
+  ): Promise<TemplateVersion> {
+    const template = await this.findByKey(key);
+    const source = await this.templateVersionsService.getVersion(
+      template.id,
+      fromVersion,
+    );
+    await this.assertVersionIsNew(template.id, newVersion);
+
+    const chunks: Buffer[] = [];
+    const stream = await this.storageService.getTemplateFile(
+      template.id,
+      source.version,
+    );
+    for await (const chunk of stream as AsyncIterable<Buffer | Uint8Array>) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+
+    return this.publishVersion(template.id, {
+      version: newVersion,
+      fields: source.fields,
+      file: Buffer.concat(chunks),
+      fileName: 'template.docx',
+      mimeType: TEMPLATE_ALLOWED_MIME_TYPES[0],
+      changelog: changelog ?? `Rolled back to ${source.version}`,
+      createdBy,
+    });
+  }
+
+  async listVersions(
+    key: string,
+    pagination: OffsetPaginationOptions,
+  ): Promise<OffsetPaginationResult<TemplateVersion>> {
+    const template = await this.findByKey(key);
+    return this.templateVersionsService.getVersionHistory(
+      template.id,
+      pagination,
+    );
+  }
+
+  async getVersionByKey(
+    key: string,
+    version: string,
+  ): Promise<TemplateVersion> {
+    const template = await this.findByKey(key);
+    return this.templateVersionsService.getVersion(template.id, version);
+  }
+
+  /** Links active rulesets to a template; already-linked ones are left as they are. */
+  async linkRulesets(key: string, rulesetKeys: string[]): Promise<string[]> {
+    const template = await this.findByKey(key);
+    const uniqueKeys = [...new Set(rulesetKeys)];
+    const rulesets = await this.rulesetRepository.findByKeys(uniqueKeys);
+    if (rulesets.length !== uniqueKeys.length) {
+      throw new NotFoundException(
+        this.i18n.t(TemplatesI18n.errors.RULESET_NOT_FOUND),
+      );
+    }
+    await this.rulesetRepository.associateWithTemplate(
+      template.id,
+      rulesets.map((ruleset) => ruleset.id),
+    );
+    return uniqueKeys;
+  }
+
+  private async assertVersionIsNew(
+    templateId: string,
+    version: string,
+  ): Promise<void> {
+    const existing = await this.databaseService.query(
+      'SELECT id FROM public.template_versions WHERE template_id = $1 AND version = $2',
+      [templateId, version],
+    );
+    if (existing.rows.length > 0) {
+      throw new ConflictException(
+        this.i18n.t(TemplatesI18n.errors.TEMPLATE_VERSION_CONFLICT),
+      );
+    }
+  }
+
+  /**
+   * Uploads the DOCX where the generation worker reads it
+   * (templates/<templateId>/<version>/template.docx), records the version and makes it current.
+   * The upload is removed again if the database write fails.
+   */
+  private async publishVersion(
+    templateId: string,
+    version: {
+      version: string;
+      fields: TemplateField[];
+      file: Buffer;
+      fileName: string;
+      mimeType: string;
+      changelog: string | undefined;
+      createdBy: string;
+    },
+  ): Promise<TemplateVersion> {
+    let uploaded = false;
     try {
-      await this.databaseService.transaction(async (client) => {
-        // Upload file to S3
-        const fileName = createVersionDto.file.originalname || 'template.docx';
-        const mimeType =
-          createVersionDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0];
-
+      return await this.databaseService.transaction(async (client) => {
         const uploadResult = await this.storageService.uploadTemplateFile(
-          template.id,
-          createVersionDto.version,
-          createVersionDto.file.buffer,
-          fileName,
-          mimeType,
-          createdBy,
+          templateId,
+          version.version,
+          version.file,
+          version.fileName,
+          version.mimeType,
+          version.createdBy,
         );
+        uploaded = true;
 
-        fileUrl = uploadResult.url;
-
-        // Create version record
-        versionRecord = await this.templateVersionsService.createVersion(
-          template.id,
-          createVersionDto.version,
-          createVersionDto.fields,
-          fileUrl,
-          createVersionDto.changelog,
-          createdBy,
+        const record = await this.templateVersionsService.createVersion(
+          templateId,
+          version.version,
+          version.fields,
+          uploadResult.url,
+          version.changelog,
+          version.createdBy,
           client,
         );
-        // Update template's current_version
         await this.templateRepository.update(
-          template.id,
-          {
-            current_version: createVersionDto.version,
-            file_url: fileUrl,
-          },
+          templateId,
+          { current_version: version.version, file_url: uploadResult.url },
           { client },
         );
+        return record;
       });
     } catch (error) {
-      // Clean up uploaded file if transaction fails
-      if (fileUrl!) {
-        const fileKey = `templates/${template.id}/${createVersionDto.version}/template.docx`;
+      if (uploaded) {
+        const fileKey = `templates/${templateId}/${version.version}/template.docx`;
         try {
           await this.storageService.deleteTemplateFile(fileKey);
         } catch (cleanupError) {
@@ -657,19 +764,6 @@ export class TemplatesService {
       }
       throw error;
     }
-
-    return {
-      ...versionRecord,
-      placeholdersDetected: placeholders,
-      validation: {
-        isValid:
-          validationResult.unmatchedPlaceholders.length === 0 &&
-          validationResult.unusedFields.length === 0,
-        missingInFields: validationResult.unmatchedPlaceholders,
-        missingInTemplate: validationResult.unusedFields,
-        matches: validationResult.matched,
-      },
-    } as CreateTemplateVersionResponseDto;
   }
 
   /**

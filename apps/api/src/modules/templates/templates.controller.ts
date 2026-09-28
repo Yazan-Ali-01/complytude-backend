@@ -3,10 +3,13 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiConsumes,
@@ -16,6 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { I18nService } from 'nestjs-i18n';
 import { Audit } from 'src/common/decorators/audit.decorator';
 import { RequireAnyPlatformPermission } from 'src/common/decorators/platform-permissions.decorator';
 import {
@@ -24,6 +28,7 @@ import {
   PaginationQueryDto,
 } from 'src/common/dto';
 import { PlatformPermissionsGuard } from 'src/common/guards/platform-permissions.guard';
+import { FastifyMultipartInterceptor } from 'src/common/interceptors/fastify-multipart.interceptor';
 import { SwaggerCookieAuth } from 'src/common/swagger/common';
 import {
   ApiConflictError,
@@ -35,11 +40,14 @@ import {
   ApiProtectedResponses,
 } from 'src/common/swagger/decorators';
 import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator';
-import type { AuthenticatedUser } from 'src/modules/auth/decorators/current-user.decorator';
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
+import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
+import type { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
+import { TemplatesI18n } from './constants/i18n.constants';
 import {
   CreateTemplateDto,
+  CreateTemplateResponseDto,
   CreateTemplateVersionDto,
+  CreateTemplateVersionResponseDto,
   GetTemplateResponseDto,
   GetTemplateVersionResponseDto,
   LinkRulesetsDto,
@@ -50,24 +58,43 @@ import {
   TemplateDownloadQueryDto,
   TemplateDownloadResponseDto,
   TemplateKeyParamDto,
+  TemplateUploadValidationDto,
   TemplateVersionParamDto,
   TemplateVersionsListResponseDto,
 } from './dto';
+import { TemplateFieldItemDto } from './dto/template-field.dto';
+import { TemplateVersion } from './entities/template-version.entity';
+import { Template } from './entities/template.entity';
+import { PlaceholderValidationResult } from './services/docx-placeholder-extraction.service';
+import { TemplatesService } from './templates.service';
 
+/**
+ * Reads are open to any signed-in user (the template library a tenant generates from); writes
+ * need the platform permission templates:manage.
+ */
 @ApiTags('Templates')
 @Controller('templates')
-@SwaggerCookieAuth.tenantAccessToken()
+@AuthOptions({ identity: true })
+@SwaggerCookieAuth.identityAccessToken()
 @ApiExtraModels(
   GetTemplateResponseDto,
+  CreateTemplateResponseDto,
   ListTemplatesResponseDto,
   GetTemplateVersionResponseDto,
+  CreateTemplateVersionResponseDto,
+  TemplateUploadValidationDto,
   TemplateVersionsListResponseDto,
   TemplateDownloadResponseDto,
   LinkRulesetsResponseDto,
   PaginationMetaDto,
 )
 export class TemplatesController {
-  constructor() {}
+  constructor(
+    private readonly templatesService: TemplatesService,
+    private readonly i18n: I18nService,
+  ) {}
+
+  // ─── Read Endpoints (identity token, no permission check) ──────
 
   @Get()
   @ApiOperation({
@@ -76,11 +103,35 @@ export class TemplatesController {
       'Retrieve a paginated list of document templates with optional filtering by status, category, authority, and search term.',
   })
   @ApiListResponses(ListTemplatesResponseDto, 'Templates')
-  list(
-    @Query() _query: ListTemplatesQueryDto,
+  async list(
+    @Query() query: ListTemplatesQueryDto,
   ): Promise<ListTemplatesResponseDto> {
-    // Implementation will be added by service layer
-    return null as unknown as Promise<ListTemplatesResponseDto>;
+    const result = await this.templatesService.findAll(
+      {
+        status: query.status,
+        categoryId: query.categoryId,
+        authorityId: query.authorityId,
+        search: query.search,
+      },
+      {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+      },
+    );
+
+    return {
+      data: result.data.map((template) => this.mapTemplate(template)),
+      meta: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPreviousPage: result.hasPreviousPage,
+      },
+    };
   }
 
   @Get(':key')
@@ -95,60 +146,13 @@ export class TemplatesController {
     example: 'employment_contract_v1',
   })
   @ApiGetResponses(GetTemplateResponseDto, 'Template')
-  findOne(
-    @Param() _params: TemplateKeyParamDto,
+  async findOne(
+    @Param() params: TemplateKeyParamDto,
   ): Promise<GetTemplateResponseDto> {
-    // Implementation will be added by service layer
-    return null as unknown as Promise<GetTemplateResponseDto>;
-  }
-
-  @Post()
-  @Audit('TEMPLATE_CREATED', { resourceType: 'templates', includeBody: true })
-  @AuthOptions({ identity: true })
-  @UseGuards(PlatformPermissionsGuard)
-  @RequireAnyPlatformPermission('templates:manage')
-  @ApiOperation({
-    summary: 'Create new template',
-    description:
-      'Create a new document template with DOCX file upload. This endpoint is restricted to system administrators only. The template will be created with an initial version (1.0.0) based on the provided file and field definitions.',
-  })
-  @ApiConsumes('multipart/form-data')
-  @ApiCreateResponses(GetTemplateResponseDto, 'Template')
-  @ApiConflictError('Template with this key already exists')
-  create(
-    @Body() _dto: CreateTemplateDto,
-    @CurrentUser() _user: AuthenticatedUser,
-  ): Promise<GetTemplateResponseDto> {
-    // Implementation will be added by service layer
-    // Note: This will use multipart/form-data in actual implementation
-    return null as unknown as Promise<GetTemplateResponseDto>;
-  }
-
-  @Delete(':key')
-  @Audit('TEMPLATE_DEACTIVATED', {
-    resourceIdParam: 'key',
-    resourceType: 'templates',
-  })
-  @AuthOptions({ identity: true })
-  @UseGuards(PlatformPermissionsGuard)
-  @RequireAnyPlatformPermission('templates:manage')
-  @ApiOperation({
-    summary: 'Deactivate template',
-    description:
-      'Soft delete a template by setting its status to inactive. This endpoint is restricted to system administrators only. The template will remain in the database but will be marked as inactive.',
-  })
-  @ApiParam({
-    name: 'key',
-    description: 'Template unique key',
-    example: 'employment_contract_v1',
-  })
-  @ApiDeleteResponses('Template')
-  remove(
-    @Param() _params: TemplateKeyParamDto,
-    @CurrentUser() _user: AuthenticatedUser,
-  ): MessageResponseDto {
-    // Implementation will be added by service layer
-    return null as unknown as MessageResponseDto;
+    const template = await this.templatesService.findByKeyWithDetails(
+      params.key,
+    );
+    return this.mapTemplate(template, template.current_version_details);
   }
 
   @Get(':key/versions')
@@ -163,42 +167,26 @@ export class TemplatesController {
     example: 'employment_contract_v1',
   })
   @ApiListResponses(TemplateVersionsListResponseDto, 'Template versions')
-  listVersions(
-    @Param() _params: TemplateKeyParamDto,
-    @Query() _query: PaginationQueryDto,
+  async listVersions(
+    @Param() params: TemplateKeyParamDto,
+    @Query() query: PaginationQueryDto,
   ): Promise<TemplateVersionsListResponseDto> {
-    // Implementation will be added by service layer
-    return null as unknown as Promise<TemplateVersionsListResponseDto>;
-  }
+    const result = await this.templatesService.listVersions(params.key, {
+      page: query.page ?? 1,
+      limit: query.limit ?? 20,
+    });
 
-  @Post(':key/versions')
-  @Audit('TEMPLATE_VERSION_CREATED', {
-    resourceIdParam: 'key',
-    resourceType: 'templates',
-  })
-  @AuthOptions({ identity: true })
-  @UseGuards(PlatformPermissionsGuard)
-  @RequireAnyPlatformPermission('templates:manage')
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({
-    summary: 'Create new template version',
-    description:
-      'Create a new immutable version of a template with DOCX file upload. This endpoint is restricted to system administrators only. Once created, versions cannot be modified or deleted. The version number must follow semantic versioning (x.y.z).',
-  })
-  @ApiParam({
-    name: 'key',
-    description: 'Template unique key',
-    example: 'employment_contract_v1',
-  })
-  @ApiCreateResponses(GetTemplateVersionResponseDto, 'Template version')
-  @ApiConflictError('Version already exists for this template')
-  createVersion(
-    @Param() _params: TemplateKeyParamDto,
-    @Body() _dto: CreateTemplateVersionDto,
-    @CurrentUser() _user: AuthenticatedUser,
-  ): Promise<GetTemplateVersionResponseDto> {
-    // Implementation will be added by service layer
-    return null as unknown as Promise<GetTemplateVersionResponseDto>;
+    return {
+      data: result.data.map((version) => this.mapVersion(version)),
+      meta: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPreviousPage: result.hasPreviousPage,
+      },
+    };
   }
 
   @Get(':key/versions/:version')
@@ -218,18 +206,167 @@ export class TemplatesController {
     example: '1.0.0',
   })
   @ApiGetResponses(GetTemplateVersionResponseDto, 'Template version')
-  findVersion(
-    @Param() _params: TemplateVersionParamDto,
+  async findVersion(
+    @Param() params: TemplateVersionParamDto,
   ): Promise<GetTemplateVersionResponseDto> {
-    // Implementation will be added by service layer
-    return null as unknown as Promise<GetTemplateVersionResponseDto>;
+    return this.mapVersion(
+      await this.templatesService.getVersionByKey(params.key, params.version),
+    );
+  }
+
+  @Get(':key/download')
+  @ApiOperation({
+    summary: 'Download template file',
+    description:
+      'Get a pre-signed URL to download the template DOCX file. Returns URL for specified version or current version if not specified. The signed URL expires after 15 minutes.',
+  })
+  @ApiParam({
+    name: 'key',
+    description: 'Template unique key',
+    example: 'employment_contract_v1',
+  })
+  @ApiGetResponses(TemplateDownloadResponseDto, 'Template download URL')
+  download(
+    @Param() params: TemplateKeyParamDto,
+    @Query() query: TemplateDownloadQueryDto,
+  ): Promise<TemplateDownloadResponseDto> {
+    return this.templatesService.getDownloadUrl(params.key, query.version);
+  }
+
+  // ─── Write Endpoints (identity token + templates:manage) ───────
+
+  @Post()
+  @Audit('TEMPLATE_CREATED', { resourceType: 'templates', includeBody: true })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
+  @UseInterceptors(FastifyMultipartInterceptor(CreateTemplateDto))
+  @ApiOperation({
+    summary: 'Create new template',
+    description:
+      'Create a new document template with DOCX file upload. This endpoint is restricted to system administrators only. The template will be created with an initial version (1.0.0 unless given) based on the provided file and field definitions.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiCreateResponses(CreateTemplateResponseDto, 'Template')
+  @ApiConflictError('Template with this key already exists')
+  async create(
+    @Body() dto: CreateTemplateDto,
+    @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+  ): Promise<CreateTemplateResponseDto> {
+    const created = await this.templatesService.create(dto, identity.userId);
+    return {
+      ...this.mapTemplate(created, created.current_version_details),
+      placeholdersDetected: created.placeholders_detected ?? [],
+      validation: this.mapValidation(created.validation),
+    };
+  }
+
+  @Delete(':key')
+  @Audit('TEMPLATE_DEACTIVATED', {
+    resourceIdParam: 'key',
+    resourceType: 'templates',
+  })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
+  @ApiOperation({
+    summary: 'Deactivate template',
+    description:
+      'Soft delete a template by setting its status to inactive. This endpoint is restricted to system administrators only. The template will remain in the database but will be marked as inactive, and can no longer be generated from.',
+  })
+  @ApiParam({
+    name: 'key',
+    description: 'Template unique key',
+    example: 'employment_contract_v1',
+  })
+  @ApiDeleteResponses('Template')
+  async remove(
+    @Param() params: TemplateKeyParamDto,
+  ): Promise<MessageResponseDto> {
+    await this.templatesService.deactivate(params.key);
+    return {
+      message: this.i18n.t(TemplatesI18n.messages.TEMPLATE_DEACTIVATED),
+    };
+  }
+
+  @Post(':key/activate')
+  @HttpCode(HttpStatus.OK)
+  @Audit('TEMPLATE_ACTIVATED', {
+    resourceIdParam: 'key',
+    resourceType: 'templates',
+  })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
+  @ApiOperation({
+    summary: 'Activate template',
+    description:
+      'Set a template (draft, inactive or deprecated) back to active so tenants can generate from it. Restricted to system administrators.',
+  })
+  @ApiParam({
+    name: 'key',
+    description: 'Template unique key',
+    example: 'employment_contract_v1',
+  })
+  @ApiGetResponses(GetTemplateResponseDto, 'Template')
+  @ApiProtectedResponses('System admin only')
+  async activate(
+    @Param() params: TemplateKeyParamDto,
+  ): Promise<GetTemplateResponseDto> {
+    return this.mapTemplate(await this.templatesService.activate(params.key));
+  }
+
+  @Post(':key/versions')
+  @Audit('TEMPLATE_VERSION_CREATED', {
+    resourceIdParam: 'key',
+    resourceType: 'templates',
+  })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('templates:manage')
+  @UseInterceptors(FastifyMultipartInterceptor(CreateTemplateVersionDto))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Create new template version',
+    description:
+      'Create a new immutable version of a template with DOCX file upload. This endpoint is restricted to system administrators only. The new version becomes the current one. The version number must follow semantic versioning (x.y.z).',
+  })
+  @ApiParam({
+    name: 'key',
+    description: 'Template unique key',
+    example: 'employment_contract_v1',
+  })
+  @ApiCreateResponses(CreateTemplateVersionResponseDto, 'Template version')
+  @ApiConflictError('Version already exists for this template')
+  async createVersion(
+    @Param() params: TemplateKeyParamDto,
+    @Body() dto: CreateTemplateVersionDto,
+    @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+  ): Promise<CreateTemplateVersionResponseDto> {
+    const { version, placeholders, validation } =
+      await this.templatesService.createVersion(
+        params.key,
+        dto,
+        identity.userId,
+      );
+    const mapped = this.mapVersion(version);
+    return {
+      id: mapped.id,
+      templateId: mapped.templateId,
+      version: mapped.version,
+      fileUrl: mapped.fileUrl,
+      isActive: mapped.isActive,
+      changelog: mapped.changelog,
+      fields: mapped.fields,
+      createdAt: mapped.createdAt,
+      placeholdersDetected: placeholders,
+      validation: this.mapValidation(validation),
+    };
   }
 
   @Post(':key/versions/:version/rollback')
-  @AuthOptions({ identity: true })
+  @Audit('TEMPLATE_VERSION_ROLLBACK', {
+    resourceIdParam: 'key',
+    resourceType: 'templates',
+  })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('templates:manage')
-  @Audit('TEMPLATE_VERSION_ROLLBACK', { resourceIdParam: 'key' })
   @ApiOperation({
     summary: 'Rollback to previous template version',
     description:
@@ -250,27 +387,34 @@ export class TemplatesController {
     'New template version created from rollback',
   )
   @ApiConflictError('New version number already exists')
-  rollback(
-    @Param() _params: TemplateVersionParamDto,
-    @Body() _dto: RollbackVersionDto,
-    @CurrentUser() _user: AuthenticatedUser,
+  async rollback(
+    @Param() params: TemplateVersionParamDto,
+    @Body() dto: RollbackVersionDto,
+    @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
   ): Promise<GetTemplateVersionResponseDto> {
-    // Implementation will be added by service layer
-    return null as unknown as Promise<GetTemplateVersionResponseDto>;
+    return this.mapVersion(
+      await this.templatesService.rollback(
+        params.key,
+        params.version,
+        dto.newVersion,
+        dto.changelog,
+        identity.userId,
+      ),
+    );
   }
 
   @Post(':key/rulesets')
+  @HttpCode(HttpStatus.OK)
   @Audit('TEMPLATE_RULESETS_LINKED', {
     resourceIdParam: 'key',
     resourceType: 'templates',
   })
-  @AuthOptions({ identity: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('templates:manage')
   @ApiOperation({
     summary: 'Link rulesets to template',
     description:
-      'Associate one or more rulesets with a template. This endpoint is restricted to system administrators only. The rulesets will be linked to the template for compliance checking and document generation.',
+      'Associate one or more active rulesets with a template. This endpoint is restricted to system administrators only. Rulesets already linked stay linked.',
   })
   @ApiParam({
     name: 'key',
@@ -284,32 +428,74 @@ export class TemplatesController {
   })
   @ApiNotFoundError('Template or one or more rulesets')
   @ApiProtectedResponses('System admin only')
-  linkRulesets(
-    @Param() _params: TemplateKeyParamDto,
-    @Body() _dto: LinkRulesetsDto,
-    @CurrentUser() _user: AuthenticatedUser,
+  async linkRulesets(
+    @Param() params: TemplateKeyParamDto,
+    @Body() dto: LinkRulesetsDto,
   ): Promise<LinkRulesetsResponseDto> {
-    // Implementation will be added by service layer
-    return null as unknown as Promise<LinkRulesetsResponseDto>;
+    const rulesetKeys = await this.templatesService.linkRulesets(
+      params.key,
+      dto.rulesetKeys,
+    );
+    return {
+      message: this.i18n.t(TemplatesI18n.messages.RULESETS_LINKED),
+      linkedCount: rulesetKeys.length,
+      rulesetKeys,
+    };
   }
 
-  @Get(':key/download')
-  @ApiOperation({
-    summary: 'Download template file',
-    description:
-      'Get a pre-signed URL to download the template DOCX file. Returns URL for specified version or current version if not specified. The signed URL expires after 15 minutes.',
-  })
-  @ApiParam({
-    name: 'key',
-    description: 'Template unique key',
-    example: 'employment_contract_v1',
-  })
-  @ApiGetResponses(TemplateDownloadResponseDto, 'Template download URL')
-  download(
-    @Param() _params: TemplateKeyParamDto,
-    @Query() _query: TemplateDownloadQueryDto,
-  ): Promise<TemplateDownloadResponseDto> {
-    // Implementation will be added by service layer
-    return null as unknown as Promise<TemplateDownloadResponseDto>;
+  // ─── Mappers ────────────────────────────────────────────────────
+
+  private mapTemplate(
+    template: Template,
+    currentVersion?: TemplateVersion | null,
+  ): GetTemplateResponseDto {
+    return {
+      id: template.id,
+      key: template.key,
+      name: template.name,
+      description: template.description,
+      categoryId: template.category_id,
+      authorityId: template.authority_id,
+      languages: template.languages,
+      currentVersion: template.current_version,
+      ...(currentVersion !== undefined && {
+        currentVersionData: currentVersion
+          ? this.mapVersion(currentVersion)
+          : null,
+      }),
+      status: template.status,
+      tier: template.tier,
+      fileUrl: template.file_url,
+      createdBy: template.created_by,
+      createdAt: new Date(template.created_at).toISOString(),
+      updatedAt: new Date(template.updated_at).toISOString(),
+    };
+  }
+
+  private mapVersion(version: TemplateVersion): GetTemplateVersionResponseDto {
+    return {
+      id: version.id,
+      templateId: version.template_id,
+      version: version.version,
+      fields: version.fields as unknown as TemplateFieldItemDto[],
+      fileUrl: version.file_url,
+      changelog: version.changelog,
+      isActive: version.is_active,
+      createdBy: version.created_by,
+      createdAt: new Date(version.created_at).toISOString(),
+    };
+  }
+
+  private mapValidation(
+    validation: PlaceholderValidationResult | undefined,
+  ): TemplateUploadValidationDto {
+    const missingInFields = validation?.unmatchedPlaceholders ?? [];
+    const missingInTemplate = validation?.unusedFields ?? [];
+    return {
+      isValid: missingInFields.length === 0 && missingInTemplate.length === 0,
+      missingInFields,
+      missingInTemplate,
+      matches: validation?.matched ?? [],
+    };
   }
 }

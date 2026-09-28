@@ -1155,6 +1155,32 @@ The `user_seats` entitlement (capacity feature) is enforced at two points:
 
 ---
 
+## Templates API
+
+Base path: `/api/v1/templates`
+**Authentication:** Identity access token cookie (`identityAccessToken`) for every route: any signed-in user can read the library.
+**Controller:** `TemplatesController` (`apps/api/src/modules/templates/templates.controller.ts`).
+
+Write routes additionally require the platform permission **`templates:manage`** (`PlatformPermissionsGuard`; `system_admin` has it).
+
+| Route | Purpose |
+|---|---|
+| `GET /templates` | Page-based list (`page`, `limit`, `status`, `categoryId`, `authorityId`, `search` on name/description). |
+| `GET /templates/:key` | One template with `currentVersionData` (fields of the current version). |
+| `GET /templates/:key/versions` | Versions, newest first. |
+| `GET /templates/:key/versions/:version` | One version. |
+| `GET /templates/:key/download?version=` | 15-minute signed URL for a version's DOCX (current version by default). |
+| `POST /templates` | `multipart/form-data`: `key`, `name`, `languages` (JSON), `fields` (JSON), optional `tier` (`essential`/`full`, default `essential`), `status`, `version` (default `1.0.0`), `ruleset_keys` (JSON), and the `file`. |
+| `POST /templates/:key/versions` | `multipart/form-data`: `version`, `fields` (JSON), optional `changelog`, and the `file`. The new version becomes current. |
+| `POST /templates/:key/versions/:version/rollback` | `{ newVersion, changelog? }`: publishes a new version with the old one's fields and DOCX. |
+| `POST /templates/:key/rulesets` | `{ rulesetKeys }`: links active rulesets (already linked ones stay). |
+| `DELETE /templates/:key` | Deactivates: the template stays but can't be generated from (generate answers 404). |
+| `POST /templates/:key/activate` | Makes it active again. |
+
+**Uploads.** The DOCX must be at most 5 MB and a real DOCX: its ZIP structure is checked before anything unzips it (at most 500 entries, 25 MB per entry and 50 MB in total once uncompressed, no ZIP64 or encryption, `word/document.xml` present), so a zip bomb is refused with 400. Its `{{placeholders}}` are extracted and compared with `fields`; the create responses return `placeholdersDetected` and `validation` (`missingInFields` is fine for system variables such as `tenant_name`). The file is stored at `templates/<templateId>/<version>/template.docx` in the templates bucket, which is where the generation worker reads it: no manual S3 step.
+
+---
+
 ## Billing API
 
 Base path: `/api/v1/billing`

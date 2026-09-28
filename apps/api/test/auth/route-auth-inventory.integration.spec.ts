@@ -48,11 +48,6 @@ const PUBLIC_ROUTES = [
 
 /** Unimplemented stubs: denied to everyone (401) until they get real @AuthOptions. */
 const UNDECORATED_ROUTES = [
-  'GET templates',
-  'GET templates/:key',
-  'GET templates/:key/download',
-  'GET templates/:key/versions',
-  'GET templates/:key/versions/:version',
   'GET users/me',
   'GET users/me/current-tenant',
   'GET users/me/tenants',
@@ -337,7 +332,6 @@ describe('Route authentication inventory', () => {
     it.each([
       ['GET', '/api/v1/users/me'],
       ['PATCH', '/api/v1/users/me/password'],
-      ['GET', '/api/v1/templates'],
     ] as const)(
       '%s %s (undecorated stub) is denied with 401',
       async (method, url) => {

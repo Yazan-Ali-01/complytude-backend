@@ -10,3 +10,10 @@ export const TEMPLATE_ALLOWED_MIME_TYPES: string[] = [
 export const TEMPLATE_MAX_FILE_SIZE: number = 5 * 1024 * 1024; // 5MB
 
 export const TEMPLATE_DOWNLOAD_URL_EXPIRES_IN: number = 900; // 15 minutes
+
+/** Limits on a DOCX's ZIP contents, checked before anything inflates it (zip bombs). */
+export const TEMPLATE_DOCX_LIMITS = {
+  maxEntries: 500,
+  maxEntryUncompressedBytes: 25 * 1024 * 1024,
+  maxTotalUncompressedBytes: 50 * 1024 * 1024,
+} as const;

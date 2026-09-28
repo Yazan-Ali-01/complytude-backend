@@ -17,6 +17,7 @@ export * from './link-rulesets-response.dto';
 export * from './template-download-response.dto';
 export * from './template-list-response.dto';
 export * from './template-response.dto';
+export * from './template-upload-validation.dto';
 export * from './template-versions-list-response.dto';
 
 // Shared DTOs

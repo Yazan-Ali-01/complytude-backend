@@ -37,6 +37,9 @@ export function sanitizeBody(body: unknown, depth = 0): unknown {
 
   if (typeof body !== 'object') return body;
 
+  // An uploaded file's bytes: record the size, never the content
+  if (ArrayBuffer.isView(body)) return `[binary ${body.byteLength} bytes]`;
+
   if (Array.isArray(body)) {
     return body.map((item) => sanitizeBody(item, depth + 1));
   }

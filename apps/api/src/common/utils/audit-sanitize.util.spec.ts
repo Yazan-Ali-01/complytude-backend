@@ -134,4 +134,16 @@ describe('sanitizeBody', () => {
     expect(sanitizeBody({})).toEqual({});
     expect(sanitizeBody([])).toEqual([]);
   });
+
+  it("records an uploaded file's size, not its bytes", () => {
+    const body = {
+      key: 'nda',
+      file: { originalname: 'nda.docx', buffer: Buffer.alloc(4096, 1) },
+    };
+
+    expect(sanitizeBody(body)).toEqual({
+      key: 'nda',
+      file: { originalname: 'nda.docx', buffer: '[binary 4096 bytes]' },
+    });
+  });
 });

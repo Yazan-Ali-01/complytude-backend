@@ -1,4 +1,4 @@
-import { CursorPaginationOptions, CursorPaginationResult } from '@lib/database';
+import { OffsetPaginationOptions, OffsetPaginationResult } from '@lib/database';
 import {
   ConflictException,
   Injectable,
@@ -83,12 +83,12 @@ export class TemplateVersionsService {
 
   async getVersionHistory(
     templateId: string,
-    cursorOptions?: CursorPaginationOptions,
-  ): Promise<CursorPaginationResult<TemplateVersion>> {
+    pagination: OffsetPaginationOptions,
+  ): Promise<OffsetPaginationResult<TemplateVersion>> {
     try {
       const versions = await this.templateVersionRepository.findMany(
         { template_id: templateId },
-        cursorOptions,
+        pagination,
       );
 
       return versions;

@@ -1,9 +1,8 @@
 import {
   BaseRepository,
-  CursorPaginationHelper,
-  CursorPaginationOptions,
-  CursorPaginationResult,
   DatabaseService,
+  OffsetPaginationOptions,
+  OffsetPaginationResult,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
@@ -66,73 +65,38 @@ export class TemplateVersionRepository extends BaseRepository<
     super(databaseService, 'public.template_versions');
   }
 
-  /**
-   * Find template versions with cursor-based pagination.
-   * Supports filtering by template_id and version.
-   *
-   * @param filters - Optional filters for template_id and version
-   * @param cursorOptions - Cursor, limit, and direction for pagination
-   * @param options - Query options (tenant context, client, etc.)
-   * @returns Cursor-paginated results with navigation metadata
-   */
+  /** A template's versions, page by page, newest first. */
   async findMany(
-    filters: { template_id?: string; version?: string } = {},
-    cursorOptions?: CursorPaginationOptions,
+    filters: { template_id: string },
+    pagination: OffsetPaginationOptions = { page: 1, limit: 20 },
     options?: QueryOptions,
-  ): Promise<CursorPaginationResult<TemplateVersion>> {
-    // Validate and normalize cursor options
-    const { cursor, limit, direction } =
-      CursorPaginationHelper.validateOptions(cursorOptions);
-
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-
-    if (filters.template_id) {
-      params.push(filters.template_id);
-      conditions.push(`template_id = $${params.length}`);
-    }
-    if (filters.version) {
-      params.push(filters.version);
-      conditions.push(`version = $${params.length}`);
-    }
-
-    // Add cursor condition using helper
-    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
-      direction,
-      cursor,
-      params.length + 1,
+  ): Promise<OffsetPaginationResult<TemplateVersion>> {
+    const countResult = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM ${this.tableName} WHERE template_id = $1`,
+      [filters.template_id],
+      options,
     );
+    const total = parseInt(countResult.rows[0].count, 10);
+    const offset = (pagination.page - 1) * pagination.limit;
 
-    if (cursorQuery.clause) {
-      conditions.push(cursorQuery.clause);
-      params.push(...cursorQuery.params);
-    }
-
-    const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    const limitClause = CursorPaginationHelper.buildLimitClause(
-      limit,
-      params.length + 1,
-    );
-    params.push(...limitClause.params);
-
-    const query =
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
-    const result = await this.executeQuery<TemplateVersionRow>(
-      query,
-      params,
+    const dataResult = await this.executeQuery<TemplateVersionRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE template_id = $1
+       ORDER BY created_at DESC, id LIMIT $2 OFFSET $3`,
+      [filters.template_id, pagination.limit, offset],
       options,
     );
 
-    const mappedRows = result.rows.map((row) => this.mapRow(row));
+    const totalPages = Math.ceil(total / pagination.limit);
 
-    return CursorPaginationHelper.createPaginationResponse(
-      mappedRows,
-      limit,
-      direction,
-      !!cursor,
-    );
+    return {
+      data: dataResult.rows.map((row) => this.mapRow(row)),
+      total,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages,
+      hasNextPage: pagination.page < totalPages,
+      hasPreviousPage: pagination.page > 1,
+    };
   }
 
   /**

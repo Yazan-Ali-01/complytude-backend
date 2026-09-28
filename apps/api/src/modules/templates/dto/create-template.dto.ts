@@ -139,6 +139,17 @@ export class CreateTemplateDto {
   @IsOptional()
   status?: 'active' | 'inactive' | 'draft' | 'deprecated';
 
+  @ApiPropertyOptional({
+    example: 'essential',
+    enum: ['essential', 'full'],
+    description:
+      'Template library tier: plans with the essential library can use essential templates only',
+    default: 'essential',
+  })
+  @IsEnum(['essential', 'full'])
+  @IsOptional()
+  tier?: 'essential' | 'full';
+
   /**
    * File upload validated via custom validators
    * Populated by interceptor with the uploaded file object

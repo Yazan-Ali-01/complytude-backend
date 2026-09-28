@@ -1,9 +1,8 @@
 import {
   BaseRepository,
-  CursorPaginationHelper,
-  CursorPaginationOptions,
-  CursorPaginationResult,
   DatabaseService,
+  OffsetPaginationOptions,
+  OffsetPaginationResult,
   QueryOptions,
 } from '@lib/database';
 import { Injectable } from '@nestjs/common';
@@ -48,6 +47,21 @@ export type UpdateTemplateRow = {
   updated_at?: Date;
 };
 
+export type TemplateFilters = {
+  status?: string;
+  categoryId?: string;
+  authorityId?: string;
+  language?: string;
+  search?: string;
+};
+
+const ALLOWED_SORT_COLUMNS: Record<string, string> = {
+  created_at: 'created_at',
+  updated_at: 'updated_at',
+  name: 'name',
+  key: 'key',
+};
+
 type TemplateRow = {
   id: string;
   key: string;
@@ -81,28 +95,17 @@ export class TemplateRepository extends BaseRepository<
   }
 
   /**
-   * Find templates with cursor-based pagination.
-   * Supports filtering by status, categoryId, authorityId, and language.
+   * Find templates, page by page, newest first.
    *
-   * @param filters - Optional filters for status, categoryId, authorityId, and language
-   * @param cursorOptions - Cursor, limit, and direction for pagination
-   * @param options - Query options (tenant context, client, etc.)
-   * @returns Cursor-paginated results with navigation metadata
+   * @param filters - status, category, authority, language, and a name/description search
+   * @param pagination - page and page size
+   * @param options - Query options (client, etc.)
    */
   async findMany(
-    filters: {
-      status?: string;
-      categoryId?: string;
-      authorityId?: string;
-      language?: string;
-    } = {},
-    cursorOptions?: CursorPaginationOptions,
+    filters: TemplateFilters = {},
+    pagination: OffsetPaginationOptions = { page: 1, limit: 20 },
     options?: QueryOptions,
-  ): Promise<CursorPaginationResult<Template>> {
-    // Validate and normalize cursor options
-    const { cursor, limit, direction } =
-      CursorPaginationHelper.validateOptions(cursorOptions);
-
+  ): Promise<OffsetPaginationResult<Template>> {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -122,58 +125,56 @@ export class TemplateRepository extends BaseRepository<
       params.push(filters.language);
       conditions.push(`$${params.length} = ANY(languages)`);
     }
-
-    // Add cursor condition using helper
-    const cursorQuery = CursorPaginationHelper.buildCursorQuery(
-      direction,
-      cursor,
-      params.length + 1,
-    );
-
-    if (cursorQuery.clause) {
-      conditions.push(cursorQuery.clause);
-      params.push(...cursorQuery.params);
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(name ILIKE $${params.length} OR description ILIKE $${params.length})`,
+      );
     }
 
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const limitClause = CursorPaginationHelper.buildLimitClause(
-      limit,
-      params.length + 1,
-    );
-    params.push(...limitClause.params);
-
-    const query =
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ${cursorQuery.orderClause} ${limitClause.clause}`.trim();
-    const result = await this.executeQuery<TemplateRow>(query, params, options);
-
-    const mappedRows = result.rows.map((row) => this.mapRow(row));
-
-    return CursorPaginationHelper.createPaginationResponse(
-      mappedRows,
-      limit,
-      direction,
-      !!cursor,
-    );
-  }
-
-  /**
-   * Find all active templates.
-   * Uses cursor pagination internally but returns only the first 1000 rows (if more exist, they are NOT returned).
-   *
-   * @note This method does NOT fetch more than 1000 active templates.
-   *
-   * @param options - Query options (tenant context, client, etc.)
-   * @returns Array of active templates
-   */
-  async findActive(options?: QueryOptions): Promise<Template[]> {
-    const result = await this.findMany(
-      { status: 'active' },
-      { limit: 1000 },
+    const countResult = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM ${this.tableName} ${whereClause}`,
+      params,
       options,
     );
-    return result.data;
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const sortColumn =
+      ALLOWED_SORT_COLUMNS[pagination.sortBy ?? ''] ?? 'created_at';
+    const sortOrder = pagination.sortOrder === 'asc' ? 'ASC' : 'DESC';
+    const offset = (pagination.page - 1) * pagination.limit;
+
+    params.push(pagination.limit, offset);
+    const dataResult = await this.executeQuery<TemplateRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} ${whereClause} ORDER BY ${sortColumn} ${sortOrder}, id LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+      options,
+    );
+
+    const totalPages = Math.ceil(total / pagination.limit);
+
+    return {
+      data: dataResult.rows.map((row) => this.mapRow(row)),
+      total,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages,
+      hasNextPage: pagination.page < totalPages,
+      hasPreviousPage: pagination.page > 1,
+    };
+  }
+
+  /** All active templates, by name. */
+  async findActive(options?: QueryOptions): Promise<Template[]> {
+    const result = await this.executeQuery<TemplateRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE status = 'active' ORDER BY name`,
+      [],
+      options,
+    );
+    return result.rows.map((row) => this.mapRow(row));
   }
 
   /**
@@ -224,7 +225,7 @@ export class TemplateRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<Template | null> {
     const result = await this.executeQuery<TemplateRow>(
-      `UPDATE ${this.tableName} SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2 RETURNING *`,
+      `UPDATE ${this.tableName} SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2 RETURNING ${this.getSelectColumns()}`,
       [status, key],
       options,
     );

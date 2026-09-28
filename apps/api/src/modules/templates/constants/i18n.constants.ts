@@ -45,5 +45,7 @@ export const TemplatesI18n = {
     TEMPLATE_CLONED_SUCCESS: 'templates.messages.TEMPLATE_CLONED_SUCCESS',
     TEMPLATE_PUBLISHED_SUCCESS: 'templates.messages.TEMPLATE_PUBLISHED_SUCCESS',
     TEMPLATE_ARCHIVED_SUCCESS: 'templates.messages.TEMPLATE_ARCHIVED_SUCCESS',
+    TEMPLATE_DEACTIVATED: 'templates.messages.TEMPLATE_DEACTIVATED',
+    RULESETS_LINKED: 'templates.messages.RULESETS_LINKED',
   },
 } as const;

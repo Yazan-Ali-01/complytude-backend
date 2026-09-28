@@ -5,6 +5,7 @@ import { I18nService } from 'nestjs-i18n';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from '../constants/template.constants';
 import { TemplatesI18n } from '../constants/i18n.constants';
 import { TemplateFieldItemDto } from '../dto/template-field.dto';
+import { assertSafeDocx, UnsafeDocxError } from './docx-safety.util';
 
 /**
  * Result of validating placeholders against field definitions.
@@ -43,9 +44,9 @@ export class DocxPlaceholderExtractionService {
    * since future versions of PizZip or docx parsers might support asynchronous APIs or options.
    *
    * Process:
-   * 1. Unzip DOCX file using PizZip
-   * 2. Extract word/document.xml from ZIP archive
-   * 3. Parse XML content using regex to find placeholders
+   * 1. Check the ZIP structure and sizes before anything inflates it (assertSafeDocx)
+   * 2. Unzip DOCX file using PizZip
+   * 3. Render with a recording parser to collect every placeholder tag
    * 4. Deduplicate and return unique placeholder keys
    *
    * @param buffer - DOCX file as Buffer
@@ -65,6 +66,16 @@ export class DocxPlaceholderExtractionService {
       if (!buffer || buffer.length === 0) {
         throw new BadRequestException(
           this.i18n.t(TemplatesI18n.errors.EMPTY_OR_INVALID_FILE_BUFFER),
+        );
+      }
+
+      try {
+        assertSafeDocx(buffer);
+      } catch (error) {
+        if (!(error instanceof UnsafeDocxError)) throw error;
+        this.logger.warn(`Rejected DOCX upload: ${error.message}`);
+        throw new BadRequestException(
+          this.i18n.t(TemplatesI18n.errors.INVALID_DOCX_FORMAT),
         );
       }
 

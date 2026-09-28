@@ -32,6 +32,8 @@
   "messages": {
     "TEMPLATE_CLONED_SUCCESS": "تم نسخ القالب بنجاح",
     "TEMPLATE_PUBLISHED_SUCCESS": "تم نشر القالب بنجاح",
-    "TEMPLATE_ARCHIVED_SUCCESS": "تم أرشفة القالب بنجاح"
+    "TEMPLATE_ARCHIVED_SUCCESS": "تم أرشفة القالب بنجاح",
+    "TEMPLATE_DEACTIVATED": "تم إلغاء تفعيل القالب بنجاح",
+    "RULESETS_LINKED": "تم ربط مجموعات القواعد بنجاح"
   }
 }

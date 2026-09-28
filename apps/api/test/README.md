@@ -284,7 +284,7 @@ Boots the full NestJS application with real database and Redis connections. Retu
 | `queueProducerService` | `QueueProducerService` | BullMQ queue producer |
 | `cleanup` | `() => Promise<void>` | Closes queues + app — call in `afterAll` |
 
-Automatically mocks `StorageService` and `AuditService`.
+Automatically mocks `StorageService` and `AuditService`. Registers `@fastify/cookie` and `@fastify/multipart` as `main.ts` does, so upload routes can be called with a `multipart/form-data` payload (`templates/templates-api.integration.spec.ts` builds one by hand). To see what a route stored, override `StorageService` with a subclass of `MockStorageService` that records it.
 
 ### `resetTestState(databaseService, redisClient, options?)`
 

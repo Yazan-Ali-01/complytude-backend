@@ -1,4 +1,5 @@
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import { AuditService } from '@lib/audit';
 import { DatabaseService } from '@lib/database';
 import type { Queue } from '@lib/queue';
@@ -105,6 +106,10 @@ export async function createTestApp(
   );
 
   await app.register(cookie);
+  // As main.ts: file uploads (multipart/form-data), one file per request
+  await app.register(multipart, {
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  });
 
   const apiPrefix = process.env.API_PREFIX || 'api';
   app.setGlobalPrefix(apiPrefix);

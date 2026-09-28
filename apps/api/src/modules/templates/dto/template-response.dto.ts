@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TemplateUploadValidationDto } from './template-upload-validation.dto';
 import { TemplateFieldItemDto } from './template-field.dto';
 
 /**
@@ -123,11 +124,13 @@ export class GetTemplateResponseDto {
   })
   currentVersion: string;
 
-  @ApiProperty({
-    description: 'Current version data including fields',
+  @ApiPropertyOptional({
+    description:
+      'Current version data including fields (on the single-template endpoint, not in lists)',
     type: GetTemplateVersionResponseDto,
+    nullable: true,
   })
-  currentVersionData: GetTemplateVersionResponseDto;
+  currentVersionData?: GetTemplateVersionResponseDto | null;
 
   @ApiProperty({
     description: 'Template status',
@@ -135,6 +138,14 @@ export class GetTemplateResponseDto {
     example: 'active',
   })
   status: 'active' | 'inactive' | 'draft' | 'deprecated';
+
+  @ApiProperty({
+    description:
+      'Template library tier: essential templates are open to every plan, full ones to plans with the full library',
+    enum: ['essential', 'full'],
+    example: 'essential',
+  })
+  tier: 'essential' | 'full';
 
   @ApiProperty({
     description: 'S3 URL for the current template file',
@@ -165,4 +176,24 @@ export class GetTemplateResponseDto {
     format: 'date-time',
   })
   updatedAt: string;
+}
+
+/**
+ * Create template response DTO
+ * The new template, plus what the uploaded DOCX's placeholders look like against its fields
+ */
+export class CreateTemplateResponseDto extends GetTemplateResponseDto {
+  @ApiProperty({
+    description: 'Placeholders extracted from the uploaded DOCX file',
+    example: ['employee_name', 'salary', 'start_date'],
+    type: [String],
+  })
+  placeholdersDetected: string[];
+
+  @ApiProperty({
+    description:
+      'Validation result comparing extracted placeholders to field definitions',
+    type: TemplateUploadValidationDto,
+  })
+  validation: TemplateUploadValidationDto;
 }

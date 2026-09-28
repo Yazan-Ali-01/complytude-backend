@@ -24,6 +24,7 @@ import {
   TEMPLATE_MAX_FILE_SIZE,
 } from '../constants/template.constants';
 import { TemplateFieldItemDto } from './template-field.dto';
+import { TemplateUploadValidationDto } from './template-upload-validation.dto';
 
 /**
  * Create template version request DTO
@@ -85,7 +86,6 @@ export class CreateTemplateVersionDto {
   file: MulterLikeFile;
 }
 
-// todo: remove later
 /**
  * Create template version response DTO
  * Returns the newly created version with validation results
@@ -153,17 +153,7 @@ export class CreateTemplateVersionResponseDto {
   @ApiProperty({
     description:
       'Validation result comparing extracted placeholders to field definitions',
-    example: {
-      isValid: true,
-      missingInFields: [],
-      missingInTemplate: [],
-      matches: ['employee_name', 'salary', 'start_date'],
-    },
+    type: TemplateUploadValidationDto,
   })
-  validation: {
-    isValid: boolean;
-    missingInFields: string[];
-    missingInTemplate: string[];
-    matches: string[];
-  };
+  validation: TemplateUploadValidationDto;
 }

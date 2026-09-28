@@ -32,6 +32,8 @@
   "messages": {
     "TEMPLATE_CLONED_SUCCESS": "Template cloned successfully",
     "TEMPLATE_PUBLISHED_SUCCESS": "Template published successfully",
-    "TEMPLATE_ARCHIVED_SUCCESS": "Template archived successfully"
+    "TEMPLATE_ARCHIVED_SUCCESS": "Template archived successfully",
+    "TEMPLATE_DEACTIVATED": "Template deactivated successfully",
+    "RULESETS_LINKED": "Rulesets linked successfully"
   }
 }
