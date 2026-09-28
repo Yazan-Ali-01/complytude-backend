@@ -16,6 +16,9 @@ export class StripeService implements OnModuleInit {
 
     this.stripeClient = new Stripe(secretKey, {
       apiVersion: apiVersion as Stripe.LatestApiVersion,
+      // Retried POSTs carry an automatic idempotency key
+      maxNetworkRetries: 2,
+      timeout: 30_000,
     });
 
     this.logger.log('Stripe client initialized');

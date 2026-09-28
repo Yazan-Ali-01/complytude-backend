@@ -340,6 +340,37 @@ export class TenantRepository extends BaseRepository<
   }
 
   /**
+   * Store the tenant's Stripe customer ID unless it already has one, and return the stored ID
+   * (the existing one if another request got there first; null if the tenant doesn't exist).
+   * Caller must provide a platform admin context client so RLS permits the UPDATE.
+   */
+  async setStripeCustomerIdIfMissing(
+    tenantId: string,
+    stripeCustomerId: string,
+    options?: QueryOptions,
+  ): Promise<string | null> {
+    const claimed = await this.executeQuery<{ stripe_customer_id: string }>(
+      `UPDATE ${this.tableName} SET stripe_customer_id = $1, updated_at = NOW()
+       WHERE id = $2 AND stripe_customer_id IS NULL
+       RETURNING stripe_customer_id`,
+      [stripeCustomerId, tenantId],
+      options,
+    );
+    if (claimed.rows[0]) {
+      return claimed.rows[0].stripe_customer_id;
+    }
+    // A separate statement, so it sees the ID a concurrent request just committed
+    const existing = await this.executeQuery<{
+      stripe_customer_id: string | null;
+    }>(
+      `SELECT stripe_customer_id FROM ${this.tableName} WHERE id = $1`,
+      [tenantId],
+      options,
+    );
+    return existing.rows[0]?.stripe_customer_id ?? null;
+  }
+
+  /**
    * Store or update the Stripe customer ID for a tenant.
    * Caller must provide a platform admin context client so RLS permits the UPDATE.
    */

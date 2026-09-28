@@ -257,97 +257,119 @@ export class StripeEventHandlersService {
         return;
       }
 
-      await this.databaseService.transactionWithPlatformAdminContext(
-        async (client) => {
-          await this.subscriptionsRepository.update(
-            subscription.id,
-            {
-              status: 'cancelled',
-              stripe_status: stripeSub.status,
-              cancelled_at: new Date(),
-              stripe_schedule_id: null,
-            },
-            { client },
-          );
-
-          const activeAddons =
-            await this.tenantAddonsRepository.findActiveByTenant(tenantId, {
-              client,
-            });
-          for (const addon of activeAddons) {
-            await this.tenantAddonsRepository.update(
-              addon.id,
-              { status: 'cancelled' },
+      const replacement =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            await this.subscriptionsRepository.update(
+              subscription.id,
+              {
+                status: 'cancelled',
+                stripe_status: stripeSub.status,
+                cancelled_at: new Date(),
+                stripe_schedule_id: null,
+              },
               { client },
             );
-          }
-          if (activeAddons.length > 0) {
-            this.logger.log(
-              `Cancelled ${activeAddons.length} add-on(s) on subscription deletion: tenant=${tenantId}`,
+
+            // A newer subscription (e.g. from a second checkout) may still be paying: it keeps its
+            // plan and its add-ons, and only this subscription's add-ons are cancelled
+            const replacement =
+              await this.subscriptionsRepository.findCurrentByTenant(tenantId, {
+                client,
+              });
+            const deletedItemIds = new Set(
+              stripeSub.items.data.map((item) => item.id),
             );
-          }
-
-          const navigatorPlan = await this.plansRepository.findByKey(
-            'navigator',
-            { client },
-          );
-
-          if (!navigatorPlan) {
-            throw new Error(
-              `Navigator plan not found in DB — catalog sync may not have run (event: ${event.id})`,
+            const activeAddons =
+              await this.tenantAddonsRepository.findActiveByTenant(tenantId, {
+                client,
+              });
+            const addonsToCancel = activeAddons.filter((addon) =>
+              addon.stripe_subscription_item_id
+                ? deletedItemIds.has(addon.stripe_subscription_item_id)
+                : !replacement,
             );
-          }
+            for (const addon of addonsToCancel) {
+              await this.tenantAddonsRepository.update(
+                addon.id,
+                { status: 'cancelled' },
+                { client },
+              );
+            }
+            if (addonsToCancel.length > 0) {
+              this.logger.log(
+                `Cancelled ${addonsToCancel.length} add-on(s) on subscription deletion: tenant=${tenantId}`,
+              );
+            }
 
-          const now = new Date();
-          const oneMonthLater = new Date(now);
-          oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+            if (!replacement) {
+              const navigatorPlan = await this.plansRepository.findByKey(
+                'navigator',
+                { client },
+              );
 
-          await this.subscriptionsRepository.upsert(
-            {
-              tenant_id: tenantId,
-              plan_id: navigatorPlan.id,
-              status: 'active',
-              stripe_subscription_id: null,
-              billing_period_start: now,
-              billing_period_end: oneMonthLater,
-              current_period_start: now,
-              current_period_end: oneMonthLater,
-              downgraded_from_stripe: true,
-            },
-            { client },
-          );
+              if (!navigatorPlan) {
+                throw new Error(
+                  `Navigator plan not found in DB — catalog sync may not have run (event: ${event.id})`,
+                );
+              }
 
-          await this.entitlementSnapshotsRepository.invalidate(tenantId, {
-            client,
-          });
+              const now = new Date();
+              const oneMonthLater = new Date(now);
+              oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
 
-          this.entitlementCache.invalidateSubscription(tenantId);
+              await this.subscriptionsRepository.upsert(
+                {
+                  tenant_id: tenantId,
+                  plan_id: navigatorPlan.id,
+                  status: 'active',
+                  stripe_subscription_id: null,
+                  billing_period_start: now,
+                  billing_period_end: oneMonthLater,
+                  current_period_start: now,
+                  current_period_end: oneMonthLater,
+                  downgraded_from_stripe: true,
+                },
+                { client },
+              );
+            }
 
-          await this.domainEventsService.emit(
-            {
-              tenant_id: tenantId,
-              event_type: 'subscription.cancelled',
-              aggregate_type: 'subscription',
-              aggregate_id: subscription.id,
-              actor_type: 'stripe',
-              payload: JSON.stringify({
-                old_plan_id: subscription.plan_id,
-                downgraded_to: 'navigator',
-                stripe_subscription_id: stripeSub.id,
-                stripe_status: stripeSub.status,
-              }),
-              metadata: JSON.stringify({
-                timestamp: new Date().toISOString(),
-                stripe_event_id: event.id,
-              }),
-            },
-            { client },
-          );
-        },
-      );
+            await this.entitlementSnapshotsRepository.invalidate(tenantId, {
+              client,
+            });
+
+            this.entitlementCache.invalidateSubscription(tenantId);
+
+            await this.domainEventsService.emit(
+              {
+                tenant_id: tenantId,
+                event_type: 'subscription.cancelled',
+                aggregate_type: 'subscription',
+                aggregate_id: subscription.id,
+                actor_type: 'stripe',
+                payload: JSON.stringify({
+                  old_plan_id: subscription.plan_id,
+                  downgraded_to: replacement ? null : 'navigator',
+                  still_subscribed_via: replacement?.id ?? null,
+                  stripe_subscription_id: stripeSub.id,
+                  stripe_status: stripeSub.status,
+                }),
+                metadata: JSON.stringify({
+                  timestamp: new Date().toISOString(),
+                  stripe_event_id: event.id,
+                }),
+              },
+              { client },
+            );
+
+            return replacement;
+          },
+        );
 
       this.logger.log(
-        `Subscription cancelled and downgraded to Navigator: tenant=${tenantId}, stripe_sub=${stripeSub.id}`,
+        replacement
+          ? `Subscription cancelled; tenant keeps subscription ${replacement.id}: tenant=${tenantId}, stripe_sub=${stripeSub.id}`
+          : `Subscription cancelled and downgraded to Navigator: tenant=${tenantId}, stripe_sub=${stripeSub.id}`,
       );
       return;
     }

@@ -15,7 +15,7 @@ export class StripeCustomerCreationHandler {
   ) {}
 
   async execute(job: Job<TenantStripeCustomerCreationJobData>): Promise<void> {
-    const { tenantId, email, userId } = job.data;
+    const { tenantId, email } = job.data;
 
     this.logger.log(
       `Creating Stripe customer for tenant=${tenantId} attempt=${job.attemptsMade + 1}`,
@@ -41,10 +41,6 @@ export class StripeCustomerCreationHandler {
       return;
     }
 
-    await this.stripeCustomerService.createCustomerForTenant(
-      tenant,
-      email,
-      userId,
-    );
+    await this.stripeCustomerService.createCustomerForTenant(tenant, email);
   }
 }

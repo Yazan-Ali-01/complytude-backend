@@ -1,9 +1,7 @@
 import { DatabaseService } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
-import type { PoolClient } from 'pg';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
-import Stripe from 'stripe';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { StripeService } from '../stripe.service';
 import { StripeTaxService } from './stripe-tax.service';
@@ -12,11 +10,6 @@ export type BackfillResult = {
   created: number;
   skipped: number;
   failed: number;
-};
-
-type CreateStripeCustomerOptions = {
-  email?: string;
-  metadata?: Record<string, string>;
 };
 
 @Injectable()
@@ -32,29 +25,18 @@ export class StripeCustomerService {
   ) {}
 
   /**
-   * Create a Stripe customer for a tenant and persist the ID.
-   *
-   * Throws on failure so callers (e.g. BullMQ job handlers) can retry.
-   * Use `getOrCreateCustomer` as a lazy fallback for cases where this
-   * was never called or silently failed before the queue migration.
+   * Create the tenant's Stripe customer and persist the ID (the tenant-creation job).
+   * Idempotent: returns the existing customer if the tenant already has one, and throws on
+   * failure so the job retries.
    */
   async createCustomerForTenant(
     tenant: Tenant,
     creatorEmail?: string,
-    creatorUserId?: string,
   ): Promise<string> {
-    const customerId = await this.createStripeCustomerAndPersist(tenant, {
-      email: creatorEmail,
-      metadata: {
-        complytude_tenant_id: tenant.id,
-        ...(creatorUserId && { complytude_user_id: creatorUserId }),
-      },
-    });
-
-    this.logger.log(
-      `Created Stripe customer ${customerId} for tenant ${tenant.id}`,
-    );
-
+    const customerId = await this.ensureCustomer(tenant.id, creatorEmail);
+    if (!customerId) {
+      throw new Error(`Tenant ${tenant.id} not found`);
+    }
     return customerId;
   }
 
@@ -64,40 +46,89 @@ export class StripeCustomerService {
    * operations (subscriptions, invoices, etc.).
    */
   async getOrCreateCustomer(tenantId: string): Promise<string | null> {
-    return this.databaseService.transactionWithPlatformAdminContext(
-      async (client) => {
-        const tenant = await this.tenantRepository.findById(tenantId, {
-          client,
-        });
+    return this.ensureCustomer(tenantId);
+  }
 
-        if (!tenant) {
-          this.logger.warn(`getOrCreateCustomer: tenant ${tenantId} not found`);
-          return null;
-        }
-
-        if (tenant.stripe_customer_id) {
-          return tenant.stripe_customer_id;
-        }
-
-        const adminEmail = await this.userTenantRepository.findTenantAdminEmail(
-          tenantId,
-          {
+  /**
+   * One Stripe customer per tenant, however many requests or job retries race to create it:
+   * the Stripe call is keyed by tenant and made outside any DB transaction, and the first ID
+   * stored on the tenant wins. Returns null if the tenant doesn't exist.
+   */
+  private async ensureCustomer(
+    tenantId: string,
+    fallbackEmail?: string,
+  ): Promise<string | null> {
+    const found =
+      await this.databaseService.transactionWithPlatformAdminContext(
+        async (client) => {
+          const tenant = await this.tenantRepository.findById(tenantId, {
             client,
-          },
-        );
+          });
+          if (!tenant || tenant.stripe_customer_id) {
+            return { tenant, adminEmail: null };
+          }
+          const adminEmail =
+            await this.userTenantRepository.findTenantAdminEmail(tenantId, {
+              client,
+            });
+          return { tenant, adminEmail };
+        },
+      );
 
-        return this.createStripeCustomerAndPersist(
-          tenant,
-          {
-            email: adminEmail ?? undefined,
-            metadata: {
-              complytude_tenant_id: tenant.id,
-            },
-          },
-          client,
-        );
+    if (!found.tenant) {
+      this.logger.warn(`ensureCustomer: tenant ${tenantId} not found`);
+      return null;
+    }
+    if (found.tenant.stripe_customer_id) {
+      return found.tenant.stripe_customer_id;
+    }
+
+    const tenant = found.tenant;
+    // Every caller sends the same parameters for the tenant: Stripe rejects a reused key with
+    // different parameters.
+    const customer = await this.stripeService.client.customers.create(
+      {
+        email: found.adminEmail ?? fallbackEmail,
+        name: tenant.name ?? undefined,
+        metadata: { complytude_tenant_id: tenant.id },
       },
+      { idempotencyKey: `customer:${tenant.id}` },
     );
+
+    const storedId =
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.tenantRepository.setStripeCustomerIdIfMissing(
+          tenant.id,
+          customer.id,
+          { client },
+        ),
+      );
+    if (!storedId) {
+      throw new Error(
+        `Tenant ${tenant.id} disappeared while creating its Stripe customer`,
+      );
+    }
+    if (storedId !== customer.id) {
+      this.logger.warn(
+        `Tenant ${tenant.id} already had Stripe customer ${storedId}; ${customer.id} is unused`,
+      );
+      return storedId;
+    }
+
+    this.logger.log(
+      `Created Stripe customer ${customer.id} for tenant ${tenant.id}`,
+    );
+
+    // syncCustomerTax logs its own errors; this catch is the backstop for a fire-and-forget call
+    this.stripeTaxService
+      .syncCustomerTax(customer.id, tenant)
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Tax sync failed for customer ${customer.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+
+    return customer.id;
   }
 
   /**
@@ -132,26 +163,7 @@ export class StripeCustomerService {
 
     for (const tenant of tenants) {
       try {
-        await this.databaseService.transactionWithPlatformAdminContext(
-          async (client) => {
-            const adminEmail =
-              await this.userTenantRepository.findTenantAdminEmail(tenant.id, {
-                client,
-              });
-
-            await this.createStripeCustomerAndPersist(
-              tenant,
-              {
-                email: adminEmail ?? undefined,
-                metadata: {
-                  complytude_tenant_id: tenant.id,
-                  backfilled: 'true',
-                },
-              },
-              client,
-            );
-          },
-        );
+        await this.ensureCustomer(tenant.id);
 
         this.logger.log(`Backfilled Stripe customer for tenant ${tenant.id}`);
         result.created++;
@@ -169,56 +181,5 @@ export class StripeCustomerService {
     );
 
     return result;
-  }
-
-  /**
-   * Create a Stripe customer via the API and persist the resulting ID to the
-   * tenant row. Runs the DB write in a platform admin context so RLS permits
-   * the UPDATE.
-   *
-   * When `client` is provided, uses that client (caller's transaction).
-   * Otherwise starts a new platform admin transaction.
-   *
-   * After persisting, fires a non-blocking tax sync so the customer's UAE address
-   * and TRN are registered with Stripe Tax immediately.
-   */
-  private async createStripeCustomerAndPersist(
-    tenant: Tenant,
-    options: CreateStripeCustomerOptions,
-    client?: PoolClient,
-  ): Promise<string> {
-    const customer: Stripe.Customer =
-      await this.stripeService.client.customers.create({
-        email: options.email,
-        name: tenant.name ?? undefined,
-        metadata: options.metadata ?? {},
-      });
-
-    if (client) {
-      await this.tenantRepository.updateStripeCustomerId(
-        tenant.id,
-        customer.id,
-        {
-          client,
-        },
-      );
-    } else {
-      await this.databaseService.transactionWithPlatformAdminContext((c) =>
-        this.tenantRepository.updateStripeCustomerId(tenant.id, customer.id, {
-          client: c,
-        }),
-      );
-    }
-
-    // syncCustomerTax logs its own errors; this catch is the backstop for a fire-and-forget call
-    this.stripeTaxService
-      .syncCustomerTax(customer.id, tenant)
-      .catch((error: unknown) => {
-        this.logger.error(
-          `Tax sync failed for customer ${customer.id}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
-
-    return customer.id;
   }
 }

@@ -99,13 +99,23 @@ sequenceDiagram
   participant DB as PostgreSQL
 
   U->>API: POST /billing/checkout/subscription
-  API->>S: Create Checkout Session
+  API->>API: Refuse (409) if a Stripe subscription is active, trialing or past due
+  API->>S: Expire other open subscription checkouts
+  API->>S: Create Checkout Session (idempotency key = tenant + request hash)
   API-->>U: checkoutUrl
   U->>S: Complete payment
   S->>WH: checkout.session.completed
   WH->>DB: Upsert tenant_subscriptions, invalidate snapshots
   WH->>DB: Emit domain event subscription.created
 ```
+
+### Duplicate protection
+
+- **One Stripe customer per tenant:** `customers.create` uses `idempotencyKey = 'customer:' + tenantId` with parameters derived only from the tenant, runs outside any DB transaction, and the first ID stored on `tenants.stripe_customer_id` wins. The signup job, checkout and the portal all go through the same path.
+- **Checkout:** see the diagram above. Stripe replays a key's original response for 24 h, so a replayed session is re-read and, if it has completed or expired since, a new one is opened.
+- **Add-on items:** `idempotencyKey = 'addon-item:' + subscription + addon + previous adds`, so a double click creates one item and a re-add after removal a new one.
+- **Plan-change schedules:** a schedule Stripe already attached to the subscription is reused rather than created again.
+- The Stripe client retries network failures twice (`maxNetworkRetries: 2`, 30 s timeout); the SDK adds an idempotency key to every retried request.
 
 ### Recurring renewal
 
@@ -177,7 +187,7 @@ Events **routed** in `StripeWebhookService` (see `stripe.constants.ts` for full 
 | `checkout.session.completed`      | `handleCheckoutCompleted`     | If `metadata.checkout_type=credit_purchase` **or** inferred credit flow → credit purchase; else subscription checkout → upsert subscription, link `stripe_subscription_id`, invalidate caches | `credit.purchased` (via ledger) / `subscription.created` |
 | `customer.subscription.created`   | `handleSubscriptionChange`    | Re-fetch the subscription from Stripe; sync plan from price, status, periods; sync add-on subscription items. A live subscription with no local row is adopted for the tenant in its `complytude_tenant_id` metadata (or its Stripe customer's tenant) | `subscription.created` when adopted; `subscription.plan_changed` only if plan id changed |
 | `customer.subscription.updated`   | `handleSubscriptionChange`    | Same as created; if Stripe now reports the subscription canceled, handled as deleted                                                                                                          | `subscription.plan_changed` if plan changed              |
-| `customer.subscription.deleted`   | `handleSubscriptionChange`    | Cancel tenant add-ons; downgrade subscription to Navigator; clear Stripe subscription id. No-op if already cancelled locally                                                                  | `subscription.cancelled`                                 |
+| `customer.subscription.deleted`   | `handleSubscriptionChange`    | Cancel the add-ons billed on that subscription; downgrade to Navigator only if the tenant has no other live subscription (a newer paying one keeps its plan and add-ons). No-op if already cancelled locally | `subscription.cancelled`                                 |
 | `invoice.paid`                    | `handleInvoicePaid`           | Advance billing period from the re-fetched Stripe subscription; take its status (another open invoice can keep it `past_due`)                                                                  | `subscription.renewed`                                   |
 | `invoice.payment_failed`          | `handleInvoicePaymentFailed`  | Take the re-fetched subscription's status; if the invoice is still open, store failure metadata and queue dunning emails (a failure already paid off does neither)                              | `subscription.payment_failed`                            |
 | `invoice.payment_action_required` | `handlePaymentActionRequired` | If the re-fetched invoice is still open: store `payment_action_required` in subscription metadata; queue notification email                                                                    | _(none — metadata update)_                               |

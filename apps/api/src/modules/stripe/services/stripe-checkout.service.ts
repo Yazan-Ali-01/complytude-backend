@@ -6,9 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 import Stripe from 'stripe';
 import { PlanKey } from 'src/common/types/entitlement.types';
-import { DatabaseService } from '@lib/database';
 import { CreditPackagesRepository } from 'src/repositories/credits/credit-packages.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
@@ -20,6 +20,20 @@ import { CreateCreditCheckoutDto } from '../dto/create-credit-checkout.dto';
 import { StripeCustomerService } from './stripe-customer.service';
 import { StripeService } from '../stripe.service';
 
+/** Stripe statuses of a subscription that still exists and may bill the customer. */
+const LIVE_STRIPE_SUBSCRIPTION_STATUSES: ReadonlySet<Stripe.Subscription.Status> =
+  new Set(['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused']);
+
+/** Identifies a checkout request by its parameters (used for idempotency keys). */
+function hashCheckoutParams(
+  params: Stripe.Checkout.SessionCreateParams,
+): string {
+  return createHash('sha256')
+    .update(JSON.stringify(params))
+    .digest('hex')
+    .slice(0, 32);
+}
+
 @Injectable()
 export class StripeCheckoutService {
   private readonly logger = new Logger(StripeCheckoutService.name);
@@ -30,7 +44,6 @@ export class StripeCheckoutService {
     private readonly plansRepository: PlansRepository,
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly creditPackagesRepository: CreditPackagesRepository,
-    private readonly databaseService: DatabaseService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -47,16 +60,7 @@ export class StripeCheckoutService {
     tenantId: string,
     dto: CreateCheckoutSessionDto,
   ): Promise<CheckoutSessionResponseDto> {
-    const existing =
-      await this.databaseService.transactionWithPlatformAdminContext(
-        async (client) =>
-          this.subscriptionsRepository.findActiveByTenant(tenantId, { client }),
-      );
-    if (existing?.stripe_subscription_id) {
-      throw new ConflictException(
-        'Tenant already has an active Stripe subscription. Use the plan change flow to switch plans.',
-      );
-    }
+    await this.assertNoLiveSubscription(tenantId);
 
     const plan = await this.plansRepository.findByKey(dto.planKey as PlanKey);
     if (!plan) {
@@ -84,6 +88,9 @@ export class StripeCheckoutService {
       );
     }
 
+    // Covers a subscription whose checkout completed before its webhook was processed
+    await this.assertNoLiveStripeSubscription(customerId);
+
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'subscription',
       customer: customerId,
@@ -108,8 +115,19 @@ export class StripeCheckoutService {
       }),
     };
 
-    const session =
-      await this.stripeService.client.checkout.sessions.create(sessionParams);
+    const requestHash = hashCheckoutParams(sessionParams);
+    sessionParams.metadata = {
+      ...sessionParams.metadata,
+      checkout_request: requestHash,
+    };
+    // Only one subscription checkout may be completable at a time: another tab's session for a
+    // different plan would otherwise create a second subscription
+    await this.expireOtherOpenSubscriptionCheckouts(customerId, requestHash);
+
+    const session = await this.createSession(
+      sessionParams,
+      `checkout:${tenantId}:${requestHash}`,
+    );
 
     this.logger.log(
       `Created Stripe Checkout session ${session.id} for tenant ${tenantId} (plan: ${dto.planKey}, interval: ${dto.interval})`,
@@ -175,8 +193,10 @@ export class StripeCheckoutService {
       }),
     };
 
-    const session =
-      await this.stripeService.client.checkout.sessions.create(sessionParams);
+    const session = await this.createSession(
+      sessionParams,
+      `credit-checkout:${tenantId}:${hashCheckoutParams(sessionParams)}`,
+    );
 
     this.logger.log(
       `Created credit purchase Checkout session ${session.id} for tenant ${tenantId} (package: ${dto.packageKey}, credits: ${pkg.credits})`,
@@ -186,6 +206,100 @@ export class StripeCheckoutService {
       checkoutUrl: session.url!,
       sessionId: session.id,
     };
+  }
+
+  /** A tenant with a Stripe subscription (paid, trialing or past due) manages it in the portal. */
+  private async assertNoLiveSubscription(tenantId: string): Promise<void> {
+    const [existing] = await this.subscriptionsRepository.findAllWithStripeId(
+      tenantId,
+      { tenant: { tenantId, schema: 'public' } },
+    );
+    if (existing) {
+      throw new ConflictException(
+        `Tenant already has a Stripe subscription (${existing.status}). ` +
+          'Use the plan change flow to switch plans, or the billing portal to update payment details.',
+      );
+    }
+  }
+
+  private async assertNoLiveStripeSubscription(
+    customerId: string,
+  ): Promise<void> {
+    const subscriptions = await this.stripeService.client.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 20,
+    });
+    const live = subscriptions.data.find((subscription) =>
+      LIVE_STRIPE_SUBSCRIPTION_STATUSES.has(subscription.status),
+    );
+    if (live) {
+      throw new ConflictException(
+        `A Stripe subscription (${live.status}) already exists for this tenant. ` +
+          'Use the billing portal to manage it.',
+      );
+    }
+  }
+
+  private async expireOtherOpenSubscriptionCheckouts(
+    customerId: string,
+    requestHash: string,
+  ): Promise<void> {
+    const open = await this.stripeService.client.checkout.sessions.list({
+      customer: customerId,
+      status: 'open',
+      limit: 20,
+    });
+    for (const session of open.data) {
+      if (
+        session.mode !== 'subscription' ||
+        session.metadata?.checkout_request === requestHash
+      ) {
+        continue;
+      }
+      try {
+        await this.stripeService.client.checkout.sessions.expire(session.id);
+        this.logger.log(
+          `Expired superseded Checkout session ${session.id} for customer ${customerId}`,
+        );
+      } catch (error) {
+        // It may have completed meanwhile; the live-subscription check catches that next time
+        this.logger.warn(
+          `Could not expire Checkout session ${session.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Creates a Checkout Session keyed by the request, so a double click returns the same session.
+   * Stripe replays a key's original response for 24 h, so a replayed session is re-read: if it
+   * has completed or expired since, a new one is created, keyed by the stale one so a double
+   * click still converges on a single session.
+   */
+  private async createSession(
+    params: Stripe.Checkout.SessionCreateParams,
+    idempotencyKey: string,
+  ): Promise<Stripe.Checkout.Session> {
+    let key = idempotencyKey;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const created = await this.stripeService.client.checkout.sessions.create(
+        params,
+        { idempotencyKey: key },
+      );
+      const replayed =
+        created.lastResponse?.headers?.['idempotent-replayed'] === 'true';
+      const session = replayed
+        ? await this.stripeService.client.checkout.sessions.retrieve(created.id)
+        : created;
+      if (session.status === 'open') {
+        return session;
+      }
+      key = `${idempotencyKey}:after:${session.id}`;
+    }
+    throw new Error(
+      `Could not open a Checkout session for key ${idempotencyKey}: every candidate was closed`,
+    );
   }
 
   private isTaxEnabled(): boolean {

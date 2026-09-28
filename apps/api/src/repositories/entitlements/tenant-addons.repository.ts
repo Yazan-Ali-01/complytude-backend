@@ -60,6 +60,20 @@ export class TenantAddonsRepository extends BaseRepository<
   /**
    * Find all active add-ons for a tenant
    */
+  /** How many times the tenant has had this add-on, in any status. */
+  async countByTenantAndAddon(
+    tenantId: string,
+    addonId: string,
+    options?: QueryOptions,
+  ): Promise<number> {
+    const result = await this.executeQuery<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM ${this.tableName} WHERE tenant_id = $1 AND addon_id = $2`,
+      [tenantId, addonId],
+      options,
+    );
+    return parseInt(result.rows[0].count, 10);
+  }
+
   async findActiveByTenant(
     tenantId: string,
     options?: QueryOptions,

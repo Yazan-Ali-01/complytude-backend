@@ -139,12 +139,18 @@ export class StripeSubscriptionService {
       );
     }
 
-    // Create or update the Stripe Subscription Schedule
+    // Create or update the Stripe Subscription Schedule. A schedule Stripe already attached (an
+    // earlier attempt whose DB write failed) is reused rather than created again.
     let schedule: Stripe.SubscriptionSchedule;
+    const existingScheduleId =
+      subscription.stripe_schedule_id ??
+      (typeof stripeSubscription.schedule === 'string'
+        ? stripeSubscription.schedule
+        : stripeSubscription.schedule?.id);
 
-    if (subscription.stripe_schedule_id) {
+    if (existingScheduleId) {
       schedule = await this.stripeService.client.subscriptionSchedules.update(
-        subscription.stripe_schedule_id,
+        existingScheduleId,
         {
           end_behavior: 'release',
           phases: [

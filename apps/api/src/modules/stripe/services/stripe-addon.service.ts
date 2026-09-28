@@ -77,43 +77,66 @@ export class StripeAddonService {
 
     // Create Stripe subscription item — done outside any DB transaction because
     // Stripe calls are not rollbackable. DB write only happens on Stripe success.
+    // The key includes how many times the tenant has had this add-on, so a double click or a
+    // retry creates one item while a re-add after removal gets a new one.
+    const previousAdds =
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.tenantAddonsRepository.countByTenantAndAddon(tenantId, addon.id, {
+          client,
+        }),
+      );
     const subscriptionItem =
-      await this.stripeService.client.subscriptionItems.create({
-        subscription: subscription.stripe_subscription_id,
-        price: addon.stripe_price_id,
-        quantity,
-        metadata: {
-          complytude_tenant_id: tenantId,
-          complytude_addon_key: addonKey,
+      await this.stripeService.client.subscriptionItems.create(
+        {
+          subscription: subscription.stripe_subscription_id,
+          price: addon.stripe_price_id,
+          quantity,
+          metadata: {
+            complytude_tenant_id: tenantId,
+            complytude_addon_key: addonKey,
+          },
+          proration_behavior: 'create_prorations',
         },
-        proration_behavior: 'create_prorations',
-      });
+        {
+          idempotencyKey: `addon-item:${subscription.stripe_subscription_id}:${addon.id}:${previousAdds}`,
+        },
+      );
 
     this.logger.log(
       `Created Stripe subscription item: ${subscriptionItem.id} for tenant=${tenantId}, addon=${addonKey}`,
     );
 
     // Persist to DB + invalidate snapshot
-    await this.databaseService.transactionWithPlatformAdminContext(
-      async (client) => {
-        await this.tenantAddonsRepository.create(
-          {
-            tenant_id: tenantId,
-            addon_id: addon.id,
-            quantity,
-            status: 'active',
-            starts_at: new Date(),
-            stripe_subscription_item_id: subscriptionItem.id,
-          },
-          { client },
-        );
-        await this.entitlementSnapshotService.invalidate(
-          tenantId,
-          'addon_added',
-          { client },
-        );
-      },
-    );
+    try {
+      await this.databaseService.transactionWithPlatformAdminContext(
+        async (client) => {
+          await this.tenantAddonsRepository.create(
+            {
+              tenant_id: tenantId,
+              addon_id: addon.id,
+              quantity,
+              status: 'active',
+              starts_at: new Date(),
+              stripe_subscription_item_id: subscriptionItem.id,
+            },
+            { client },
+          );
+          await this.entitlementSnapshotService.invalidate(
+            tenantId,
+            'addon_added',
+            { client },
+          );
+        },
+      );
+    } catch (error) {
+      // A concurrent request for the same add-on (same Stripe item) already stored it
+      if ((error as { code?: string }).code !== '23505') {
+        throw error;
+      }
+      this.logger.log(
+        `Add-on ${addonKey} already stored for tenant=${tenantId} by a concurrent request`,
+      );
+    }
 
     // Return enriched result
     const addons =

@@ -1214,7 +1214,9 @@ Removes pending end-of-period cancellation. **204 No Content**.
 | `cancelUrl`  | URL  | Yes      | Redirect if user cancels                                        |
 
 **Response (201):** `CheckoutSessionResponseDto` — `{ checkoutUrl, sessionId }`.
-**Errors:** 409 if tenant already has an active Stripe subscription (use plan-change flow).
+**Errors:** 409 if the tenant already has a Stripe subscription that is active, trialing or past due (in our DB, or in Stripe before its webhook lands). Use the plan-change flow, or the billing portal to fix payment details.
+
+**Idempotent:** a repeated request with the same body (double click) returns the same session. Opening a checkout for a different plan or interval expires the tenant's other open subscription checkout, so only one can be completed.
 
 ### `POST /api/v1/billing/portal/session`
 
