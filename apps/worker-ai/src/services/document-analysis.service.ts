@@ -97,7 +97,15 @@ export class DocumentAnalysisService {
     );
   }
 
-  async analyze(data: DocumentAnalysisJobData): Promise<void> {
+  /**
+   * Runs one attempt. A transient failure leaves the job `processing` so BullMQ's next attempt
+   * can pick it up; the job is marked `failed` only on a permanent error or the last attempt.
+   */
+  async analyze(
+    data: DocumentAnalysisJobData,
+    attempt = 1,
+    maxAttempts = 1,
+  ): Promise<void> {
     const { analysisJobId, documentId } = data;
     const rulesetIds: string[] | undefined = Array.isArray(data.rulesetIds)
       ? data.rulesetIds
@@ -147,14 +155,21 @@ export class DocumentAnalysisService {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const final = error instanceof PermanentError || attempt >= maxAttempts;
 
-      await this.analysisJobWriteRepository
-        .markFailed(analysisJobId, message)
-        .catch((dbErr: unknown) => {
-          this.logger.error(
-            `Failed to mark job ${analysisJobId} as failed after pipeline error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
-          );
-        });
+      if (final) {
+        await this.analysisJobWriteRepository
+          .markFailed(analysisJobId, message)
+          .catch((dbErr: unknown) => {
+            this.logger.error(
+              `Failed to mark job ${analysisJobId} as failed after pipeline error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
+            );
+          });
+      } else {
+        this.logger.warn(
+          `Attempt ${attempt}/${maxAttempts} of job ${analysisJobId} failed (will retry): ${message}`,
+        );
+      }
 
       throw error;
     }

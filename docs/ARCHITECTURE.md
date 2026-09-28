@@ -1209,15 +1209,22 @@ Configured in `libs/queue/src/queue.config.ts`:
 | `PermanentError`  | Converted to BullMQ's `UnrecoverableError`; job moves immediately to failed, no retries |
 | Retries exhausted | `onDeadLetter()` hook fires in the processor                                            |
 
+### Concurrency, Retries and Stuck Work
+
+- **Concurrency:** a processor overrides `workerConcurrency()` (`AbstractProcessor`) to return its configured `WORKER_*_CONCURRENCY`; the base class applies it to the BullMQ worker at bootstrap (BullMQ's default is 1, which let one slow job hold up every tenant).
+- **Retries:** a worker marks its row `failed` only on a `PermanentError` or the last attempt; a transient failure leaves it `processing` for the next attempt (generation and analysis pass `attempt`/`maxAttempts` from the job).
+- **Stuck work:** `StuckWorkSweepHandler` (`tenant-processing`, job `stuck-work-sweep`, every 5 minutes) fails document extractions in `processing` over 120 minutes, and analysis jobs over 60 and generation jobs over 30 minutes in `queued`/`processing`; a swept generate job queues its `USAGE_REFUND`. This covers jobs lost after the commit, stalled past their retries (BullMQ fails those without calling `onFailed`) or orphaned by a crash.
+- **Health:** each worker's `GET /health` returns 503 unless its BullMQ worker is running and Redis answers (`checkWorkerHealth` in `@lib/queue`), so ECS replaces a wedged task.
+
 ### Graceful Shutdown
 
-`app.enableShutdownHooks()` is called in `main.ts`. On `SIGTERM`/`SIGINT`:
+`app.enableShutdownHooks()` is called in `main.ts` of the API and every worker. On `SIGTERM`/`SIGINT`:
 
 1. NestJS fires `onModuleDestroy` on all providers
-2. `@nestjs/bullmq` workers drain active jobs before closing
+2. `@nestjs/bullmq` workers stop taking jobs and drain the active ones before closing
 3. `RedisService` closes the Redis connection
 
-This prevents job loss during rolling deployments.
+ECS gives worker containers `stopTimeout` = 120 s (`worker_stop_timeout`, the Fargate maximum). A job still running then is re-run after its lock expires, resuming from its checkpoint where it has one (a stored Textract job, a completed row).
 
 ### Queue Monitoring (Bull Board)
 

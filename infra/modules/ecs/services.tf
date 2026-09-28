@@ -202,6 +202,8 @@ resource "aws_ecs_task_definition" "worker_ai" {
       name      = "worker-ai"
       image     = "${var.ecr_repository_urls["worker-ai"]}:${var.image_tag}"
       essential = true
+      # Time to finish active jobs after SIGTERM before SIGKILL (Fargate allows at most 120 s)
+      stopTimeout = var.worker_stop_timeout
 
       environment = [
         for k, v in var.worker_ai_environment : { name = k, value = v }
@@ -272,6 +274,8 @@ resource "aws_ecs_task_definition" "worker_ingestion" {
       name      = "worker-ingestion"
       image     = "${var.ecr_repository_urls["worker-ingestion"]}:${var.image_tag}"
       essential = true
+      # Time to finish active jobs after SIGTERM before SIGKILL (Fargate allows at most 120 s)
+      stopTimeout = var.worker_stop_timeout
 
       environment = [
         for k, v in var.worker_ingestion_environment : { name = k, value = v }
@@ -346,6 +350,8 @@ resource "aws_ecs_task_definition" "worker_generation" {
       name      = "worker-generation"
       image     = "${var.ecr_repository_urls["worker-generation"]}:${var.image_tag}"
       essential = true
+      # Time to finish active jobs after SIGTERM before SIGKILL (Fargate allows at most 120 s)
+      stopTimeout = var.worker_stop_timeout
 
       environment = [
         for k, v in var.worker_generation_environment : { name = k, value = v }

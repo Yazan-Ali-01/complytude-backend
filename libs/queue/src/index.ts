@@ -9,3 +9,4 @@ export * from './interfaces';
 // Re-export for processors and tests in apps (avoids no-restricted-imports)
 export { Processor, getQueueToken } from '@nestjs/bullmq';
 export type { Job, Queue } from 'bullmq';
+export * from './worker-health';

@@ -79,7 +79,10 @@ describe('Document analysis: injection, grounding and honest status', () => {
     chunks: RulesetChunkMatch[];
     reranked?: boolean;
     contextWindow?: number;
+    /** The model call fails (like a rate limit) this many times before answering. */
+    modelFailures?: number;
   }): DocumentAnalysisService {
+    let failuresLeft = options.modelFailures ?? 0;
     const llm = {
       getContextWindowTokens: () => options.contextWindow ?? 128_000,
       getModel: () => 'test-model',
@@ -96,6 +99,10 @@ describe('Document analysis: injection, grounding and honest status', () => {
           };
         };
       }) => {
+        if (failuresLeft > 0) {
+          failuresLeft--;
+          return Promise.reject(new Error('429 Rate limit reached'));
+        }
         calls.push({
           systemPrompt: request.systemPrompt,
           userMessage: request.userMessage,
@@ -361,5 +368,56 @@ describe('Document analysis: injection, grounding and honest status', () => {
       [tenant.id],
     );
     expect(rows).toHaveLength(0);
+  });
+
+  describe('retries', () => {
+    const answer = {
+      summary: 'Working hours exceed the legal limit.',
+      findings: [
+        {
+          clauseId: 'C1',
+          clauseRef: 'UAE Labour Law Art. 17',
+          riskLevel: 'high',
+          title: 'Hours over the legal limit',
+          description: '70 hours a week',
+          suggestion: 'Cap at 48 hours',
+        },
+      ],
+    };
+
+    it('a transient model error leaves the job for the next attempt, which succeeds', async () => {
+      const data = await job('The employee works 70 hours a week.');
+      modelAnswer = answer;
+      const analysis = worker({
+        chunks: [chunk(ruleset, 'Art. 17')],
+        modelFailures: 1,
+      });
+
+      await expect(analysis.analyze(data, 1, 3)).rejects.toThrow();
+      expect(await stored(data.analysisJobId)).toMatchObject({
+        status: 'processing',
+        error: null,
+      });
+
+      await analysis.analyze(data, 2, 3);
+      expect((await stored(data.analysisJobId)).status).toBe('completed');
+    });
+
+    it('fails the job when the last attempt fails too', async () => {
+      const data = await job('The employee works 70 hours a week.');
+      modelAnswer = answer;
+
+      await expect(
+        worker({
+          chunks: [chunk(ruleset, 'Art. 17')],
+          modelFailures: 1,
+        }).analyze(data, 3, 3),
+      ).rejects.toThrow();
+
+      expect(await stored(data.analysisJobId)).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('LLM API error'),
+      });
+    });
   });
 });

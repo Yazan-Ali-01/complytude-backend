@@ -1,5 +1,10 @@
 import { OnWorkerEvent, WorkerHost } from '@nestjs/bullmq';
-import { Inject, Logger, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Logger,
+  OnApplicationBootstrap,
+  Optional,
+} from '@nestjs/common';
 import { Job, UnrecoverableError } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { JobMetadata } from './interfaces/job-metadata.interface';
@@ -24,10 +29,10 @@ export class PermanentError extends Error {
   }
 }
 
-export abstract class AbstractProcessor<
-  TData = unknown,
-  TResult = unknown,
-> extends WorkerHost {
+export abstract class AbstractProcessor<TData = unknown, TResult = unknown>
+  extends WorkerHost
+  implements OnApplicationBootstrap
+{
   protected abstract readonly logger: Logger;
 
   @Optional()
@@ -35,6 +40,24 @@ export abstract class AbstractProcessor<
   protected readonly pinoLogger?: PinoLogger;
 
   abstract handle(job: Job<TData>): Promise<TResult>;
+
+  /**
+   * How many jobs this worker runs at once. BullMQ's default is 1, so one slow job (a long
+   * Textract poll, an LLM call) holds up every tenant behind it. Override to read the worker's
+   * configured concurrency.
+   */
+  protected workerConcurrency(): number | undefined {
+    return undefined;
+  }
+
+  /** The BullMQ worker exists once every module has initialised; apply the concurrency then. */
+  onApplicationBootstrap(): void {
+    const concurrency = this.workerConcurrency();
+    if (concurrency && concurrency > 0) {
+      this.worker.concurrency = concurrency;
+      this.logger.log(`Worker concurrency set to ${concurrency}`);
+    }
+  }
 
   async process(job: Job<TData>): Promise<TResult> {
     const startTime = Date.now();

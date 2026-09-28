@@ -8,6 +8,7 @@ import {
 } from '@lib/queue';
 import type { DocumentGenerationJobData } from '@lib/queue';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentGenerationWorkerService } from '../services/document-generation.service';
 
 @Processor(QUEUE_NAMES.DOCUMENT_GENERATION)
@@ -19,8 +20,13 @@ export class DocumentGenerationProcessor extends AbstractProcessor<
 
   constructor(
     private readonly documentGenerationService: DocumentGenerationWorkerService,
+    private readonly configService: ConfigService,
   ) {
     super();
+  }
+
+  protected override workerConcurrency(): number | undefined {
+    return this.configService.get<number>('workerGeneration.concurrency');
   }
 
   async handle(job: Job<unknown>): Promise<void> {

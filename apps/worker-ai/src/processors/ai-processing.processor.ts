@@ -8,6 +8,7 @@ import {
 } from '@lib/queue';
 import type { DocumentAnalysisJobData } from '@lib/queue';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentAnalysisService } from '../services/document-analysis.service';
 
 @Processor(QUEUE_NAMES.AI_PROCESSING)
@@ -16,8 +17,13 @@ export class AiProcessingProcessor extends AbstractProcessor<unknown, void> {
 
   constructor(
     private readonly documentAnalysisService: DocumentAnalysisService,
+    private readonly configService: ConfigService,
   ) {
     super();
+  }
+
+  protected override workerConcurrency(): number | undefined {
+    return this.configService.get<number>('workerAi.concurrency');
   }
 
   async handle(job: Job<unknown>): Promise<void> {
@@ -25,6 +31,8 @@ export class AiProcessingProcessor extends AbstractProcessor<unknown, void> {
       case AI_JOB_NAMES.DOCUMENT_ANALYSIS:
         return this.documentAnalysisService.analyze(
           job.data as DocumentAnalysisJobData,
+          job.attemptsMade + 1,
+          job.opts?.attempts ?? 3,
         );
       default:
         throw new PermanentError(

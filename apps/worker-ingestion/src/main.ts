@@ -24,6 +24,8 @@ async function bootstrap() {
     configService.get<string>('workerIngestion.environment') || 'development';
   const queueName = QUEUE_NAMES.DATA_INGESTION;
 
+  // On SIGTERM close the BullMQ worker: it stops taking jobs and waits for the active ones
+  app.enableShutdownHooks();
   await app.listen(port, '0.0.0.0');
 
   logger.log(`📥 Worker Ingestion is running on: http://localhost:${port}`);

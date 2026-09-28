@@ -131,3 +131,14 @@ variable "ses_send_policy_arn" {
   type        = string
   default     = null
 }
+
+variable "worker_stop_timeout" {
+  description = "Seconds a worker container gets after SIGTERM to finish its active jobs (Fargate maximum 120). Longer jobs are re-run from their checkpoint (e.g. a stored Textract job)."
+  type        = number
+  default     = 120
+
+  validation {
+    condition     = var.worker_stop_timeout >= 2 && var.worker_stop_timeout <= 120
+    error_message = "worker_stop_timeout must be between 2 and 120 seconds (Fargate limit)."
+  }
+}

@@ -11,6 +11,7 @@ import type {
   RulesetIngestionJobData,
 } from '@lib/queue';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentIngestionService } from '../services/document-ingestion.service';
 import { RulesetIngestionService } from '../services/ruleset-ingestion.service';
 
@@ -21,8 +22,13 @@ export class DataIngestionProcessor extends AbstractProcessor<unknown, void> {
   constructor(
     private readonly rulesetIngestionService: RulesetIngestionService,
     private readonly documentIngestionService: DocumentIngestionService,
+    private readonly configService: ConfigService,
   ) {
     super();
+  }
+
+  protected override workerConcurrency(): number | undefined {
+    return this.configService.get<number>('workerIngestion.concurrency');
   }
 
   async handle(job: Job<unknown>): Promise<void> {
