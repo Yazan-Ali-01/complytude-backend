@@ -26,7 +26,7 @@ The Data Ingestion Worker is a standalone NestJS application that consumes jobs 
 ### Document Ingestion (`DOCUMENT_INGESTION`)
 
 1. Receives jobs dispatched by the API after a file upload is confirmed
-2. Fetches the document record, validates status (`pending` → `processing`)
+2. Fetches the document record in the job's tenant (RLS: a document of another tenant is not found and the job fails), validates status (`pending` → `processing`), and refuses a job whose bucket, key or MIME type differ from the row's; Textract and promotion then use the row's file, never the payload's
 3. Extracts text with Textract (LAYOUT): a PDF over `TEXTRACT_MAX_PAGES` (or unreadable) fails for good before any job starts; otherwise one job starts and its ID is stored on the document (`documents.textract_job_id`) before polling
 4. Stores extracted content in the database
 5. Promotes the file from quarantine bucket to clean bucket
@@ -82,7 +82,7 @@ apps/worker-ingestion/src/
 └── repositories/
     ├── ruleset-version-read.repository.ts # Read ruleset versions + ruleset metadata
     ├── ruleset-chunks.repository.ts       # Delete old chunks, batch insert new ones
-    └── document-write.repository.ts       # Read/update document records (platform admin context)
+    └── document-write.repository.ts       # Read/update document records (job's tenant context)
 ```
 
 ### Job Flow

@@ -55,6 +55,7 @@ export class DataIngestionProcessor extends AbstractProcessor<unknown, void> {
     if (job.name === INGESTION_JOB_NAMES.DOCUMENT_INGESTION) {
       const data = job.data as DocumentIngestionJobData;
       await this.documentIngestionService.markFailed(
+        data.tenantId,
         data.documentId,
         error.message,
       );
@@ -68,7 +69,11 @@ export class DataIngestionProcessor extends AbstractProcessor<unknown, void> {
       const data = job.data as DocumentIngestionJobData;
       // onDeadLetter is synchronous; markFailed logs its own errors, this catch is the backstop
       this.documentIngestionService
-        .markFailed(data.documentId, `Exhausted all retries: ${error.message}`)
+        .markFailed(
+          data.tenantId,
+          data.documentId,
+          `Exhausted all retries: ${error.message}`,
+        )
         .catch((markError: unknown) => {
           this.logger.error(
             `markFailed failed for document ${data.documentId}: ${markError instanceof Error ? markError.message : String(markError)}`,

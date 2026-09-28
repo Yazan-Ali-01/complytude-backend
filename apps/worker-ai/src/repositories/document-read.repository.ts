@@ -17,16 +17,19 @@ export interface DocumentContent {
 }
 
 /**
- * documents has RLS with FORCE ROW LEVEL SECURITY.
- * Worker-ai has no tenant context, so all queries must use
- * transactionWithPlatformAdminContext to satisfy the is_platform_admin() policy.
+ * documents has RLS with FORCE ROW LEVEL SECURITY. Reads run in the job's tenant context, so a
+ * document of any other tenant is simply not found.
  */
 @Injectable()
 export class DocumentReadRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async findContentById(id: string): Promise<DocumentContent | null> {
-    return this.databaseService.transactionWithPlatformAdminContext(
+  async findContentById(
+    tenantId: string,
+    id: string,
+  ): Promise<DocumentContent | null> {
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         const result = await client.query<DocumentContent>(
           `SELECT id, title, content, content_structured, tenant_id

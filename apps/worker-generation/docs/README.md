@@ -84,7 +84,7 @@ interface DocumentGenerationJobData {
   templateId: string;            // Template UUID
   templateVersionId: string;     // Specific version to render
   variables: Record<string, unknown>; // Template variable values
-  tenantId: string;              // Tenant UUID (for RLS context)
+  tenantId: string;              // Tenant UUID: the RLS context every query runs in
   userId: string;                // User who triggered generation
   jobType: 'preview' | 'generate'; // preview = DOCX only, generate = PDF
 }
@@ -95,7 +95,12 @@ interface DocumentGenerationJobData {
 | Error Type | Behavior |
 |-----------|----------|
 | `RetryableError` | DB timeouts, S3 failures, Gotenberg errors → BullMQ retries with exponential backoff |
-| `PermanentError` | Job/template not found, terminal job state → moves to failed, no retries |
+| `PermanentError` | Job/template not found, terminal job state, payload that doesn't match its job row → moves to failed, no retries |
+
+The worker reads the `generation_jobs` row in the payload's tenant (a job of another tenant is
+not found) and refuses a payload whose `jobType`, `templateId` or `templateVersionId` differ from
+the row. The template version, variables and author it renders with come from the row, never from
+the payload.
 
 ---
 

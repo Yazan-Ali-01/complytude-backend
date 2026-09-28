@@ -110,13 +110,14 @@ export class DocumentAnalysisService {
     attempt = 1,
     maxAttempts = 1,
   ): Promise<void> {
-    const { analysisJobId, documentId } = data;
+    const { analysisJobId, documentId, tenantId } = data;
     const rulesetIds: string[] | undefined = Array.isArray(data.rulesetIds)
       ? data.rulesetIds
       : undefined;
 
+    // Read in the payload's tenant: a job of another tenant is not found, so it fails closed
     const job = await this.analysisJobWriteRepository
-      .findById(analysisJobId)
+      .findById(tenantId, analysisJobId)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error fetching analysis job ${analysisJobId}`,
@@ -126,7 +127,13 @@ export class DocumentAnalysisService {
 
     if (!job) {
       throw new PermanentError(
-        `Analysis job ${analysisJobId} not found — skipping`,
+        `Analysis job ${analysisJobId} not found in tenant ${tenantId} — skipping`,
+      );
+    }
+
+    if (job.document_id !== documentId) {
+      throw new PermanentError(
+        `Analysis job ${analysisJobId} is for another document than the payload names — refusing`,
       );
     }
 
@@ -137,7 +144,7 @@ export class DocumentAnalysisService {
     }
 
     const claimed = await this.analysisJobWriteRepository
-      .markProcessing(analysisJobId)
+      .markProcessing(tenantId, analysisJobId)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error marking job ${analysisJobId} as processing`,
@@ -153,7 +160,12 @@ export class DocumentAnalysisService {
 
     const pipelineStart = Date.now();
     try {
-      await this.runPipeline(analysisJobId, documentId, rulesetIds);
+      await this.runPipeline(
+        tenantId,
+        analysisJobId,
+        job.document_id,
+        rulesetIds,
+      );
       this.logger.log(
         `Pipeline completed in ${Date.now() - pipelineStart}ms for job=${analysisJobId}`,
       );
@@ -163,7 +175,7 @@ export class DocumentAnalysisService {
 
       if (final) {
         await this.analysisJobWriteRepository
-          .markFailed(analysisJobId, message)
+          .markFailed(tenantId, analysisJobId, message)
           .catch((dbErr: unknown) => {
             this.logger.error(
               `Failed to mark job ${analysisJobId} as failed after pipeline error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
@@ -180,12 +192,13 @@ export class DocumentAnalysisService {
   }
 
   private async runPipeline(
+    tenantId: string,
     analysisJobId: string,
     documentId: string,
     rulesetIds?: string[],
   ): Promise<void> {
     const document = await this.documentReadRepository
-      .findContentById(documentId)
+      .findContentById(tenantId, documentId)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error fetching document ${documentId}`,
@@ -385,7 +398,7 @@ export class DocumentAnalysisService {
       warnings.length > 0 ? 'completed_with_warnings' : 'completed';
 
     await this.analysisJobWriteRepository
-      .markCompleted(analysisJobId, status, result)
+      .markCompleted(tenantId, analysisJobId, status, result)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error storing result for job ${analysisJobId}`,

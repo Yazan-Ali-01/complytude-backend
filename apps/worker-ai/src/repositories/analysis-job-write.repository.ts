@@ -9,10 +9,15 @@ export type AnalysisJobStatus =
   | 'completed_with_warnings'
   | 'failed';
 
+export interface AnalysisJobRow {
+  id: string;
+  status: AnalysisJobStatus;
+  document_id: string;
+}
+
 /**
- * analysis_jobs has RLS with FORCE ROW LEVEL SECURITY.
- * Worker-ai has no tenant context, so all queries must use
- * transactionWithPlatformAdminContext to satisfy the is_platform_admin() policy.
+ * analysis_jobs has RLS with FORCE ROW LEVEL SECURITY. Every query runs in the job's tenant
+ * context (from the payload), so a job of any other tenant is neither seen nor changed.
  */
 @Injectable()
 export class AnalysisJobWriteRepository {
@@ -23,8 +28,9 @@ export class AnalysisJobWriteRepository {
    * Only succeeds when status is 'queued' (first attempt) or 'processing' (crash-recovery retry).
    * Returns true if this worker claimed the job, false if another worker beat it.
    */
-  async markProcessing(id: string): Promise<boolean> {
-    return this.databaseService.transactionWithPlatformAdminContext(
+  async markProcessing(tenantId: string, id: string): Promise<boolean> {
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         const result = await client.query<{ id: string }>(
           `UPDATE public.analysis_jobs
@@ -41,11 +47,13 @@ export class AnalysisJobWriteRepository {
   }
 
   async markCompleted(
+    tenantId: string,
     id: string,
     status: 'completed' | 'completed_with_warnings',
     result: AnalysisResult,
   ): Promise<void> {
-    await this.databaseService.transactionWithPlatformAdminContext(
+    await this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         await client.query(
           `UPDATE public.analysis_jobs
@@ -57,8 +65,9 @@ export class AnalysisJobWriteRepository {
     );
   }
 
-  async markFailed(id: string, error: string): Promise<void> {
-    await this.databaseService.transactionWithPlatformAdminContext(
+  async markFailed(tenantId: string, id: string, error: string): Promise<void> {
+    await this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         await client.query(
           `UPDATE public.analysis_jobs
@@ -70,15 +79,14 @@ export class AnalysisJobWriteRepository {
     );
   }
 
-  async findById(
-    id: string,
-  ): Promise<{ id: string; status: AnalysisJobStatus } | null> {
-    return this.databaseService.transactionWithPlatformAdminContext(
+  async findById(tenantId: string, id: string): Promise<AnalysisJobRow | null> {
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
-        const result = await client.query<{
-          id: string;
-          status: AnalysisJobStatus;
-        }>(`SELECT id, status FROM public.analysis_jobs WHERE id = $1`, [id]);
+        const result = await client.query<AnalysisJobRow>(
+          `SELECT id, status, document_id FROM public.analysis_jobs WHERE id = $1`,
+          [id],
+        );
         return result.rows[0] ?? null;
       },
     );

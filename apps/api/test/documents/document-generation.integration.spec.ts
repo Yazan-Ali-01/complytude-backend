@@ -2,6 +2,7 @@ import { DocxRendererService } from '@lib/docx-renderer';
 import type { PdfConversionService } from '@lib/pdf';
 import {
   getQueueToken,
+  PermanentError,
   QUEUE_NAMES,
   QueueProducerService,
   type DocumentGenerationJobData,
@@ -302,5 +303,60 @@ describe('Document generation end to end (app role)', () => {
     expect((await job(data.generationJobId)).status).toBe('failed');
     expect(await documentsOf(tenantId)).toHaveLength(0);
     expect(await documentsUsed(tenantId)).toBe(0);
+  });
+
+  it("a job whose tenantId isn't the job's tenant fails closed, creating nothing anywhere", async () => {
+    const { tenantId, data } = await requestGeneration();
+    const other = await createTestTenant(app.module);
+
+    await expect(
+      worker.generate({ ...data, tenantId: other.id }, 3, 3),
+    ).rejects.toThrow(PermanentError);
+
+    expect(convertDocxToPdf).not.toHaveBeenCalled();
+    expect(s3.keys(`${FILES_BUCKET}/`)).toEqual([]);
+    expect(await documentsOf(tenantId)).toHaveLength(0);
+    expect(await documentsOf(other.id)).toHaveLength(0);
+    expect((await job(data.generationJobId)).status).toBe('queued');
+  });
+
+  it('renders the variables and author stored with the job, not those in the payload', async () => {
+    const { tenantId, data } = await requestGeneration();
+    const other = await createTestTenant(app.module);
+    const { user: stranger } = await createTestUserInTenant(
+      app.module,
+      other.id,
+    );
+
+    await worker.generate(
+      {
+        ...data,
+        variables: { party_name: 'Forged Party' },
+        userId: stranger.id,
+      },
+      1,
+      3,
+    );
+
+    const rendered = new PizZip(convertDocxToPdf.mock.calls[0][0] as Buffer)
+      .file('word/document.xml')!
+      .asText();
+    expect(rendered).toContain('Acme Trading LLC');
+    expect(rendered).not.toContain('Forged Party');
+    const { rows } = await app.databaseService.query<{ created_by: string }>(
+      'SELECT created_by FROM public.documents WHERE id = $1',
+      [data.generationJobId],
+    );
+    expect(rows[0].created_by).not.toBe(stranger.id);
+    expect(await documentsOf(tenantId)).toHaveLength(1);
+  });
+
+  it('a payload that names a different template than its job is refused', async () => {
+    const { data } = await requestGeneration();
+
+    await expect(
+      worker.generate({ ...data, templateId: randomUUID() }, 1, 3),
+    ).rejects.toThrow(PermanentError);
+    expect(convertDocxToPdf).not.toHaveBeenCalled();
   });
 });

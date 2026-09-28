@@ -17,15 +17,14 @@ export interface CreateGeneratedDocumentParams {
 }
 
 /**
- * documents has RLS with FORCE ROW LEVEL SECURITY.
- * worker-generation has no tenant context, so every query runs in a
- * transactionWithPlatformAdminContext to satisfy the is_platform_admin() policy.
+ * documents has RLS with FORCE ROW LEVEL SECURITY. The insert runs in the caller's transaction,
+ * in the generation job's tenant context, so it can only create a document in that tenant.
  */
 @Injectable()
 export class DocumentWriteRepository {
   /**
    * Creates the generated document, or does nothing if a previous attempt already created it
-   * (the ID is derived from the generation job). Runs in the caller's platform-admin transaction.
+   * (the ID is derived from the generation job). Runs in the caller's tenant-context transaction.
    */
   async createGenerated(
     params: CreateGeneratedDocumentParams,

@@ -83,18 +83,20 @@ describe('DocumentIngestionService', () => {
 
       await service.process(MOCK_JOB_DATA);
 
-      expect(repo.findById).toHaveBeenCalledWith('doc-123');
+      expect(repo.findById).toHaveBeenCalledWith('tenant-456', 'doc-123');
       expect(textract.startAnalysis).toHaveBeenCalledWith(
         'complytude-quarantine',
         'tenants/tenant-456/documents/doc-123/file.pdf',
         'application/pdf',
       );
       expect(repo.setTextractJobId).toHaveBeenCalledWith(
+        'tenant-456',
         'doc-123',
         'textract-job-1',
       );
       expect(textract.collectResult).toHaveBeenCalledWith('textract-job-1');
       expect(repo.storeExtractedContent).toHaveBeenCalledWith(
+        'tenant-456',
         'doc-123',
         'Extracted document content',
         [],
@@ -104,6 +106,7 @@ describe('DocumentIngestionService', () => {
         'tenants/tenant-456/documents/doc-123/file.pdf',
       );
       expect(repo.markCompleted).toHaveBeenCalledWith(
+        'tenant-456',
         'doc-123',
         'complytude-files',
         'tenants/tenant-456/documents/doc-123/file.pdf',
@@ -151,7 +154,7 @@ describe('DocumentIngestionService', () => {
 
     it('a poll timeout and its retry start one job in total', async () => {
       let stored: string | null = null;
-      repo.setTextractJobId.mockImplementation((_id, jobId) => {
+      repo.setTextractJobId.mockImplementation((_tenant, _id, jobId) => {
         stored = jobId;
         return Promise.resolve();
       });
@@ -183,7 +186,11 @@ describe('DocumentIngestionService', () => {
         RetryableError,
       );
 
-      expect(repo.setTextractJobId).toHaveBeenCalledWith('doc-123', null);
+      expect(repo.setTextractJobId).toHaveBeenCalledWith(
+        'tenant-456',
+        'doc-123',
+        null,
+      );
     });
 
     it('an over-limit PDF fails for good without a Textract job', async () => {
@@ -252,6 +259,25 @@ describe('DocumentIngestionService', () => {
       expect((error as Error).message).toMatch(/no text/);
     });
 
+    it.each([
+      ['bucket', { s3Bucket: 'attacker-bucket' }],
+      ['key', { s3Key: 'tenants/other/documents/x/file.pdf' }],
+      ['mime type', { mimeType: 'image/tiff' }],
+    ])(
+      'refuses a payload whose %s differs from the document, before Textract',
+      async (_field, override) => {
+        repo.findById.mockResolvedValue(makeDocumentRow());
+
+        const error = await service
+          .process({ ...MOCK_JOB_DATA, ...override })
+          .catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(PermanentError);
+        expect(textract.startAnalysis).not.toHaveBeenCalled();
+        expect(promotion.promote).not.toHaveBeenCalled();
+      },
+    );
+
     it('should throw RetryableError when DB fetch fails', async () => {
       repo.findById.mockRejectedValue(new Error('connection timeout'));
 
@@ -265,9 +291,10 @@ describe('DocumentIngestionService', () => {
     it('should delegate to repository', async () => {
       repo.markFailed.mockResolvedValue(undefined);
 
-      await service.markFailed('doc-123', 'Something went wrong');
+      await service.markFailed('tenant-456', 'doc-123', 'Something went wrong');
 
       expect(repo.markFailed).toHaveBeenCalledWith(
+        'tenant-456',
         'doc-123',
         'Something went wrong',
       );
@@ -277,7 +304,7 @@ describe('DocumentIngestionService', () => {
       repo.markFailed.mockRejectedValue(new Error('DB down'));
 
       await expect(
-        service.markFailed('doc-123', 'error'),
+        service.markFailed('tenant-456', 'doc-123', 'error'),
       ).resolves.not.toThrow();
     });
   });

@@ -762,7 +762,12 @@ WITH CHECK (tenant_id = current_tenant_id_or_null() OR is_platform_admin());
 **What this means:**
 
 - Users can only see/create/update documents for their current tenant
-- Platform admins (workers) can read and update any document via `transactionWithPlatformAdminContext`
+- Platform admins can read and update any document via `transactionWithPlatformAdminContext` (API only)
+- Workers run each job in `transactionWithTenantContext({ tenantId })` with the tenant from the job
+  payload, so a job naming a document of another tenant finds nothing and fails. They cross-check
+  the payload against the row (job's document, file bucket and key, generation template) and act
+  on the row's values. No worker uses platform-admin context (a unit test in `libs/database`
+  enforces this); global tables (templates, rulesets) have no RLS
 - No cross-tenant data access is possible for regular users
 
 ---

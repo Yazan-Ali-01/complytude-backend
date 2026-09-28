@@ -20,33 +20,42 @@ export interface DocumentRow {
   textract_job_id: string | null;
 }
 
+/**
+ * documents has RLS with FORCE ROW LEVEL SECURITY. Every query runs in the job's tenant context
+ * (from the payload), so a document of any other tenant is neither seen nor changed.
+ */
 @Injectable()
 export class DocumentWriteRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async findById(documentId: string): Promise<DocumentRow | null> {
-    const result =
-      await this.databaseService.transactionWithPlatformAdminContext(
-        async (client) => {
-          return client.query<DocumentRow>(
-            `SELECT id, tenant_id, title, content, content_structured, source_type,
+  async findById(
+    tenantId: string,
+    documentId: string,
+  ): Promise<DocumentRow | null> {
+    const result = await this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      async (client) => {
+        return client.query<DocumentRow>(
+          `SELECT id, tenant_id, title, content, content_structured, source_type,
                   s3_key, s3_bucket, original_filename, mime_type,
                   extraction_status, extraction_error, extracted_at, textract_job_id
            FROM public.documents
            WHERE id = $1`,
-            [documentId],
-          );
-        },
-      );
+          [documentId],
+        );
+      },
+    );
     return result.rows[0] ?? null;
   }
 
   /** The Textract job to resume on a retry; null once a failed job must be replaced. */
   async setTextractJobId(
+    tenantId: string,
     documentId: string,
     jobId: string | null,
   ): Promise<void> {
-    await this.databaseService.transactionWithPlatformAdminContext(
+    await this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         await client.query(
           `UPDATE public.documents SET textract_job_id = $1, updated_at = NOW() WHERE id = $2`,
@@ -57,11 +66,13 @@ export class DocumentWriteRepository {
   }
 
   async storeExtractedContent(
+    tenantId: string,
     documentId: string,
     content: string,
     sections: DocumentSection[],
   ): Promise<void> {
-    await this.databaseService.transactionWithPlatformAdminContext(
+    await this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         await client.query(
           `UPDATE public.documents
@@ -74,11 +85,13 @@ export class DocumentWriteRepository {
   }
 
   async markCompleted(
+    tenantId: string,
     documentId: string,
     newBucket: string,
     newKey: string,
   ): Promise<void> {
-    await this.databaseService.transactionWithPlatformAdminContext(
+    await this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         await client.query(
           `UPDATE public.documents
@@ -95,8 +108,13 @@ export class DocumentWriteRepository {
     );
   }
 
-  async markFailed(documentId: string, error: string): Promise<void> {
-    await this.databaseService.transactionWithPlatformAdminContext(
+  async markFailed(
+    tenantId: string,
+    documentId: string,
+    error: string,
+  ): Promise<void> {
+    await this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         await client.query(
           `UPDATE public.documents

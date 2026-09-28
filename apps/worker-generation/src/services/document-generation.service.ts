@@ -12,7 +12,10 @@ import { S3Service } from '@lib/storage';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentWriteRepository } from '../repositories/document-write.repository';
-import { GenerationJobWriteRepository } from '../repositories/generation-job-write.repository';
+import {
+  GenerationJobWriteRepository,
+  type GenerationJobRow,
+} from '../repositories/generation-job-write.repository';
 
 const PREVIEW_SIGNED_URL_EXPIRY_SECONDS = 3600; // 1 hour
 const PREVIEW_WATERMARK_TEXT = 'PREVIEW';
@@ -46,19 +49,34 @@ export class DocumentGenerationWorkerService {
     attempt: number,
     maxAttempts: number,
   ): Promise<void> {
-    const { generationJobId, jobType } = data;
+    const { generationJobId, tenantId } = data;
     const isFinalAttempt = attempt >= maxAttempts;
 
     this.logger.log(
-      `Processing generation job [${jobType}] generationJobId=${generationJobId} templateId=${data.templateId} tenantId=${data.tenantId} attempt=${attempt}/${maxAttempts}`,
+      `Processing generation job [${data.jobType}] generationJobId=${generationJobId} templateId=${data.templateId} tenantId=${tenantId} attempt=${attempt}/${maxAttempts}`,
     );
 
-    const existingJob = await this.generationJobRepo.findById(generationJobId);
+    // Read in the payload's tenant: a job of another tenant is not found, so it fails closed.
+    // Everything the job runs from (template, version, variables, author) comes from this row.
+    const existingJob = await this.generationJobRepo.findById(
+      tenantId,
+      generationJobId,
+    );
     if (!existingJob) {
       throw new PermanentError(
-        `Generation job ${generationJobId} not found in database`,
+        `Generation job ${generationJobId} not found in tenant ${tenantId}`,
       );
     }
+    if (
+      existingJob.job_type !== data.jobType ||
+      existingJob.template_id !== data.templateId ||
+      existingJob.template_version_id !== data.templateVersionId
+    ) {
+      throw new PermanentError(
+        `Generation job ${generationJobId} does not match its payload — refusing`,
+      );
+    }
+    const jobType = existingJob.job_type;
     if (existingJob.status === 'completed') {
       this.logger.warn(`Skipping job ${generationJobId} — already completed`);
       return;
@@ -73,8 +91,10 @@ export class DocumentGenerationWorkerService {
       return;
     }
 
-    const claimed =
-      await this.generationJobRepo.markProcessing(generationJobId);
+    const claimed = await this.generationJobRepo.markProcessing(
+      tenantId,
+      generationJobId,
+    );
     if (!claimed) {
       this.logger.warn(
         `Could not claim job ${generationJobId} — another worker may have it`,
@@ -84,9 +104,9 @@ export class DocumentGenerationWorkerService {
 
     try {
       if (jobType === 'preview') {
-        await this.handlePreview(data);
+        await this.handlePreview(existingJob);
       } else {
-        await this.handleGenerate(data);
+        await this.handleGenerate(existingJob);
       }
     } catch (error) {
       const errorMessage =
@@ -98,7 +118,7 @@ export class DocumentGenerationWorkerService {
       // as 'processing' so the next BullMQ retry can claim it.
       if (isFinalAttempt || permanent) {
         await this.generationJobRepo
-          .markFailed(generationJobId, errorMessage)
+          .markFailed(tenantId, generationJobId, errorMessage)
           .catch((e: unknown) =>
             this.logger.error(
               `Failed to mark job ${generationJobId} as failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -106,7 +126,7 @@ export class DocumentGenerationWorkerService {
           );
 
         if (jobType === 'generate') {
-          await this.emitUsageRefund(data);
+          await this.emitUsageRefund(existingJob);
         }
       }
 
@@ -121,8 +141,14 @@ export class DocumentGenerationWorkerService {
   // Preview flow
   // ---------------------------------------------------------------------------
 
-  private async handlePreview(data: DocumentGenerationJobData): Promise<void> {
-    const { generationJobId, templateId, templateVersion, variables } = data;
+  private async handlePreview(job: GenerationJobRow): Promise<void> {
+    const {
+      id: generationJobId,
+      tenant_id: tenantId,
+      template_id: templateId,
+      template_version: templateVersion,
+      variables,
+    } = job;
 
     const templateBuffer = await this.fetchTemplateDocx(
       templateId,
@@ -153,7 +179,7 @@ export class DocumentGenerationWorkerService {
       Date.now() + PREVIEW_SIGNED_URL_EXPIRY_SECONDS * 1000,
     ).toISOString();
 
-    await this.generationJobRepo.markCompleted(generationJobId, {
+    await this.generationJobRepo.markCompleted(tenantId, generationJobId, {
       previewUrl,
       expiresAt,
       s3Key: previewKey,
@@ -168,16 +194,16 @@ export class DocumentGenerationWorkerService {
   // Generate flow
   // ---------------------------------------------------------------------------
 
-  private async handleGenerate(data: DocumentGenerationJobData): Promise<void> {
+  private async handleGenerate(job: GenerationJobRow): Promise<void> {
     const {
-      generationJobId,
-      templateId,
-      templateVersionId,
-      templateVersion,
+      id: generationJobId,
+      tenant_id: tenantId,
+      template_id: templateId,
+      template_version_id: templateVersionId,
+      template_version: templateVersion,
       variables,
-      tenantId,
-      userId,
-    } = data;
+      created_by: userId,
+    } = job;
 
     const templateBuffer = await this.fetchTemplateDocx(
       templateId,
@@ -199,7 +225,8 @@ export class DocumentGenerationWorkerService {
       'application/pdf',
     );
 
-    await this.databaseService.transactionWithPlatformAdminContext(
+    await this.databaseService.transactionWithTenantContext(
+      { tenantId },
       async (client) => {
         await this.documentWriteRepo.createGenerated(
           {
@@ -219,11 +246,13 @@ export class DocumentGenerationWorkerService {
           client,
         );
         await this.generationJobRepo.linkDocumentToJob(
+          tenantId,
           generationJobId,
           documentId,
           client,
         );
         await this.generationJobRepo.markCompleted(
+          tenantId,
           generationJobId,
           { documentId, s3Key, fileSize: pdfBuffer.length },
           client,
@@ -318,9 +347,8 @@ export class DocumentGenerationWorkerService {
    * still mark the generation job as failed. The refund can be re-triggered
    * manually if needed.
    */
-  private async emitUsageRefund(
-    data: DocumentGenerationJobData,
-  ): Promise<void> {
+  private async emitUsageRefund(job: GenerationJobRow): Promise<void> {
+    const data = { tenantId: job.tenant_id, generationJobId: job.id };
     try {
       await this.queueProducer.enqueue(
         QUEUE_NAMES.ENTITLEMENT_PROCESSING,

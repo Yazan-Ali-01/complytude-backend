@@ -1,0 +1,250 @@
+import { TextChunkerService, TokenCounterService } from '@lib/embedding';
+import type { EmbeddingService } from '@lib/embedding';
+import { PermanentError } from '@lib/queue';
+import type { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
+import { AnalysisJobWriteRepository } from '../../../worker-ai/src/repositories/analysis-job-write.repository';
+import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
+import type { RulesetChunkSearchRepository } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
+import { DocumentAnalysisService } from '../../../worker-ai/src/services/document-analysis.service';
+import type { LlmService } from '../../../worker-ai/src/services/llm.service';
+import { PromptBuilderService } from '../../../worker-ai/src/services/prompt-builder.service';
+import type { RerankerService } from '../../../worker-ai/src/services/reranker.service';
+import type { IS3PromotionService } from '../../../worker-ingestion/src/interfaces/s3-promotion.interface';
+import type { ITextractService } from '../../../worker-ingestion/src/interfaces/textract.interface';
+import { DocumentWriteRepository } from '../../../worker-ingestion/src/repositories/document-write.repository';
+import { DocumentIngestionService } from '../../../worker-ingestion/src/services/document-ingestion.service';
+import { createTestTenant } from '../factories';
+import { resetTestState } from '../helpers/redis-flush.helper';
+import { createTestApp, TestApp } from '../setup/test-app.factory';
+
+const QUARANTINE = 'test-quarantine';
+
+/**
+ * The analysis and ingestion workers, as the app role under RLS, given jobs whose payload names
+ * a tenant that doesn't own the document: they fail for good without reading or changing it.
+ * (Generation: see document-generation.integration.spec.ts.)
+ */
+describe('Workers act only inside the job payload tenant', () => {
+  let app: TestApp;
+  let victim: string;
+  let attacker: string;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  }, 60000);
+
+  beforeEach(async () => {
+    await resetTestState(app.databaseService, app.redisClient);
+    victim = (await createTestTenant(app.module)).id;
+    attacker = (await createTestTenant(app.module)).id;
+  }, 15000);
+
+  afterAll(async () => {
+    if (app) await app.cleanup();
+  }, 30000);
+
+  async function document(
+    tenantId: string,
+    fields: { content?: string; extractionStatus?: string } = {},
+  ): Promise<{ id: string; s3Key: string }> {
+    const s3Key = `tenants/${tenantId}/documents/${randomUUID()}/contract.pdf`;
+    const { rows } = await app.databaseService.query<{ id: string }>(
+      `INSERT INTO public.documents
+         (tenant_id, title, source_type, s3_key, s3_bucket, mime_type, content, extraction_status)
+       VALUES ($1, 'Secret contract', 'file_upload', $2, $3, 'application/pdf', $4, $5)
+       RETURNING id`,
+      [
+        tenantId,
+        s3Key,
+        QUARANTINE,
+        fields.content ?? null,
+        fields.extractionStatus ?? 'processing',
+      ],
+    );
+    return { id: rows[0].id, s3Key };
+  }
+
+  async function analysisJob(
+    tenantId: string,
+    documentId: string,
+  ): Promise<string> {
+    const { rows } = await app.databaseService.query<{ id: string }>(
+      `INSERT INTO public.analysis_jobs (tenant_id, document_id) VALUES ($1, $2) RETURNING id`,
+      [tenantId, documentId],
+    );
+    return rows[0].id;
+  }
+
+  async function row(
+    table: 'analysis_jobs' | 'documents',
+    id: string,
+  ): Promise<Record<string, unknown>> {
+    const { rows } = await app.databaseService.query<Record<string, unknown>>(
+      `SELECT * FROM public.${table} WHERE id = $1`,
+      [id],
+    );
+    return rows[0];
+  }
+
+  describe('analysis (worker-ai)', () => {
+    let modelCalls: number;
+
+    function analysisWorker(): DocumentAnalysisService {
+      modelCalls = 0;
+      const llm = {
+        getContextWindowTokens: () => 128_000,
+        getModel: () => 'test-model',
+        chatCompletion: () => {
+          modelCalls++;
+          return Promise.resolve({ findings: [], summary: 'ok' });
+        },
+      } as unknown as LlmService;
+      const tokenCounter = new TokenCounterService();
+      return new DocumentAnalysisService(
+        new AnalysisJobWriteRepository(app.appDatabaseService),
+        new DocumentReadRepository(app.appDatabaseService),
+        {
+          hybridSearchBatch: () => Promise.resolve([]),
+        } as unknown as RulesetChunkSearchRepository,
+        new TextChunkerService(tokenCounter),
+        {
+          generateEmbeddings: (texts: string[]) =>
+            Promise.resolve(texts.map(() => ({ embedding: [0] }))),
+        } as unknown as EmbeddingService,
+        new PromptBuilderService(tokenCounter, llm),
+        llm,
+        { rerank: () => Promise.resolve([]) } as unknown as RerankerService,
+        { get: (_key: string, fallback: unknown) => fallback } as ConfigService,
+      );
+    }
+
+    it("refuses a job whose tenantId doesn't own it, leaving the victim's job untouched", async () => {
+      const doc = await document(victim, { content: 'Secret terms' });
+      const jobId = await analysisJob(victim, doc.id);
+
+      await expect(
+        analysisWorker().analyze({
+          analysisJobId: jobId,
+          documentId: doc.id,
+          tenantId: attacker,
+        }),
+      ).rejects.toThrow(PermanentError);
+
+      expect(modelCalls).toBe(0);
+      expect(await row('analysis_jobs', jobId)).toMatchObject({
+        status: 'queued',
+        result: null,
+      });
+    });
+
+    it("refuses an own job whose payload names another tenant's document", async () => {
+      const secret = await document(victim, { content: 'Secret terms' });
+      const own = await document(attacker, { content: 'Own contract' });
+      const jobId = await analysisJob(attacker, own.id);
+
+      await expect(
+        analysisWorker().analyze({
+          analysisJobId: jobId,
+          documentId: secret.id,
+          tenantId: attacker,
+        }),
+      ).rejects.toThrow(PermanentError);
+
+      expect(modelCalls).toBe(0);
+      expect((await row('analysis_jobs', jobId)).status).toBe('queued');
+    });
+
+    it("never reads another tenant's document, even when the job row points at it", async () => {
+      const secret = await document(victim, { content: 'Secret terms' });
+      // A job row that references another tenant's document (only possible through a bug)
+      const jobId = await analysisJob(attacker, secret.id);
+
+      await expect(
+        analysisWorker().analyze(
+          { analysisJobId: jobId, documentId: secret.id, tenantId: attacker },
+          3,
+          3,
+        ),
+      ).rejects.toThrow(/not found/);
+
+      expect(modelCalls).toBe(0);
+      expect(await row('analysis_jobs', jobId)).toMatchObject({
+        status: 'failed',
+        result: null,
+      });
+    });
+  });
+
+  describe('ingestion (worker-ingestion)', () => {
+    let startAnalysis: jest.Mock;
+    let promote: jest.Mock;
+    let ingestion: DocumentIngestionService;
+
+    beforeEach(() => {
+      startAnalysis = jest.fn().mockResolvedValue('textract-job');
+      promote = jest.fn().mockResolvedValue({ bucket: 'clean', key: 'k' });
+      const textract: ITextractService = {
+        startAnalysis,
+        collectResult: jest
+          .fn()
+          .mockResolvedValue({ text: 'Extracted', sections: [], pageCount: 1 }),
+      };
+      const promotion: IS3PromotionService = { promote };
+      ingestion = new DocumentIngestionService(
+        new DocumentWriteRepository(app.appDatabaseService),
+        textract,
+        promotion,
+      );
+    });
+
+    it("refuses a job whose tenantId doesn't own the document, before Textract", async () => {
+      const doc = await document(victim);
+      const payload = {
+        documentId: doc.id,
+        tenantId: attacker,
+        s3Bucket: QUARANTINE,
+        s3Key: doc.s3Key,
+        originalFilename: 'contract.pdf',
+        mimeType: 'application/pdf',
+      };
+
+      await expect(ingestion.process(payload)).rejects.toThrow(/not found/);
+      // What the processor does after a permanent failure: it can't touch the victim's row either
+      await ingestion.markFailed(attacker, doc.id, 'forged');
+
+      expect(startAnalysis).not.toHaveBeenCalled();
+      expect(promote).not.toHaveBeenCalled();
+      expect(await row('documents', doc.id)).toMatchObject({
+        extraction_status: 'processing',
+        extraction_error: null,
+        content: null,
+      });
+    });
+
+    it("refuses a job whose file differs from the document's, and reads only the row's file", async () => {
+      const doc = await document(victim);
+      const payload = {
+        documentId: doc.id,
+        tenantId: victim,
+        s3Bucket: QUARANTINE,
+        s3Key: `tenants/${attacker}/documents/x/other.pdf`,
+        originalFilename: 'contract.pdf',
+        mimeType: 'application/pdf',
+      };
+
+      await expect(ingestion.process(payload)).rejects.toThrow(PermanentError);
+      expect(startAnalysis).not.toHaveBeenCalled();
+
+      await ingestion.process({ ...payload, s3Key: doc.s3Key });
+      expect(startAnalysis).toHaveBeenCalledWith(
+        QUARANTINE,
+        doc.s3Key,
+        'application/pdf',
+      );
+      expect((await row('documents', doc.id)).extraction_status).toBe(
+        'completed',
+      );
+    });
+  });
+});

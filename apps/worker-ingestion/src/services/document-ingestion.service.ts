@@ -12,7 +12,10 @@ import {
   type TextractResult,
   TextractJobFailedError,
 } from '../interfaces/textract.interface';
-import { DocumentWriteRepository } from '../repositories/document-write.repository';
+import {
+  DocumentWriteRepository,
+  type DocumentRow,
+} from '../repositories/document-write.repository';
 
 @Injectable()
 export class DocumentIngestionService {
@@ -27,14 +30,18 @@ export class DocumentIngestionService {
   ) {}
 
   async process(data: DocumentIngestionJobData): Promise<void> {
-    const { documentId, tenantId, s3Key, s3Bucket, mimeType } = data;
+    const { documentId, tenantId } = data;
 
     this.logger.log(
       `Starting document ingestion: documentId=${documentId} tenantId=${tenantId}`,
     );
 
-    // 1. Fetch document and validate status
-    const document = await this.fetchAndValidate(documentId);
+    // 1. Fetch document (in the payload's tenant) and validate status and payload
+    const document = await this.fetchAndValidate(data);
+    // The file to read and promote comes from the row, never from the payload
+    const s3Bucket = document.s3_bucket!;
+    const s3Key = document.s3_key!;
+    const mimeType = document.mime_type!;
 
     // 2. Extract text (skip if content already stored — retry resilience)
     // content and content_structured are written atomically, so content being
@@ -51,6 +58,7 @@ export class DocumentIngestionService {
       extractedText = document.content!;
     } else {
       const result = await this.extractText(
+        tenantId,
         documentId,
         document.textract_job_id,
         s3Bucket,
@@ -60,14 +68,24 @@ export class DocumentIngestionService {
       extractedText = result.text;
 
       // Persist text + structure atomically for retry resilience
-      await this.storeContent(documentId, result.text, result.sections);
+      await this.storeContent(
+        tenantId,
+        documentId,
+        result.text,
+        result.sections,
+      );
     }
 
     // 3. Promote file from quarantine → clean bucket
     const promotion = await this.promoteFile(documentId, s3Bucket, s3Key);
 
     // 4. Mark document as completed with new bucket/key
-    await this.markCompleted(documentId, promotion.bucket, promotion.key);
+    await this.markCompleted(
+      tenantId,
+      documentId,
+      promotion.bucket,
+      promotion.key,
+    );
 
     this.logger.log(
       `Document ingestion completed: documentId=${documentId} tenantId=${tenantId} ` +
@@ -75,9 +93,17 @@ export class DocumentIngestionService {
     );
   }
 
-  async markFailed(documentId: string, error: string): Promise<void> {
+  async markFailed(
+    tenantId: string,
+    documentId: string,
+    error: string,
+  ): Promise<void> {
     try {
-      await this.documentWriteRepository.markFailed(documentId, error);
+      await this.documentWriteRepository.markFailed(
+        tenantId,
+        documentId,
+        error,
+      );
       this.logger.log(
         `Document marked as failed: documentId=${documentId} error="${error}"`,
       );
@@ -88,9 +114,12 @@ export class DocumentIngestionService {
     }
   }
 
-  private async fetchAndValidate(documentId: string) {
+  private async fetchAndValidate(
+    data: DocumentIngestionJobData,
+  ): Promise<DocumentRow> {
+    const { documentId, tenantId } = data;
     const document = await this.documentWriteRepository
-      .findById(documentId)
+      .findById(tenantId, documentId)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error fetching document ${documentId}`,
@@ -99,8 +128,9 @@ export class DocumentIngestionService {
       });
 
     if (!document) {
+      // Also what a payload naming another tenant's document gets: it isn't visible here
       throw new PermanentError(
-        `Document ${documentId} not found — skipping ingestion`,
+        `Document ${documentId} not found in tenant ${tenantId} — skipping ingestion`,
       );
     }
 
@@ -113,6 +143,19 @@ export class DocumentIngestionService {
       );
     }
 
+    if (
+      !document.s3_bucket ||
+      !document.s3_key ||
+      !document.mime_type ||
+      document.s3_bucket !== data.s3Bucket ||
+      document.s3_key !== data.s3Key ||
+      document.mime_type !== data.mimeType
+    ) {
+      throw new PermanentError(
+        `Ingestion job for document ${documentId} names a different file than the document — refusing`,
+      );
+    }
+
     return document;
   }
 
@@ -122,6 +165,7 @@ export class DocumentIngestionService {
    * failed is replaced.
    */
   private async extractText(
+    tenantId: string,
     documentId: string,
     storedJobId: string | null,
     bucket: string,
@@ -150,7 +194,7 @@ export class DocumentIngestionService {
           throw toRetryable(err);
         });
       await this.documentWriteRepository
-        .setTextractJobId(documentId, jobId)
+        .setTextractJobId(tenantId, documentId, jobId)
         .catch((err: unknown) => {
           throw new RetryableError(
             `DB error storing Textract job ${jobId} for document ${documentId}`,
@@ -163,7 +207,11 @@ export class DocumentIngestionService {
       .collectResult(jobId)
       .catch(async (err: unknown) => {
         if (err instanceof TextractJobFailedError) {
-          await this.documentWriteRepository.setTextractJobId(documentId, null);
+          await this.documentWriteRepository.setTextractJobId(
+            tenantId,
+            documentId,
+            null,
+          );
         }
         throw toRetryable(err);
       });
@@ -183,12 +231,13 @@ export class DocumentIngestionService {
   }
 
   private async storeContent(
+    tenantId: string,
     documentId: string,
     content: string,
     sections: DocumentSection[],
   ): Promise<void> {
     await this.documentWriteRepository
-      .storeExtractedContent(documentId, content, sections)
+      .storeExtractedContent(tenantId, documentId, content, sections)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error storing content for document ${documentId}`,
@@ -224,12 +273,13 @@ export class DocumentIngestionService {
   }
 
   private async markCompleted(
+    tenantId: string,
     documentId: string,
     newBucket: string,
     newKey: string,
   ): Promise<void> {
     await this.documentWriteRepository
-      .markCompleted(documentId, newBucket, newKey)
+      .markCompleted(tenantId, documentId, newBucket, newKey)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error marking document ${documentId} as completed`,

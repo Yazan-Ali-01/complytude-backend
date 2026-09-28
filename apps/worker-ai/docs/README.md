@@ -65,7 +65,7 @@ apps/worker-ai/src/
 │   ├── prompt-builder.service.ts    # System prompt + context window management
 │   └── reranker.service.ts          # Cohere rerank integration (graceful fallback)
 ├── repositories/
-│   ├── document-read.repository.ts       # Read document content
+│   ├── document-read.repository.ts       # Read document content (job's tenant context)
 │   ├── analysis-job-write.repository.ts  # Claim, mark processing/completed/failed
 │   └── ruleset-chunk-search.repository.ts # Hybrid search (vector + BM25, RRF merge)
 └── interfaces/
