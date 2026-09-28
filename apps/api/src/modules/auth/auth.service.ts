@@ -240,45 +240,49 @@ export class AuthService {
       this.BCRYPT_ROUNDS,
     );
 
-    return this.databaseService.transaction(async (client) => {
-      // Create user account
-      this.logger.log(`Creating user account for ${signupDto.email}`);
-      const { id: userId } = await this.userRepository.create(
-        {
-          email: signupDto.email,
-          password_hash: passwordHash,
-          first_name: signupDto.firstName ?? null,
-          last_name: signupDto.lastName ?? null,
-          is_verified: false,
-          platform_role_key: null,
-        },
-        { client },
-      );
+    const { userId, verificationToken } =
+      await this.databaseService.transaction(async (client) => {
+        // Create user account
+        this.logger.log(`Creating user account for ${signupDto.email}`);
+        const { id } = await this.userRepository.create(
+          {
+            email: signupDto.email,
+            password_hash: passwordHash,
+            first_name: signupDto.firstName ?? null,
+            last_name: signupDto.lastName ?? null,
+            is_verified: false,
+            platform_role_key: null,
+          },
+          { client },
+        );
 
-      this.logger.log(
-        `Creating email verification record for ${signupDto.email}`,
-      );
-      const verificationToken = await this.createEmailVerificationRecord(
-        userId,
-        { client },
-      );
+        this.logger.log(
+          `Creating email verification record for ${signupDto.email}`,
+        );
+        const token = await this.createEmailVerificationRecord(id, { client });
+        return { userId: id, verificationToken: token };
+      });
 
-      void this.emailService.sendVerificationEmail(
-        signupDto.email,
-        verificationToken,
-      );
+    // Sent after the commit, so a rollback never leaves a mailed token without its row. A failed
+    // send (e.g. SES rejecting the address) must not fail the signup or crash the process.
+    this.emailService
+      .sendVerificationEmail(signupDto.email, verificationToken)
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Verification email failed for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
 
-      const result = {
-        message: this.i18n.t(AuthI18n.messages.SIGNUP_SUCCESS),
-      } as unknown as MessageResponseDto & { verificationToken: string };
+    const result = {
+      message: this.i18n.t(AuthI18n.messages.SIGNUP_SUCCESS),
+    } as unknown as MessageResponseDto & { verificationToken: string };
 
-      if (this.configService.get<string>('app.environment') !== 'production') {
-        (result as unknown as { verificationToken: string }).verificationToken =
-          verificationToken;
-      }
+    if (this.configService.get<string>('app.environment') !== 'production') {
+      (result as unknown as { verificationToken: string }).verificationToken =
+        verificationToken;
+    }
 
-      return result;
-    });
+    return result;
   }
 
   /**
@@ -1081,7 +1085,14 @@ export class AuthService {
       expiresAt,
     });
 
-    void this.emailService.sendPasswordResetEmail(email, resetToken);
+    // A failed send must not reveal whether the account exists, fail the request, or crash the process
+    this.emailService
+      .sendPasswordResetEmail(email, resetToken)
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Password reset email failed for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
 
     const result = {
       message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),

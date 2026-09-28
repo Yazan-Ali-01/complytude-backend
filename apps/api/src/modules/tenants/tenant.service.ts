@@ -342,12 +342,20 @@ export class TenantService {
       },
     );
 
-    void this.queueProducer.enqueue(
-      QUEUE_NAMES.TENANT_PROCESSING,
-      TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION,
-      { tenantId: tenant.id, email, userId },
-      { attempts: 5, backoff: { type: 'exponential', delay: 1000 } },
-    );
+    // Best effort: checkout and the billing portal create the Stripe customer lazily if this is lost.
+    // A Redis failure here must not fail the (committed) tenant creation or crash the process.
+    this.queueProducer
+      .enqueue(
+        QUEUE_NAMES.TENANT_PROCESSING,
+        TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION,
+        { tenantId: tenant.id, email, userId },
+        { attempts: 5, backoff: { type: 'exponential', delay: 1000 } },
+      )
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Could not enqueue Stripe customer creation for tenant ${tenant.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
 
     return tenant;
   }

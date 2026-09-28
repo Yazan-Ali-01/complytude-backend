@@ -3,6 +3,7 @@ import {
   CallHandler,
   ExecutionContext,
   Injectable,
+  Logger,
   NestInterceptor,
 } from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants';
@@ -33,6 +34,8 @@ interface ResolvedActor {
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(AuditInterceptor.name);
+
   constructor(
     private readonly auditService: AuditService,
     private readonly reflector: Reflector,
@@ -76,15 +79,22 @@ export class AuditInterceptor implements NestInterceptor {
             details.body = sanitizeBody(request.body);
           }
 
-          void this.auditService.log({
-            ...actor,
-            action: auditConfig.action,
-            resourceType: resourceType ?? 'unknown',
-            resourceId,
-            details,
-            ipAddress,
-            userAgent,
-          });
+          // Fire-and-forget: AuditService.log handles its own errors; this catch is the backstop
+          this.auditService
+            .log({
+              ...actor,
+              action: auditConfig.action,
+              resourceType: resourceType ?? 'unknown',
+              resourceId,
+              details,
+              ipAddress,
+              userAgent,
+            })
+            .catch((error: unknown) => {
+              this.logger.error(
+                `Audit write failed for ${auditConfig.action}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            });
         },
       }),
     );

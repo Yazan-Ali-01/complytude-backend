@@ -1,3 +1,4 @@
+import { installProcessErrorHandlers } from '@lib/logger';
 import { QUEUE_NAMES } from '@lib/queue';
 import { Logger as NestLogger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -5,11 +6,15 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { WorkerIngestionModule } from './worker-ingestion.module';
 
+// Unhandled rejections / uncaught exceptions: log at fatal, close the app, exit 1 (ECS replaces the task)
+const processErrors = installProcessErrorHandlers();
+
 async function bootstrap() {
   const app = await NestFactory.create(WorkerIngestionModule, {
     bufferLogs: true,
   });
   app.useLogger(app.get(Logger));
+  processErrors.setShutdown(() => app.close());
 
   const logger = new NestLogger('WorkerIngestion');
 
@@ -26,4 +31,4 @@ async function bootstrap() {
   logger.log(`📬 Queue: ${queueName}`);
 }
 
-void bootstrap();
+bootstrap().catch((error: unknown) => processErrors.fatal(error, 'bootstrap'));

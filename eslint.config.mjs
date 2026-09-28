@@ -60,7 +60,12 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-floating-promises': 'warn',
+      // An unhandled rejection crashes the process (Node >= 15). `void` doesn't count as handling:
+      // fire-and-forget calls need an explicit .catch().
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        { ignoreVoid: false },
+      ],
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/require-await': 'warn',
       '@typescript-eslint/no-unused-vars': [

@@ -1,5 +1,6 @@
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
+import { installProcessErrorHandlers } from '@lib/logger';
 import {
   Logger as NestLogger,
   ValidationPipe,
@@ -31,6 +32,9 @@ import {
   TENANT_REFRESH_TOKEN_COOKIE_NAME,
 } from './common/swagger/common';
 
+// Unhandled rejections / uncaught exceptions: log at fatal, close the app, exit 1 (ECS replaces the task)
+const processErrors = installProcessErrorHandlers();
+
 async function bootstrap() {
   const fastifyAdapter = new FastifyAdapter({
     requestIdHeader: 'x-request-id',
@@ -60,6 +64,7 @@ async function bootstrap() {
   );
 
   app.useLogger(app.get(Logger));
+  processErrors.setShutdown(() => app.close());
 
   const logger = new NestLogger('Bootstrap');
 
@@ -340,5 +345,7 @@ if (cliArgs.length > 0) {
     },
   );
 } else {
-  void bootstrap();
+  bootstrap().catch((error: unknown) =>
+    processErrors.fatal(error, 'bootstrap'),
+  );
 }

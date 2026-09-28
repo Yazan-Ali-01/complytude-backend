@@ -210,7 +210,14 @@ export class StripeCustomerService {
       );
     }
 
-    void this.stripeTaxService.syncCustomerTax(customer.id, tenant);
+    // syncCustomerTax logs its own errors; this catch is the backstop for a fire-and-forget call
+    this.stripeTaxService
+      .syncCustomerTax(customer.id, tenant)
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Tax sync failed for customer ${customer.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
 
     return customer.id;
   }

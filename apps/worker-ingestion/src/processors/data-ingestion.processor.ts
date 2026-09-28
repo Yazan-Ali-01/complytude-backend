@@ -60,10 +60,14 @@ export class DataIngestionProcessor extends AbstractProcessor<unknown, void> {
 
     if (job.name === INGESTION_JOB_NAMES.DOCUMENT_INGESTION) {
       const data = job.data as DocumentIngestionJobData;
-      void this.documentIngestionService.markFailed(
-        data.documentId,
-        `Exhausted all retries: ${error.message}`,
-      );
+      // onDeadLetter is synchronous; markFailed logs its own errors, this catch is the backstop
+      this.documentIngestionService
+        .markFailed(data.documentId, `Exhausted all retries: ${error.message}`)
+        .catch((markError: unknown) => {
+          this.logger.error(
+            `markFailed failed for document ${data.documentId}: ${markError instanceof Error ? markError.message : String(markError)}`,
+          );
+        });
     }
   }
 }
