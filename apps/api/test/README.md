@@ -62,14 +62,14 @@ Integration tests boot the **full NestJS application** against real, ephemeral d
 ```
 globalSetup (once)
   ├── Start PostgreSQL container (pgvector/pgvector:pg16)
-  ├── Create app_user role
+  ├── Create the app_user (NOLOGIN) and app_login (LOGIN, IN ROLE app_user) roles
   ├── Start Redis container (redis:7-alpine)
   └── Write connection config to temp file
 
 Per Jest Worker (parallel)
   ├── jest.setup.ts
   │   ├── Load .env.test
-  │   └── Override DB_*/REDIS_* with testcontainer config
+  │   └── Override DB_*/REDIS_* with testcontainer config (the app connects as app_login)
   └── worker-database.setup.ts (called from createTestApp)
       ├── Create worker-specific database (test_w{workerId})
       └── Run pending SQL migrations (applied ones are recorded in schema_migrations,
@@ -95,6 +95,23 @@ Each Jest worker gets:
 - Maximum 16 workers (configured in `jest.config.ts`)
 
 This means tests running in parallel never interfere with each other.
+
+### Database Roles
+
+The app connects as `app_login`, a `LOGIN` role that inherits `app_user`, the same shape as deployed environments (`scripts/setup-app-user-role.sql`). Row-level security therefore applies to every query the app runs in tests, exactly as in production:
+
+- **`app.appDatabaseService`** is the app's own `DatabaseService` (`app_login`). App code and the RLS suite use it.
+- **`app.databaseService`** is a separate superuser connection (`TEST_ADMIN_DATABASE`, `setup/admin-database.ts`) that bypasses RLS. Use it for fixtures, truncation and raw assertions only.
+
+Fixtures written through a repository with no tenant context are rejected by RLS, so pass the superuser's client, as the factories do:
+
+```typescript
+await app.databaseService.transaction((client) =>
+  app.module.get(DocumentRepository).create(data, { client }),
+);
+```
+
+If app code returns 0 rows or hits `new row violates row-level security policy` in a test, check that it runs inside `transactionWithTenantContext` (or the platform-admin or auth-flow context) before changing the test: a query with no context fails the same way in production.
 
 ---
 
@@ -129,6 +146,8 @@ apps/api/test/
 │   ├── global-teardown.ts          # Stops containers, removes temp config
 │   ├── jest.setup.ts               # Per-worker: loads .env.test, overrides env vars
 │   ├── worker-database.setup.ts    # Per-worker: creates DB + runs pending migrations (schema_migrations)
+│   ├── test-app.factory.ts         # createTestApp(): boots the app, wires both database connections
+│   ├── admin-database.ts           # TEST_ADMIN_DATABASE: superuser DatabaseService for fixtures
 │   └── smoke.integration.spec.ts   # Verifies the test infrastructure itself
 ├── factories/                      # Test data builders
 │   ├── index.ts                    # Barrel export
@@ -136,6 +155,8 @@ apps/api/test/
 │   ├── user.factory.ts             # createTestUser()
 │   ├── subscription.factory.ts     # createTestSubscription()
 │   └── factories.integration.spec.ts  # Tests for the factories
+├── rls/
+│   └── tenant-isolation.integration.spec.ts  # One case per RLS policy, cross-tenant checks, policy meta-test
 ├── helpers/                        # Shared test utilities
 │   ├── test-config.ts              # Testcontainer config path + TypeScript types
 │   ├── truncate.helper.ts          # truncateAllTables() — preserves reference data
@@ -215,6 +236,17 @@ it('should respect RLS policies', async () => {
 });
 ```
 
+### Tenant Isolation (RLS) Suite
+
+`rls/tenant-isolation.integration.spec.ts` proves every RLS policy is enforced for the app role:
+
+- **One case per policy** (`POLICY_CASES`): the operation the policy allows, in the context it allows it (tenant, tenant admin, platform admin or auth flow). Each case runs through `appDatabaseService` and must succeed.
+- **Cross-tenant checks**, one per tenant-scoped table: as tenant A's admin, tenant B's row can't be read, updated, deleted, or inserted for B. With no context, nothing is visible.
+- **Real repositories and routes:** `DocumentRepository.findById` and `GET /api/v1/documents/:id` don't return tenant B's document to tenant A.
+- **Meta-test:** for every row in `pg_policies`, it drops the policy inside a rolled-back transaction and checks that the policy's case then fails. It also fails when a policy has no case, or a case names a policy that no longer exists.
+
+**When you add or change an RLS policy,** add or update its entry in `POLICY_CASES`. When `app_user` lacks the privilege for a policy's command (for example there is no `DELETE` on `documents`, which are soft-deleted), mark the case `blockedByGrant` with the reason; the suite then asserts the privilege error, and fails if the privilege is granted later so the case gets a real operation. A new tenant-scoped table also needs a fixture row in `seedWorld()` and entries in `TENANT_TABLES` and `INSERT_FOR`.
+
 ### Overriding Providers
 
 ```typescript
@@ -245,7 +277,8 @@ Boots the full NestJS application with real database and Redis connections. Retu
 | --- | --- | --- |
 | `app` | `INestApplication` | The NestJS app instance |
 | `module` | `TestingModule` | The testing module (use `.get()` to resolve providers) |
-| `databaseService` | `DatabaseService` | Direct database access |
+| `databaseService` | `DatabaseService` | Superuser connection that bypasses RLS: fixtures, truncation and raw assertions only |
+| `appDatabaseService` | `DatabaseService` | The app's own connection (`app_login`), subject to RLS |
 | `redisService` | `RedisService` | Redis service |
 | `redisClient` | `Redis` | Raw ioredis client |
 | `queueProducerService` | `QueueProducerService` | BullMQ queue producer |
@@ -270,7 +303,7 @@ Turns `Set-Cookie` response headers into a `Cookie` request header the way a bro
 
 ### `withTenantContext(databaseService, tenantId, callback, options?)`
 
-Executes a callback inside a transaction with RLS tenant context set (`SET LOCAL ROLE app_user` + `app.tenant_id`). Options: `isTenantAdmin`, `allowCrossTenantRead`.
+Executes a callback inside a transaction with RLS tenant context set (`SET LOCAL ROLE app_user` + `app.tenant_id`). Pass `app.databaseService`: the superuser can switch to `app_user`. Options: `isTenantAdmin`, `allowCrossTenantRead`.
 
 ### `withPlatformAdminContext(databaseService, callback)`
 

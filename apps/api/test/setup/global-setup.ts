@@ -1,7 +1,11 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import * as fs from 'fs';
 import { GenericContainer } from 'testcontainers';
-import { TEST_CONFIG_PATH } from '../helpers/test-config';
+import {
+  APP_LOGIN_PASSWORD,
+  APP_LOGIN_USER,
+  TEST_CONFIG_PATH,
+} from '../helpers/test-config';
 
 declare global {
   var __PG_CONTAINER__:
@@ -27,9 +31,16 @@ export default async function globalSetup(): Promise<void> {
   const startedPg = await pgContainer.start();
   globalThis.__PG_CONTAINER__ = startedPg;
 
-  // Roles are cluster-wide in PostgreSQL — creating in 'postgres' makes it available in all worker DBs
-  // Required by grant migrations 002, 008, 010, 014
-  const createRoleSql = `DO $$ BEGIN CREATE ROLE app_user NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;
+  // Roles are cluster-wide in PostgreSQL — creating in 'postgres' makes it available in all worker DBs.
+  // app_user (NOLOGIN) is what the grant migrations and RLS policies target. The app connects as
+  // app_login, a LOGIN member of app_user: the same shape as scripts/setup-app-user-role.sql creates
+  // in deployed environments, so the app runs under RLS. The superuser is kept for migrations,
+  // truncation and fixtures.
+  const createRoleSql = `DO $$ BEGIN
+    BEGIN CREATE ROLE app_user NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN CREATE ROLE ${APP_LOGIN_USER} LOGIN PASSWORD '${APP_LOGIN_PASSWORD}' IN ROLE app_user;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END $$;`;
   const execResult = await startedPg.exec([
     'psql',
     '-v',
@@ -42,7 +53,7 @@ export default async function globalSetup(): Promise<void> {
     createRoleSql,
   ]);
   if (execResult.exitCode !== 0) {
-    throw new Error(`Failed to create app_user role: ${execResult.output}`);
+    throw new Error(`Failed to create app roles: ${execResult.output}`);
   }
 
   // 3. Start Redis

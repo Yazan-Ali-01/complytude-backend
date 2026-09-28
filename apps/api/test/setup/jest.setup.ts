@@ -1,7 +1,12 @@
 import path from 'path';
 import * as fs from 'fs';
 import { config } from 'dotenv';
-import { TEST_CONFIG_PATH, TestContainerConfig } from '../helpers/test-config';
+import {
+  APP_LOGIN_PASSWORD,
+  APP_LOGIN_USER,
+  TEST_CONFIG_PATH,
+  TestContainerConfig,
+} from '../helpers/test-config';
 
 // Load .env.test first (dotenv does not override existing process.env)
 config({ path: path.resolve(__dirname, '../../.env.test') });
@@ -21,8 +26,10 @@ const workerId = parseInt(process.env.JEST_WORKER_ID ?? '1', 10);
 
 process.env.DB_HOST = testConfig.postgres.host;
 process.env.DB_PORT = String(testConfig.postgres.port);
-process.env.DB_APP_USER = testConfig.postgres.user;
-process.env.DB_APP_PASSWORD = testConfig.postgres.password;
+// The app connects as the non-superuser app_login, so RLS is enforced in every integration test.
+// The superuser (testConfig.postgres.user) is only used by createTestApp's admin connection.
+process.env.DB_APP_USER = APP_LOGIN_USER;
+process.env.DB_APP_PASSWORD = APP_LOGIN_PASSWORD;
 process.env.DB_NAME = `test_w${workerId}`;
 
 process.env.REDIS_HOST = testConfig.redis.host;

@@ -125,6 +125,10 @@ SELECT set_config('app.platform_role', 'true', true);  -- Bypasses tenant RLS
 
 All variables are transaction-scoped (`is_local=true`) — they clear on COMMIT/ROLLBACK. RLS policies use helper functions to read these variables.
 
+### Testing Policies
+
+Integration tests run the app as a non-superuser role (`app_login`, a member of `app_user`), so RLS applies as it does in deployed environments. `apps/api/test/rls/tenant-isolation.integration.spec.ts` has one case per policy, checks that no tenant can read or write another tenant's rows, and fails if any policy can be dropped without a test noticing or if a policy has no case. Add a case there when you add or change a policy; see `apps/api/test/README.md`.
+
 ---
 
 ## Table Groups

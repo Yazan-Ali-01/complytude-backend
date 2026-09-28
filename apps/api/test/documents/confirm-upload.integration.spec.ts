@@ -49,8 +49,17 @@ describe('DocumentsService.confirmUpload', () => {
     if (app) await app.cleanup();
   }, 30000);
 
+  /** Fixture rows are written as the superuser (the app itself runs under RLS). */
+  function insertDocument(
+    data: Parameters<DocumentRepository['create']>[0],
+  ): ReturnType<DocumentRepository['create']> {
+    return app.databaseService.transaction((client) =>
+      documentRepository.create(data, { client }),
+    );
+  }
+
   async function createFileUploadDocument(overrides?: Record<string, unknown>) {
-    return documentRepository.create({
+    return insertDocument({
       tenant_id: tenantId,
       title: 'test-contract.pdf',
       created_by: userId,
@@ -115,7 +124,7 @@ describe('DocumentsService.confirmUpload', () => {
   // -------------------------------------------------------------------------
 
   it('throws BadRequestException for text_input documents', async () => {
-    const doc = await documentRepository.create({
+    const doc = await insertDocument({
       tenant_id: tenantId,
       title: 'Plain text doc',
       content: 'Some text',

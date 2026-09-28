@@ -483,6 +483,8 @@ apps/api/test/
 │   ├── global-teardown.ts          # Stops containers, cleans temp files (runs once)
 │   ├── jest.setup.ts               # Per-worker env setup (loads .env.test, overrides DB/Redis config)
 │   ├── worker-database.setup.ts    # Creates per-worker database + runs migrations
+│   ├── test-app.factory.ts         # createTestApp(): boots the app (as app_login, so RLS applies)
+│   ├── admin-database.ts           # Superuser DatabaseService for fixtures and truncation
 │   └── smoke.integration.spec.ts   # Verifies test infrastructure works
 ├── factories/                      # Test data builders
 │   ├── index.ts                    # Barrel export
@@ -490,6 +492,8 @@ apps/api/test/
 │   ├── user.factory.ts             # Creates test users
 │   ├── subscription.factory.ts     # Creates test subscriptions
 │   └── factories.integration.spec.ts  # Tests for the factories themselves
+├── rls/
+│   └── tenant-isolation.integration.spec.ts  # Every RLS policy tested and proven load-bearing
 ├── helpers/                        # Shared test utilities
 │   ├── test-config.ts              # Testcontainer config path + types
 │   ├── truncate.helper.ts          # Truncates transactional tables (preserves reference data)

@@ -20,6 +20,7 @@ import { AppModule } from 'src/app.module';
 import { validationExceptionFactory } from 'src/common/pipes/validation-exception.factory';
 import { StorageService } from 'src/modules/storage/storage.service';
 import { MockStorageService } from '../mocks/storage.mock';
+import { adminDatabaseProvider, TEST_ADMIN_DATABASE } from './admin-database';
 import { ensureWorkerDatabase } from './worker-database.setup';
 
 class MockAuditService {
@@ -46,7 +47,13 @@ class MockAuditService {
 export interface TestApp {
   app: INestApplication;
   module: TestingModule;
+  /**
+   * Superuser connection (bypasses RLS): for fixtures, truncation and raw assertions only.
+   * The application itself runs as app_login under RLS; see appDatabaseService.
+   */
   databaseService: DatabaseService;
+  /** The application's own DatabaseService (connects as app_login, so RLS applies). */
+  appDatabaseService: DatabaseService;
   redisService: RedisService;
   redisClient: Redis;
   queueProducerService: QueueProducerService;
@@ -71,6 +78,7 @@ export async function createTestApp(
 
   const builder = Test.createTestingModule({
     imports: [AppModule],
+    providers: [adminDatabaseProvider],
   })
     .overrideProvider(StorageService)
     .useClass(MockStorageService)
@@ -119,7 +127,8 @@ export async function createTestApp(
 
   await app.init();
 
-  const databaseService = moduleRef.get(DatabaseService);
+  const databaseService = moduleRef.get<DatabaseService>(TEST_ADMIN_DATABASE);
+  const appDatabaseService = moduleRef.get(DatabaseService);
   const redisService = moduleRef.get(RedisService);
   const redisClient = moduleRef.get<Redis>(REDIS_CLIENT);
   const queueProducerService = moduleRef.get(QueueProducerService);
@@ -131,6 +140,7 @@ export async function createTestApp(
     app,
     module: moduleRef,
     databaseService,
+    appDatabaseService,
     redisService,
     redisClient,
     queueProducerService,
