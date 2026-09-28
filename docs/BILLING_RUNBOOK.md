@@ -55,9 +55,11 @@ Mismatch between Stripe and DB after an incident usually means a webhook failed 
 
 ## Retrying Failed Webhooks
 
-1. **Database:** `SELECT * FROM stripe_webhook_events WHERE processing_status = 'failed' ORDER BY created_at DESC LIMIT 50;`
-2. **Admin API:** `POST /api/v1/admin/stripe/retry-failed-webhooks?maxRetries=3` — replays failed events through the normal processor (idempotency still applies).
-3. **Stripe Dashboard:** Developers → Webhooks → select endpoint → **Events** → open event → **Resend** (sends a new delivery; our idempotency uses `stripe_event_id`).
+Failed events are re-driven automatically: the `stripe-webhook-redrive` job runs every 5 minutes and retries each failed event when its `next_retry_at` is due (backoff from 1 minute up to 6 hours, up to 20 processing attempts). It also picks up `pending` events whose queue job was lost (older than 10 minutes) and `processing` claims older than 15 minutes (crashed worker). While any event is failed, each run logs an error starting **`Stripe webhook events failing: failed=N exhausted=M`**; an alarm should fire on it. `exhausted` events (`next_retry_at IS NULL`) are no longer retried automatically.
+
+1. **Database:** `SELECT stripe_event_id, event_type, attempts, deliveries, next_retry_at, processing_error FROM stripe_webhook_events WHERE processing_status = 'failed' ORDER BY created_at DESC LIMIT 50;`
+2. **Admin API:** after fixing the cause, `POST /api/v1/admin/stripe/retry-failed-webhooks` retries every failed event now, exhausted ones included. `?maxRetries=N` skips events that already had N processing attempts. Processing claims each event atomically, and handlers are idempotent, so a retry never double-applies.
+3. **Stripe Dashboard:** Developers → Webhooks → select endpoint → **Events** → open event → **Resend** (a new delivery of the same `evt_`: counted in `deliveries`; it is processed only if not already completed).
 
 ---
 
@@ -89,7 +91,7 @@ WHERE created_at > NOW() - INTERVAL '24 hours'
 GROUP BY processing_status;
 ```
 
-Investigate elevated `failed` counts with `processing_error` and application logs.
+Investigate elevated `failed` counts with `processing_error` and application logs. `attempts` counts processing attempts; `deliveries` counts how often Stripe sent the event.
 
 ---
 

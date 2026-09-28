@@ -59,7 +59,13 @@ export class CreditLedgerService {
     input: CreditPurchaseInput,
     options?: QueryOptions,
   ): Promise<CreditLedgerTransaction> {
-    const { tenantId, amount, metadata } = input;
+    const {
+      tenantId,
+      amount,
+      metadata,
+      idempotencyKey,
+      stripePaymentIntentId,
+    } = input;
     if (amount <= 0) {
       throw new BadRequestException(
         this.i18n.t(EntitlementsI18n.errors.PURCHASE_AMOUNT_MUST_BE_GT_ZERO),
@@ -70,15 +76,39 @@ export class CreditLedgerService {
       `Purchasing credits: tenant=${tenantId}, amount=${amount}`,
     );
 
-    const tx = await this.recordTransaction(
-      {
+    if (idempotencyKey) {
+      const existing = await this.findPurchase(
         tenantId,
-        transactionType: 'purchase',
-        amount,
-        metadata,
-      },
-      options,
-    );
+        idempotencyKey,
+        options,
+      );
+      if (existing) return existing;
+    }
+
+    let tx: CreditLedgerTransaction;
+    try {
+      tx = await this.recordTransaction(
+        {
+          tenantId,
+          transactionType: 'purchase',
+          amount,
+          metadata,
+          idempotencyKey,
+          stripePaymentIntentId,
+        },
+        options,
+      );
+    } catch (error) {
+      // A concurrent purchase with the same key won the race: it already granted the credits
+      const existing =
+        idempotencyKey &&
+        !options?.client &&
+        (error as { code?: string }).code === '23505'
+          ? await this.findPurchase(tenantId, idempotencyKey)
+          : null;
+      if (existing) return existing;
+      throw error;
+    }
 
     await this.enqueueCreditNotification(
       tenantId,
@@ -87,6 +117,24 @@ export class CreditLedgerService {
       tx.balance_after,
     );
     return tx;
+  }
+
+  private async findPurchase(
+    tenantId: string,
+    idempotencyKey: string,
+    options?: QueryOptions,
+  ): Promise<CreditLedgerTransaction | null> {
+    const existing = await this.creditLedgerRepository.findByIdempotencyKey(
+      tenantId,
+      idempotencyKey,
+      options?.client ? options : { tenant: { tenantId, schema: 'public' } },
+    );
+    if (existing) {
+      this.logger.log(
+        `Credit purchase already recorded: tenant=${tenantId}, key=${idempotencyKey}, id=${existing.id}`,
+      );
+    }
+    return existing;
   }
 
   async grant(
@@ -258,6 +306,8 @@ export class CreditLedgerService {
       appliedBy,
       expiresAt,
       metadata,
+      idempotencyKey,
+      stripePaymentIntentId,
     } = input;
 
     const execute = async (client: PoolClient) => {
@@ -291,6 +341,8 @@ export class CreditLedgerService {
           applied_by: appliedBy,
           expires_at: expiresAt,
           metadata: metadata ? JSON.stringify(metadata) : '{}',
+          idempotency_key: idempotencyKey,
+          stripe_payment_intent_id: stripePaymentIntentId,
         },
         { client },
       );

@@ -34,3 +34,30 @@ export const STRIPE_WEBHOOK_EVENTS = {
 /** Union of all known Stripe event type strings (e.g. 'invoice.paid'). */
 export type StripeWebhookEventType =
   (typeof STRIPE_WEBHOOK_EVENTS)[keyof typeof STRIPE_WEBHOOK_EVENTS];
+
+/** Queue attempts per webhook job (about 30 s of exponential backoff from 2 s). */
+export const WEBHOOK_JOB_ATTEMPTS = 5;
+
+/** After this many processing attempts a failed event is no longer re-driven automatically. */
+export const WEBHOOK_MAX_PROCESSING_ATTEMPTS = 20;
+
+/** A pending event older than this has lost its queue job and is re-driven. */
+export const WEBHOOK_STALE_PENDING_MS = 10 * 60 * 1000;
+
+/** A processing claim older than this belongs to a crashed worker and is re-driven. */
+export const WEBHOOK_STALE_PROCESSING_MS = 15 * 60 * 1000;
+
+const WEBHOOK_MAX_RETRY_DELAY_MINUTES = 6 * 60;
+
+/**
+ * When a failed event is next re-driven. The queue job covers the first attempts; after that the
+ * delay doubles from 1 minute up to 6 hours. Returns null when the event is out of attempts.
+ */
+export function webhookNextRetryAt(attempts: number, now: Date): Date | null {
+  if (attempts >= WEBHOOK_MAX_PROCESSING_ATTEMPTS) return null;
+  const minutes = Math.min(
+    2 ** Math.max(0, attempts - WEBHOOK_JOB_ATTEMPTS),
+    WEBHOOK_MAX_RETRY_DELAY_MINUTES,
+  );
+  return new Date(now.getTime() + minutes * 60_000);
+}

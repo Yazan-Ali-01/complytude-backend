@@ -1275,7 +1275,7 @@ Base path: `/api/v1/admin/stripe`
 | `POST` | `/api/v1/admin/stripe/backfill-tax`          | Backfill Stripe Tax (address/TRN) when enabled                   |
 | `POST` | `/api/v1/admin/stripe/reconcile`             | Full Stripe vs DB reconciliation; returns counts and fixes       |
 | `GET`  | `/api/v1/admin/stripe/webhook-stats`         | Query `hours` (default 24) — webhook processing statistics       |
-| `POST` | `/api/v1/admin/stripe/retry-failed-webhooks` | Query `maxRetries` (default 3) — retry failed webhook rows       |
+| `POST` | `/api/v1/admin/stripe/retry-failed-webhooks` | Retry all failed webhook rows now, including ones out of automatic re-drives. Optional query `maxRetries` skips rows with that many processing attempts |
 | `POST` | `/api/v1/admin/stripe/sync-catalog`          | Sync plans, add-ons, credit packages to Stripe Products/Prices   |
 
 All endpoints return **200** with operation-specific JSON unless **403** (insufficient platform permissions).

@@ -22,7 +22,13 @@ export interface StripeWebhookEvent {
   data: Stripe.Event;
   processingStatus: StripeWebhookProcessingStatus;
   processingError: string | null;
+  /** Processing attempts (claims), not Stripe deliveries. */
   attempts: number;
+  /** How many times Stripe delivered the event. */
+  deliveries: number;
+  processingStartedAt: Date | null;
+  /** When a failed event is next re-driven; null once completed or out of attempts. */
+  nextRetryAt: Date | null;
   processedAt: Date | null;
   createdAt: Date;
 }

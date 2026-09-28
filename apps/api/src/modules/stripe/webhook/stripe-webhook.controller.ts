@@ -17,6 +17,8 @@ import {
   QUEUE_NAMES,
 } from '@lib/queue';
 import { Public } from '../../auth/decorators/auth-options.decorator';
+import { WEBHOOK_PROCESSING_STATUS } from 'src/common/types/stripe.types';
+import { WEBHOOK_JOB_ATTEMPTS } from '../stripe.constants';
 import { StripeService } from '../stripe.service';
 import { StripeWebhookService } from './stripe-webhook.service';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
@@ -36,7 +38,7 @@ export class StripeWebhookController {
    * Stripe webhook receiver.
    *
    * - Public endpoint — signature verification is the sole auth mechanism.
-   * - Returns 200 immediately after signature verification + idempotency check.
+   * - Returns 200 once the event is stored (repeat deliveries are counted, not re-stored).
    * - Queues processing as BullMQ job to prevent Stripe timeouts.
    * - Returns 400 for invalid signatures.
    * - Returns 500 for database errors during initial event storage.
@@ -68,29 +70,26 @@ export class StripeWebhookController {
       throw new BadRequestException(`Webhook signature verification failed`);
     }
 
-    // Check for duplicate events (idempotency)
-    const existing = await this.webhookEventsRepository.findByStripeEventId(
-      event.id,
-    );
+    // Store the event (or count a repeat delivery) before acknowledging it
+    const stored = await this.webhookEventsRepository.recordDelivery(event);
 
-    if (existing?.processingStatus === 'completed') {
+    if (stored.processingStatus === WEBHOOK_PROCESSING_STATUS.COMPLETED) {
       this.logger.log(
         `Duplicate event acknowledged — stripe_event_id: ${event.id}`,
       );
       return { received: true };
     }
 
-    // Store event as 'pending' (will be updated to 'processing' by the job)
-    await this.webhookEventsRepository.upsertEvent(event, 'pending');
-
-    // Queue the processing job — pass only stripeEventId; handler fetches from DB
+    // The job ID is the event ID, so a repeat delivery doesn't queue a second job while the first
+    // exists. Processing claims the event atomically either way; failed events are re-driven by
+    // the scheduled sweep.
     await this.queueProducer.enqueue(
       QUEUE_NAMES.BILLING_PROCESSING,
       BILLING_JOB_NAMES.STRIPE_WEBHOOK_PROCESSING,
       { stripeEventId: event.id },
       {
-        // Configure retry strategy
-        attempts: 5,
+        jobId: event.id,
+        attempts: WEBHOOK_JOB_ATTEMPTS,
         backoff: {
           type: 'exponential',
           delay: 2000, // Start with 2s, exponential backoff

@@ -18,6 +18,9 @@ type StripeWebhookEventRow = {
   processing_status: StripeWebhookProcessingStatus;
   processing_error: string | null;
   attempts: number;
+  deliveries: number;
+  processing_started_at: Date | null;
+  next_retry_at: Date | null;
   processed_at: Date | null;
   created_at: Date;
 };
@@ -41,7 +44,7 @@ export class StripeWebhookEventsRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, stripe_event_id, event_type, stripe_api_version, data, processing_status, processing_error, attempts, processed_at, created_at';
+    return 'id, stripe_event_id, event_type, stripe_api_version, data, processing_status, processing_error, attempts, deliveries, processing_started_at, next_retry_at, processed_at, created_at';
   }
 
   protected mapRow(row: Record<string, unknown>): StripeWebhookEvent {
@@ -55,6 +58,9 @@ export class StripeWebhookEventsRepository extends BaseRepository<
       processingStatus: r.processing_status,
       processingError: r.processing_error,
       attempts: r.attempts,
+      deliveries: r.deliveries,
+      processingStartedAt: r.processing_started_at,
+      nextRetryAt: r.next_retry_at,
       processedAt: r.processed_at,
       createdAt: r.created_at,
     };
@@ -71,48 +77,129 @@ export class StripeWebhookEventsRepository extends BaseRepository<
   }
 
   /**
-   * Upsert event record — inserts on first attempt, updates status on retry.
-   * Uses ON CONFLICT to handle the race where Stripe delivers the same event twice.
+   * Records a delivery from Stripe: stores a new event as pending, or counts another delivery of a
+   * known one without touching its processing state. Returns the stored event.
    */
-  async upsertEvent(
-    event: Stripe.Event,
-    status: StripeWebhookProcessingStatus,
-  ): Promise<StripeWebhookEvent> {
+  async recordDelivery(event: Stripe.Event): Promise<StripeWebhookEvent> {
     const result = await this.executeQuery<StripeWebhookEventRow>(
-      `INSERT INTO ${this.tableName} (stripe_event_id, event_type, stripe_api_version, data, processing_status, attempts)
-       VALUES ($1, $2, $3, $4, $5, 1)
+      `INSERT INTO ${this.tableName} (stripe_event_id, event_type, stripe_api_version, data, processing_status, attempts, deliveries)
+       VALUES ($1, $2, $3, $4, $5, 0, 1)
        ON CONFLICT (stripe_event_id) DO UPDATE
-         SET processing_status = $5,
-             attempts = ${this.tableName}.attempts + 1,
-             processing_error = NULL
+         SET deliveries = ${this.tableName}.deliveries + 1
        RETURNING ${this.getSelectColumns()}`,
       [
         event.id,
         event.type,
         event.api_version ?? null,
         JSON.stringify(event),
-        status,
+        WEBHOOK_PROCESSING_STATUS.PENDING,
       ],
     );
     return this.mapRow(result.rows[0]);
   }
 
+  /** Stores an event that reaches processing without a delivery (e.g. a manual replay). */
+  async ensureStored(event: Stripe.Event): Promise<void> {
+    await this.executeQuery(
+      `INSERT INTO ${this.tableName} (stripe_event_id, event_type, stripe_api_version, data, processing_status, attempts, deliveries)
+       VALUES ($1, $2, $3, $4, $5, 0, 0)
+       ON CONFLICT (stripe_event_id) DO NOTHING`,
+      [
+        event.id,
+        event.type,
+        event.api_version ?? null,
+        JSON.stringify(event),
+        WEBHOOK_PROCESSING_STATUS.PENDING,
+      ],
+    );
+  }
+
+  /**
+   * Atomically claims an event for processing: pending and failed events, and processing claims
+   * older than `staleBefore` (a crashed worker). Returns null when another worker holds it or it
+   * has completed.
+   */
+  async claim(
+    stripeEventId: string,
+    staleBefore: Date,
+  ): Promise<StripeWebhookEvent | null> {
+    const result = await this.executeQuery<StripeWebhookEventRow>(
+      `UPDATE ${this.tableName}
+       SET processing_status = $2, attempts = attempts + 1, processing_started_at = NOW()
+       WHERE stripe_event_id = $1
+         AND (processing_status IN ($3, $4)
+              OR (processing_status = $2 AND processing_started_at < $5))
+       RETURNING ${this.getSelectColumns()}`,
+      [
+        stripeEventId,
+        WEBHOOK_PROCESSING_STATUS.PROCESSING,
+        WEBHOOK_PROCESSING_STATUS.PENDING,
+        WEBHOOK_PROCESSING_STATUS.FAILED,
+        staleBefore,
+      ],
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
+  }
+
   async markCompleted(stripeEventId: string): Promise<void> {
     await this.executeQuery(
       `UPDATE ${this.tableName}
-       SET processing_status = $2, processed_at = NOW()
+       SET processing_status = $2, processing_error = NULL, next_retry_at = NULL, processed_at = NOW()
        WHERE stripe_event_id = $1`,
       [stripeEventId, WEBHOOK_PROCESSING_STATUS.COMPLETED],
     );
   }
 
-  async markFailed(stripeEventId: string, error: string): Promise<void> {
+  /** Marks a failed attempt; `nextRetryAt` null means the event is out of automatic retries. */
+  async markFailed(
+    stripeEventId: string,
+    error: string,
+    nextRetryAt: Date | null,
+  ): Promise<void> {
     await this.executeQuery(
       `UPDATE ${this.tableName}
-       SET processing_status = $2, processing_error = $3, processed_at = NOW()
+       SET processing_status = $2, processing_error = $3, next_retry_at = $4, processed_at = NOW()
        WHERE stripe_event_id = $1`,
-      [stripeEventId, WEBHOOK_PROCESSING_STATUS.FAILED, error],
+      [stripeEventId, WEBHOOK_PROCESSING_STATUS.FAILED, error, nextRetryAt],
     );
+  }
+
+  /**
+   * Events the scheduled re-drive should process now: failed events that are due, pending events
+   * whose queue job was lost, and processing claims left by a crashed worker. Oldest first.
+   */
+  async findDueForRedrive(
+    now: Date,
+    stalePendingBefore: Date,
+    staleProcessingBefore: Date,
+    limit: number,
+  ): Promise<StripeWebhookEvent[]> {
+    const result = await this.executeQuery<StripeWebhookEventRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE (processing_status = 'failed' AND next_retry_at <= $1)
+          OR (processing_status = 'pending' AND created_at < $2)
+          OR (processing_status = 'processing' AND processing_started_at < $3)
+       ORDER BY created_at ASC
+       LIMIT $4`,
+      [now, stalePendingBefore, staleProcessingBefore, limit],
+    );
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /** Failed events, and how many of them are out of automatic retries. */
+  async countFailing(): Promise<{ failed: number; exhausted: number }> {
+    const result = await this.executeQuery<{
+      failed: string;
+      exhausted: string;
+    }>(
+      `SELECT COUNT(*) AS failed, COUNT(*) FILTER (WHERE next_retry_at IS NULL) AS exhausted
+       FROM ${this.tableName}
+       WHERE processing_status = 'failed'`,
+    );
+    return {
+      failed: parseInt(result.rows[0].failed, 10),
+      exhausted: parseInt(result.rows[0].exhausted, 10),
+    };
   }
 
   // ─── Monitoring methods ────────────────────────────────────────────────────
@@ -190,16 +277,18 @@ export class StripeWebhookEventsRepository extends BaseRepository<
   }
 
   /**
-   * Failed events eligible for retry: status = 'failed' AND attempts < maxRetries.
-   * Ordered oldest-first so retries run in delivery order.
+   * Failed events for a manual retry, oldest first. With `maxAttempts`, events that already had
+   * that many processing attempts are skipped.
    */
-  async findRetryableEvents(maxRetries: number): Promise<StripeWebhookEvent[]> {
+  async findRetryableEvents(
+    maxAttempts?: number,
+  ): Promise<StripeWebhookEvent[]> {
     const result = await this.executeQuery<StripeWebhookEventRow>(
       `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
        WHERE processing_status = 'failed'
-         AND attempts < $1
+         AND ($1::int IS NULL OR attempts < $1::int)
        ORDER BY created_at ASC`,
-      [maxRetries],
+      [maxAttempts ?? null],
     );
     return result.rows.map((row) => this.mapRow(row));
   }

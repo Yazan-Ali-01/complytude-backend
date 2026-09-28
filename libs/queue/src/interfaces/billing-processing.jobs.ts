@@ -3,6 +3,7 @@ export const BILLING_JOB_NAMES = {
   PAYMENT_ACTION_REQUIRED: 'payment-action-required',
   STRIPE_RECONCILIATION: 'stripe-reconciliation',
   STRIPE_WEBHOOK_PROCESSING: 'stripe-webhook-processing',
+  STRIPE_WEBHOOK_REDRIVE: 'stripe-webhook-redrive',
 } as const;
 
 export type BillingJobName =
@@ -41,3 +42,6 @@ export interface StripeReconciliationJobData {
 export interface StripeWebhookProcessingJobData {
   stripeEventId: string;
 }
+
+/** Scheduled sweep that re-drives failed and stranded webhook events. */
+export type StripeWebhookRedriveJobData = Record<string, never>;

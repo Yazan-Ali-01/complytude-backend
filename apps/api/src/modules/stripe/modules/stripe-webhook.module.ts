@@ -27,6 +27,10 @@ import { StripeWebhookMonitoringService } from '../services/stripe-webhook-monit
     UserTenantRepository,
     TenantRepository,
   ],
-  exports: [StripeWebhookService, StripeEventHandlersService],
+  exports: [
+    StripeWebhookService,
+    StripeEventHandlersService,
+    StripeWebhookMonitoringService,
+  ],
 })
 export class StripeWebhookModule {}

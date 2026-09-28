@@ -10,6 +10,7 @@ import {
   PaymentActionRequiredJobData,
   StripeReconciliationJobData,
   StripeWebhookProcessingJobData,
+  StripeWebhookRedriveJobData,
 } from './interfaces/billing-processing.jobs';
 import {
   DocumentIngestionJobData,
@@ -50,6 +51,7 @@ export interface QueueJobMap {
     [BILLING_JOB_NAMES.PAYMENT_ACTION_REQUIRED]: PaymentActionRequiredJobData;
     [BILLING_JOB_NAMES.STRIPE_RECONCILIATION]: StripeReconciliationJobData;
     [BILLING_JOB_NAMES.STRIPE_WEBHOOK_PROCESSING]: StripeWebhookProcessingJobData;
+    [BILLING_JOB_NAMES.STRIPE_WEBHOOK_REDRIVE]: StripeWebhookRedriveJobData;
   };
   [QUEUE_NAMES.DATA_INGESTION]: {
     [INGESTION_JOB_NAMES.DOCUMENT_INGESTION]: DocumentIngestionJobData;

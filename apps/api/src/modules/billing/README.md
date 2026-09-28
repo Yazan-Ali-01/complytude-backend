@@ -11,6 +11,12 @@ Handles billing-related background jobs and scheduled tasks.
 - Automatically enabled in production
 - Can be enabled in development via `BILLING_SCHEDULE_ENABLED=true`
 
+### Webhook Re-drive
+
+- `stripe-webhook-redrive` runs every 5 minutes (scheduled with reconciliation)
+- Retries failed Stripe webhook events whose backoff is due (1 minute doubling to 6 hours, up to 20 attempts), and events stranded by a lost job or a crashed worker
+- Logs `Stripe webhook events failing: …` as an error while any event is failed
+
 ### Dunning Automation
 
 - Email sequences for failed payments (day 0, 3, 5)

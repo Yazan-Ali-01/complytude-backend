@@ -14,6 +14,7 @@ import { DunningEmailHandler } from '../handlers/dunning-email.handler';
 import { PaymentActionRequiredHandler } from '../handlers/payment-action-required.handler';
 import { StripeReconciliationHandler } from '../handlers/stripe-reconciliation.handler';
 import { StripeWebhookProcessingHandler } from '../handlers/stripe-webhook-processing.handler';
+import { StripeWebhookRedriveHandler } from '../handlers/stripe-webhook-redrive.handler';
 
 /**
  * Billing Queue Processor
@@ -25,6 +26,7 @@ import { StripeWebhookProcessingHandler } from '../handlers/stripe-webhook-proce
  * - Dunning email sequences (day0, day3, day5)
  * - Stripe reconciliation jobs (scheduled and manual)
  * - Stripe webhook processing (async webhook handling)
+ * - Stripe webhook re-drive (scheduled sweep of failed events)
  */
 @Processor(QUEUE_NAMES.BILLING_PROCESSING)
 export class DunningJobProcessor extends AbstractProcessor<unknown> {
@@ -35,6 +37,7 @@ export class DunningJobProcessor extends AbstractProcessor<unknown> {
     private readonly paymentActionRequiredHandler: PaymentActionRequiredHandler,
     private readonly stripeReconciliationHandler: StripeReconciliationHandler,
     private readonly stripeWebhookProcessingHandler: StripeWebhookProcessingHandler,
+    private readonly stripeWebhookRedriveHandler: StripeWebhookRedriveHandler,
   ) {
     super();
   }
@@ -60,6 +63,9 @@ export class DunningJobProcessor extends AbstractProcessor<unknown> {
         return this.stripeWebhookProcessingHandler.execute(
           job as Job<StripeWebhookProcessingJobData>,
         );
+
+      case BILLING_JOB_NAMES.STRIPE_WEBHOOK_REDRIVE:
+        return this.stripeWebhookRedriveHandler.execute();
 
       default:
         throw new Error(`Unknown billing job type: ${job.name}`);

@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
-import { STRIPE_WEBHOOK_EVENTS } from '../stripe.constants';
+import {
+  STRIPE_WEBHOOK_EVENTS,
+  WEBHOOK_STALE_PROCESSING_MS,
+  webhookNextRetryAt,
+} from '../stripe.constants';
 import { StripeEventHandlersService } from './stripe-event-handlers';
 
 @Injectable()
@@ -23,18 +27,26 @@ export class StripeWebhookService {
     return stored?.data ?? null;
   }
 
-  async processEvent(event: Stripe.Event): Promise<void> {
-    const existing = await this.webhookEventsRepository.findByStripeEventId(
+  /**
+   * Processes an event at most once at a time: the event is claimed atomically, so a duplicate
+   * delivery or a second worker skips it. A failure schedules the next automatic re-drive.
+   */
+  async processEvent(
+    event: Stripe.Event,
+    now: Date = new Date(),
+  ): Promise<void> {
+    await this.webhookEventsRepository.ensureStored(event);
+    const claimed = await this.webhookEventsRepository.claim(
       event.id,
+      new Date(now.getTime() - WEBHOOK_STALE_PROCESSING_MS),
     );
 
-    if (existing?.processingStatus === 'completed') {
-      this.logger.log(`Duplicate event skipped — stripe_event_id: ${event.id}`);
+    if (!claimed) {
+      this.logger.log(
+        `Event skipped (completed or being processed) — stripe_event_id: ${event.id}`,
+      );
       return;
     }
-
-    // Update status to 'processing' (handles both new events and retries)
-    await this.webhookEventsRepository.upsertEvent(event, 'processing');
 
     try {
       await this.routeEvent(event);
@@ -42,11 +54,19 @@ export class StripeWebhookService {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unknown processing error';
+      const nextRetryAt = webhookNextRetryAt(claimed.attempts, now);
       this.logger.error(
-        `Failed to process event ${event.id} (${event.type}): ${message}`,
+        `Failed to process event ${event.id} (${event.type}), attempt ${claimed.attempts}: ${message}` +
+          (nextRetryAt
+            ? `; next re-drive at ${nextRetryAt.toISOString()}`
+            : '; out of automatic retries'),
         error instanceof Error ? error.stack : undefined,
       );
-      await this.webhookEventsRepository.markFailed(event.id, message);
+      await this.webhookEventsRepository.markFailed(
+        event.id,
+        message,
+        nextRetryAt,
+      );
       throw error;
     }
   }

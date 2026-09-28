@@ -11,6 +11,7 @@ import {
  *
  * Sets up recurring BullMQ jobs for billing operations:
  * - Daily Stripe reconciliation at 3 AM
+ * - Stripe webhook re-drive every 5 minutes
  *
  * Jobs are scheduled once on application startup and persist in Redis.
  * Idempotent - safe to restart the application.
@@ -33,6 +34,7 @@ export class BillingSchedulerService implements OnModuleInit {
     }
 
     await this.scheduleReconciliationJob();
+    await this.scheduleWebhookRedriveJob();
   }
 
   /**
@@ -70,6 +72,25 @@ export class BillingSchedulerService implements OnModuleInit {
       );
       throw error;
     }
+  }
+
+  /**
+   * Re-drive failed and stranded Stripe webhook events every 5 minutes. Each event's own backoff
+   * decides whether a run retries it.
+   */
+  private async scheduleWebhookRedriveJob(): Promise<void> {
+    await this.queueProducer.enqueue(
+      QUEUE_NAMES.BILLING_PROCESSING,
+      BILLING_JOB_NAMES.STRIPE_WEBHOOK_REDRIVE,
+      {},
+      {
+        repeat: { pattern: '*/5 * * * *' },
+        removeOnComplete: 10,
+        removeOnFail: 50,
+      },
+    );
+
+    this.logger.log('Scheduled Stripe webhook re-drive job (every 5 minutes)');
   }
 
   /**

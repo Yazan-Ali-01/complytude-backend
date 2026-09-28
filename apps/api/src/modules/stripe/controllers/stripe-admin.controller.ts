@@ -183,14 +183,15 @@ export class StripeAdminController {
   @ApiOperation({
     summary: '[ADMIN] Retry failed webhook events',
     description:
-      'Retries failed webhook events that have not exceeded maxRetries attempts. ' +
-      'Each retry goes through the full processEvent pipeline (idempotency guard included).',
+      'Retries failed webhook events now, including events out of automatic re-drives. ' +
+      'Each retry goes through the full processEvent pipeline (atomic claim included).',
   })
   @ApiQuery({
     name: 'maxRetries',
     required: false,
     type: Number,
-    description: 'Max attempts before an event is skipped (default: 3)',
+    description:
+      'Skip events that already had this many processing attempts (default: no limit)',
   })
   @ApiResponse({
     status: 200,
@@ -209,11 +210,11 @@ export class StripeAdminController {
     description: 'Insufficient platform permissions',
   })
   async retryFailedWebhooks(
-    @Query('maxRetries') maxRetries: number = 3,
+    @Query('maxRetries') maxRetries?: number,
   ): Promise<RetryResult> {
     this.logger.log('[ADMIN] Starting failed webhook retry run');
     return this.stripeWebhookMonitoringService.retryFailedEvents(
-      Number(maxRetries),
+      maxRetries === undefined ? undefined : Number(maxRetries),
     );
   }
 

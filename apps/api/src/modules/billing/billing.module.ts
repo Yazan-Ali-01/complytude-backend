@@ -7,6 +7,7 @@ import { DunningEmailHandler } from './handlers/dunning-email.handler';
 import { PaymentActionRequiredHandler } from './handlers/payment-action-required.handler';
 import { StripeReconciliationHandler } from './handlers/stripe-reconciliation.handler';
 import { StripeWebhookProcessingHandler } from './handlers/stripe-webhook-processing.handler';
+import { StripeWebhookRedriveHandler } from './handlers/stripe-webhook-redrive.handler';
 import { BillingSchedulerService } from './services/billing-scheduler.service';
 
 @Module({
@@ -17,6 +18,7 @@ import { BillingSchedulerService } from './services/billing-scheduler.service';
     PaymentActionRequiredHandler,
     StripeReconciliationHandler,
     StripeWebhookProcessingHandler,
+    StripeWebhookRedriveHandler,
     BillingSchedulerService,
   ],
   exports: [

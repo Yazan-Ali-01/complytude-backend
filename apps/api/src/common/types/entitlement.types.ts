@@ -702,6 +702,9 @@ export interface CreditPurchaseInput {
   tenantId: string;
   amount: number;
   metadata?: Record<string, unknown>;
+  /** Makes the purchase idempotent: a second purchase with the same key returns the first. */
+  idempotencyKey?: string;
+  stripePaymentIntentId?: string | null;
 }
 
 export interface CreditGrantInput {
@@ -738,6 +741,8 @@ export interface RecordTransactionInput {
   appliedBy?: string;
   expiresAt?: Date;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string;
+  stripePaymentIntentId?: string | null;
 }
 
 // === Usage Projection / Repository Inputs ===
