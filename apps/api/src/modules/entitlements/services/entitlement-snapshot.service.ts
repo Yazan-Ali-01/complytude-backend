@@ -158,6 +158,7 @@ export class EntitlementSnapshotService {
     entitlements: ResolvedEntitlements,
     planKey: PlanKey,
     options?: QueryOptions,
+    validUntil?: Date,
   ): Promise<EntitlementSnapshot> {
     const execute = async (client: PoolClient) => {
       this.logger.debug(`Creating snapshot for tenant: ${tenantId}`);
@@ -173,7 +174,7 @@ export class EntitlementSnapshotService {
 
       // Step 2: Get current subscription
       const subscription =
-        await this.subscriptionsRepository.findActiveByTenant(tenantId, {
+        await this.subscriptionsRepository.findCurrentByTenant(tenantId, {
           client,
         });
 
@@ -181,6 +182,8 @@ export class EntitlementSnapshotService {
       const snapshotData = {
         ...entitlements,
         __plan_key: planKey, // Embed plan key for quick access
+        // Entitlements that change at a known time (a payment grace period ending)
+        ...(validUntil ? { __valid_until: validUntil.toISOString() } : {}),
       };
 
       const snapshot = await this.snapshotsRepository.create(
@@ -322,12 +325,19 @@ export class EntitlementSnapshotService {
     entitlements: ResolvedEntitlements,
     planKey: PlanKey,
     options?: QueryOptions,
+    validUntil?: Date,
   ): Promise<EntitlementSnapshot> {
     const execute = async (client: PoolClient) => {
       this.logger.debug(`Rebuilding snapshot for tenant: ${tenantId}`);
 
       // Invalidate + create in same transaction
-      return this.createSnapshot(tenantId, entitlements, planKey, { client });
+      return this.createSnapshot(
+        tenantId,
+        entitlements,
+        planKey,
+        { client },
+        validUntil,
+      );
     };
 
     if (options?.client) {
@@ -353,7 +363,12 @@ export class EntitlementSnapshotService {
    */
   isStale(snapshot: EntitlementSnapshot): boolean {
     const age = this.getSnapshotAgeMs(snapshot);
-    return age > this.MAX_SNAPSHOT_AGE_MS;
+    const validUntil = (snapshot.snapshot_data as { __valid_until?: unknown })
+      .__valid_until;
+    return (
+      age > this.MAX_SNAPSHOT_AGE_MS ||
+      (typeof validUntil === 'string' && Date.now() >= Date.parse(validUntil))
+    );
   }
 
   /**

@@ -11,6 +11,7 @@ import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
 import { EntitlementEnforcementService } from '../../modules/entitlements/services/entitlement-enforcement.service';
 import { EntitlementsI18n } from '../../modules/entitlements/constants/i18n.constants';
+import { paymentOverdueException } from '../../modules/entitlements/utils/past-due-access.util';
 import { CommonI18n } from '../constants/i18n.constants';
 import {
   TRACK_USAGE_KEY,
@@ -113,6 +114,14 @@ export class UsageEnforcementGuard implements CanActivate {
     this.logger.warn(
       `Usage denied: tenant=${tenantId}, feature=${featureKey}, reason=${result.reason}`,
     );
+
+    if (result.reason === 'payment_required') {
+      throw paymentOverdueException(
+        featureKey,
+        i18n?.t(EntitlementsI18n.errors.PAYMENT_OVERDUE) ??
+          'Subscription payment overdue',
+      );
+    }
 
     throw new HttpException(
       {

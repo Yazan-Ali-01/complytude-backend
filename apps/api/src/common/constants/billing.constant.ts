@@ -61,3 +61,9 @@ export const CURRENCY_UTILS = {
  */
 export type CurrencyCode = typeof DEFAULT_CURRENCY;
 export type CurrencyCodeLowercase = typeof DEFAULT_CURRENCY_LOWERCASE;
+
+/**
+ * Days of full access a paying tenant keeps after its first failed payment. After that the
+ * tenant is read-only (no new usage) until it pays; Stripe's cancellation moves it to Navigator.
+ */
+export const PAST_DUE_GRACE_DAYS = 7;

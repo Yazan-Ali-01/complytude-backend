@@ -17,6 +17,8 @@ import {
 import { I18nService } from 'nestjs-i18n';
 import { EntitlementEnforcementService } from 'src/modules/entitlements/services/entitlement-enforcement.service';
 import { EntitlementResolverService } from 'src/modules/entitlements/services/entitlement-resolver.service';
+import { EntitlementsI18n } from 'src/modules/entitlements/constants/i18n.constants';
+import { paymentOverdueException } from 'src/modules/entitlements/utils/past-due-access.util';
 import type { GenerationJob } from 'src/repositories/generation-jobs/generation-job.repository';
 import { GenerationJobRepository } from 'src/repositories/generation-jobs/generation-job.repository';
 import type { AuthenticatedTenantUser } from '../../auth/strategies';
@@ -209,6 +211,12 @@ export class DocumentPreviewService {
                 { client },
               );
 
+            if (checkResult.reason === 'payment_required') {
+              throw paymentOverdueException(
+                'documents_per_month',
+                this.i18n.t(EntitlementsI18n.errors.PAYMENT_OVERDUE),
+              );
+            }
             if (!checkResult.allowed) {
               throw new HttpException(
                 {

@@ -109,6 +109,19 @@ sequenceDiagram
   WH->>DB: Emit domain event subscription.created
 ```
 
+### Past-due policy
+
+A failed renewal payment does not lock the tenant out immediately:
+
+- **Days 0–7 (grace):** full access. The grace clock starts at the first failed payment of the episode (`tenant_subscriptions.metadata.past_due_since`) and is not restarted by Stripe's retries.
+- **After day 7 (read-only):** the resolver sets every counted feature (quota, metered, capacity) to 0 and marks it `restricted: 'payment_required'`; `checkAndRecord` refuses it without trying credits, and the route answers 402 with `reason: 'payment_required'` (not the quota-exceeded body). Boolean and text features, i.e. what the tenant can read, are unchanged.
+- **Paid:** `invoice.paid` / `customer.subscription.updated` with Stripe status active clears `past_due_since`; full access returns immediately (the snapshot is invalidated).
+- **Stripe gives up:** `customer.subscription.deleted` downgrades to Navigator as before.
+
+The rule lives in `pastDueAccess()` (`modules/entitlements/utils/past-due-access.util.ts`, `PAST_DUE_GRACE_DAYS` in `billing.constant.ts`). An entitlement snapshot taken during the grace period expires when it ends (`__valid_until`). `GET /billing/status` reports `dunning.grace_ends_at` and `dunning.read_only`.
+
+**Dunning emails** (day 0, 3 and 5) are queued once per invoice (`jobId = dunning-<invoice>-<step>`), however many times Stripe retries, and each is skipped if the invoice is no longer open when it is due.
+
 ### Duplicate protection
 
 - **One Stripe customer per tenant:** `customers.create` uses `idempotencyKey = 'customer:' + tenantId` with parameters derived only from the tenant, runs outside any DB transaction, and the first ID stored on `tenants.stripe_customer_id` wins. The signup job, checkout and the portal all go through the same path.

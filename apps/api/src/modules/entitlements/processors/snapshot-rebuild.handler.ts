@@ -25,10 +25,16 @@ export class SnapshotRebuildHandler {
       `Rebuilding snapshot: tenant=${tenantId} reason=${reason}`,
     );
 
-    const { entitlements, plan } =
+    const { entitlements, plan, validUntil } =
       await this.entitlementResolver.computeForTenant(tenantId);
 
-    await this.snapshotService.rebuild(tenantId, entitlements, plan);
+    await this.snapshotService.rebuild(
+      tenantId,
+      entitlements,
+      plan,
+      undefined,
+      validUntil,
+    );
 
     this.logger.log(
       `Snapshot rebuilt: tenant=${tenantId} featureCount=${Object.keys(entitlements).length}`,

@@ -67,6 +67,19 @@ class BillingDunningDto {
     required: false,
   })
   payment_action_required?: BillingPaymentActionRequiredDto;
+
+  @ApiProperty({
+    description:
+      'When full access ends if the payment is still overdue; after that the tenant is read-only',
+    type: Date,
+  })
+  grace_ends_at: Date;
+
+  @ApiProperty({
+    description:
+      'True once the grace period has ended: no new generations or other counted usage until paid',
+  })
+  read_only: boolean;
 }
 
 class BillingPendingPlanChangeDto {

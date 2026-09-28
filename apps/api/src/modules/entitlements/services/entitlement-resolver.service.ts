@@ -16,27 +16,9 @@ import {
 import { TenantAddonsRepository } from '../../../repositories/entitlements/tenant-addons.repository';
 import { TenantOverridesRepository } from '../../../repositories/entitlements/tenant-overrides.repository';
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
+import { pastDueAccess } from '../utils/past-due-access.util';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
 
-/**
- * Entitlement Resolver Service - Phase 8 Refactored
- *
- * Core engine for resolving effective entitlements with snapshot-first strategy.
- *
- * Architecture (Phase 8):
- * - Snapshot-first: Always check cache before computing
- * - Hot path: Read from snapshot (fast, <10ms)
- * - Cold path: Compute from plan + addons + overrides, then cache
- * - Auto-invalidation: Stale snapshots trigger rebuild
- *
- * Merging precedence: override > plan + addons
- *
- * Circular Dependency Avoidance:
- * - This service injects EntitlementSnapshotService
- * - EntitlementSnapshotService does NOT inject this service
- * - Snapshot service receives pre-computed entitlements from this service
- * - This service calls snapshot service for caching, not the other way around
- */
 /** Feature types whose add-on grants add up (see mergeValues). */
 const ADDITIVE_FEATURE_TYPES: ReadonlySet<string> = new Set([
   'quota',
@@ -58,6 +40,39 @@ function addonValueForQuantity(
     : valueInt;
 }
 
+/**
+ * Read-only access for a tenant past its payment grace period: no new usage of any counted
+ * feature, and no credit fallback. Boolean and text features (what it can read) stay.
+ */
+function restrictUsage(entitlements: ResolvedEntitlements): void {
+  for (const entitlement of Object.values(entitlements)) {
+    if (ADDITIVE_FEATURE_TYPES.has(entitlement.feature_type)) {
+      entitlement.value_int = 0;
+      entitlement.creditable = false;
+      entitlement.restricted = 'payment_required';
+    }
+  }
+}
+
+/**
+ * Entitlement Resolver Service - Phase 8 Refactored
+ *
+ * Core engine for resolving effective entitlements with snapshot-first strategy.
+ *
+ * Architecture (Phase 8):
+ * - Snapshot-first: Always check cache before computing
+ * - Hot path: Read from snapshot (fast, <10ms)
+ * - Cold path: Compute from plan + addons + overrides, then cache
+ * - Auto-invalidation: Stale snapshots trigger rebuild
+ *
+ * Merging precedence: override > plan + addons
+ *
+ * Circular Dependency Avoidance:
+ * - This service injects EntitlementSnapshotService
+ * - EntitlementSnapshotService does NOT inject this service
+ * - Snapshot service receives pre-computed entitlements from this service
+ * - This service calls snapshot service for caching, not the other way around
+ */
 @Injectable()
 export class EntitlementResolverService {
   private readonly logger = new Logger(EntitlementResolverService.name);
@@ -142,14 +157,19 @@ export class EntitlementResolverService {
       }
 
       // Step 2: Cold path - compute from scratch
-      const { entitlements, plan } = await this.computeForTenant(tenantId, {
-        client,
-      });
+      const { entitlements, plan, validUntil } = await this.computeForTenant(
+        tenantId,
+        { client },
+      );
 
       // Step 3: Cache the computed entitlements
-      await this.snapshotService.createSnapshot(tenantId, entitlements, plan, {
-        client,
-      });
+      await this.snapshotService.createSnapshot(
+        tenantId,
+        entitlements,
+        plan,
+        { client },
+        validUntil,
+      );
 
       return entitlements[featureKey];
     };
@@ -187,14 +207,19 @@ export class EntitlementResolverService {
       }
 
       // Step 2: Cold path - compute from scratch
-      const { entitlements, plan } = await this.computeForTenant(tenantId, {
-        client,
-      });
+      const { entitlements, plan, validUntil } = await this.computeForTenant(
+        tenantId,
+        { client },
+      );
 
       // Step 3: Cache the computed entitlements
-      await this.snapshotService.createSnapshot(tenantId, entitlements, plan, {
-        client,
-      });
+      await this.snapshotService.createSnapshot(
+        tenantId,
+        entitlements,
+        plan,
+        { client },
+        validUntil,
+      );
 
       return { entitlements, plan };
     };
@@ -227,10 +252,15 @@ export class EntitlementResolverService {
   async computeForTenant(
     tenantId: string,
     options?: QueryOptions,
-  ): Promise<{ entitlements: ResolvedEntitlements; plan: PlanKey }> {
+  ): Promise<{
+    entitlements: ResolvedEntitlements;
+    plan: PlanKey;
+    validUntil?: Date;
+  }> {
     const execute = async (client: PoolClient) => {
+      // Past-due subscriptions still resolve: the past-due policy decides their access
       const subscription =
-        await this.subscriptionsRepository.findActiveByTenantWithPlan(
+        await this.subscriptionsRepository.findCurrentByTenantWithPlan(
           tenantId,
           { client },
         );
@@ -337,7 +367,17 @@ export class EntitlementResolverService {
         };
       }
 
-      return { entitlements: resolved, plan: planKey };
+      const access = pastDueAccess(subscription);
+      if (access.state === 'read_only') {
+        restrictUsage(resolved);
+      }
+
+      return {
+        entitlements: resolved,
+        plan: planKey,
+        // A snapshot taken during the grace period must not outlive it
+        validUntil: access.state === 'grace' ? access.until : undefined,
+      };
     };
 
     if (options?.client) {

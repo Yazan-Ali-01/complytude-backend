@@ -30,6 +30,16 @@ import {
 } from '@lib/queue';
 import type { PoolClient } from 'pg';
 import { AddonSyncEngine } from '../../services/addon-sync-engine.service';
+import { metadataForStatus } from 'src/modules/entitlements/utils/past-due-access.util';
+
+/** A metadata update for a status change under the past-due policy, or nothing. */
+function statusMetadata(
+  metadata: Record<string, unknown> | undefined,
+  newStatus: string,
+): { metadata?: string } {
+  const updated = metadataForStatus(metadata, newStatus);
+  return updated ? { metadata: JSON.stringify(updated) } : {};
+}
 
 @Injectable()
 export class StripeEventHandlersService {
@@ -416,6 +426,7 @@ export class StripeEventHandlersService {
                 }
               : {}),
             stripe_schedule_id: null,
+            ...statusMetadata(subscription.metadata, newStatus),
           },
           { client },
         );
@@ -682,6 +693,10 @@ export class StripeEventHandlersService {
             // Another open invoice can keep the subscription past_due, so take Stripe's status
             status: mapStripeStatusToInternal(stripeSub.status),
             stripe_status: stripeSub.status,
+            ...statusMetadata(
+              subscription.metadata,
+              mapStripeStatusToInternal(stripeSub.status),
+            ),
             current_period_start: periodStart,
             current_period_end: periodEnd,
             stripe_current_period_end: periodEnd,
@@ -772,10 +787,19 @@ export class StripeEventHandlersService {
           {
             status: mapStripeStatusToInternal(stripeSub.status),
             stripe_status: stripeSub.status,
+            ...statusMetadata(
+              subscription.metadata,
+              mapStripeStatusToInternal(stripeSub.status),
+            ),
             ...(stillUnpaid
               ? {
                   metadata: JSON.stringify({
-                    ...(subscription.metadata ?? {}),
+                    ...(metadataForStatus(
+                      subscription.metadata,
+                      mapStripeStatusToInternal(stripeSub.status),
+                    ) ??
+                      subscription.metadata ??
+                      {}),
                     last_payment_failure: {
                       invoice_id: invoice.id,
                       amount: invoice.amount_due,
@@ -954,6 +978,7 @@ export class StripeEventHandlersService {
         BILLING_JOB_NAMES.PAYMENT_ACTION_REQUIRED,
         jobData,
         {
+          jobId: `payment-action-${invoice.id}`,
           delay: 0,
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },
@@ -1043,6 +1068,8 @@ export class StripeEventHandlersService {
         },
         {
           delay: 0, // Send immediately
+          // One email per invoice and step, however many times Stripe retries the payment
+          jobId: `dunning-${invoice.id}-day0`,
           attempts: 3,
           backoff: {
             type: 'exponential',
@@ -1061,6 +1088,8 @@ export class StripeEventHandlersService {
         },
         {
           delay: 3 * 24 * 60 * 60 * 1000, // 3 days in milliseconds
+          // One email per invoice and step, however many times Stripe retries the payment
+          jobId: `dunning-${invoice.id}-day3`,
           attempts: 3,
           backoff: {
             type: 'exponential',
@@ -1079,6 +1108,8 @@ export class StripeEventHandlersService {
         },
         {
           delay: 5 * 24 * 60 * 60 * 1000, // 5 days in milliseconds
+          // One email per invoice and step, however many times Stripe retries the payment
+          jobId: `dunning-${invoice.id}-day5`,
           attempts: 3,
           backoff: {
             type: 'exponential',

@@ -1170,7 +1170,7 @@ Returns the current subscription for the authenticated tenant (404 if none).
 
 ### `GET /api/v1/billing/status`
 
-Single source of truth for billing UI: subscription, `cancel_at_period_end`, optional `pending_plan_change`, optional `dunning` when `status === past_due`.
+Single source of truth for billing UI: subscription, `cancel_at_period_end`, optional `pending_plan_change`, optional `dunning` when `status === past_due`. `dunning.grace_ends_at` is when full access ends (7 days after the first failed payment) and `dunning.read_only` is true once it has: counted usage (generations, other quotas) is refused with 402 `payment_required` until the invoice is paid.
 **Response:** `BillingStatusResponseDto`.
 
 ### `GET /api/v1/billing/plan/pending-change`

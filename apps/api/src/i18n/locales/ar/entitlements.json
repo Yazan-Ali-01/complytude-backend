@@ -18,6 +18,7 @@
     "REFUND_AMOUNT_MUST_BE_GT_ZERO": "يجب أن يكون مبلغ الاسترداد أكبر من 0",
     "INSUFFICIENT_CREDITS": "رصيد غير كافٍ. الرصيد الحالي: {currentBalance}، المطلوب: {requested}",
     "QUOTA_EXCEEDED": "تم تجاوز الحصة لـ {featureKey}",
+    "PAYMENT_OVERDUE": "دفعة اشتراكك متأخرة. ادفع الفاتورة المستحقة لمواصلة استخدام هذه الميزة.",
     "ENTITLEMENT_FEATURE_NOT_FOUND": "ليس لديك صلاحية الوصول إلى هذه الميزة",
     "ENTITLEMENT_ACCESS_DENIED": "خطتك لا تتضمن هذه الميزة",
     "ENTITLEMENT_REQUIREMENT_NOT_MET": "خطتك لا تتضمن هذه الميزة"

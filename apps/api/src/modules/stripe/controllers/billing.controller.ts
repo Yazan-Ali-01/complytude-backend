@@ -43,6 +43,10 @@ import {
 import { StripeBillingPortalService } from '../services/stripe-billing-portal.service';
 import { StripeCheckoutService } from '../services/stripe-checkout.service';
 import { StripeSubscriptionService } from '../services/stripe-subscription.service';
+import {
+  PastDueAccess,
+  pastDueAccess,
+} from 'src/modules/entitlements/utils/past-due-access.util';
 
 /**
  * Billing Controller
@@ -65,6 +69,10 @@ import { StripeSubscriptionService } from '../services/stripe-subscription.servi
  *   GET  /billing/credits/packages      — List available credit packages
  *   POST /billing/checkout/credits      — Create Stripe Checkout for credit purchase
  */
+function pastDueGraceEnd(access: PastDueAccess): Date {
+  return access.state === 'read_only' ? access.graceEndedAt : new Date();
+}
+
 @ApiTags('billing')
 @Controller('billing')
 @AuthOptions({ tenant: true })
@@ -148,7 +156,12 @@ export class BillingController {
     // Dunning info is only relevant when the subscription is past_due
     if (subscription.status === 'past_due') {
       const meta = subscription.metadata ?? {};
-      result.dunning = {};
+      const access = pastDueAccess(subscription);
+      result.dunning = {
+        grace_ends_at:
+          access.state === 'grace' ? access.until : pastDueGraceEnd(access),
+        read_only: access.state === 'read_only',
+      };
 
       if (meta.last_payment_failure) {
         const failure = meta.last_payment_failure as Record<string, unknown>;

@@ -3,6 +3,7 @@ import { DunningEmailJobData, Job } from '@lib/queue';
 import { DatabaseService } from '@lib/database';
 import { TenantRepository } from '../../../repositories/tenants/tenant.repository';
 import { EmailService } from '../../email/email.service';
+import { StripeService } from '../../stripe/stripe.service';
 
 @Injectable()
 export class DunningEmailHandler {
@@ -12,6 +13,7 @@ export class DunningEmailHandler {
     private readonly emailService: EmailService,
     private readonly databaseService: DatabaseService,
     private readonly tenantRepository: TenantRepository,
+    private readonly stripeService: StripeService,
   ) {}
 
   async execute(job: Job<DunningEmailJobData>): Promise<void> {
@@ -20,6 +22,17 @@ export class DunningEmailHandler {
     this.logger.log(
       `Processing dunning email job: tenant=${data.tenantId}, sequence=${data.dunningSequence}, email=${data.tenantAdminEmail}`,
     );
+
+    // The day-3 and day-5 emails are queued at the first failure; skip them once it's paid
+    const invoice = await this.stripeService.client.invoices.retrieve(
+      data.invoiceId,
+    );
+    if (invoice.status !== 'open') {
+      this.logger.log(
+        `Dunning email skipped: invoice ${data.invoiceId} is ${invoice.status} (tenant=${data.tenantId}, sequence=${data.dunningSequence})`,
+      );
+      return;
+    }
 
     const locale = await this.getTenantLocale(data.tenantId);
 

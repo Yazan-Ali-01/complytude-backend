@@ -18,6 +18,7 @@
     "REFUND_AMOUNT_MUST_BE_GT_ZERO": "Refund amount must be greater than 0",
     "INSUFFICIENT_CREDITS": "Insufficient credits. Current balance: {currentBalance}, requested: {requested}",
     "QUOTA_EXCEEDED": "Quota exceeded for {featureKey}",
+    "PAYMENT_OVERDUE": "Your subscription payment is overdue. Pay the outstanding invoice to continue using this feature.",
     "ENTITLEMENT_FEATURE_NOT_FOUND": "You do not have access to this feature",
     "ENTITLEMENT_ACCESS_DENIED": "Your plan does not include this feature",
     "ENTITLEMENT_REQUIREMENT_NOT_MET": "Your plan does not include this feature"

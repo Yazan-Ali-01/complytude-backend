@@ -265,6 +265,8 @@ export interface EffectiveEntitlement {
   value_text?: string;
   source: UsageSource;
   creditable?: boolean;
+  /** Set while the tenant is read-only because a payment is overdue past its grace period. */
+  restricted?: 'payment_required';
 }
 
 export interface EntitlementCheckResult {

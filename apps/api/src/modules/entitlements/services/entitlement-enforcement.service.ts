@@ -139,7 +139,7 @@ export class EntitlementEnforcementService {
         throw new NotFoundException(`Feature not found: ${input.featureKey}`);
       }
       const subscription =
-        await this.subscriptionsRepository.findActiveByTenant(input.tenantId, {
+        await this.subscriptionsRepository.findCurrentByTenant(input.tenantId, {
           client,
         });
       if (!subscription) {
@@ -222,6 +222,17 @@ export class EntitlementEnforcementService {
           result: {
             allowed,
             source: entitlement.source,
+          },
+        };
+      }
+
+      // Overdue payment past its grace period: read-only, and credits can't stand in
+      if (entitlement.restricted === 'payment_required') {
+        return {
+          result: {
+            allowed: false,
+            reason: 'payment_required',
+            limit: 0,
           },
         };
       }

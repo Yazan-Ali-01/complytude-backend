@@ -432,7 +432,7 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 4. Get active add-ons for tenant
 5. Get add-on entitlements from database
 6. Get active overrides for tenant
-7. Merge: plan + addons + overrides (overrides win). A numeric add-on grant (quota, metered, capacity) counts once per unit of `tenant_addons.quantity`, matching Stripe's quantity × price; unlimited (-1) stays unlimited
+7. Merge: plan + addons + overrides (overrides win). A `past_due` subscription resolves too: full plan during its 7-day grace period, then counted features are 0 and `restricted: 'payment_required'` (see BILLING.md → Past-due policy). A numeric add-on grant (quota, metered, capacity) counts once per unit of `tenant_addons.quantity`, matching Stripe's quantity × price; unlimited (-1) stays unlimited
 8. Create snapshot (cache for 24h)
 9. Return effective entitlements
 ```
