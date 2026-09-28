@@ -72,7 +72,8 @@ Per Jest Worker (parallel)
   │   └── Override DB_*/REDIS_* with testcontainer config
   └── worker-database.setup.ts (called from createTestApp)
       ├── Create worker-specific database (test_w{workerId})
-      └── Run all SQL migrations
+      └── Run pending SQL migrations (applied ones are recorded in schema_migrations,
+          so a worker that runs several test files migrates only once)
 
 Per Test Suite
   ├── beforeAll: createTestApp() → boots full NestJS app
@@ -127,7 +128,7 @@ apps/api/test/
 │   ├── global-setup.ts             # Starts Postgres + Redis testcontainers
 │   ├── global-teardown.ts          # Stops containers, removes temp config
 │   ├── jest.setup.ts               # Per-worker: loads .env.test, overrides env vars
-│   ├── worker-database.setup.ts    # Per-worker: creates DB + runs migrations
+│   ├── worker-database.setup.ts    # Per-worker: creates DB + runs pending migrations (schema_migrations)
 │   └── smoke.integration.spec.ts   # Verifies the test infrastructure itself
 ├── factories/                      # Test data builders
 │   ├── index.ts                    # Barrel export
@@ -140,6 +141,7 @@ apps/api/test/
 │   ├── truncate.helper.ts          # truncateAllTables() — preserves reference data
 │   ├── redis-flush.helper.ts       # flushRedis() + resetTestState()
 │   ├── tenant-context.helper.ts    # withTenantContext() / withPlatformAdminContext()
+│   ├── http-cookie.helper.ts       # cookieHeaderFromSetCookie() — Set-Cookie → Cookie header, like a browser jar
 │   └── queue.helper.ts             # waitForQueueIdle() — poll until queue drained
 └── mocks/                          # Shared mock implementations
     ├── storage.mock.ts             # MockStorageService (replaces S3)
@@ -258,7 +260,13 @@ Truncates all transactional tables (preserves reference data like plans, roles, 
 ### `truncateAllTables(databaseService, options?)`
 
 Truncates transactional tables only. Preserves reference tables populated by sync services on app boot:
-`plans`, `features`, `plan_entitlements`, `tenant_roles`, `tenant_permissions`, `tenant_role_permissions`, `platform_roles`, `platform_permissions`, `platform_role_permissions`.
+`plans`, `features`, `plan_entitlements`, `tenant_roles`, `tenant_permissions`, `tenant_role_permissions`, `platform_roles`, `platform_permissions`, `platform_role_permissions`, plus `schema_migrations`.
+
+`TRUNCATE … CASCADE` would also empty `tenant_roles` (it has a foreign key to `tenants`) and, through it, `tenant_role_permissions`. So the helper runs in one transaction: it keeps the system roles (`tenant_id IS NULL`) and their permissions, truncates, and restores them. Tenant custom roles are cleared like other tenant data. Tests don't need to re-run `TenantRbacSyncService`.
+
+### `cookieHeaderFromSetCookie(headers)`
+
+Turns `Set-Cookie` response headers into a `Cookie` request header the way a browser would. When the same cookie is set more than once (e.g. merging login and tenant-switch headers), the later value wins, and a cleared cookie (empty value, `Max-Age=0`, or an `Expires` in the past) is dropped rather than sent empty.
 
 ### `withTenantContext(databaseService, tenantId, callback, options?)`
 
@@ -315,34 +323,19 @@ Testcontainers **requires Docker**. Any CI runner must have a Docker daemon acce
 
 ### No Secrets Needed
 
-- `.env.test` is committed — all test env vars are checked in
-- Database and Redis connection details are overridden at runtime by testcontainers
-- JWT secrets, S3 keys in `.env.test` are hardcoded test values (not real credentials)
+- `.env.test` is committed, so all test env vars are checked in, including placeholder Stripe keys. A fresh clone with Docker runs `pnpm test` with no extra variables.
+- The test app never reads a developer's `apps/api/.env`: `configModuleOptions` sets `ignoreEnvFile` when `NODE_ENV=test`.
+- Database and Redis connection details are overridden at runtime by testcontainers.
+- JWT secrets, S3 keys in `.env.test` are hardcoded test values (not real credentials).
 
-### Example GitHub Actions Workflow
+### GitHub Actions
 
-Reference snippet (not yet implemented):
+`.github/workflows/ci.yml` runs on every pull request to `development` or `main`, and as the first job of `deploy-staging.yml`, so a red suite blocks the deploy. It has two jobs:
 
-```yaml
-name: Tests
-on: [push, pull_request]
+- **Lint, type-check, unit tests:** `pnpm lint:ci` (ESLint with `--max-warnings=0`, no `--fix`), `pnpm type-check`, `pnpm test:unit --ci`.
+- **Integration tests:** `pnpm test:integration --ci` against Testcontainers on the runner's Docker.
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm type-check
-      - run: pnpm test:unit
-      - run: pnpm test:integration
-```
+To make it block merges, mark both jobs as required status checks in the branch protection of `development` and `main`.
 
 ---
 

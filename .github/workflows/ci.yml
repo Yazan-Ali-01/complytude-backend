@@ -1,0 +1,46 @@
+name: CI
+
+# Runs on every pull request, and as the gate of the staging deploy (deploy-staging.yml calls it).
+# Make both jobs required status checks in the branch protection of development and main.
+on:
+  pull_request:
+    branches: [development, main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint, type-check, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # No --fix: CI must fail on lint errors and warnings, not rewrite them
+      - run: pnpm lint:ci
+      - run: pnpm type-check
+      - run: pnpm test:unit --ci
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Testcontainers starts Postgres (pgvector) and Redis on the runner's Docker
+      - run: pnpm test:integration --ci

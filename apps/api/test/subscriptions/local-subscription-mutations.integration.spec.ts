@@ -4,7 +4,6 @@ import type { Response as InjectResponse } from 'light-my-request';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { TrialExpiryHandler } from 'src/modules/entitlements/processors/trial-expiry.handler';
 import { SubscriptionsService } from 'src/modules/subscriptions/subscriptions.service';
-import { TenantRbacSyncService } from 'src/modules/tenant-rbac/tenant-rbac-sync.service';
 import {
   createTestSubscription,
   createTestTenant,
@@ -39,8 +38,6 @@ describe('Local subscription mutations', () => {
 
   beforeEach(async () => {
     await resetTestState(app.databaseService, app.redisClient);
-    // The CASCADE truncation also wipes the system tenant roles that tenant-switch needs.
-    await app.module.get(TenantRbacSyncService).onModuleInit();
   }, 15000);
 
   afterAll(async () => {

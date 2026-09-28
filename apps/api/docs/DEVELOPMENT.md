@@ -304,6 +304,8 @@ Testcontainers **requires a running Docker daemon**. Any CI runner must have Doc
 
 GitHub Actions hosted runners (`ubuntu-latest`) include Docker by default, so testcontainers works out of the box. No `services` block or Docker-in-Docker is needed — testcontainers manages its own containers.
 
+The workflow is `.github/workflows/ci.yml`. It runs on pull requests to `development` and `main`, and gates `deploy-staging.yml`. It runs `pnpm lint:ci`, `pnpm type-check`, `pnpm test:unit --ci` and `pnpm test:integration --ci`. Branch protection must list its two jobs as required checks for it to block merges.
+
 **Example workflow snippet** (reference only — not yet implemented):
 
 ```yaml

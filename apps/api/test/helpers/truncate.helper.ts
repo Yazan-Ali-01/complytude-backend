@@ -3,6 +3,7 @@ import { DatabaseService } from '@lib/database';
 /**
  * Tables populated by sync services on app boot. Must not be truncated in beforeEach
  * or factories that depend on plans, roles, permissions will fail.
+ * schema_migrations records which migrations the worker database already has.
  */
 const REFERENCE_TABLES = [
   'plans',
@@ -14,6 +15,7 @@ const REFERENCE_TABLES = [
   'platform_roles',
   'platform_permissions',
   'platform_role_permissions',
+  'schema_migrations',
 ] as const;
 
 export interface TruncateOptions {
@@ -56,5 +58,27 @@ export async function truncateAllTables(
   const quoted = tablesToTruncate
     .map((t) => `"${t.replace(/"/g, '""')}"`)
     .join(', ');
-  await databaseService.query(`TRUNCATE TABLE ${quoted} CASCADE`, []);
+
+  // CASCADE also empties tenant_roles (FK tenant_id -> tenants) and, through it,
+  // tenant_role_permissions, although both are excluded above. Keep the system roles
+  // (tenant_id IS NULL, synced on app start) and put them back; tenant custom roles go.
+  await databaseService.transaction(async (client) => {
+    await client.query(
+      `CREATE TEMP TABLE keep_tenant_roles ON COMMIT DROP AS
+       SELECT * FROM public.tenant_roles WHERE tenant_id IS NULL`,
+    );
+    await client.query(
+      `CREATE TEMP TABLE keep_tenant_role_permissions ON COMMIT DROP AS
+       SELECT rp.* FROM public.tenant_role_permissions rp
+       JOIN public.tenant_roles r ON r.id = rp.role_id
+       WHERE r.tenant_id IS NULL`,
+    );
+    await client.query(`TRUNCATE TABLE ${quoted} CASCADE`);
+    await client.query(
+      'INSERT INTO public.tenant_roles SELECT * FROM keep_tenant_roles ON CONFLICT DO NOTHING',
+    );
+    await client.query(
+      'INSERT INTO public.tenant_role_permissions SELECT * FROM keep_tenant_role_permissions ON CONFLICT DO NOTHING',
+    );
+  });
 }

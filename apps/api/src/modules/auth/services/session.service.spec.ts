@@ -68,6 +68,7 @@ describe('SessionService', () => {
       srem: jest.fn(),
       smembers: jest.fn(),
       scanKeys: jest.fn(),
+      mget: jest.fn(),
       pipeline: jest.fn(() => pipelineMock as never),
       getClient: jest.fn(
         () =>
@@ -243,8 +244,9 @@ describe('SessionService', () => {
         .mockResolvedValueOnce(['pfx:identity-session:a'])
         .mockResolvedValueOnce(['pfx:tenant-session:t1']);
       const now = new Date().toISOString();
-      redis.get
-        .mockResolvedValueOnce(
+      // The service fetches each key set with one MGET (identity sessions, then tenant sessions)
+      redis.mget
+        .mockResolvedValueOnce([
           baseIdentityData({
             deviceInfo: {
               deviceType: 'mobile',
@@ -254,15 +256,17 @@ describe('SessionService', () => {
             },
             lastActivityAt: now,
           }),
-        )
-        .mockResolvedValueOnce({
-          userId: 'u1',
-          tenantId: 'tenant-x',
-          role: 'admin',
-          identitySessionId: 'i1',
-          createdAt: now,
-          lastActivityAt: now,
-        } satisfies TenantSessionData);
+        ])
+        .mockResolvedValueOnce([
+          {
+            userId: 'u1',
+            tenantId: 'tenant-x',
+            role: 'admin',
+            identitySessionId: 'i1',
+            createdAt: now,
+            lastActivityAt: now,
+          } satisfies TenantSessionData,
+        ]);
 
       const stats = await service.getGlobalSessionStats();
       expect(stats.totalIdentitySessions).toBe(1);

@@ -36,6 +36,7 @@ pnpm admin:grant <email> [--role system_admin|support|auditor]  # Grant a platfo
 
 ```bash
 pnpm lint             # ESLint with auto-fix
+pnpm lint:ci          # ESLint as CI runs it: no --fix, --max-warnings=0
 pnpm format           # Prettier
 pnpm type-check       # TypeScript validation
 ```
@@ -45,7 +46,7 @@ pnpm type-check       # TypeScript validation
 ```bash
 pnpm test             # All tests
 pnpm test:unit        # Unit tests only (no Docker needed)
-pnpm test:integration # Integration tests (Docker required)
+pnpm test:integration # Integration tests (Docker required; no other env needed)
 pnpm test:integration:watch  # Watch mode
 pnpm test:coverage    # Coverage report
 ```
@@ -340,7 +341,7 @@ The pre-commit hook also runs `pnpm type-check` and `lint-staged` before every c
   - Any migration or env var changes that reviewers need to know about
   - Steps to test manually if the change is non-obvious
 - Keep PRs focused — one logical change per PR; split unrelated fixes into separate branches
-- Ensure `pnpm lint`, `pnpm type-check`, and `pnpm test` all pass before requesting review
+- Ensure `pnpm lint:ci`, `pnpm type-check`, and `pnpm test` all pass before requesting review. `.github/workflows/ci.yml` runs the same checks on every PR and before every staging deploy.
 
 ---
 

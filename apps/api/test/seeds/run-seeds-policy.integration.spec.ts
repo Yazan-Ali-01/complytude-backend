@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { TenantRbacSyncService } from 'src/modules/tenant-rbac/tenant-rbac-sync.service';
 import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
 
@@ -96,8 +95,6 @@ describe('Seed policy: reference data everywhere, test fixtures only in developm
 
     beforeEach(async () => {
       await resetTestState(app.databaseService, app.redisClient);
-      // The CASCADE truncation also wipes the system tenant roles 003 links users to.
-      await app.module.get(TenantRbacSyncService).onModuleInit();
     }, 15000);
 
     afterAll(async () => {

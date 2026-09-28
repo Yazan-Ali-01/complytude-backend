@@ -78,7 +78,8 @@ describe('DocumentsService.confirmUpload', () => {
     const result = await documentsService.confirmUpload(doc.id, user);
 
     expect(result.documentId).toBe(doc.id);
-    expect(result.status).toBe('pending');
+    // claimPendingUpload moves the document to 'processing' before the job is enqueued
+    expect(result.status).toBe('processing');
     expect(result.message).toBeDefined();
 
     expect(enqueueSpy).toHaveBeenCalledWith(

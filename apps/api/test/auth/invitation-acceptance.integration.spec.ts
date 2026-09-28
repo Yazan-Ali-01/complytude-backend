@@ -7,7 +7,6 @@ import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { AuthService } from 'src/modules/auth/auth.service';
 import type { IdentitySessionData } from 'src/modules/auth/interfaces/session.interface';
 import { SessionService } from 'src/modules/auth/services/session.service';
-import { TenantRbacSyncService } from 'src/modules/tenant-rbac/tenant-rbac-sync.service';
 import { InvitationStatus } from 'src/repositories/invitations/interfaces/invitation.interface';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
@@ -42,9 +41,6 @@ describe('Invitation acceptance', () => {
 
   beforeEach(async () => {
     await resetTestState(app.databaseService, app.redisClient);
-    // resetTestState's CASCADE truncation also wipes the system tenant roles (tenant_roles has an
-    // FK to tenants), which invitations and tenant-switch need. Restore them.
-    await app.module.get(TenantRbacSyncService).onModuleInit();
   }, 15000);
 
   afterAll(async () => {

@@ -399,7 +399,7 @@ HUSKY=0 git commit -m "your message"
 
 - Provide a clear description of the changes
 - Reference related issues
-- Ensure all CI checks pass
+- Ensure all CI checks pass (`.github/workflows/ci.yml`: lint without `--fix`, type-check, unit and integration tests)
 - Request review from maintainers
 - Address review feedback promptly
 

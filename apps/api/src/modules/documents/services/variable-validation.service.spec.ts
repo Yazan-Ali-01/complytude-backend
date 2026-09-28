@@ -262,13 +262,13 @@ describe('VariableValidationService', () => {
   // number
   // ---------------------------------------------------------------------------
   describe('number field', () => {
-    it('accepts a numeric string and formats it', () => {
+    it('accepts a numeric string and formats it (integers without a currency get no decimals)', () => {
       const result = service.validate(
         [field({ key: 'salary', type: 'number' })],
         { salary: '50000' },
         {},
       );
-      expect(result.salary).toBe('50,000.00');
+      expect(result.salary).toBe('50,000');
     });
 
     it('accepts a JS number and formats it', () => {
@@ -286,7 +286,7 @@ describe('VariableValidationService', () => {
         { count: 0 },
         {},
       );
-      expect(result.count).toBe('0.00');
+      expect(result.count).toBe('0');
     });
 
     it('accepts 0 for a required number field', () => {
@@ -295,7 +295,7 @@ describe('VariableValidationService', () => {
         { count: 0 },
         {},
       );
-      expect(result.count).toBe('0.00');
+      expect(result.count).toBe('0');
     });
 
     it('appends currency when validation_rules.custom is set', () => {

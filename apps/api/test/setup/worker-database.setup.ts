@@ -9,11 +9,15 @@ const MIGRATIONS_DIR = path.resolve(
   '../../../../scripts/migrations',
 );
 
+// Fast path only: Jest gives every test file a fresh module registry, so this resets per file.
+// Applied migrations are tracked in the worker database itself (schema_migrations).
 let initialized = false;
 
 /**
  * Ensures the worker-specific database exists and has all migrations applied.
- * Idempotent — runs once per Jest worker (guarded by module-level flag).
+ * Idempotent across test files: like scripts/run-migrations.sh, it records each applied file in
+ * public.schema_migrations and skips recorded ones, so a worker running a second file doesn't
+ * re-run non-idempotent migrations.
  */
 export async function ensureWorkerDatabase(): Promise<void> {
   if (initialized) {
@@ -70,15 +74,34 @@ export async function ensureWorkerDatabase(): Promise<void> {
   await workerClient.connect();
 
   try {
+    await workerClient.query(
+      `CREATE TABLE IF NOT EXISTS public.schema_migrations (
+         migration_name VARCHAR(255) PRIMARY KEY,
+         executed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )`,
+    );
+    const applied = new Set(
+      (
+        await workerClient.query<{ migration_name: string }>(
+          'SELECT migration_name FROM public.schema_migrations',
+        )
+      ).rows.map((row) => row.migration_name),
+    );
+
     const migrationFiles = fs
       .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql'))
       .sort();
 
     for (const file of migrationFiles) {
-      const filePath = path.join(MIGRATIONS_DIR, file);
-      const sql = fs.readFileSync(filePath, 'utf-8');
+      if (applied.has(file)) continue;
+      // Migration files manage their own transactions (BEGIN/COMMIT), as with run-migrations.sh
+      const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
       await workerClient.query(sql);
+      await workerClient.query(
+        'INSERT INTO public.schema_migrations (migration_name) VALUES ($1)',
+        [file],
+      );
     }
   } finally {
     await workerClient.end();

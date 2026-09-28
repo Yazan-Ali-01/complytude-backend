@@ -17,6 +17,9 @@ import stripeConfig from './stripe.config';
 export const configModuleOptions: ConfigModuleOptions = {
   isGlobal: true,
   envFilePath: ['apps/api/.env'],
+  // Tests are hermetic: they get their env from apps/api/.env.test (loaded by the Jest setup),
+  // never from a developer's apps/api/.env.
+  ignoreEnvFile: process.env.NODE_ENV === 'test',
   load: [
     databaseConfig,
     appConfig,
