@@ -7,6 +7,7 @@ export type AnalysisJobStatusDto =
   | 'queued'
   | 'processing'
   | 'completed'
+  | 'completed_with_warnings'
   | 'failed';
 
 /**
@@ -18,8 +19,15 @@ export class AnalysisJobResponseDto {
   id: string;
 
   @ApiProperty({
-    description: 'Job status',
-    enum: ['queued', 'processing', 'completed', 'failed'],
+    description:
+      "Job status. 'completed_with_warnings' means the analysis ran but result.warnings lists why it is not a clean result: document_truncated, not_reranked, rulesets_without_context, ungrounded_findings_dropped, no_findings (nothing reported is not a compliance verdict). A job with no regulatory context to check against fails.",
+    enum: [
+      'queued',
+      'processing',
+      'completed',
+      'completed_with_warnings',
+      'failed',
+    ],
   })
   status: AnalysisJobStatusDto;
 

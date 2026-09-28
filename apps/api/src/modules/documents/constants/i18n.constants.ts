@@ -26,6 +26,7 @@ export const DocumentsI18n = {
     GENERATION_JOB_NOT_FOUND: 'documents.errors.GENERATION_JOB_NOT_FOUND',
     DOCUMENT_NO_FILE: 'documents.errors.DOCUMENT_NO_FILE',
     DOWNLOAD_URL_FAILED: 'documents.errors.DOWNLOAD_URL_FAILED',
+    RULESET_NOT_FOUND: 'documents.errors.RULESET_NOT_FOUND',
   },
   messages: {
     UPLOAD_CONFIRMED: 'documents.messages.UPLOAD_CONFIRMED',

@@ -134,6 +134,20 @@ export class RulesetRepository extends BaseRepository<
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
+  /** Which of the given ruleset IDs exist and are active. */
+  async findActiveIds(
+    ids: string[],
+    options?: QueryOptions,
+  ): Promise<Set<string>> {
+    if (!ids.length) return new Set();
+    const result = await this.executeQuery<{ id: string }>(
+      `SELECT id FROM ${this.tableName} WHERE id = ANY($1::uuid[]) AND status = 'active'`,
+      [ids],
+      options,
+    );
+    return new Set(result.rows.map((row) => row.id));
+  }
+
   async findByKeys(keys: string[], options?: QueryOptions): Promise<Ruleset[]> {
     if (!keys.length) return [];
 

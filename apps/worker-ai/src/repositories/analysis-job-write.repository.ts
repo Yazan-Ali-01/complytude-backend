@@ -6,6 +6,7 @@ export type AnalysisJobStatus =
   | 'queued'
   | 'processing'
   | 'completed'
+  | 'completed_with_warnings'
   | 'failed';
 
 /**
@@ -39,14 +40,18 @@ export class AnalysisJobWriteRepository {
     );
   }
 
-  async markCompleted(id: string, result: AnalysisResult): Promise<void> {
+  async markCompleted(
+    id: string,
+    status: 'completed' | 'completed_with_warnings',
+    result: AnalysisResult,
+  ): Promise<void> {
     await this.databaseService.transactionWithPlatformAdminContext(
       async (client) => {
         await client.query(
           `UPDATE public.analysis_jobs
-           SET status = 'completed', result = $2::jsonb, completed_at = now(), updated_at = now()
+           SET status = $3, result = $2::jsonb, completed_at = now(), updated_at = now()
            WHERE id = $1`,
-          [id, JSON.stringify(result)],
+          [id, JSON.stringify(result), status],
         );
       },
     );

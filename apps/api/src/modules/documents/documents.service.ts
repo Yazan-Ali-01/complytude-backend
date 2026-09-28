@@ -742,25 +742,37 @@ export class DocumentsService {
 
   /**
    * Merge explicit rulesetIds with IDs resolved from rulesetKeys.
-   * Returns deduplicated UUID array; empty array = global (unscoped) search.
+   * Returns deduplicated UUID array; empty array = global (unscoped) search. An unknown or
+   * inactive ruleset is a 400: ignoring it would quietly check the document against the wrong
+   * rules (or, if none are left, against all of them).
    */
   private async resolveRulesetIds(
     rulesetIds?: string[],
     rulesetKeys?: string[],
   ): Promise<string[]> {
-    const ids = new Set<string>(rulesetIds ?? []);
+    const ids = new Set<string>();
+    const missing: string[] = [];
 
     if (rulesetKeys?.length) {
       const rulesets = await this.rulesetRepository.findByKeys(rulesetKeys);
-      for (const rs of rulesets) {
-        ids.add(rs.id);
-      }
-
       const resolvedKeys = new Set(rulesets.map((r) => r.key));
-      const missing = rulesetKeys.filter((k) => !resolvedKeys.has(k));
-      if (missing.length > 0) {
-        this.logger.warn(`Ignoring unknown rulesetKeys: ${missing.join(', ')}`);
-      }
+      rulesets.forEach((rs) => ids.add(rs.id));
+      missing.push(...rulesetKeys.filter((k) => !resolvedKeys.has(k)));
+    }
+
+    if (rulesetIds?.length) {
+      const active = await this.rulesetRepository.findActiveIds(rulesetIds);
+      rulesetIds.forEach((id) =>
+        active.has(id) ? ids.add(id) : missing.push(id),
+      );
+    }
+
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        this.i18n.t(DocumentsI18n.errors.RULESET_NOT_FOUND, {
+          args: { rulesets: missing.join(', ') },
+        }),
+      );
     }
 
     return Array.from(ids);

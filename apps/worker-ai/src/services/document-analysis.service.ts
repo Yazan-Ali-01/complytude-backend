@@ -7,6 +7,7 @@ import type { ResponseFormatJSONSchema } from 'openai/resources/shared';
 import {
   AnalysisFinding,
   AnalysisResult,
+  AnalysisWarning,
 } from '../interfaces/analysis-result.interface';
 import { AnalysisJobWriteRepository } from '../repositories/analysis-job-write.repository';
 import {
@@ -21,39 +22,48 @@ import { LlmService } from './llm.service';
 import { PromptBuilderService } from './prompt-builder.service';
 import { RerankerService } from './reranker.service';
 
-const ANALYSIS_RESULT_SCHEMA: ResponseFormatJSONSchema.JSONSchema = {
-  name: 'analysis_result',
-  strict: true,
-  schema: {
-    type: 'object',
-    properties: {
-      findings: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            clauseRef: { type: 'string' },
-            riskLevel: { type: 'string', enum: ['high', 'medium', 'low'] },
-            title: { type: 'string' },
-            description: { type: 'string' },
-            suggestion: { type: 'string' },
+/** The model's output; clauseId can only be one of the IDs we supplied (C1, C2, …). */
+function analysisResultSchema(
+  clauseIds: string[],
+): ResponseFormatJSONSchema.JSONSchema {
+  return {
+    name: 'analysis_result',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: {
+        findings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              clauseId: { type: 'string', enum: clauseIds },
+              clauseRef: { type: 'string' },
+              riskLevel: { type: 'string', enum: ['high', 'medium', 'low'] },
+              title: { type: 'string' },
+              description: { type: 'string' },
+              suggestion: { type: 'string' },
+            },
+            required: [
+              'clauseId',
+              'clauseRef',
+              'riskLevel',
+              'title',
+              'description',
+              'suggestion',
+            ],
+            additionalProperties: false,
           },
-          required: [
-            'clauseRef',
-            'riskLevel',
-            'title',
-            'description',
-            'suggestion',
-          ],
-          additionalProperties: false,
         },
+        summary: { type: 'string' },
       },
-      summary: { type: 'string' },
+      required: ['findings', 'summary'],
+      additionalProperties: false,
     },
-    required: ['findings', 'summary'],
-    additionalProperties: false,
-  },
-};
+  };
+}
+
+type ModelFinding = Omit<AnalysisFinding, 'chunkId' | 'rulesetKey'>;
 
 @Injectable()
 export class DocumentAnalysisService {
@@ -245,8 +255,17 @@ export class DocumentAnalysisService {
       `After rerank: ${rerankedChunks.length} chunks (reranked=${reranked})`,
     );
 
+    // With nothing to check against, any answer would be an unfounded "compliant"
+    if (rerankedChunks.length === 0) {
+      throw new PermanentError(
+        scoped
+          ? 'No regulatory clauses were found in the selected rulesets for this document, so nothing was checked'
+          : 'No regulatory clauses were found for this document, so nothing was checked',
+      );
+    }
+
     // Build prompt — pass structured content so the LLM sees section headings
-    const { systemPrompt, userMessage, wasDocumentTruncated } =
+    const { systemPrompt, userMessage, wasDocumentTruncated, clauses } =
       this.promptBuilderService.buildPrompt(
         document.title,
         contentForAnalysis,
@@ -264,7 +283,7 @@ export class DocumentAnalysisService {
       .chatCompletion({
         systemPrompt,
         userMessage,
-        responseSchema: ANALYSIS_RESULT_SCHEMA,
+        responseSchema: analysisResultSchema([...clauses.keys()]),
       })
       .catch((err: unknown) => {
         throw new RetryableError(
@@ -275,7 +294,7 @@ export class DocumentAnalysisService {
 
     // OpenAI structured outputs guarantee schema conformance; light sanity check
     const parsed = rawResponse as {
-      findings: AnalysisFinding[];
+      findings: ModelFinding[];
       summary: string;
     };
     if (!Array.isArray(parsed.findings) || typeof parsed.summary !== 'string') {
@@ -284,20 +303,70 @@ export class DocumentAnalysisService {
       );
     }
 
-    const rulesetsConsulted = this.extractRulesetsConsulted(rerankedChunks);
+    // Keep only findings that rest on a clause we supplied
+    const findings: AnalysisFinding[] = [];
+    for (const finding of parsed.findings) {
+      const chunk = clauses.get(finding.clauseId);
+      if (!chunk) continue;
+      const rulesetKey = chunk.metadata.rulesetKey;
+      findings.push({
+        ...finding,
+        chunkId: chunk.id,
+        rulesetKey: typeof rulesetKey === 'string' ? rulesetKey : null,
+      });
+    }
+    const ungroundedFindingsDropped = parsed.findings.length - findings.length;
+    if (ungroundedFindingsDropped > 0) {
+      this.logger.warn(
+        `Dropped ${ungroundedFindingsDropped} findings citing no supplied clause for job=${analysisJobId}`,
+      );
+    }
+
+    const rulesetIdsSearched = rulesetIds ?? [];
+    const rulesetIdsWithContext = new Set(
+      rerankedChunks.map((c) => c.rulesetId),
+    );
+    const rulesetIdsWithoutContext = rulesetIdsSearched.filter(
+      (id) => !rulesetIdsWithContext.has(id),
+    );
+
+    const warnings: AnalysisWarning[] = [];
+    if (wasDocumentTruncated) warnings.push('document_truncated');
+    if (!reranked) warnings.push('not_reranked');
+    if (rulesetIdsWithoutContext.length > 0) {
+      warnings.push('rulesets_without_context');
+    }
+    if (ungroundedFindingsDropped > 0) {
+      warnings.push('ungrounded_findings_dropped');
+    }
+    if (findings.length === 0) warnings.push('no_findings');
 
     const result: AnalysisResult = {
-      findings: parsed.findings,
+      findings,
       summary: parsed.summary,
       model: this.llmService.getModel(),
       documentChunks: documentChunks.length,
       rulesetChunksMatched: rerankedChunks.length,
-      rulesetsConsulted,
+      rulesetsConsulted: this.extractRulesetsConsulted(rerankedChunks),
+      rulesetsCited: [
+        ...new Set(
+          findings
+            .map((f) => f.rulesetKey)
+            .filter((key): key is string => !!key),
+        ),
+      ],
+      rulesetIdsSearched,
+      rulesetIdsWithoutContext,
       reranked,
+      truncated: wasDocumentTruncated,
+      ungroundedFindingsDropped,
+      warnings,
     };
+    const status =
+      warnings.length > 0 ? 'completed_with_warnings' : 'completed';
 
     await this.analysisJobWriteRepository
-      .markCompleted(analysisJobId, result)
+      .markCompleted(analysisJobId, status, result)
       .catch((err: unknown) => {
         throw new RetryableError(
           `DB error storing result for job ${analysisJobId}`,
@@ -306,8 +375,8 @@ export class DocumentAnalysisService {
       });
 
     this.logger.log(
-      `Analysis complete for job=${analysisJobId}: ${result.findings.length} findings, ` +
-        `${result.rulesetsConsulted.length} rulesets consulted`,
+      `Analysis ${status} for job=${analysisJobId}: ${result.findings.length} findings, ` +
+        `warnings=[${warnings.join(', ')}]`,
     );
   }
 

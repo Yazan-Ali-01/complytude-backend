@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 export interface RulesetChunkMatch {
   id: string;
+  rulesetId: string;
   content: string;
   metadata: Record<string, unknown>;
   score: number;
@@ -58,31 +59,32 @@ export class RulesetChunkSearchRepository {
 
     const result = await this.databaseService.query<{
       id: string;
+      ruleset_id: string;
       content: string;
       metadata: Record<string, unknown>;
       rrf_score: number;
     }>(
       `WITH vector_results AS (
-        SELECT id, content, metadata,
+        SELECT id, ruleset_id, content, metadata,
                ROW_NUMBER() OVER (ORDER BY distance) AS vrank
         FROM (
-          SELECT rc.id, rc.content, rc.metadata,
+          SELECT rc.id, rc.ruleset_id, rc.content, rc.metadata,
                  MIN(rc.embedding <=> q.vec::vector) AS distance
           FROM unnest($1::text[]) AS q(vec)
           CROSS JOIN LATERAL (
-            SELECT id, content, metadata, embedding
+            SELECT id, ruleset_id, content, metadata, embedding
             FROM public.ruleset_chunks
             ${vectorWhereClause}
             ORDER BY embedding <=> q.vec::vector
             LIMIT $2
           ) rc
-          GROUP BY rc.id, rc.content, rc.metadata
+          GROUP BY rc.id, rc.ruleset_id, rc.content, rc.metadata
         ) deduped
         ORDER BY distance
         LIMIT $3
       ),
       bm25_results AS (
-        SELECT id, content, metadata,
+        SELECT id, ruleset_id, content, metadata,
                ROW_NUMBER() OVER (ORDER BY ts_rank_cd(content_tsv, query) DESC) AS brank
         FROM public.ruleset_chunks,
              plainto_tsquery('english', $4) query
@@ -94,6 +96,7 @@ export class RulesetChunkSearchRepository {
       combined AS (
         SELECT
           COALESCE(v.id, b.id) AS id,
+          COALESCE(v.ruleset_id, b.ruleset_id) AS ruleset_id,
           COALESCE(v.content, b.content) AS content,
           COALESCE(v.metadata, b.metadata) AS metadata,
           COALESCE(1.0 / (${RRF_K} + v.vrank), 0)
@@ -101,7 +104,7 @@ export class RulesetChunkSearchRepository {
         FROM vector_results v
         FULL OUTER JOIN bm25_results b ON v.id = b.id
       )
-      SELECT id, content, metadata, rrf_score
+      SELECT id, ruleset_id, content, metadata, rrf_score
       FROM combined
       ORDER BY rrf_score DESC
       LIMIT $6`,
@@ -110,6 +113,7 @@ export class RulesetChunkSearchRepository {
 
     return result.rows.map((row) => ({
       id: row.id,
+      rulesetId: row.ruleset_id,
       content: row.content,
       metadata:
         typeof row.metadata === 'string'

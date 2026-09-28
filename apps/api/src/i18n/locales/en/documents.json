@@ -20,7 +20,8 @@
     "DOCUMENT_GENERATION_FAILED": "Failed to queue document generation. Please try again.",
     "GENERATION_JOB_NOT_FOUND": "Generation job not found.",
     "DOCUMENT_NO_FILE": "This document does not have a downloadable file.",
-    "DOWNLOAD_URL_FAILED": "Failed to generate download URL. Please try again."
+    "DOWNLOAD_URL_FAILED": "Failed to generate download URL. Please try again.",
+    "RULESET_NOT_FOUND": "Unknown or inactive ruleset: {rulesets}"
   },
   "messages": {
     "UPLOAD_CONFIRMED": "Upload confirmed. Text extraction has been queued.",

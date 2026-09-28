@@ -1,12 +1,32 @@
 export type RiskLevel = 'high' | 'medium' | 'low';
 
 export interface AnalysisFinding {
+  /** The supplied clause the finding rests on (C1, C2, … in the prompt); always one we gave it. */
+  clauseId: string;
   clauseRef: string;
   riskLevel: RiskLevel;
   title: string;
   description: string;
   suggestion: string;
+  /** The retrieved ruleset chunk behind clauseId. */
+  chunkId: string;
+  rulesetKey: string | null;
 }
+
+/**
+ * Why a completed analysis should not be read as a clean bill of health.
+ * - document_truncated: only the start of the document fit the model's context
+ * - not_reranked: reranking failed, so the clauses used may not be the most relevant
+ * - rulesets_without_context: a requested ruleset contributed no clauses
+ * - ungrounded_findings_dropped: findings that cited no supplied clause were removed
+ * - no_findings: nothing was reported; needs a human check, not "compliant"
+ */
+export type AnalysisWarning =
+  | 'document_truncated'
+  | 'not_reranked'
+  | 'rulesets_without_context'
+  | 'ungrounded_findings_dropped'
+  | 'no_findings';
 
 export interface AnalysisResult {
   findings: AnalysisFinding[];
@@ -14,6 +34,16 @@ export interface AnalysisResult {
   model: string;
   documentChunks: number;
   rulesetChunksMatched: number;
+  /** Rulesets the retrieved clauses came from. */
   rulesetsConsulted: string[];
+  /** Rulesets at least one finding cites. */
+  rulesetsCited: string[];
+  /** Ruleset IDs the search was limited to; empty = all rulesets. */
+  rulesetIdsSearched: string[];
+  /** Requested ruleset IDs that contributed no clause. */
+  rulesetIdsWithoutContext: string[];
   reranked: boolean;
+  truncated: boolean;
+  ungroundedFindingsDropped: number;
+  warnings: AnalysisWarning[];
 }

@@ -88,9 +88,12 @@ DocumentAnalysisService pipeline:
   4. Embed all chunks (EmbeddingService → OpenAI)
   5. Hybrid search (vector HNSW + BM25 tsvector, merged via RRF, top 20)
   6. Cohere re-rank (top 10, graceful fallback to original ranking)
-  7. Build prompt (system + regulatory context + document, context-window aware)
-  8. LLM call (OpenAI, structured output with JSON Schema enforcement)
-  9. Store result, mark job completed
+     No clauses left → the job fails ("nothing was checked"); the model is not called
+  7. Build prompt: clauses (C1…Cn) in the system message, the document in a nonce-delimited
+     untrusted block in the user message (context-window aware)
+  8. LLM call (OpenAI, structured output; clauseId limited to the supplied IDs)
+  9. Keep only findings citing a supplied clause, work out warnings, store the result:
+     completed, or completed_with_warnings
 ```
 
 ### Retrieval Strategy
@@ -111,23 +114,46 @@ The worker uses a **hybrid retrieval** approach combining two complementary sear
 | Cohere failure | Graceful degradation: falls back to original hybrid ranking, logs warning, pipeline continues |
 | Pipeline failure | `markFailed(jobId, errorMessage)` is called before re-throwing |
 
+### Prompt injection and grounding
+
+Contracts are untrusted: the counterparty drafts them. The system message holds our instructions and the retrieved clauses, each with an ID (`C1`, `C2`, …). The document and its title go in the user message between `<<<DOCUMENT-{nonce}>>>` and `<<<END-DOCUMENT-{nonce}>>>`, with a random nonce per call; anything in the document that looks like one of those markers is replaced, and the model is told to treat the block as data and to report text that tries to steer the review. Every finding must carry a `clauseId` from the supplied set (the JSON schema enumerates them); findings that don't are dropped and counted.
+
+### Job status
+
+| Status | When |
+|---|---|
+| `completed` | Full document, reranked context from every requested ruleset, at least one grounded finding. |
+| `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `not_reranked`, `rulesets_without_context`, `ungrounded_findings_dropped`, `no_findings` (nothing reported is not a compliance verdict). |
+| `failed` | Including when retrieval returned no clauses at all. |
+
+The API refuses (400) unknown or inactive `rulesetKeys` / `rulesetIds` instead of widening the search.
+
 ### Analysis Result Schema
 
 ```typescript
 interface AnalysisResult {
   findings: Array<{
+    clauseId: string;      // The supplied clause cited (C1, C2, …)
     clauseRef: string;     // e.g., "DMCC Employment Rule 4.2"
     riskLevel: 'high' | 'medium' | 'low';
     title: string;         // Short issue title
     description: string;   // Detailed compliance gap description
     suggestion: string;    // Concrete recommendation
+    chunkId: string;       // The ruleset chunk behind clauseId
+    rulesetKey: string | null;
   }>;
-  summary: string;         // Overall compliance assessment (2-4 sentences)
+  summary: string;         // What was checked and found (2-4 sentences)
   model: string;           // LLM model used (e.g., "gpt-4o-mini")
   documentChunks: number;  // Number of document chunks processed
   rulesetChunksMatched: number; // Unique regulatory chunks after re-ranking
-  rulesetsConsulted: string[];  // Ruleset keys consulted
+  rulesetsConsulted: string[];  // Ruleset keys of the clauses supplied
+  rulesetsCited: string[];      // Ruleset keys at least one finding cites
+  rulesetIdsSearched: string[]; // Requested scope; empty = all rulesets
+  rulesetIdsWithoutContext: string[]; // Requested rulesets that contributed no clause
   reranked: boolean;       // Whether Cohere re-ranking was applied
+  truncated: boolean;      // Whether only part of the document fit
+  ungroundedFindingsDropped: number;
+  warnings: string[];      // See "Job status"
 }
 ```
 

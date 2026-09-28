@@ -5,6 +5,8 @@ export const ANALYSIS_JOB_STATUSES = {
   QUEUED: 'queued',
   PROCESSING: 'processing',
   COMPLETED: 'completed',
+  /** Completed, but result.warnings says why it isn't a clean result (partial context, no findings, …) */
+  COMPLETED_WITH_WARNINGS: 'completed_with_warnings',
   FAILED: 'failed',
 } as const;
 

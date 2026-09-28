@@ -76,6 +76,7 @@ Enum analysis_job_status {
   queued
   processing
   completed
+  completed_with_warnings [note: 'Ran on partial context or found nothing; reasons in result.warnings']
   failed
 }
 
