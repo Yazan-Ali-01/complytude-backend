@@ -111,7 +111,7 @@ await app.databaseService.transaction((client) =>
 );
 ```
 
-If app code returns 0 rows or hits `new row violates row-level security policy` in a test, check that it runs inside `transactionWithTenantContext` (or the platform-admin or auth-flow context) before changing the test: a query with no context fails the same way in production.
+If app code returns 0 rows, throws `… has row-level security, so a query without a database context would see no rows` (the `BaseRepository` guard), or hits `new row violates row-level security policy` in a test, check that it runs inside `transactionWithTenantContext` (or the platform-admin or auth-flow context) before changing the test: a query with no context fails the same way in production.
 
 ---
 

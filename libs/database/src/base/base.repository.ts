@@ -7,6 +7,7 @@ import {
   QueryOptions,
   RepositoryInterface,
 } from './repository.interface';
+import { RLS_TABLES } from './rls-tables';
 
 /**
  * Abstract base repository providing common CRUD operations and query execution.
@@ -62,6 +63,14 @@ export abstract class BaseRepository<
           async (txClient) => {
             return await txClient.query<T>(query, params);
           },
+        );
+      }
+
+      if (RLS_TABLES.has(this.tableName.replace(/^public\./, ''))) {
+        throw new Error(
+          `${this.tableName} has row-level security, so a query without a database context would ` +
+            'see no rows. Pass { client } from a context transaction ' +
+            '(transactionWithTenantContext / transactionWithPlatformAdminContext) or { tenant }.',
         );
       }
 

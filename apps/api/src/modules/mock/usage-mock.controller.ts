@@ -725,8 +725,10 @@ export class UsageMockController {
     }
 
     // Get current entitlement and usage
+    const tenant = { tenantId: user.tenantId, schema: 'public' };
     const subscription = await this.subscriptionsRepository.findActiveByTenant(
       user.tenantId,
+      { tenant },
     );
     if (!subscription) {
       throw new BadRequestException('No active subscription');
@@ -741,6 +743,7 @@ export class UsageMockController {
       user.tenantId,
       subscription.id, // Use subscription ID
       featureKey,
+      { tenant },
     );
 
     const limit = entitlement?.value_int ?? 0;

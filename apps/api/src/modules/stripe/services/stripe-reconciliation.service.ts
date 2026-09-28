@@ -87,8 +87,18 @@ export class StripeReconciliationService {
     report: ReconciliationReport,
     tenantId?: string,
   ): Promise<void> {
-    const subscriptions =
-      await this.subscriptionsRepository.findAllWithStripeId(tenantId);
+    // Only listing every tenant's subscriptions needs the platform context; each subscription
+    // is then analysed in its own tenant's context.
+    const subscriptions = tenantId
+      ? await this.subscriptionsRepository.findAllWithStripeId(tenantId, {
+          tenant: { tenantId, schema: 'public' },
+        })
+      : await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.subscriptionsRepository.findAllWithStripeId(undefined, {
+              client,
+            }),
+        );
 
     this.logger.log(
       `Reconciling ${subscriptions.length} subscription(s) and add-ons with Stripe IDs (single-pass)` +
@@ -269,7 +279,13 @@ export class StripeReconciliationService {
     try {
       // Use shared engine to analyze drift (no additional Stripe API call needed)
       const { mutations, addonCatalog, stripeItemMap } =
-        await this.addonSyncEngine.analyzeSync(sub.tenant_id, stripeSub);
+        await this.databaseService.transactionWithTenantContext(
+          { tenantId: sub.tenant_id },
+          (client) =>
+            this.addonSyncEngine.analyzeSync(sub.tenant_id, stripeSub, {
+              client,
+            }),
+        );
 
       // Count items checked and in sync for reporting
       const addonStripeItems = stripeSub.items.data.filter((item) => {

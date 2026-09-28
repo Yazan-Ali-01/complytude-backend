@@ -5,7 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import Stripe from 'stripe';
-import { PlanKey } from 'src/common/types/entitlement.types';
+import {
+  PlanKey,
+  TenantSubscription,
+} from 'src/common/types/entitlement.types';
 import { mapStripeStatusToInternal } from '../stripe.utils';
 import { DatabaseService } from '@lib/database';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
@@ -58,8 +61,7 @@ export class StripeSubscriptionService {
     newPlanKey: PlanKey,
     actorId: string,
   ): Promise<ScheduledPlanChange> {
-    const subscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
+    const subscription = await this.findActiveSubscription(tenantId);
 
     if (!subscription?.stripe_subscription_id) {
       throw new BadRequestException(
@@ -238,8 +240,7 @@ export class StripeSubscriptionService {
    * The subscription continues with its current plan.
    */
   async cancelScheduledPlanChange(tenantId: string): Promise<void> {
-    const subscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
+    const subscription = await this.findActiveSubscription(tenantId);
 
     if (!subscription?.stripe_schedule_id) {
       throw new BadRequestException('No pending plan change to cancel');
@@ -288,8 +289,7 @@ export class StripeSubscriptionService {
   async getPendingPlanChange(
     tenantId: string,
   ): Promise<PendingPlanChangeResult> {
-    const subscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
+    const subscription = await this.findActiveSubscription(tenantId);
 
     if (!subscription?.stripe_schedule_id) {
       return { hasPendingChange: false };
@@ -361,8 +361,7 @@ export class StripeSubscriptionService {
     tenantId: string,
     actorId: string,
   ): Promise<{ cancelsAt: Date }> {
-    const subscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
+    const subscription = await this.findActiveSubscription(tenantId);
 
     if (!subscription?.stripe_subscription_id) {
       throw new BadRequestException('No active Stripe subscription to cancel');
@@ -437,8 +436,7 @@ export class StripeSubscriptionService {
     tenantId: string,
     actorId: string,
   ): Promise<void> {
-    const subscription =
-      await this.subscriptionsRepository.findActiveByTenant(tenantId);
+    const subscription = await this.findActiveSubscription(tenantId);
 
     if (!subscription?.stripe_subscription_id) {
       throw new BadRequestException('No active subscription to reactivate');
@@ -489,6 +487,14 @@ export class StripeSubscriptionService {
     this.logger.log(
       `Subscription reactivated: tenant=${tenantId}, stripe_sub=${subscription.stripe_subscription_id}`,
     );
+  }
+
+  private findActiveSubscription(
+    tenantId: string,
+  ): Promise<TenantSubscription | null> {
+    return this.subscriptionsRepository.findActiveByTenant(tenantId, {
+      tenant: { tenantId, schema: 'public' },
+    });
   }
 
   /**

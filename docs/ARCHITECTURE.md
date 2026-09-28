@@ -87,7 +87,7 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 | --- | --- | --- |
 | **Raw SQL via `pg`, no ORM** (not Prisma/TypeORM) | Full control over queries; RLS session context and transaction boundaries stay visible; no ORM overhead; simpler debugging | Manual row mapping (`mapRow`), more boilerplate, hand-written SQL migrations |
 | **Fastify over Express** | Lower overhead, better TypeScript support, built-in schema validation, modern plugin system | Smaller ecosystem; Express middleware is not compatible; Fastify plugins (`@fastify/*`) needed for cookies, multipart, static |
-| **PostgreSQL RLS for tenancy** (not `WHERE tenant_id = ?` in code) | Isolation enforced by the database; a missed filter in application code cannot leak rows | Every tenant query needs session context set (`transactionWithTenantContext`); a missing context returns 0 rows silently; queries are harder to debug |
+| **PostgreSQL RLS for tenancy** (not `WHERE tenant_id = ?` in code) | Isolation enforced by the database; a missed filter in application code cannot leak rows | Every tenant query needs session context set (`transactionWithTenantContext`); a missing context returns 0 rows silently (`BaseRepository` throws instead for tables in `RLS_TABLES`); queries are harder to debug |
 
 ---
 

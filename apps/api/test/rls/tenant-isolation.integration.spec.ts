@@ -1,4 +1,4 @@
-import { DatabaseService } from '@lib/database';
+import { DatabaseService, RLS_TABLES } from '@lib/database';
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { DatabaseError, type PoolClient } from 'pg';
@@ -828,6 +828,14 @@ describe('Tenant isolation (RLS) as the app role', () => {
       if (tenants.rowCount) visible.push('tenants');
       expect(visible).toEqual([]);
     });
+  });
+
+  it("BaseRepository's RLS_TABLES lists exactly the tables with row-level security", async () => {
+    const { rows } = await admin.query<{ relname: string }>(
+      `SELECT relname FROM pg_class
+       WHERE relrowsecurity AND relnamespace = 'public'::regnamespace ORDER BY relname`,
+    );
+    expect(rows.map((row) => row.relname)).toEqual([...RLS_TABLES].sort());
   });
 
   it('every RLS policy is load-bearing: dropping it makes its case fail', async () => {

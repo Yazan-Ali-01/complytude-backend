@@ -39,7 +39,7 @@ Mismatch between Stripe and DB after an incident usually means a webhook failed 
 
 **Preferred:** Call the admin API (identity cookie + platform role with `entitlements:manage`):
 
-- **`POST /api/v1/admin/stripe/reconcile`** — Runs `StripeReconciliationService.reconcileAll()`: compares Stripe subscription and add-on items to our DB, fixes drift, emits domain events for fixes.
+- **`POST /api/v1/admin/stripe/reconcile`** — Runs `StripeReconciliationService.reconcileAll()`: compares Stripe subscription and add-on items to our DB, fixes drift, emits domain events for fixes. It lists every Stripe-backed subscription in the platform-admin context, then reads each tenant's add-ons in that tenant's context. The report lists status mismatches under `errors` even when it fixed them.
 
 **When to use:**
 
