@@ -180,14 +180,8 @@ export class AuditInterceptor implements NestInterceptor {
     return undefined;
   }
 
+  /** Fastify's `request.ip` trusts only the ALB's X-Forwarded-For entry (TRUST_PROXY_HOPS). */
   private resolveIpAddress(request: FastifyRequest): string | undefined {
-    const forwardedFor = request.headers['x-forwarded-for'];
-    if (forwardedFor) {
-      const ips = Array.isArray(forwardedFor)
-        ? forwardedFor[0]
-        : forwardedFor.split(',')[0];
-      return ips.trim();
-    }
     return request.ip || undefined;
   }
 }

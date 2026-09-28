@@ -302,7 +302,7 @@ describe('AuditInterceptor', () => {
     });
   });
 
-  it('extracts IP from X-Forwarded-For header', (done) => {
+  it('records request.ip, never an X-Forwarded-For entry the client wrote', (done) => {
     mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const request = {
       ...baseRequest,
@@ -312,20 +312,6 @@ describe('AuditInterceptor', () => {
       },
     };
     const context = createMockExecutionContext(request);
-
-    interceptor.intercept(context, next).subscribe({
-      complete: () => {
-        expect(auditService.log).toHaveBeenCalledWith(
-          expect.objectContaining({ ipAddress: '10.0.0.1' }),
-        );
-        done();
-      },
-    });
-  });
-
-  it('falls back to request.ip when no X-Forwarded-For', (done) => {
-    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
-    const context = createMockExecutionContext(baseRequest);
 
     interceptor.intercept(context, next).subscribe({
       complete: () => {

@@ -1,9 +1,11 @@
 import type {
   FastifyInstance,
+  RawRequestDefaultExpression,
   FastifyReply,
   FastifyRequest,
   FastifyServerOptions,
 } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 
 /** JSON and form bodies. File uploads go straight to S3 or through multipart's own limits. */
@@ -24,6 +26,43 @@ export const HTTP_SERVER_OPTIONS = {
   keepAliveTimeout: 65_000,
 } as const satisfies FastifyServerOptions;
 
+/** Inbound request ids are kept only if they look like one; anything else could forge or break logs. */
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
+
+/** The caller's `x-request-id` (or `x-trace-id`) when it is well-formed, else a fresh UUID. */
+export function resolveRequestId(req: RawRequestDefaultExpression): string {
+  for (const header of ['x-request-id', 'x-trace-id']) {
+    const value = req.headers[header];
+    if (typeof value === 'string' && REQUEST_ID_PATTERN.test(value)) {
+      return value;
+    }
+  }
+  return randomUUID();
+}
+
+/**
+ * Proxies in front of the API whose `X-Forwarded-For` entries are trusted: 1 behind the ALB, 0
+ * when reached directly. `request.ip` is then the address the outermost trusted proxy saw; any
+ * entries the client wrote further left are ignored.
+ */
+export function trustProxyHopsFromEnv(env: NodeJS.ProcessEnv): number {
+  const hops = Number.parseInt(env.TRUST_PROXY_HOPS ?? '0', 10);
+  return Number.isInteger(hops) && hops > 0 ? hops : 0;
+}
+
+/** Everything main.ts and the integration test app pass to the Fastify adapter. */
+export function httpServerOptions(
+  trustProxyHops: number,
+): FastifyServerOptions {
+  return {
+    ...HTTP_SERVER_OPTIONS,
+    trustProxy: trustProxyHops,
+    // Ids come only from genReqId, which validates the inbound header
+    requestIdHeader: false,
+    genReqId: resolveRequestId,
+  };
+}
+
 const SECURITY_HEADERS: Record<string, string> = {
   'strict-transport-security': 'max-age=31536000; includeSubDomains',
   'x-content-type-options': 'nosniff',
@@ -40,7 +79,7 @@ class PayloadTooLargeError extends Error {
 }
 
 /**
- * Security headers on every response, and the raw body for Stripe signature checks, captured
+ * Security headers and the request id on every response, and the raw body for Stripe signature checks, captured
  * only on the webhook's own path and capped, so no other route buffers a body in memory.
  */
 export function installHttpHardening(
@@ -51,10 +90,12 @@ export function installHttpHardening(
 
   fastify.addHook(
     'onSend',
-    (_request: FastifyRequest, reply: FastifyReply, _payload, done) => {
+    (request: FastifyRequest, reply: FastifyReply, _payload, done) => {
       for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
         if (!reply.hasHeader(name)) reply.header(name, value);
       }
+      // The request id (validated or generated), so callers can quote it to support
+      reply.header('x-trace-id', request.id);
       done();
     },
   );

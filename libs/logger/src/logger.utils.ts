@@ -34,28 +34,28 @@ export function isScannerPath(url: string | undefined): boolean {
 }
 
 /**
- * Returns the client IP for an inbound request, preferring the leftmost
- * address in `X-Forwarded-For` (set by our ALB) and falling back to the raw
- * socket remote address. Returns `undefined` when no IP can be determined.
- *
- * NOTE: trust-proxy must be enabled on the HTTP adapter for the `X-Forwarded-For`
- * header to be authoritative.
+ * Returns the client IP for an inbound request, trusting as many `X-Forwarded-For` entries as there
+ * are proxies in front of the service (`TRUST_PROXY_HOPS`, 1 behind the ALB), counted from the
+ * right: the same rule Fastify applies to `request.ip`. Entries further left are written by the
+ * client and ignored. Returns `undefined` when no IP can be determined.
  */
 export function getClientIp(
-  req: IncomingMessage & { ip?: string },
+  req: IncomingMessage,
+  trustProxyHops: number = trustProxyHopsFromEnv(),
 ): string | undefined {
   const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.length > 0) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  } else if (Array.isArray(xff) && xff.length > 0) {
-    const first = xff[0]?.split(',')[0]?.trim();
-    if (first) return first;
-  }
+  const forwarded = (Array.isArray(xff) ? xff.join(',') : (xff ?? ''))
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  // Nearest hop first: the socket peer, then X-Forwarded-For from right to left
+  const hops = [req.socket?.remoteAddress, ...forwarded.reverse()];
+  return hops[Math.min(trustProxyHops, hops.length - 1)] ?? undefined;
+}
 
-  if (req.ip) return req.ip;
-
-  return req.socket?.remoteAddress ?? undefined;
+function trustProxyHopsFromEnv(): number {
+  const hops = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? '0', 10);
+  return Number.isInteger(hops) && hops > 0 ? hops : 0;
 }
 
 /**

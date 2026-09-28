@@ -47,6 +47,20 @@ export const validationSchema = Joi.object({
           'RATE_LIMIT_ENABLED must not be false when NODE_ENV=production',
       }),
     }),
+  // Proxies whose X-Forwarded-For entries are trusted for the client IP: 1 behind the ALB
+  TRUST_PROXY_HOPS: Joi.number()
+    .integer()
+    .min(0)
+    .max(5)
+    .default(0)
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.number().min(1).required().messages({
+        'number.min':
+          'TRUST_PROXY_HOPS must be at least 1 when NODE_ENV=production',
+        'any.required': 'TRUST_PROXY_HOPS is required when NODE_ENV=production',
+      }),
+    }),
   API_PREFIX: Joi.string().default('api'),
   CORS_ORIGINS: Joi.string().required(),
   ENTITLEMENT_STRICT_THRESHOLD_PERCENT: Joi.number()

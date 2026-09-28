@@ -88,49 +88,48 @@ describe('logger.utils', () => {
     function makeReq(
       headers: Record<string, string | string[] | undefined>,
       socketRemote?: string,
-      ip?: string,
-    ): IncomingMessage & { ip?: string } {
+    ): IncomingMessage {
       return {
         headers,
-        ip,
         socket: socketRemote ? { remoteAddress: socketRemote } : undefined,
-      } as unknown as IncomingMessage & { ip?: string };
+      } as unknown as IncomingMessage;
     }
 
-    it('prefers the leftmost X-Forwarded-For entry (string form)', () => {
+    it('behind one proxy, takes the entry that proxy appended, not what the client wrote', () => {
       const req = makeReq(
-        { 'x-forwarded-for': '203.0.113.42, 10.0.0.1, 10.0.0.2' },
+        { 'x-forwarded-for': '6.6.6.6, 203.0.113.42' },
         '10.0.0.99',
       );
-      expect(getClientIp(req)).toBe('203.0.113.42');
+      expect(getClientIp(req, 1)).toBe('203.0.113.42');
     });
 
-    it('prefers the leftmost X-Forwarded-For entry (array form)', () => {
+    it('counts hops across repeated X-Forwarded-For headers', () => {
       const req = makeReq(
-        { 'x-forwarded-for': ['203.0.113.42, 10.0.0.1', '10.0.0.5'] },
+        { 'x-forwarded-for': ['6.6.6.6, 203.0.113.42', '198.51.100.7'] },
         '10.0.0.99',
       );
-      expect(getClientIp(req)).toBe('203.0.113.42');
+      expect(getClientIp(req, 2)).toBe('203.0.113.42');
     });
 
-    it('falls back to req.ip when X-Forwarded-For is missing', () => {
-      const req = makeReq({}, '10.0.0.99', '198.51.100.7');
-      expect(getClientIp(req)).toBe('198.51.100.7');
+    it('with no trusted proxy, ignores X-Forwarded-For entirely', () => {
+      const req = makeReq({ 'x-forwarded-for': '6.6.6.6' }, '10.0.0.99');
+      expect(getClientIp(req, 0)).toBe('10.0.0.99');
     });
 
-    it('falls back to socket remoteAddress when nothing else is present', () => {
-      const req = makeReq({}, '10.0.0.99');
-      expect(getClientIp(req)).toBe('10.0.0.99');
+    it('with fewer entries than hops, takes the furthest one', () => {
+      const req = makeReq({ 'x-forwarded-for': '203.0.113.42' }, '10.0.0.99');
+      expect(getClientIp(req, 3)).toBe('203.0.113.42');
+    });
+
+    it('falls back to the socket address without X-Forwarded-For', () => {
+      expect(getClientIp(makeReq({}, '10.0.0.99'), 1)).toBe('10.0.0.99');
+      expect(
+        getClientIp(makeReq({ 'x-forwarded-for': '' }, '10.0.0.99'), 1),
+      ).toBe('10.0.0.99');
     });
 
     it('returns undefined when no IP can be determined', () => {
-      const req = makeReq({});
-      expect(getClientIp(req)).toBeUndefined();
-    });
-
-    it('ignores empty X-Forwarded-For', () => {
-      const req = makeReq({ 'x-forwarded-for': '' }, '10.0.0.99');
-      expect(getClientIp(req)).toBe('10.0.0.99');
+      expect(getClientIp(makeReq({}), 1)).toBeUndefined();
     });
   });
 });

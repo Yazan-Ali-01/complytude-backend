@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { CLS_TRACE_ID } from '@lib/context';
+import { Logger } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 import { AuditLogsRepository } from './audit.repository';
 import { AuditService } from './audit.service';
@@ -65,7 +66,9 @@ describe('AuditService', () => {
         create: jest.fn().mockRejectedValue(new Error('DB down')),
       });
       const service = new AuditService(repo, null);
-      const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
 
       await expect(service.log(BASE_INPUT)).resolves.toBeUndefined();
       expect(spy).toHaveBeenCalled();
@@ -107,7 +110,9 @@ describe('AuditService', () => {
         createBatch: jest.fn().mockRejectedValue(new Error('DB down')),
       });
       const service = new AuditService(repo, null);
-      const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
 
       await expect(service.logBatch([BASE_INPUT])).resolves.toBeUndefined();
       expect(spy).toHaveBeenCalled();
@@ -124,6 +129,51 @@ describe('AuditService', () => {
 
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({ actorType: 'system', actorId: undefined }),
+      );
+    });
+  });
+
+  describe('input normalisation', () => {
+    it('fits oversized values to their columns and drops an IP or trace id that is not one', async () => {
+      const repo = makeRepository();
+      const service = new AuditService(repo, null);
+
+      await service.log({
+        ...BASE_INPUT,
+        action: 'A'.repeat(300),
+        resourceType: 'r'.repeat(300),
+        resourceId: 'i'.repeat(1000),
+        userRole: 'u'.repeat(80),
+        ipAddress: '6.6.6.6, 1.2.3.4',
+        userAgent: 'x'.repeat(10_000),
+        traceId: 't'.repeat(65),
+      });
+
+      const written = (repo.create as jest.Mock).mock
+        .calls[0][0] as CreateAuditLogInput;
+      expect(written.action).toHaveLength(100);
+      expect(written.resourceType).toHaveLength(100);
+      expect(written.resourceId).toHaveLength(255);
+      expect(written.userRole).toHaveLength(50);
+      expect(written.userAgent).toHaveLength(512);
+      expect(written.ipAddress).toBeUndefined();
+      expect(written.traceId).toBeUndefined();
+    });
+
+    it('keeps valid IPv4 and IPv6 addresses', async () => {
+      const repo = makeRepository();
+      const service = new AuditService(repo, null);
+
+      await service.log({ ...BASE_INPUT, ipAddress: '203.0.113.7' });
+      await service.log({ ...BASE_INPUT, ipAddress: '2001:db8::1' });
+
+      expect(repo.create).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ ipAddress: '203.0.113.7' }),
+      );
+      expect(repo.create).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ ipAddress: '2001:db8::1' }),
       );
     });
   });

@@ -263,6 +263,7 @@ describe('Route authentication inventory', () => {
         FRONTEND_URL: 'https://app.example.com',
         AUTH_ECHO_TOKENS: 'false',
         RATE_LIMIT_ENABLED: 'true',
+        TRUST_PROXY_HOPS: '1',
         STRIPE_SECRET_KEY: 'sk_test_route_inventory_0123456789',
         STRIPE_WEBHOOK_SECRET: 'whsec_route_inventory_0123456789',
       });

@@ -19,8 +19,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import Redis from 'ioredis';
 import { AppModule } from 'src/app.module';
 import {
-  HTTP_SERVER_OPTIONS,
+  httpServerOptions,
   installHttpHardening,
+  trustProxyHopsFromEnv,
 } from 'src/bootstrap/http-hardening';
 import { validationExceptionFactory } from 'src/common/pipes/validation-exception.factory';
 import { StorageService } from 'src/modules/storage/storage.service';
@@ -106,7 +107,7 @@ export async function createTestApp(
   const moduleRef = await builder.compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
-    new FastifyAdapter(HTTP_SERVER_OPTIONS),
+    new FastifyAdapter(httpServerOptions(trustProxyHopsFromEnv(process.env))),
   );
 
   const apiPrefix = process.env.API_PREFIX || 'api';

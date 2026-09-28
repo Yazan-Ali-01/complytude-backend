@@ -16,6 +16,7 @@ const PRODUCTION: Record<string, string> = {
   REDIS_PORT: '6379',
   CORS_ORIGINS: 'https://app.example.com',
   FRONTEND_URL: 'https://app.example.com',
+  TRUST_PROXY_HOPS: '1',
   JWT_ACCESS_SECRET: 'a'.repeat(16) + '0123456789abcdef',
   JWT_REFRESH_SECRET: 'b'.repeat(16) + '0123456789abcdef',
   JWT_IDENTITY_SECRET: 'c'.repeat(16) + '0123456789abcdef',
@@ -112,6 +113,15 @@ describe('production environment validation', () => {
       expect(
         errors(api, { ...PRODUCTION, FRONTEND_URL: 'http://localhost:3000' }),
       ).toEqual(['FRONTEND_URL must be an https URL when NODE_ENV=production']);
+    });
+
+    it('needs the proxy hop count, so client IPs come from the ALB', () => {
+      expect(errors(api, without('TRUST_PROXY_HOPS'))).toEqual([
+        'TRUST_PROXY_HOPS is required when NODE_ENV=production',
+      ]);
+      expect(errors(api, { ...PRODUCTION, TRUST_PROXY_HOPS: '0' })).toEqual([
+        'TRUST_PROXY_HOPS must be at least 1 when NODE_ENV=production',
+      ]);
     });
 
     it('never echoes tokens in production', () => {

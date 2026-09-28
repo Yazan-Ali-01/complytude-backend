@@ -95,6 +95,14 @@ Every log line includes:
 | `method`       | HTTP request                    | Gateway requests |
 | `url`          | HTTP request                    | Gateway requests |
 
+**Trace id.** `req.id` is the caller's `x-request-id` (or `x-trace-id`) only when it matches
+`^[A-Za-z0-9-]{8,64}$`; otherwise the API generates a UUID. It is returned in the `x-trace-id`
+response header. (`bootstrap/http-hardening.ts`)
+
+**Client IP.** `request.ip` and the logged `ip` trust only as many `X-Forwarded-For` entries as there
+are proxies in front of the API (`TRUST_PROXY_HOPS`: 1 behind the ALB, 0 locally), counted from the
+right. Entries the client wrote further left are ignored.
+
 ### Log Levels
 
 | Level        | When to Use                       | Examples                                                      |
@@ -254,12 +262,15 @@ Every audit record contains:
 | `action`         | Event name from `@Audit()`                             |
 | `resource_type`  | Explicit option or auto-derived from controller path   |
 | `resource_id`    | Route param (if configured) or response body `id`      |
-| `ip_address`     | `X-Forwarded-For` header or `request.ip`               |
-| `user_agent`     | Request `User-Agent` header                            |
+| `ip_address`     | `request.ip` (see Client IP above); dropped if not an IP |
+| `user_agent`     | Request `User-Agent` header, first 512 characters      |
 | `trace_id`       | From CLS (same as system log trace ID)                 |
 | `details.method` | HTTP method                                            |
 | `details.url`    | Request URL                                            |
 | `details.body`   | Sanitized request body (only when `includeBody: true`) |
+
+`AuditService` fits every value to its column before the insert, so no input can make the row fail
+to write; a failed write is logged at `error` level.
 
 ### When to Use Audit vs System Logging
 

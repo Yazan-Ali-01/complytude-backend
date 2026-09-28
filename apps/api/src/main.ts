@@ -14,7 +14,6 @@ import {
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
-import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
@@ -24,8 +23,9 @@ import {
   startBullBoardServer,
 } from './bull-board/bull-board.server';
 import {
-  HTTP_SERVER_OPTIONS,
+  httpServerOptions,
   installHttpHardening,
+  trustProxyHopsFromEnv,
 } from './bootstrap/http-hardening';
 import { runCli } from './cli/cli';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
@@ -40,27 +40,10 @@ import {
 const processErrors = installProcessErrorHandlers();
 
 async function bootstrap() {
-  const fastifyAdapter = new FastifyAdapter({
-    requestIdHeader: 'x-request-id',
-    genReqId: (req) => {
-      return (
-        (req.headers['x-request-id'] as string) ??
-        (req.headers['x-trace-id'] as string) ??
-        randomUUID()
-      );
-    },
-    // Honour X-Forwarded-For from the ALB so req.ip exposes the real client.
-    // Only enabled in deployed environments where requests pass through our LB.
-    trustProxy: process.env.NODE_ENV === 'production',
-    ...HTTP_SERVER_OPTIONS,
-  });
-
-  fastifyAdapter
-    .getInstance()
-    .addHook('onSend', (req, reply, _payload, done) => {
-      reply.header('x-trace-id', req.id);
-      done();
-    });
+  // Request ids validated, client IP taken only from the ALB's X-Forwarded-For entry
+  const fastifyAdapter = new FastifyAdapter(
+    httpServerOptions(trustProxyHopsFromEnv(process.env)),
+  );
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,

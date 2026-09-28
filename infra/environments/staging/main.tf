@@ -227,6 +227,8 @@ module "ecs" {
     SERVICE_NAME  = "gateway"
     GOTENBERG_URL = "http://localhost:3100"
     FRONTEND_URL  = var.frontend_url
+    # One ALB in front: only its X-Forwarded-For entry is trusted for the client IP
+    TRUST_PROXY_HOPS = "1"
   }
   bull_board_port = local.bull_board_port
   worker_ai_environment = {

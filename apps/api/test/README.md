@@ -98,7 +98,8 @@ This means tests running in parallel never interfere with each other.
 
 ### Rate limiting
 
-`.env.test` sets `RATE_LIMIT_ENABLED=false`, because suites log in and call the auth routes far more
+`.env.test` sets `TRUST_PROXY_HOPS=1`, so the test app reads client IPs as it does behind the ALB:
+the right-most `X-Forwarded-For` entry. `.env.test` also sets `RATE_LIMIT_ENABLED=false`, because suites log in and call the auth routes far more
 often than the limits allow. `createTestApp()` applies the same HTTP hardening as `main.ts` (security
 headers, body limit, Stripe raw-body capture). A suite that tests the limiter or the login lockout
 turns it on with `app.module.get(RateLimitService).enabled = true` (see
