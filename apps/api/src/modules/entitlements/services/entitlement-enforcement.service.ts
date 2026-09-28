@@ -894,6 +894,8 @@ export class EntitlementEnforcementService {
       });
     }
 
+    // Held until this transaction commits, so the balance can't change before the deduction
+    await this.creditLedgerService.lockCreditsForTenant(tenantId, client);
     const creditBalance = await this.creditLedgerService.getBalance(tenantId, {
       client,
     });

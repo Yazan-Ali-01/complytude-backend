@@ -139,6 +139,8 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 - Tracks purchases, grants, deductions, refunds
 - Running balance computed from ledger
 - Deduction events include `credit_cost_per_unit` and `units_consumed` for audit trail
+- Writes are serialised per tenant: `CreditLedgerService.lockCreditsForTenant()` takes a transaction-scoped advisory lock (`credits:<tenantId>`) before the balance read that decides a write, both in every ledger transaction and in the enforcement credit fallback. Without it, concurrent deductions could all see the same SUM and overspend.
+- Credit purchases from Stripe checkout are idempotent (`idempotency_key = 'checkout:' + session id`).
 
 ---
 

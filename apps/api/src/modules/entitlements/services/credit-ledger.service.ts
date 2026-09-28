@@ -292,6 +292,20 @@ export class CreditLedgerService {
     );
   }
 
+  /**
+   * Serialises credit writes for a tenant until the transaction ends. The balance is a SUM over
+   * the ledger, so without this two concurrent deductions both see the same balance and both
+   * pass the check. Take it before any balance read that decides a ledger write.
+   */
+  async lockCreditsForTenant(
+    tenantId: string,
+    client: PoolClient,
+  ): Promise<void> {
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)`, [
+      `credits:${tenantId}`,
+    ]);
+  }
+
   private async recordTransaction(
     input: RecordTransactionInput,
     options?: QueryOptions,
@@ -311,6 +325,7 @@ export class CreditLedgerService {
     } = input;
 
     const execute = async (client: PoolClient) => {
+      await this.lockCreditsForTenant(tenantId, client);
       const currentBalance = await this.creditLedgerRepository.getBalance(
         tenantId,
         { client },
