@@ -101,10 +101,9 @@ export class TenantInvitationsController {
       roleId: roleResult.id,
     });
 
-    // TODO: Send email with token
-    this.logger.log(
-      `Invitation created: ${result.invitationId}. Token (for email): ${result.token}`,
-    );
+    // TODO: send the invitation email and stop returning the token.
+    // The token is a credential for accepting the invitation: never log it.
+    this.logger.log(`Invitation created: ${result.invitationId}`);
 
     return {
       invitationId: result.invitationId,
@@ -186,10 +185,8 @@ export class TenantInvitationsController {
       user.tenantId,
     );
 
-    // TODO: Send email with new token
-    this.logger.log(
-      `Invitation ${invitationId} resent. New token (for email): ${result.token}`,
-    );
+    // TODO: send the invitation email and stop returning the token (never log it)
+    this.logger.log(`Invitation ${invitationId} resent`);
 
     return {
       token: result.token,

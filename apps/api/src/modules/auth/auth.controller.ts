@@ -32,6 +32,7 @@ import {
   ApiValidationError,
   SwaggerCookieAuth,
 } from 'src/common/swagger';
+import { VerifiedUserGuard } from 'src/common/guards/verified-user.guard';
 import { Audit } from '../../common/decorators/audit.decorator';
 import { AuthService } from './auth.service';
 import {
@@ -45,6 +46,7 @@ import {
   CurrentUserTenant,
   CurrentUserTenantRefresh,
 } from './decorators/current-user.decorator';
+import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { InvitationIdParamDto } from './dto/invitation-id-param.dto';
 import { InvitationListResponseDto } from './dto/invitation-list-response.dto';
@@ -272,7 +274,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Invalid credentials or email not verified',
+    description:
+      'Invalid credentials, or the email is not verified yet (checked after the password)',
   })
   @ApiValidationError()
   @ApiPublicResponses()
@@ -301,6 +304,7 @@ export class AuthController {
    * Select active tenant and receive tenant tokens
    */
   @AuthOptions({ identity: true })
+  @UseGuards(VerifiedUserGuard)
   @Post('tenant-switch')
   @Audit('AUTH_TENANT_SWITCH')
   @SwaggerCookieAuth.identityAccessToken()
@@ -321,7 +325,9 @@ export class AuthController {
     status: 401,
     description: 'Unauthorized - Identity token required',
   })
-  @ApiForbiddenError('User does not belong to specified tenant')
+  @ApiForbiddenError(
+    'Email not verified (read from the database), or user does not belong to specified tenant',
+  )
   @ApiNotFoundError('Tenant')
   @ApiPublicResponses()
   async tenantSwitch(
@@ -793,19 +799,21 @@ export class AuthController {
    * List user's pending invitations
    */
   @AuthOptions({ identity: true })
+  @UseGuards(VerifiedUserGuard)
   @Get('invitations')
   @SwaggerCookieAuth.identityAccessToken()
   @SwaggerCookieAuth.tenantAccessToken()
   @ApiOperation({
     summary: "List user's pending invitations",
     description:
-      'Retrieve all pending tenant invitations for the authenticated user',
+      'Retrieve all pending tenant invitations for the authenticated user. Requires a verified email.',
   })
   @ApiResponse({
     status: 200,
     description: 'Invitations list retrieved successfully',
     type: InvitationListResponseDto,
   })
+  @ApiForbiddenError('Email not verified')
   @ApiAuthenticatedResponses()
   listInvitations(
     @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
@@ -818,6 +826,7 @@ export class AuthController {
    * Accept tenant invitation
    */
   @AuthOptions({ identity: true })
+  @UseGuards(VerifiedUserGuard)
   @Post('invitations/:invitationId/accept')
   @Audit('INVITATION_ACCEPTED', {
     resourceIdParam: 'invitationId',
@@ -828,7 +837,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Accept tenant invitation',
     description:
-      'Accept an invitation to join a tenant. Creates user-tenant relationship.',
+      'Accept an invitation to join a tenant. Creates user-tenant relationship. Requires a verified email that matches the invitation, and the invitation token from the invitation link.',
   })
   @ApiParam({
     name: 'invitationId',
@@ -841,16 +850,20 @@ export class AuthController {
     type: MessageResponseDto,
   })
   @ApiValidationError()
-  @ApiForbiddenError('Invitation not for current user')
+  @ApiForbiddenError(
+    'Email not verified, invitation not for current user, or invalid invitation token',
+  )
   @ApiNotFoundError('Invitation not found or expired')
   @ApiConflictError('User already member of tenant')
   @ApiAuthenticatedResponses()
   acceptInvitation(
     @Param() params: InvitationIdParamDto,
+    @Body() body: AcceptInvitationDto,
     @CurrentUserIdentity() identityUser: AuthenticatedIdentityUser,
   ): Promise<MessageResponseDto> {
     return this.authService.acceptInvitation(
       params.invitationId,
+      body.token,
       identityUser.userId,
       identityUser.email,
     );
@@ -861,6 +874,7 @@ export class AuthController {
    * Reject tenant invitation
    */
   @AuthOptions({ identity: true })
+  @UseGuards(VerifiedUserGuard)
   @Post('invitations/:invitationId/reject')
   @Audit('INVITATION_REJECTED', {
     resourceIdParam: 'invitationId',
@@ -884,7 +898,7 @@ export class AuthController {
     type: MessageResponseDto,
   })
   @ApiValidationError()
-  @ApiForbiddenError('Invitation not for current user')
+  @ApiForbiddenError('Email not verified, or invitation not for current user')
   @ApiNotFoundError('Invitation')
   @ApiAuthenticatedResponses()
   rejectInvitation(

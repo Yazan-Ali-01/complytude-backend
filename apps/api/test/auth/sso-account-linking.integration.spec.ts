@@ -72,7 +72,8 @@ function tokenSubject(token: string): string {
 }
 
 // The status code isn't asserted: the callback redirects currently go out as 200 + Location
-// (Intake N-003). The Location target and the cookies are what decide the outcome.
+// (Nest sets 200 before the handler runs and Fastify 5 reply.redirect keeps it). The Location
+// target and the cookies are what decide the outcome.
 function expectRefusedWithoutSession(res: InjectResponse): void {
   const location = new URL(String(res.headers.location));
   expect(location.searchParams.get('sso')).toBe('error');
@@ -261,30 +262,39 @@ describe('SSO account linking', () => {
       expect(await verificationRecordCount(created!.id)).toBe(0);
     });
 
-    it('creates an unverified account with a verification record when Google did not verify the email', async () => {
+    it('creates an unverified account with a verification record, but no session, when Google did not verify the email', async () => {
       const email = `new-${randomUUID()}@example.com`;
 
-      await ssoCallback('google', googleProfile(email, false));
+      const res = await ssoCallback('google', googleProfile(email, false));
 
+      expectRefusedWithoutSession(res);
       const created = await users.findByEmailRow(email);
       expect(created?.is_verified).toBe(false);
       expect(await verificationRecordCount(created!.id)).toBe(1);
     });
 
-    it('creates Microsoft accounts unverified, with a verification record', async () => {
+    it('creates Microsoft accounts unverified, with a verification record, and gives them no session until verified', async () => {
       const email = `new-${randomUUID()}@example.com`;
       const subject = randomUUID();
 
-      const res = await ssoCallback(
+      const first = await ssoCallback(
         'microsoft',
         microsoftProfile(email, subject),
       );
 
+      expectRefusedWithoutSession(first);
       const created = await users.findByEmailRow(email);
-      expect(expectSignedInAs(res)).toBe(created?.id);
       expect(created?.is_verified).toBe(false);
       expect(created?.microsoft_id).toBe(subject);
       expect(await verificationRecordCount(created!.id)).toBe(1);
+
+      // Once the email is verified, the linked Microsoft identity signs in.
+      await users.update(created!.id, { is_verified: true });
+      const afterVerification = await ssoCallback(
+        'microsoft',
+        microsoftProfile(email, subject),
+      );
+      expect(expectSignedInAs(afterVerification)).toBe(created?.id);
     });
   });
 

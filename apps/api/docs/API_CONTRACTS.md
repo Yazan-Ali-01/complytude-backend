@@ -752,12 +752,13 @@ SSO-only users cannot use `POST /auth/login` with a password until a password ex
 | ------ | ------------------------------ | ------------------------ |
 | 400    | Validation failed              | `ValidationErrorDto`     |
 | 401    | Missing/invalid identity token | `UnauthorizedErrorDto`   |
-| 403    | User doesn't belong to tenant  | `ForbiddenErrorDto`      |
+| 403    | Email not verified, or user doesn't belong to tenant | `ForbiddenErrorDto`      |
 | 404    | Tenant not found               | `NotFoundErrorDto`       |
 | 500    | Server error                   | `InternalServerErrorDto` |
 
 **Behind the Scenes:**
 
+- The user's email must be verified. `VerifiedUserGuard` reads `users.is_verified` from the database, not the JWT claim.
 - User's membership in specified tenant validated
 - Tenant access permissions verified
 - Tenant tokens generated (short + long-lived)
@@ -1116,6 +1117,21 @@ New tenants are created with:
 ---
 
 ## Invitation System & Seat Enforcement
+
+### Accepting an invitation
+
+| Method | Path | Requirement |
+| ------ | ---- | ----------- |
+| GET    | `/api/v1/auth/invitations/resolve?token=…` | Public. Shows the invitation behind a link. |
+| GET    | `/api/v1/auth/invitations` | Identity token + **verified email**. Lists pending invitations for the user's email (no tokens). |
+| POST   | `/api/v1/auth/invitations/:invitationId/accept` | Identity token + **verified email** + body `{ "token": "<64 hex chars from the invitation link>" }`. |
+| POST   | `/api/v1/auth/invitations/:invitationId/reject` | Identity token + **verified email**. |
+
+- **Verified email:** `VerifiedUserGuard` reads `users.is_verified` from the database, never the JWT claim. An unverified user gets **403** `EMAIL_VERIFICATION_REQUIRED`. Unverified users also can't log in in the first place (401).
+- **Token:** accept compares `sha256(token)` with the stored hash in constant time, before anything else about the invitation is checked. A missing or malformed token is **400**; a token that isn't this invitation's (including another invitation's token) is **403** `INVITATION_TOKEN_INVALID`. An invitation found through the list can only be accepted with the token from its link.
+- The invitation email must still match the user's email (**403** `INVITATION_EMAIL_MISMATCH`).
+- Accept currently answers **201** (the route has no `@HttpCode`), although Swagger says 200.
+- The token reaches the invitee only through the link. Invitation emails aren't sent yet, so for now `POST /tenants/admin/invitations` and `…/resend` return it to the inviting admin. The API never logs it.
 
 ### Seat Capacity Enforcement
 

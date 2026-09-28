@@ -5,6 +5,7 @@
     "INVITATION_EXPIRED": "Invitation has expired",
     "INVITATION_WRONG_STATUS": "Invitation is {status} and cannot be {action}",
     "INVITATION_EMAIL_MISMATCH": "This invitation is not for your email address",
+    "INVITATION_TOKEN_INVALID": "This invitation link is not valid. Use the link from your invitation email.",
     "INVITATION_ALREADY_EXISTS": "A pending invitation already exists for this email",
     "USER_ALREADY_MEMBER": "User is already a member of this tenant",
     "INVITATION_WRONG_TENANT": "Invitation does not belong to this tenant",

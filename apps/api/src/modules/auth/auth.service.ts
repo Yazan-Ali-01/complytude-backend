@@ -316,6 +316,9 @@ export class AuthService {
     }
 
     const user = await this.resolveOrCreateSsoUser(profile);
+    // A new account from an unverified provider email exists now (and was sent a verification
+    // email), but it gets no session until that email is verified.
+    this.assertEmailVerified(user);
     const { identityAccessToken, identityRefreshToken } =
       await this.issueIdentitySessionAndTokens(user, request);
     return { identityAccessToken, identityRefreshToken };
@@ -618,7 +621,23 @@ export class AuthService {
       );
     }
 
+    // Checked after the password, so only the password holder learns the account is unverified
+    this.assertEmailVerified(user);
+
     return user;
+  }
+
+  /**
+   * No identity session for an unverified email: until the owner proves the mailbox, the account
+   * may belong to someone who only typed that address (password signup) or asserted it (SSO).
+   */
+  private assertEmailVerified(user: User): void {
+    if (!user.is_verified) {
+      this.logger.warn(`Login refused: email not verified for user ${user.id}`);
+      throw new UnauthorizedException(
+        this.i18n.t(AuthI18n.errors.EMAIL_NOT_VERIFIED),
+      );
+    }
   }
 
   private authProviderLabel(provider: User['auth_provider']): string {
@@ -1217,11 +1236,13 @@ export class AuthService {
    */
   async acceptInvitation(
     invitationId: string,
+    token: string,
     userId: string,
     email: string,
   ): Promise<MessageResponseDto> {
     return this.invitationsService.acceptInvitation(
       invitationId,
+      token,
       userId,
       email,
     );

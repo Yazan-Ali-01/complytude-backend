@@ -5,6 +5,7 @@
     "INVITATION_EXPIRED": "انتهت صلاحية الدعوة",
     "INVITATION_WRONG_STATUS": "الدعوة {status} ولا يمكن {action}",
     "INVITATION_EMAIL_MISMATCH": "هذه الدعوة ليست لعنوان بريدك الإلكتروني",
+    "INVITATION_TOKEN_INVALID": "رابط الدعوة هذا غير صالح. استخدم الرابط الموجود في رسالة الدعوة.",
     "INVITATION_ALREADY_EXISTS": "يوجد دعوة معلقة بالفعل لهذا البريد الإلكتروني",
     "USER_ALREADY_MEMBER": "المستخدم عضو بالفعل في هذه المؤسسة",
     "INVITATION_WRONG_TENANT": "الدعوة لا تنتمي إلى هذه المؤسسة",

@@ -652,7 +652,7 @@ All four payload types include `sessionId` linking to Redis sessions. Strategies
 
 1. **Route-Level:** `JwtAuthGuard` (global, deny-by-default) validates the tokens `@AuthOptions()` requires. Routes without `@AuthOptions()` must be marked `@Public()` or `@AuthRefreshOptions()`, or they return 401
 2. **Identity-Level:** Identity tokens for user verification and system admin access
-3. **Verified User-Level:** `VerifiedUserGuard` ensures email verification before critical operations (e.g., tenant creation)
+3. **Verified User-Level:** `VerifiedUserGuard` ensures email verification before critical operations: tenant creation, `tenant-switch`, and listing, accepting or rejecting invitations. It reads `users.is_verified` from the database, never the JWT claim, so the module using it must provide `UserRepository`. Login and SSO sign-in also refuse unverified accounts.
 4. **Tenant-Level:** Tenant tokens provide tenant-scoped access
 5. **Role-Level:** `RolesGuard` with `@Roles()` for simple role checks (e.g., `tenant_admin`)
 6. **Permission-Level:** `TenantPermissionsGuard` with `@RequirePermissions()` decorators for fine-grained RBAC

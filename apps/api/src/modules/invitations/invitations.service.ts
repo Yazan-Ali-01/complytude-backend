@@ -169,10 +169,23 @@ export class InvitationsService {
   }
 
   /**
-   * Accept invitation (AUTHENTICATED - email must match)
+   * Constant-time comparison of a presented invitation token with the stored sha256 hash.
+   */
+  private isTokenForInvitation(token: string, tokenHash: string): boolean {
+    const presented = Buffer.from(this.hashToken(token), 'hex');
+    const stored = Buffer.from(tokenHash, 'hex');
+    return (
+      presented.length === stored.length &&
+      crypto.timingSafeEqual(presented, stored)
+    );
+  }
+
+  /**
+   * Accept invitation (AUTHENTICATED - verified email must match, and the invitation token is required)
    */
   async acceptInvitation(
     invitationId: string,
+    token: string,
     userId: string,
     email: string,
   ): Promise<{ message: string }> {
@@ -189,6 +202,14 @@ export class InvitationsService {
       if (!invitation) {
         throw new NotFoundException(
           this.i18n.t(InvitationsI18n.errors.INVITATION_NOT_FOUND),
+        );
+      }
+
+      // The token (from the invitation link) is checked before anything about the invitation
+      // is revealed; the invitation ID alone is visible to anyone listing their invitations.
+      if (!this.isTokenForInvitation(token, invitation.tokenHash)) {
+        throw new ForbiddenException(
+          this.i18n.t(InvitationsI18n.errors.INVITATION_TOKEN_INVALID),
         );
       }
 
