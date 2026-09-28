@@ -852,7 +852,7 @@ export class AuthService {
       }),
     );
 
-    if (!userTenant || !userTenant.is_active) {
+    if (!userTenant || !userTenant.is_active || !userTenant.tenant_is_active) {
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.TENANT_ACCESS_DENIED),
       );
@@ -1177,7 +1177,11 @@ export class AuthService {
         { client, isAuthflow: true },
       );
 
-      if (!userTenant || !userTenant.is_active) {
+      if (
+        !userTenant ||
+        !userTenant.is_active ||
+        !userTenant.tenant_is_active
+      ) {
         throw new UnauthorizedException(
           this.i18n.t(AuthI18n.errors.TENANT_ACCESS_DENIED),
         );

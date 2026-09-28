@@ -10,7 +10,7 @@ export async function validateSessions(
   req: {
     auth?: {
       identity?: { sessionId?: string };
-      tenant?: { sessionId?: string };
+      tenant?: { sessionId?: string; tenantId?: string };
     };
   },
   authOptions: { tenant?: boolean; identity?: boolean },
@@ -21,7 +21,11 @@ export async function validateSessions(
     i18n?.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID) ??
     'Session expired or invalid';
 
-  const validate = async (sessionId: string, type: 'identity' | 'tenant') => {
+  const validate = async (
+    sessionId: string,
+    type: 'identity' | 'tenant',
+    tenantId?: string,
+  ) => {
     if (!sessionId) {
       throw new UnauthorizedException(msg);
     }
@@ -32,6 +36,10 @@ export async function validateSessions(
           ? await sessionService.identitySessionExistsPure(sessionId)
           : await sessionService.tenantSessionExistsPure(sessionId);
       if (!exists) {
+        throw new UnauthorizedException(msg);
+      }
+      // A deactivated tenant's tokens stop working at once, whatever session they carry
+      if (tenantId && (await sessionService.isTenantInactive(tenantId))) {
         throw new UnauthorizedException(msg);
       }
       if (type === 'identity') {
@@ -57,6 +65,10 @@ export async function validateSessions(
     await validate(req.auth.identity.sessionId ?? '', 'identity');
   }
   if (authOptions?.tenant && req.auth?.tenant) {
-    await validate(req.auth.tenant.sessionId ?? '', 'tenant');
+    await validate(
+      req.auth.tenant.sessionId ?? '',
+      'tenant',
+      req.auth.tenant.tenantId ?? '',
+    );
   }
 }

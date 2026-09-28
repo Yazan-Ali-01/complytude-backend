@@ -19,6 +19,7 @@ import {
   TenantRepository,
   UpdateTenantRow,
 } from '../../repositories/tenants/tenant.repository';
+import { SessionInvalidationService } from '../auth/services/session-invalidation.service';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import {
   QueueProducerService,
@@ -81,6 +82,7 @@ export class TenantService {
     private readonly subscriptionsService: SubscriptionsService,
     private readonly userTenantRepository: UserTenantRepository,
     private readonly i18n: I18nService,
+    private readonly sessionInvalidation: SessionInvalidationService,
   ) {}
 
   // ============================================================================
@@ -767,31 +769,48 @@ export class TenantService {
       );
     }
 
-    return this.executeInTenantScope(tenantId, context, async (client) => {
-      const tenant = await this.findById(tenantId, { client });
-      if (!tenant.is_active) {
-        throw new BadRequestException(
-          this.i18n.t(TenantsI18n.errors.TENANT_ALREADY_DEACTIVATED, {
-            args: { tenantId },
-          }),
+    const { updated, memberIds } = await this.executeInTenantScope(
+      tenantId,
+      context,
+      async (client) => {
+        const tenant = await this.findById(tenantId, { client });
+        if (!tenant.is_active) {
+          throw new BadRequestException(
+            this.i18n.t(TenantsI18n.errors.TENANT_ALREADY_DEACTIVATED, {
+              args: { tenantId },
+            }),
+          );
+        }
+
+        const updated = await this.updateOrThrow(
+          tenantId,
+          {
+            is_active: false,
+            deactivated_at: new Date(),
+            deactivation_reason: dto.reason,
+          },
+          client,
         );
-      }
+        const members = await this.userTenantRepository.findMany(
+          { tenant_id: tenantId },
+          { client },
+          false,
+        );
+        return {
+          updated,
+          memberIds: members.data.map((member) => member.user_id),
+        };
+      },
+    );
 
-      const updated = await this.updateOrThrow(
-        tenantId,
-        {
-          is_active: false,
-          deactivated_at: new Date(),
-          deactivation_reason: dto.reason,
-        },
-        client,
-      );
+    // After the commit: existing tenant tokens stop working and members' sessions end. Switch and
+    // refresh already refuse the tenant from the database.
+    await this.sessionInvalidation.revokeTenantAccess(tenantId, memberIds);
 
-      this.logger.warn(
-        `Tenant ${tenantId} deactivated by admin. Reason: ${dto.reason}`,
-      );
-      return updated;
-    });
+    this.logger.warn(
+      `Tenant ${tenantId} deactivated by admin. Reason: ${dto.reason}`,
+    );
+    return updated;
   }
 
   /**
@@ -844,6 +863,9 @@ export class TenantService {
       }
 
       this.logger.log(`Tenant ${tenantId} reactivated by admin`);
+      return updated;
+    }).then(async (updated) => {
+      await this.sessionInvalidation.restoreTenantAccess(tenantId);
       return updated;
     });
   }

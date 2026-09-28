@@ -9,14 +9,13 @@ import { UserRepository } from 'src/repositories/users/user.repository';
 import { EmailModule } from '../email/email.module';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { TenantModule } from '../tenants/tenant.module';
+import { SessionsModule } from './sessions.module';
 import { AdminSessionsController } from './admin-sessions.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleSsoAuthGuard } from './guards/google-sso-auth.guard';
 import { MicrosoftSsoAuthGuard } from './guards/microsoft-sso-auth.guard';
 import { GeoLocationService } from './services/geo-location.service';
-import { SessionInvalidationService } from './services/session-invalidation.service';
-import { SessionService } from './services/session.service';
 import { GoogleSsoStrategy } from './strategies/google-sso.strategy';
 import { JwtIdentityAccessStrategy } from './strategies/jwt-identity-access.strategy';
 import { JwtIdentityRefreshStrategy } from './strategies/jwt-identity-refresh.strategy';
@@ -37,13 +36,12 @@ import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.fil
     EmailModule,
     TenantModule,
     InvitationsModule,
+    SessionsModule,
   ],
   controllers: [AuthController, AdminSessionsController],
   providers: [
     AuthService,
     GeoLocationService,
-    SessionService,
-    SessionInvalidationService,
     JwtTenantAccessStrategy,
     JwtTenantRefreshStrategy,
     JwtIdentityAccessStrategy,
@@ -57,6 +55,6 @@ import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.fil
     EmailVerificationRepository,
     UserTenantRepository,
   ],
-  exports: [AuthService, SessionService, SessionInvalidationService],
+  exports: [AuthService, SessionsModule],
 })
 export class AuthModule {}

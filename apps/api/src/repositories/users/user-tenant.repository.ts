@@ -463,7 +463,7 @@ export class UserTenantRepository extends BaseRepository<
   }
 
   /**
-   * Get all active user tenants.
+   * Get the tenants a user can enter: active memberships of active tenants.
    *
    * @param userId - User ID
    * @param options - Query options (tenant context, client, etc.)
@@ -479,7 +479,7 @@ export class UserTenantRepository extends BaseRepository<
       return this.executeQuery<UserTenantRow>(
         `SELECT ${this.getSelectColumns(includeRoleName)}
        FROM ${this.getFromClause(includeRoleName)}
-       WHERE ut.user_id = $1 AND ut.is_active = true
+       WHERE ut.user_id = $1 AND ut.is_active = true AND t.is_active = true
        ORDER BY ut.joined_at DESC`,
         [userId],
         { client, ...options },
@@ -532,7 +532,8 @@ export class UserTenantRepository extends BaseRepository<
     const roleColumn = includeRoleName ? ', r.name as role_name' : '';
 
     const result = await this.executeQuery<UserTenantWithUserRow>(
-      `SELECT ut.user_id, ut.tenant_id, t.name AS tenant_name, ut.role_key${roleColumn}, ut.is_active, ut.joined_at, ut.updated_at,
+      `SELECT ut.user_id, ut.tenant_id, t.name AS tenant_name, COALESCE(t.is_active, false) AS tenant_is_active,
+              ut.role_key${roleColumn}, ut.is_active, ut.joined_at, ut.updated_at,
               u.email, u.first_name, u.last_name, u.is_verified, u.platform_role_key
        FROM ${this.tableName} ut
        ${roleJoin}
@@ -556,12 +557,13 @@ export class UserTenantRepository extends BaseRepository<
   ): Promise<UserTenantWithUserRow[]> {
     const result = await this.executeQuery<UserTenantWithUserRow>(
       `SELECT ut.user_id, ut.tenant_id, ut.role_key, r.name AS role_name, ut.is_active,
-              ut.joined_at, ut.updated_at,
+              ut.joined_at, ut.updated_at, COALESCE(t.is_active, false) AS tenant_is_active,
               u.email, u.first_name, u.last_name, u.is_verified, u.platform_role_key
        FROM ${this.tableName} ut
        INNER JOIN public.tenant_roles r ON r.key = ut.role_key
          AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
        JOIN public.users u ON ut.user_id = u.id
+       LEFT JOIN public.tenants t ON t.id = ut.tenant_id
        WHERE ut.tenant_id = $1
        ORDER BY ut.joined_at, ut.user_id`,
       [tenantId],

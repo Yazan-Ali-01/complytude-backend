@@ -11,6 +11,7 @@
  * - user:identity-sessions:{userId} — SET of identity session IDs
  * - user:tenant-sessions:{userId}:{tenantId} — SET of tenant session IDs
  * - session-activity:{sessionId} — TTL key for activity throttle
+ * - tenant-inactive:{tenantId} — present while a platform admin has the tenant deactivated
  */
 
 /** Redis key builders — keys are prefixed by Redis client (keyPrefix) */
@@ -30,6 +31,9 @@ export const SESSION_KEYS = {
 
   /** Activity throttle TTL key — prevents excessive lastActivityAt updates */
   sessionActivity: (sessionId: string) => `session-activity:${sessionId}`,
+
+  /** Deactivated tenant marker: tenant tokens for it are refused (no TTL; removed on reactivation) */
+  inactiveTenant: (tenantId: string) => `tenant-inactive:${tenantId}`,
 } as const;
 
 /**

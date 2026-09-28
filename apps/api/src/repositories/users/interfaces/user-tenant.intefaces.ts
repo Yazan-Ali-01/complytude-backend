@@ -14,4 +14,6 @@ export interface UserTenantWithUserRow extends UserTenant {
   last_name: string | null;
   is_verified: boolean;
   platform_role_key: string | null;
+  /** tenants.is_active: false while a platform admin has the tenant deactivated */
+  tenant_is_active: boolean;
 }

@@ -1,3 +1,4 @@
+import { SessionsModule } from '../auth/sessions.module';
 import { Module } from '@nestjs/common';
 import { TenantAdminController } from 'src/modules/tenants/admin.controller';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
@@ -10,7 +11,7 @@ import { TenantController } from './tenant.controller';
 import { TenantService } from './tenant.service';
 
 @Module({
-  imports: [InvitationsModule, SubscriptionsModule],
+  imports: [InvitationsModule, SubscriptionsModule, SessionsModule],
   controllers: [
     TenantController,
     TenantAdminController,

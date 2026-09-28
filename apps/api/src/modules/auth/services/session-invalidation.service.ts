@@ -101,6 +101,28 @@ export class SessionInvalidationService {
   }
 
   /**
+   * Cut a deactivated tenant off: its tokens are refused from now on (the marker is checked on
+   * every tenant request), and every member's sessions in it end.
+   */
+  async revokeTenantAccess(
+    tenantId: string,
+    memberUserIds: string[],
+  ): Promise<void> {
+    await this.sessionService.markTenantInactive(tenantId);
+    for (const userId of memberUserIds) {
+      await this.invalidateTenantSessions(userId, tenantId);
+    }
+    this.logger.log(
+      `Revoked access to tenant ${tenantId} (${memberUserIds.length} members)`,
+    );
+  }
+
+  /** Undo revokeTenantAccess's marker when the tenant is reactivated. */
+  async restoreTenantAccess(tenantId: string): Promise<void> {
+    await this.sessionService.clearTenantInactive(tenantId);
+  }
+
+  /**
    * Invalidate all tenant sessions for a user in a specific tenant.
    * Used for: user removed from tenant, role change, user deactivated.
    */

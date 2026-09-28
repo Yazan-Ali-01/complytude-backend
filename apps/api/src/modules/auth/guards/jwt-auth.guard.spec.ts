@@ -49,6 +49,7 @@ describe('JwtAuthGuard', () => {
       | 'tenantSessionExistsPure'
       | 'touchIdentityActivity'
       | 'touchTenantActivity'
+      | 'isTenantInactive'
     >
   >;
   let configService: jest.Mocked<Pick<ConfigService, 'get'>>;
@@ -63,6 +64,7 @@ describe('JwtAuthGuard', () => {
       tenantSessionExistsPure: jest.fn(),
       touchIdentityActivity: jest.fn(),
       touchTenantActivity: jest.fn(),
+      isTenantInactive: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<
       Pick<
         SessionService,
@@ -70,6 +72,7 @@ describe('JwtAuthGuard', () => {
         | 'tenantSessionExistsPure'
         | 'touchIdentityActivity'
         | 'touchTenantActivity'
+        | 'isTenantInactive'
       >
     >;
 

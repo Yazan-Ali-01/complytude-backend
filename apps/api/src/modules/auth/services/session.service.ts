@@ -290,6 +290,19 @@ export class SessionService {
     return !this.isIdleExpired(data.lastActivityAt);
   }
 
+  /** Whether a platform admin has deactivated the tenant (its tokens are refused). */
+  async isTenantInactive(tenantId: string): Promise<boolean> {
+    return this.redis.exists(SESSION_KEYS.inactiveTenant(tenantId));
+  }
+
+  async markTenantInactive(tenantId: string): Promise<void> {
+    await this.redis.set(SESSION_KEYS.inactiveTenant(tenantId), true);
+  }
+
+  async clearTenantInactive(tenantId: string): Promise<void> {
+    await this.redis.del(SESSION_KEYS.inactiveTenant(tenantId));
+  }
+
   async deleteTenantSession(
     sessionId: string,
     userId: string,

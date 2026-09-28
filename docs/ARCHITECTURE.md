@@ -568,10 +568,10 @@ The authentication system is transitioning to **Redis-backed session management*
 
 **Geo Enrichment (MaxMind):** GeoLocationService performs fire-and-forget IP-to-location lookup during login using GeoLite2-City. Sessions are created with `geoLocation: null`; when lookup succeeds, the session is updated asynchronously. Geo is disabled when `MAXMIND_DB_PATH` is empty or the database file is missing. See `scripts/download-geolite2-city.sh` and `scripts/README.md`.
 
-**Session Services:**
+**Session Services** (`SessionsModule`, `apps/api/src/modules/auth/sessions.module.ts`; `AuthModule` re-exports it, and modules `AuthModule` depends on, such as tenants, import it directly):
 
-- **SessionService** — Core CRUD for identity and tenant sessions, idle timeout enforcement, activity throttling, Lua-based session limit enforcement (max 5 identity sessions per user)
-- **SessionInvalidationService** — Bulk invalidation for security events: `invalidateAllUserSessions(userId)`, `invalidateTenantSessions(userId, tenantId)`
+- **SessionService** — Core CRUD for identity and tenant sessions, idle timeout enforcement, activity throttling, Lua-based session limit enforcement (max 5 identity sessions per user), and the deactivated-tenant marker (`tenant-inactive:{tenantId}`)
+- **SessionInvalidationService** — Bulk invalidation for security events: `invalidateAllUserSessions(userId, { exceptIdentitySessionId? })`, `invalidateTenantSessions(userId, tenantId)`, `revokeTenantAccess(tenantId, memberIds)` / `restoreTenantAccess(tenantId)`
 - **GeoLocationService** — MaxMind GeoLite2-City IP lookup for session enrichment (optional, fire-and-forget)
 
 **User Session Endpoints** (identity token required, tenant token for tenant-scoped):
@@ -609,7 +609,9 @@ These routes are enforced by `TenantPermissionsGuard` with `TENANT_PERMISSIONS.S
 
 Each read/write is followed by `AuditService.log` with `action: SYSTEM_ADMIN_SESSION_ACCESS`, `details.type: BREAK_GLASS`, and `userRole: system_admin` (break-glass audit). Controller: `AdminSessionsController` in `apps/api/src/modules/auth/admin-sessions.controller.ts`.
 
-**Security event hooks (UsersService):** `UsersModule` imports `AuthModule` and injects `SessionInvalidationService`. Password change calls `invalidateAllUserSessions(userId)`. Remove-from-tenant, role change, and deactivation (`isActive` set to false) call `invalidateTenantSessions(userId, tenantId)`. Placeholder types for suspicious-activity reporting live in `apps/api/src/modules/users/interfaces/suspicious-activity-hook.interface.ts` (implementation: COM-109).
+**Security event hooks (UsersService):** `UsersModule` imports `AuthModule` and injects `SessionInvalidationService`. Password change calls `invalidateAllUserSessions(userId, { exceptIdentitySessionId })` (every session but the one making the change). Remove-from-tenant, role change, and deactivation (`isActive` set to false) call `invalidateTenantSessions(userId, tenantId)`.
+
+**Tenant deactivation (TenantService):** `POST /admin/tenants/:id/deactivate` commits `tenants.is_active = false`, then calls `revokeTenantAccess`: it sets the `tenant-inactive:{tenantId}` marker, which `validateSessions` checks on every tenant-token request (access and refresh), and ends every member's tenant sessions. Tenant switch and tenant refresh also require `tenants.is_active` from the database, and login and `/users/me/tenants` leave inactive tenants out. Reactivation clears the marker. Placeholder types for suspicious-activity reporting live in `apps/api/src/modules/users/interfaces/suspicious-activity-hook.interface.ts` (implementation: COM-109).
 
 **Redis Key Patterns:**
 
