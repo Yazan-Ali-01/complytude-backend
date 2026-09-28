@@ -321,6 +321,10 @@ const queue = app.module.get<Queue>(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCES
 await waitForQueueIdle(queue, 15000);
 ```
 
+### Testing worker code
+
+A worker has no test app of its own. To run its service against the real schema, construct it in an API integration test with its repositories on `app.appDatabaseService` (the workers connect as the app role) and fake only what leaves the process (S3, Gotenberg, LLMs). `documents/document-generation.integration.spec.ts` does this for the generation worker: the API's `generate()` creates the job and the worker processes the payload the API queued. Import worker files by relative path (`../../../worker-generation/src/...`); a `@lib/*` library they use must be mapped in the integration project's `moduleNameMapper` in `jest.config.ts`.
+
 ### Factories
 
 | Factory | Function | Description |

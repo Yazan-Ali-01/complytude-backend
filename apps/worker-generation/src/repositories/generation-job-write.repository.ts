@@ -1,5 +1,6 @@
 import { DatabaseService } from '@lib/database';
 import { Injectable } from '@nestjs/common';
+import { PoolClient } from 'pg';
 
 export type GenerationJobStatus =
   | 'queued'
@@ -41,16 +42,15 @@ export class GenerationJobWriteRepository {
   async markCompleted(
     id: string,
     result: Record<string, unknown>,
+    client?: PoolClient,
   ): Promise<void> {
-    await this.databaseService.transactionWithPlatformAdminContext(
-      async (client) => {
-        await client.query(
-          `UPDATE public.generation_jobs
-           SET status = 'completed', result = $2::jsonb, completed_at = now(), updated_at = now()
-           WHERE id = $1`,
-          [id, JSON.stringify(result)],
-        );
-      },
+    await this.run(client, (c) =>
+      c.query(
+        `UPDATE public.generation_jobs
+         SET status = 'completed', result = $2::jsonb, completed_at = now(), updated_at = now()
+         WHERE id = $1`,
+        [id, JSON.stringify(result)],
+      ),
     );
   }
 
@@ -93,14 +93,26 @@ export class GenerationJobWriteRepository {
     );
   }
 
-  async linkDocumentToJob(jobId: string, documentId: string): Promise<void> {
-    await this.databaseService.transactionWithPlatformAdminContext(
-      async (client) => {
-        await client.query(
-          `UPDATE public.generation_jobs SET document_id = $2, updated_at = now() WHERE id = $1`,
-          [jobId, documentId],
-        );
-      },
+  async linkDocumentToJob(
+    jobId: string,
+    documentId: string,
+    client?: PoolClient,
+  ): Promise<void> {
+    await this.run(client, (c) =>
+      c.query(
+        `UPDATE public.generation_jobs SET document_id = $2, updated_at = now() WHERE id = $1`,
+        [jobId, documentId],
+      ),
     );
+  }
+
+  /** Runs in the caller's transaction when given one, else in its own. */
+  private run<T>(
+    client: PoolClient | undefined,
+    work: (client: PoolClient) => Promise<T>,
+  ): Promise<T> {
+    return client
+      ? work(client)
+      : this.databaseService.transactionWithPlatformAdminContext(work);
   }
 }

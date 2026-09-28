@@ -1,6 +1,6 @@
 # Generation Worker Documentation
 
-**Status:** Scaffolded (implementation pending — see COM-229)  
+**Status:** Implemented (preview and generate)  
 **Queue:** `document-generation`  
 **Port:** 3003 (configurable)
 
@@ -44,8 +44,11 @@ apps/worker-generation/src/
 │   └── worker-generation.config.ts            # ConfigService factory
 ├── processors/
 │   └── document-generation.processor.ts      # BullMQ processor (routes by job.name)
+├── repositories/
+│   ├── document-write.repository.ts           # Creates the generated document row
+│   └── generation-job-write.repository.ts     # Job status transitions
 └── services/
-    └── document-generation.service.ts         # Generation orchestration (stub — COM-229)
+    └── document-generation.service.ts         # Generation orchestration
 ```
 
 ### Job Flow
@@ -57,13 +60,21 @@ API dispatches job:
 DocumentGenerationProcessor.handle(job)
   → Routes to DocumentGenerationWorkerService.generate(data)
                               ↓
-DocumentGenerationWorkerService pipeline (COM-229):
-  1. Load template version from DB + DOCX from S3
-  2. Render DOCX with variables (docxtemplater)
-  3. If jobType === 'generate': convert to PDF via Gotenberg
-  4. Upload result to S3
-  5. Update generation_jobs: status → completed, result_s3_key
+DocumentGenerationWorkerService pipeline:
+  1. Skip if the job is already completed; claim it (status → processing)
+  2. Load the DOCX from S3 (templates/<templateId>/<version>/template.docx)
+  3. Render DOCX with variables (docxtemplater)
+  4. preview: convert to PDF, watermark, upload to previews/<jobId>.pdf, complete with a signed URL
+     generate: convert to PDF, upload to tenants/<tenantId>/documents/<documentId>/contract.pdf,
+     then in ONE transaction: insert the document, link it to the job, complete the job
 ```
+
+**Retries don't duplicate:** a generate job makes exactly one document, whose ID is the generation
+job's ID. A retry therefore overwrites the same S3 object and finds the same row
+(`INSERT … ON CONFLICT (id) DO NOTHING`), and because insert, link and completion commit together, a
+failure part-way leaves nothing behind for the retry to trip over. On the final failed attempt the
+worker marks the job failed and queues a `USAGE_REFUND`, which gives the document back to the
+tenant's quota.
 
 ### Job Payload
 

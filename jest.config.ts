@@ -43,6 +43,7 @@ const sharedProjectConfig = {
     '^@lib/storage/(.*)$': '<rootDir>/../../libs/storage/src/$1',
     '^@lib/pdf$': '<rootDir>/../../libs/pdf/src/index.ts',
     '^@lib/pdf/(.*)$': '<rootDir>/../../libs/pdf/src/$1',
+    '^@lib/docx-renderer$': '<rootDir>/../../libs/docx-renderer/src/index.ts',
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
   testEnvironment: 'node',

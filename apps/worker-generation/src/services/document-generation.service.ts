@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import { DocxRendererService } from '@lib/docx-renderer';
 import { PdfConversionService } from '@lib/pdf';
 import type { DocumentGenerationJobData } from '@lib/queue';
@@ -30,6 +31,7 @@ export class DocumentGenerationWorkerService {
     private readonly documentWriteRepo: DocumentWriteRepository,
     private readonly configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
+    private readonly databaseService: DatabaseService,
   ) {
     this.templatesBucket =
       this.configService.get<string>('storage.buckets.templatesBucketName') ??
@@ -185,7 +187,9 @@ export class DocumentGenerationWorkerService {
     const pdfBuffer = await this.pdfConversion.convertDocxToPdf(renderedDocx);
 
     const title = await this.buildDocumentTitle(templateId, variables);
-    const documentId = crypto.randomUUID();
+    // One job makes one document: a retry reuses the ID and S3 key, so it overwrites its own
+    // PDF and finds its own row instead of creating a second one
+    const documentId = generationJobId;
     const s3Key = `tenants/${tenantId}/documents/${documentId}/contract.pdf`;
 
     await this.s3.putObject(
@@ -195,32 +199,40 @@ export class DocumentGenerationWorkerService {
       'application/pdf',
     );
 
-    const { id: createdDocId } = await this.documentWriteRepo.createGenerated({
-      tenantId,
-      title,
-      s3Key,
-      s3Bucket: this.filesBucket,
-      originalFilename: 'contract.pdf',
-      fileSizeBytes: pdfBuffer.length,
-      mimeType: 'application/pdf',
-      templateId,
-      templateVersionId,
-      generationVariables: variables,
-      createdBy: userId,
-    });
-
-    await this.generationJobRepo.linkDocumentToJob(
-      generationJobId,
-      createdDocId,
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        await this.documentWriteRepo.createGenerated(
+          {
+            id: documentId,
+            tenantId,
+            title,
+            s3Key,
+            s3Bucket: this.filesBucket,
+            originalFilename: 'contract.pdf',
+            fileSizeBytes: pdfBuffer.length,
+            mimeType: 'application/pdf',
+            templateId,
+            templateVersionId,
+            generationVariables: variables,
+            createdBy: userId,
+          },
+          client,
+        );
+        await this.generationJobRepo.linkDocumentToJob(
+          generationJobId,
+          documentId,
+          client,
+        );
+        await this.generationJobRepo.markCompleted(
+          generationJobId,
+          { documentId, s3Key, fileSize: pdfBuffer.length },
+          client,
+        );
+      },
     );
-    await this.generationJobRepo.markCompleted(generationJobId, {
-      documentId: createdDocId,
-      s3Key,
-      fileSize: pdfBuffer.length,
-    });
 
     this.logger.log(
-      `Generate completed: generationJobId=${generationJobId} documentId=${createdDocId} s3Key=${s3Key}`,
+      `Generate completed: generationJobId=${generationJobId} documentId=${documentId} s3Key=${s3Key}`,
     );
   }
 
