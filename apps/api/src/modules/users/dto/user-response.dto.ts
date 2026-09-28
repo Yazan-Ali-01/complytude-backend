@@ -110,10 +110,10 @@ export class UserTenantResponseDto {
  * Current tenant info response DTO
  * Returns tenant details resolved from JWT token
  */
-// TODO to use this approach and not follow the lazy approach
 export class TenantInfoResponseDto {
   constructor(data: Tenant) {
     this.id = data.id;
+    this.name = data.name ?? null;
     this.isActive = data.is_active;
     this.createdAt = data.created_at.toISOString();
     this.updatedAt = data.updated_at.toISOString();
@@ -124,6 +124,13 @@ export class TenantInfoResponseDto {
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
   id: string;
+
+  @ApiProperty({
+    description: 'Tenant name',
+    example: 'Acme Corporation',
+    nullable: true,
+  })
+  name: string | null;
 
   @ApiProperty({
     description: 'Whether tenant is active',
@@ -146,4 +153,50 @@ export class TenantInfoResponseDto {
     format: 'date-time',
   })
   updatedAt: string;
+}
+
+/**
+ * A member of the current tenant, as a tenant admin sees them
+ */
+export class TenantMemberResponseDto {
+  @ApiProperty({
+    description: 'User unique identifier',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  userId: string;
+
+  @ApiProperty({ description: 'Email address', example: 'user@example.com' })
+  email: string;
+
+  @ApiProperty({ description: 'First name', example: 'John', nullable: true })
+  firstName: string | null;
+
+  @ApiProperty({ description: 'Last name', example: 'Doe', nullable: true })
+  lastName: string | null;
+
+  @ApiProperty({ description: 'Email verification status', example: true })
+  isVerified: boolean;
+
+  @ApiProperty({
+    description: 'Role key within the tenant',
+    example: SystemTenantRole.MEMBER,
+  })
+  role: string;
+
+  @ApiProperty({ description: 'Role display name', example: 'Member' })
+  roleName: string;
+
+  @ApiProperty({
+    description: 'Whether the member can still sign in to this tenant',
+    example: true,
+  })
+  isActive: boolean;
+
+  @ApiProperty({
+    description: 'When the member joined the tenant',
+    example: '2026-01-15T08:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  joinedAt: string;
 }

@@ -8,7 +8,14 @@
     "USER_ALREADY_EXISTS_IN_TENANT": "User already exists in this tenant",
     "CANNOT_MODIFY_OWN_ROLE": "Cannot modify your own role",
     "CANNOT_REMOVE_YOURSELF": "Cannot remove yourself from the tenant",
-    "SSO_ACCOUNT_NO_LOCAL_PASSWORD": "This account has no password yet. Sign in with your SSO provider, or use the set-password flow when available."
+    "SSO_ACCOUNT_NO_LOCAL_PASSWORD": "This account has no password yet. Sign in with your SSO provider, or use the set-password flow when available.",
+    "CANNOT_CHANGE_OWN_ACCESS": "You can't change your own role or access",
+    "ROLE_NOT_FOUND": "Role not found in this tenant",
+    "ONLY_ADMIN_CAN_GRANT_ADMIN": "Only a tenant admin can change a tenant admin's role or access, or grant the tenant admin role",
+    "LAST_ACTIVE_ADMIN": "The tenant must keep at least one active tenant admin"
   },
-  "messages": {}
+  "messages": {
+    "PASSWORD_CHANGED": "Password changed. You were signed out on every other device.",
+    "MEMBER_REMOVED": "Member removed from the tenant"
+  }
 }

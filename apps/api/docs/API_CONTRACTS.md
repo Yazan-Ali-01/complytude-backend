@@ -1155,6 +1155,36 @@ The `user_seats` entitlement (capacity feature) is enforced at two points:
 
 ---
 
+## Users and Tenant Members
+
+### The signed-in user (`/api/v1/users/me*`)
+
+**Controller:** `UsersController` (`apps/api/src/modules/users/users.controller.ts`). Identity token, except `GET /users/me/current-tenant` (tenant token).
+
+| Route | Purpose |
+|---|---|
+| `GET /users/me` | Profile (`UserProfileResponseDto`). |
+| `PATCH /users/me` | `{ firstName?, lastName? }`. |
+| `PATCH /users/me/password` | `{ currentPassword, newPassword }`. 400 if the current password is wrong or the account has no local password (SSO). On success every **other** session of the user (all devices, all tenants) is signed out; the session that made the change stays signed in. |
+| `GET /users/me/tenants` | Tenants the user can switch into, with `tenantName`, role and join date. |
+| `GET /users/me/current-tenant` | The tenant of the tenant token (`id`, `name`, `isActive`, timestamps). |
+
+Login, tenant switch and the invitation screens return the tenant's real `name`.
+
+### Tenant members (`/api/v1/tenants/admin/users`)
+
+**Controller:** `TenantMembersController`. Tenant token + **`team:manage`** (tenant admins have it).
+
+| Route | Purpose |
+|---|---|
+| `GET /tenants/admin/users` | Every member, active or not: `userId`, `email`, names, `role`, `roleName`, `isActive`, `joinedAt`. |
+| `PATCH /tenants/admin/users/:userId` | `{ role?, isActive? }`. `role` must be a system role or one of this tenant's roles (else 400). Their sessions in this tenant end when the role changes or access is turned off. |
+| `DELETE /tenants/admin/users/:userId` | Removes the membership and ends their sessions in this tenant. |
+
+Rules (403 unless noted): nobody changes or removes themselves; only a `tenant_admin` may change or remove another tenant admin or grant the role; the tenant always keeps one active tenant admin (400, checked under a row lock so two admins can't remove each other at once). Member sessions: see "Session management API" above (`sessions:manage`).
+
+---
+
 ## Templates API
 
 Base path: `/api/v1/templates`

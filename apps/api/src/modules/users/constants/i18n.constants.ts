@@ -12,6 +12,13 @@ export const UsersI18n = {
     CANNOT_MODIFY_OWN_ROLE: 'users.errors.CANNOT_MODIFY_OWN_ROLE',
     CANNOT_REMOVE_YOURSELF: 'users.errors.CANNOT_REMOVE_YOURSELF',
     SSO_ACCOUNT_NO_LOCAL_PASSWORD: 'users.errors.SSO_ACCOUNT_NO_LOCAL_PASSWORD',
+    CANNOT_CHANGE_OWN_ACCESS: 'users.errors.CANNOT_CHANGE_OWN_ACCESS',
+    ROLE_NOT_FOUND: 'users.errors.ROLE_NOT_FOUND',
+    ONLY_ADMIN_CAN_GRANT_ADMIN: 'users.errors.ONLY_ADMIN_CAN_GRANT_ADMIN',
+    LAST_ACTIVE_ADMIN: 'users.errors.LAST_ACTIVE_ADMIN',
   },
-  messages: {},
+  messages: {
+    PASSWORD_CHANGED: 'users.messages.PASSWORD_CHANGED',
+    MEMBER_REMOVED: 'users.messages.MEMBER_REMOVED',
+  },
 } as const;

@@ -10,6 +10,7 @@ import {
 type UserTenantRow = {
   user_id: string;
   tenant_id: string;
+  tenant_name: string | null;
   role_key: string;
   role_name: string;
   is_active: boolean;
@@ -64,6 +65,7 @@ export class UserTenantRepository extends BaseRepository<
       tenant_id: data.tenant_id,
       role_key: data.role_key,
       role_name: data.role_name || '', // Default to empty string if not included
+      tenant_name: data.tenant_name ?? undefined,
       is_active: data.is_active,
       joined_at: data.joined_at,
       updated_at: data.updated_at,
@@ -76,7 +78,7 @@ export class UserTenantRepository extends BaseRepository<
    */
   protected getSelectColumns(includeRoleName: boolean = true): string {
     const baseColumns =
-      'ut.user_id, ut.tenant_id, ut.role_key, ut.is_active, ut.joined_at, ut.updated_at';
+      'ut.user_id, ut.tenant_id, t.name AS tenant_name, ut.role_key, ut.is_active, ut.joined_at, ut.updated_at';
     if (includeRoleName) {
       return `${baseColumns.replace('ut.role_key', 'ut.role_key, r.name as role_name')}`;
     }
@@ -88,12 +90,15 @@ export class UserTenantRepository extends BaseRepository<
    * @param includeRoleName - Whether to include roles table JOIN
    */
   protected getFromClause(includeRoleName: boolean = true): string {
+    // tenants' select policy admits every context user_tenants' does, so the name is visible
+    const tenantJoin = 'LEFT JOIN public.tenants t ON t.id = ut.tenant_id';
     if (includeRoleName) {
       return `${this.tableName} ut
               INNER JOIN public.tenant_roles r ON r.key = ut.role_key
-                AND (r.tenant_id = ut.tenant_id OR r.is_system = true)`;
+                AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
+              ${tenantJoin}`;
     }
-    return `${this.tableName} ut`;
+    return `${this.tableName} ut ${tenantJoin}`;
   }
 
   /**
@@ -527,11 +532,12 @@ export class UserTenantRepository extends BaseRepository<
     const roleColumn = includeRoleName ? ', r.name as role_name' : '';
 
     const result = await this.executeQuery<UserTenantWithUserRow>(
-      `SELECT ut.user_id, ut.tenant_id, ut.role_key${roleColumn}, ut.is_active, ut.joined_at, ut.updated_at,
+      `SELECT ut.user_id, ut.tenant_id, t.name AS tenant_name, ut.role_key${roleColumn}, ut.is_active, ut.joined_at, ut.updated_at,
               u.email, u.first_name, u.last_name, u.is_verified, u.platform_role_key
        FROM ${this.tableName} ut
        ${roleJoin}
        JOIN public.users u ON ut.user_id = u.id
+       LEFT JOIN public.tenants t ON t.id = ut.tenant_id
        WHERE ut.user_id = $1 AND ut.tenant_id = $2
        LIMIT 1`,
       [userId, tenantId],
@@ -541,5 +547,58 @@ export class UserTenantRepository extends BaseRepository<
     const row = result.rows[0];
 
     return row || null;
+  }
+
+  /** A tenant's members with their user details, oldest first. */
+  async findMembers(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<UserTenantWithUserRow[]> {
+    const result = await this.executeQuery<UserTenantWithUserRow>(
+      `SELECT ut.user_id, ut.tenant_id, ut.role_key, r.name AS role_name, ut.is_active,
+              ut.joined_at, ut.updated_at,
+              u.email, u.first_name, u.last_name, u.is_verified, u.platform_role_key
+       FROM ${this.tableName} ut
+       INNER JOIN public.tenant_roles r ON r.key = ut.role_key
+         AND (r.tenant_id = ut.tenant_id OR r.is_system = true)
+       JOIN public.users u ON ut.user_id = u.id
+       WHERE ut.tenant_id = $1
+       ORDER BY ut.joined_at, ut.user_id`,
+      [tenantId],
+      options,
+    );
+    return result.rows;
+  }
+
+  /** Active tenant admins of a tenant; locked so concurrent demotions can't both pass the check. */
+  async countActiveAdminsForUpdate(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<number> {
+    const result = await this.executeQuery<{ user_id: string }>(
+      `SELECT user_id FROM ${this.tableName}
+       WHERE tenant_id = $1 AND role_key = $2 AND is_active = true
+       FOR UPDATE`,
+      [tenantId, SystemTenantRole.TENANT_ADMIN],
+      options,
+    );
+    return result.rows.length;
+  }
+
+  /** Whether a role key can be assigned in the tenant: a system role or one of its own roles. */
+  async roleExistsForTenant(
+    tenantId: string,
+    roleKey: string,
+    options?: QueryOptions,
+  ): Promise<boolean> {
+    const result = await this.executeQuery<{ exists: boolean }>(
+      `SELECT EXISTS(
+         SELECT 1 FROM public.tenant_roles
+         WHERE key = $1 AND is_active = true AND (is_system = true OR tenant_id = $2)
+       ) AS exists`,
+      [roleKey, tenantId],
+      options,
+    );
+    return result.rows[0]?.exists ?? false;
   }
 }

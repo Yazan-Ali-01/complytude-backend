@@ -126,12 +126,10 @@ export class InvitationsService {
         );
       }
 
-      // todo: after adding tenant name, add it to the query
-      // todo: use tenant repository instead "after adding the name"
       // Get tenant and inviter details
       const [tenant, inviter] = await Promise.all([
         client.query<{ id: string; name: string }>(
-          `SELECT id, 'Tenant ' || substring(id::text, 1, 8) as name FROM public.tenants WHERE id = $1`,
+          `SELECT id, name FROM public.tenants WHERE id = $1`,
           [invitation.tenantId],
         ),
         this.userRepository.findById(invitation.invitedBy, { client }),
@@ -382,7 +380,7 @@ export class InvitationsService {
         `SELECT
           i.id,
           i.tenant_id,
-          'Tenant ' || substring(t.id::text, 1, 8) as tenant_name,
+          t.name as tenant_name,
           r.key as role_key,
           r.name as role_name,
           u.email as inviter_email,

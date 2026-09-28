@@ -550,7 +550,7 @@ export class AuthService {
     // Map user tenants to response format
     const tenantsWithDetails = userTenants.map((ut) => ({
       tenantId: ut.tenant_id,
-      tenantName: `Temp Tenant name ${ut.tenant_id.substring(0, 8)}`,
+      tenantName: ut.tenant_name ?? '',
       role: ut.role_key,
       roleName: ut.role_name,
       isActive: ut.is_active,
@@ -1220,7 +1220,7 @@ export class AuthService {
         },
         tenant: {
           id: tenantId,
-          name: `Temp Tenant name ${tenantId.substring(0, 8)}`,
+          name: userTenant.tenant_name ?? '',
         },
       };
     });

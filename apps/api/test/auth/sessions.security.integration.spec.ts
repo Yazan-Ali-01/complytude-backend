@@ -91,21 +91,25 @@ describe('Session security events', () => {
     );
   }
 
-  it('changePassword removes all Redis sessions for the user', async () => {
+  it("changePassword removes the user's other Redis sessions and keeps the current one", async () => {
     const tenant = await createTestTenant(app.module);
     const { user } = await createTestUserInTenant(app.module, tenant.id);
 
     await loginWithRequest(user.email, 'Test123!@#');
-    expect((await sessionService.getIdentitySessionIds(user.id)).length).toBe(
-      1,
+    await loginWithRequest(user.email, 'Test123!@#');
+    const [current, other] = await sessionService.getIdentitySessionIds(
+      user.id,
     );
+    expect(other).toBeDefined();
 
-    await usersService.changePassword(user.id, {
+    await usersService.changePassword(user.id, current, {
       currentPassword: 'Test123!@#',
       newPassword: 'NewTest123!@#Xy',
     });
 
-    expect(await sessionService.getIdentitySessionIds(user.id)).toEqual([]);
+    expect(await sessionService.getIdentitySessionIds(user.id)).toEqual([
+      current,
+    ]);
   });
 
   it('invalidateTenantSessions clears Redis tenant scope (same as role-change / deactivate hooks)', async () => {

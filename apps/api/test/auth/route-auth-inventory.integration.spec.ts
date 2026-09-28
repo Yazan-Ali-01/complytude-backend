@@ -20,8 +20,8 @@ import type { TestApp } from '../setup/test-app.factory';
 /**
  * Every route the API serves says how it is authenticated: @AuthOptions (with a token),
  * @AuthRefreshOptions (with JwtAuthRefreshGuard) or @Public(). A route with none of them is
- * denied by the global JwtAuthGuard. Both lists below are exact, so adding a public route or
- * an undecorated one fails this test until the list is updated and reviewed.
+ * denied by the global JwtAuthGuard; none may be left that way. The public list below is exact, so
+ * adding a public route fails this test until the list is updated and reviewed.
  */
 const PUBLIC_ROUTES = [
   'GET /',
@@ -44,15 +44,6 @@ const PUBLIC_ROUTES = [
   'POST auth/signup',
   'POST auth/verify-email',
   'POST stripe/webhook',
-].sort();
-
-/** Unimplemented stubs: denied to everyone (401) until they get real @AuthOptions. */
-const UNDECORATED_ROUTES = [
-  'GET users/me',
-  'GET users/me/current-tenant',
-  'GET users/me/tenants',
-  'PATCH users/me',
-  'PATCH users/me/password',
 ].sort();
 
 const MOCK_PATH_PREFIXES = ['mock/', 'admin/queue-test/', 'rag-mock/'];
@@ -298,12 +289,12 @@ describe('Route authentication inventory', () => {
       expect(authModeViolations(routes)).toEqual([]);
     });
 
-    it('leaves only the listed stubs without an authentication mode', () => {
+    it('leaves no route without an authentication mode', () => {
       const undecorated = routes
         .filter((r) => authModeCount(r) === 0)
         .map((r) => r.id)
         .sort();
-      expect(undecorated).toEqual(UNDECORATED_ROUTES);
+      expect(undecorated).toEqual([]);
     });
 
     it('exposes exactly the reviewed public routes', () => {
@@ -333,7 +324,7 @@ describe('Route authentication inventory', () => {
       ['GET', '/api/v1/users/me'],
       ['PATCH', '/api/v1/users/me/password'],
     ] as const)(
-      '%s %s (undecorated stub) is denied with 401',
+      '%s %s without a token is denied with 401',
       async (method, url) => {
         const res = await server.inject({ method, url, payload: {} });
         expect(res.statusCode).toBe(401);

@@ -37,11 +37,15 @@ export class SessionInvalidationService {
 
   /**
    * Invalidate all sessions for a user (all devices, all tenants).
-   * Used for: password change, password reset.
+   * Used for: password change (keeping the session that made the change), password reset.
    */
-  async invalidateAllUserSessions(userId: string): Promise<void> {
-    const identitySessionIds =
-      await this.sessionService.getIdentitySessionIds(userId);
+  async invalidateAllUserSessions(
+    userId: string,
+    options?: { exceptIdentitySessionId?: string },
+  ): Promise<void> {
+    const identitySessionIds = (
+      await this.sessionService.getIdentitySessionIds(userId)
+    ).filter((id) => id !== options?.exceptIdentitySessionId);
     if (identitySessionIds.length === 0) return;
 
     const pipeline = this.redis.pipeline();

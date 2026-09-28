@@ -20,6 +20,9 @@ export class UserTenant {
   })
   role_name: string;
 
+  @ApiProperty({ description: 'Tenant display name', required: false })
+  tenant_name?: string;
+
   @ApiProperty({ description: 'Whether user access is active' })
   is_active: boolean;
 
