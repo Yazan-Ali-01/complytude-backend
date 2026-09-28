@@ -103,7 +103,8 @@ The worker uses a **hybrid retrieval** approach combining two complementary sear
 - **Vector search (semantic):** pgvector HNSW index with cosine distance. Finds chunks that are semantically similar to document content, even when different wording is used.
 - **BM25 full-text search (lexical):** PostgreSQL tsvector/GIN index. Catches exact keyword matches (e.g., specific regulation numbers like "Article 14.3") that embeddings may miss.
 - **Reciprocal Rank Fusion (RRF):** Combines results from both methods using rank position (not raw scores), with `k=60`. This avoids the problem of incomparable score scales between cosine distance and BM25 ts_rank.
-- **Cohere re-ranking:** The merged candidates are re-ranked by a dedicated cross-encoder model for final relevance ordering.
+- **Cohere re-ranking:** The merged candidates are re-ranked by a dedicated cross-encoder model for final relevance ordering, against a query sampled across the whole document.
+- **Scope:** only active rulesets and their active version are searched; a scoped search uses pgvector iterative scan so it still returns K rows; BM25 covers English and Arabic stems. See `docs/RAG_PIPELINE.md`.
 
 ### Error Handling
 

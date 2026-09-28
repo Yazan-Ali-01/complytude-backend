@@ -48,8 +48,10 @@ export class RerankerService {
       return { chunks: [], reranked: false };
     }
 
-    if (chunks.length <= this.topN) {
-      return { chunks, reranked: false };
+    // A single candidate has nothing to reorder; any more are reranked even when all of them fit
+    // in topN, so the model gets the most relevant clauses first
+    if (chunks.length === 1) {
+      return { chunks, reranked: true };
     }
 
     try {

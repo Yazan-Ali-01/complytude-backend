@@ -160,6 +160,18 @@ export class RulesetRepository extends BaseRepository<
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  async setCurrentVersion(
+    rulesetId: string,
+    version: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET current_version = $2, updated_at = now() WHERE id = $1`,
+      [rulesetId, version],
+      options,
+    );
+  }
+
   async deactivateByKey(
     key: string,
     options?: QueryOptions,

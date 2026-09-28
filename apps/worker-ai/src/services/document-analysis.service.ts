@@ -65,6 +65,10 @@ function analysisResultSchema(
 
 type ModelFinding = Omit<AnalysisFinding, 'chunkId' | 'rulesetKey'>;
 
+/** Document chunks sampled for the rerank query, and its size in characters. */
+const RERANK_QUERY_SAMPLES = 8;
+const RERANK_QUERY_MAX_CHARS = 4000;
+
 @Injectable()
 export class DocumentAnalysisService {
   private readonly logger = new Logger(DocumentAnalysisService.name);
@@ -238,7 +242,8 @@ export class DocumentAnalysisService {
       });
 
     // Hybrid search: vector similarity + BM25 full-text, merged via RRF
-    const bm25Query = this.buildBm25Query(document.title, chunkTexts);
+    // The whole document: the search ORs its most frequent terms (see hybridSearchBatch)
+    const bm25Query = `${document.title}\n${contentForAnalysis}`;
     const topChunks = await this.rulesetChunkSearchRepository
       .hybridSearchBatch(
         embeddings.map((e) => e.embedding),
@@ -261,8 +266,7 @@ export class DocumentAnalysisService {
     );
 
     // Re-rank via Cohere
-    const rerankQuery =
-      `${document.title} ${chunkTexts.slice(0, 2).join(' ')}`.slice(0, 500);
+    const rerankQuery = this.buildRerankQuery(document.title, chunkTexts);
     const { chunks: rerankedChunks, reranked } =
       await this.rerankerService.rerank(rerankQuery, topChunks);
 
@@ -409,14 +413,20 @@ export class DocumentAnalysisService {
   }
 
   /**
-   * Build a concise BM25 search query from the document title and first few chunk texts.
-   * PostgreSQL's plainto_tsquery handles stopword removal and stemming.
-   * Cap at ~500 chars to keep the tsquery plan efficient.
+   * The rerank query: chunks sampled evenly across the whole document (not just its opening,
+   * which is mostly preamble and party details), within the reranker's query budget.
    */
-  private buildBm25Query(title: string, chunkTexts: string[]): string {
-    const preview = chunkTexts.slice(0, 3).join(' ');
-    const combined = `${title} ${preview}`;
-    return combined.slice(0, 500);
+  private buildRerankQuery(title: string, chunkTexts: string[]): string {
+    const samples = Math.min(RERANK_QUERY_SAMPLES, chunkTexts.length);
+    const step = chunkTexts.length / Math.max(samples, 1);
+    const sampled = Array.from(
+      { length: samples },
+      (_, i) => chunkTexts[Math.floor(i * step)],
+    );
+    const perSample = Math.floor(RERANK_QUERY_MAX_CHARS / Math.max(samples, 1));
+    return [title, ...sampled.map((text) => text.slice(0, perSample))]
+      .join('\n')
+      .slice(0, RERANK_QUERY_MAX_CHARS);
   }
 
   private extractRulesetsConsulted(chunks: RulesetChunkMatch[]): string[] {

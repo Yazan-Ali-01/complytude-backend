@@ -233,7 +233,7 @@ export class RulesetsService {
         );
       }
 
-      const version = await this.rulesetVersionRepository.create({
+      const version = await this.publishVersion(ruleset.id, {
         ruleset_id: ruleset.id,
         version: dto.version,
         clauses: JSON.stringify(dto.clauses ?? []),
@@ -341,7 +341,7 @@ export class RulesetsService {
         );
       }
 
-      const version = await this.rulesetVersionRepository.create({
+      const version = await this.publishVersion(ruleset.id, {
         ruleset_id: ruleset.id,
         version: newVersion,
         clauses: JSON.stringify(source.clauses),
@@ -408,6 +408,30 @@ export class RulesetsService {
         `enqueue ingestion for active version of ruleset "${key}"`,
       );
     }
+  }
+
+  /**
+   * Creates a version as the ruleset's only active one: retrieval reads only the active version,
+   * so the previous one stops being cited as soon as this commits.
+   */
+  private async publishVersion(
+    rulesetId: string,
+    row: Parameters<RulesetVersionRepository['create']>[0],
+  ): Promise<RulesetVersion> {
+    return this.databaseService.transaction(async (client) => {
+      const created = await this.rulesetVersionRepository.create(row, {
+        client,
+      });
+      await this.rulesetVersionRepository.deactivateOthers(
+        rulesetId,
+        created.id,
+        { client },
+      );
+      await this.rulesetRepository.setCurrentVersion(rulesetId, row.version, {
+        client,
+      });
+      return created;
+    });
   }
 
   private async enqueueIngestion(

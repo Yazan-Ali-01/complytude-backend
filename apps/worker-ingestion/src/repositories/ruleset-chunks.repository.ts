@@ -31,6 +31,23 @@ export class RulesetChunksRepository {
     return result.rowCount ?? 0;
   }
 
+  /**
+   * Removes the chunks of a ruleset's inactive (superseded) versions, so only the active
+   * version stays searchable.
+   */
+  async deleteInactiveVersionChunks(
+    rulesetId: string,
+    client: PoolClient,
+  ): Promise<number> {
+    const result = await client.query(
+      `DELETE FROM public.ruleset_chunks c
+       USING public.ruleset_versions v
+       WHERE c.ruleset_version_id = v.id AND c.ruleset_id = $1 AND NOT v.is_active`,
+      [rulesetId],
+    );
+    return result.rowCount ?? 0;
+  }
+
   async insertBatch(
     chunks: RulesetChunkInsertRow[],
     client?: PoolClient,

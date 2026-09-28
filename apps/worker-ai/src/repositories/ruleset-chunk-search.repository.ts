@@ -11,6 +11,9 @@ export interface RulesetChunkMatch {
 
 const RRF_K = 60;
 
+/** Most frequent document stems OR-ed into the BM25 query (the whole text AND-ed matches nothing). */
+const BM25_QUERY_TERMS = 64;
+
 @Injectable()
 export class RulesetChunkSearchRepository {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -19,12 +22,18 @@ export class RulesetChunkSearchRepository {
    * Hybrid search combining pgvector cosine similarity and BM25 full-text search
    * via Reciprocal Rank Fusion (RRF).
    *
-   * 1. Vector branch: LATERAL join per query embedding (HNSW index, top-K per query)
-   * 2. BM25 branch: tsvector @@ plainto_tsquery on the generated content_tsv column
+   * Only chunks of **active** rulesets and their **active** version are searched, so retired
+   * regulations and superseded versions are never cited.
+   *
+   * 1. Vector branch: LATERAL join per query embedding (HNSW index, top-K per query). The
+   *    version filter runs inside the index scan with `hnsw.iterative_scan`, so a filtered or
+   *    scoped search keeps scanning until it has K rows instead of returning too few.
+   * 2. BM25 branch: the document's most frequent English and Arabic stems, OR-ed, against the
+   *    generated content_tsv column (English + Arabic stems).
    * 3. FULL OUTER JOIN + RRF scoring: 1/(k+rank_vector) + 1/(k+rank_bm25)
    *
-   * When `rulesetIds` is provided, both branches are filtered to only those rulesets.
-   * ruleset_chunks has no RLS; bypassRLS is irrelevant.
+   * When `rulesetIds` is provided, both branches are limited to those rulesets.
+   * ruleset_chunks has no RLS.
    */
   async hybridSearchBatch(
     embeddings: number[][],
@@ -38,88 +47,109 @@ export class RulesetChunkSearchRepository {
     if (embeddings.length === 0) return [];
 
     const vectorStrings = embeddings.map((e) => `[${e.join(',')}]`);
-    const scoped = rulesetIds && rulesetIds.length > 0;
+    const scoped = !!rulesetIds && rulesetIds.length > 0;
 
-    const vectorWhereClause = scoped
-      ? 'WHERE ruleset_id = ANY($7::uuid[])'
-      : '';
-    const bm25WhereClause = scoped ? 'AND ruleset_id = ANY($7::uuid[])' : '';
+    return this.databaseService.transaction(async (client) => {
+      const { rows: active } = await client.query<{ id: string }>(
+        `SELECT v.id
+         FROM public.ruleset_versions v
+         JOIN public.rulesets r ON r.id = v.ruleset_id
+         WHERE v.is_active AND r.status = 'active'
+           ${scoped ? 'AND r.id = ANY($1::uuid[])' : ''}`,
+        scoped ? [rulesetIds] : [],
+      );
+      if (active.length === 0) return [];
 
-    const params: unknown[] = [
-      vectorStrings,
-      topKPerQuery,
-      vectorLimit,
-      searchText,
-      bm25Limit,
-      maxResults,
-    ];
-    if (scoped) {
-      params.push(rulesetIds);
-    }
+      // Keep scanning the HNSW graph until the filtered LIMIT is met (pgvector >= 0.8)
+      await client.query(`SET LOCAL hnsw.iterative_scan = relaxed_order`);
 
-    const result = await this.databaseService.query<{
-      id: string;
-      ruleset_id: string;
-      content: string;
-      metadata: Record<string, unknown>;
-      rrf_score: number;
-    }>(
-      `WITH vector_results AS (
-        SELECT id, ruleset_id, content, metadata,
-               ROW_NUMBER() OVER (ORDER BY distance) AS vrank
-        FROM (
-          SELECT rc.id, rc.ruleset_id, rc.content, rc.metadata,
-                 MIN(rc.embedding <=> q.vec::vector) AS distance
-          FROM unnest($1::text[]) AS q(vec)
-          CROSS JOIN LATERAL (
-            SELECT id, ruleset_id, content, metadata, embedding
-            FROM public.ruleset_chunks
-            ${vectorWhereClause}
-            ORDER BY embedding <=> q.vec::vector
-            LIMIT $2
-          ) rc
-          GROUP BY rc.id, rc.ruleset_id, rc.content, rc.metadata
-        ) deduped
-        ORDER BY distance
-        LIMIT $3
-      ),
-      bm25_results AS (
-        SELECT id, ruleset_id, content, metadata,
-               ROW_NUMBER() OVER (ORDER BY ts_rank_cd(content_tsv, query) DESC) AS brank
-        FROM public.ruleset_chunks,
-             plainto_tsquery('english', $4) query
-        WHERE content_tsv @@ query
-        ${bm25WhereClause}
-        ORDER BY ts_rank_cd(content_tsv, query) DESC
-        LIMIT $5
-      ),
-      combined AS (
-        SELECT
-          COALESCE(v.id, b.id) AS id,
-          COALESCE(v.ruleset_id, b.ruleset_id) AS ruleset_id,
-          COALESCE(v.content, b.content) AS content,
-          COALESCE(v.metadata, b.metadata) AS metadata,
-          COALESCE(1.0 / (${RRF_K} + v.vrank), 0)
-            + COALESCE(1.0 / (${RRF_K} + b.brank), 0) AS rrf_score
-        FROM vector_results v
-        FULL OUTER JOIN bm25_results b ON v.id = b.id
-      )
-      SELECT id, ruleset_id, content, metadata, rrf_score
-      FROM combined
-      ORDER BY rrf_score DESC
-      LIMIT $6`,
-      params,
-    );
+      const result = await client.query<{
+        id: string;
+        ruleset_id: string;
+        content: string;
+        metadata: Record<string, unknown>;
+        rrf_score: number;
+      }>(
+        `WITH doc_terms AS (
+          SELECT lexeme, cardinality(positions) AS freq
+          FROM unnest(to_tsvector('english', $4))
+          WHERE lexeme !~ '[\u0600-\u06FF]'
+          UNION ALL
+          SELECT lexeme, cardinality(positions) AS freq
+          FROM unnest(to_tsvector('arabic', $4))
+          WHERE lexeme ~ '[\u0600-\u06FF]'
+        ),
+        bm25_query AS (
+          SELECT to_tsquery('simple', string_agg(quote_literal(lexeme), ' | ')) AS query
+          FROM (
+            SELECT lexeme FROM doc_terms
+            GROUP BY lexeme ORDER BY sum(freq) DESC, lexeme LIMIT ${BM25_QUERY_TERMS}
+          ) top_terms
+        ),
+        vector_results AS (
+          SELECT id, ruleset_id, content, metadata,
+                 ROW_NUMBER() OVER (ORDER BY distance) AS vrank
+          FROM (
+            SELECT rc.id, rc.ruleset_id, rc.content, rc.metadata,
+                   MIN(rc.embedding <=> q.vec::vector) AS distance
+            FROM unnest($1::text[]) AS q(vec)
+            CROSS JOIN LATERAL (
+              SELECT id, ruleset_id, content, metadata, embedding
+              FROM public.ruleset_chunks
+              WHERE ruleset_version_id = ANY($7::uuid[])
+              ORDER BY embedding <=> q.vec::vector
+              LIMIT $2
+            ) rc
+            GROUP BY rc.id, rc.ruleset_id, rc.content, rc.metadata
+          ) deduped
+          ORDER BY distance
+          LIMIT $3
+        ),
+        bm25_results AS (
+          SELECT c.id, c.ruleset_id, c.content, c.metadata,
+                 ROW_NUMBER() OVER (ORDER BY ts_rank_cd(c.content_tsv, b.query) DESC) AS brank
+          FROM public.ruleset_chunks c, bm25_query b
+          WHERE c.content_tsv @@ b.query
+            AND c.ruleset_version_id = ANY($7::uuid[])
+          ORDER BY ts_rank_cd(c.content_tsv, b.query) DESC
+          LIMIT $5
+        ),
+        combined AS (
+          SELECT
+            COALESCE(v.id, b.id) AS id,
+            COALESCE(v.ruleset_id, b.ruleset_id) AS ruleset_id,
+            COALESCE(v.content, b.content) AS content,
+            COALESCE(v.metadata, b.metadata) AS metadata,
+            COALESCE(1.0 / (${RRF_K} + v.vrank), 0)
+              + COALESCE(1.0 / (${RRF_K} + b.brank), 0) AS rrf_score
+          FROM vector_results v
+          FULL OUTER JOIN bm25_results b ON v.id = b.id
+        )
+        SELECT id, ruleset_id, content, metadata, rrf_score
+        FROM combined
+        ORDER BY rrf_score DESC
+        LIMIT $6`,
+        [
+          vectorStrings,
+          topKPerQuery,
+          vectorLimit,
+          searchText,
+          bm25Limit,
+          maxResults,
+          active.map((v) => v.id),
+        ],
+      );
 
-    return result.rows.map((row) => ({
-      id: row.id,
-      rulesetId: row.ruleset_id,
-      content: row.content,
-      metadata:
-        typeof row.metadata === 'string'
-          ? (JSON.parse(row.metadata) as Record<string, unknown>)
-          : row.metadata,
-      score: parseFloat(row.rrf_score as unknown as string),
-    }));
+      return result.rows.map((row) => ({
+        id: row.id,
+        rulesetId: row.ruleset_id,
+        content: row.content,
+        metadata:
+          typeof row.metadata === 'string'
+            ? (JSON.parse(row.metadata) as Record<string, unknown>)
+            : row.metadata,
+        score: parseFloat(row.rrf_score as unknown as string),
+      }));
+    });
   }
 }

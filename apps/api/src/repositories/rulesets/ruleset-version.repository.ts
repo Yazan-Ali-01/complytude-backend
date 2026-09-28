@@ -93,6 +93,20 @@ export class RulesetVersionRepository extends BaseRepository<
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
+  /** Deactivates every other version of the ruleset, leaving `keepVersionId` the active one. */
+  async deactivateOthers(
+    rulesetId: string,
+    keepVersionId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET is_active = false
+       WHERE ruleset_id = $1 AND id <> $2 AND is_active`,
+      [rulesetId, keepVersionId],
+      options,
+    );
+  }
+
   async findActiveByRulesetId(
     rulesetId: string,
     options?: QueryOptions,

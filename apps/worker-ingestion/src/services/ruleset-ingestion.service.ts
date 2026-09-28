@@ -131,6 +131,10 @@ export class RulesetIngestionService {
           client,
           this.insertBatchSize,
         );
+        await this.rulesetChunksRepository.deleteInactiveVersionChunks(
+          rulesetId,
+          client,
+        );
         return deleted;
       })
       .catch((err: unknown) => {
