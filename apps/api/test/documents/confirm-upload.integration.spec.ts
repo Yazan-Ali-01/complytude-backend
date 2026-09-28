@@ -1,4 +1,5 @@
 import { INGESTION_JOB_NAMES, QUEUE_NAMES } from '@lib/queue';
+import { PDFDocument } from 'pdf-lib';
 import {
   BadRequestException,
   ConflictException,
@@ -219,5 +220,82 @@ describe('DocumentsService.confirmUpload', () => {
 
     metaSpy.mockRestore();
     enqueueSpy.mockRestore();
+  });
+  // -------------------------------------------------------------------------
+  // Page limit: Textract bills per page, so the limit holds before any job
+  // -------------------------------------------------------------------------
+
+  describe('page limit', () => {
+    async function pdf(pages: number): Promise<Buffer> {
+      const doc = await PDFDocument.create();
+      for (let i = 0; i < pages; i++) doc.addPage();
+      return Buffer.from(await doc.save());
+    }
+
+    async function status(documentId: string): Promise<string> {
+      const { rows } = await app.databaseService.query<{
+        extraction_status: string;
+      }>('SELECT extraction_status FROM public.documents WHERE id = $1', [
+        documentId,
+      ]);
+      return rows[0].extraction_status;
+    }
+
+    it.each([
+      ['a PDF over the page limit', () => pdf(51), /51 pages/],
+      [
+        'a file that claims to be a PDF but is not one',
+        () => Promise.resolve(Buffer.from('not a pdf')),
+        /not a readable PDF/,
+      ],
+    ])(
+      'refuses %s before extraction starts, and keeps it pending',
+      async (_name, bytes, message) => {
+        const doc = await createFileUploadDocument();
+        jest
+          .spyOn(storageService, 'getQuarantineObjectBuffer')
+          .mockResolvedValue(await bytes());
+        const enqueueSpy = jest.spyOn(app.queueProducerService, 'enqueue');
+
+        await expect(
+          documentsService.confirmUpload(doc.id, user),
+        ).rejects.toThrow(message);
+
+        expect(enqueueSpy).not.toHaveBeenCalled();
+        expect(await status(doc.id)).toBe('pending');
+        jest.restoreAllMocks();
+      },
+    );
+
+    it('accepts a PDF at the limit', async () => {
+      const doc = await createFileUploadDocument();
+      jest
+        .spyOn(storageService, 'getQuarantineObjectBuffer')
+        .mockResolvedValue(await pdf(50));
+      jest
+        .spyOn(app.queueProducerService, 'enqueue')
+        .mockResolvedValue({} as never);
+
+      await expect(
+        documentsService.confirmUpload(doc.id, user),
+      ).resolves.toMatchObject({ status: 'processing' });
+      jest.restoreAllMocks();
+    });
+
+    it('does not read images to count pages', async () => {
+      const doc = await createFileUploadDocument({
+        mime_type: 'image/png',
+        original_filename: 'scan.png',
+      });
+      const read = jest.spyOn(storageService, 'getQuarantineObjectBuffer');
+      jest
+        .spyOn(app.queueProducerService, 'enqueue')
+        .mockResolvedValue({} as never);
+
+      await documentsService.confirmUpload(doc.id, user);
+
+      expect(read).not.toHaveBeenCalled();
+      jest.restoreAllMocks();
+    });
   });
 });

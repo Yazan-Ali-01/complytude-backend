@@ -907,6 +907,7 @@ Table documents {
   extraction_status document_extraction_status [null, note: 'Extraction lifecycle. NULL for text-input docs']
   extraction_error text [null, note: 'Error message if extraction failed']
   extracted_at timestamptz [null, note: 'When text extraction completed']
+  textract_job_id text [null, note: 'Textract job of this document, resumed by ingestion retries']
 
   indexes {
     tenant_id [note: 'Critical for RLS performance']

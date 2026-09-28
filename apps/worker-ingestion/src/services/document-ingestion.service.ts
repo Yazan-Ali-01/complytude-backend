@@ -10,6 +10,7 @@ import {
   type DocumentSection,
   type ITextractService,
   type TextractResult,
+  TextractJobFailedError,
 } from '../interfaces/textract.interface';
 import { DocumentWriteRepository } from '../repositories/document-write.repository';
 
@@ -51,6 +52,7 @@ export class DocumentIngestionService {
     } else {
       const result = await this.extractText(
         documentId,
+        document.textract_job_id,
         s3Bucket,
         s3Key,
         mimeType,
@@ -114,20 +116,56 @@ export class DocumentIngestionService {
     return document;
   }
 
+  /**
+   * Textract bills when a job starts, so each document starts at most one job: its ID is stored
+   * before polling and a retry (poll timeout, crash, stall) resumes it. Only a job that itself
+   * failed is replaced.
+   */
   private async extractText(
     documentId: string,
+    storedJobId: string | null,
     bucket: string,
     key: string,
     mimeType: string,
   ): Promise<TextractResult> {
+    const toRetryable = (err: unknown): Error => {
+      if (err instanceof PermanentError || err instanceof RetryableError) {
+        return err;
+      }
+      return new RetryableError(
+        `Textract extraction failed for document ${documentId}`,
+        err instanceof Error ? err : undefined,
+      );
+    };
+
+    let jobId = storedJobId;
+    if (jobId) {
+      this.logger.log(
+        `Resuming Textract job ${jobId} for documentId=${documentId} (retry)`,
+      );
+    } else {
+      jobId = await this.textractService
+        .startAnalysis(bucket, key, mimeType)
+        .catch((err: unknown) => {
+          throw toRetryable(err);
+        });
+      await this.documentWriteRepository
+        .setTextractJobId(documentId, jobId)
+        .catch((err: unknown) => {
+          throw new RetryableError(
+            `DB error storing Textract job ${jobId} for document ${documentId}`,
+            err instanceof Error ? err : undefined,
+          );
+        });
+    }
+
     const result = await this.textractService
-      .extractText(bucket, key, mimeType)
-      .catch((err: unknown) => {
-        if (err instanceof PermanentError) throw err;
-        throw new RetryableError(
-          `Textract extraction failed for document ${documentId}`,
-          err instanceof Error ? err : undefined,
-        );
+      .collectResult(jobId)
+      .catch(async (err: unknown) => {
+        if (err instanceof TextractJobFailedError) {
+          await this.documentWriteRepository.setTextractJobId(documentId, null);
+        }
+        throw toRetryable(err);
       });
 
     if (!result.text || result.text.trim().length === 0) {

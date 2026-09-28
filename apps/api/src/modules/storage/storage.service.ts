@@ -549,6 +549,19 @@ export class StorageService {
     }
   }
 
+  /** The bytes of an uploaded file still in quarantine (at most the upload limit, 10 MB). */
+  async getQuarantineObjectBuffer(s3Key: string): Promise<Buffer> {
+    const response = await this.s3Client.send(
+      new GetObjectCommand({ Bucket: this.quarantineBucket, Key: s3Key }),
+    );
+    if (!response.Body) {
+      throw new InternalServerErrorException(
+        this.i18n.t(StorageI18n.errors.QUARANTINE_OBJECT_CHECK_FAILED),
+      );
+    }
+    return Buffer.from(await response.Body.transformToByteArray());
+  }
+
   /**
    * Check whether an object exists in the quarantine bucket and return its metadata.
    * Returns null if the object does not exist (HeadObject 404).

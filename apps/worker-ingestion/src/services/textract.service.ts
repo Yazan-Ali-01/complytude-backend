@@ -4,7 +4,9 @@ import {
   type Block,
   type TextractClient,
 } from '@aws-sdk/client-textract';
+import { countPdfPages, UnreadablePdfError } from '@lib/pdf';
 import { PermanentError, RetryableError } from '@lib/queue';
+import { S3Service } from '@lib/storage';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -12,6 +14,7 @@ import {
   type DocumentSection,
   type ITextractService,
   type TextractResult,
+  TextractJobFailedError,
 } from '../interfaces/textract.interface';
 
 const SUPPORTED_MIME_TYPES = new Set([
@@ -48,6 +51,7 @@ export class TextractService implements ITextractService {
   constructor(
     @Inject(TEXTRACT_CLIENT)
     private readonly textractClient: TextractClient,
+    private readonly s3: S3Service,
     configService: ConfigService,
   ) {
     this.config = {
@@ -71,21 +75,61 @@ export class TextractService implements ITextractService {
     };
   }
 
-  async extractText(
+  /**
+   * Starts (and so pays for) a Textract job, after checking the file type and, for a PDF, that
+   * its page count is within TEXTRACT_MAX_PAGES: Textract bills every page it analyses, so the
+   * limit must hold before the job, not after.
+   */
+  async startAnalysis(
     bucket: string,
     key: string,
     mimeType: string,
-  ): Promise<TextractResult> {
+  ): Promise<string> {
     this.validateMimeType(mimeType, key);
+    if (mimeType === 'application/pdf') {
+      await this.assertWithinPageLimit(bucket, key);
+    }
 
     const jobId = await this.startDocumentAnalysis(bucket, key);
     this.logger.log(
       `Textract LAYOUT job started: jobId=${jobId} bucket=${bucket} key=${key}`,
     );
+    return jobId;
+  }
 
+  /** Waits for a started job and parses its result; a failed or unknown job can't be resumed. */
+  async collectResult(jobId: string): Promise<TextractResult> {
     const blocks = await this.pollUntilComplete(jobId);
-
     return parseLayoutBlocks(blocks, jobId, this.config.maxPages);
+  }
+
+  private async assertWithinPageLimit(
+    bucket: string,
+    key: string,
+  ): Promise<void> {
+    const pdf = await this.s3
+      .getObjectBuffer(bucket, key)
+      .catch((err: unknown) => {
+        throw new RetryableError(
+          `Could not read ${key} to count its pages`,
+          err instanceof Error ? err : undefined,
+        );
+      });
+    let pages: number;
+    try {
+      pages = await countPdfPages(pdf);
+    } catch (error) {
+      if (error instanceof UnreadablePdfError) {
+        throw new PermanentError(`${key}: ${error.message}`);
+      }
+      throw error;
+    }
+    if (pages > this.config.maxPages) {
+      throw new PermanentError(
+        `Document has ${pages} pages, exceeding the maximum of ${this.config.maxPages}. ` +
+          `Increase TEXTRACT_MAX_PAGES if this is expected.`,
+      );
+    }
   }
 
   private validateMimeType(mimeType: string, key: string): void {
@@ -147,7 +191,7 @@ export class TextractService implements ITextractService {
       }
 
       if (status === 'FAILED') {
-        throw new RetryableError(
+        throw new TextractJobFailedError(
           `Textract job ${jobId} FAILED: ${statusMessage ?? 'unknown reason'}`,
         );
       }
@@ -203,6 +247,12 @@ export class TextractService implements ITextractService {
         statusMessage: response.StatusMessage,
       };
     } catch (error: unknown) {
+      // Expired or unknown job: a retry has to start a new one
+      if (error instanceof Error && error.name === 'InvalidJobIdException') {
+        throw new TextractJobFailedError(
+          `Textract job ${jobId} can't be resumed: ${error.message}`,
+        );
+      }
       throw this.classifyAwsError(error, `GetDocumentAnalysis`);
     }
   }

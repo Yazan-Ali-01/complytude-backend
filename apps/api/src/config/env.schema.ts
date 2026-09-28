@@ -107,6 +107,8 @@ export const validationSchema = Joi.object({
   MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
   TEMPLATE_MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
+  // Most PDF pages an upload may have (Textract bills per page); keep equal to worker-ingestion's
+  TEXTRACT_MAX_PAGES: Joi.number().integer().min(1).default(50),
 
   // Logging
   ...loggerEnvSchema,

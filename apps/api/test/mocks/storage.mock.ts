@@ -5,6 +5,7 @@ import {
   type PaginatedFileList,
   type UploadResult,
 } from 'src/modules/storage/storage.service';
+import { PDFDocument } from 'pdf-lib';
 import { Readable } from 'stream';
 
 type PublicApi<T> = Pick<T, keyof T>;
@@ -151,6 +152,13 @@ export class MockStorageService implements PublicApi<StorageService> {
   } | null> {
     await Promise.resolve();
     return { contentLength: 2048576, contentType: 'application/pdf' };
+  }
+
+  /** A one-page PDF; tests that need other bytes spy on this. */
+  async getQuarantineObjectBuffer(_s3Key: string): Promise<Buffer> {
+    const doc = await PDFDocument.create();
+    doc.addPage();
+    return Buffer.from(await doc.save());
   }
 
   async deleteObjectFromBucket(_bucket: string, _key: string): Promise<void> {}

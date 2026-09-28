@@ -115,6 +115,7 @@ const config = {
         '^@lib/embedding/(.*)$': '<rootDir>/../../libs/embedding/src/$1',
         '^@lib/storage$': '<rootDir>/../../libs/storage/src/index.ts',
         '^@lib/storage/(.*)$': '<rootDir>/../../libs/storage/src/$1',
+        '^@lib/pdf$': '<rootDir>/../../libs/pdf/src/index.ts',
       },
       moduleFileExtensions: ['ts', 'js', 'json'],
       testEnvironment: 'node',

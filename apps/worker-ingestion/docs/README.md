@@ -27,13 +27,15 @@ The Data Ingestion Worker is a standalone NestJS application that consumes jobs 
 
 1. Receives jobs dispatched by the API after a file upload is confirmed
 2. Fetches the document record, validates status (`pending` → `processing`)
-3. Calls Textract to extract text from the file in S3 (currently a stub — COM-209)
+3. Extracts text with Textract (LAYOUT): a PDF over `TEXTRACT_MAX_PAGES` (or unreadable) fails for good before any job starts; otherwise one job starts and its ID is stored on the document (`documents.textract_job_id`) before polling
 4. Stores extracted content in the database
 5. Promotes the file from quarantine bucket to clean bucket
 6. Marks the document as `completed` with the new S3 location
 7. On permanent failure or exhausted retries, marks the document as `failed`
 
-**Retry resilience:** If a retry occurs after content was already stored, the Textract step is skipped and the pipeline resumes from S3 promotion.
+**Retry resilience:** If a retry occurs after content was already stored, the Textract step is skipped and the pipeline resumes from S3 promotion. A retry before that (poll timeout, crash, stall) resumes polling the stored Textract job instead of starting, and paying for, another; only a job that itself failed or expired is replaced.
+
+**Page limit:** Textract bills every page it analyses, so the limit is checked before a job starts: by the API at `confirm-upload` (400, the document stays pending) and again here, since the stored file is what Textract reads.
 
 ### Pipelines
 
@@ -188,6 +190,7 @@ cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
 | `EMBEDDING_CHUNK_OVERLAP`      | `50`                     | Token overlap between chunks                   |
 | `WORKER_INGESTION_CONCURRENCY` | `10`                     | Max concurrent jobs                            |
 | `WORKER_INGESTION_BATCH_SIZE`  | `500`                    | DB insert batch size                           |
+| `TEXTRACT_MAX_PAGES`           | `50`                     | Most pages a PDF may have (checked before Textract; keep equal to the API's) |
 | `REDIS_HOST`                   | `localhost`              | Redis host for BullMQ                          |
 | `DB_HOST`                      | `localhost`              | PostgreSQL host                                |
 | `S3_ENDPOINT`                  | (empty for AWS S3)       | AWS S3 endpoint                                |

@@ -1,3 +1,4 @@
+import { countPdfPages, UnreadablePdfError } from '@lib/pdf';
 import { DatabaseService } from '@lib/database';
 import {
   AI_JOB_NAMES,
@@ -352,6 +353,19 @@ export class DocumentsService {
         throw new BadRequestException(
           this.i18n.t(DocumentsI18n.errors.FILE_SIZE_MISMATCH),
         );
+      }
+
+      // Textract bills every page it analyses: refuse an over-limit PDF before any job exists
+      if ((document.mime_type ?? 'application/pdf') === 'application/pdf') {
+        const refusal = await this.checkPdfPageLimit(s3Key);
+        if (refusal) {
+          await this.documentRepository.update(
+            documentId,
+            { extraction_status: 'pending' },
+            { tenant: tenantContext },
+          );
+          throw new BadRequestException(refusal);
+        }
       }
 
       await this.queueProducerService.enqueue(
@@ -738,6 +752,26 @@ export class DocumentsService {
       message: this.i18n.t(DocumentsI18n.messages.DOCUMENT_DELETED),
       deletedAt,
     };
+  }
+
+  /** Why an uploaded PDF can't be extracted (too many pages, unreadable), or null if it can. */
+  private async checkPdfPageLimit(s3Key: string): Promise<string | null> {
+    const maxPages = this.configService.get<number>('TEXTRACT_MAX_PAGES') ?? 50;
+    try {
+      const pages = await countPdfPages(
+        await this.storageService.getQuarantineObjectBuffer(s3Key),
+      );
+      return pages > maxPages
+        ? this.i18n.t(DocumentsI18n.errors.TOO_MANY_PAGES, {
+            args: { pages, maxPages },
+          })
+        : null;
+    } catch (error) {
+      if (error instanceof UnreadablePdfError) {
+        return this.i18n.t(DocumentsI18n.errors.INVALID_PDF);
+      }
+      throw error;
+    }
   }
 
   /**

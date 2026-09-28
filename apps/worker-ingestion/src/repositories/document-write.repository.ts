@@ -17,6 +17,7 @@ export interface DocumentRow {
   extraction_status: ExtractionStatus | null;
   extraction_error: string | null;
   extracted_at: Date | null;
+  textract_job_id: string | null;
 }
 
 @Injectable()
@@ -30,7 +31,7 @@ export class DocumentWriteRepository {
           return client.query<DocumentRow>(
             `SELECT id, tenant_id, title, content, content_structured, source_type,
                   s3_key, s3_bucket, original_filename, mime_type,
-                  extraction_status, extraction_error, extracted_at
+                  extraction_status, extraction_error, extracted_at, textract_job_id
            FROM public.documents
            WHERE id = $1`,
             [documentId],
@@ -38,6 +39,21 @@ export class DocumentWriteRepository {
         },
       );
     return result.rows[0] ?? null;
+  }
+
+  /** The Textract job to resume on a retry; null once a failed job must be replaced. */
+  async setTextractJobId(
+    documentId: string,
+    jobId: string | null,
+  ): Promise<void> {
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        await client.query(
+          `UPDATE public.documents SET textract_job_id = $1, updated_at = NOW() WHERE id = $2`,
+          [jobId, documentId],
+        );
+      },
+    );
   }
 
   async storeExtractedContent(

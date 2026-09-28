@@ -4,7 +4,10 @@ import type { DocumentIngestionJobData } from '@lib/queue';
 import { DocumentIngestionService } from './document-ingestion.service';
 import type { DocumentWriteRepository } from '../repositories/document-write.repository';
 import type { DocumentRow } from '../repositories/document-write.repository';
-import type { ITextractService } from '../interfaces/textract.interface';
+import {
+  TextractJobFailedError,
+  type ITextractService,
+} from '../interfaces/textract.interface';
 import type { IS3PromotionService } from '../interfaces/s3-promotion.interface';
 
 const MOCK_JOB_DATA: DocumentIngestionJobData = {
@@ -31,6 +34,7 @@ function makeDocumentRow(overrides?: Partial<DocumentRow>): DocumentRow {
     extraction_status: 'processing',
     extraction_error: null,
     extracted_at: null,
+    textract_job_id: null,
     ...overrides,
   };
 }
@@ -44,13 +48,15 @@ describe('DocumentIngestionService', () => {
   beforeEach(() => {
     repo = {
       findById: jest.fn(),
-      storeExtractedContent: jest.fn(),
-      markCompleted: jest.fn(),
+      storeExtractedContent: jest.fn().mockResolvedValue(undefined),
+      setTextractJobId: jest.fn().mockResolvedValue(undefined),
+      markCompleted: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn(),
     } as unknown as jest.Mocked<DocumentWriteRepository>;
 
     textract = {
-      extractText: jest.fn(),
+      startAnalysis: jest.fn().mockResolvedValue('textract-job-1'),
+      collectResult: jest.fn(),
     } as jest.Mocked<ITextractService>;
 
     promotion = {
@@ -63,7 +69,7 @@ describe('DocumentIngestionService', () => {
   describe('process — happy path', () => {
     it('should extract text, store content, promote file, and mark completed', async () => {
       repo.findById.mockResolvedValue(makeDocumentRow());
-      textract.extractText.mockResolvedValue({
+      textract.collectResult.mockResolvedValue({
         text: 'Extracted document content',
         sections: [],
         pageCount: 3,
@@ -78,11 +84,16 @@ describe('DocumentIngestionService', () => {
       await service.process(MOCK_JOB_DATA);
 
       expect(repo.findById).toHaveBeenCalledWith('doc-123');
-      expect(textract.extractText).toHaveBeenCalledWith(
+      expect(textract.startAnalysis).toHaveBeenCalledWith(
         'complytude-quarantine',
         'tenants/tenant-456/documents/doc-123/file.pdf',
         'application/pdf',
       );
+      expect(repo.setTextractJobId).toHaveBeenCalledWith(
+        'doc-123',
+        'textract-job-1',
+      );
+      expect(textract.collectResult).toHaveBeenCalledWith('textract-job-1');
       expect(repo.storeExtractedContent).toHaveBeenCalledWith(
         'doc-123',
         'Extracted document content',
@@ -111,10 +122,83 @@ describe('DocumentIngestionService', () => {
 
       await service.process(MOCK_JOB_DATA);
 
-      expect(textract.extractText).not.toHaveBeenCalled();
+      expect(textract.startAnalysis).not.toHaveBeenCalled();
+      expect(textract.collectResult).not.toHaveBeenCalled();
       expect(repo.storeExtractedContent).not.toHaveBeenCalled();
       expect(promotion.promote).toHaveBeenCalled();
       expect(repo.markCompleted).toHaveBeenCalled();
+    });
+  });
+
+  describe('process — one Textract job per document', () => {
+    const extracted = { text: 'Extracted', sections: [], pageCount: 1 };
+
+    beforeEach(() => {
+      promotion.promote.mockResolvedValue({ bucket: 'b', key: 'k' });
+    });
+
+    it('resumes the stored job on a retry instead of starting (and paying for) another', async () => {
+      repo.findById.mockResolvedValue(
+        makeDocumentRow({ textract_job_id: 'textract-job-1' }),
+      );
+      textract.collectResult.mockResolvedValue(extracted);
+
+      await service.process(MOCK_JOB_DATA);
+
+      expect(textract.startAnalysis).not.toHaveBeenCalled();
+      expect(textract.collectResult).toHaveBeenCalledWith('textract-job-1');
+    });
+
+    it('a poll timeout and its retry start one job in total', async () => {
+      let stored: string | null = null;
+      repo.setTextractJobId.mockImplementation((_id, jobId) => {
+        stored = jobId;
+        return Promise.resolve();
+      });
+      repo.findById.mockImplementation(() =>
+        Promise.resolve(makeDocumentRow({ textract_job_id: stored })),
+      );
+      textract.collectResult
+        .mockRejectedValueOnce(new RetryableError('did not complete in time'))
+        .mockResolvedValueOnce(extracted);
+
+      await expect(service.process(MOCK_JOB_DATA)).rejects.toThrow(
+        RetryableError,
+      );
+      await service.process(MOCK_JOB_DATA);
+
+      expect(textract.startAnalysis).toHaveBeenCalledTimes(1);
+      expect(textract.collectResult).toHaveBeenCalledTimes(2);
+    });
+
+    it('forgets a job that itself failed, so the retry starts a new one', async () => {
+      repo.findById.mockResolvedValue(
+        makeDocumentRow({ textract_job_id: 'textract-job-1' }),
+      );
+      textract.collectResult.mockRejectedValue(
+        new TextractJobFailedError('Textract job textract-job-1 FAILED'),
+      );
+
+      await expect(service.process(MOCK_JOB_DATA)).rejects.toThrow(
+        RetryableError,
+      );
+
+      expect(repo.setTextractJobId).toHaveBeenCalledWith('doc-123', null);
+    });
+
+    it('an over-limit PDF fails for good without a Textract job', async () => {
+      repo.findById.mockResolvedValue(makeDocumentRow());
+      textract.startAnalysis.mockRejectedValue(
+        new PermanentError(
+          'Document has 400 pages, exceeding the maximum of 50',
+        ),
+      );
+
+      await expect(service.process(MOCK_JOB_DATA)).rejects.toThrow(
+        PermanentError,
+      );
+      expect(repo.setTextractJobId).not.toHaveBeenCalled();
+      expect(textract.collectResult).not.toHaveBeenCalled();
     });
   });
 
@@ -155,7 +239,7 @@ describe('DocumentIngestionService', () => {
 
     it('should throw PermanentError when textract returns empty text', async () => {
       repo.findById.mockResolvedValue(makeDocumentRow());
-      textract.extractText.mockResolvedValue({
+      textract.collectResult.mockResolvedValue({
         text: '',
         sections: [],
         pageCount: 0,

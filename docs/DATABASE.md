@@ -720,6 +720,7 @@ Tenant-specific documents. Supports both text-input (pasted content) and file-up
 | `extraction_status` | `document_extraction_status` ENUM | Extraction lifecycle: `pending`, `processing`, `completed`, `failed`. NULL for text-input |
 | `extraction_error`  | TEXT                              | Error message if extraction failed                                                        |
 | `extracted_at`      | TIMESTAMPTZ                       | When text extraction completed                                                            |
+| `textract_job_id`   | TEXT                              | Textract job of this document; ingestion retries resume it instead of starting another    |
 
 **Enums:**
 
