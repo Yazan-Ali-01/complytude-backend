@@ -37,6 +37,27 @@ import { EntitlementSnapshotService } from './entitlement-snapshot.service';
  * - Snapshot service receives pre-computed entitlements from this service
  * - This service calls snapshot service for caching, not the other way around
  */
+/** Feature types whose add-on grants add up (see mergeValues). */
+const ADDITIVE_FEATURE_TYPES: ReadonlySet<string> = new Set([
+  'quota',
+  'metered',
+  'capacity',
+]);
+
+/** An add-on's numeric grant times the quantity bought; unlimited (-1) stays unlimited. */
+function addonValueForQuantity(
+  valueInt: number | undefined,
+  featureType: string,
+  quantity: number,
+): number | undefined {
+  if (valueInt === undefined || valueInt === null || valueInt === -1) {
+    return valueInt;
+  }
+  return ADDITIVE_FEATURE_TYPES.has(featureType)
+    ? valueInt * Math.max(quantity, 1)
+    : valueInt;
+}
+
 @Injectable()
 export class EntitlementResolverService {
   private readonly logger = new Logger(EntitlementResolverService.name);
@@ -261,6 +282,12 @@ export class EntitlementResolverService {
           if (!featureDef) continue;
 
           const existing = resolved[featureKey];
+          // Stripe bills quantity × price, so a numeric grant counts once per unit bought
+          const valueInt = addonValueForQuantity(
+            entitlement.value_int,
+            featureDef.feature_type,
+            addon.quantity,
+          );
 
           if (!existing) {
             // Add-on grants a feature not in plan
@@ -268,7 +295,7 @@ export class EntitlementResolverService {
               feature_key: featureKey,
               feature_type: featureDef.feature_type,
               value_bool: entitlement.value_bool,
-              value_int: entitlement.value_int,
+              value_int: valueInt,
               value_text: entitlement.value_text,
               source: 'addon',
             };
@@ -278,7 +305,7 @@ export class EntitlementResolverService {
               feature_key: featureKey,
               feature_type: featureDef.feature_type,
               value_bool: entitlement.value_bool,
-              value_int: entitlement.value_int,
+              value_int: valueInt,
               value_text: entitlement.value_text,
               source: 'addon',
             });

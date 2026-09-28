@@ -432,7 +432,7 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 4. Get active add-ons for tenant
 5. Get add-on entitlements from database
 6. Get active overrides for tenant
-7. Merge: plan + addons + overrides (overrides win)
+7. Merge: plan + addons + overrides (overrides win). A numeric add-on grant (quota, metered, capacity) counts once per unit of `tenant_addons.quantity`, matching Stripe's quantity × price; unlimited (-1) stays unlimited
 8. Create snapshot (cache for 24h)
 9. Return effective entitlements
 ```
@@ -1344,7 +1344,7 @@ List tenant's active add-ons:
       {
         featureKey: 'documents_per_month',
         featureType: 'quota',
-        valueInt: 100, // 50 × 2 quantity
+        valueInt: 50, // per unit; the resolved entitlement adds 50 × 2 = 100
       },
     ],
     createdAt: '2026-02-01T00:00:00Z',
