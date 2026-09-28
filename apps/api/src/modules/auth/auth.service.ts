@@ -280,7 +280,7 @@ export class AuthService {
       message: this.i18n.t(AuthI18n.messages.SIGNUP_SUCCESS),
     } as unknown as MessageResponseDto & { verificationToken: string };
 
-    if (this.configService.get<string>('app.environment') !== 'production') {
+    if (this.echoTokens()) {
       (result as unknown as { verificationToken: string }).verificationToken =
         verificationToken;
     }
@@ -338,9 +338,9 @@ export class AuthService {
     outcome: 'success' | 'error',
     extra: Record<string, string> = {},
   ): string {
-    const base = (
-      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000'
-    ).replace(/\/$/, '');
+    const base = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/$/, '');
     const defaultPath =
       outcome === 'success' ? '/auth/callback' : '/auth/error';
     const pathKey =
@@ -371,7 +371,8 @@ export class AuthService {
     const expiresAt = new Date(
       Date.now() +
         this.parseExpiresIn(
-          this.configService.get<string>('email.verificationExpiresIn') || '1d',
+          this.configService.get<string>('EMAIL_VERIFICATION_EXPIRES_IN') ??
+            '1d',
         ),
     );
     await this.emailVerificationRepository.createEmailVerification(
@@ -1104,6 +1105,11 @@ export class AuthService {
     return response;
   }
 
+  /** Tests and local development read tokens from responses; only with AUTH_ECHO_TOKENS (never in production). */
+  private echoTokens(): boolean {
+    return this.configService.get<boolean>('AUTH_ECHO_TOKENS') === true;
+  }
+
   async forgotPassword({ email }: ForgotPasswordDto) {
     const user = await this.userRepository.findOne({
       filters: {
@@ -1145,7 +1151,7 @@ export class AuthService {
       message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
     };
 
-    if (this.configService.get<string>('app.environment') !== 'production') {
+    if (this.echoTokens()) {
       (result as unknown as { resetToken: string }).resetToken = resetToken;
     }
 

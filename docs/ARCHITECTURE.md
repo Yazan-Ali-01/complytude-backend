@@ -277,7 +277,7 @@ graph TD
 | Module            | Responsibility                                                                     | Dependencies                               |
 | ----------------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
 | **auth**          | JWT authentication, signup, login, token refresh, invitation flows, Redis sessions | users, invitations, email, database, redis |
-| **email**         | Email delivery (verification, password reset) via Resend                           | config, i18n                               |
+| **email**         | Email delivery (verification, reset, invitations, billing notices) via AWS SES     | config, i18n                               |
 | **users**         | User management, profile updates                                                   | database                                   |
 | **tenants**       | Tenant creation, management, invitations                                           | users, database                            |
 | **invitations**   | Tenant invitations, accept/reject                                                  | users, tenants, database                   |
@@ -984,6 +984,8 @@ FRONTEND_URL=https://app.complytude.com
 ```
 
 **Never commit secrets to version control.**
+
+**Production fails fast.** Each app (API and the three workers) validates its environment with its own Joi schema at boot. With `NODE_ENV=production`, every secret it needs (`secretEnv()` in `@lib/database`: DB password, JWT secrets, Stripe secret and webhook secret, OpenAI and Cohere keys, set SSO client secrets) must be present, long enough and not a placeholder (`change-this`, `your-…-key`, `placeholder`, `postgres`, …); the four JWT secrets must all differ; `FRONTEND_URL` must be an https URL; and `AUTH_ECHO_TOKENS` (tokens in signup / forgot-password responses, tests only) must be off. The app refuses to start with a message naming the variable.
 
 ---
 

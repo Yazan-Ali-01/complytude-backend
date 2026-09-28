@@ -1,4 +1,4 @@
-import { databaseEnvSchema } from '@lib/database';
+import { databaseEnvSchema, secretEnv } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
 import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
@@ -28,7 +28,7 @@ export const validationSchema = Joi.object({
   OPENAI_CHAT_TIMEOUT: Joi.number().default(120000),
 
   // Cohere Re-ranking
-  COHERE_API_KEY: Joi.string().required(),
+  COHERE_API_KEY: secretEnv('COHERE_API_KEY', { min: 20 }),
   COHERE_RERANK_MODEL: Joi.string().default('rerank-v3.5'),
   RERANK_TOP_N: Joi.number().default(25),
 
@@ -47,6 +47,7 @@ export const validationSchema = Joi.object({
 
   // Embedding (OpenAI)
   ...embeddingEnvSchema,
+  OPENAI_API_KEY: secretEnv('OPENAI_API_KEY', { min: 20 }),
 
   // Logging
   ...loggerEnvSchema,

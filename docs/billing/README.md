@@ -77,7 +77,6 @@ STRIPE_PUBLISHABLE_KEY=pk_test_...
 # Optional
 STRIPE_CATALOG_SYNC_ENABLED=false  # Set to true to sync on startup
 STRIPE_TAX_ENABLED=false          # Enable Stripe Tax features
-STRIPE_SKIP_CUSTOMER_CREATION=false # For testing
 ```
 
 See [DEVELOPMENT.md#environment-variables](DEVELOPMENT.md#environment-variables) for full list.

@@ -1,4 +1,4 @@
-import { databaseEnvSchema } from '@lib/database';
+import { databaseEnvSchema, secretEnv } from '@lib/database';
 import { embeddingEnvSchema } from '@lib/embedding';
 import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
@@ -30,6 +30,7 @@ export const validationSchema = Joi.object({
 
   // Embedding (OpenAI)
   ...embeddingEnvSchema,
+  OPENAI_API_KEY: secretEnv('OPENAI_API_KEY', { min: 20 }),
 
   // Logging
   ...loggerEnvSchema,

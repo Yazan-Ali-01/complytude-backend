@@ -222,10 +222,11 @@ module "ecs" {
   ]
 
   api_environment = {
-    NODE_ENV       = "production"
-    LOG_LEVEL      = "info"
-    SERVICE_NAME   = "gateway"
-    GOTENBERG_URL  = "http://localhost:3100"
+    NODE_ENV      = "production"
+    LOG_LEVEL     = "info"
+    SERVICE_NAME  = "gateway"
+    GOTENBERG_URL = "http://localhost:3100"
+    FRONTEND_URL  = var.frontend_url
   }
   bull_board_port = local.bull_board_port
   worker_ai_environment = {

@@ -202,7 +202,7 @@ Emitted to `domain_events` (see [ENTITLEMENTS.md](../ENTITLEMENTS.md#domain-even
 | `Plan not found` / missing price                         | Catalog sync not run                                            | Enable sync or call `admin/stripe/sync-catalog`                             |
 | `No local subscription found for stripe_subscription_id` | Webhook arrived before DB row, or wrong Stripe account          | Reconcile; confirm tenant's subscription row exists                         |
 | Duplicate webhook acknowledged                           | Same `evt_` replayed                                            | Expected; idempotency returns 200                                           |
-| Customer not created                                     | `STRIPE_SKIP_CUSTOMER_CREATION=true` or missing secret key      | Check env; run `backfill-customers` if needed                               |
+| Customer not created                                     | missing secret key (`STRIPE_SECRET_KEY` empty)                  | Check env; run `backfill-customers` if needed                               |
 | Credits not after successful payment                     | `checkout.session.completed` not processed or wrong metadata    | Check `stripe_webhook_events`; verify session metadata for credit purchases |
 
 ---

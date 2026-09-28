@@ -90,7 +90,7 @@ Use the same `app_password` as `app_db_password` in tfvars.
 
 **ECS integration:** The ECS module attaches `ecs_secrets_policy_arn` to the task execution role and injects all app secrets via the task definition `secrets` block (format: `valueFrom = "${secret_arn}:KEY::"`).
 
-**OAuth2 SSO (Google / Microsoft):** Optional keys `GOOGLE_*`, `MICROSOFT_*`, `SSO_FRONTEND_*` are included in the same JSON secret (defaults empty = SSO disabled in the API). Set the SPA base URL as `FRONTEND_URL` via ECS task **environment** (`api_environment` in the ECS module) or extend secrets — the API uses it for post-OAuth browser redirects.
+**OAuth2 SSO (Google / Microsoft):** Optional keys `GOOGLE_*`, `MICROSOFT_*`, `SSO_FRONTEND_*` are included in the same JSON secret (defaults empty = SSO disabled in the API). The SPA base URL comes from the required `frontend_url` variable and reaches the API as `FRONTEND_URL` (task environment); email links and post-OAuth redirects use it, and the API refuses to boot in production without an https value.
 
 **Rotation:** Update the secret in AWS Console or via `aws secretsmanager put-secret-value`. Terraform will overwrite on next apply — for rotation, use AWS Console or a separate rotation Lambda.
 

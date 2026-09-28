@@ -30,8 +30,8 @@ export class JwtTenantAccessStrategy extends PassportStrategy(
     super({
       jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
-      secretOrKey:
-        configService.get<string>('jwt.accessSecret') || 'fallback-secret',
+      secretOrKey: configService.getOrThrow<string>('jwt.accessSecret'),
+      algorithms: ['HS256'],
     });
   }
 

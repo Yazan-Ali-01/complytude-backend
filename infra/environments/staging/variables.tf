@@ -131,8 +131,18 @@ variable "s3_endpoint" {
 }
 
 variable "cors_origins" {
-  description = "CORS allowed origins (comma-separated)"
+  description = "CORS allowed origins (comma-separated): the web app's origin(s), not the API's"
   type        = string
+}
+
+variable "frontend_url" {
+  description = "The web app's base URL (https). Email links and SSO redirects point here; the API refuses to boot without it."
+  type        = string
+
+  validation {
+    condition     = can(regex("^https://[^/]+", var.frontend_url))
+    error_message = "frontend_url must be an https URL, e.g. https://app-staging.complytude.com"
+  }
 }
 
 variable "openai_api_key" {

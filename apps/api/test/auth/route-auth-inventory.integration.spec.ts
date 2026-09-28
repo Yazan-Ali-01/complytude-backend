@@ -258,8 +258,12 @@ describe('Route authentication inventory', () => {
       booted = await bootApp({
         NODE_ENV: 'production',
         ENABLE_MOCK_ROUTES: 'false',
-        // Required in production (env.schema.ts)
+        // Required in production (env.schema.ts); .env.test's test values are refused there
         BULL_BOARD_ADMIN_SECRET: 'route-auth-inventory-secret-0123456789',
+        FRONTEND_URL: 'https://app.example.com',
+        AUTH_ECHO_TOKENS: 'false',
+        STRIPE_SECRET_KEY: 'sk_test_route_inventory_0123456789',
+        STRIPE_WEBHOOK_SECRET: 'whsec_route_inventory_0123456789',
       });
       server = booted.testApp.app
         .getHttpAdapter()

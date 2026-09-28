@@ -30,9 +30,10 @@ export class JwtIdentityRefreshStrategy extends PassportStrategy(
     super({
       jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
-      secretOrKey:
-        configService.get<string>('jwt.identityRefreshSecret') ||
-        'fallback-secret',
+      secretOrKey: configService.getOrThrow<string>(
+        'jwt.identityRefreshSecret',
+      ),
+      algorithms: ['HS256'],
       passReqToCallback: true,
     });
   }

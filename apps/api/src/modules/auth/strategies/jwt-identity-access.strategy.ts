@@ -30,8 +30,8 @@ export class JwtIdentityAccessStrategy extends PassportStrategy(
     super({
       jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
-      secretOrKey:
-        configService.get<string>('jwt.identitySecret') || 'fallback-secret',
+      secretOrKey: configService.getOrThrow<string>('jwt.identitySecret'),
+      algorithms: ['HS256'],
     });
   }
 

@@ -1,13 +1,31 @@
-import { databaseEnvSchema } from '@lib/database';
+import { databaseEnvSchema, secretEnv } from '@lib/database';
 import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
+
+const JWT_SECRET_KEYS = [
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'JWT_IDENTITY_SECRET',
+  'JWT_IDENTITY_REFRESH_SECRET',
+] as const;
 
 export const validationSchema = Joi.object({
   // App
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
+  // Echo verification/reset tokens in the signup and forgot-password responses, for tests and
+  // local development only; never in production
+  AUTH_ECHO_TOKENS: Joi.boolean()
+    .default(false)
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.valid(false).messages({
+        'any.only':
+          'AUTH_ECHO_TOKENS must not be true when NODE_ENV=production',
+      }),
+    }),
   // Dev-only demo routes (MockModule, RagMockModule); see app.module.ts
   ENABLE_MOCK_ROUTES: Joi.boolean()
     .default(false)
@@ -26,30 +44,15 @@ export const validationSchema = Joi.object({
     .min(1)
     .max(50)
     .default(5),
-  ENTITLEMENT_SUBSCRIPTION_CACHE_TTL_SECONDS: Joi.number()
-    .integer()
-    .min(10)
-    .max(3600)
-    .default(60),
-  ENTITLEMENT_FEATURE_CACHE_TTL_SECONDS: Joi.number()
-    .integer()
-    .min(30)
-    .max(7200)
-    .default(300),
-  ENTITLEMENT_CACHE_CLEANUP_INTERVAL_SECONDS: Joi.number()
-    .integer()
-    .min(60)
-    .max(3600)
-    .default(300),
 
   // Database
   ...databaseEnvSchema,
 
   // JWT
-  JWT_ACCESS_SECRET: Joi.string().required(),
-  JWT_REFRESH_SECRET: Joi.string().required(),
-  JWT_IDENTITY_SECRET: Joi.string().required(),
-  JWT_IDENTITY_REFRESH_SECRET: Joi.string().required(),
+  // Four distinct secrets (checked below), each at least 32 characters in production
+  ...Object.fromEntries(
+    JWT_SECRET_KEYS.map((key) => [key, secretEnv(key, { min: 32 })]),
+  ),
   JWT_ACCESS_EXPIRES_IN: Joi.string().default('30m'),
   JWT_IDENTITY_EXPIRES_IN: Joi.string().default('10m'),
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
@@ -72,13 +75,19 @@ export const validationSchema = Joi.object({
     .default(120),
   SESSION_STRICT_MODE: Joi.boolean().default(false),
 
-  // Email (Resend)
-  EMAIL_PROVIDER: Joi.string()
-    .valid('resend', 'ses', 'sendgrid')
-    .default('resend'),
-  EMAIL_API_KEY: Joi.string().allow('').default(''),
-  EMAIL_FROM: Joi.string().default('noreply@complytude.com'),
-  FRONTEND_URL: Joi.string().default('http://localhost:3000'),
+  // The web app: email links (verify, reset, invite, upgrade) and SSO redirects point here
+  FRONTEND_URL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string()
+      .uri({ scheme: ['https'] })
+      .required()
+      .messages({
+        'any.required': 'FRONTEND_URL is required when NODE_ENV=production',
+        'string.uriCustomScheme':
+          'FRONTEND_URL must be an https URL when NODE_ENV=production',
+      }),
+    otherwise: Joi.string().uri().default('http://localhost:3000'),
+  }),
   /** When true, email methods return without calling SES (local/tests). */
   EMAIL_SKIP_SEND: Joi.string().valid('true', 'false').default('false'),
 
@@ -106,8 +115,8 @@ export const validationSchema = Joi.object({
   ...redisEnvSchema,
 
   // Stripe
-  STRIPE_SECRET_KEY: Joi.string().required(),
-  STRIPE_WEBHOOK_SECRET: Joi.string().required(),
+  STRIPE_SECRET_KEY: secretEnv('STRIPE_SECRET_KEY', { min: 20 }),
+  STRIPE_WEBHOOK_SECRET: secretEnv('STRIPE_WEBHOOK_SECRET', { min: 20 }),
   STRIPE_PUBLISHABLE_KEY: Joi.string().required(),
   STRIPE_CATALOG_SYNC_ENABLED: Joi.boolean().default(false),
   STRIPE_TAX_ENABLED: Joi.boolean().default(false),
@@ -142,16 +151,29 @@ export const validationSchema = Joi.object({
 
   // Google OAuth2 SSO (optional — omit or leave empty to disable)
   GOOGLE_CLIENT_ID: Joi.string().allow('').optional().default(''),
-  GOOGLE_CLIENT_SECRET: Joi.string().allow('').optional().default(''),
+  GOOGLE_CLIENT_SECRET: secretEnv('GOOGLE_CLIENT_SECRET', {
+    min: 16,
+    optional: true,
+  }).default(''),
   GOOGLE_CALLBACK_URL: Joi.string().allow('').optional().default(''),
 
   // Microsoft OAuth2 SSO (optional — omit or leave empty to disable)
   MICROSOFT_CLIENT_ID: Joi.string().allow('').optional().default(''),
-  MICROSOFT_CLIENT_SECRET: Joi.string().allow('').optional().default(''),
+  MICROSOFT_CLIENT_SECRET: secretEnv('MICROSOFT_CLIENT_SECRET', {
+    min: 16,
+    optional: true,
+  }).default(''),
   MICROSOFT_CALLBACK_URL: Joi.string().allow('').optional().default(''),
   MICROSOFT_TENANT_ID: Joi.string().allow('').optional().default('common'),
 
   // Where the API redirects the browser after OAuth (relative to FRONTEND_URL)
   SSO_FRONTEND_SUCCESS_PATH: Joi.string().default('/auth/callback'),
   SSO_FRONTEND_ERROR_PATH: Joi.string().default('/auth/error'),
+}).custom((env: Record<string, unknown>, helpers) => {
+  const secrets = JWT_SECRET_KEYS.map((key) => env[key]);
+  return new Set(secrets).size === secrets.length
+    ? env
+    : helpers.message({
+        custom: `${JWT_SECRET_KEYS.join(', ')} must all be different`,
+      });
 });

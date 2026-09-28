@@ -13,8 +13,5 @@ export const emailConfig = (configService: ConfigService): EmailConfig => ({
   fromEmail: configService.get<string>('FROM_EMAIL')!,
   fromName: configService.get<string>('FROM_NAME', 'Complytude Billing'),
   supportEmail: configService.get<string>('SUPPORT_EMAIL')!,
-  frontendUrl: configService.get<string>(
-    'FRONTEND_URL',
-    'http://localhost:3000',
-  ),
+  frontendUrl: configService.getOrThrow<string>('FRONTEND_URL'),
 });

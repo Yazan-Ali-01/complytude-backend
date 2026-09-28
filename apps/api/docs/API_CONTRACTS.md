@@ -685,7 +685,7 @@ SSO-only users cannot use `POST /auth/login` with a password until a password ex
 - Entitlements resolved lazily on first access (from subscription)
 - Default preferences applied (locale: `en`, timezone: `Asia/Dubai`)
 - Tenant slug is `null` on creation; user can set via `PATCH /tenants/me/slug` later
-- **Stripe:** Fire-and-forget customer creation via `StripeCustomerService.createCustomerForTenant()`. Creates Stripe customer with creator email and `metadata.creator_user_id` for traceability. Skips when `STRIPE_SECRET_KEY` is empty or `STRIPE_SKIP_CUSTOMER_CREATION=true`. Never blocks tenant creation. **No Stripe Subscription is created here** — paid plans require an explicit Checkout flow.
+- **Stripe:** Fire-and-forget customer creation via `StripeCustomerService.createCustomerForTenant()`. Creates Stripe customer with creator email and `metadata.creator_user_id` for traceability. Skips when `STRIPE_SECRET_KEY` is empty. Never blocks tenant creation. **No Stripe Subscription is created here** — paid plans require an explicit Checkout flow.
 - **Trial-ending reminder:** The `TRIAL_REMINDER_CHECK` cron (every 6h) sends a one-shot "trial ending soon" email ~3 days before `trial_ends_at`. Idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
 - **Trial expiry:** The `TRIAL_EXPIRY_CHECK` cron (every 6h) downgrades expired trials to Navigator (free) automatically.
 

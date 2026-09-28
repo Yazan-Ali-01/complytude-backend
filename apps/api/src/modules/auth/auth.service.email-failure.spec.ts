@@ -28,11 +28,13 @@ describe('AuthService when SES rejects the email', () => {
     EMAIL_SKIP_SEND: 'false',
     FROM_EMAIL: 'noreply@example.com',
     SUPPORT_EMAIL: 'support@example.com',
-    'email.verificationExpiresIn': '1d',
+    EMAIL_VERIFICATION_EXPIRES_IN: '1d',
+    FRONTEND_URL: 'http://localhost:3001',
     'app.environment': 'test',
   };
   const configService = {
     get: (key: string, fallback?: unknown) => config[key] ?? fallback,
+    getOrThrow: (key: string) => config[key],
   } as unknown as ConfigService;
   const i18n = {
     t: (key: string) => key,

@@ -40,8 +40,11 @@ s3_access_key = ""
 s3_secret_key = ""
 s3_endpoint   = ""  # Empty for AWS S3
 
-# CORS — comma-separated origins
-cors_origins = "https://api-staging.complytude.com"
+# CORS — comma-separated origins of the web app (the browser's origin, not the API's)
+cors_origins = "https://app-staging.complytude.com"
+
+# The web app's base URL (https): email links and SSO redirects point here
+frontend_url = "https://app-staging.complytude.com"
 
 # OpenAI — required for worker-ai and worker-ingestion
 openai_api_key = "sk-..."

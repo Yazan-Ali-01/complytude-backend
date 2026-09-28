@@ -54,7 +54,6 @@ Configure `apps/api/.env` (see `apps/api/.env.example` for the full template). R
 | `STRIPE_PUBLISHABLE_KEY`        | Yes      | Publishable key (`pk_test_...`) — validated at startup                        |
 | `STRIPE_CATALOG_SYNC_ENABLED`   | No       | `true` to sync plans/add-ons/credit packages to Stripe on startup             |
 | `STRIPE_TAX_ENABLED`            | No       | `true` to enable Stripe Tax features in services that support it              |
-| `STRIPE_SKIP_CUSTOMER_CREATION` | No       | `true` to skip creating Stripe customers on tenant creation (useful in tests) |
 
 **Webhook secret for local CLI:** When you run `stripe listen`, the CLI prints a **webhook signing secret** (`whsec_...`). Use that value for `STRIPE_WEBHOOK_SECRET` while developing locally.
 

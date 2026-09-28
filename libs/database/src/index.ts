@@ -6,4 +6,5 @@ export { default as databaseConfig } from './database.config';
 export * from './database.constants';
 export * from './database.module';
 export * from './database.schema';
+export * from './env-secret.schema';
 export * from './database.service';

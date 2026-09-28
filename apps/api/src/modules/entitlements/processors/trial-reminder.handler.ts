@@ -167,10 +167,7 @@ export class TrialReminderHandler {
 
     const trialEndsAt = ctx.fresh.trial_ends_at!;
     const daysRemaining = this.computeDaysRemaining(trialEndsAt);
-    const frontendUrl = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:3000',
-    );
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
     const upgradeUrl = `${frontendUrl}/billing/upgrade`;
 
     const locale = ctx.tenant.locale ?? 'en';

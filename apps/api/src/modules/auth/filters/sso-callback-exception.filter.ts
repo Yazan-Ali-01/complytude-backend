@@ -35,9 +35,9 @@ export class SsoCallbackExceptionFilter implements ExceptionFilter {
       `SSO callback error (${provider}): ${exception instanceof Error ? exception.message : String(exception)}`,
     );
 
-    const frontendUrl = (
-      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000'
-    ).replace(/\/$/, '');
+    const frontendUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/$/, '');
     const errorPath =
       this.configService.get<string>('sso.frontendErrorPath') ?? '/auth/error';
     const params = new URLSearchParams({ sso: 'error', provider, reason });
