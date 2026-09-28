@@ -26,9 +26,10 @@ pnpm start:worker-generation  # Generation worker only (watch mode)
 
 ```bash
 pnpm db:migrate       # Run all migrations
-pnpm db:seed          # Seed database
+pnpm db:seed          # Seed database (test fixtures only for development/test; see scripts/seeds/README.md)
 pnpm services:up      # Start PostgreSQL + Redis
 pnpm services:reset   # Full reset: down -v → up → migrate → seed
+pnpm admin:grant <email> [--role system_admin|support|auditor]  # Grant a platform role (emails a set-password link)
 ```
 
 ### Code Quality

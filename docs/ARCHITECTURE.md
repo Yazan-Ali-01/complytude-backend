@@ -295,6 +295,16 @@ graph TD
 | **health**        | Health checks for services                                                         | database, redis                            |
 | **mock**          | Dev-only mock endpoints, mounted only with `ENABLE_MOCK_ROUTES=true`               | entitlements, rbac                         |
 
+### One-off Commands (`apps/api/src/cli/`)
+
+Run with arguments, `main.ts` runs a command from `cli/cli.ts` instead of starting the HTTP server, so operators use the same image and environment as the API (e.g. as a one-off ECS task): `node dist/apps/api/main.js <command> …`.
+
+Each command boots its own minimal module rather than `AppModule`. `AppModule` registers BullMQ consumers, which a one-off command must not start. Commands reuse `config/config-module.options.ts`, so the environment is validated exactly as the API validates it.
+
+| Command | Purpose |
+| --- | --- |
+| `grant-platform-admin <email> [--role …]` (`pnpm admin:grant`) | Grant a platform role. New accounts are created verified, without a password, and emailed a set-password link. Audited. See `docs/RBAC.md`. |
+
 ---
 
 ## Database Architecture

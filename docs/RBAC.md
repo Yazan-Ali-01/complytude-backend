@@ -242,6 +242,21 @@ Three predefined system roles with in-memory permission sets:
 | **Support** | `support` | `tenants:read`, `users:read`, `plans:read`, `subscriptions:read`, `templates:read`, `rulesets:read`, `authorities:read`, `categories:read`, `entitlements:read`, `audit:read`, `support:access` | Read-only support access |
 | **Auditor** | `auditor` | `tenants:read`, `users:read`, `audit:read`, `entitlements:read` | Audit and compliance read-only access |
 
+### Granting a Platform Role
+
+A user's platform role is `users.platform_role_key`. There is no API for it. The only supported way to set it is the CLI built into the API bundle:
+
+```bash
+pnpm admin:grant <email> [--role system_admin|support|auditor]      # local / through the bastion
+node dist/apps/api/main.js grant-platform-admin <email> [--role …]   # e.g. as a one-off ECS task
+```
+
+- **New email:** creates a verified account with no password and emails a set-password link valid for 24 hours. The link is the only way in: SSO sign-in never auto-links into a platform-role account.
+- **Existing account:** promoted only if its email is verified (an unverified account may belong to someone who only typed the address). Its sessions are ended when the role changes, because identity tokens carry the role.
+- Every grant writes a system audit row, `PLATFORM_ROLE_GRANTED`, with the previous role and the operator.
+
+The development seed (`scripts/seeds/003_seed_test_tenants_users.sql`) creates `superadmin@complytude.test` with a published password. It loads only into development/test databases. See `docs/DEPLOYMENT.md` → "Create a Platform Admin".
+
 ### Platform Permissions
 
 Permissions follow the pattern: `{resource}:{action}`

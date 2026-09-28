@@ -1,21 +1,14 @@
 import { AuditModule } from '@lib/audit';
 import { PdfModule } from '@lib/pdf';
 import { ContextModule, TracingInterceptor } from '@lib/context';
-import { databaseConfig, DatabaseModule } from '@lib/database';
+import { DatabaseModule } from '@lib/database';
 import { LoggerModule } from '@lib/logger';
 import { QUEUE_NAMES, QueueModule } from '@lib/queue';
-import { redisConfig, RedisModule } from '@lib/redis';
+import { RedisModule } from '@lib/redis';
 import { Module, RequestMethod } from '@nestjs/common';
 import { ConditionalModule, ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import appConfig from 'src/config/app.config';
-import { validationSchema } from 'src/config/env.schema';
-import geoConfig from 'src/config/geo.config';
-import jwtConfig from 'src/config/jwt.config';
-import sessionConfig from 'src/config/session.config';
-import ssoConfig from 'src/config/sso.config';
-import storageConfig from 'src/config/storage.config';
-import stripeConfig from 'src/config/stripe.config';
+import { configModuleOptions } from 'src/config/config-module.options';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { HealthModule } from 'src/modules/health/health.module';
 import { UsersModule } from 'src/modules/users/users.module';
@@ -49,26 +42,7 @@ const mockRoutesEnabled = (env: NodeJS.ProcessEnv): boolean =>
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: ['apps/api/.env'],
-      load: [
-        databaseConfig,
-        appConfig,
-        jwtConfig,
-        geoConfig,
-        sessionConfig,
-        storageConfig,
-        stripeConfig,
-        ssoConfig,
-        redisConfig,
-      ],
-      validationSchema: validationSchema,
-      validationOptions: {
-        allowUnknown: true,
-        abortEarly: false,
-      },
-    }),
+    ConfigModule.forRoot(configModuleOptions),
     ContextModule.forRoot({ enableHttpTracing: true }),
     LoggerModule.forRoot({
       serviceName: 'gateway',

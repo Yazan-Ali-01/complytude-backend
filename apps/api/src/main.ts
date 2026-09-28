@@ -22,6 +22,7 @@ import {
   bullBoardHost,
   startBullBoardServer,
 } from './bull-board/bull-board.server';
+import { runCli } from './cli/cli';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import {
   IDENTITY_REFRESH_TOKEN_COOKIE_NAME,
@@ -327,4 +328,17 @@ async function bootstrap() {
   logger.log(`🌍 Environment: ${environment}`);
 }
 
-void bootstrap();
+// With arguments (e.g. `grant-platform-admin <email>`), run a one-off command from the same
+// image and environment instead of starting the HTTP server.
+const cliArgs = process.argv.slice(2);
+if (cliArgs.length > 0) {
+  runCli(cliArgs).then(
+    (code) => process.exit(code),
+    (error: unknown) => {
+      console.error(error);
+      process.exit(1);
+    },
+  );
+} else {
+  void bootstrap();
+}

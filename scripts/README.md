@@ -108,26 +108,25 @@ Runs database migrations:
 Populates database with initial data:
 
 ```bash
-# Development environment
+# Development: reference data + test fixtures
 ./scripts/run-seeds.sh development
 
-# Staging environment
+# Staging / production: reference data only (authorities, categories)
 ./scripts/run-seeds.sh staging
-
-# Production (reference data only)
 ./scripts/run-seeds.sh production
+
+# Print the plan without touching the database
+./scripts/run-seeds.sh staging --list
 ```
 
 **Seeds:**
 
-- 10 UAE authorities (DMCC, DIFC, etc.)
-- 10 template categories
-- 3 sample tenants (dev/staging)
-- 7 sample users (dev/staging)
-- 5 sample templates (dev/staging)
-- 7 sample documents (dev/staging)
+- Everywhere: 10 UAE authorities (DMCC, DIFC, etc.) and template categories
+- Development/test only: 3 test tenants and 7 test users with a published password (including a `system_admin`), sample templates, documents, subscriptions, entitlements and demo rulesets
 
-**Note:** RBAC roles and permissions are auto-synced by `TenantRbacSyncService` on app startup.
+Test fixtures load only when the environment argument is `development`/`test` **and** `NODE_ENV` is unset or `development`/`test`; `003_seed_test_tenants_users.sql` also refuses to run outside `run-seeds.sh`. See [seeds/README.md](./seeds/README.md).
+
+**Note:** RBAC roles and permissions are auto-synced by `TenantRbacSyncService` on app startup, and features/plans by `EntitlementSyncService`. Platform admins are created with `pnpm admin:grant <email>`.
 
 ### 4. Download GeoLite2-City (Optional — Session Geo Enrichment)
 

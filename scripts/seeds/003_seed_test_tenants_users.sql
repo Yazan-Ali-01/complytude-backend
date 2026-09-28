@@ -4,7 +4,17 @@
 -- Description: Seed test tenants, users, and user-tenant relationships for development/testing
 -- Idempotent: Uses ON CONFLICT DO NOTHING / UPDATE
 -- WARNING: Contains test passwords - DO NOT use in production
+-- Guard: refuses to run unless complytude.allow_fixtures = 'on', which only
+--        scripts/run-seeds.sh sets, and only for development/test.
 -- =========================
+
+DO $$
+BEGIN
+    IF coalesce(current_setting('complytude.allow_fixtures', true), '') <> 'on' THEN
+        RAISE EXCEPTION 'Test fixture 003 creates accounts with a published password; load it only through scripts/run-seeds.sh development|test';
+    END IF;
+END
+$$;
 
 BEGIN;
 

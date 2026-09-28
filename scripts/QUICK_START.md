@@ -273,16 +273,17 @@ Check the environment parameter - production only seeds reference data, not test
 
 ### Staging
 
-- ✅ Reference data
-- ✅ Limited test data
-- ⚠️ Consider using production-like data
+- ✅ Reference data only (authorities, categories)
+- ❌ NO test tenants/users (they share a published password)
+- ❌ NO test documents
 
 ### Production
 
 - ✅ Reference data only (authorities, categories)
 - ❌ NO test tenants/users
 - ❌ NO test documents
-- ⚠️ Requires manual confirmation before seeding
+
+Test fixtures load only for `development`/`test` with `NODE_ENV` unset or `development`/`test`. Create platform admins with `pnpm admin:grant <email>`.
 
 ## Next Steps
 

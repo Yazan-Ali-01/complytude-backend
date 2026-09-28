@@ -499,7 +499,7 @@ DB_PASSWORD=<staging-db-admin-password> \
   bash scripts/run-migrations.sh
 ```
 
-### Run Seeds (staging only)
+### Run Seeds (reference data only)
 
 ```bash
 DB_HOST=localhost \
@@ -509,6 +509,31 @@ DB_USER=postgres \
 DB_PASSWORD=<staging-db-admin-password> \
   bash scripts/run-seeds.sh staging
 ```
+
+For `staging` and `production` this loads the reference data only (authorities, categories). The test tenants and users, which share a published password, load only in `development`/`test`; see `scripts/seeds/README.md`.
+
+### Create a Platform Admin
+
+No platform admin is seeded in deployed environments, and no password is kept in the repo. Grant the role with the CLI built into the API image. It creates the account (verified, without a password) and emails a set-password link valid for 24 hours. It can also promote an existing account, which must have a verified email. Each grant writes a `PLATFORM_ROLE_GRANTED` audit row and ends the user's existing sessions when the role changes.
+
+Run it as a one-off ECS task, so it uses the API task's own secrets and network:
+
+```bash
+CLUSTER=$(terraform -chdir=infra/environments/staging output -raw ecs_cluster_name)
+aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE \
+  --task-definition "$CLUSTER-api" \
+  --network-configuration "awsvpcConfiguration={subnets=[<public-subnet-id>],securityGroups=[<ecs-sg-id>],assignPublicIp=ENABLED}" \
+  --overrides '{"containerOverrides":[{"name":"api","command":["node","dist/apps/api/main.js","grant-platform-admin","you@company.com"]}]}'
+```
+
+Locally (or through the bastion tunnel, with the target environment's variables set):
+
+```bash
+pnpm admin:grant you@company.com                    # system_admin (default)
+pnpm admin:grant auditor@company.com --role auditor # support | auditor
+```
+
+The command exits non-zero, and changes nothing, if the account exists but its email isn't verified.
 
 ### Close the Tunnel
 
@@ -616,7 +641,9 @@ DB_HOST=localhost DB_PORT=15432 DB_NAME=complytude \
 
 DB_HOST=localhost DB_PORT=15432 DB_NAME=complytude \
   DB_USER=postgres DB_PASSWORD=<password> \
-  bash scripts/run-seeds.sh staging
+  bash scripts/run-seeds.sh staging   # reference data only
+
+# Then create a platform admin: see "Create a Platform Admin" above
 ```
 
 ---

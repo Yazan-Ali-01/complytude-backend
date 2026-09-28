@@ -3,19 +3,41 @@
 # ============================================================================
 # Database Seeding Script
 # ============================================================================
-# Description: Runs all seed scripts in the correct order
-# Usage: ./scripts/run-seeds.sh [environment]
-# Environment: development (default) | staging | production
+# Description: Runs the seed scripts in the correct order
+# Usage: ./scripts/run-seeds.sh [environment] [--list]
+# Environment: development (default) | test | staging | production
+#
+# Reference data (authorities, categories) loads everywhere. Test fixtures (tenants and
+# users with a published password, sample templates, demo rulesets, stale plan data) load
+# only when the environment is development/test AND NODE_ENV is unset or development/test.
+# Plans and features reach every environment from EntitlementSyncService on API startup.
+# --list prints what would run and exits without touching the database.
 # ============================================================================
 
 set -e  # Exit on error
+set -o pipefail  # a failing psql must not be hidden by the pipe to cat
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
-# Get environment from argument or default to development
-ENVIRONMENT=${1:-development}
+ENVIRONMENT=development
+LIST_ONLY=false
+for arg in "$@"; do
+    case "$arg" in
+        --list) LIST_ONLY=true ;;
+        -*) echo "Unknown option: $arg" >&2; exit 2 ;;
+        *) ENVIRONMENT="$arg" ;;
+    esac
+done
+
+case "$ENVIRONMENT" in
+    development|test|staging|production) ;;
+    *) echo "Unknown environment: $ENVIRONMENT (expected development|test|staging|production)" >&2; exit 2 ;;
+esac
+
+# NODE_ENV as the caller set it; checked again after the .env files are sourced below
+CALLER_NODE_ENV="${NODE_ENV:-}"
 
 # Color codes for output
 RED='\033[0;31m'
@@ -54,6 +76,68 @@ elif [ -f "${SCRIPT_DIR}/../.env.${ENVIRONMENT}" ]; then
     set +a
 else
     echo -e "${YELLOW}Warning: No .env file found. Using existing environment variables.${NC}"
+fi
+
+# ============================================================================
+# Seed Plan: reference data everywhere, test fixtures only in development/test
+# ============================================================================
+
+# Safe in every environment
+REFERENCE_SEEDS=(
+    "001_seed_authorities.sql"
+    "002_seed_categories.sql"
+)
+
+# Development/test only, in dependency order (after the reference seeds).
+# Note: RBAC (roles/permissions) is auto-synced by TenantRbacSyncService on app startup
+FIXTURE_SEEDS=(
+    "003_seed_test_tenants_users.sql"    # users with a published password
+    "004_seed_templates.sql"             # created_by = test users
+    "005_seed_test_documents.sql"
+    "006_seed_features_plans.sql"        # drifts from PLAN_CATALOG; the app syncs plans itself
+    "007_seed_test_subscriptions.sql"    # Runs after plans exist
+    "008_seed_test_entitlements.sql"
+    "009_seed_rulesets.sql"              # demo rulesets, created_by = seeded superadmin
+    "010_seed_ruleset_chunks.sql"
+)
+
+is_dev_env() {
+    case "$1" in
+        development|test) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+FIXTURES_ALLOWED=true
+FIXTURES_BLOCKED_BY=""
+if ! is_dev_env "$ENVIRONMENT"; then
+    FIXTURES_ALLOWED=false
+    FIXTURES_BLOCKED_BY="environment '${ENVIRONMENT}'"
+fi
+for node_env in "$CALLER_NODE_ENV" "${NODE_ENV:-}"; do
+    if [ -n "$node_env" ] && ! is_dev_env "$node_env"; then
+        FIXTURES_ALLOWED=false
+        FIXTURES_BLOCKED_BY="NODE_ENV=${node_env}"
+    fi
+done
+
+print_seed_plan() {
+    echo "Environment: ${ENVIRONMENT} (NODE_ENV=${NODE_ENV:-unset})"
+    for seed in "${REFERENCE_SEEDS[@]}"; do
+        echo "run:  ${seed}"
+    done
+    for seed in "${FIXTURE_SEEDS[@]}"; do
+        if [ "$FIXTURES_ALLOWED" = true ]; then
+            echo "run:  ${seed}"
+        else
+            echo "skip: ${seed} (test fixture; not loaded for ${FIXTURES_BLOCKED_BY})"
+        fi
+    done
+}
+
+if [ "$LIST_ONLY" = true ]; then
+    print_seed_plan
+    exit 0
 fi
 
 # ============================================================================
@@ -104,12 +188,14 @@ print_warning() {
 
 run_seed_file() {
     local file=$1
+    local pg_options=${2:-}
     local filename=$(basename "$file")
 
     echo -e "${BLUE}Running: ${filename}${NC}"
 
-    # Disable pager and run quietly to avoid "more..." prompts
-    if PAGER="" PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f "$file" -v ON_ERROR_STOP=1 -q 2>&1 | cat; then
+    # Disable pager and run quietly to avoid "more..." prompts.
+    # Fixtures get complytude.allow_fixtures=on; 003 refuses to run without it.
+    if PGOPTIONS="$pg_options" PAGER="" PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f "$file" -v ON_ERROR_STOP=1 -q 2>&1 | cat; then
         print_success "Completed: ${filename}"
         return 0
     else
@@ -151,46 +237,33 @@ if [ ! -d "$SEEDS_DIR" ]; then
 fi
 
 # ============================================================================
-# Production Safety Check
-# ============================================================================
-
-if [ "$ENVIRONMENT" = "production" ]; then
-    print_warning "You are about to seed the PRODUCTION database!"
-    echo -e "${RED}This will add test data to your production environment.${NC}"
-    echo -e "${YELLOW}Type 'SEED_PRODUCTION' to continue, or anything else to abort:${NC}"
-    read -r confirmation
-
-    if [ "$confirmation" != "SEED_PRODUCTION" ]; then
-        print_warning "Seeding aborted by user."
-        exit 0
-    fi
-fi
-
-# ============================================================================
 # Run Seed Scripts
 # ============================================================================
 
 print_header "Executing Seed Scripts"
 
-echo -e "${BLUE}Environment: ${ENVIRONMENT}${NC}"
 echo -e "${BLUE}Database: ${DB_NAME}${NC}"
 echo -e "${BLUE}Seeds Directory: ${SEEDS_DIR}${NC}"
+print_seed_plan
 echo ""
 
-# Array of seed files in execution order
-# Note: RBAC (roles/permissions) is auto-synced by TenantRbacSyncService on app startup
-SEED_FILES=(
-    "001_seed_authorities.sql"
-    "002_seed_categories.sql"
-    "003_seed_test_tenants_users.sql"
-    "004_seed_templates.sql"
-    "005_seed_test_documents.sql"
-    "006_seed_features_plans.sql"
-    "007_seed_test_subscriptions.sql"    # Runs after plans exist
-    "008_seed_test_entitlements.sql"
-    "009_seed_rulesets.sql"
-    "010_seed_ruleset_chunks.sql"
-)
+if [ "$FIXTURES_ALLOWED" != true ]; then
+    print_warning "Test fixtures skipped for ${FIXTURES_BLOCKED_BY}: they create accounts with a published password."
+    echo ""
+fi
+
+SEED_FILES=("${REFERENCE_SEEDS[@]}")
+if [ "$FIXTURES_ALLOWED" = true ]; then
+    SEED_FILES+=("${FIXTURE_SEEDS[@]}")
+fi
+
+is_fixture() {
+    local candidate=$1
+    for fixture in "${FIXTURE_SEEDS[@]}"; do
+        [ "$fixture" = "$candidate" ] && return 0
+    done
+    return 1
+}
 
 FAILED_COUNT=0
 SUCCESS_COUNT=0
@@ -206,7 +279,12 @@ for seed_file in "${SEED_FILES[@]}"; do
         continue
     fi
 
-    if run_seed_file "$file_path"; then
+    pg_options=""
+    if is_fixture "$seed_file"; then
+        pg_options="-c complytude.allow_fixtures=on"
+    fi
+
+    if run_seed_file "$file_path" "$pg_options"; then
         ((SUCCESS_COUNT++))
     else
         ((FAILED_COUNT++))
@@ -262,12 +340,17 @@ if [ $FAILED_COUNT -eq 0 ]; then
     "
 
     echo ""
-    print_success "Database is ready for testing!"
-    echo ""
-    echo -e "${YELLOW}Test Credentials:${NC}"
-    echo "  Email: admin@tenant1.test"
-    echo "  Password: Test123!@#"
-    echo ""
+    if [ "$FIXTURES_ALLOWED" = true ]; then
+        print_success "Database is ready for testing!"
+        echo ""
+        echo -e "${YELLOW}Test Credentials (development/test only):${NC}"
+        echo "  Email: admin@tenant1.test"
+        echo "  Password: Test123!@#"
+        echo ""
+    else
+        print_success "Reference data loaded. Create a platform admin with: pnpm admin:grant <email>"
+        echo ""
+    fi
 
     exit 0
 else
