@@ -116,10 +116,10 @@ export class CreateInvitationResponseDto {
 
   @ApiProperty({
     description:
-      'Invitation token to be sent via email (only returned on creation)',
-    example: 'a1b2c3d4e5f6...',
+      'Whether the invitation email was sent. The link (with its token) goes only to the invitee; if false, resend the invitation.',
+    example: true,
   })
-  token: string;
+  emailSent: boolean;
 
   @ApiProperty({
     description: 'Success message',
@@ -133,10 +133,11 @@ export class CreateInvitationResponseDto {
  */
 export class ResendInvitationResponseDto {
   @ApiProperty({
-    description: 'New invitation token to be sent via email',
-    example: 'x1y2z3a4b5c6...',
+    description:
+      'Whether the invitation email was sent. The link (with its token) goes only to the invitee; if false, resend the invitation.',
+    example: true,
   })
-  token: string;
+  emailSent: boolean;
 
   @ApiProperty({
     description: 'Success message',

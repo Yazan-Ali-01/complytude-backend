@@ -40,6 +40,7 @@ const PUBLIC_ROUTES = [
   'GET health/redis',
   'POST auth/forgot-password',
   'POST auth/login',
+  'POST auth/resend-verification',
   'POST auth/reset-password',
   'POST auth/signup',
   'POST auth/verify-email',

@@ -26,3 +26,6 @@ export const CREDIT_PACKAGES: CreditPackageDefinition[] = [
  * Get the currency code for credit packages
  */
 export const CREDIT_PACKAGE_CURRENCY = DEFAULT_CURRENCY;
+
+/** A deduction that takes the balance below this sends the tenant a low-balance email. */
+export const LOW_CREDIT_BALANCE_THRESHOLD = 10;

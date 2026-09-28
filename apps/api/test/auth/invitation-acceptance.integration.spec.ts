@@ -7,6 +7,10 @@ import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { AuthService } from 'src/modules/auth/auth.service';
 import type { IdentitySessionData } from 'src/modules/auth/interfaces/session.interface';
 import { SessionService } from 'src/modules/auth/services/session.service';
+import {
+  EmailService,
+  type InvitationEmailData,
+} from 'src/modules/email/email.service';
 import { InvitationStatus } from 'src/repositories/invitations/interfaces/invitation.interface';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
@@ -116,21 +120,48 @@ describe('Invitation acceptance', () => {
     return { tenantId: tenant.id, cookie: cookiesOf(switched) };
   }
 
+  /** Captures invitation emails; the token only ever reaches the invitee through one. */
+  function captureInvitationEmails(): {
+    sent: InvitationEmailData[];
+    restore: () => void;
+  } {
+    const sent: InvitationEmailData[] = [];
+    const spy = jest
+      .spyOn(EmailService.prototype, 'sendInvitationEmail')
+      .mockImplementation((data: InvitationEmailData) => {
+        sent.push(data);
+        return Promise.resolve();
+      });
+    return { sent, restore: () => spy.mockRestore() };
+  }
+
   /** An invitation made through the tenant-admin API, as a real admin would. */
   async function invite(email: string): Promise<Invitation> {
     const admin = await newTenantAdmin();
-    const created = await server.inject({
-      method: 'POST',
-      url: '/api/v1/tenants/admin/invitations',
-      headers: { cookie: admin.cookie },
-      payload: { email, roleKey: SystemTenantRole.LEGAL_COUNSEL },
-    });
-    expect(created.statusCode).toBe(201);
-    const { invitationId, token } = created.json<{
-      invitationId: string;
-      token: string;
-    }>();
-    return { tenantId: admin.tenantId, invitationId, token };
+    const emails = captureInvitationEmails();
+    try {
+      const created = await server.inject({
+        method: 'POST',
+        url: '/api/v1/tenants/admin/invitations',
+        headers: { cookie: admin.cookie },
+        payload: { email, roleKey: SystemTenantRole.LEGAL_COUNSEL },
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.json()).toEqual({
+        invitationId: expect.any(String),
+        emailSent: true,
+        message: expect.any(String),
+      });
+      expect(emails.sent).toHaveLength(1);
+      expect(emails.sent[0].to).toBe(email);
+      return {
+        tenantId: admin.tenantId,
+        invitationId: created.json<{ invitationId: string }>().invitationId,
+        token: emails.sent[0].token,
+      };
+    } finally {
+      emails.restore();
+    }
   }
 
   /**
@@ -354,7 +385,7 @@ describe('Invitation acceptance', () => {
   });
 
   describe('invitation tokens', () => {
-    it('are not written to the logs when an invitation is created or resent', async () => {
+    it('reach the invitee only by email: never in the response or the logs, created or resent', async () => {
       const logged: string[] = [];
       const spies = (['log', 'warn', 'error', 'debug', 'verbose'] as const).map(
         (level) =>
@@ -365,6 +396,7 @@ describe('Invitation acceptance', () => {
             }),
       );
 
+      const emails = captureInvitationEmails();
       try {
         const admin = await newTenantAdmin();
         const created = await server.inject({
@@ -374,7 +406,7 @@ describe('Invitation acceptance', () => {
           payload: { email: inviteeEmail() },
         });
         expect(created.statusCode).toBe(201);
-        const { invitationId, token } = created.json<Invitation>();
+        const { invitationId } = created.json<Invitation>();
 
         const resent = await server.inject({
           method: 'POST',
@@ -382,7 +414,12 @@ describe('Invitation acceptance', () => {
           headers: { cookie: admin.cookie },
         });
         expect(resent.statusCode).toBe(200);
-        const newToken = resent.json<{ token: string }>().token;
+        const [token, newToken] = emails.sent.map((email) => email.token);
+        expect(newToken).not.toBe(token);
+        for (const body of [created.body, resent.body]) {
+          expect(body).not.toContain(token);
+          expect(body).not.toContain(newToken);
+        }
 
         expect(logged.some((line) => line.includes('Invitation created'))).toBe(
           true,
@@ -391,6 +428,7 @@ describe('Invitation acceptance', () => {
         expect(logged.filter((line) => line.includes(newToken))).toEqual([]);
       } finally {
         spies.forEach((spy) => spy.mockRestore());
+        emails.restore();
       }
     });
   });

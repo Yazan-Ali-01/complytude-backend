@@ -32,4 +32,27 @@ export const EmailI18n = {
     CTA: 'email.trial_ending.cta',
     IGNORE: 'email.trial_ending.ignore',
   },
+  invitation: {
+    SUBJECT: 'email.invitation.subject',
+    TITLE: 'email.invitation.title',
+    BODY: 'email.invitation.body',
+    CTA: 'email.invitation.cta',
+    EXPIRY: 'email.invitation.expiry',
+    IGNORE: 'email.invitation.ignore',
+  },
+  quotaExceeded: {
+    SUBJECT: 'email.quota_exceeded.subject',
+    TITLE: 'email.quota_exceeded.title',
+    GREETING: 'email.quota_exceeded.greeting',
+    BODY: 'email.quota_exceeded.body',
+    HINT: 'email.quota_exceeded.hint',
+    CTA: 'email.quota_exceeded.cta',
+  },
+  lowCredit: {
+    SUBJECT: 'email.low_credit.subject',
+    TITLE: 'email.low_credit.title',
+    GREETING: 'email.low_credit.greeting',
+    BODY: 'email.low_credit.body',
+    CTA: 'email.low_credit.cta',
+  },
 } as const;

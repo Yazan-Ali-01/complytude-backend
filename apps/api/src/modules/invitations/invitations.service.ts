@@ -30,6 +30,7 @@ import {
 import { InvitationRepository } from 'src/repositories/invitations/invitation.repository';
 import { UserTenantRepository } from 'src/repositories/users/user-tenant.repository';
 import { UserRepository } from 'src/repositories/users/user.repository';
+import { EmailService } from '../email/email.service';
 import { EntitlementEnforcementService } from '../entitlements/services/entitlement-enforcement.service';
 import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { InvitationsI18n } from './constants/i18n.constants';
@@ -44,7 +45,8 @@ export interface CreateInvitationServiceInput {
 
 export interface CreateInvitationServiceResult {
   invitationId: string;
-  token: string; // Plain token for email
+  /** Whether the invitation email went out; if not, the admin can resend it. */
+  emailSent: boolean;
 }
 
 @Injectable()
@@ -59,6 +61,7 @@ export class InvitationsService {
     private readonly entitlementEnforcementService: EntitlementEnforcementService,
     private readonly entitlementResolver: EntitlementResolverService,
     private readonly i18n: I18nService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -466,7 +469,7 @@ export class InvitationsService {
   async createInvitation(
     input: CreateInvitationServiceInput,
   ): Promise<CreateInvitationServiceResult> {
-    return this.databaseService.transaction(async (client) => {
+    const created = await this.databaseService.transaction(async (client) => {
       // Set tenant context
       await this.setTenantContext(input.tenantId, client);
 
@@ -581,11 +584,18 @@ export class InvitationsService {
         [input.tenantId],
       );
 
-      return {
-        invitationId: invitation.id,
-        token, // Return plain token for email
-      };
+      return { invitationId: invitation.id, token };
     });
+
+    // After the commit, so a rollback never leaves a mailed link without its invitation
+    return {
+      invitationId: created.invitationId,
+      emailSent: await this.emailInvitation(
+        created.invitationId,
+        input.tenantId,
+        created.token,
+      ),
+    };
   }
 
   /**
@@ -594,8 +604,8 @@ export class InvitationsService {
   async resendInvitation(
     invitationId: string,
     tenantId: string,
-  ): Promise<{ token: string }> {
-    return this.databaseService.transaction(async (client) => {
+  ): Promise<{ emailSent: boolean }> {
+    const { token } = await this.databaseService.transaction(async (client) => {
       // Set tenant context
       await this.setTenantContext(tenantId, client);
 
@@ -642,6 +652,75 @@ export class InvitationsService {
 
       return { token };
     });
+
+    return {
+      emailSent: await this.emailInvitation(invitationId, tenantId, token),
+    };
+  }
+
+  /**
+   * Emails the invitee their link, in the tenant's language. The token is only ever in this
+   * email: it is not returned to the admin or logged. A failed send is reported, not thrown, so
+   * the admin can resend.
+   */
+  private async emailInvitation(
+    invitationId: string,
+    tenantId: string,
+    token: string,
+  ): Promise<boolean> {
+    try {
+      const details = await this.databaseService.transactionWithTenantContext(
+        { tenantId },
+        async (client) =>
+          (
+            await client.query<{
+              email: string;
+              expires_at: Date;
+              tenant_name: string | null;
+              locale: string | null;
+              role_name: string | null;
+              inviter_first_name: string | null;
+              inviter_last_name: string | null;
+              inviter_email: string | null;
+            }>(
+              `SELECT i.email, i.expires_at, t.name AS tenant_name, t.locale, r.name AS role_name,
+                      u.first_name AS inviter_first_name, u.last_name AS inviter_last_name,
+                      u.email AS inviter_email
+               FROM public.invitations i
+               JOIN public.tenants t ON t.id = i.tenant_id
+               LEFT JOIN public.tenant_roles r ON r.id = i.role_id
+               LEFT JOIN public.users u ON u.id = i.invited_by
+               WHERE i.id = $1`,
+              [invitationId],
+            )
+          ).rows[0],
+      );
+      if (!details) return false;
+
+      const inviterName =
+        [details.inviter_first_name, details.inviter_last_name]
+          .filter(Boolean)
+          .join(' ') ||
+        details.inviter_email ||
+        '';
+      await this.emailService.sendInvitationEmail(
+        {
+          to: details.email,
+          tenantName: details.tenant_name ?? '',
+          inviterName,
+          roleName: details.role_name ?? '',
+          token,
+          expiresAt: new Date(details.expires_at),
+        },
+        details.locale ?? 'en',
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Invitation email failed for invitation ${invitationId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
   }
 
   /**

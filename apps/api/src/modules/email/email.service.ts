@@ -43,6 +43,43 @@ export interface TrialEndingEmailData {
   upgradeUrl: string;
 }
 
+export interface InvitationEmailData {
+  to: string;
+  tenantName: string;
+  inviterName: string;
+  roleName: string;
+  token: string;
+  expiresAt: Date;
+}
+
+export interface QuotaExceededEmailData {
+  recipients: string[];
+  tenantName: string;
+  featureName: string;
+  limit: number;
+}
+
+export interface LowCreditEmailData {
+  recipients: string[];
+  tenantName: string;
+  balance: number;
+}
+
+/** Arabic reads right to left: every HTML email takes its direction from the locale. */
+function textDirection(locale: string): 'rtl' | 'ltr' {
+  return locale === 'ar' ? 'rtl' : 'ltr';
+}
+
+/** Values people choose (tenant and user names) are escaped before they go into HTML. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -111,7 +148,7 @@ export class EmailService {
   ): string {
     return `
 <!DOCTYPE html>
-<html lang="${locale}">
+<html lang="${locale}" dir="${textDirection(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -206,7 +243,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
   private renderPasswordResetHtml(resetUrl: string, locale: string): string {
     return `
 <!DOCTYPE html>
-<html lang="${locale}">
+<html lang="${locale}" dir="${textDirection(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -309,11 +346,11 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     data: PaymentActionRequiredEmailData,
     locale: string,
   ): string {
-    const tenantName = data.tenantName || 'Your Organization';
+    const tenantName = escapeHtml(data.tenantName || 'Your Organization');
     const formattedAmount = this.formatCurrency(data.amount, data.currency);
     return `
 <!DOCTYPE html>
-<html lang="${locale}">
+<html lang="${locale}" dir="${textDirection(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -404,7 +441,11 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
       lang: locale,
       args: { daysRemaining: data.daysRemaining },
     });
-    const htmlBody = this.renderTrialEndingHtml(data, tenantName, locale);
+    const htmlBody = this.renderTrialEndingHtml(
+      data,
+      escapeHtml(tenantName),
+      locale,
+    );
     const textBody = this.renderTrialEndingText(data, tenantName, locale);
 
     try {
@@ -445,7 +486,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     );
     return `
 <!DOCTYPE html>
-<html lang="${locale}">
+<html lang="${locale}" dir="${textDirection(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -599,7 +640,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
           }),
           htmlBody: this.renderDay0Html(
             data,
-            tenantName,
+            escapeHtml(tenantName),
             formattedAmount,
             formattedDate,
             locale,
@@ -621,7 +662,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
           }),
           htmlBody: this.renderDay3Html(
             data,
-            tenantName,
+            escapeHtml(tenantName),
             formattedAmount,
             formattedDate,
             locale,
@@ -643,7 +684,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
           }),
           htmlBody: this.renderDay5Html(
             data,
-            tenantName,
+            escapeHtml(tenantName),
             formattedAmount,
             formattedDate,
             locale,
@@ -671,7 +712,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
   ): string {
     return `
 <!DOCTYPE html>
-<html lang="${locale}">
+<html lang="${locale}" dir="${textDirection(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -758,7 +799,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
   ): string {
     return `
 <!DOCTYPE html>
-<html lang="${locale}">
+<html lang="${locale}" dir="${textDirection(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -843,7 +884,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
   ): string {
     return `
 <!DOCTYPE html>
-<html lang="${locale}">
+<html lang="${locale}" dir="${textDirection(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -917,6 +958,195 @@ ${this.i18n.t('email.dunning.common.questions', { lang: locale, args: { supportE
 
 ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
 `.trim();
+  }
+
+  /** Invites someone to a tenant; the link carries the token the invitee accepts with. */
+  async sendInvitationEmail(
+    data: InvitationEmailData,
+    locale: string = 'en',
+  ): Promise<void> {
+    const url = `${this.config.frontendUrl}/invite?token=${encodeURIComponent(data.token)}`;
+    const expiresAt = data.expiresAt.toLocaleDateString(
+      locale === 'ar' ? 'ar-AE' : 'en-GB',
+      { day: 'numeric', month: 'long', year: 'numeric' },
+    );
+    const t = (key: string, escape: boolean): string =>
+      this.i18n.t(key, {
+        lang: locale,
+        args: {
+          tenantName: escape ? escapeHtml(data.tenantName) : data.tenantName,
+          inviterName: escape ? escapeHtml(data.inviterName) : data.inviterName,
+          roleName: escape ? escapeHtml(data.roleName) : data.roleName,
+          expiresAt,
+        },
+      });
+    const i = EmailI18n.invitation;
+
+    await this.sendEmail({
+      to: [data.to],
+      subject: t(i.SUBJECT, false),
+      html: this.renderLayout(
+        locale,
+        t(i.TITLE, true),
+        `<p>${t(i.BODY, true)}</p>
+        <a href="${url}" class="cta-button">${t(i.CTA, true)}</a>
+        <p style="font-size: 14px; color: #666;">${t(i.EXPIRY, true)}</p>
+        <p style="font-size: 14px; color: #666;">${t(i.IGNORE, true)}</p>`,
+      ),
+      text: [
+        t(i.BODY, false),
+        `${t(i.CTA, false)}: ${url}`,
+        t(i.EXPIRY, false),
+        t(i.IGNORE, false),
+        this.signature(locale),
+      ].join('\n\n'),
+      type: 'invitation',
+    });
+  }
+
+  /** Tells a tenant's admins that a plan limit refused a request (the caller throttles it). */
+  async sendQuotaExceededEmail(
+    data: QuotaExceededEmailData,
+    locale: string = 'en',
+  ): Promise<void> {
+    const url = `${this.config.frontendUrl}/plans`;
+    const t = (key: string, escape: boolean): string =>
+      this.i18n.t(key, {
+        lang: locale,
+        args: {
+          tenantName: escape ? escapeHtml(data.tenantName) : data.tenantName,
+          featureName: escape ? escapeHtml(data.featureName) : data.featureName,
+          limit: data.limit,
+        },
+      });
+    const q = EmailI18n.quotaExceeded;
+
+    await this.sendEmail({
+      to: data.recipients,
+      subject: t(q.SUBJECT, false),
+      html: this.renderLayout(
+        locale,
+        t(q.TITLE, true),
+        `<p>${t(q.GREETING, true)}</p>
+        <p>${t(q.BODY, true)}</p>
+        <p>${t(q.HINT, true)}</p>
+        <a href="${url}" class="cta-button">${t(q.CTA, true)}</a>`,
+      ),
+      text: [
+        t(q.GREETING, false),
+        t(q.BODY, false),
+        t(q.HINT, false),
+        `${t(q.CTA, false)}: ${url}`,
+        this.signature(locale),
+      ].join('\n\n'),
+      type: 'quota_exceeded',
+    });
+  }
+
+  /** Warns a tenant's admins that their credit balance has dropped below the threshold. */
+  async sendLowCreditBalanceEmail(
+    data: LowCreditEmailData,
+    locale: string = 'en',
+  ): Promise<void> {
+    const url = `${this.config.frontendUrl}/billing/credits`;
+    const t = (key: string, escape: boolean): string =>
+      this.i18n.t(key, {
+        lang: locale,
+        args: {
+          tenantName: escape ? escapeHtml(data.tenantName) : data.tenantName,
+          balance: data.balance,
+        },
+      });
+    const c = EmailI18n.lowCredit;
+
+    await this.sendEmail({
+      to: data.recipients,
+      subject: t(c.SUBJECT, false),
+      html: this.renderLayout(
+        locale,
+        t(c.TITLE, true),
+        `<p>${t(c.GREETING, true)}</p>
+        <p>${t(c.BODY, true)}</p>
+        <a href="${url}" class="cta-button">${t(c.CTA, true)}</a>`,
+      ),
+      text: [
+        t(c.GREETING, false),
+        t(c.BODY, false),
+        `${t(c.CTA, false)}: ${url}`,
+        this.signature(locale),
+      ].join('\n\n'),
+      type: 'low_credit_balance',
+    });
+  }
+
+  private signature(locale: string): string {
+    return this.i18n.t('email.dunning.common.signature', { lang: locale });
+  }
+
+  /** The HTML shell every newer email uses; `title` and `body` must already be escaped. */
+  private renderLayout(locale: string, title: string, body: string): string {
+    return `
+<!DOCTYPE html>
+<html lang="${locale}" dir="${textDirection(locale)}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #e7f3ff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #b3d9ff; }
+        .content { padding: 20px 0; }
+        .cta-button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header"><h1>${title}</h1></div>
+    <div class="content">
+        ${body}
+    </div>
+    <div class="footer"><p>${this.signature(locale)}</p></div>
+</body>
+</html>`;
+  }
+
+  private async sendEmail(email: {
+    to: string[];
+    subject: string;
+    html: string;
+    text: string;
+    type: string;
+  }): Promise<void> {
+    const to = [...new Set(email.to)];
+    if (this.skipSend) {
+      this.logger.log(
+        `Skipping ${email.type} email (EMAIL_SKIP_SEND): to=${to.join(',')}`,
+      );
+      return;
+    }
+    try {
+      await this.sesClient.send(
+        new SendEmailCommand({
+          Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+          Destination: { ToAddresses: to },
+          Message: {
+            Subject: { Data: email.subject, Charset: 'UTF-8' },
+            Body: {
+              Html: { Data: email.html, Charset: 'UTF-8' },
+              Text: { Data: email.text, Charset: 'UTF-8' },
+            },
+          },
+          Tags: [{ Name: 'EmailType', Value: email.type }],
+        }),
+      );
+      this.logger.log(`${email.type} email sent: to=${to.join(',')}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send ${email.type} email: to=${to.join(',')}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
   }
 
   private formatCurrency(amount: number, currency: string): string {

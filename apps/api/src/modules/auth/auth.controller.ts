@@ -48,6 +48,7 @@ import {
 } from './decorators/current-user.decorator';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { InvitationIdParamDto } from './dto/invitation-id-param.dto';
 import { InvitationListResponseDto } from './dto/invitation-list-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
@@ -703,6 +704,33 @@ export class AuthController {
       params.sessionId,
       dto,
     );
+  }
+
+  /**
+   * POST /auth/resend-verification
+   * Send a new email verification link
+   */
+  @Post('resend-verification')
+  @Public()
+  @Audit('AUTH_VERIFICATION_RESENT')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend the email verification link',
+    description:
+      "Sends a new verification link to an account that isn't verified yet and ends the older links. Always answers the same, whether or not the account exists; at most one email a minute per address.",
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'If the account exists and is unverified, a new link has been sent',
+    type: MessageResponseDto,
+  })
+  @ApiValidationError()
+  @ApiPublicResponses()
+  resendVerification(
+    @Body() dto: ResendVerificationDto,
+  ): Promise<MessageResponseDto> {
+    return this.authService.resendVerificationEmail(dto);
   }
 
   /**

@@ -64,5 +64,36 @@
       "questions": "إذا كانت لديك أي أسئلة، يرجى الاتصال بفريق الدعم على {supportEmail}.",
       "signature": "أطيب التحيات،\nفريق كومبلايتود"
     }
+  },
+  "invitation": {
+    "subject": "دعاك {inviterName} للانضمام إلى {tenantName} على Complytude",
+    "title": "أنت مدعو إلى {tenantName}",
+    "body": "دعاك {inviterName} للانضمام إلى {tenantName} على Complytude بدور {roleName}.",
+    "cta": "قبول الدعوة",
+    "expiry": "تنتهي صلاحية هذه الدعوة في {expiresAt}.",
+    "ignore": "إذا لم تكن تتوقع هذه الدعوة، يمكنك تجاهل هذا البريد الإلكتروني."
+  },
+  "quota_exceeded": {
+    "subject": "وصلت {tenantName} إلى حد {featureName}",
+    "title": "لقد وصلت إلى أحد حدود خطتك",
+    "greeting": "مرحباً {tenantName}،",
+    "body": "استخدمت مساحة عملك كامل الحد البالغ {limit} من {featureName} لفترة الفوترة هذه، لذلك يتم رفض الطلبات الإضافية.",
+    "hint": "قم بترقية خطتك أو شراء رصيد للمتابعة. تتم إعادة تعيين الحد في بداية فترة الفوترة التالية.",
+    "cta": "عرض الخطط",
+    "features": {
+      "documents_per_month": "المستندات المُنشأة",
+      "contract_reviews_per_month": "مراجعات العقود",
+      "regulatory_queries_per_month": "الأسئلة التنظيمية",
+      "license_verifier_lookups": "عمليات التحقق من الرخص",
+      "document_scans": "عمليات مسح المستندات",
+      "user_seats": "مقاعد المستخدمين"
+    }
+  },
+  "low_credit": {
+    "subject": "{tenantName}: رصيدك في Complytude منخفض",
+    "title": "رصيدك منخفض",
+    "greeting": "مرحباً {tenantName}،",
+    "body": "تبقّى لمساحة عملك {balance} من الرصيد. عند نفاده، سيتم رفض الطلبات التي تتجاوز حدود خطتك.",
+    "cta": "شراء رصيد"
   }
 }

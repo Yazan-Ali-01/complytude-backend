@@ -64,5 +64,36 @@
       "questions": "If you have any questions, please contact our support team at {supportEmail}.",
       "signature": "Best regards,\nThe Complytude Team"
     }
+  },
+  "invitation": {
+    "subject": "{inviterName} invited you to join {tenantName} on Complytude",
+    "title": "You're invited to {tenantName}",
+    "body": "{inviterName} has invited you to join {tenantName} on Complytude as {roleName}.",
+    "cta": "Accept invitation",
+    "expiry": "This invitation expires on {expiresAt}.",
+    "ignore": "If you weren't expecting this invitation, you can ignore this email."
+  },
+  "quota_exceeded": {
+    "subject": "{tenantName} has reached its {featureName} limit",
+    "title": "You've reached a plan limit",
+    "greeting": "Hello {tenantName},",
+    "body": "Your workspace has used all {limit} of its {featureName} for this billing period, so further requests are being refused.",
+    "hint": "Upgrade your plan or buy credits to keep going. The limit resets at the start of your next billing period.",
+    "cta": "See plans",
+    "features": {
+      "documents_per_month": "generated documents",
+      "contract_reviews_per_month": "contract reviews",
+      "regulatory_queries_per_month": "regulatory questions",
+      "license_verifier_lookups": "license lookups",
+      "document_scans": "document scans",
+      "user_seats": "user seats"
+    }
+  },
+  "low_credit": {
+    "subject": "{tenantName}: your Complytude credit balance is low",
+    "title": "Your credit balance is low",
+    "greeting": "Hello {tenantName},",
+    "body": "Your workspace has {balance} credits left. When they run out, requests over your plan limits will be refused.",
+    "cta": "Buy credits"
   }
 }

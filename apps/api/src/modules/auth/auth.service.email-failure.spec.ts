@@ -72,6 +72,7 @@ describe('AuthService when SES rejects the email', () => {
       {} as never, // sessionService
       {} as never, // sessionInvalidationService
       {} as never, // geoLocationService
+      {} as never, // redis
     );
   }
 

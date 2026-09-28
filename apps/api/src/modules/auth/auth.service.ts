@@ -1,3 +1,4 @@
+import { RedisService } from '@lib/redis';
 import { DatabaseService, type QueryOptions } from '@lib/database';
 import {
   BadRequestException,
@@ -39,6 +40,7 @@ import {
   LoginDto,
   LoginResponseDto,
   RenameSessionDto,
+  ResendVerificationDto,
   ResetPasswordDto,
   ResolveInvitationResponseDto,
   SignupDto,
@@ -78,6 +80,7 @@ export class AuthService {
     private readonly sessionService: SessionService,
     private readonly sessionInvalidationService: SessionInvalidationService,
     private readonly geoLocationService: GeoLocationService,
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -1057,6 +1060,50 @@ export class AuthService {
   /**
    * Request password reset
    */
+  /**
+   * Sends a fresh verification link to an unverified account and ends the older ones. Answers the
+   * same whether or not the account exists or is verified, and sends at most once a minute per
+   * address.
+   */
+  async resendVerificationEmail({
+    email,
+  }: ResendVerificationDto): Promise<MessageResponseDto> {
+    const response = {
+      message: this.i18n.t(AuthI18n.messages.VERIFICATION_EMAIL_SENT),
+    };
+    const cooldownKey = `verify-resend:${crypto
+      .createHash('sha256')
+      .update(email.trim().toLowerCase())
+      .digest('hex')}`;
+    if (!(await this.redis.setIfAbsent(cooldownKey, true, 60))) {
+      return response;
+    }
+
+    const user = await this.userRepository.findOne({
+      filters: { email },
+      select: ['id', 'is_verified'],
+    });
+    if (!user || user.is_verified) return response;
+
+    const token = await this.databaseService.transaction(async (client) => {
+      await this.emailVerificationRepository.expireUnusedForUser(user.id, {
+        client,
+      });
+      return this.createEmailVerificationRecord(user.id, { client });
+    });
+
+    // Sent after the commit; a failed send must not reveal whether the account exists
+    await this.emailService
+      .sendVerificationEmail(email, token)
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Verification email failed for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+
+    return response;
+  }
+
   async forgotPassword({ email }: ForgotPasswordDto) {
     const user = await this.userRepository.findOne({
       filters: {

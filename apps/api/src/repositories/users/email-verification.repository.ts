@@ -115,4 +115,17 @@ export class EmailVerificationRepository extends BaseRepository<
       options,
     );
   }
+
+  /** Ends every unused verification link of a user, so only the next one sent works. */
+  async expireUnusedForUser(
+    userId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `UPDATE ${this.tableName} SET expires_at = NOW()
+       WHERE user_id = $1 AND verified_at IS NULL AND expires_at > NOW()`,
+      [userId],
+      options,
+    );
+  }
 }

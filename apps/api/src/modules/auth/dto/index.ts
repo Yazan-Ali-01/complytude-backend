@@ -1,5 +1,6 @@
 export * from './accept-invitation.dto';
 export * from './forgot-password.dto';
+export * from './resend-verification.dto';
 export * from './invitation-list-response.dto';
 export * from './login-response.dto';
 export * from './login.dto';

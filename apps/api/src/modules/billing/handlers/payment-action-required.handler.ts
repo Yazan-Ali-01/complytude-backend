@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Job, PaymentActionRequiredJobData } from '@lib/queue';
 import { EmailService } from '../../email/email.service';
+import { TenantContactsService } from '../../email/tenant-contacts.service';
 
 @Injectable()
 export class PaymentActionRequiredHandler {
   private readonly logger = new Logger(PaymentActionRequiredHandler.name);
 
-  constructor(private readonly emailService: EmailService) {}
+  constructor(
+    private readonly emailService: EmailService,
+    private readonly contacts: TenantContactsService,
+  ) {}
 
   async execute(job: Job<PaymentActionRequiredJobData>): Promise<void> {
     const data = job.data;
@@ -16,6 +20,8 @@ export class PaymentActionRequiredHandler {
     );
 
     try {
+      const locale =
+        (await this.contacts.resolve(data.tenantId))?.locale ?? 'en';
       await this.emailService.sendPaymentActionRequiredEmail(
         {
           tenantAdminEmail: data.tenantAdminEmail,
@@ -26,7 +32,7 @@ export class PaymentActionRequiredHandler {
           currency: data.currency,
           supportEmail: process.env.SUPPORT_EMAIL || 'support@complytude.com',
         },
-        'en', // TODO: Get tenant locale from database (P2 #11)
+        locale,
       );
 
       this.logger.log(

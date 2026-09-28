@@ -433,7 +433,7 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 - User account created with email and hashed password
 - Email verification token generated
-- Verification email sent via AWS SES (link: `{FRONTEND_URL}/verify-email?token={token}`). Fire-and-forget (`void`); unhandled SES errors may still surface as promise rejections. With `EMAIL_SKIP_SEND=true`, no SES call is made (useful for local/tests).
+- Verification email sent via AWS SES (link: `{FRONTEND_URL}/verify-email?token={token}`), after the commit; a failed send is logged and doesn't fail the signup. With `EMAIL_SKIP_SEND=true`, no SES call is made (useful for local/tests).
 - User account is created but **email is not verified** (cannot proceed until verified)
 
 ---
@@ -478,6 +478,8 @@ After completing this flow, users have full tenant access with tenant tokens set
 - Verification token validated
 - User's `email_verified_at` timestamp updated
 - User can now proceed to login and create tenant
+
+**Lost or expired link:** `POST /api/v1/auth/resend-verification` (public) with `{ "email": "…" }` sends a new link to an account that isn't verified yet and ends the older ones. It answers 200 with the same message whether or not the account exists or is verified, and sends at most one email a minute per address.
 
 ---
 
@@ -1131,7 +1133,7 @@ New tenants are created with:
 - **Token:** accept compares `sha256(token)` with the stored hash in constant time, before anything else about the invitation is checked. A missing or malformed token is **400**; a token that isn't this invitation's (including another invitation's token) is **403** `INVITATION_TOKEN_INVALID`. An invitation found through the list can only be accepted with the token from its link.
 - The invitation email must still match the user's email (**403** `INVITATION_EMAIL_MISMATCH`).
 - Accept currently answers **201** (the route has no `@HttpCode`), although Swagger says 200.
-- The token reaches the invitee only through the link. Invitation emails aren't sent yet, so for now `POST /tenants/admin/invitations` and `…/resend` return it to the inviting admin. The API never logs it.
+- The token reaches the invitee only through the link in the invitation email (`{FRONTEND_URL}/invite?token=…`, in the tenant's language), sent by `POST /tenants/admin/invitations` and again, with a new token, by `…/resend`. Neither response contains it (they return `emailSent`; resend if it's false) and the API never logs it.
 
 ### Seat Capacity Enforcement
 
@@ -1208,6 +1210,20 @@ Write routes additionally require the platform permission **`templates:manage`**
 | `POST /templates/:key/activate` | Makes it active again. |
 
 **Uploads.** The DOCX must be at most 5 MB and a real DOCX: its ZIP structure is checked before anything unzips it (at most 500 entries, 25 MB per entry and 50 MB in total once uncompressed, no ZIP64 or encryption, `word/document.xml` present), so a zip bomb is refused with 400. Its `{{placeholders}}` are extracted and compared with `fields`; the create responses return `placeholdersDetected` and `validation` (`missingInFields` is fine for system variables such as `tenant_name`). The file is stored at `templates/<templateId>/<version>/template.docx` in the templates bucket, which is where the generation worker reads it: no manual S3 step.
+
+---
+
+## Notification Emails
+
+Sent in the tenant's `locale` (English or Arabic; Arabic emails are right-to-left), to the first tenant admin and the tenant's `billing_email`. Tenant and user names are HTML-escaped.
+
+| Email | When |
+|---|---|
+| Invitation | Invitation created or resent (to the invitee). |
+| Verification | Signup, `POST /auth/resend-verification`. |
+| Quota reached | A plan limit refuses a request; at most once per feature per calendar month. Not for past-due refusals (dunning covers those). |
+| Low credit balance | A credit deduction takes the balance below 10 credits (once per crossing). |
+| Payment action required, dunning, trial ending | See Billing. |
 
 ---
 

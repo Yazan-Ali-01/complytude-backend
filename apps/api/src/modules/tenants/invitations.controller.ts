@@ -64,7 +64,7 @@ export class TenantInvitationsController {
   @ApiOperation({
     summary: 'Create invitation',
     description:
-      'Invite a user to join the tenant. Requires tenant admin permissions. Returns a token to be sent via email.',
+      'Invite a user to join the tenant. Requires tenant admin permissions. The invitee is emailed a link carrying the acceptance token, in the tenant language; the token is never returned.',
   })
   @ApiResponse({
     status: 201,
@@ -101,13 +101,14 @@ export class TenantInvitationsController {
       roleId: roleResult.id,
     });
 
-    // TODO: send the invitation email and stop returning the token.
-    // The token is a credential for accepting the invitation: never log it.
-    this.logger.log(`Invitation created: ${result.invitationId}`);
+    // The token is a credential for accepting the invitation: it goes only into the email
+    this.logger.log(
+      `Invitation created: ${result.invitationId} (email sent: ${result.emailSent})`,
+    );
 
     return {
       invitationId: result.invitationId,
-      token: result.token,
+      emailSent: result.emailSent,
       message: 'Invitation created successfully',
     };
   }
@@ -157,7 +158,7 @@ export class TenantInvitationsController {
   @ApiOperation({
     summary: 'Resend invitation',
     description:
-      'Generate a new token for an existing invitation and extend expiration. Requires tenant admin permissions.',
+      'Generate a new token for an existing invitation, extend its expiration and email the new link (the old one stops working). Requires tenant admin permissions.',
   })
   @ApiParam({
     name: 'invitationId',
@@ -185,11 +186,12 @@ export class TenantInvitationsController {
       user.tenantId,
     );
 
-    // TODO: send the invitation email and stop returning the token (never log it)
-    this.logger.log(`Invitation ${invitationId} resent`);
+    this.logger.log(
+      `Invitation ${invitationId} resent (email sent: ${result.emailSent})`,
+    );
 
     return {
-      token: result.token,
+      emailSent: result.emailSent,
       message: 'Invitation resent successfully',
     };
   }

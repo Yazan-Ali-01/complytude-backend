@@ -71,6 +71,25 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
+   * Set a key only if it doesn't exist yet (SET NX EX). Returns true when this call set it, so
+   * callers can do something once per key and window.
+   */
+  async setIfAbsent(
+    key: string,
+    value: unknown,
+    ttlSeconds: number,
+  ): Promise<boolean> {
+    const result = await this.redis.set(
+      key,
+      JSON.stringify(value),
+      'EX',
+      ttlSeconds,
+      'NX',
+    );
+    return result === 'OK';
+  }
+
+  /**
    * Get multiple values from Redis in a single round-trip (MGET).
    * Keys must include the logical prefix (ioredis keyPrefix is applied automatically).
    * @param keys Redis keys
