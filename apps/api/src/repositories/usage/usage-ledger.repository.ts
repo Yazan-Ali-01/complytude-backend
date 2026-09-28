@@ -148,7 +148,7 @@ export class UsageLedgerRepository extends BaseRepository<
     options?: QueryOptions,
   ): Promise<boolean> {
     const result = await this.executeQuery(
-      `UPDATE ${this.tableName} SET projected_at = NOW() WHERE id = $1 AND projected_at IS NULL RETURNING id`,
+      `UPDATE ${this.tableName} SET projected_at = NOW() WHERE id = $1 AND projected_at IS NULL AND voided_at IS NULL RETURNING id`,
       [ledgerId],
       options,
     );

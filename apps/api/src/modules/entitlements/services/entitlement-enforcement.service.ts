@@ -82,6 +82,23 @@ class EntitlementDeniedException extends Error {
  * todo: add new ticket for quota.exceeded async notification (email/webhook to tenant admin) is
  * tracked as a separate feature and is out of scope for this epic.
  */
+/**
+ * Callers identify the resource a unit of usage paid for (e.g. a generation job) with
+ * `metadata.resource_id` / `metadata.resource_type`; stored on the ledger row so a refund can
+ * find it.
+ */
+function usageResource(metadata: Record<string, unknown> | undefined): {
+  resource_id?: string;
+  resource_type?: string;
+} {
+  const id = metadata?.resource_id;
+  const type = metadata?.resource_type;
+  return {
+    ...(typeof id === 'string' ? { resource_id: id } : {}),
+    ...(typeof type === 'string' ? { resource_type: type } : {}),
+  };
+}
+
 @Injectable()
 export class EntitlementEnforcementService {
   private readonly logger = new Logger(EntitlementEnforcementService.name);
@@ -651,6 +668,12 @@ export class EntitlementEnforcementService {
         };
       }
 
+      // The CAS already counted this event in aggregated_usage: mark it projected so
+      // projected_at means "counted" in every mode (refunds rely on it)
+      await this.usageLedgerRepository.claimForProjection(usageEvent.id, {
+        client,
+      });
+
       await client.query(`RELEASE SAVEPOINT ${savepointName}`);
       savepointReleased = true;
 
@@ -747,6 +770,7 @@ export class EntitlementEnforcementService {
         allocations: [{ source: 'plan', units }],
         billing_period: billingPeriod,
         metadata,
+        ...usageResource(metadata),
       },
       { client },
     );
@@ -819,6 +843,7 @@ export class EntitlementEnforcementService {
         allocations,
         billing_period: billingPeriod,
         metadata: usageMetadata,
+        ...usageResource(metadata),
       },
       { client },
     );

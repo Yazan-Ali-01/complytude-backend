@@ -197,6 +197,7 @@ The system uses a **dual-mode enforcement strategy** that balances performance (
 - `ProjectionUpdateHandler` processes the job: claims event via `projected_at` CAS, increments `aggregated_usage`, emits domain event
 - If BullMQ is unavailable, falls back to synchronous projection + domain event emission
 - Idempotency: `claimForProjection()` uses CAS on `projected_at` column — prevents double-projection on retries
+- `projected_at` means "counted in `aggregated_usage`" in every mode: the strict path sets it in the same transaction as its CAS increment. A voided row is never claimed.
 
 **Strict Path Details:**
 
@@ -851,6 +852,15 @@ Choose the right enforcement pattern based on the endpoint's characteristics:
 1. The guard runs *before* the controller — no resource exists yet to link as `resource_id`
 2. The guard executes outside the controller's transaction boundary — if the controller rolls back, the quota deduction is not undone
 3. The refund handler (`UsageRefundHandler`) locates ledger entries by `resource_id` — without it, voiding the correct entry on async failure is unreliable
+
+Pass the resource in the call's metadata: `metadata: { resource_id: job.id, resource_type: 'generation_job' }`. The enforcement service stores both on the `usage_ledger` row.
+
+**Refund on permanent failure** (`USAGE_REFUND` job → `UsageRefundHandler`, one tenant transaction):
+
+1. Find the row by `resource_id` and void it (`voided_at`; once only, so a repeated job is a no-op).
+2. If it was already counted (`projected_at` set), take its allocations back out of `aggregated_usage` (never below zero). Otherwise its pending projection job skips it.
+3. Refund the credits its deductions took (`credit_ledger` rows with its `usage_ledger_id`) as one `refund` row.
+4. Emit `usage.refunded` with `units_refunded` and `credits_refunded`.
 
 ---
 

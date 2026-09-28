@@ -4,24 +4,26 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
 import { UsageLedgerRepository } from 'src/repositories/usage/usage-ledger.repository';
 import { DomainEventsService } from '../services/domain-events.service';
-import { UsageProjectionService } from '../services/usage-projection.service';
-import { FeaturesRepository } from 'src/repositories/features/features.repository';
+import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
+import { UsageAllocationsRepository } from 'src/repositories/usage/usage-allocations.repository';
+import { CreditLedgerRepository } from 'src/repositories/credits/credit-ledger.repository';
+import { CreditLedgerService } from '../services/credit-ledger.service';
 
 /**
  * Usage Refund Handler
  *
- * Processes USAGE_REFUND jobs emitted by workers when an async job (e.g., document
- * generation) fails permanently after its documents_per_month entitlement was already
- * deducted on the API side.
+ * Processes USAGE_REFUND jobs emitted when an async job (e.g. document generation) fails
+ * permanently after its usage was already recorded on the API side.
  *
- * Flow:
- * 1. Find the usage_ledger entry via resource_id (the failed job's ID)
- * 2. Void the entry (voided_at = NOW()) — excluded from future projections/reconciliation
- * 3. Rebuild aggregated_usage from the remaining non-voided ledger entries
- * 4. Emit a usage.refunded domain event for the audit trail
+ * Flow, in one tenant transaction:
+ * 1. Find the usage_ledger entry by resource_id (the failed job's ID)
+ * 2. Void it (voided_at = NOW()): excluded from projections, reconciliation and future claims
+ * 3. If it was already projected, take its units back out of aggregated_usage. If not, its
+ *    pending projection job now skips it.
+ * 4. Refund the credits its deductions took (credit-funded overage)
+ * 5. Emit a usage.refunded domain event for the audit trail
  *
- * Idempotency: if the ledger entry is already voided, step 2 returns false
- * and the handler short-circuits without re-rebuilding the projection.
+ * Idempotency: voiding succeeds once, so a repeated job stops at step 2.
  */
 @Injectable()
 export class UsageRefundHandler {
@@ -30,9 +32,11 @@ export class UsageRefundHandler {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly usageLedgerRepository: UsageLedgerRepository,
-    private readonly usageProjectionService: UsageProjectionService,
+    private readonly usageAllocationsRepository: UsageAllocationsRepository,
+    private readonly aggregatedUsageRepository: AggregatedUsageRepository,
     private readonly subscriptionsRepository: SubscriptionsRepository,
-    private readonly featuresRepository: FeaturesRepository,
+    private readonly creditLedgerRepository: CreditLedgerRepository,
+    private readonly creditLedgerService: CreditLedgerService,
     private readonly domainEventsService: DomainEventsService,
   ) {}
 
@@ -46,7 +50,6 @@ export class UsageRefundHandler {
     await this.databaseService.transactionWithTenantContext(
       { tenantId },
       async (client) => {
-        // Step 1: Find the usage ledger entry to be refunded
         const ledgerEntry = await this.usageLedgerRepository.findByResourceId(
           resourceId,
           tenantId,
@@ -60,7 +63,6 @@ export class UsageRefundHandler {
           return;
         }
 
-        // Step 2: Void the entry (idempotent — returns false if already voided)
         const voided = await this.usageLedgerRepository.voidEntry(
           ledgerEntry.id,
           { client },
@@ -73,37 +75,61 @@ export class UsageRefundHandler {
           return;
         }
 
-        this.logger.log(
-          `Voided ledger entry ${ledgerEntry.id} for resource ${resourceId}`,
-        );
-
-        // Step 3: Rebuild the aggregated_usage projection from the remaining
-        // non-voided ledger entries so quota enforcement reflects the refund.
-        const subscription =
-          await this.subscriptionsRepository.findActiveByTenant(tenantId, {
-            client,
-          });
-
-        if (!subscription) {
-          this.logger.error(
-            `Usage refund cannot rebuild projection — no active subscription for tenant=${tenantId}`,
-          );
-          return;
+        let projectionRestored = false;
+        if (ledgerEntry.projected_at) {
+          const [allocations, subscription] = await Promise.all([
+            this.usageAllocationsRepository.findByUsageLedgerId(
+              ledgerEntry.id,
+              { client },
+            ),
+            this.subscriptionsRepository.findCurrentByTenant(tenantId, {
+              client,
+            }),
+          ]);
+          if (subscription) {
+            projectionRestored = await this.aggregatedUsageRepository.decrement(
+              {
+                tenantId,
+                subscriptionId: subscription.id,
+                featureId: ledgerEntry.feature_id,
+                billingPeriod: ledgerEntry.billing_period,
+                allocations: allocations.flatMap((a) =>
+                  a.source === 'mixed'
+                    ? []
+                    : [{ source: a.source, units: a.units }],
+                ),
+              },
+              { client },
+            );
+          }
+          if (!projectionRestored) {
+            this.logger.warn(
+              `Usage refund: no projection row to restore for tenant=${tenantId} feature=${ledgerEntry.feature_id}; reconciliation will correct it`,
+            );
+          }
         }
 
-        await this.usageProjectionService.rebuildFromLedger(
-          tenantId,
-          subscription.id,
-          ledgerEntry.feature_id,
-          ledgerEntry.billing_period,
-          { client },
-        );
+        const creditsToRefund =
+          await this.creditLedgerRepository.sumDeductionsForUsage(
+            ledgerEntry.id,
+            { client },
+          );
+        if (creditsToRefund > 0) {
+          await this.creditLedgerService.refund(
+            {
+              tenantId,
+              amount: creditsToRefund,
+              reason: 'async_job_permanent_failure',
+              metadata: {
+                usage_ledger_id: ledgerEntry.id,
+                resource_id: resourceId,
+                resource_type: resourceType,
+              },
+            },
+            { client },
+          );
+        }
 
-        this.logger.log(
-          `Rebuilt projection after refund: tenant=${tenantId} feature=${ledgerEntry.feature_id} period=${ledgerEntry.billing_period}`,
-        );
-
-        // Step 4: Emit audit domain event
         await this.domainEventsService.emit(
           {
             event_type: 'usage.refunded',
@@ -115,7 +141,9 @@ export class UsageRefundHandler {
               resource_id: resourceId,
               resource_type: resourceType,
               feature_key: featureKey,
-              units_refunded: units,
+              units_refunded: ledgerEntry.units,
+              credits_refunded: creditsToRefund,
+              projection_restored: projectionRestored,
               billing_period: ledgerEntry.billing_period,
               reason: 'async_job_permanent_failure',
             }),

@@ -78,6 +78,20 @@ export class CreditLedgerRepository extends BaseRepository<
    * Get current credit balance for a tenant
    * Phase 4 implementation
    */
+  /** Credits deducted for one usage event (a positive number). */
+  async sumDeductionsForUsage(
+    usageLedgerId: string,
+    options?: QueryOptions,
+  ): Promise<number> {
+    const result = await this.executeQuery<{ total: string | null }>(
+      `SELECT -COALESCE(SUM(amount), 0) AS total FROM ${this.tableName}
+       WHERE usage_ledger_id = $1 AND transaction_type = 'deduction'`,
+      [usageLedgerId],
+      options,
+    );
+    return Number(result.rows[0]?.total ?? 0);
+  }
+
   async getBalance(tenantId: string, options?: QueryOptions): Promise<number> {
     const result = await this.executeQuery<{ balance: string | number }>(
       `SELECT COALESCE(SUM(amount), 0) as balance

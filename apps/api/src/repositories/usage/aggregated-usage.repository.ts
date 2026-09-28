@@ -266,6 +266,42 @@ export class AggregatedUsageRepository extends BaseRepository<
    * Returns null when the guarded UPDATE path fails (0 rows), which indicates
    * another concurrent request consumed the remaining quota.
    */
+  /**
+   * Take refunded units back out of an existing projection row (never below zero). Unlike
+   * `increment`, it never creates a row. Returns whether a row was updated.
+   */
+  async decrement(
+    input: IncrementUsageInput,
+    options?: QueryOptions,
+  ): Promise<boolean> {
+    const units = (source: string): number =>
+      input.allocations
+        .filter((a) => a.source === source)
+        .reduce((sum, a) => sum + a.units, 0);
+    const total = input.allocations.reduce((sum, a) => sum + a.units, 0);
+    const result = await this.executeQuery(
+      `UPDATE ${this.tableName} SET
+         total_units = GREATEST(total_units - $3, 0),
+         plan_units = GREATEST(plan_units - $4, 0),
+         addon_units = GREATEST(addon_units - $5, 0),
+         credit_units = GREATEST(credit_units - $6, 0),
+         override_units = GREATEST(override_units - $7, 0),
+         last_updated_at = now()
+       WHERE subscription_id = $1 AND feature_id = $2`,
+      [
+        input.subscriptionId,
+        input.featureId,
+        total,
+        units('plan'),
+        units('addon'),
+        units('credit'),
+        units('override'),
+      ],
+      options,
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async conditionalIncrement(
     input: ConditionalIncrementInput,
     options?: QueryOptions,
