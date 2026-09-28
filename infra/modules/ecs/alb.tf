@@ -6,9 +6,22 @@ resource "aws_lb" "main" {
   security_groups    = [var.alb_security_group_id]
   subnets            = var.subnet_ids
 
+  # Malformed headers (request-smuggling vectors) are dropped before reaching the API
+  drop_invalid_header_fields = true
+  # The API's keep-alive timeout (65 s) outlasts this, so the ALB never reuses a closed socket
+  idle_timeout = 60
+
+  access_logs {
+    bucket  = aws_s3_bucket.alb_logs.id
+    prefix  = "alb"
+    enabled = true
+  }
+
   tags = {
     Name = "${var.project_name}-${var.environment}-alb"
   }
+
+  depends_on = [aws_s3_bucket_policy.alb_logs]
 }
 
 # ---- API Target Group ----

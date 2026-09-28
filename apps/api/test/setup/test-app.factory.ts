@@ -18,6 +18,10 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import Redis from 'ioredis';
 import { AppModule } from 'src/app.module';
+import {
+  HTTP_SERVER_OPTIONS,
+  installHttpHardening,
+} from 'src/bootstrap/http-hardening';
 import { validationExceptionFactory } from 'src/common/pipes/validation-exception.factory';
 import { StorageService } from 'src/modules/storage/storage.service';
 import { MockStorageService } from '../mocks/storage.mock';
@@ -102,8 +106,12 @@ export async function createTestApp(
   const moduleRef = await builder.compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
-    new FastifyAdapter(),
+    new FastifyAdapter(HTTP_SERVER_OPTIONS),
   );
+
+  const apiPrefix = process.env.API_PREFIX || 'api';
+  // As main.ts: security headers and the Stripe webhook's raw body
+  installHttpHardening(app.getHttpAdapter().getInstance(), apiPrefix);
 
   await app.register(cookie);
   // As main.ts: file uploads (multipart/form-data), one file per request
@@ -111,7 +119,6 @@ export async function createTestApp(
     limits: { fileSize: 10 * 1024 * 1024, files: 1 },
   });
 
-  const apiPrefix = process.env.API_PREFIX || 'api';
   app.setGlobalPrefix(apiPrefix);
   app.enableVersioning({
     type: VersioningType.URI,

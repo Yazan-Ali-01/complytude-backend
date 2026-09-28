@@ -956,7 +956,12 @@ Interactive API docs available at:
 3. **Authorization:** Guards + RLS
 4. **Input Validation:** class-validator
 5. **Output Sanitization:** Interceptors
-6. **Rate Limiting:** (planned)
+6. **Rate Limiting:** AWS WAF on the ALB (managed rule sets, per-IP rate rules), then the API's
+   Redis-backed limiter (`common/rate-limit/`): 300 requests/min per IP on every route, tighter
+   `@RateLimit(...)` rules on the public auth routes (per IP and per email) and on routes that spend
+   on OpenAI, Cohere, Textract or Gotenberg (per tenant). Exceeding a limit returns 429 with
+   `Retry-After`. Five failed logins for an account lock it for 15 minutes, doubling on each later
+   lock the same day (up to 24 hours).
 
 ### Security Features
 
@@ -966,7 +971,9 @@ Interactive API docs available at:
 - ✅ SQL injection prevention (parameterized queries)
 - ✅ XSS prevention (validation)
 - ✅ Row-Level Security for data isolation
-- ✅ Helmet security headers (planned)
+- ✅ Security headers on every response (HSTS, `nosniff`, frame deny, `no-referrer`), set in
+  `bootstrap/http-hardening.ts` with the body limit (1 MB), request timeouts and the Stripe
+  webhook's capped raw-body capture
 
 ### Environment Variables
 

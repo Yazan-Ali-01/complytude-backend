@@ -3,6 +3,8 @@ import { DatabaseService, type QueryOptions } from '@lib/database';
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -34,6 +36,7 @@ import { InvitationsService } from '../invitations/invitations.service';
 import { TenantService } from '../tenants/tenant.service';
 import { UsersI18n } from '../users/constants/i18n.constants';
 import { AuthI18n } from './constants/i18n.constants';
+import { LoginLockoutService } from './services/login-lockout.service';
 import {
   ForgotPasswordDto,
   InvitationListResponseDto,
@@ -81,6 +84,7 @@ export class AuthService {
     private readonly sessionInvalidationService: SessionInvalidationService,
     private readonly geoLocationService: GeoLocationService,
     private readonly redis: RedisService,
+    private readonly loginLockout: LoginLockoutService,
   ) {}
 
   /**
@@ -588,6 +592,21 @@ export class AuthService {
    * Validate user credentials
    */
   async validateUser(email: string, password: string): Promise<User> {
+    // Locked accounts are refused before the password is checked, so guessing gets nowhere
+    const lockedFor = await this.loginLockout.lockedForSeconds(email);
+    if (lockedFor > 0) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: this.i18n.t(AuthI18n.errors.ACCOUNT_TEMPORARILY_LOCKED, {
+            args: { minutes: Math.ceil(lockedFor / 60) },
+          }),
+          retryAfterSeconds: lockedFor,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const user = await this.userRepository.findOne({
       filters: {
         email,
@@ -605,6 +624,7 @@ export class AuthService {
     });
     if (!user) {
       this.logger.warn(`Login failed: user not found for email`);
+      await this.loginLockout.recordFailure(email);
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
       );
@@ -624,10 +644,13 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
       this.logger.warn(`Login failed: invalid password for user ${user.id}`);
+      await this.loginLockout.recordFailure(email);
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
       );
     }
+
+    await this.loginLockout.recordSuccess(email);
 
     // Checked after the password, so only the password holder learns the account is unverified
     this.assertEmailVerified(user);

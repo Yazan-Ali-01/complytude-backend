@@ -75,6 +75,8 @@ import type {
   AuthenticatedTenantUser,
 } from './strategies';
 import type { SsoOAuthProfile } from './strategies/sso-payload.interface';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
+import { AUTH_RATE_LIMITS } from '../../common/rate-limit/rate-limit.constants';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -86,6 +88,7 @@ export class AuthController {
    * Register new user account without creating a tenant
    */
   @Post('signup')
+  @RateLimit(...AUTH_RATE_LIMITS.signup)
   @Public()
   @Audit('AUTH_SIGNUP')
   @ApiOperation({
@@ -231,6 +234,7 @@ export class AuthController {
    * Verify email address using token
    */
   @Post('verify-email')
+  @RateLimit(...AUTH_RATE_LIMITS.tokenCheck)
   @Public()
   @Audit('AUTH_EMAIL_VERIFIED')
   @HttpCode(HttpStatus.OK)
@@ -259,6 +263,7 @@ export class AuthController {
    * Login and receive identity tokens for tenant selection or system admin operations
    */
   @Post('login')
+  @RateLimit(...AUTH_RATE_LIMITS.login)
   @Public()
   @Audit('AUTH_LOGIN')
   @HttpCode(HttpStatus.OK)
@@ -711,6 +716,7 @@ export class AuthController {
    * Send a new email verification link
    */
   @Post('resend-verification')
+  @RateLimit(...AUTH_RATE_LIMITS.sendsEmail)
   @Public()
   @Audit('AUTH_VERIFICATION_RESENT')
   @HttpCode(HttpStatus.OK)
@@ -738,6 +744,7 @@ export class AuthController {
    * Send password reset email
    */
   @Post('forgot-password')
+  @RateLimit(...AUTH_RATE_LIMITS.sendsEmail)
   @Public()
   @Audit('AUTH_PASSWORD_RESET_REQUESTED')
   @HttpCode(HttpStatus.OK)
@@ -764,6 +771,7 @@ export class AuthController {
    * Reset password using token
    */
   @Post('reset-password')
+  @RateLimit(...AUTH_RATE_LIMITS.tokenCheck)
   @Public()
   @Audit('AUTH_PASSWORD_RESET')
   @HttpCode(HttpStatus.OK)
@@ -792,6 +800,7 @@ export class AuthController {
    * Resolve invitation token to get invitation details
    */
   @Get('invitations/resolve')
+  @RateLimit(...AUTH_RATE_LIMITS.tokenCheck)
   @Public()
   @ApiOperation({
     summary: 'Resolve invitation token',

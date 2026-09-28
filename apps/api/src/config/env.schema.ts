@@ -37,6 +37,16 @@ export const validationSchema = Joi.object({
       }),
     }),
   PORT: Joi.number().default(3000),
+  // Redis-backed request limits and login lockout (off only in tests that log in many times)
+  RATE_LIMIT_ENABLED: Joi.boolean()
+    .default(true)
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.valid(true).messages({
+        'any.only':
+          'RATE_LIMIT_ENABLED must not be false when NODE_ENV=production',
+      }),
+    }),
   API_PREFIX: Joi.string().default('api'),
   CORS_ORIGINS: Joi.string().required(),
   ENTITLEMENT_STRICT_THRESHOLD_PERCENT: Joi.number()

@@ -24,6 +24,7 @@ import {
   JwtTenantAccessStrategy,
 } from './strategies/jwt-tenant-access.strategy';
 import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strategy';
+import { LoginLockoutService } from './services/login-lockout.service';
 import { MicrosoftSsoStrategy } from './strategies/microsoft-sso.strategy';
 import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.filter';
 
@@ -42,6 +43,7 @@ import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.fil
   providers: [
     AuthService,
     GeoLocationService,
+    LoginLockoutService,
     JwtTenantAccessStrategy,
     JwtTenantRefreshStrategy,
     JwtIdentityAccessStrategy,

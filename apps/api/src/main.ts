@@ -23,6 +23,10 @@ import {
   bullBoardHost,
   startBullBoardServer,
 } from './bull-board/bull-board.server';
+import {
+  HTTP_SERVER_OPTIONS,
+  installHttpHardening,
+} from './bootstrap/http-hardening';
 import { runCli } from './cli/cli';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import {
@@ -48,6 +52,7 @@ async function bootstrap() {
     // Honour X-Forwarded-For from the ALB so req.ip exposes the real client.
     // Only enabled in deployed environments where requests pass through our LB.
     trustProxy: process.env.NODE_ENV === 'production',
+    ...HTTP_SERVER_OPTIONS,
   });
 
   fastifyAdapter
@@ -80,36 +85,9 @@ async function bootstrap() {
   const maxFileSize =
     configService.get<number>('storage.upload.maxFileSize') || 10485760; // 10MB
 
-  // Capture raw body for Stripe webhook signature verification.
-  // Using preParsing hook instead of replacing the content type parser so
-  // NestJS's own JSON parser registration is never disturbed.
-  // The hook stashes the raw bytes on request.rawBody for webhook routes only;
-  // all other routes are left completely untouched.
-
-  const fastifyInstance = app.getHttpAdapter().getInstance() as any;
-  fastifyInstance.addHook(
-    'preParsing',
-    async (request: any, _reply: any, payload: any) => {
-      const url: string = request.url ?? request.raw?.url ?? '';
-      if (!url.includes('/stripe/webhook')) {
-        return payload;
-      }
-
-      const chunks: Buffer<ArrayBuffer>[] = [];
-      for await (const chunk of payload) {
-        chunks.push(
-          Buffer.isBuffer(chunk)
-            ? (chunk as Buffer<ArrayBuffer>)
-            : Buffer.from(chunk as ArrayBuffer),
-        );
-      }
-      request.rawBody = Buffer.concat(chunks);
-
-      // Return a fresh readable so downstream parsing still has the bytes
-      const { Readable } = await import('stream');
-      return Readable.from(request.rawBody as Buffer);
-    },
-  );
+  // Security headers, and the Stripe webhook's raw body for signature checks
+  const fastifyInstance = app.getHttpAdapter().getInstance();
+  installHttpHardening(fastifyInstance, apiPrefix);
 
   // Register cookie plugin for HTTP-only cookie authentication
   await app.register(cookie);

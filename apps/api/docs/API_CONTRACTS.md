@@ -289,6 +289,25 @@ Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `te
 | `@AuthRefreshOptions(...)` + `JwtAuthRefreshGuard` | Token refresh and logout                                    | 401 if no refresh token |
 | No decorator                                       | Denied: the global guard is deny-by-default                 | Always 401              |
 
+### Rate limits
+
+Every route allows 300 requests a minute per client IP. Some routes have tighter limits:
+
+| Routes | Limit |
+| --- | --- |
+| `POST /auth/login` | 20 a minute per IP; 10 per 10 minutes per email |
+| `POST /auth/signup` | 5 per 10 minutes per IP |
+| `POST /auth/forgot-password`, `POST /auth/resend-verification` | 10 per 10 minutes per IP; 3 per 10 minutes per email |
+| `POST /auth/verify-email`, `POST /auth/reset-password`, `GET /auth/invitations/resolve` | 20 per 10 minutes per IP |
+| Document `preview`, `generate`, `upload-url`, `confirm-upload`, `trigger-analysis`, `analyze` | 30 a minute per tenant |
+
+Over a limit, the response is `429` with a `Retry-After` header (seconds) and `retryAfterSeconds` in
+the body.
+
+Five failed logins for one email within 15 minutes lock that account for 15 minutes, doubling on each
+later lock within a day (up to 24 hours). While locked, login returns `429` with `retryAfterSeconds`,
+even with the right password. A successful login clears the failure count.
+
 ### Authorization Guards
 
 > **📖 Complete RBAC Documentation:** See [RBAC.md](../../../docs/RBAC.md) for comprehensive guide on Tenant and Platform RBAC.

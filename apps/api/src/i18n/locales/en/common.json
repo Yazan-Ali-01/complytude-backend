@@ -6,7 +6,8 @@
     "UNAUTHORIZED": "Unauthorized access",
     "FORBIDDEN": "Access forbidden",
     "BAD_REQUEST": "Bad request",
-    "EMAIL_VERIFICATION_REQUIRED": "Email verification required"
+    "EMAIL_VERIFICATION_REQUIRED": "Email verification required",
+    "TOO_MANY_REQUESTS": "Too many requests, try again later"
   },
   "messages": {}
 }

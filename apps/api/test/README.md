@@ -96,6 +96,14 @@ Each Jest worker gets:
 
 This means tests running in parallel never interfere with each other.
 
+### Rate limiting
+
+`.env.test` sets `RATE_LIMIT_ENABLED=false`, because suites log in and call the auth routes far more
+often than the limits allow. `createTestApp()` applies the same HTTP hardening as `main.ts` (security
+headers, body limit, Stripe raw-body capture). A suite that tests the limiter or the login lockout
+turns it on with `app.module.get(RateLimitService).enabled = true` (see
+`security/rate-limits-and-hardening.integration.spec.ts`).
+
 ### Database Roles
 
 The app connects as `app_login`, a `LOGIN` role that inherits `app_user`, the same shape as deployed environments (`scripts/setup-app-user-role.sql`). Row-level security therefore applies to every query the app runs in tests, exactly as in production:

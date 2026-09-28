@@ -262,6 +262,7 @@ describe('Route authentication inventory', () => {
         BULL_BOARD_ADMIN_SECRET: 'route-auth-inventory-secret-0123456789',
         FRONTEND_URL: 'https://app.example.com',
         AUTH_ECHO_TOKENS: 'false',
+        RATE_LIMIT_ENABLED: 'true',
         STRIPE_SECRET_KEY: 'sk_test_route_inventory_0123456789',
         STRIPE_WEBHOOK_SECRET: 'whsec_route_inventory_0123456789',
       });

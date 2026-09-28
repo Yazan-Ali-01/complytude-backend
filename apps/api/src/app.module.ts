@@ -14,6 +14,8 @@ import { HealthModule } from 'src/modules/health/health.module';
 import { UsersModule } from 'src/modules/users/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { RateLimitGuard } from './common/rate-limit/rate-limit.guard';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { I18nModule } from './i18n/i18n.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
@@ -52,6 +54,7 @@ const mockRoutesEnabled = (env: NodeJS.ProcessEnv): boolean =>
       ],
     }),
     RedisModule.forRoot(),
+    RateLimitModule,
     QueueModule.forRoot([
       QUEUE_NAMES.AI_PROCESSING,
       QUEUE_NAMES.BILLING_PROCESSING,
@@ -90,6 +93,11 @@ const mockRoutesEnabled = (env: NodeJS.ProcessEnv): boolean =>
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    // After authentication, so per-tenant and per-user limits know who is calling
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
     },
     {
       provide: APP_INTERCEPTOR,

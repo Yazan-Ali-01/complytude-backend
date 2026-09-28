@@ -51,6 +51,8 @@ import {
   UploadUrlResponseDto,
 } from './dto';
 import { DocumentPreviewService } from './services/document-preview.service';
+import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
+import { EXPENSIVE_RATE_LIMIT } from '../../common/rate-limit/rate-limit.constants';
 
 const ANALYSIS_JOB_RETRY_AFTER_SECONDS = 5;
 /** Suggested poll interval while text extraction is in flight (GET /documents/:id). */
@@ -129,6 +131,7 @@ export class DocumentsController {
   }
 
   @Post('preview')
+  @RateLimit(EXPENSIVE_RATE_LIMIT)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:create')
   @HttpCode(HttpStatus.ACCEPTED)
@@ -158,6 +161,7 @@ export class DocumentsController {
   }
 
   @Post('generate')
+  @RateLimit(EXPENSIVE_RATE_LIMIT)
   @Audit('DOCUMENT_GENERATION_REQUESTED', { resourceType: 'documents' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:create')
@@ -304,6 +308,7 @@ export class DocumentsController {
   }
 
   @Post('upload-url')
+  @RateLimit(EXPENSIVE_RATE_LIMIT)
   @Audit('DOCUMENT_UPLOAD_URL_GENERATED', { resourceType: 'documents' })
   @UseGuards(TenantPermissionsGuard, EntitlementGuard)
   @RequireAnyTenantPermission('documents:create')
@@ -335,6 +340,7 @@ export class DocumentsController {
   }
 
   @Post(':documentId/confirm-upload')
+  @RateLimit(EXPENSIVE_RATE_LIMIT)
   @Audit('DOCUMENT_UPLOAD_CONFIRMED', { resourceType: 'documents' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:create')
@@ -365,6 +371,7 @@ export class DocumentsController {
   }
 
   @Post(':documentId/trigger-analysis')
+  @RateLimit(EXPENSIVE_RATE_LIMIT)
   @Audit('DOCUMENT_ANALYSIS_TRIGGERED', { resourceType: 'documents' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:create')
@@ -394,6 +401,7 @@ export class DocumentsController {
   }
 
   @Post('analyze')
+  @RateLimit(EXPENSIVE_RATE_LIMIT)
   @Audit('DOCUMENT_ANALYSIS_TRIGGERED', { resourceType: 'documents' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:create')

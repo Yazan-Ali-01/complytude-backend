@@ -5,6 +5,7 @@
 export const CommonI18n = {
   errors: {
     VALIDATION_ERROR: 'common.errors.VALIDATION_ERROR',
+    TOO_MANY_REQUESTS: 'common.errors.TOO_MANY_REQUESTS',
     NOT_FOUND: 'common.errors.NOT_FOUND',
     INTERNAL_SERVER_ERROR: 'common.errors.INTERNAL_SERVER_ERROR',
     UNAUTHORIZED: 'common.errors.UNAUTHORIZED',

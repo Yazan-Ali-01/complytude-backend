@@ -142,3 +142,21 @@ variable "worker_stop_timeout" {
     error_message = "worker_stop_timeout must be between 2 and 120 seconds (Fargate limit)."
   }
 }
+
+variable "alb_log_retention_days" {
+  description = "Days to keep ALB access logs"
+  type        = number
+  default     = 90
+}
+
+variable "waf_auth_rate_limit" {
+  description = "Requests per IP per 5 minutes to /api/v1/auth/ before WAF blocks the IP"
+  type        = number
+  default     = 300
+}
+
+variable "waf_ip_rate_limit" {
+  description = "Requests per IP per 5 minutes to any route before WAF blocks the IP"
+  type        = number
+  default     = 3000
+}

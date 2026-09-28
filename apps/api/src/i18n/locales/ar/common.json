@@ -6,7 +6,8 @@
     "UNAUTHORIZED": "يجب تسجيل الدخول للمتابعة",
     "FORBIDDEN": "ليس لديك صلاحية الوصول",
     "BAD_REQUEST": "الطلب غير صحيح",
-    "EMAIL_VERIFICATION_REQUIRED": "التحقق من البريد الإلكتروني مطلوب"
+    "EMAIL_VERIFICATION_REQUIRED": "التحقق من البريد الإلكتروني مطلوب",
+    "TOO_MANY_REQUESTS": "طلبات كثيرة جداً، حاول مرة أخرى لاحقاً"
   },
   "messages": {}
 }
