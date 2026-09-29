@@ -7,10 +7,17 @@ import type {
   S3PromotionResult,
 } from '../interfaces/s3-promotion.interface';
 
+/** The tag GuardDuty Malware Protection for S3 writes on each object it scans. */
+export const MALWARE_SCAN_TAG = 'GuardDutyMalwareScanStatus';
+const CLEAN = 'NO_THREATS_FOUND';
+const SCAN_POLL_INTERVAL_MS = 5000;
+
 @Injectable()
 export class S3PromotionService implements IS3PromotionService {
   private readonly logger = new Logger(S3PromotionService.name);
   private readonly cleanBucket: string;
+  private readonly scanRequired: boolean;
+  private readonly scanWaitMs: number;
 
   constructor(
     private readonly s3Service: S3Service,
@@ -19,6 +26,11 @@ export class S3PromotionService implements IS3PromotionService {
     this.cleanBucket = configService.get<string>(
       'storage.buckets.filesBucketName',
     )!;
+    this.scanRequired =
+      configService.get<boolean>('workerIngestion.malwareScanRequired') ??
+      false;
+    this.scanWaitMs =
+      configService.get<number>('workerIngestion.malwareScanWaitMs') ?? 60000;
   }
 
   async promote(
@@ -47,6 +59,10 @@ export class S3PromotionService implements IS3PromotionService {
       throw new PermanentError(
         `File not found in quarantine or clean bucket: ${sourceBucket}/${sourceKey}`,
       );
+    }
+
+    if (this.scanRequired) {
+      await this.requireCleanScan(sourceBucket, sourceKey);
     }
 
     try {
@@ -82,5 +98,36 @@ export class S3PromotionService implements IS3PromotionService {
     }
 
     return { bucket: this.cleanBucket, key: sourceKey };
+  }
+
+  /**
+   * Waits (up to the configured time) for the scan result. Not scanned yet: retry the job
+   * later. Anything but clean (threats found, or a file the scanner could not read) is final:
+   * the file stays in quarantine, where it expires.
+   */
+  private async requireCleanScan(bucket: string, key: string): Promise<void> {
+    const deadline = Date.now() + this.scanWaitMs;
+    for (;;) {
+      const status = (await this.s3Service.getObjectTags(bucket, key))[
+        MALWARE_SCAN_TAG
+      ];
+      if (status === CLEAN) return;
+      if (status) {
+        this.logger.warn(
+          `Upload refused by malware scan (${status}): ${bucket}/${key}`,
+        );
+        throw new PermanentError(
+          `Malware scan did not pass (${status}): ${bucket}/${key}`,
+        );
+      }
+      if (Date.now() + SCAN_POLL_INTERVAL_MS > deadline) {
+        throw new RetryableError(
+          `Malware scan result not available yet: ${bucket}/${key}`,
+        );
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, SCAN_POLL_INTERVAL_MS),
+      );
+    }
   }
 }

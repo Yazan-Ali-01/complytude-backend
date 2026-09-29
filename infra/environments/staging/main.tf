@@ -101,8 +101,9 @@ module "bastion" {
 module "s3" {
   source = "../../modules/s3"
 
-  project_name = var.project
-  environment  = var.environment
+  project_name         = var.project
+  environment          = var.environment
+  cors_allowed_origins = [for origin in split(",", var.cors_origins) : trimspace(origin) if trimspace(origin) != ""]
 }
 
 module "ecr" {
@@ -278,6 +279,8 @@ module "ecs" {
     NODE_ENV      = "production"
     LOG_LEVEL     = "info"
     SERVICE_NAME  = "worker-ingestion"
+    # Promote an upload to the clean bucket only once GuardDuty has tagged it clean
+    MALWARE_SCAN_REQUIRED = tostring(module.s3.malware_protection_enabled)
   }
   worker_generation_environment = {
     NODE_ENV       = "production"

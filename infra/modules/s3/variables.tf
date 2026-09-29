@@ -19,3 +19,15 @@ variable "quarantine_expiration_days" {
   type        = number
   default     = 2
 }
+
+variable "enable_malware_protection" {
+  description = "Scan every upload to the quarantine bucket with GuardDuty Malware Protection; the ingestion worker promotes only files tagged clean"
+  type        = bool
+  default     = true
+}
+
+variable "cors_allowed_origins" {
+  description = "Frontend origins allowed to PUT uploads to the quarantine bucket with presigned URLs"
+  type        = list(string)
+  default     = []
+}

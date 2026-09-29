@@ -18,11 +18,11 @@ export class UploadUrlDto {
   @ApiProperty({
     description: 'Original filename of the document to upload',
     example: 'employment-contract.pdf',
-    maxLength: 512,
+    maxLength: 255,
   })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(512)
+  @MaxLength(255)
   filename: string;
 
   @ApiProperty({

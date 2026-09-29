@@ -171,3 +171,118 @@ resource "aws_s3_bucket_lifecycle_configuration" "clean" {
     }
   }
 }
+
+# Browsers upload straight to the quarantine bucket with presigned PUT URLs
+resource "aws_s3_bucket_cors_configuration" "quarantine" {
+  count  = length(var.cors_allowed_origins) > 0 ? 1 : 0
+  bucket = aws_s3_bucket.quarantine.id
+
+  cors_rule {
+    allowed_methods = ["PUT"]
+    allowed_origins = var.cors_allowed_origins
+    allowed_headers = ["Content-Type", "Content-Length"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
+# Every upload is scanned; GuardDuty tags the object with GuardDutyMalwareScanStatus
+# (NO_THREATS_FOUND, THREATS_FOUND, ...). The ingestion worker promotes only NO_THREATS_FOUND.
+resource "aws_guardduty_malware_protection_plan" "quarantine" {
+  count = var.enable_malware_protection ? 1 : 0
+  role  = aws_iam_role.malware_protection[0].arn
+
+  protected_resource {
+    s3_bucket {
+      bucket_name = aws_s3_bucket.quarantine.bucket
+    }
+  }
+
+  actions {
+    tagging {
+      status = "ENABLED"
+    }
+  }
+
+  tags = {
+    Environment = var.environment
+  }
+
+  depends_on = [aws_iam_role_policy.malware_protection]
+}
+
+resource "aws_iam_role" "malware_protection" {
+  count = var.enable_malware_protection ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-malware-protection"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "malware-protection-plan.guardduty.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+      Condition = {
+        StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+      }
+    }]
+  })
+}
+
+# The permissions GuardDuty documents for a Malware Protection for S3 plan
+resource "aws_iam_role_policy" "malware_protection" {
+  count = var.enable_malware_protection ? 1 : 0
+  name  = "malware-protection"
+  role  = aws_iam_role.malware_protection[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ManageEventBridgeRule"
+        Effect = "Allow"
+        Action = [
+          "events:PutRule",
+          "events:DeleteRule",
+          "events:PutTargets",
+          "events:RemoveTargets",
+          "events:DescribeRule",
+          "events:ListTargetsByRule",
+        ]
+        Resource = "arn:aws:events:*:${data.aws_caller_identity.current.account_id}:rule/DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3*"
+        Condition = {
+          StringLike = { "events:ManagedBy" = "malware-protection-plan.guardduty.amazonaws.com" }
+        }
+      },
+      {
+        Sid      = "AllowPostScanTag"
+        Effect   = "Allow"
+        Action   = ["s3:PutObjectTagging", "s3:GetObjectTagging", "s3:PutObjectVersionTagging", "s3:GetObjectVersionTagging"]
+        Resource = "${aws_s3_bucket.quarantine.arn}/*"
+      },
+      {
+        Sid      = "AllowEnableS3EventBridgeEvents"
+        Effect   = "Allow"
+        Action   = ["s3:PutBucketNotification", "s3:GetBucketNotification"]
+        Resource = aws_s3_bucket.quarantine.arn
+      },
+      {
+        Sid      = "AllowPutValidationObject"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
+        Resource = "${aws_s3_bucket.quarantine.arn}/malware-protection-resource-validation-object"
+      },
+      {
+        Sid      = "AllowCheckBucketOwnership"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = aws_s3_bucket.quarantine.arn
+      },
+      {
+        Sid      = "AllowMalwareScan"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = "${aws_s3_bucket.quarantine.arn}/*"
+      },
+    ]
+  })
+}

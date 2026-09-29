@@ -29,7 +29,7 @@ The Data Ingestion Worker is a standalone NestJS application that consumes jobs 
 2. Fetches the document record in the job's tenant (RLS: a document of another tenant is not found and the job fails), validates status (`pending` → `processing`), and refuses a job whose bucket, key or MIME type differ from the row's; Textract and promotion then use the row's file, never the payload's
 3. Extracts text with Textract (LAYOUT): a PDF over `TEXTRACT_MAX_PAGES` (or unreadable) fails for good before any job starts; otherwise one job starts and its ID is stored on the document (`documents.textract_job_id`) before polling
 4. Stores extracted content in the database
-5. Promotes the file from quarantine bucket to clean bucket
+5. Promotes the file from quarantine bucket to clean bucket, once GuardDuty Malware Protection has tagged it clean (`GuardDutyMalwareScanStatus=NO_THREATS_FOUND`) when `MALWARE_SCAN_REQUIRED` (always in production). Not scanned yet: the job waits up to `MALWARE_SCAN_WAIT_MS`, then retries. Any other result (threats found, or a file the scanner could not read) fails the document for good; the file stays in quarantine, which the API never hands out, and expires with it
 6. Marks the document as `completed` with the new S3 location
 7. On permanent failure or exhausted retries, marks the document as `failed`
 
@@ -99,7 +99,7 @@ DataIngestionProcessor.handle(job) routes by job.name:
   API: QueueProducerService.enqueue(DATA_INGESTION, DOCUMENT_INGESTION, { documentId, tenantId, ... })
     → DocumentIngestionService.process(data)
     → Fetch doc → Validate status → Extract text (Textract) → Store content
-    → Promote S3 (quarantine → clean) → Mark completed
+    → Require a clean malware scan → Promote S3 (quarantine → clean) → Mark completed
     On failure: DataIngestionProcessor.onPermanentFailure/onDeadLetter → markFailed()
 ```
 
@@ -200,6 +200,8 @@ cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
 | `S3_FORCE_PATH_STYLE`          | `false`                  | Use virtual-hosted style for AWS S3            |
 | `COMPLYTUDE_FILES_BUCKET_NAME` | `complytude-files`       | Clean files bucket                             |
 | `QUARANTINE_BUCKET_NAME`       | `quarantine`             | Quarantine bucket for uploads                  |
+| `MALWARE_SCAN_REQUIRED`        | `false` (`true` in production, required) | Promote only uploads GuardDuty tagged clean |
+| `MALWARE_SCAN_WAIT_MS`         | `60000`                  | How long one attempt waits for the scan result |
 
 See `.env.example` for the full list.
 

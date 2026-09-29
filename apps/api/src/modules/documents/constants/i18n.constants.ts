@@ -29,6 +29,7 @@ export const DocumentsI18n = {
     RULESET_NOT_FOUND: 'documents.errors.RULESET_NOT_FOUND',
     TOO_MANY_PAGES: 'documents.errors.TOO_MANY_PAGES',
     INVALID_PDF: 'documents.errors.INVALID_PDF',
+    DOCUMENT_NOT_READY: 'documents.errors.DOCUMENT_NOT_READY',
   },
   messages: {
     UPLOAD_CONFIRMED: 'documents.messages.UPLOAD_CONFIRMED',

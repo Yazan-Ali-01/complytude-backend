@@ -75,7 +75,7 @@ Application Load Balancer
 
 AWS Services (global / regional, not in VPC):
   ECR:               {account}.dkr.ecr.eu-central-1.amazonaws.com/complytude/{api|worker-*}
-  S3 Quarantine:     complytude-staging-quarantine   (raw uploads → Textract)
+  S3 Quarantine:     complytude-staging-quarantine   (raw uploads → GuardDuty malware scan, Textract)
   S3 Clean:          complytude-staging-clean        (validated files + templates)
   Secrets Manager:   complytude/staging/app          (all runtime secrets)
   SES:               billing@complytude.com, support@complytude.com

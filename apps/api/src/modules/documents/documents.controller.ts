@@ -233,13 +233,19 @@ export class DocumentsController {
     description:
       'Generates a pre-signed S3 URL to view or download the document file. ' +
       'The URL expires after the configured duration (default 15 minutes). ' +
-      'Returns 404 if the document has no associated file (e.g. text_input documents).',
+      'Returns 404 if the document has no associated file (e.g. text_input documents), and 409 ' +
+      'while an upload has not yet passed its checks (or failed them). The URL downloads the ' +
+      'file as an attachment under its original name.',
   })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   @ApiResponse({
     status: 200,
     description: 'Pre-signed download URL',
     type: DocumentDownloadUrlResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'The upload has not passed its checks yet, or failed them',
   })
   @ApiNotFoundError('Document or file')
   @ApiAuthErrors()

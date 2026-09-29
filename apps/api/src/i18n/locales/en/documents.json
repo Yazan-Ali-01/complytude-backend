@@ -23,7 +23,8 @@
     "DOWNLOAD_URL_FAILED": "Failed to generate download URL. Please try again.",
     "RULESET_NOT_FOUND": "Unknown or inactive ruleset: {rulesets}",
     "TOO_MANY_PAGES": "The PDF has {pages} pages; the most we can analyse is {maxPages}.",
-    "INVALID_PDF": "The uploaded file is not a readable PDF."
+    "INVALID_PDF": "The uploaded file is not a readable PDF.",
+    "DOCUMENT_NOT_READY": "The file can be downloaded once it has been checked and processed."
   },
   "messages": {
     "UPLOAD_CONFIRMED": "Upload confirmed. Text extraction has been queued.",

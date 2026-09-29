@@ -93,7 +93,10 @@ resource "aws_iam_role_policy" "ecs_s3" {
           "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject",
-          "s3:ListBucket"
+          "s3:ListBucket",
+          # The ingestion worker reads the malware scan tag; CopyObject carries it to the clean bucket
+          "s3:GetObjectTagging",
+          "s3:PutObjectTagging"
         ]
         Resource = concat(
           var.s3_bucket_arns,

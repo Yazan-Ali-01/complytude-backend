@@ -1,6 +1,7 @@
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
+import { StorageService } from 'src/modules/storage/storage.service';
 import {
   createTestSubscription,
   createTestTenant,
@@ -255,6 +256,75 @@ describe('Document endpoints: ownership and permissions over HTTP', () => {
         })
       ).statusCode,
     ).toBe(403);
+  });
+
+  it('upload-url keeps an Arabic filename as given, under a fixed ASCII key; a name over 255 characters is a 400', async () => {
+    const own = await tenantWithWork('shield');
+    const filename = 'عقد عمل - شركة الأمل.pdf';
+
+    const response = await call('POST', '/documents/upload-url', own.admin, {
+      filename,
+      contentType: 'application/pdf',
+      fileSizeBytes: 2048,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const { documentId } = response.json<{ documentId: string }>();
+    const { rows } = await app.databaseService.query<{
+      title: string;
+      original_filename: string;
+      s3_key: string;
+    }>(
+      'SELECT title, original_filename, s3_key FROM public.documents WHERE id = $1',
+      [documentId],
+    );
+    expect(rows[0]).toEqual({
+      title: filename,
+      original_filename: filename,
+      s3_key: `tenants/${own.tenantId}/documents/${documentId}/document.pdf`,
+    });
+
+    const tooLong = await call('POST', '/documents/upload-url', own.admin, {
+      filename: `${'a'.repeat(252)}.pdf`,
+      contentType: 'application/pdf',
+      fileSizeBytes: 2048,
+    });
+    expect(tooLong.statusCode).toBe(400);
+  });
+
+  it('a download URL is an attachment under the original name; an upload still in quarantine is not handed out', async () => {
+    const own = await tenantWithWork();
+    const storage = app.module.get(StorageService);
+    const signed = jest.spyOn(storage, 'generateSignedUrlForBucket');
+
+    const ready = await call(
+      'GET',
+      `/documents/${own.documentId}/download-url`,
+      own.admin,
+    );
+    expect(ready.statusCode).toBe(200);
+    expect(signed).toHaveBeenCalledWith(
+      own.tenantId,
+      'test-files',
+      expect.any(String),
+      expect.any(Number),
+      'Secret contract.pdf',
+    );
+
+    // Not yet scanned and promoted (or refused by the scan)
+    await app.databaseService.query(
+      'UPDATE public.documents SET s3_bucket = $2 WHERE id = $1',
+      [own.documentId, storage.quarantineBucketName],
+    );
+    signed.mockClear();
+    const pending = await call(
+      'GET',
+      `/documents/${own.documentId}/download-url`,
+      own.admin,
+    );
+    expect(pending.statusCode).toBe(409);
+    expect(signed).not.toHaveBeenCalled();
+    signed.mockRestore();
   });
 
   it('only a role with documents:delete may delete; the deleted document disappears', async () => {

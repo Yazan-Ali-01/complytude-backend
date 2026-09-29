@@ -14,6 +14,10 @@ export default registerAs('workerIngestion', () => ({
   ),
   batchSize: parseInt(process.env.WORKER_INGESTION_BATCH_SIZE || '500', 10),
 
+  // Promote an upload only once GuardDuty Malware Protection has tagged it clean
+  malwareScanRequired: process.env.MALWARE_SCAN_REQUIRED === 'true',
+  malwareScanWaitMs: parseInt(process.env.MALWARE_SCAN_WAIT_MS || '60000', 10),
+
   memoryLimit: process.env.WORKER_INGESTION_MEMORY_LIMIT || '1GB',
   cpuLimit: process.env.WORKER_INGESTION_CPU_LIMIT || '1',
 }));

@@ -73,6 +73,9 @@ const SYSTEM_VARIABLE_RESOLVERS: Record<
   user_email: (ctx) => ctx.user.email,
 };
 
+/** Every PDF starts with these bytes. */
+const PDF_MAGIC = Buffer.from('%PDF-', 'latin1');
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -225,12 +228,10 @@ export class DocumentsService {
       );
     }
 
-    const sanitizedFilename = this.storageService.normalizeFileName(
-      dto.filename,
-    );
-
+    // The key is ASCII and fixed; the name the user gave (Arabic included) is kept in the row
     const documentId = crypto.randomUUID();
-    const s3Key = `tenants/${user.tenantId}/documents/${documentId}/${sanitizedFilename}`;
+    const s3Key = `tenants/${user.tenantId}/documents/${documentId}/document.pdf`;
+    const originalFilename = dto.filename.trim();
 
     try {
       await this.databaseService.transactionWithTenantContext(
@@ -240,12 +241,12 @@ export class DocumentsService {
             documentId,
             {
               tenant_id: user.tenantId,
-              title: dto.filename,
+              title: originalFilename,
               created_by: user.userId,
               source_type: 'file_upload',
               s3_key: s3Key,
               s3_bucket: quarantineBucket,
-              original_filename: sanitizedFilename,
+              original_filename: originalFilename,
               file_size_bytes: dto.fileSizeBytes,
               mime_type: dto.contentType,
               extraction_status: 'pending',
@@ -686,6 +687,14 @@ export class DocumentsService {
       );
     }
 
+    // An upload stays in quarantine until it is scanned and promoted; one refused by a check
+    // stays there. Neither is handed out.
+    if (document.s3_bucket === this.storageService.quarantineBucketName) {
+      throw new ConflictException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_READY),
+      );
+    }
+
     const expiresIn: number =
       this.configService.get<number>('storage.signedUrl.expiresIn') ?? 900;
 
@@ -694,6 +703,8 @@ export class DocumentsService {
       document.s3_bucket,
       document.s3_key,
       expiresIn,
+      // Downloaded, never rendered inline from our bucket, under the name the user gave it
+      document.original_filename ?? document.title,
     );
 
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
@@ -764,9 +775,12 @@ export class DocumentsService {
   private async checkPdfPageLimit(s3Key: string): Promise<string | null> {
     const maxPages = this.configService.get<number>('TEXTRACT_MAX_PAGES') ?? 50;
     try {
-      const pages = await countPdfPages(
-        await this.storageService.getQuarantineObjectBuffer(s3Key),
-      );
+      const file = await this.storageService.getQuarantineObjectBuffer(s3Key);
+      // What was uploaded must be a PDF, whatever Content-Type the upload claimed
+      if (!file.subarray(0, 5).equals(PDF_MAGIC)) {
+        return this.i18n.t(DocumentsI18n.errors.INVALID_PDF);
+      }
+      const pages = await countPdfPages(file);
       return pages > maxPages
         ? this.i18n.t(DocumentsI18n.errors.TOO_MANY_PAGES, {
             args: { pages, maxPages },

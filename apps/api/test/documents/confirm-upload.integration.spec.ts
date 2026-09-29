@@ -248,6 +248,15 @@ describe('DocumentsService.confirmUpload', () => {
         () => Promise.resolve(Buffer.from('not a pdf')),
         /not a readable PDF/,
       ],
+      [
+        'an HTML page with a valid PDF appended',
+        async () =>
+          Buffer.concat([
+            Buffer.from('<html><script>alert(document.cookie)</script>\n'),
+            await pdf(1),
+          ]),
+        /not a readable PDF/,
+      ],
     ])(
       'refuses %s before extraction starts, and keeps it pending',
       async (_name, bytes, message) => {

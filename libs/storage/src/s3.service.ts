@@ -3,6 +3,7 @@ import {
   CreateBucketCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  GetObjectTaggingCommand,
   HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -41,6 +42,19 @@ export class S3Service {
       if (this.isNotFoundError(error)) return null;
       throw error;
     }
+  }
+
+  /** The object's tags as a key → value map. */
+  async getObjectTags(
+    bucket: string,
+    key: string,
+  ): Promise<Record<string, string>> {
+    const response = await this.s3Client.send(
+      new GetObjectTaggingCommand({ Bucket: bucket, Key: key }),
+    );
+    return Object.fromEntries(
+      (response.TagSet ?? []).map((tag) => [tag.Key ?? '', tag.Value ?? '']),
+    );
   }
 
   async getObjectStream(bucket: string, key: string): Promise<Readable> {

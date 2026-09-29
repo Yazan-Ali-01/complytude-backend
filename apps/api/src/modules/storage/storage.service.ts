@@ -67,6 +67,12 @@ export interface DownloadableFile {
   contentType: string;
 }
 
+/** RFC 6266: an ASCII fallback name plus the exact (UTF-8, e.g. Arabic) name. */
+export function attachmentDisposition(fileName: string): string {
+  const ascii = fileName.replace(/[^\x20-\x7e]|["\\]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
@@ -480,6 +486,8 @@ export class StorageService {
     bucket: string,
     fileKey: string,
     expiresIn?: number,
+    /** When given, the file downloads (Content-Disposition: attachment) under this name. */
+    downloadFileName?: string,
   ): Promise<string> {
     this.validateTenantOwnership(tenantId, fileKey);
 
@@ -489,6 +497,9 @@ export class StorageService {
       const command = new GetObjectCommand({
         Bucket: bucket,
         Key: fileKey,
+        ...(downloadFileName && {
+          ResponseContentDisposition: attachmentDisposition(downloadFileName),
+        }),
       });
 
       return await getSignedUrl(this.s3Client, command, {

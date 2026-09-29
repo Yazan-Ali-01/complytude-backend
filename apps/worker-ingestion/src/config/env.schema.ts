@@ -21,6 +21,14 @@ export const validationSchema = Joi.object({
   WORKER_INGESTION_MAX_PROCESSING_TIME: Joi.number().default(180000),
   WORKER_INGESTION_BATCH_SIZE: Joi.number().default(500),
 
+  // Malware scan before promotion: an unscanned upload never reaches the clean bucket in production
+  MALWARE_SCAN_REQUIRED: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.boolean().valid(true).default(true),
+    otherwise: Joi.boolean().default(false),
+  }),
+  MALWARE_SCAN_WAIT_MS: Joi.number().integer().min(0).default(60000),
+
   // Resource Limits
   WORKER_INGESTION_MEMORY_LIMIT: Joi.string().default('1GB'),
   WORKER_INGESTION_CPU_LIMIT: Joi.string().default('1'),
