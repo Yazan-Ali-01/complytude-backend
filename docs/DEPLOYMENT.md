@@ -288,6 +288,7 @@ Set up once (after `terraform apply`):
 | `STAGING_API_URL` | Base URL the deploy smoke-tests, e.g. `https://api-staging.complytude.com`. Unset skips the smoke test. |
 
 3. Delete the old repository secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCOUNT_ID`, `BASTION_SSH_KEY` and `STAGING_DB_ADMIN_PASSWORD`. Deactivate and delete the IAM user whose keys they were.
+4. Optional, for session locations: **Secrets → `MAXMIND_LICENSE_KEY`**, a [GeoLite2 licence key](https://www.maxmind.com/en/accounts/current/license-key). The API image build downloads GeoLite2-City with it (a BuildKit secret: it is not stored in the image), again each day's first deploy, since the licence requires a database no older than 30 days. A wrong key fails the API build. Without it the API logs `Geo lookup disabled` at boot and sessions have no location.
 
 ### Concurrency
 
@@ -318,6 +319,8 @@ aws ecr get-login-password --region eu-central-1 | \
 Tags are immutable: push each commit once, tagged with its full SHA.
 
 Each image holds only its app's production dependencies: the Dockerfile runs `pnpm --filter @complytude/<app> --prod deploy`, which installs what `apps/<app>/package.json` lists. `scripts/ci/smoke-image.sh` (the same check CI runs) loads every package the bundle requires inside the image, then boots it with `NODE_ENV=production` against a throwaway Postgres (TLS) and Redis until its health endpoint answers; it needs Docker, `psql` and `pnpm install`.
+
+For session locations, build the API with the MaxMind key as a secret: add `--secret id=maxmind_license_key,env=MAXMIND_LICENSE_KEY --build-arg GEOIP_BUILD=$(date -u +%F)` to its `docker build`.
 
 ```bash
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)

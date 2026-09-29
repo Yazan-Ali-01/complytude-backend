@@ -67,4 +67,9 @@ Thumbs.db
 # Misc
 .husky
 scripts
+# The API image downloads GeoLite2-City with it
+!scripts/download-geolite2-city.sh
 test
+
+# MaxMind GeoLite2 databases: licensed, never committed (the API image downloads its own)
+data/*.mmdb

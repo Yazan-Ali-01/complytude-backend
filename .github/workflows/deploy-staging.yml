@@ -164,6 +164,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # The API image downloads GeoLite2-City when the MaxMind key is set. The tag changes daily (the
+      # licence requires a database no older than 30 days) and when the key is added, so a cached
+      # layer without the database isn't reused.
+      - name: GeoLite2 build tag
+        id: geoip
+        env:
+          HAS_KEY: ${{ secrets.MAXMIND_LICENSE_KEY != '' }}
+        run: echo "tag=$(date -u +%F)-key-${HAS_KEY}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
@@ -176,6 +185,9 @@ jobs:
           # One cache per app, warmed by the CI image job of the same commit
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+          build-args: ${{ matrix.app == 'api' && format('GEOIP_BUILD={0}', steps.geoip.outputs.tag) || '' }}
+          # A BuildKit secret: never stored in the image or its history
+          secrets: ${{ matrix.app == 'api' && secrets.MAXMIND_LICENSE_KEY != '' && format('maxmind_license_key={0}', secrets.MAXMIND_LICENSE_KEY) || '' }}
 
       - name: Gate on the image scan
         run: bash scripts/deploy/ecr-scan-gate.sh complytude/${{ matrix.app }} ${{ github.sha }}

@@ -630,7 +630,7 @@ Each read/write is followed by `AuditService.log` with `action: SYSTEM_ADMIN_SES
 - `SESSION_IDLE_TIMEOUT` (default: 72h) — Session expires if inactive
 - `SESSION_MAX_PER_USER` (default: 5) — Max identity sessions; oldest evicted on excess
 - `SESSION_ACTIVITY_THROTTLE_SECONDS` (default: 120) — Min interval between activity updates
-- `MAXMIND_LICENSE_KEY` (optional) — MaxMind license key for GeoLite2 download script
+- The GeoLite2-City database is downloaded when the API image is built with the MaxMind licence key (a build secret, `MAXMIND_LICENSE_KEY` in GitHub; see `docs/DEPLOYMENT.md`); the API itself takes no key
 - `MAXMIND_DB_PATH` (default: `./data/GeoLite2-City.mmdb`) — Path to GeoLite2-City database; empty or missing file disables geo lookup
 
 **JWT Payloads (Task 2 — sessionId):**

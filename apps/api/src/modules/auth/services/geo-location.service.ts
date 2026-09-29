@@ -9,7 +9,8 @@ import type { GeoLocation } from '../interfaces/session.interface';
 /**
  * GeoLocation service for IP lookups using MaxMind GeoLite2-City database.
  *
- * - Geo is disabled when MAXMIND_LICENSE_KEY is empty or MAXMIND_DB_PATH file does not exist
+ * - Geo is disabled when MAXMIND_DB_PATH is empty or the file does not exist (the image has it when
+ *   it was built with the MaxMind licence key; see apps/api/Dockerfile)
  * - Lookups never block: fire-and-forget for session enrichment
  * - All failures return null — never throws
  *
@@ -48,7 +49,7 @@ export class GeoLocationService implements OnModuleInit {
 
     if (!fs.existsSync(resolvedPath)) {
       this.logger.warn(
-        `Geo lookup disabled: database file not found at ${resolvedPath}`,
+        `Geo lookup disabled: database file not found at ${resolvedPath}. Sessions get no location; build the image with the MaxMind licence key, or set MAXMIND_DB_PATH= to turn geo off on purpose`,
       );
       return;
     }

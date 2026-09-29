@@ -31,7 +31,8 @@ TEMP_DIR="$(mktemp -d)"
 trap "rm -rf '$TEMP_DIR'" EXIT
 
 echo "Downloading GeoLite2-City..."
-curl -sS -o "$TEMP_DIR/GeoLite2-City.tar.gz" \
+# --fail: a rejected key stops here with the HTTP status instead of a tar error
+curl -fsS --retry 3 -o "$TEMP_DIR/GeoLite2-City.tar.gz" \
   "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
 
 echo "Extracting..."

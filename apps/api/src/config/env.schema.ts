@@ -83,8 +83,7 @@ export const validationSchema = Joi.object({
   JWT_IDENTITY_EXPIRES_IN: Joi.string().default('10m'),
   EMAIL_VERIFICATION_EXPIRES_IN: Joi.string().default('1d'),
 
-  // MaxMind GeoIP (optional — empty = geo disabled)
-  MAXMIND_LICENSE_KEY: Joi.string().allow('').optional().default(''),
+  // MaxMind GeoLite2-City database (the image downloads it at build time); empty = geo disabled
   MAXMIND_DB_PATH: Joi.string()
     .allow('')
     .optional()

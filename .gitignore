@@ -81,3 +81,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # development files
 test.pdf
+
+# MaxMind GeoLite2 databases: licensed, never committed (the API image downloads its own)
+data/*.mmdb

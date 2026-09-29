@@ -91,6 +91,32 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 CMD ["pnpm", "start:api"]
 
 # ============================================
+# GeoLite2-City (session locations)
+# ============================================
+# Downloaded only when the build gets the MaxMind licence key as a secret:
+#   docker build --secret id=maxmind_license_key,env=MAXMIND_LICENSE_KEY \
+#     --build-arg GEOIP_BUILD=$(date -u +%F) ...
+# A secret, not a build arg, so the key is never stored in the image or its history. Without it
+# /geoip stays empty and the API runs without session locations (it logs a warning at boot).
+FROM node:22.16.0-alpine@sha256:41e4389f3d988d2ed55392df4db1420ad048ae53324a8e2b7c6d19508288107e AS geoip
+
+RUN apk add --no-cache bash curl
+
+# A new value re-runs the download instead of reusing the cached layer: GeoLite2's licence requires
+# a database no older than 30 days, so the deploy passes the date
+ARG GEOIP_BUILD=
+COPY scripts/download-geolite2-city.sh /usr/local/bin/download-geolite2-city.sh
+RUN --mount=type=secret,id=maxmind_license_key \
+    mkdir -p /geoip && \
+    if [ -s /run/secrets/maxmind_license_key ]; then \
+      MAXMIND_LICENSE_KEY="$(cat /run/secrets/maxmind_license_key)" \
+      MAXMIND_DB_PATH=/geoip/GeoLite2-City.mmdb \
+      bash /usr/local/bin/download-geolite2-city.sh; \
+    else \
+      echo "No MaxMind licence key: building without GeoLite2-City (${GEOIP_BUILD:-local build})"; \
+    fi
+
+# ============================================
 # Stage 4: Production (optimized)
 # ============================================
 FROM node:22.16.0-alpine@sha256:41e4389f3d988d2ed55392df4db1420ad048ae53324a8e2b7c6d19508288107e AS production
@@ -115,6 +141,9 @@ COPY --from=build --chown=nestjs:nodejs /app/dist/apps/api ./dist/apps/api
 
 # Amazon RDS CA bundle: the DB server certificate is verified against it (DB_SSL_CA_PATH)
 COPY --from=build --chown=nestjs:nodejs /app/libs/database/certs ./certs
+
+# GeoLite2-City when the build had the licence key (MAXMIND_DB_PATH defaults to ./data/...)
+COPY --from=geoip --chown=nestjs:nodejs /geoip ./data
 
 # Copy necessary config files
 COPY --chown=nestjs:nodejs package.json ./

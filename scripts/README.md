@@ -159,6 +159,8 @@ MAXMIND_DB_PATH=./data/GeoLite2-City.mmdb
 
 If `MAXMIND_DB_PATH` is empty or the file does not exist, geo lookup is disabled and sessions will have `geoLocation: null`.
 
+The database is licensed: `data/*.mmdb` is git-ignored, never commit it. The API image runs this script at build time when it gets the key as a BuildKit secret (`apps/api/Dockerfile`, `docs/DEPLOYMENT.md`).
+
 ---
 
 ## 📋 Migrations
