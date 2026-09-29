@@ -7,48 +7,26 @@ project            = "complytude"
 vpc_cidr           = "10.0.0.0/16"
 availability_zones = ["eu-central-1a", "eu-central-1b"]
 
-# RDS — never commit your actual password, set it only in terraform.tfvars
-# RDS does NOT allow: / @ " (space). Use only letters, numbers, and symbols like !#$%^&*()-_=+
-db_password = "CHANGE_ME_USE_A_STRONG_PASSWORD"
+# No secret values in this file: Terraform only creates the secret containers. RDS keeps its
+# master password in its own secret; put the issued credentials in after the first apply with
+#   scripts/deploy/put-app-secrets.sh --env staging   (see docs/DEPLOYMENT.md → Secrets)
 
 # Bastion — for SSH tunnel to RDS from your machine
 # Create a key pair in EC2 → Key Pairs if needed
 bastion_key_name          = "your-key-pair-name"
-bastion_ssh_allowed_cidrs = ["87.200.134.56/32"]  # curl -s ifconfig.me to get your IP
+bastion_ssh_allowed_cidrs = ["203.0.113.10/32"]  # your IP: curl -s ifconfig.me
 
-# ---- Secrets Manager (application secrets) ----
-# App DB: use app_login (production-like) — run setup-app-user-role.sql via bastion first
-app_db_user     = "app_login"
-app_db_password = "CHANGE_ME_APP_LOGIN_PASSWORD"
+# App DB login (its password is in the db-app secret; the Redis AUTH token is generated)
+app_db_user = "app_login"
 
-# Redis: the AUTH token and TLS flag come from the elasticache module (generated)
-
-# JWT — generate with: openssl rand -base64 64
-jwt_access_secret           = "CHANGE_ME_GENERATE_WITH_OPENSSL"
-jwt_refresh_secret         = "CHANGE_ME_GENERATE_WITH_OPENSSL"
-jwt_identity_secret        = "CHANGE_ME_GENERATE_WITH_OPENSSL"
-jwt_identity_refresh_secret = "CHANGE_ME_GENERATE_WITH_OPENSSL"
-
-# Bull Board — required, at least 32 characters. Generate with: openssl rand -hex 32
-# Served only on the API's internal port 3010 (not through the ALB); reach it via the bastion (see infra/README.md).
-bull_board_admin_secret = "CHANGE_ME_GENERATE_WITH_OPENSSL"
-
-# S3 — create IAM user with S3 permissions, or leave empty for ECS task role
-s3_access_key = ""
-s3_secret_key = ""
-s3_endpoint   = ""  # Empty for AWS S3
+# S3: the tasks use their IAM roles; empty endpoint = AWS S3
+s3_endpoint = ""
 
 # CORS — comma-separated origins of the web app (the browser's origin, not the API's)
 cors_origins = "https://app-staging.complytude.com"
 
 # The web app's base URL (https): email links and SSO redirects point here
 frontend_url = "https://app-staging.complytude.com"
-
-# OpenAI — required for worker-ai and worker-ingestion
-openai_api_key = "sk-..."
-
-# Cohere — required for worker-ai reranking
-cohere_api_key = ""
 
 # ---- Worker AI Configuration ----
 worker_ai_concurrency         = 5
@@ -89,12 +67,10 @@ support_email = "support@complytude.com"
 # Billing Scheduler — enables daily Stripe reconciliation at 3 AM
 billing_schedule_enabled = true
 
-# OAuth2 SSO (optional — leave empty to disable)
+# OAuth2 SSO (optional — leave empty to disable; the client secrets go in the app secret)
 # google_client_id     = ""
-# google_client_secret = ""
 # google_callback_url  = "https://api-staging.complytude.com/api/v1/auth/google/callback"
 # microsoft_client_id     = ""
-# microsoft_client_secret = ""
 # microsoft_callback_url  = "https://api-staging.complytude.com/api/v1/auth/microsoft/callback"
 # microsoft_tenant_id     = "common"
 # sso_frontend_success_path = "/auth/callback"

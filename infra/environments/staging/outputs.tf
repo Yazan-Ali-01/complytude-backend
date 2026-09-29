@@ -88,19 +88,19 @@ output "ecr_repository_urls" {
   value       = module.ecr.repository_urls
 }
 
-output "app_secrets_arn" {
-  description = "ARN of application secrets in Secrets Manager — use in ECS task definition"
-  value       = module.secrets.secret_arn
+output "app_secret_name" {
+  description = "App secret (issued credentials) — fill with scripts/deploy/put-app-secrets.sh"
+  value       = module.secrets.app_secret_name
 }
 
-output "app_secrets_name" {
-  description = "Name of application secrets — for valueFrom in ECS: arn:...:secret:name:KEY::"
-  value       = module.secrets.secret_name
+output "db_app_secret_name" {
+  description = "db-app secret (DB_APP_PASSWORD) — fill with scripts/deploy/put-app-secrets.sh"
+  value       = module.secrets.db_app_secret_name
 }
 
-output "ecs_secrets_policy_arn" {
-  description = "IAM policy ARN for ECS task execution role — attach to allow reading secrets"
-  value       = module.secrets.ecs_secrets_policy_arn
+output "rds_master_user_secret_arn" {
+  description = "RDS-managed secret with the master username and password (used by the migration pipeline)"
+  value       = module.rds.master_user_secret_arn
 }
 
 output "ecs_cluster_name" {

@@ -28,17 +28,6 @@ variable "availability_zones" {
   default     = ["eu-central-1a", "eu-central-1b"]
 }
 
-variable "db_password" {
-  description = "PostgreSQL master password for RDS. Set in terraform.tfvars — never commit it."
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = !can(regex("[\\/@\" ]", var.db_password))
-    error_message = "RDS password cannot contain: / @ \" (space). Use only letters, numbers, and symbols like !#$%^&*()-_=+"
-  }
-}
-
 variable "bastion_key_name" {
   description = "EC2 key pair name for bastion SSH access"
   type        = string
@@ -49,66 +38,11 @@ variable "bastion_ssh_allowed_cidrs" {
   type        = list(string)
 }
 
-# ---- Secrets Manager (application secrets) ----
+# ---- Application database login (its password is in the db-app secret) ----
 variable "app_db_user" {
   description = "Application DB user — use app_login (run setup-app-user-role.sql first) or postgres for quick dev"
   type        = string
   default     = "app_login"
-}
-
-variable "app_db_password" {
-  description = "Application DB password — same as db_password when using postgres user"
-  type        = string
-  sensitive   = true
-}
-
-variable "jwt_access_secret" {
-  description = "JWT access token signing secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "jwt_refresh_secret" {
-  description = "JWT refresh token signing secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "jwt_identity_secret" {
-  description = "JWT identity token signing secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "jwt_identity_refresh_secret" {
-  description = "JWT identity refresh token signing secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "bull_board_admin_secret" {
-  description = "Bull Board shared secret (API internal port). Required; the API refuses to boot in production without it. Generate with: openssl rand -hex 32"
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = length(var.bull_board_admin_secret) >= 32
-    error_message = "bull_board_admin_secret must be at least 32 characters (openssl rand -hex 32)."
-  }
-}
-
-variable "s3_access_key" {
-  description = "S3 access key — create IAM user with S3 permissions, or leave empty for ECS task role"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "s3_secret_key" {
-  description = "S3 secret key"
-  type        = string
-  default     = ""
-  sensitive   = true
 }
 
 variable "s3_endpoint" {
@@ -132,39 +66,10 @@ variable "frontend_url" {
   }
 }
 
-variable "openai_api_key" {
-  description = "OpenAI API key — required for worker-ai and worker-ingestion"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "cohere_api_key" {
-  description = "Cohere API key — required for worker-ai reranking"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-# ---- Stripe ----
-variable "stripe_secret_key" {
-  description = "Stripe secret key"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
 variable "stripe_publishable_key" {
   description = "Stripe publishable key"
   type        = string
   default     = ""
-}
-
-variable "stripe_webhook_secret" {
-  description = "Stripe webhook signing secret"
-  type        = string
-  default     = ""
-  sensitive   = true
 }
 
 variable "stripe_catalog_sync_enabled" {
@@ -361,13 +266,6 @@ variable "google_client_id" {
   default     = ""
 }
 
-variable "google_client_secret" {
-  description = "Google OAuth client secret"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
 variable "google_callback_url" {
   description = "Google OAuth redirect URI (e.g. https://api-staging.complytude.com/api/v1/auth/google/callback)"
   type        = string
@@ -378,13 +276,6 @@ variable "microsoft_client_id" {
   description = "Microsoft OAuth application (client) ID"
   type        = string
   default     = ""
-}
-
-variable "microsoft_client_secret" {
-  description = "Microsoft OAuth client secret"
-  type        = string
-  default     = ""
-  sensitive   = true
 }
 
 variable "microsoft_callback_url" {

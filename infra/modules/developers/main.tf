@@ -93,13 +93,6 @@ resource "aws_iam_policy" "developer_access" {
       },
 
       # Secrets Manager — read staging app secret (for local dev troubleshooting)
-      {
-        Sid      = "SecretsReadStaging"
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-        Resource = var.secret_arn
-      },
-
       # Textract — full access for local development
       {
         Sid    = "TextractFull"

@@ -45,13 +45,25 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # The master password is RDS's own secret, the app login's is complytude/staging/db-app:
+      # neither is a repository secret, nor in Terraform state
       - name: Fetch infrastructure details
         id: infra
         run: |
-          SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id complytude/staging/app \
-            --query SecretString \
+          DB=$(aws rds describe-db-instances \
+            --db-instance-identifier complytude-staging-postgres \
+            --query 'DBInstances[0].[Endpoint.Address, MasterUserSecret.SecretArn]' \
             --output text)
+          DB_HOST=$(echo "$DB" | cut -f1)
+          MASTER_SECRET_ARN=$(echo "$DB" | cut -f2)
+          DB_ADMIN_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id "$MASTER_SECRET_ARN" \
+            --query SecretString --output text | jq -r .password)
+          DB_APP_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id complytude/staging/db-app \
+            --query SecretString --output text | jq -r .DB_APP_PASSWORD)
+          echo "::add-mask::$DB_ADMIN_PASSWORD"
+          echo "::add-mask::$DB_APP_PASSWORD"
 
           BASTION_IP=$(aws ec2 describe-instances \
             --filters \
@@ -70,17 +82,11 @@ jobs:
             --query 'SecurityGroups[0].GroupId' \
             --output text)
 
-          DB_HOST=$(echo "$SECRET" | jq -r .DB_HOST)
-          DB_APP_USER=$(echo "$SECRET" | jq -r .DB_APP_USER)
-          DB_APP_PASSWORD=$(echo "$SECRET" | jq -r .DB_APP_PASSWORD)
-
-          echo "::add-mask::$DB_APP_PASSWORD"
-
           echo "bastion_ip=$BASTION_IP" >> $GITHUB_OUTPUT
           echo "bastion_sg_id=$BASTION_SG_ID" >> $GITHUB_OUTPUT
           echo "rds_sg_id=$RDS_SG_ID" >> $GITHUB_OUTPUT
           echo "db_host=$DB_HOST" >> $GITHUB_OUTPUT
-          echo "db_app_user=$DB_APP_USER" >> $GITHUB_OUTPUT
+          echo "db_admin_password=$DB_ADMIN_PASSWORD" >> $GITHUB_OUTPUT
           echo "db_app_password=$DB_APP_PASSWORD" >> $GITHUB_OUTPUT
 
       - name: Get runner public IP
@@ -123,8 +129,8 @@ jobs:
           DB_PORT: '15432'
           DB_NAME: complytude
           DB_USER: postgres
-          DB_PASSWORD: ${{ secrets.STAGING_DB_ADMIN_PASSWORD }}
-          DB_APP_USER: ${{ steps.infra.outputs.db_app_user }}
+          DB_PASSWORD: ${{ steps.infra.outputs.db_admin_password }}
+          DB_APP_USER: app_login
           DB_APP_PASSWORD: ${{ steps.infra.outputs.db_app_password }}
         run: bash scripts/setup-roles.sh
 
@@ -134,7 +140,7 @@ jobs:
           DB_PORT: '15432'
           DB_NAME: complytude
           DB_USER: postgres
-          DB_PASSWORD: ${{ secrets.STAGING_DB_ADMIN_PASSWORD }}
+          DB_PASSWORD: ${{ steps.infra.outputs.db_admin_password }}
         run: bash scripts/run-migrations.sh
 
       - name: Cleanup

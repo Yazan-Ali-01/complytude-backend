@@ -6,69 +6,45 @@ locals {
     DB_SSL_CA_PATH = "/app/certs/rds-global-bundle.pem"
   }
 
-  secret_keys = [
-    "DB_HOST",
-    "DB_PORT",
-    "DB_NAME",
-    "DB_APP_USER",
-    "DB_APP_PASSWORD",
-    "DB_SSL_ENABLED",
-    "DB_SSL_REJECT_UNAUTHORIZED",
-    "DB_IDLE_TIMEOUT",
-    "DB_CONNECTION_TIMEOUT",
-    "REDIS_HOST",
-    "REDIS_PORT",
-    "REDIS_PASSWORD",
-    "REDIS_TLS",
-    "REDIS_DB",
-    "REDIS_QUEUE_DB",
-    "REDIS_KEY_PREFIX",
+  # Each service gets only the secrets it uses: a worker compromised through a document never
+  # holds the JWT signing keys, Stripe or the SSO client secrets
+  database_secrets = [
+    { name = "DB_APP_PASSWORD", valueFrom = "${var.db_app_secret_arn}:DB_APP_PASSWORD::" },
+    { name = "REDIS_PASSWORD", valueFrom = "${var.redis_secret_arn}:REDIS_PASSWORD::" },
+  ]
+  app_secret = { for k in [
     "JWT_ACCESS_SECRET",
     "JWT_REFRESH_SECRET",
     "JWT_IDENTITY_SECRET",
     "JWT_IDENTITY_REFRESH_SECRET",
-    "JWT_ACCESS_EXPIRES_IN",
-    "JWT_IDENTITY_EXPIRES_IN",
-    "S3_REGION",
-    "S3_ENDPOINT",
-    "S3_ACCESS_KEY",
-    "S3_SECRET_KEY",
-    "S3_FORCE_PATH_STYLE",
-    "COMPLYTUDE_FILES_BUCKET_NAME",
-    "TEMPLATES_BUCKET_NAME",
-    "QUARANTINE_BUCKET_NAME",
-    "MAX_FILE_SIZE",
-    "TEMPLATE_MAX_FILE_SIZE",
-    "SIGNED_URL_EXPIRES_IN",
-    "CORS_ORIGINS",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "GOOGLE_CLIENT_SECRET",
+    "MICROSOFT_CLIENT_SECRET",
+    "BULL_BOARD_ADMIN_SECRET",
     "OPENAI_API_KEY",
     "COHERE_API_KEY",
-    "STRIPE_SECRET_KEY",
-    "STRIPE_PUBLISHABLE_KEY",
-    "STRIPE_WEBHOOK_SECRET",
-    "STRIPE_CATALOG_SYNC_ENABLED",
-    "STRIPE_TAX_ENABLED",
-    "BILLING_SCHEDULE_ENABLED",
-    # Email (AWS SES)
-    "AWS_REGION",
-    "FROM_EMAIL",
-    "FROM_NAME",
-    "SUPPORT_EMAIL",
-    "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
-    "GOOGLE_CALLBACK_URL",
-    "MICROSOFT_CLIENT_ID",
-    "MICROSOFT_CLIENT_SECRET",
-    "MICROSOFT_CALLBACK_URL",
-    "MICROSOFT_TENANT_ID",
-    "SSO_FRONTEND_SUCCESS_PATH",
-    "SSO_FRONTEND_ERROR_PATH",
-  ]
-  secrets = [for k in local.secret_keys : { name = k, valueFrom = "${var.secret_arn}:${k}::" }]
+  ] : k => { name = k, valueFrom = "${var.app_secret_arn}:${k}::" } }
 
-  # Keys only the API task receives; the workers never see them
-  api_only_secret_keys = ["BULL_BOARD_ADMIN_SECRET"]
-  api_secrets = concat(local.secrets, [for k in local.api_only_secret_keys : { name = k, valueFrom = "${var.secret_arn}:${k}::" }])
+  api_secrets = concat(local.database_secrets, [for k in [
+    "JWT_ACCESS_SECRET",
+    "JWT_REFRESH_SECRET",
+    "JWT_IDENTITY_SECRET",
+    "JWT_IDENTITY_REFRESH_SECRET",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "GOOGLE_CLIENT_SECRET",
+    "MICROSOFT_CLIENT_SECRET",
+    "BULL_BOARD_ADMIN_SECRET",
+  ] : local.app_secret[k]])
+  worker_ai_secrets = concat(local.database_secrets, [
+    local.app_secret["OPENAI_API_KEY"],
+    local.app_secret["COHERE_API_KEY"],
+  ])
+  worker_ingestion_secrets = concat(local.database_secrets, [
+    local.app_secret["OPENAI_API_KEY"],
+  ])
+  worker_generation_secrets = local.database_secrets
 }
 
 # ---- API Task Definition ----
@@ -80,7 +56,7 @@ resource "aws_ecs_task_definition" "api" {
   cpu                      = 1024
   memory                   = 2048
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  task_role_arn            = aws_iam_role.api_task.arn
 
   container_definitions = jsonencode([
     {
@@ -101,7 +77,7 @@ resource "aws_ecs_task_definition" "api" {
       ]
 
       environment = [
-        for k, v in merge(var.api_environment, local.db_client_environment, {
+        for k, v in merge(var.shared_environment, var.api_environment, local.db_client_environment, {
           BULL_BOARD_PORT    = tostring(var.bull_board_port)
           DB_MAX_CONNECTIONS = tostring(var.api_db_pool_size)
         }) : { name = k, value = v }
@@ -208,7 +184,7 @@ resource "aws_ecs_task_definition" "worker_ai" {
   cpu                      = 512
   memory                   = 1024
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  task_role_arn            = aws_iam_role.worker_ai_task.arn
 
   container_definitions = jsonencode([
     {
@@ -219,12 +195,12 @@ resource "aws_ecs_task_definition" "worker_ai" {
       stopTimeout = var.worker_stop_timeout
 
       environment = [
-        for k, v in merge(var.worker_ai_environment, local.db_client_environment, {
+        for k, v in merge(var.shared_environment, var.worker_ai_environment, local.db_client_environment, {
           DB_MAX_CONNECTIONS = tostring(var.worker_db_pool_size)
         }) : { name = k, value = v }
       ]
 
-      secrets = local.secrets
+      secrets = local.worker_ai_secrets
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -288,7 +264,7 @@ resource "aws_ecs_task_definition" "worker_ingestion" {
   cpu                      = 512
   memory                   = 1024
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  task_role_arn            = aws_iam_role.worker_ingestion_task.arn
 
   container_definitions = jsonencode([
     {
@@ -299,12 +275,12 @@ resource "aws_ecs_task_definition" "worker_ingestion" {
       stopTimeout = var.worker_stop_timeout
 
       environment = [
-        for k, v in merge(var.worker_ingestion_environment, local.db_client_environment, {
+        for k, v in merge(var.shared_environment, var.worker_ingestion_environment, local.db_client_environment, {
           DB_MAX_CONNECTIONS = tostring(var.worker_db_pool_size)
         }) : { name = k, value = v }
       ]
 
-      secrets = local.secrets
+      secrets = local.worker_ingestion_secrets
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -372,7 +348,7 @@ resource "aws_ecs_task_definition" "worker_generation" {
   cpu                      = 1024
   memory                   = 2048
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  task_role_arn            = aws_iam_role.worker_generation_task.arn
 
   container_definitions = jsonencode([
     {
@@ -383,12 +359,12 @@ resource "aws_ecs_task_definition" "worker_generation" {
       stopTimeout = var.worker_stop_timeout
 
       environment = [
-        for k, v in merge(var.worker_generation_environment, local.db_client_environment, {
+        for k, v in merge(var.shared_environment, var.worker_generation_environment, local.db_client_environment, {
           DB_MAX_CONNECTIONS = tostring(var.worker_db_pool_size)
         }) : { name = k, value = v }
       ]
 
-      secrets = local.secrets
+      secrets = local.worker_generation_secrets
 
       logConfiguration = {
         logDriver = "awslogs"

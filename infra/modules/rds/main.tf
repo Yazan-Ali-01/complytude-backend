@@ -45,7 +45,9 @@ resource "aws_db_instance" "main" {
   # Database config
   db_name  = var.db_name
   username = var.db_username
-  password = var.db_password
+  # RDS generates the master password and keeps it in its own Secrets Manager secret (rotated by
+  # RDS); it never passes through tfvars or Terraform state
+  manage_master_user_password = true
   port     = 5432
 
   # Networking

@@ -30,12 +30,6 @@ variable "db_username" {
   default     = "postgres"
 }
 
-variable "db_password" {
-  description = "Master password for the database"
-  type        = string
-  sensitive   = true
-}
-
 variable "instance_class" {
   description = "RDS instance type"
   type        = string

@@ -74,9 +74,9 @@ cp terraform.tfvars.example terraform.tfvars
 
 ## Secrets Manager
 
-Application secrets (DB, JWT, Redis, S3) are stored in AWS Secrets Manager as a single JSON secret: `complytude/<env>/app`.
+Secrets live in AWS Secrets Manager: `complytude/<env>/app` (issued credentials), `complytude/<env>/db-app` (the app DB login's password), `complytude/<env>/redis` (the generated AUTH token) and the RDS-managed master secret. Terraform creates the containers; set the values with `scripts/deploy/put-app-secrets.sh` after the first apply (`docs/DEPLOYMENT.md` → *Secrets*). No secret value goes in `terraform.tfvars`.
 
-**Required tfvars:** `app_db_password`, `jwt_*_secret`, `bull_board_admin_secret` (at least 32 characters, `openssl rand -hex 32`), `cors_origins`, `alarm_email` (for CloudWatch alarm notifications). For S3, use `s3_access_key`/`s3_secret_key` or leave empty to use ECS task role.
+**Required tfvars:** `cors_origins`, `frontend_url`, `alarm_email` (for CloudWatch alarm notifications). S3 is accessed with each task's IAM role.
 
 **Using app_login (production-like):** After RDS is up, run `scripts/setup-app-user-role.sql` via bastion SSH tunnel:
 
@@ -86,13 +86,13 @@ PGPASSWORD=$DB_PASSWORD psql -h localhost -p 5432 -U postgres -d complytude \
   -f scripts/setup-app-user-role.sql
 ```
 
-Use the same `app_password` as `app_db_password` in tfvars.
+Use the value in the `db-app` secret as `app_password` (the deploy pipeline does this itself: `scripts/setup-roles.sh`).
 
-**ECS integration:** The ECS module attaches `ecs_secrets_policy_arn` to the task execution role and injects all app secrets via the task definition `secrets` block (format: `valueFrom = "${secret_arn}:KEY::"`).
+**ECS integration:** The ECS module attaches `ecs_secrets_policy_arn` to the task execution role and injects, per service, only the keys that service uses (format: `valueFrom = "<secret arn>:KEY::"`); each service has its own task role.
 
 **OAuth2 SSO (Google / Microsoft):** Optional keys `GOOGLE_*`, `MICROSOFT_*`, `SSO_FRONTEND_*` are included in the same JSON secret (defaults empty = SSO disabled in the API). The SPA base URL comes from the required `frontend_url` variable and reaches the API as `FRONTEND_URL` (task environment); email links and post-OAuth redirects use it, and the API refuses to boot in production without an https value.
 
-**Rotation:** Update the secret in AWS Console or via `aws secretsmanager put-secret-value`. Terraform will overwrite on next apply — for rotation, use AWS Console or a separate rotation Lambda.
+**Rotation:** Terraform creates the secret containers only; values are set with `scripts/deploy/put-app-secrets.sh`, so an apply never overwrites a rotated value. Runbook: `docs/DEPLOYMENT.md` → *Rotating a credential*.
 
 ## Bull Board (queue dashboard)
 

@@ -56,7 +56,6 @@ module "rds" {
   security_group_id = module.networking.rds_security_group_id
   db_name           = "complytude"
   db_username       = "postgres"
-  db_password       = var.db_password
   instance_class    = "db.t4g.micro" # ~$15/mo — cheapest ARM-based instance
 
   # Staging-appropriate settings
@@ -122,77 +121,14 @@ module "ses" {
   domain_name  = var.domain_name
 }
 
+# Secret containers only: issued credentials are put in with scripts/deploy/put-app-secrets.sh,
+# never through tfvars (so never in state)
 module "secrets" {
   source = "../../modules/secrets"
 
-  project_name = var.project
-  environment  = var.environment
-
-  # Database — from RDS
-  db_host        = module.rds.hostname
-  db_port        = module.rds.port
-  db_name        = module.rds.db_name
-  db_app_user     = var.app_db_user
-  db_app_password = var.app_db_password
-
-  # Redis — from ElastiCache
-  redis_host    = module.elasticache.hostname
-  redis_port    = module.elasticache.port
-  redis_password = module.elasticache.auth_token
-  redis_tls      = module.elasticache.tls_enabled
-
-  # JWT — from tfvars (sensitive)
-  jwt_access_secret          = var.jwt_access_secret
-  jwt_refresh_secret        = var.jwt_refresh_secret
-  jwt_identity_secret       = var.jwt_identity_secret
-  jwt_identity_refresh_secret = var.jwt_identity_refresh_secret
-
-  # S3 — from tfvars + module
-  s3_region             = var.aws_region
-  s3_access_key         = var.s3_access_key
-  s3_secret_key         = var.s3_secret_key
-  s3_quarantine_bucket  = module.s3.quarantine_bucket_name
-  s3_clean_bucket       = module.s3.clean_bucket_name
-  s3_endpoint           = var.s3_endpoint
-
-  # App
-  cors_origins = var.cors_origins
-
-  # Bull Board (API only)
-  bull_board_admin_secret = var.bull_board_admin_secret
-
-  # OpenAI (for workers)
-  openai_api_key = var.openai_api_key
-
-  # Cohere (for worker-ai reranking)
-  cohere_api_key = var.cohere_api_key
-
-  # Stripe
-  stripe_secret_key          = var.stripe_secret_key
-  stripe_publishable_key     = var.stripe_publishable_key
-  stripe_webhook_secret      = var.stripe_webhook_secret
-  stripe_catalog_sync_enabled = var.stripe_catalog_sync_enabled
-  stripe_tax_enabled         = var.stripe_tax_enabled
-
-  # Billing Scheduler
-  billing_schedule_enabled = var.billing_schedule_enabled
-
-  # Email (AWS SES)
-  aws_region    = var.aws_region
-  from_email    = var.from_email
-  from_name     = var.from_name
-  support_email = var.support_email
-
-  # OAuth2 SSO (optional — empty = disabled)
-  google_client_id          = var.google_client_id
-  google_client_secret      = var.google_client_secret
-  google_callback_url       = var.google_callback_url
-  microsoft_client_id       = var.microsoft_client_id
-  microsoft_client_secret   = var.microsoft_client_secret
-  microsoft_callback_url    = var.microsoft_callback_url
-  microsoft_tenant_id       = var.microsoft_tenant_id
-  sso_frontend_success_path = var.sso_frontend_success_path
-  sso_frontend_error_path   = var.sso_frontend_error_path
+  project_name   = var.project
+  environment    = var.environment
+  redis_password = module.elasticache.auth_token == null ? "" : module.elasticache.auth_token
 }
 
 module "route53" {
@@ -228,13 +164,41 @@ module "ecs" {
   ecr_repository_urls = module.ecr.repository_urls
   image_tag           = var.ecs_image_tag
 
-  secret_arn           = module.secrets.secret_arn
+  app_secret_arn         = module.secrets.app_secret_arn
+  db_app_secret_arn      = module.secrets.db_app_secret_arn
+  redis_secret_arn       = module.secrets.redis_secret_arn
   ecs_secrets_policy_arn = module.secrets.ecs_secrets_policy_arn
   ses_send_policy_arn    = module.ses.ses_send_policy_arn
-  s3_bucket_arns = [
-    module.s3.quarantine_bucket_arn,
-    module.s3.clean_bucket_arn,
-  ]
+  quarantine_bucket_arn  = module.s3.quarantine_bucket_arn
+  clean_bucket_arn       = module.s3.clean_bucket_arn
+
+  # Configuration, not secrets: plain task environment, visible in the task definition
+  shared_environment = {
+    DB_HOST                    = module.rds.hostname
+    DB_PORT                    = tostring(module.rds.port)
+    DB_NAME                    = module.rds.db_name
+    DB_APP_USER                = var.app_db_user
+    DB_SSL_ENABLED             = "true"
+    DB_SSL_REJECT_UNAUTHORIZED = "true"
+    DB_IDLE_TIMEOUT            = "30000"
+    DB_CONNECTION_TIMEOUT      = "2000"
+
+    REDIS_HOST       = module.elasticache.hostname
+    REDIS_PORT       = tostring(module.elasticache.port)
+    REDIS_TLS        = tostring(module.elasticache.tls_enabled)
+    REDIS_DB         = "0"
+    REDIS_QUEUE_DB   = "1"
+    REDIS_KEY_PREFIX = "complytude:"
+
+    AWS_REGION          = var.aws_region
+    S3_REGION           = var.aws_region
+    S3_ENDPOINT         = var.s3_endpoint
+    S3_FORCE_PATH_STYLE = "false"
+    # Quarantine = uploads before scanning and extraction; clean = promoted files and templates
+    COMPLYTUDE_FILES_BUCKET_NAME = module.s3.clean_bucket_name
+    TEMPLATES_BUCKET_NAME        = module.s3.clean_bucket_name
+    QUARANTINE_BUCKET_NAME       = module.s3.quarantine_bucket_name
+  }
 
   api_environment = {
     NODE_ENV      = "production"
@@ -244,6 +208,37 @@ module "ecs" {
     FRONTEND_URL  = var.frontend_url
     # One ALB in front: only its X-Forwarded-For entry is trusted for the client IP
     TRUST_PROXY_HOPS = "1"
+    CORS_ORIGINS     = var.cors_origins
+
+    JWT_ACCESS_EXPIRES_IN   = "30m"
+    JWT_IDENTITY_EXPIRES_IN = "10m"
+    # Refresh tokens live as long as the Redis session (SESSION_MAX_TTL)
+    SESSION_MAX_TTL                   = "14d"
+    SESSION_IDLE_TIMEOUT              = "72h"
+    SESSION_MAX_PER_USER              = "5"
+    SESSION_ACTIVITY_THROTTLE_SECONDS = "120"
+
+    MAX_FILE_SIZE          = "10485760"
+    TEMPLATE_MAX_FILE_SIZE = "5242880"
+    SIGNED_URL_EXPIRES_IN  = "900"
+
+    STRIPE_PUBLISHABLE_KEY      = var.stripe_publishable_key
+    STRIPE_CATALOG_SYNC_ENABLED = var.stripe_catalog_sync_enabled
+    STRIPE_TAX_ENABLED          = var.stripe_tax_enabled
+    BILLING_SCHEDULE_ENABLED    = tostring(var.billing_schedule_enabled)
+
+    FROM_EMAIL    = var.from_email
+    FROM_NAME     = var.from_name
+    SUPPORT_EMAIL = var.support_email
+
+    # OAuth2 SSO (empty client id = provider off); the client secrets are in the app secret
+    GOOGLE_CLIENT_ID          = var.google_client_id
+    GOOGLE_CALLBACK_URL       = var.google_callback_url
+    MICROSOFT_CLIENT_ID       = var.microsoft_client_id
+    MICROSOFT_CALLBACK_URL    = var.microsoft_callback_url
+    MICROSOFT_TENANT_ID       = var.microsoft_tenant_id
+    SSO_FRONTEND_SUCCESS_PATH = var.sso_frontend_success_path
+    SSO_FRONTEND_ERROR_PATH   = var.sso_frontend_error_path
   }
   bull_board_port = local.bull_board_port
   worker_ai_environment = {
@@ -311,7 +306,6 @@ module "developers" {
   environment         = var.environment
   developer_usernames = var.developer_usernames
   s3_bucket_arns      = [module.s3.quarantine_bucket_arn, module.s3.clean_bucket_arn]
-  secret_arn          = module.secrets.secret_arn
 }
 
 module "monitoring" {

@@ -18,8 +18,3 @@ variable "s3_bucket_arns" {
   description = "ARNs of S3 buckets developers can read (staging file + clean buckets)"
   type        = list(string)
 }
-
-variable "secret_arn" {
-  description = "ARN of the Secrets Manager secret developers can read (staging app secret)"
-  type        = string
-}

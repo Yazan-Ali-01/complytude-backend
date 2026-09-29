@@ -48,9 +48,24 @@ variable "image_tag" {
   type        = string
 }
 
-variable "secret_arn" {
-  description = "ARN of application secrets in Secrets Manager"
+variable "app_secret_arn" {
+  description = "ARN of the app secret (JWT, Stripe, OpenAI, Cohere, SSO client secrets, Bull Board)"
   type        = string
+}
+
+variable "db_app_secret_arn" {
+  description = "ARN of the db-app secret (DB_APP_PASSWORD)"
+  type        = string
+}
+
+variable "redis_secret_arn" {
+  description = "ARN of the redis secret (REDIS_PASSWORD)"
+  type        = string
+}
+
+variable "shared_environment" {
+  description = "Non-secret configuration every service gets (database and Redis endpoints, buckets, region)"
+  type        = map(string)
 }
 
 variable "ecs_secrets_policy_arn" {
@@ -58,9 +73,14 @@ variable "ecs_secrets_policy_arn" {
   type        = string
 }
 
-variable "s3_bucket_arns" {
-  description = "ARNs of S3 buckets for task role access"
-  type        = list(string)
+variable "quarantine_bucket_arn" {
+  description = "ARN of the quarantine bucket (uploads before scanning and extraction)"
+  type        = string
+}
+
+variable "clean_bucket_arn" {
+  description = "ARN of the clean bucket (promoted uploads, templates, generated documents)"
+  type        = string
 }
 
 variable "log_retention_days" {

@@ -1,18 +1,29 @@
-output "secret_arn" {
-  description = "ARN of the application secrets — use in ECS task definition secrets block"
+output "app_secret_arn" {
+  description = "ARN of the app secret (issued credentials; values set out of band)"
   value       = aws_secretsmanager_secret.app.arn
 }
 
-output "secret_name" {
-  description = "Name of the secret — use for valueFrom: arn:aws:secretsmanager:region:account:secret:name:key::"
+output "app_secret_name" {
+  description = "Name of the app secret (for scripts/deploy/put-app-secrets.sh)"
   value       = aws_secretsmanager_secret.app.name
 }
 
-output "ecs_secrets_policy_arn" {
-  description = "ARN of IAM policy for ECS task execution role — attach to allow reading secrets"
-  value       = aws_iam_policy.ecs_read_secrets.arn
+output "db_app_secret_arn" {
+  description = "ARN of the db-app secret (DB_APP_PASSWORD)"
+  value       = aws_secretsmanager_secret.db_app.arn
 }
 
-# For ECS task definition secrets block, use:
-#   valueFrom = "${secret_arn}:DB_HOST::"
-# The :: at the end selects the JSON key from the secret.
+output "db_app_secret_name" {
+  description = "Name of the db-app secret"
+  value       = aws_secretsmanager_secret.db_app.name
+}
+
+output "redis_secret_arn" {
+  description = "ARN of the redis secret (REDIS_PASSWORD)"
+  value       = aws_secretsmanager_secret.redis.arn
+}
+
+output "ecs_secrets_policy_arn" {
+  description = "IAM policy ARN for the ECS task execution role (read the three secrets)"
+  value       = aws_iam_policy.ecs_read_secrets.arn
+}
