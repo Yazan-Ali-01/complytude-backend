@@ -283,7 +283,7 @@ export class AuthService {
     try {
       created = await this.databaseService.transaction(async (client) => {
         // Create user account
-        this.logger.log(`Creating user account for ${signupDto.email}`);
+        this.logger.log('Creating user account');
         const { id } = await this.userRepository.create(
           {
             email: signupDto.email,
@@ -296,9 +296,7 @@ export class AuthService {
           { client },
         );
 
-        this.logger.log(
-          `Creating email verification record for ${signupDto.email}`,
-        );
+        this.logger.log(`Creating email verification record for user ${id}`);
         const token = await this.createEmailVerificationRecord(id, { client });
         return { userId: id, verificationToken: token };
       });
@@ -722,7 +720,7 @@ export class AuthService {
     const pendingInvitationsCount =
       await this.invitationsService.countUserInvitations(user.email);
 
-    this.logger.log(`User ${user.email} logged in successfully`);
+    this.logger.log(`User ${user.id} logged in successfully`);
 
     // Return user info and available tenants
     return {
@@ -1586,7 +1584,7 @@ export class AuthService {
           refreshJti,
         );
 
-      this.logger.log(`User ${email} switched to tenant ${tenantId}`);
+      this.logger.log(`User ${userId} switched to tenant ${tenantId}`);
 
       return {
         tenantAccessToken,

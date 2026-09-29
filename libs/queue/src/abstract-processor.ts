@@ -5,8 +5,11 @@ import {
   OnApplicationBootstrap,
   Optional,
 } from '@nestjs/common';
+import { CLS_TENANT_ID, CLS_TRACE_ID } from '@lib/context';
 import { Job, UnrecoverableError } from 'bullmq';
+import { ClsService } from 'nestjs-cls';
 import { PinoLogger } from 'nestjs-pino';
+import { storage, Store } from 'nestjs-pino/storage';
 import { JobMetadata } from './interfaces/job-metadata.interface';
 
 export class RetryableError extends Error {
@@ -36,8 +39,8 @@ export abstract class AbstractProcessor<TData = unknown, TResult = unknown>
   protected abstract readonly logger: Logger;
 
   @Optional()
-  @Inject(PinoLogger)
-  protected readonly pinoLogger?: PinoLogger;
+  @Inject(ClsService)
+  protected readonly cls?: ClsService;
 
   abstract handle(job: Job<TData>): Promise<TResult>;
 
@@ -59,33 +62,46 @@ export abstract class AbstractProcessor<TData = unknown, TResult = unknown>
     }
   }
 
+  /**
+   * Runs the job in the context of the request that queued it: every log line carries its
+   * trace_id, tenant_id and job fields, and the trace and tenant are in CLS, so anything the job
+   * queues or audits keeps them.
+   */
   async process(job: Job<TData>): Promise<TResult> {
+    const metadata = (job.data as Record<string, unknown>)?._metadata as
+      | JobMetadata
+      | undefined;
+    const bindings: Record<string, string> = {
+      queue_name: job.queueName,
+      job_name: job.name,
+    };
+    if (job.id) bindings.job_id = job.id;
+    if (metadata?.traceId) bindings.trace_id = metadata.traceId;
+    if (metadata?.tenantId) bindings.tenant_id = metadata.tenantId;
+
+    // PinoLogger.root exists once the pino LoggerModule is up; the Nest Logger reads this store
+    const root = (PinoLogger as { root?: PinoLogger['logger'] }).root;
+    const withLogger = (): Promise<TResult> =>
+      root
+        ? storage.run(new Store(root.child(bindings)), () => this.run(job))
+        : this.run(job);
+
+    const cls = this.cls;
+    if (!cls) return withLogger();
+    return cls.run(() => {
+      if (metadata?.traceId) cls.set(CLS_TRACE_ID, metadata.traceId);
+      if (metadata?.tenantId) cls.set(CLS_TENANT_ID, metadata.tenantId);
+      return withLogger();
+    });
+  }
+
+  private async run(job: Job<TData>): Promise<TResult> {
     const startTime = Date.now();
-    const queueName = job.queueName;
     const meta = {
       jobId: job.id,
       jobName: job.name,
       attempt: job.attemptsMade + 1,
     };
-
-    const metadata = (job.data as Record<string, unknown>)?._metadata as
-      | JobMetadata
-      | undefined;
-
-    if (this.pinoLogger) {
-      try {
-        const logContext: Record<string, string> = {};
-        if (metadata?.traceId) logContext.trace_id = metadata.traceId;
-        if (metadata?.tenantId) logContext.tenant_id = metadata.tenantId;
-        logContext.queue_name = queueName;
-        if (job.id) logContext.job_id = job.id;
-        logContext.job_name = job.name;
-        this.pinoLogger.assign(logContext);
-      } catch {
-        // PinoLogger.assign throws outside HTTP request scope (e.g. BullMQ workers).
-        // Skip metadata assignment; Nest Logger still works.
-      }
-    }
 
     this.logger.log(
       `Job started [${meta.jobName}] id=${meta.jobId} attempt=${meta.attempt}`,

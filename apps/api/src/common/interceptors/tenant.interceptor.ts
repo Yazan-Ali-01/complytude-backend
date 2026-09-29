@@ -44,7 +44,7 @@ export class TenantInterceptor implements NestInterceptor {
     }>(AUTH_OPTIONS_KEY, [context.getHandler(), context.getClass()]);
 
     // If public route or no user, skip tenant context setup
-    if (!authOptions || authOptions.tenant === false || !request.auth.tenant) {
+    if (!authOptions || authOptions.tenant === false || !request.auth?.tenant) {
       return next.handle();
     }
 

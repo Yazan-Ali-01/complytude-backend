@@ -87,6 +87,7 @@ Every log line includes:
 | -------------- | ------------------------------- | ---------------- |
 | `service_name` | `LoggerModule.forRoot()`        | All logs         |
 | `trace_id`     | Fastify `req.id` → CLS → Pino   | Gateway requests |
+| `tenant_id`, `user_id` | `TenantInterceptor` (tenant token) | Gateway requests with a tenant token |
 | `trace_id`     | Job `_metadata.traceId` → Pino  | Worker jobs      |
 | `tenant_id`    | Job `_metadata.tenantId` → Pino | Worker jobs      |
 | `queue_name`   | `job.queueName` → Pino          | Worker jobs      |
@@ -361,8 +362,9 @@ Gateway (Fastify generates req.id)
 Worker (BullMQ picks up job)
      │
      ├── AbstractProcessor.process():
-     │   reads job._metadata → assigns trace_id, tenant_id, queue_name,
-     │   job_id, job_name to Pino logger
+     │   reads job._metadata → runs the job inside a CLS context (trace and tenant set, so
+     │   jobs it queues and audit rows it writes keep them) and nestjs-pino's storage with a
+     │   child logger bound to trace_id, tenant_id, queue_name, job_id, job_name
      │
      ▼
 All worker logs for this job include the original trace_id
@@ -420,18 +422,13 @@ In the context of logging, these are considered PII and must not appear in syste
 
 ### Redaction in System Logs (Pino)
 
-Pino uses **fast-redact** paths defined in `libs/logger/src/logger.redaction.ts`:
+Three layers, all in `libs/logger`:
 
-```
-req.headers.authorization    → [REDACTED]
-req.headers.cookie           → [REDACTED]
-req.body.password            → [REDACTED]
-req.body.token               → [REDACTED]
-req.body.secret              → [REDACTED]
-req.body.*.password          → [REDACTED]  (one level nested)
-req.body.*.token             → [REDACTED]
-... (and more)
-```
+- **Every log call** goes through pino's `hooks.logMethod`, which runs `scrubLogValue` (`logger.scrub.ts`) on its arguments. That includes Nest `Logger` messages, which are plain strings pino's redaction can't see: JWTs, `Bearer …` values and `token=`/`code=`/`state=`/`secret=`/`password=`/`key=` query values become `[REDACTED]`, email addresses are masked to `a***@corp.ae`, keys named like secrets (`password`, `token`, `authorization`, `cookie`, …) are replaced, and errors are copied with a scrubbed message and stack.
+- **Requests** are logged by the `req` serializer, which never emits headers or bodies; its `url` and `query` are scrubbed the same way (invitation tokens, OAuth `code`/`state`).
+- **fast-redact** paths (`PINO_REDACT_PATHS`): the sensitive keys at the top of a log object and one level down.
+
+An opaque random token can't be recognised in text, so none may be interpolated into a log call: `libs/logger/src/no-secrets-in-logs.spec.ts` fails on a log template interpolating a variable named like a token, secret or password.
 
 ### Redaction in Audit Logs
 
@@ -443,8 +440,8 @@ The audit body sanitizer (`audit-sanitize.util.ts`) uses a case-insensitive deny
 
 **For system logs (Pino):**
 
-1. Add the path to `PINO_REDACT_PATHS` in `libs/logger/src/logger.redaction.ts`
-2. Format: `req.body.fieldName` or `req.body.*.fieldName` for one-level nesting
+1. A key: add it to `SENSITIVE_KEYS` and `REDACT_KEYS` in `libs/logger/src/logger.redaction.ts`
+2. A pattern in text: add it to `scrubLogText` in `libs/logger/src/logger.scrub.ts`, with a test
 
 **For audit logs:**
 

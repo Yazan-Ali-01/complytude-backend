@@ -9,6 +9,7 @@ import { Module, RequestMethod } from '@nestjs/common';
 import { ConditionalModule, ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { configModuleOptions } from 'src/config/config-module.options';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { HealthModule } from 'src/modules/health/health.module';
@@ -107,6 +108,11 @@ const mockRoutesEnabled = (env: NodeJS.ProcessEnv): boolean =>
     {
       provide: APP_INTERCEPTOR,
       useClass: TracingInterceptor,
+    },
+    // tenant_id / user_id on request logs, and the tenant in CLS for job metadata
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TenantInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

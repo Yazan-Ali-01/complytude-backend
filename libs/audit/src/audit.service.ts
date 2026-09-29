@@ -1,5 +1,5 @@
 import { CLS_TRACE_ID } from '@lib/context';
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 import { isIP } from 'node:net';
 import { AuditLogsRepository } from './audit.repository';
@@ -50,7 +50,9 @@ export class AuditService {
 
   constructor(
     private readonly repository: AuditLogsRepository,
-    @Optional() private readonly cls: ClsService | null,
+    // Explicit token: for `ClsService | null` the emitted type metadata is Object, and nothing
+    // would be injected
+    @Optional() @Inject(ClsService) private readonly cls: ClsService | null,
   ) {}
 
   private resolveTraceId(input: CreateAuditLogInput): string | undefined {

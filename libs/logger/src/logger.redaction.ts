@@ -15,31 +15,27 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Pino fast-redact paths for HTTP request-level fields.
- * Covers headers and shallow/one-level-nested body fields.
- * For deeper nesting, use sanitizeObject in serializers.
+ * Pino fast-redact paths: sensitive keys at the top level of a log object and one level down
+ * (e.g. `{ dto: { password } }`). Requests are logged through the `req` serializer, which never
+ * emits headers or bodies; deeper values are covered by scrubLogValue in the logMethod hook.
  */
+const REDACT_KEYS = [
+  'password',
+  'token',
+  'secret',
+  'authorization',
+  'cookie',
+  'api_key',
+  'apiKey',
+  'access_token',
+  'accessToken',
+  'refresh_token',
+  'refreshToken',
+] as const;
+
 export const PINO_REDACT_PATHS: ReadonlyArray<string> = [
-  'req.headers.authorization',
-  'req.headers.cookie',
-  'req.body.password',
-  'req.body.token',
-  'req.body.secret',
-  'req.body.api_key',
-  'req.body.apiKey',
-  'req.body.access_token',
-  'req.body.accessToken',
-  'req.body.refresh_token',
-  'req.body.refreshToken',
-  'req.body.*.password',
-  'req.body.*.token',
-  'req.body.*.secret',
-  'req.body.*.api_key',
-  'req.body.*.apiKey',
-  'req.body.*.access_token',
-  'req.body.*.accessToken',
-  'req.body.*.refresh_token',
-  'req.body.*.refreshToken',
+  ...REDACT_KEYS,
+  ...REDACT_KEYS.map((key) => `*.${key}`),
 ];
 
 /**

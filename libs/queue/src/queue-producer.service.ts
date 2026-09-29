@@ -34,7 +34,10 @@ export class QueueProducerService {
     @Optional()
     @Inject(getQueueToken(DOCUMENT_GENERATION_QUEUE))
     generationQueue: Queue | null,
+    // Explicit token: for `ClsService | null` the emitted type metadata is Object, and nothing
+    // would be injected (job metadata then never carried the trace or tenant)
     @Optional()
+    @Inject(ClsService)
     private readonly cls: ClsService | null,
   ) {
     if (aiQueue) this.queues.set(QUEUE_NAMES.AI_PROCESSING, aiQueue);

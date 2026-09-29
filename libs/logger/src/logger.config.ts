@@ -3,7 +3,12 @@ import type { Params } from 'nestjs-pino';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { RouteExclusion } from './interfaces/logger-options.interface';
-import { PINO_REDACT_PATHS, REDACTED } from './logger.redaction';
+import {
+  PINO_REDACT_PATHS,
+  REDACTED,
+  sanitizeObject,
+} from './logger.redaction';
+import { scrubLogText, scrubLogValue } from './logger.scrub';
 import { getClientIp, isScannerPath, truncateIp } from './logger.utils';
 
 type RequestLike = IncomingMessage & {
@@ -69,6 +74,21 @@ export function createPinoConfig(
         censor: REDACTED,
       },
 
+      // Every log call, including Nest Logger messages (plain strings pino's redaction can't
+      // see): tokens become [REDACTED] and email addresses are masked
+      hooks: {
+        logMethod(
+          this: unknown,
+          args: unknown[],
+          method: (...args: unknown[]) => void,
+        ): void {
+          method.apply(
+            this,
+            args.map((arg) => scrubLogValue(arg)),
+          );
+        },
+      },
+
       // Map HTTP outcome to a meaningful pino level so dashboards can filter
       // failures by `level >= warn` instead of scraping every status code.
       // Scanner-path 404s are demoted to debug — silenced in prod where
@@ -89,8 +109,11 @@ export function createPinoConfig(
       serializers: {
         req: (req: RequestLike) => ({
           method: req.method,
-          url: req.url,
-          query: req.query,
+          // Invitation and reset tokens, OAuth code/state travel in query strings
+          url: req.url ? scrubLogText(req.url) : req.url,
+          query: req.query
+            ? scrubLogValue(sanitizeObject(req.query))
+            : undefined,
           host: getHeader(req, 'host'),
           referer: getHeader(req, 'referer') ?? getHeader(req, 'referrer'),
           userAgent: getHeader(req, 'user-agent'),

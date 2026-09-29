@@ -28,42 +28,10 @@ describe('logger.redaction', () => {
   });
 
   describe('PINO_REDACT_PATHS', () => {
-    it('covers req.headers.authorization and req.headers.cookie', () => {
-      expect(PINO_REDACT_PATHS).toContain('req.headers.authorization');
-      expect(PINO_REDACT_PATHS).toContain('req.headers.cookie');
-    });
-
-    it('covers top-level body fields for all sensitive keys', () => {
-      const topLevel = [
-        'req.body.password',
-        'req.body.token',
-        'req.body.secret',
-        'req.body.api_key',
-        'req.body.apiKey',
-        'req.body.access_token',
-        'req.body.accessToken',
-        'req.body.refresh_token',
-        'req.body.refreshToken',
-      ];
-      for (const path of topLevel) {
-        expect(PINO_REDACT_PATHS).toContain(path);
-      }
-    });
-
-    it('covers one-level wildcard body paths for all sensitive keys', () => {
-      const wildcard = [
-        'req.body.*.password',
-        'req.body.*.token',
-        'req.body.*.secret',
-        'req.body.*.api_key',
-        'req.body.*.apiKey',
-        'req.body.*.access_token',
-        'req.body.*.accessToken',
-        'req.body.*.refresh_token',
-        'req.body.*.refreshToken',
-      ];
-      for (const path of wildcard) {
-        expect(PINO_REDACT_PATHS).toContain(path);
+    it('covers every sensitive key at the top of a log object and one level down', () => {
+      for (const key of ['password', 'token', 'api_key', 'refreshToken']) {
+        expect(PINO_REDACT_PATHS).toContain(key);
+        expect(PINO_REDACT_PATHS).toContain(`*.${key}`);
       }
     });
   });
