@@ -554,7 +554,9 @@ The system uses **four distinct token types**:
 
 > Token lifetimes are configured via environment variables (`JWT_IDENTITY_EXPIRES_IN`, `JWT_ACCESS_EXPIRES_IN`, etc.).
 
-All tokens are stored in HTTP-only cookies. **Session validity** for refresh and access is enforced via **Redis** (`sessionId` in each JWT): deleting a session revokes tokens immediately; refresh re-issues access tokens without PostgreSQL refresh-token rows.
+All tokens are stored in HTTP-only cookies. **Session validity** for refresh and access is enforced via **Redis** (`sessionId` in each JWT): deleting a session revokes tokens immediately.
+
+**Refresh rotation and reuse detection:** every refresh returns a new access token *and* a new refresh token. Each session stores the `jti` of the one refresh token that may be used next (`refreshJti`); a refresh swaps it atomically (Lua compare-and-swap). The token just rotated away is accepted for 30 seconds more (two tabs refreshing at once) and gets the current token back, not a new one. Any other old refresh token presented means it was copied: the identity session and every tenant session under it are revoked, and both the thief and the owner must sign in again.
 
 ### Redis Session Management (Task 1 + 2)
 
@@ -564,13 +566,13 @@ The authentication system is transitioning to **Redis-backed session management*
 
 **Task 2 — JWT Payload & Strategy:** All four JWT payload types and `Authenticated*User` interfaces include `sessionId`. Passport strategies extract and return it. Role-change TODO removed (handled by `SessionInvalidationService.invalidateTenantSessions()`).
 
-**Task 3 — Auth Flow Integration:** Login creates identity session in Redis (User-Agent → DeviceInfo), embeds `sessionId` in tokens. Tenant switch validates identity session, creates tenant session. Refresh uses Redis session check (no token rotation; access token reissued only). Logout deletes sessions from Redis. Reset password invalidates all user sessions. JwtAuthGuard and JwtAuthRefreshGuard validate session existence and fail closed: when Redis can't be asked, the request (and a refresh) is refused with 503 (`SESSION_STORE_UNAVAILABLE`), never accepted on the JWT alone. The Redis and BullMQ clients reconnect forever with a capped backoff (`libs/redis/src/redis-connection.ts`), so an outage ends without restarting the app. Tokens must include `sessionId`; missing `sessionId` is rejected by the guard.
+**Task 3 — Auth Flow Integration:** Login creates identity session in Redis (User-Agent → DeviceInfo), embeds `sessionId` in tokens. Tenant switch validates identity session, creates tenant session and ends the one it replaces (a browser holds one tenant cookie, so each identity session has at most one tenant session). A tenant session is valid only while its identity session is. Refresh checks the session and rotates the refresh token (above). Logout deletes sessions from Redis. Reset password invalidates all user sessions. JwtAuthGuard and JwtAuthRefreshGuard validate session existence and fail closed: when Redis can't be asked, the request (and a refresh) is refused with 503 (`SESSION_STORE_UNAVAILABLE`), never accepted on the JWT alone. The Redis and BullMQ clients reconnect forever with a capped backoff (`libs/redis/src/redis-connection.ts`), so an outage ends without restarting the app. Tokens must include `sessionId`; missing `sessionId` is rejected by the guard.
 
 **Geo Enrichment (MaxMind):** GeoLocationService performs fire-and-forget IP-to-location lookup during login using GeoLite2-City. Sessions are created with `geoLocation: null`; when lookup succeeds, the session is updated asynchronously. Geo is disabled when `MAXMIND_DB_PATH` is empty or the database file is missing. See `scripts/download-geolite2-city.sh` and `scripts/README.md`.
 
 **Session Services** (`SessionsModule`, `apps/api/src/modules/auth/sessions.module.ts`; `AuthModule` re-exports it, and modules `AuthModule` depends on, such as tenants, import it directly):
 
-- **SessionService** — Core CRUD for identity and tenant sessions, idle timeout enforcement, activity throttling, Lua-based session limit enforcement (max 5 identity sessions per user), and the deactivated-tenant marker (`tenant-inactive:{tenantId}`)
+- **SessionService** — Core CRUD for identity and tenant sessions, idle timeout enforcement, activity throttling, Lua-based session limit enforcement (max 5 identity sessions per user; ids of expired or idle sessions are dropped before counting), and the deactivated-tenant marker (`tenant-inactive:{tenantId}`). Every change to a stored session goes through one Lua script that updates fields in place (`SET … KEEPTTL`, only if the session still exists), so concurrent updates don't overwrite each other and a deleted session is never written back
 - **SessionInvalidationService** — Bulk invalidation for security events: `invalidateAllUserSessions(userId, { exceptIdentitySessionId? })`, `invalidateTenantSessions(userId, tenantId)`, `revokeTenantAccess(tenantId, memberIds)` / `restoreTenantAccess(tenantId)`
 - **GeoLocationService** — MaxMind GeoLite2-City IP lookup for session enrichment (optional, fire-and-forget)
 
@@ -617,7 +619,7 @@ Each read/write is followed by `AuditService.log` with `action: SYSTEM_ADMIN_SES
 
 - `identity-session:{sessionId}` — Identity session data (device, geo, linked tenant sessions)
 - `tenant-session:{sessionId}` — Tenant session data (user, tenant, role)
-- `user:identity-sessions:{userId}` — SET of identity session IDs
+- `user:identity-sessions:{userId}` — SET of identity session IDs (expires `SESSION_MAX_TTL` after the last login)
 - `user:tenant-sessions:{userId}:{tenantId}` — SET of tenant session IDs
 - `session-activity:{sessionId}` — TTL key for activity throttle (120s default)
 

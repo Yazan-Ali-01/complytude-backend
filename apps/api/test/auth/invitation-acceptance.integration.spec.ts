@@ -191,6 +191,7 @@ describe('Invitation acceptance', () => {
       activeTenantSessionIds: [],
       createdAt: now,
       lastActivityAt: now,
+      refreshJti: randomUUID(),
     };
     await sessionService.createIdentitySession(sessionId, session);
     const { identityAccessToken } = authService.generateIdentityTokens(
@@ -199,6 +200,7 @@ describe('Invitation acceptance', () => {
       claimVerified,
       null,
       sessionId,
+      session.refreshJti,
     );
     return `${IDENTITY_TOKEN_COOKIE_NAME}=${identityAccessToken}`;
   }

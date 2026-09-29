@@ -31,6 +31,7 @@ export interface IdentityRefreshPayload {
   sub: string; // userId
   email: string;
   sessionId: string; // Links to identity-session:{sessionId} in Redis
+  jti: string; // Must match the session's refreshJti; rotated on every refresh
   type: typeof IDENTITY_REFRESH_PAYLOAD_TYPE;
 }
 
@@ -38,6 +39,7 @@ export interface AuthenticatedIdentityRefreshUser {
   userId: string;
   email: string;
   sessionId: string;
+  refreshJti: string;
   refreshToken: string;
 }
 
@@ -78,6 +80,7 @@ export interface TenantRefreshPayload {
   email: string;
   tenantId: string;
   sessionId: string; // Links to tenant-session:{sessionId} in Redis
+  jti: string; // Must match the session's refreshJti; rotated on every refresh
   type: typeof TENANT_REFRESH_PAYLOAD_TYPE;
 }
 
@@ -86,5 +89,6 @@ export interface AuthenticatedTenantRefreshUser {
   email: string;
   tenantId: string;
   sessionId: string;
+  refreshJti: string;
   refreshToken: string;
 }

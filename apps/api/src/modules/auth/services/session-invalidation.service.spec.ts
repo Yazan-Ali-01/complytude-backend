@@ -1,5 +1,4 @@
 import { RedisService } from '@lib/redis';
-import { ConfigService } from '@nestjs/config';
 import { SESSION_KEYS } from '../constants/session.constants';
 import type {
   IdentitySessionData,
@@ -12,7 +11,10 @@ describe('SessionInvalidationService', () => {
   let service: SessionInvalidationService;
   let redis: jest.Mocked<Pick<RedisService, 'get' | 'pipeline'>>;
   let sessionService: jest.Mocked<
-    Pick<SessionService, 'getIdentitySessionIds' | 'getTenantSessionIds'>
+    Pick<
+      SessionService,
+      'getIdentitySessionIds' | 'getTenantSessionIds' | 'deleteTenantSession'
+    >
   >;
   let pipeline: {
     del: jest.Mock;
@@ -36,20 +38,17 @@ describe('SessionInvalidationService', () => {
     sessionService = {
       getIdentitySessionIds: jest.fn(),
       getTenantSessionIds: jest.fn(),
+      deleteTenantSession: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<
-      Pick<SessionService, 'getIdentitySessionIds' | 'getTenantSessionIds'>
+      Pick<
+        SessionService,
+        'getIdentitySessionIds' | 'getTenantSessionIds' | 'deleteTenantSession'
+      >
     >;
-
-    const config = {
-      get: jest.fn((k: string) =>
-        k === 'session.maxTtlSeconds' ? 3600 : undefined,
-      ),
-    } as unknown as ConfigService;
 
     service = new SessionInvalidationService(
       redis as unknown as RedisService,
       sessionService as unknown as SessionService,
-      config,
     );
   });
 
@@ -79,6 +78,7 @@ describe('SessionInvalidationService', () => {
         activeTenantSessionIds: ['ts1'],
         createdAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
+        refreshJti: 'jti-1',
       };
       const ts: TenantSessionData = {
         userId: 'u1',
@@ -87,6 +87,7 @@ describe('SessionInvalidationService', () => {
         identitySessionId: 'i1',
         createdAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
+        refreshJti: 'jti-1',
       };
       redis.get.mockResolvedValueOnce(idSession).mockResolvedValueOnce(ts);
 
@@ -117,52 +118,21 @@ describe('SessionInvalidationService', () => {
   });
 
   describe('invalidateTenantSessions', () => {
-    it('updates identity session JSON and deletes tenant keys in pipeline', async () => {
-      sessionService.getTenantSessionIds.mockResolvedValue(['ts1']);
-      const ts: TenantSessionData = {
-        userId: 'u1',
-        tenantId: 't1',
-        role: 'member',
-        identitySessionId: 'i1',
-        createdAt: new Date().toISOString(),
-        lastActivityAt: new Date().toISOString(),
-      };
-      const identity: IdentitySessionData = {
-        userId: 'u1',
-        email: 'a@b.com',
-        platformRole: null,
-        isVerified: true,
-        deviceInfo: {
-          deviceType: 'desktop',
-          browserName: 'x',
-          browserVersion: '1',
-          operatingSystem: 'y',
-        },
-        ipAddress: '1.1.1.1',
-        geoLocation: null,
-        sessionName: null,
-        activeTenantSessionIds: ['ts1', 'ts2'],
-        createdAt: new Date().toISOString(),
-        lastActivityAt: new Date().toISOString(),
-      };
-      redis.get.mockResolvedValueOnce(ts).mockResolvedValueOnce(identity);
+    it('deletes each of the user tenant sessions through the session service', async () => {
+      sessionService.getTenantSessionIds.mockResolvedValue(['ts1', 'ts2']);
 
       await service.invalidateTenantSessions('u1', 't1');
 
-      expect(pipeline.set).toHaveBeenCalledWith(
-        SESSION_KEYS.identitySession('i1'),
-        expect.stringContaining('"activeTenantSessionIds":["ts2"]'),
-        'EX',
-        3600,
-      );
-      expect(pipeline.del).toHaveBeenCalledWith(
-        SESSION_KEYS.tenantSession('ts1'),
-      );
-      expect(pipeline.srem).toHaveBeenCalledWith(
-        SESSION_KEYS.userTenantSessions('u1', 't1'),
+      expect(sessionService.deleteTenantSession).toHaveBeenCalledWith(
         'ts1',
+        'u1',
+        't1',
       );
-      expect(pipeline.exec).toHaveBeenCalled();
+      expect(sessionService.deleteTenantSession).toHaveBeenCalledWith(
+        'ts2',
+        'u1',
+        't1',
+      );
     });
   });
 });

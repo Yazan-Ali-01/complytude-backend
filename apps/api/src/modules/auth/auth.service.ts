@@ -496,6 +496,7 @@ export class AuthService {
     const deviceInfo = parseUserAgent(userAgent);
 
     const identitySessionId = uuidv4();
+    const refreshJti = uuidv4();
     await this.sessionService.enforceSessionLimit(user.id, identitySessionId);
     await this.sessionService.createIdentitySession(identitySessionId, {
       userId: user.id,
@@ -509,6 +510,7 @@ export class AuthService {
       activeTenantSessionIds: [],
       createdAt: new Date().toISOString(),
       lastActivityAt: new Date().toISOString(),
+      refreshJti,
     });
 
     // Fire-and-forget: enrich session with geo when lookup succeeds (never blocks)
@@ -535,6 +537,7 @@ export class AuthService {
       user.is_verified,
       platformRole,
       identitySessionId,
+      refreshJti,
     );
   }
 
@@ -686,7 +689,8 @@ export class AuthService {
   /**
    * Generate identity tokens (access + refresh)
    * Used after login, before tenant selection.
-   * SessionId links to Redis identity-session for revocation.
+   * SessionId links to Redis identity-session for revocation; the refresh token's jti must be
+   * the session's current refreshJti.
    */
   generateIdentityTokens(
     userId: string,
@@ -694,6 +698,7 @@ export class AuthService {
     isVerified: boolean,
     platformRole: string | null,
     sessionId: string,
+    refreshJti: string,
   ): { identityAccessToken: string; identityRefreshToken: string } {
     const accessPayload: IdentityPayload = {
       sub: userId,
@@ -708,6 +713,7 @@ export class AuthService {
       sub: userId,
       email,
       sessionId,
+      jti: refreshJti,
       type: 'identity-refresh',
     };
 
@@ -735,7 +741,8 @@ export class AuthService {
   /**
    * Generate tenant tokens (access + refresh)
    * Used after tenant selection.
-   * SessionId links to Redis tenant-session for revocation.
+   * SessionId links to Redis tenant-session for revocation; the refresh token's jti must be
+   * the session's current refreshJti.
    */
   generateTenantTokens(
     userId: string,
@@ -743,6 +750,7 @@ export class AuthService {
     tenantId: string,
     role: string,
     sessionId: string,
+    refreshJti: string,
   ): { tenantAccessToken: string; tenantRefreshToken: string } {
     const accessPayload: TenantPayload = {
       sub: userId,
@@ -758,6 +766,7 @@ export class AuthService {
       email,
       tenantId,
       sessionId,
+      jti: refreshJti,
       type: 'tenant-refresh',
     };
 
@@ -802,20 +811,53 @@ export class AuthService {
   }
 
   /**
-   * Refresh identity access token.
-   * Validates session exists in Redis. Reissues access token only (no refresh rotation).
-   *
-   * SECURITY NOTE: Refresh token rotation was intentionally removed in favour of
-   * Redis session-based revocation. A stolen refresh token can be used until the
-   * session is deleted or expires. Mitigations: sessions fail closed when Redis is down, idle timeout,
-   * and absolute TTL. If token-theft detection is needed later, consider
-   * reuse-detection (family tracking) as a future enhancement.
+   * Presents a refresh token to its session and returns the jti for the next refresh token.
+   * Every refresh rotates the token; an old one presented again (outside the short window for
+   * concurrent refreshes) means it was copied, so the whole session is revoked: the identity
+   * session and every tenant session under it.
+   */
+  private async rotateRefresh(
+    kind: 'identity' | 'tenant',
+    userId: string,
+    sessionId: string,
+    presentedJti: string,
+    identitySessionId: string,
+  ): Promise<string> {
+    const invalid = new UnauthorizedException(
+      this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
+    );
+    if (!presentedJti) throw invalid;
+    const rotation = await withSessionStore(() =>
+      this.sessionService.rotateRefreshJti(
+        kind,
+        sessionId,
+        presentedJti,
+        uuidv4(),
+      ),
+    );
+    if (rotation.status === 'rotated' || rotation.status === 'grace') {
+      return rotation.jti;
+    }
+    if (rotation.status === 'reuse') {
+      this.logger.warn(
+        `Refresh token reuse on ${kind} session ${sessionId} of user ${userId}: revoking the session`,
+      );
+      await withSessionStore(() =>
+        this.sessionService.deleteIdentitySession(identitySessionId, userId),
+      );
+    }
+    throw invalid;
+  }
+
+  /**
+   * Refresh identity tokens: a new access token and a rotated refresh token.
    */
   async refreshIdentityTokens(
     userId: string,
     email: string,
     sessionId: string,
-  ): Promise<{ identityAccessToken: string }> {
+    refreshJti: string,
+  ): Promise<{ identityAccessToken: string; identityRefreshToken: string }> {
     if (!sessionId) {
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
@@ -829,6 +871,13 @@ export class AuthService {
         this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
+    const nextJti = await this.rotateRefresh(
+      'identity',
+      userId,
+      sessionId,
+      refreshJti,
+      sessionId,
+    );
 
     const user = await this.userRepository.findById(userId);
     if (!user) {
@@ -840,42 +889,50 @@ export class AuthService {
     }
 
     const platformRole = user.platform_role_key ?? null;
-    const { identityAccessToken } = this.generateIdentityTokens(
+    const tokens = this.generateIdentityTokens(
       userId,
       email,
       user.is_verified,
       platformRole,
       sessionId,
+      nextJti,
     );
 
     this.logger.log(`Identity tokens refreshed for user ${userId}`);
 
-    return { identityAccessToken };
+    return tokens;
   }
 
   /**
-   * Refresh tenant access token.
-   * Validates session exists in Redis. Reissues access token only (no refresh rotation).
+   * Refresh tenant tokens: a new access token and a rotated refresh token.
    */
   async refreshTenantTokens(
     userId: string,
     email: string,
     tenantId: string,
     sessionId: string,
-  ): Promise<{ tenantAccessToken: string }> {
+    refreshJti: string,
+  ): Promise<{ tenantAccessToken: string; tenantRefreshToken: string }> {
     if (!sessionId) {
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
-    const exists = await withSessionStore(() =>
-      this.sessionService.tenantSessionExists(sessionId),
+    const session = await withSessionStore(() =>
+      this.sessionService.findTenantSessionById(sessionId),
     );
-    if (!exists) {
+    if (!session) {
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
+    const nextJti = await this.rotateRefresh(
+      'tenant',
+      userId,
+      sessionId,
+      refreshJti,
+      session.identitySessionId,
+    );
 
     const userTenant = await this.databaseService.transaction(async (client) =>
       this.userTenantRepository.getUserInTenant(userId, tenantId, {
@@ -890,19 +947,20 @@ export class AuthService {
       );
     }
 
-    const { tenantAccessToken } = this.generateTenantTokens(
+    const tokens = this.generateTenantTokens(
       userId,
       email,
       tenantId,
       userTenant.role_key,
       sessionId,
+      nextJti,
     );
 
     this.logger.log(
       `Tenant tokens refreshed for user ${userId} in tenant ${tenantId}`,
     );
 
-    return { tenantAccessToken };
+    return tokens;
   }
 
   /**
@@ -1270,6 +1328,7 @@ export class AuthService {
       }
 
       const tenantSessionId = uuidv4();
+      const refreshJti = uuidv4();
       const now = new Date().toISOString();
       await this.sessionService.createTenantSession(
         tenantSessionId,
@@ -1280,6 +1339,7 @@ export class AuthService {
           identitySessionId: identitySessionId || '',
           createdAt: now,
           lastActivityAt: now,
+          refreshJti,
         },
         identitySessionId || '',
       );
@@ -1291,6 +1351,7 @@ export class AuthService {
           tenantId,
           userTenant.role_key,
           tenantSessionId,
+          refreshJti,
         );
 
       this.logger.log(`User ${email} switched to tenant ${tenantId}`);

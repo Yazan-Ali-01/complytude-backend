@@ -33,6 +33,7 @@ function baseIdentityData(
     activeTenantSessionIds: [],
     createdAt: now,
     lastActivityAt: now,
+    refreshJti: 'jti-1',
     ...overrides,
   };
 }
@@ -116,6 +117,8 @@ describe('SessionService', () => {
         '5',
         '9999-12-31T23:59:59.999Z',
         'pfx:',
+        expect.any(String),
+        '3600',
       );
     });
 
@@ -186,6 +189,11 @@ describe('SessionService', () => {
   });
 
   describe('createTenantSession', () => {
+    beforeEach(() => {
+      // The identity session update (patch script) returns its previous tenant session ids
+      mockEval.mockResolvedValue([]);
+    });
+
     it('uses min(identity ttl, maxTtl) when identity key has ttl', async () => {
       redis.ttl.mockResolvedValue(100);
       redis.get.mockResolvedValueOnce(
@@ -198,6 +206,7 @@ describe('SessionService', () => {
         identitySessionId: 'iid',
         createdAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
+        refreshJti: 'jti-t',
       };
       await service.createTenantSession('ts1', ts, 'iid');
       expect(redis.set).toHaveBeenCalledWith(
@@ -219,6 +228,7 @@ describe('SessionService', () => {
         identitySessionId: 'iid',
         createdAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
+        refreshJti: 'jti-t',
       };
       await service.createTenantSession('ts1', ts, 'iid');
       expect(redis.set).toHaveBeenCalledWith(
@@ -265,6 +275,7 @@ describe('SessionService', () => {
             identitySessionId: 'i1',
             createdAt: now,
             lastActivityAt: now,
+            refreshJti: 'jti-t',
           } satisfies TenantSessionData,
         ]);
 

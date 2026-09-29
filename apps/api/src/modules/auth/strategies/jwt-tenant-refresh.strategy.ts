@@ -64,6 +64,7 @@ export class JwtTenantRefreshStrategy extends PassportStrategy(
       email: payload.email,
       tenantId: payload.tenantId,
       sessionId: payload.sessionId ?? '',
+      refreshJti: payload.jti ?? '',
       refreshToken,
     };
   }

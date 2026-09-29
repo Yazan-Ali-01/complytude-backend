@@ -221,7 +221,7 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
 
 > Token lifetimes are configured via environment variables (`JWT_IDENTITY_EXPIRES_IN`, `JWT_ACCESS_EXPIRES_IN`). Refresh JWT expiry is derived from `SESSION_MAX_TTL` (default `14d`).
 
-Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `tenant-session:{id}`). Guards verify the session still exists (with graceful degradation if Redis is unavailable). Refresh endpoints re-issue **access** tokens only; refresh JWTs are not rotated in PostgreSQL.
+Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `tenant-session:{id}`). Guards verify the session still exists (with graceful degradation if Redis is unavailable). Refresh endpoints return a new access token **and a new refresh token** (both cookies are set again): the refresh token rotates on every use. The previous refresh token is accepted for 30 seconds more (concurrent refreshes from two tabs) and then never again; presenting an older one revokes the whole session (identity and tenant) with 401, so the user signs in again.
 
 ### Session management API (`/api/v1/auth/sessions*`, admin)
 

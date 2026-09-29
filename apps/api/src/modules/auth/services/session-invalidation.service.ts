@@ -1,6 +1,5 @@
 import { RedisService } from '@lib/redis';
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { SESSION_KEYS } from '../constants/session.constants';
 import {
   IdentitySessionData,
@@ -19,21 +18,7 @@ export class SessionInvalidationService {
   constructor(
     private readonly redis: RedisService,
     private readonly sessionService: SessionService,
-    private readonly config: ConfigService,
   ) {}
-
-  private get maxTtlSeconds(): number {
-    return (
-      this.config.get<number>('session.maxTtlSeconds') ?? 14 * 24 * 60 * 60
-    );
-  }
-
-  private remainingTtlSeconds(createdAt: string): number {
-    const created = new Date(createdAt).getTime();
-    if (Number.isNaN(created)) return this.maxTtlSeconds;
-    const elapsed = Math.floor((Date.now() - created) / 1000);
-    return Math.max(0, this.maxTtlSeconds - elapsed);
-  }
 
   /**
    * Invalidate all sessions for a user (all devices, all tenants).
@@ -134,43 +119,10 @@ export class SessionInvalidationService {
       userId,
       tenantId,
     );
-    if (tenantSessionIds.length === 0) return;
-
-    const pipeline = this.redis.pipeline();
-
+    // One at a time through the session service: its update of the identity session is atomic
     for (const tsid of tenantSessionIds) {
-      const tsData = await this.redis.get<TenantSessionData>(
-        SESSION_KEYS.tenantSession(tsid),
-      );
-      if (tsData) {
-        const identitySession = await this.redis.get<IdentitySessionData>(
-          SESSION_KEYS.identitySession(tsData.identitySessionId),
-        );
-        if (identitySession) {
-          const ttl = this.remainingTtlSeconds(identitySession.createdAt);
-          if (ttl > 0) {
-            const updated: IdentitySessionData = {
-              ...identitySession,
-              activeTenantSessionIds:
-                identitySession.activeTenantSessionIds.filter(
-                  (id) => id !== tsid,
-                ),
-            };
-            pipeline.set(
-              SESSION_KEYS.identitySession(tsData.identitySessionId),
-              JSON.stringify(updated),
-              'EX',
-              ttl,
-            );
-          }
-        }
-      }
-      pipeline.del(SESSION_KEYS.tenantSession(tsid));
-      pipeline.del(SESSION_KEYS.sessionActivity(tsid));
-      pipeline.srem(SESSION_KEYS.userTenantSessions(userId, tenantId), tsid);
+      await this.sessionService.deleteTenantSession(tsid, userId, tenantId);
     }
-
-    await pipeline.exec();
     this.logger.log(
       `Invalidated tenant sessions for user ${userId} in tenant ${tenantId}`,
     );

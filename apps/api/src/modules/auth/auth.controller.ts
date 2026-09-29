@@ -395,17 +395,18 @@ export class AuthController {
     identityUser: AuthenticatedIdentityRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
-    const { identityAccessToken } =
+    const { identityAccessToken, identityRefreshToken } =
       await this.authService.refreshIdentityTokens(
         identityUser.userId,
         identityUser.email,
         identityUser.sessionId,
+        identityUser.refreshJti,
       );
 
     this.authService.setIdentityTokens(
       reply,
       identityAccessToken,
-      identityUser.refreshToken,
+      identityRefreshToken,
     );
     return { message: 'Identity tokens refreshed successfully' };
   }
@@ -440,17 +441,19 @@ export class AuthController {
     tenantUser: AuthenticatedTenantRefreshUser,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MessageResponseDto> {
-    const { tenantAccessToken } = await this.authService.refreshTenantTokens(
-      tenantUser.userId,
-      tenantUser.email,
-      tenantUser.tenantId,
-      tenantUser.sessionId,
-    );
+    const { tenantAccessToken, tenantRefreshToken } =
+      await this.authService.refreshTenantTokens(
+        tenantUser.userId,
+        tenantUser.email,
+        tenantUser.tenantId,
+        tenantUser.sessionId,
+        tenantUser.refreshJti,
+      );
 
     this.authService.setTenantTokens(
       reply,
       tenantAccessToken,
-      tenantUser.refreshToken,
+      tenantRefreshToken,
     );
     return { message: 'Tenant tokens refreshed successfully' };
   }

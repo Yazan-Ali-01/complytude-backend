@@ -2,9 +2,11 @@ import { RedisService } from '@lib/redis';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  REFRESH_ROTATE_LUA_SCRIPT,
   SESSION_DEFAULTS,
   SESSION_KEYS,
   SESSION_LIMIT_LUA_SCRIPT,
+  SESSION_PATCH_LUA_SCRIPT,
 } from '../constants/session.constants';
 import type {
   AdminSanitizedIdentitySessionDto,
@@ -27,6 +29,11 @@ import type {
 
 /** Sentinel date for Lua script — larger than any real ISO createdAt */
 const OLDEST_SENTINEL = '9999-12-31T23:59:59.999Z';
+
+/** Outcome of presenting a refresh token (see REFRESH_ROTATE_LUA_SCRIPT). */
+export type RefreshRotation =
+  | { status: 'rotated' | 'grace'; jti: string }
+  | { status: 'reuse' | 'missing' };
 
 @Injectable()
 export class SessionService {
@@ -77,14 +84,60 @@ export class SessionService {
   }
 
   /**
-   * Compute remaining absolute TTL from createdAt.
-   * Returns seconds remaining, or 0 if already expired.
+   * Sets top-level fields of a session atomically, keeping its TTL; nothing is written when the
+   * session no longer exists. Returns the identity session's tenant session ids before the
+   * update, or null when there is no session.
    */
-  private remainingTtlSeconds(createdAt: string): number {
-    const created = new Date(createdAt).getTime();
-    if (Number.isNaN(created)) return this.maxTtlSeconds;
-    const elapsed = Math.floor((Date.now() - created) / 1000);
-    return Math.max(0, this.maxTtlSeconds - elapsed);
+  private async patchSession(
+    key: string,
+    fields: Record<string, unknown>,
+    tenantChange?: { mode: 'replace-tenants' | 'remove-tenant'; id: string },
+  ): Promise<string[] | null> {
+    const result = (await this.redis
+      .getClient()
+      .eval(
+        SESSION_PATCH_LUA_SCRIPT,
+        1,
+        key,
+        JSON.stringify(fields),
+        tenantChange?.mode ?? '',
+        tenantChange?.id ?? '',
+      )) as string[] | null;
+    return result ?? null;
+  }
+
+  /**
+   * Presents a refresh token's jti to its session. The current jti rotates to `nextJti`. The one
+   * just rotated away, within the grace window, gets the current jti back (concurrent refreshes).
+   * Anything else is a reuse of an old token.
+   */
+  async rotateRefreshJti(
+    kind: 'identity' | 'tenant',
+    sessionId: string,
+    presentedJti: string,
+    nextJti: string,
+  ): Promise<RefreshRotation> {
+    const key =
+      kind === 'identity'
+        ? SESSION_KEYS.identitySession(sessionId)
+        : SESSION_KEYS.tenantSession(sessionId);
+    const now = Date.now();
+    const [status, jti] = (await this.redis
+      .getClient()
+      .eval(
+        REFRESH_ROTATE_LUA_SCRIPT,
+        1,
+        key,
+        presentedJti,
+        nextJti,
+        new Date(now).toISOString(),
+        new Date(
+          now - SESSION_DEFAULTS.REFRESH_REUSE_GRACE_SECONDS * 1000,
+        ).toISOString(),
+      )) as [RefreshRotation['status'], string?];
+    return status === 'rotated' || status === 'grace'
+      ? { status, jti: jti ?? '' }
+      : { status };
   }
 
   // ========== Identity Session CRUD ==========
@@ -107,6 +160,8 @@ export class SessionService {
       String(this.maxPerUser),
       OLDEST_SENTINEL,
       this.keyPrefix,
+      new Date(Date.now() - this.idleTimeoutSeconds * 1000).toISOString(),
+      String(this.maxTtlSeconds),
     );
     const result = Array.isArray(evicted) ? evicted[0] : evicted;
     return result === '0' || result === 0 ? null : String(result);
@@ -203,18 +258,15 @@ export class SessionService {
           SESSION_KEYS.identitySession(sessionId),
         );
       })
-      .then((data) => {
+      .then(async (data) => {
         if (!data) return;
-        const ttl = this.remainingTtlSeconds(data.createdAt);
-        if (ttl <= 0) return;
-        const updated: IdentitySessionData = {
-          ...data,
-          lastActivityAt: new Date().toISOString(),
-        };
-        return Promise.all([
-          this.redis.set(SESSION_KEYS.identitySession(sessionId), updated, ttl),
-          this.redis.set(throttleKey, '1', this.activityThrottleSeconds),
-        ]);
+        const patched = await this.patchSession(
+          SESSION_KEYS.identitySession(sessionId),
+          { lastActivityAt: new Date().toISOString() },
+        );
+        if (patched) {
+          await this.redis.set(throttleKey, '1', this.activityThrottleSeconds);
+        }
       })
       .catch((err) =>
         this.logger.warn(`Failed to touch identity session activity: ${err}`),
@@ -243,22 +295,45 @@ export class SessionService {
       sessionId,
     );
 
-    const identitySession =
-      await this.redis.get<IdentitySessionData>(identityKey);
-    if (identitySession) {
-      const ttl = this.remainingTtlSeconds(identitySession.createdAt);
-      if (ttl > 0) {
-        const updated = {
-          ...identitySession,
-          activeTenantSessionIds: [
-            ...identitySession.activeTenantSessionIds,
-            sessionId,
-          ],
-          lastActivityAt: new Date().toISOString(),
-        };
-        await this.redis.set(identityKey, updated, ttl);
+    // A browser holds one tenant cookie: the tenant session this switch replaces is ended, not
+    // left valid server-side until it expires
+    const previous = await this.patchSession(
+      identityKey,
+      { lastActivityAt: new Date().toISOString() },
+      { mode: 'replace-tenants', id: sessionId },
+    );
+    await this.removeTenantSessions(
+      (previous ?? []).filter((id) => id !== sessionId),
+    );
+  }
+
+  /** Deletes tenant sessions and their index entries (their identity session is updated by the caller). */
+  private async removeTenantSessions(sessionIds: string[]): Promise<void> {
+    if (sessionIds.length === 0) return;
+    const pipeline = this.redis.pipeline();
+    for (const tsid of sessionIds) {
+      const tsData = await this.redis.get<TenantSessionData>(
+        SESSION_KEYS.tenantSession(tsid),
+      );
+      if (tsData) {
+        pipeline.srem(
+          SESSION_KEYS.userTenantSessions(tsData.userId, tsData.tenantId),
+          tsid,
+        );
       }
+      pipeline.del(SESSION_KEYS.tenantSession(tsid));
+      pipeline.del(SESSION_KEYS.sessionActivity(tsid));
     }
+    await pipeline.exec();
+  }
+
+  /** A tenant session lives only as long as the identity session that opened it. */
+  private async parentIdentityAlive(data: TenantSessionData): Promise<boolean> {
+    if (!data.identitySessionId) return false;
+    const parent = await this.redis.get<IdentitySessionData>(
+      SESSION_KEYS.identitySession(data.identitySessionId),
+    );
+    return parent !== null && !this.isIdleExpired(parent.lastActivityAt);
   }
 
   async findTenantSessionById(
@@ -267,7 +342,10 @@ export class SessionService {
     const key = SESSION_KEYS.tenantSession(sessionId);
     const data = await this.redis.get<TenantSessionData>(key);
     if (!data) return null;
-    if (this.isIdleExpired(data.lastActivityAt)) {
+    if (
+      this.isIdleExpired(data.lastActivityAt) ||
+      !(await this.parentIdentityAlive(data))
+    ) {
       await this.deleteTenantSession(sessionId, data.userId, data.tenantId);
       return null;
     }
@@ -287,7 +365,10 @@ export class SessionService {
     const key = SESSION_KEYS.tenantSession(sessionId);
     const data = await this.redis.get<TenantSessionData>(key);
     if (!data) return false;
-    return !this.isIdleExpired(data.lastActivityAt);
+    return (
+      !this.isIdleExpired(data.lastActivityAt) &&
+      (await this.parentIdentityAlive(data))
+    );
   }
 
   /** Whether a platform admin has deactivated the tenant (its tokens are refused). */
@@ -316,32 +397,15 @@ export class SessionService {
     pipeline.del(SESSION_KEYS.tenantSession(sessionId));
     pipeline.del(SESSION_KEYS.sessionActivity(sessionId));
     pipeline.srem(SESSION_KEYS.userTenantSessions(userId, tenantId), sessionId);
-
-    if (tenantData) {
-      const identitySession = await this.redis.get<IdentitySessionData>(
-        SESSION_KEYS.identitySession(tenantData.identitySessionId),
-      );
-      if (identitySession) {
-        const ttl = this.remainingTtlSeconds(identitySession.createdAt);
-        if (ttl > 0) {
-          const updated: IdentitySessionData = {
-            ...identitySession,
-            activeTenantSessionIds:
-              identitySession.activeTenantSessionIds.filter(
-                (id) => id !== sessionId,
-              ),
-          };
-          pipeline.set(
-            SESSION_KEYS.identitySession(tenantData.identitySessionId),
-            JSON.stringify(updated),
-            'EX',
-            ttl,
-          );
-        }
-      }
-    }
-
     await pipeline.exec();
+
+    if (tenantData?.identitySessionId) {
+      await this.patchSession(
+        SESSION_KEYS.identitySession(tenantData.identitySessionId),
+        {},
+        { mode: 'remove-tenant', id: sessionId },
+      );
+    }
   }
 
   /**
@@ -358,23 +422,17 @@ export class SessionService {
           SESSION_KEYS.tenantSession(sessionId),
         );
       })
-      .then((data) => {
+      .then(async (data) => {
         if (!data) return;
-        const ttl = this.remainingTtlSeconds(data.createdAt);
-        if (ttl <= 0) return;
-        const now = new Date().toISOString();
-        const updated: TenantSessionData = {
-          ...data,
-          lastActivityAt: now,
-        };
-        const promises: Promise<unknown>[] = [
-          this.redis.set(SESSION_KEYS.tenantSession(sessionId), updated, ttl),
-          this.redis.set(throttleKey, '1', this.activityThrottleSeconds),
-        ];
+        const patched = await this.patchSession(
+          SESSION_KEYS.tenantSession(sessionId),
+          { lastActivityAt: new Date().toISOString() },
+        );
+        if (!patched) return;
+        await this.redis.set(throttleKey, '1', this.activityThrottleSeconds);
         if (data.identitySessionId) {
           this.touchIdentityActivity(data.identitySessionId);
         }
-        return Promise.all(promises);
       })
       .catch((err) =>
         this.logger.warn(`Failed to touch tenant session activity: ${err}`),
@@ -389,11 +447,11 @@ export class SessionService {
   ): Promise<boolean> {
     const data = await this.findIdentitySessionById(sessionId);
     if (!data || data.userId !== userId) return false;
-    const ttl = this.remainingTtlSeconds(data.createdAt);
-    if (ttl <= 0) return false;
-    const updated = { ...data, geoLocation };
-    await this.redis.set(SESSION_KEYS.identitySession(sessionId), updated, ttl);
-    return true;
+    const patched = await this.patchSession(
+      SESSION_KEYS.identitySession(sessionId),
+      { geoLocation },
+    );
+    return patched !== null;
   }
 
   /** Update sessionName for an identity session */
@@ -404,11 +462,11 @@ export class SessionService {
   ): Promise<boolean> {
     const data = await this.findIdentitySessionById(sessionId);
     if (!data || data.userId !== userId) return false;
-    const ttl = this.remainingTtlSeconds(data.createdAt);
-    if (ttl <= 0) return false;
-    const updated = { ...data, sessionName };
-    await this.redis.set(SESSION_KEYS.identitySession(sessionId), updated, ttl);
-    return true;
+    const patched = await this.patchSession(
+      SESSION_KEYS.identitySession(sessionId),
+      { sessionName },
+    );
+    return patched !== null;
   }
 
   /** Get all identity session IDs for a user */

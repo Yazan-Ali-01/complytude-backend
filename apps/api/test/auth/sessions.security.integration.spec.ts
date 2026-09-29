@@ -72,6 +72,7 @@ describe('Session security events', () => {
       activeTenantSessionIds: [],
       createdAt: now,
       lastActivityAt: now,
+      refreshJti: randomUUID(),
     };
     await sessionService.enforceSessionLimit(userId, identitySessionId);
     await sessionService.createIdentitySession(identitySessionId, identity);
@@ -83,6 +84,7 @@ describe('Session security events', () => {
       identitySessionId,
       createdAt: now,
       lastActivityAt: now,
+      refreshJti: randomUUID(),
     };
     await sessionService.createTenantSession(
       tenantSessionId,

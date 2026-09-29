@@ -33,6 +33,10 @@ export interface IdentitySessionData {
   activeTenantSessionIds: string[];
   createdAt: string; // ISO timestamp
   lastActivityAt: string; // ISO timestamp
+  /** Id (jti) of the one refresh token that may be used next; rotated on every refresh */
+  refreshJti: string;
+  previousRefreshJti?: string | null;
+  refreshRotatedAt?: string | null; // ISO timestamp
 }
 
 /** Tenant session — represents active work within a specific tenant */
@@ -43,6 +47,10 @@ export interface TenantSessionData {
   identitySessionId: string; // Parent identity session
   createdAt: string; // ISO timestamp
   lastActivityAt: string; // ISO timestamp
+  /** Id (jti) of the one refresh token that may be used next; rotated on every refresh */
+  refreshJti: string;
+  previousRefreshJti?: string | null;
+  refreshRotatedAt?: string | null; // ISO timestamp
 }
 
 // ========== User-facing session listing result types ==========
