@@ -16,7 +16,12 @@
     "UNSUPPORTED_MEDIA_TYPE": "نوع المحتوى هذا غير مدعوم.",
     "PAYMENT_DECLINED": "تم رفض الدفع. تحقق من بيانات البطاقة أو استخدم بطاقة أخرى.",
     "PAYMENT_PROVIDER_ERROR": "تعذر على مزود الدفع إكمال الطلب. حاول مرة أخرى قريباً.",
-    "REDIRECT_NOT_ALLOWED": "عنوان الرجوع هذا غير مسموح: يجب أن يكون على تطبيق كومبلايتود."
+    "REDIRECT_NOT_ALLOWED": "عنوان الرجوع هذا غير مسموح: يجب أن يكون على تطبيق كومبلايتود.",
+    "PERMISSION_REQUIRED_ANY": "تم رفض الوصول. تحتاج إلى إحدى هذه الصلاحيات: {permissions}",
+    "PERMISSION_REQUIRED_ALL": "تم رفض الوصول. تحتاج إلى جميع هذه الصلاحيات: {permissions}",
+    "ROLE_REQUIRED": "تم رفض الوصول. تحتاج إلى أحد هذه الأدوار: {roles}",
+    "PLATFORM_ROLE_REQUIRED": "يتطلب الوصول إلى المنصة دورًا على مستوى المنصة.",
+    "SYSTEM_ADMIN_REQUIRED": "يتطلب هذا الإجراء دور مسؤول النظام"
   },
   "messages": {}
 }

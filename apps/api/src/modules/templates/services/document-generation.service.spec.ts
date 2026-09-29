@@ -3,9 +3,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import Docxtemplater from 'docxtemplater';
+import { I18nService } from 'nestjs-i18n';
 import PizZip from 'pizzip';
 import { Readable } from 'stream';
 import { StorageService } from '../../storage/storage.service';
+import { TemplatesI18n } from '../constants/i18n.constants';
 import { DocumentGenerationService } from './document-generation.service';
 
 // ---------------------------------------------------------------------------
@@ -77,6 +79,7 @@ describe('DocumentGenerationService', () => {
     };
     service = new DocumentGenerationService(
       mockStorageService as unknown as StorageService,
+      { t: (key: string) => key } as unknown as I18nService,
     );
   });
 
@@ -180,7 +183,7 @@ describe('DocumentGenerationService', () => {
       );
     });
 
-    it('includes "corrupt" in the error message for an invalid buffer', () => {
+    it('reports an invalid DOCX (translated) for an invalid buffer', () => {
       const garbage = Buffer.from('%%not-a-zip%%');
       let caught: Error | undefined;
       try {
@@ -192,7 +195,7 @@ describe('DocumentGenerationService', () => {
       const body = (caught as InternalServerErrorException).getResponse() as {
         message: string;
       };
-      expect(body.message).toMatch(/corrupt|valid DOCX/i);
+      expect(body.message).toBe(TemplatesI18n.errors.INVALID_DOCX_FORMAT);
     });
   });
 

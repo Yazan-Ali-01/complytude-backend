@@ -6,7 +6,9 @@ import {
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import { Readable } from 'stream';
+import { I18nService } from 'nestjs-i18n';
 import { StorageService } from '../../storage/storage.service';
+import { TemplatesI18n } from '../constants/i18n.constants';
 import { TEMPLATE_PLACEHOLDER_DELIMITERS } from '../constants/template.constants';
 
 interface DocxtemplaterRenderError {
@@ -39,7 +41,10 @@ export interface RenderResult {
 export class DocumentGenerationService {
   private readonly logger = new Logger(DocumentGenerationService.name);
 
-  constructor(private readonly storageService: StorageService) {}
+  constructor(
+    private readonly storageService: StorageService,
+    private readonly i18n: I18nService,
+  ) {}
 
   /**
    * Renders a DOCX buffer with the supplied variable map.
@@ -64,7 +69,7 @@ export class DocumentGenerationService {
         err instanceof Error ? err.stack : String(err),
       );
       throw new InternalServerErrorException(
-        'Template file is corrupt or not a valid DOCX',
+        this.i18n.t(TemplatesI18n.errors.INVALID_DOCX_FORMAT),
       );
     }
 
@@ -82,7 +87,7 @@ export class DocumentGenerationService {
         err instanceof Error ? err.stack : String(err),
       );
       throw new InternalServerErrorException(
-        'Failed to initialize template renderer',
+        this.i18n.t(TemplatesI18n.errors.DOCUMENT_RENDER_FAILED),
       );
     }
 
@@ -95,7 +100,9 @@ export class DocumentGenerationService {
         dtErr.properties?.explanation ??
         dtErr.message;
       this.logger.error(`Template rendering failed: ${details}`);
-      throw new InternalServerErrorException('Document rendering failed');
+      throw new InternalServerErrorException(
+        this.i18n.t(TemplatesI18n.errors.DOCUMENT_RENDER_FAILED),
+      );
     }
 
     return doc.getZip().generate({ type: 'nodebuffer' }) as Buffer;
@@ -145,7 +152,7 @@ export class DocumentGenerationService {
         );
         reject(
           new InternalServerErrorException(
-            'Failed to read template file from storage',
+            this.i18n.t(TemplatesI18n.errors.TEMPLATE_FILE_PROCESSING_FAILED),
           ),
         );
       });

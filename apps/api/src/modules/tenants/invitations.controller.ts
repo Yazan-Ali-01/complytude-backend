@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { I18nContext } from 'nestjs-i18n';
 import { Audit } from 'src/common/decorators/audit.decorator';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
@@ -29,6 +30,7 @@ import { CurrentUserTenant } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedTenantUser } from '../auth/strategies/jwt-payload.interface';
+import { InvitationsI18n } from '../invitations/constants/i18n.constants';
 import { InvitationsService } from '../invitations/invitations.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { InvitationListQueryDto } from './dto/invitation-list-query.dto';
@@ -91,7 +93,11 @@ export class TenantInvitationsController {
     );
 
     if (!roleResult) {
-      throw new BadRequestException(`Invalid role: ${roleKey}`);
+      throw new BadRequestException(
+        I18nContext.current()?.t(InvitationsI18n.errors.INVALID_ROLE, {
+          args: { role: roleKey },
+        }) ?? `Invalid role: ${roleKey}`,
+      );
     }
 
     const result = await this.invitationsService.createInvitation({

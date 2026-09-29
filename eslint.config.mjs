@@ -48,6 +48,27 @@ export default tseslint.config(
     },
   },
   {
+    // User-facing error messages go through nestjs-i18n (en and ar): an exception takes a
+    // translated message, never a literal one. The dev-only mock modules are exempt.
+    files: ['apps/api/src/**/*.ts'],
+    ignores: [
+      'apps/api/src/**/*.spec.ts',
+      'apps/api/src/modules/mock/**',
+      'apps/api/src/modules/rag-mock/**',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "NewExpression[callee.name=/Exception$/][arguments.0.type=/^(Literal|TemplateLiteral)$/], NewExpression[callee.name=/Exception$/][arguments.0.type='BinaryExpression'][arguments.0.operator='+']",
+          message:
+            'Translate the message: this.i18n.t(<Module>I18n.errors.KEY) or I18nContext.current()?.t(...), with the key in locales/en and locales/ar.',
+        },
+      ],
+    },
+  },
+  {
     files: ['**/test/**/*.ts', '**/*.spec.ts', '**/*.test.ts'],
     rules: {
       '@typescript-eslint/require-await': 'off',

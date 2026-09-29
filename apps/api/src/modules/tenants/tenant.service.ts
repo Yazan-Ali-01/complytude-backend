@@ -175,7 +175,11 @@ export class TenantService {
       client,
     });
     if (!updated) {
-      throw new NotFoundException(`Tenant ${tenantId} not found`);
+      throw new NotFoundException(
+        this.i18n.t(TenantsI18n.errors.TENANT_NOT_FOUND, {
+          args: { tenantId },
+        }),
+      );
     }
     return updated;
   }
@@ -264,7 +268,9 @@ export class TenantService {
         );
       }
       this.logger.error(`Failed to create tenant: ${error.message}`, error);
-      throw new InternalServerErrorException('Failed to create tenant');
+      throw new InternalServerErrorException(
+        this.i18n.t(TenantsI18n.errors.TENANT_CREATION_FAILED),
+      );
     }
 
     return tenant;
@@ -765,7 +771,7 @@ export class TenantService {
   ): Promise<Tenant> {
     if (context?.mode !== 'platform') {
       throw new ForbiddenException(
-        'Only platform administrators can deactivate tenants',
+        this.i18n.t(TenantsI18n.errors.DEACTIVATION_REQUIRES_PLATFORM_ADMIN),
       );
     }
 
@@ -835,7 +841,7 @@ export class TenantService {
   ): Promise<Tenant> {
     if (context?.mode !== 'platform') {
       throw new ForbiddenException(
-        'Only platform administrators can reactivate tenants',
+        this.i18n.t(TenantsI18n.errors.REACTIVATION_REQUIRES_PLATFORM_ADMIN),
       );
     }
 
@@ -859,7 +865,11 @@ export class TenantService {
         { client },
       );
       if (!updated) {
-        throw new NotFoundException(`Tenant ${tenantId} not found`);
+        throw new NotFoundException(
+          this.i18n.t(TenantsI18n.errors.TENANT_NOT_FOUND, {
+            args: { tenantId },
+          }),
+        );
       }
 
       this.logger.log(`Tenant ${tenantId} reactivated by admin`);
@@ -900,7 +910,11 @@ export class TenantService {
             { client },
           );
           if (!updated) {
-            throw new NotFoundException(`Tenant ${tenantId} not found`);
+            throw new NotFoundException(
+              this.i18n.t(TenantsI18n.errors.TENANT_NOT_FOUND, {
+                args: { tenantId },
+              }),
+            );
           }
           return updated;
         },
@@ -911,7 +925,9 @@ export class TenantService {
         `[ADMIN] Failed to update tenant profile: ${error.message}`,
         error,
       );
-      throw new InternalServerErrorException('Failed to update tenant profile');
+      throw new InternalServerErrorException(
+        this.i18n.t(TenantsI18n.errors.TENANT_UPDATE_FAILED),
+      );
     }
   }
 }

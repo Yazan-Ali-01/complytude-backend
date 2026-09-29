@@ -481,6 +481,8 @@ export class RulesetsService {
 
     const message = error instanceof Error ? error.message : 'Unknown error';
     this.logger.error(`Failed to ${context}: ${message}`);
-    throw new InternalServerErrorException(`Failed to ${context}`);
+    throw new InternalServerErrorException(
+      this.i18n.t(RulesetsI18n.errors.OPERATION_FAILED),
+    );
   }
 }

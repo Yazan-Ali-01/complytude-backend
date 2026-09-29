@@ -36,6 +36,8 @@ export const EntitlementsI18n = {
     ENTITLEMENT_ACCESS_DENIED: 'entitlements.errors.ENTITLEMENT_ACCESS_DENIED',
     ENTITLEMENT_REQUIREMENT_NOT_MET:
       'entitlements.errors.ENTITLEMENT_REQUIREMENT_NOT_MET',
+    ADDON_QUANTITY_REQUIRED: 'entitlements.errors.ADDON_QUANTITY_REQUIRED',
+    PLAN_DATA_MISSING: 'entitlements.errors.PLAN_DATA_MISSING',
   },
   messages: {
     ADDON_ADD_SUCCESS: 'entitlements.messages.ADDON_ADD_SUCCESS',

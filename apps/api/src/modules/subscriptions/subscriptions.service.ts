@@ -64,7 +64,7 @@ export class SubscriptionsService {
         );
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription found for tenant: ${tenantId}`,
+          this.i18n.t(SubscriptionsI18n.errors.SUBSCRIPTION_NOT_FOUND),
         );
       }
       return subscription;

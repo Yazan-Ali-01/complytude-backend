@@ -5,7 +5,10 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { I18nContext } from 'nestjs-i18n';
+import { AuthI18n } from '../../modules/auth/constants/i18n.constants';
 import { AuthenticatedIdentityUser } from '../../modules/auth/strategies';
+import { CommonI18n } from '../constants/i18n.constants';
 import { SystemPlatformRole } from '../types/platform.types';
 
 /**
@@ -21,11 +24,17 @@ export class SystemAdminGuard implements CanActivate {
       | undefined;
 
     if (!identity) {
-      throw new UnauthorizedException('Identity token required');
+      throw new UnauthorizedException(
+        I18nContext.current()?.t(AuthI18n.errors.IDENTITY_TOKEN_REQUIRED) ??
+          'Identity token required',
+      );
     }
 
     if (identity.platformRole !== SystemPlatformRole.SYSTEM_ADMIN) {
-      throw new ForbiddenException('System administrator role required');
+      throw new ForbiddenException(
+        I18nContext.current()?.t(CommonI18n.errors.SYSTEM_ADMIN_REQUIRED) ??
+          'System administrator role required',
+      );
     }
 
     return true;

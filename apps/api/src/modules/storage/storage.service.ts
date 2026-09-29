@@ -154,7 +154,7 @@ export class StorageService {
         `Tenant validation failed: tenantId is required but was ${tenantId === null ? 'null' : tenantId === undefined ? 'undefined' : 'empty'}`,
       );
       throw new BadRequestException(
-        'Tenant ID is required for file operations',
+        this.i18n.t(StorageI18n.errors.TENANT_ID_REQUIRED),
       );
     }
 
@@ -803,23 +803,20 @@ export class StorageService {
         return false;
       }
       const detail = this.formatS3ClientError(error);
-      this.logger.error(`HeadBucket failed for "${bucket}": ${detail}`);
       const errno =
         err.cause && typeof err.cause === 'object' && 'code' in err.cause
           ? String((err.cause as { code: unknown }).code)
           : '';
-      if (errno === 'ECONNREFUSED' || detail.includes('ECONNREFUSED')) {
-        throw new InternalServerErrorException(
-          `S3 unreachable (connection refused). Check S3_ENDPOINT configuration. (${detail})`,
-        );
-      }
-      if (errno === 'ENOTFOUND' || detail.includes('ENOTFOUND')) {
-        throw new InternalServerErrorException(
-          `S3 host not found — check S3_ENDPOINT. (${detail})`,
-        );
-      }
+      // The endpoint hint is for operators; the client gets a generic message
+      const hint =
+        errno === 'ECONNREFUSED' || detail.includes('ECONNREFUSED')
+          ? ' (connection refused: check S3_ENDPOINT)'
+          : errno === 'ENOTFOUND' || detail.includes('ENOTFOUND')
+            ? ' (host not found: check S3_ENDPOINT)'
+            : '';
+      this.logger.error(`HeadBucket failed for "${bucket}"${hint}: ${detail}`);
       throw new InternalServerErrorException(
-        `Failed to check bucket: ${detail}`,
+        this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED),
       );
     }
   }
@@ -828,8 +825,11 @@ export class StorageService {
     try {
       await this.s3Client.send(new CreateBucketCommand({ Bucket: bucket }));
     } catch (error) {
+      this.logger.error(
+        `Failed to create bucket "${bucket}": ${error.message}`,
+      );
       throw new InternalServerErrorException(
-        `Failed to create bucket: ${error.message}`,
+        this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED),
       );
     }
   }
@@ -866,7 +866,7 @@ export class StorageService {
             `Failed to create templates bucket ${this.templatesBucket}: ${createError.message}`,
           );
           throw new InternalServerErrorException(
-            'Failed to initialize templates storage',
+            this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED),
           );
         }
       } else {
@@ -874,7 +874,7 @@ export class StorageService {
           `Error checking templates bucket ${this.templatesBucket}: ${error.message}`,
         );
         throw new InternalServerErrorException(
-          'Failed to access templates storage',
+          this.i18n.t(StorageI18n.errors.STORAGE_ACCESS_FAILED),
         );
       }
     }

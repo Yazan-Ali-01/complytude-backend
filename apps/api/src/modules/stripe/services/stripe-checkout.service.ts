@@ -22,6 +22,9 @@ import {
   allowedRedirectOrigins,
   assertAllowedRedirect,
 } from '../redirect-allowlist';
+import { I18nService } from 'nestjs-i18n';
+import { SubscriptionsI18n } from 'src/modules/subscriptions/constants/i18n.constants';
+import { BillingI18n } from '../constants/i18n.constants';
 import { StripeService } from '../stripe.service';
 
 /** Stripe statuses of a subscription that still exists and may bill the customer. */
@@ -49,6 +52,7 @@ export class StripeCheckoutService {
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly creditPackagesRepository: CreditPackagesRepository,
     private readonly configService: ConfigService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -69,7 +73,9 @@ export class StripeCheckoutService {
 
     const plan = await this.plansRepository.findByKey(dto.planKey as PlanKey);
     if (!plan) {
-      throw new NotFoundException(`Plan not found: ${dto.planKey}`);
+      throw new NotFoundException(
+        this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_FOUND),
+      );
     }
 
     const priceId =
@@ -78,9 +84,13 @@ export class StripeCheckoutService {
         : plan.stripe_price_id_monthly;
 
     if (!priceId) {
+      this.logger.warn(
+        `No Stripe price for plan ${dto.planKey} (${dto.interval}): has the catalog sync run?`,
+      );
       throw new BadRequestException(
-        `No Stripe price configured for plan "${dto.planKey}" (${dto.interval}). ` +
-          'Ensure the catalog sync has run successfully.',
+        this.i18n.t(BillingI18n.errors.PLAN_PRICE_NOT_CONFIGURED, {
+          args: { planKey: dto.planKey, interval: dto.interval },
+        }),
       );
     }
 
@@ -89,7 +99,7 @@ export class StripeCheckoutService {
 
     if (!customerId) {
       throw new BadRequestException(
-        `Failed to resolve Stripe customer for tenant ${tenantId}`,
+        this.i18n.t(BillingI18n.errors.CUSTOMER_UNAVAILABLE),
       );
     }
 
@@ -161,14 +171,20 @@ export class StripeCheckoutService {
     const pkg = await this.creditPackagesRepository.findByKey(dto.packageKey);
     if (!pkg) {
       throw new NotFoundException(
-        `Credit package not found: ${dto.packageKey}`,
+        this.i18n.t(BillingI18n.errors.CREDIT_PACKAGE_NOT_FOUND, {
+          args: { packageKey: dto.packageKey },
+        }),
       );
     }
 
     if (!pkg.stripe_price_id) {
+      this.logger.warn(
+        `No Stripe price for credit package ${dto.packageKey}: has the catalog sync run?`,
+      );
       throw new BadRequestException(
-        `No Stripe price configured for credit package "${dto.packageKey}". ` +
-          'Ensure the catalog sync has run successfully.',
+        this.i18n.t(BillingI18n.errors.CREDIT_PACKAGE_NOT_PURCHASABLE, {
+          args: { packageKey: dto.packageKey },
+        }),
       );
     }
 
@@ -177,7 +193,7 @@ export class StripeCheckoutService {
 
     if (!customerId) {
       throw new BadRequestException(
-        `Failed to resolve Stripe customer for tenant ${tenantId}`,
+        this.i18n.t(BillingI18n.errors.CUSTOMER_UNAVAILABLE),
       );
     }
 
@@ -222,8 +238,9 @@ export class StripeCheckoutService {
     );
     if (existing) {
       throw new ConflictException(
-        `Tenant already has a Stripe subscription (${existing.status}). ` +
-          'Use the plan change flow to switch plans, or the billing portal to update payment details.',
+        this.i18n.t(BillingI18n.errors.SUBSCRIPTION_EXISTS, {
+          args: { status: existing.status },
+        }),
       );
     }
   }
@@ -241,8 +258,9 @@ export class StripeCheckoutService {
     );
     if (live) {
       throw new ConflictException(
-        `A Stripe subscription (${live.status}) already exists for this tenant. ` +
-          'Use the billing portal to manage it.',
+        this.i18n.t(BillingI18n.errors.SUBSCRIPTION_EXISTS, {
+          args: { status: live.status },
+        }),
       );
     }
   }

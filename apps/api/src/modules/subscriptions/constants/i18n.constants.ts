@@ -11,6 +11,7 @@ export const SubscriptionsI18n = {
     ALREADY_ON_PLAN: 'subscriptions.errors.ALREADY_ON_PLAN',
     SUBSCRIPTION_MANAGED_BY_STRIPE:
       'subscriptions.errors.SUBSCRIPTION_MANAGED_BY_STRIPE',
+    SUBSCRIPTION_ID_NOT_FOUND: 'subscriptions.errors.SUBSCRIPTION_ID_NOT_FOUND',
   },
   messages: {},
 } as const;

@@ -5,7 +5,8 @@
     "RULESET_NO_ACTIVE_VERSION": "Ruleset has no active version",
     "VERSION_ALREADY_EXISTS": "Version already exists for this ruleset",
     "VERSION_NOT_FOUND": "Version not found",
-    "AUTHORITY_NOT_FOUND": "Authority not found"
+    "AUTHORITY_NOT_FOUND": "Authority not found",
+    "OPERATION_FAILED": "The ruleset operation failed. Try again."
   },
   "messages": {}
 }

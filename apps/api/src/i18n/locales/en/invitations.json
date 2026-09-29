@@ -13,7 +13,9 @@
     "TENANT_NOT_FOUND": "Tenant not found",
     "INVITER_NOT_FOUND": "Inviter not found",
     "SEAT_LIMIT_REACHED": "Workspace has reached its seat limit. Contact the workspace admin to upgrade.",
-    "SEAT_LIMIT_REACHED_FOR_INVITE": "Cannot send invitation. Workspace has reached its seat limit including pending invitations. Upgrade to add more team members."
+    "SEAT_LIMIT_REACHED_FOR_INVITE": "Cannot send invitation. Workspace has reached its seat limit including pending invitations. Upgrade to add more team members.",
+    "INVALID_ROLE": "Invalid role: {role}",
+    "ROLE_NOT_ASSIGNABLE": "The {role} role cannot be assigned"
   },
   "messages": {
     "ACCEPTED_SUCCESSFULLY": "Invitation accepted successfully",

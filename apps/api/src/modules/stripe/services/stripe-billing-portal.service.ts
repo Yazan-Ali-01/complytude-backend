@@ -10,6 +10,8 @@ import {
 } from '../redirect-allowlist';
 import { StripeCustomerService } from './stripe-customer.service';
 import { StripePortalConfigurationService } from './stripe-portal-configuration.service';
+import { I18nService } from 'nestjs-i18n';
+import { BillingI18n } from '../constants/i18n.constants';
 import { StripeService } from '../stripe.service';
 
 @Injectable()
@@ -21,6 +23,7 @@ export class StripeBillingPortalService {
     private readonly stripeCustomerService: StripeCustomerService,
     private readonly configService: ConfigService,
     private readonly portalConfiguration: StripePortalConfigurationService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -48,7 +51,7 @@ export class StripeBillingPortalService {
 
     if (!customerId) {
       throw new BadRequestException(
-        `Failed to resolve Stripe customer for tenant ${tenantId}`,
+        this.i18n.t(BillingI18n.errors.CUSTOMER_UNAVAILABLE),
       );
     }
 

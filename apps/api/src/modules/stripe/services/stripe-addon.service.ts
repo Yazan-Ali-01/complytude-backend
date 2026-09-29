@@ -9,6 +9,9 @@ import { AddonsRepository } from 'src/repositories/entitlements/addons.repositor
 import { TenantAddonsRepository } from 'src/repositories/entitlements/tenant-addons.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
 import { EntitlementSnapshotService } from '../../entitlements/services/entitlement-snapshot.service';
+import { I18nService } from 'nestjs-i18n';
+import { EntitlementsI18n } from 'src/modules/entitlements/constants/i18n.constants';
+import { BillingI18n } from '../constants/i18n.constants';
 import { StripeService } from '../stripe.service';
 import { DatabaseService } from '@lib/database';
 
@@ -30,6 +33,7 @@ export class StripeAddonService {
     private readonly addonsRepository: AddonsRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly entitlementSnapshotService: EntitlementSnapshotService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -49,18 +53,22 @@ export class StripeAddonService {
 
     if (!subscription?.stripe_subscription_id) {
       throw new BadRequestException(
-        'No active Stripe subscription. Subscribe to a paid plan first.',
+        this.i18n.t(BillingI18n.errors.NO_STRIPE_SUBSCRIPTION_FOR_ADDON),
       );
     }
 
     // Validate: add-on exists and is configured in Stripe
     const addon = await this.addonsRepository.findByKey(addonKey);
     if (!addon) {
-      throw new NotFoundException(`Add-on not found: ${addonKey}`);
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+      );
     }
     if (!addon.stripe_price_id) {
       throw new NotFoundException(
-        `Add-on not configured in Stripe: ${addonKey}`,
+        this.i18n.t(BillingI18n.errors.ADDON_NOT_PURCHASABLE, {
+          args: { addonKey },
+        }),
       );
     }
 
@@ -71,7 +79,7 @@ export class StripeAddonService {
       );
     if (activeAddons.some((a) => a.addon_id === addon.id)) {
       throw new BadRequestException(
-        'Add-on already active. Use update to change quantity.',
+        this.i18n.t(EntitlementsI18n.errors.ADDON_ALREADY_ACTIVE),
       );
     }
 
@@ -170,11 +178,13 @@ export class StripeAddonService {
       );
 
     if (!tenantAddon) {
-      throw new NotFoundException('Add-on not found');
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+      );
     }
     if (!tenantAddon.stripe_subscription_item_id) {
       throw new BadRequestException(
-        'Add-on is not linked to a Stripe subscription item',
+        this.i18n.t(BillingI18n.errors.ADDON_NOT_BILLED_IN_STRIPE),
       );
     }
 
@@ -215,7 +225,9 @@ export class StripeAddonService {
       );
     const updated = addons.find((a) => a.id === tenantAddonId);
     if (!updated) {
-      throw new NotFoundException('Add-on not found after update');
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+      );
     }
 
     return updated;
@@ -234,11 +246,13 @@ export class StripeAddonService {
       );
 
     if (!tenantAddon) {
-      throw new NotFoundException('Add-on not found');
+      throw new NotFoundException(
+        this.i18n.t(EntitlementsI18n.errors.ADDON_NOT_FOUND),
+      );
     }
     if (!tenantAddon.stripe_subscription_item_id) {
       throw new BadRequestException(
-        'Add-on is not linked to a Stripe subscription item',
+        this.i18n.t(BillingI18n.errors.ADDON_NOT_BILLED_IN_STRIPE),
       );
     }
 

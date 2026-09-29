@@ -9,6 +9,7 @@ export const RulesetsI18n = {
     VERSION_ALREADY_EXISTS: 'rulesets.errors.VERSION_ALREADY_EXISTS',
     VERSION_NOT_FOUND: 'rulesets.errors.VERSION_NOT_FOUND',
     AUTHORITY_NOT_FOUND: 'rulesets.errors.AUTHORITY_NOT_FOUND',
+    OPERATION_FAILED: 'rulesets.errors.OPERATION_FAILED',
   },
   messages: {},
 } as const;

@@ -21,7 +21,9 @@
     "PAYMENT_OVERDUE": "Your subscription payment is overdue. Pay the outstanding invoice to continue using this feature.",
     "ENTITLEMENT_FEATURE_NOT_FOUND": "You do not have access to this feature",
     "ENTITLEMENT_ACCESS_DENIED": "Your plan does not include this feature",
-    "ENTITLEMENT_REQUIREMENT_NOT_MET": "Your plan does not include this feature"
+    "ENTITLEMENT_REQUIREMENT_NOT_MET": "Your plan does not include this feature",
+    "ADDON_QUANTITY_REQUIRED": "Quantity is required to update this add-on",
+    "PLAN_DATA_MISSING": "The plan of the active subscription could not be loaded for tenant {tenantId}"
   },
   "messages": {
     "ADDON_ADD_SUCCESS": "Add-on activated successfully",

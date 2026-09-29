@@ -15,6 +15,8 @@ import {
   PlanResponseDto,
 } from './dto/entitlement-response.dto';
 import { EntitlementResolverService } from './services/entitlement-resolver.service';
+import { I18nService } from 'nestjs-i18n';
+import { SubscriptionsI18n } from '../subscriptions/constants/i18n.constants';
 
 /**
  * Entitlements Controller
@@ -27,6 +29,7 @@ export class EntitlementsController {
   constructor(
     private readonly resolver: EntitlementResolverService,
     private readonly plansRepository: PlansRepository,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -131,7 +134,9 @@ export class EntitlementsController {
     const plan = await this.plansRepository.findByKey(key);
 
     if (!plan) {
-      throw new NotFoundException(`Plan not found: ${key}`);
+      throw new NotFoundException(
+        this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_FOUND),
+      );
     }
 
     const planEntitlements = getAllPlanEntitlements(plan.key);

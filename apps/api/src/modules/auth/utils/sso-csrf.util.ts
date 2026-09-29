@@ -1,6 +1,8 @@
 import { UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { I18nContext } from 'nestjs-i18n';
+import { AuthI18n } from '../constants/i18n.constants';
 
 /**
  * Passport's OAuth2 strategy calls Express-style `res.setHeader()` / `res.end()`
@@ -70,7 +72,10 @@ export function verifyOAuthState(
   reply.clearCookie(cookieName, { path: '/' });
 
   if (!queryState || !cookieState || queryState !== cookieState) {
-    throw new UnauthorizedException('Invalid OAuth state parameter');
+    throw new UnauthorizedException(
+      I18nContext.current()?.t(AuthI18n.errors.SSO_INVALID_STATE) ??
+        'The sign-in request expired or is not valid. Start signing in again.',
+    );
   }
 }
 

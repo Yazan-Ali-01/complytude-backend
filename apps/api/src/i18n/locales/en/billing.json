@@ -1,0 +1,21 @@
+{
+  "errors": {
+    "NO_STRIPE_SUBSCRIPTION": "No active Stripe subscription. Use the checkout flow to subscribe.",
+    "NO_STRIPE_SUBSCRIPTION_FOR_ADDON": "No active Stripe subscription. Subscribe to a paid plan first.",
+    "NO_SUBSCRIPTION_TO_CANCEL": "No active Stripe subscription to cancel",
+    "NO_SUBSCRIPTION_TO_REACTIVATE": "No active subscription to reactivate",
+    "NO_PENDING_CANCELLATION": "The subscription has no pending cancellation",
+    "NO_PENDING_PLAN_CHANGE": "No pending plan change to cancel",
+    "PLAN_PRICE_NOT_CONFIGURED": "Plan {planKey} has no price configured for {interval} billing",
+    "CREDIT_PACKAGE_NOT_FOUND": "Credit package not found: {packageKey}",
+    "CREDIT_PACKAGE_NOT_PURCHASABLE": "No price is configured for credit package {packageKey}",
+    "ADDON_NOT_PURCHASABLE": "Add-on {addonKey} is not available for purchase",
+    "ADDON_NOT_BILLED_IN_STRIPE": "This add-on is not billed through a Stripe subscription",
+    "CUSTOMER_UNAVAILABLE": "Billing is not available for this workspace yet. Try again shortly.",
+    "SUBSCRIPTION_EXISTS": "This workspace already has a Stripe subscription ({status}). Change plans instead, or fix payment details in the billing portal.",
+    "STRIPE_SUBSCRIPTION_UNREADABLE": "The Stripe subscription could not be read. Try again, or contact support if it persists.",
+    "WEBHOOK_SIGNATURE_MISSING": "Missing stripe-signature header",
+    "WEBHOOK_SIGNATURE_INVALID": "Webhook signature verification failed"
+  },
+  "messages": {}
+}

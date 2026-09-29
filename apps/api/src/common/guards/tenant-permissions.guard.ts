@@ -11,12 +11,14 @@ import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
 import { AuthenticatedTenantUser } from '../../modules/auth/strategies';
 import { TenantRbacService } from '../../modules/tenant-rbac/tenant-rbac.service';
+import { AuthI18n } from '../../modules/auth/constants/i18n.constants';
 import { CommonI18n } from '../constants/i18n.constants';
 import {
   TENANT_PERMISSIONS_KEY,
   TenantPermissionMetadata,
 } from '../decorators/tenant-permissions.decorator';
 import { recordPermissionDenied } from './permission-denied-audit';
+import { permissionDeniedMessage } from './permission-denied-message';
 import {
   hasAllPermissions,
   hasAnyPermission,
@@ -63,13 +65,17 @@ export class TenantPermissionsGuard implements CanActivate {
     // Ensure tenant token is present
     if (!tenant) {
       throw new UnauthorizedException(
-        'Tenant token required for permission check',
+        I18nContext.current()?.t(AuthI18n.errors.TENANT_TOKEN_REQUIRED) ??
+          'Tenant token required',
       );
     }
 
     // Ensure role is present in tenant token
     if (!tenant.role) {
-      throw new UnauthorizedException('Role not found in tenant token');
+      throw new UnauthorizedException(
+        I18nContext.current()?.t(AuthI18n.errors.TENANT_TOKEN_ROLE_MISSING) ??
+          'Your session has no role in this workspace. Sign in again.',
+      );
     }
 
     // OPTIMIZATION: Fetch all role permissions once (single query or in-memory)
@@ -100,10 +106,7 @@ export class TenantPermissionsGuard implements CanActivate {
         },
         permissionMetadata,
       );
-      const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
-      throw new ForbiddenException(
-        `Access denied. Required ${logicType} of: ${requiredPermission}`,
-      );
+      throw new ForbiddenException(permissionDeniedMessage(permissionMetadata));
     }
 
     return true;

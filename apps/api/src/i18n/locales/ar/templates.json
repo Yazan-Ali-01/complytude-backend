@@ -27,7 +27,11 @@
     "FAILED_TO_FETCH_CURRENT_VERSION": "فشل جلب الإصدار الحالي",
     "FAILED_TO_CREATE_TEMPLATE_VERSION": "فشل إنشاء إصدار القالب",
     "FAILED_TO_FETCH_TEMPLATE_VERSION": "فشل جلب إصدار القالب",
-    "FAILED_TO_ROLLBACK_TEMPLATE_VERSION": "فشل التراجع عن إصدار القالب"
+    "FAILED_TO_ROLLBACK_TEMPLATE_VERSION": "فشل التراجع عن إصدار القالب",
+    "TEMPLATE_KEY_NOT_FOUND": "لم يتم العثور على قالب بالمفتاح \"{key}\"",
+    "TEMPLATE_VERSION_EXISTS": "الإصدار {version} موجود بالفعل لهذا القالب",
+    "TEMPLATE_VERSION_NOT_FOUND": "الإصدار {version} غير موجود لهذا القالب",
+    "DOCUMENT_RENDER_FAILED": "تعذر إنشاء المستند من هذا القالب."
   },
   "messages": {
     "TEMPLATE_CLONED_SUCCESS": "تم نسخ القالب بنجاح",

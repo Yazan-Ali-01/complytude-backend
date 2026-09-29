@@ -1,0 +1,21 @@
+{
+  "errors": {
+    "NO_STRIPE_SUBSCRIPTION": "لا يوجد اشتراك نشط عبر Stripe. استخدم صفحة الدفع للاشتراك.",
+    "NO_STRIPE_SUBSCRIPTION_FOR_ADDON": "لا يوجد اشتراك نشط عبر Stripe. اشترك في خطة مدفوعة أولاً.",
+    "NO_SUBSCRIPTION_TO_CANCEL": "لا يوجد اشتراك نشط عبر Stripe لإلغائه",
+    "NO_SUBSCRIPTION_TO_REACTIVATE": "لا يوجد اشتراك نشط لإعادة تفعيله",
+    "NO_PENDING_CANCELLATION": "لا يوجد إلغاء معلّق لهذا الاشتراك",
+    "NO_PENDING_PLAN_CHANGE": "لا يوجد تغيير خطة معلّق لإلغائه",
+    "PLAN_PRICE_NOT_CONFIGURED": "لا يوجد سعر محدد للخطة {planKey} ({interval})",
+    "CREDIT_PACKAGE_NOT_FOUND": "باقة الأرصدة غير موجودة: {packageKey}",
+    "CREDIT_PACKAGE_NOT_PURCHASABLE": "لا يوجد سعر محدد لباقة الأرصدة {packageKey}",
+    "ADDON_NOT_PURCHASABLE": "الإضافة {addonKey} غير متاحة للشراء",
+    "ADDON_NOT_BILLED_IN_STRIPE": "هذه الإضافة غير مفوترة عبر اشتراك Stripe",
+    "CUSTOMER_UNAVAILABLE": "الفوترة غير متاحة لمساحة العمل هذه بعد. حاول مرة أخرى بعد قليل.",
+    "SUBSCRIPTION_EXISTS": "لدى مساحة العمل هذه اشتراك Stripe بالفعل ({status}). غيّر الخطة بدلًا من ذلك، أو حدّث بيانات الدفع من بوابة الفوترة.",
+    "STRIPE_SUBSCRIPTION_UNREADABLE": "تعذرت قراءة اشتراك Stripe. حاول مرة أخرى، أو تواصل مع الدعم إذا استمرت المشكلة.",
+    "WEBHOOK_SIGNATURE_MISSING": "ترويسة stripe-signature مفقودة",
+    "WEBHOOK_SIGNATURE_INVALID": "فشل التحقق من توقيع الـ webhook"
+  },
+  "messages": {}
+}

@@ -20,7 +20,8 @@
     "FILE_SIZE_EXCEEDS_MAX": "File size exceeds maximum allowed size of {maxSizeMb}MB",
     "FILE_TYPE_NOT_ALLOWED": "File type '{mimeType}' is not allowed. Allowed types: {allowedTypes}",
     "FILE_EXTENSION_MISMATCH": "File extension '.{extension}' does not match file type '{mimeType}'",
-    "QUARANTINE_OBJECT_CHECK_FAILED": "Failed to verify uploaded file in quarantine storage"
+    "QUARANTINE_OBJECT_CHECK_FAILED": "Failed to verify uploaded file in quarantine storage",
+    "TENANT_ID_REQUIRED": "A workspace is required for file operations"
   },
   "messages": {}
 }

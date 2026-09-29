@@ -28,6 +28,8 @@ import type { Tenant } from '../tenants/entities/tenant.entity';
 import type { User } from '../users/entities/user.entity';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
 import { StorageService } from '../storage/storage.service';
+import { TenantsI18n } from '../tenants/constants/i18n.constants';
+import { UsersI18n } from '../users/constants/i18n.constants';
 import { DocumentsI18n } from './constants/i18n.constants';
 import { UPLOAD_MAX_FILE_SIZE_BYTES } from './constants/upload.constants';
 import type {
@@ -105,10 +107,18 @@ export class DocumentsService {
       ]);
 
       if (!tenant) {
-        throw new NotFoundException('Tenant not found');
+        throw new NotFoundException(
+          this.i18n.t(TenantsI18n.errors.TENANT_NOT_FOUND, {
+            args: { tenantId: user.tenantId },
+          }),
+        );
       }
       if (!dbUser) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException(
+          this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+            args: { userId: user.userId },
+          }),
+        );
       }
 
       const ctx: GenerationContext = {

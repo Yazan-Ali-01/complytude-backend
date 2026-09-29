@@ -18,6 +18,8 @@ import { TenantOverridesRepository } from '../../../repositories/entitlements/te
 import { SubscriptionsRepository } from '../../../repositories/subscriptions/subscriptions.repository';
 import { pastDueAccess } from '../utils/past-due-access.util';
 import { EntitlementSnapshotService } from './entitlement-snapshot.service';
+import { I18nService } from 'nestjs-i18n';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 
 /** Feature types whose add-on grants add up (see mergeValues). */
 const ADDITIVE_FEATURE_TYPES: ReadonlySet<string> = new Set([
@@ -83,6 +85,7 @@ export class EntitlementResolverService {
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly tenantOverridesRepository: TenantOverridesRepository,
     private readonly snapshotService: EntitlementSnapshotService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -266,12 +269,16 @@ export class EntitlementResolverService {
         );
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription found for tenant ${tenantId}`,
+          this.i18n.t(EntitlementsI18n.errors.NO_ACTIVE_SUBSCRIPTION, {
+            args: { tenantId },
+          }),
         );
       }
       if (!subscription.plan) {
         throw new NotFoundException(
-          `Plan data missing for active subscription of tenant ${tenantId}`,
+          this.i18n.t(EntitlementsI18n.errors.PLAN_DATA_MISSING, {
+            args: { tenantId },
+          }),
         );
       }
 

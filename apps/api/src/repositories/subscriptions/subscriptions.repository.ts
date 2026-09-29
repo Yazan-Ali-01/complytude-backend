@@ -1,5 +1,7 @@
 import { BaseRepository, DatabaseService, QueryOptions } from '@lib/database';
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { I18nContext } from 'nestjs-i18n';
+import { SubscriptionsI18n } from 'src/modules/subscriptions/constants/i18n.constants';
 import {
   CreateTenantSubscriptionRow,
   Plan,
@@ -359,7 +361,11 @@ export class SubscriptionsRepository extends BaseRepository<
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(`Subscription not found: ${id}`);
+      throw new NotFoundException(
+        I18nContext.current()?.t(
+          SubscriptionsI18n.errors.SUBSCRIPTION_ID_NOT_FOUND,
+        ) ?? 'Subscription not found',
+      );
     }
 
     return this.mapRow(result.rows[0]);
@@ -384,7 +390,11 @@ export class SubscriptionsRepository extends BaseRepository<
     );
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(`Subscription not found: ${id}`);
+      throw new NotFoundException(
+        I18nContext.current()?.t(
+          SubscriptionsI18n.errors.SUBSCRIPTION_ID_NOT_FOUND,
+        ) ?? 'Subscription not found',
+      );
     }
 
     return this.mapRow(result.rows[0]);

@@ -27,6 +27,7 @@ export const StorageI18n = {
     FILE_EXTENSION_MISMATCH: 'storage.errors.FILE_EXTENSION_MISMATCH',
     QUARANTINE_OBJECT_CHECK_FAILED:
       'storage.errors.QUARANTINE_OBJECT_CHECK_FAILED',
+    TENANT_ID_REQUIRED: 'storage.errors.TENANT_ID_REQUIRED',
   },
   messages: {},
 } as const;

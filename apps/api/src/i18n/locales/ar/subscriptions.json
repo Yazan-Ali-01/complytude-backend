@@ -5,7 +5,8 @@
     "PLAN_NOT_FOUND": "الخطة غير موجودة",
     "PLAN_NOT_ACTIVE": "الخطة غير نشطة",
     "ALREADY_ON_PLAN": "المؤسسة مشترك بالفعل في هذه الخطة",
-    "SUBSCRIPTION_MANAGED_BY_STRIPE": "هذا الاشتراك تتم فوترته عبر Stripe. قم بتغييره أو إلغائه من خلال واجهات الفوترة."
+    "SUBSCRIPTION_MANAGED_BY_STRIPE": "هذا الاشتراك تتم فوترته عبر Stripe. قم بتغييره أو إلغائه من خلال واجهات الفوترة.",
+    "SUBSCRIPTION_ID_NOT_FOUND": "الاشتراك غير موجود"
   },
   "messages": {}
 }

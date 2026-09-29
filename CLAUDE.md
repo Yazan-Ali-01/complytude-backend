@@ -237,6 +237,8 @@ The resource type defaults to the first segment of the controller path. `AuditIn
 
 All user-facing strings go through `nestjs-i18n`, in both English and Arabic. Define translation keys in `modules/{module}/constants/i18n.constants.ts` (under `errors` / `messages`); shared keys live in `common/constants/i18n.constants.ts`. Translations live in `apps/api/src/i18n/locales/{en,ar}/`.
 
+An exception's message reaches the client as is, so never pass it a literal: services use `this.i18n.t(KEY, { args })` (an injected `I18nService`, which follows the request language), guards, utilities, DTOs and repositories `I18nContext.current()?.t(KEY) ?? '<English>'`. ESLint rejects `new …Exception('…')` in `apps/api/src`, and `apps/api/src/i18n/locales.spec.ts` checks that `en` and `ar` have the same keys and placeholders and that every key a constants file names exists. A 5xx message is user-facing too: log the internal detail and throw a generic translated message.
+
 ---
 
 ## Testing Conventions

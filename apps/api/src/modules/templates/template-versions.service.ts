@@ -47,7 +47,9 @@ export class TemplateVersionsService {
 
       if (existing) {
         throw new ConflictException(
-          `Version ${version} already exists for template ${templateId}`,
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_VERSION_EXISTS, {
+            args: { version },
+          }),
         );
       }
 
@@ -125,7 +127,9 @@ export class TemplateVersionsService {
 
       if (!versionRecord) {
         throw new NotFoundException(
-          `Version ${version} not found for template ${templateId}`,
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_VERSION_NOT_FOUND, {
+            args: { version },
+          }),
         );
       }
 
@@ -189,7 +193,9 @@ export class TemplateVersionsService {
 
       if (!versionToActivate) {
         throw new NotFoundException(
-          `Version ${version} not found for template ${templateId}`,
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_VERSION_NOT_FOUND, {
+            args: { version },
+          }),
         );
       }
 

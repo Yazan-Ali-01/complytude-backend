@@ -1,6 +1,8 @@
 import { RedisService } from '@lib/redis';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { I18nContext } from 'nestjs-i18n';
+import { AuthI18n } from '../constants/i18n.constants';
 import {
   REFRESH_ROTATE_LUA_SCRIPT,
   SESSION_DEFAULTS,
@@ -861,6 +863,9 @@ export class SessionService {
       await this.deleteTenantSession(sessionId, tRaw.userId, tRaw.tenantId);
       return;
     }
-    throw new NotFoundException('Session not found');
+    throw new NotFoundException(
+      I18nContext.current()?.t(AuthI18n.errors.SESSION_NOT_FOUND) ??
+        'Session not found',
+    );
   }
 }

@@ -5,7 +5,8 @@
     "RULESET_NO_ACTIVE_VERSION": "مجموعة القواعد ليس لديها نسخة نشطة",
     "VERSION_ALREADY_EXISTS": "النسخة موجودة بالفعل لمجموعة القواعس هذه",
     "VERSION_NOT_FOUND": "لم يتم العثور على النسخة",
-    "AUTHORITY_NOT_FOUND": "لم يتم العثور على السلطة"
+    "AUTHORITY_NOT_FOUND": "لم يتم العثور على السلطة",
+    "OPERATION_FAILED": "فشلت عملية مجموعة القواعد. حاول مرة أخرى."
   },
   "messages": {}
 }

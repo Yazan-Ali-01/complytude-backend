@@ -19,6 +19,8 @@ export const InvitationsI18n = {
     SEAT_LIMIT_REACHED: 'invitations.errors.SEAT_LIMIT_REACHED',
     SEAT_LIMIT_REACHED_FOR_INVITE:
       'invitations.errors.SEAT_LIMIT_REACHED_FOR_INVITE',
+    INVALID_ROLE: 'invitations.errors.INVALID_ROLE',
+    ROLE_NOT_ASSIGNABLE: 'invitations.errors.ROLE_NOT_ASSIGNABLE',
   },
   messages: {
     ACCEPTED_SUCCESSFULLY: 'invitations.messages.ACCEPTED_SUCCESSFULLY',

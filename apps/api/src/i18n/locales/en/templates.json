@@ -27,7 +27,11 @@
     "FAILED_TO_FETCH_CURRENT_VERSION": "Failed to fetch current version",
     "FAILED_TO_CREATE_TEMPLATE_VERSION": "Failed to create template version",
     "FAILED_TO_FETCH_TEMPLATE_VERSION": "Failed to fetch template version",
-    "FAILED_TO_ROLLBACK_TEMPLATE_VERSION": "Failed to rollback template version"
+    "FAILED_TO_ROLLBACK_TEMPLATE_VERSION": "Failed to rollback template version",
+    "TEMPLATE_KEY_NOT_FOUND": "Template with key \"{key}\" not found",
+    "TEMPLATE_VERSION_EXISTS": "Version {version} already exists for this template",
+    "TEMPLATE_VERSION_NOT_FOUND": "Version {version} not found for this template",
+    "DOCUMENT_RENDER_FAILED": "The document could not be generated from this template."
   },
   "messages": {
     "TEMPLATE_CLONED_SUCCESS": "Template cloned successfully",

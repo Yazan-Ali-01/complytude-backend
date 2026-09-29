@@ -19,6 +19,8 @@ import {
 import { Public } from '../../auth/decorators/auth-options.decorator';
 import { WEBHOOK_PROCESSING_STATUS } from 'src/common/types/stripe.types';
 import { WEBHOOK_JOB_ATTEMPTS } from '../stripe.constants';
+import { I18nService } from 'nestjs-i18n';
+import { BillingI18n } from '../constants/i18n.constants';
 import { StripeService } from '../stripe.service';
 import { StripeWebhookService } from './stripe-webhook.service';
 import { StripeWebhookEventsRepository } from 'src/repositories/stripe/stripe-webhook-events.repository';
@@ -32,6 +34,7 @@ export class StripeWebhookController {
     private readonly webhookService: StripeWebhookService,
     private readonly queueProducer: QueueProducerService,
     private readonly webhookEventsRepository: StripeWebhookEventsRepository,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -53,7 +56,9 @@ export class StripeWebhookController {
   ): Promise<{ received: true }> {
     if (!signature) {
       this.logger.warn('Webhook received without stripe-signature header');
-      throw new BadRequestException('Missing stripe-signature header');
+      throw new BadRequestException(
+        this.i18n.t(BillingI18n.errors.WEBHOOK_SIGNATURE_MISSING),
+      );
     }
 
     let event: Stripe.Event;
@@ -67,7 +72,9 @@ export class StripeWebhookController {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Stripe signature verification failed: ${msg}`);
-      throw new BadRequestException(`Webhook signature verification failed`);
+      throw new BadRequestException(
+        this.i18n.t(BillingI18n.errors.WEBHOOK_SIGNATURE_INVALID),
+      );
     }
 
     // Store the event (or count a repeat delivery) before acknowledging it

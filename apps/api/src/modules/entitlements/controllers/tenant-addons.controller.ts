@@ -100,7 +100,7 @@ export class TenantAddonsController {
   ): Promise<TenantAddonResponseDto> {
     if (dto.quantity === undefined) {
       throw new BadRequestException(
-        'quantity is required to update a Stripe add-on',
+        this.i18n.t(EntitlementsI18n.errors.ADDON_QUANTITY_REQUIRED),
       );
     }
 

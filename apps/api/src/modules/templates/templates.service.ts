@@ -545,7 +545,11 @@ export class TemplatesService {
       const deleted = await this.templateRepository.deleteByKey(key);
 
       if (deleted === 0) {
-        throw new NotFoundException(`Template with key "${key}" not found`);
+        throw new NotFoundException(
+          this.i18n.t(TemplatesI18n.errors.TEMPLATE_KEY_NOT_FOUND, {
+            args: { key },
+          }),
+        );
       }
 
       this.logger.log(`Deleted template: ${key}`);

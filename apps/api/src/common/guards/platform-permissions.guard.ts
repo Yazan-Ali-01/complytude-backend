@@ -11,6 +11,7 @@ import { Reflector } from '@nestjs/core';
 import { I18nContext } from 'nestjs-i18n';
 import { AuthenticatedIdentityUser } from '../../modules/auth/strategies';
 import { PlatformRbacService } from '../../modules/platform-rbac/platform-rbac.service';
+import { AuthI18n } from '../../modules/auth/constants/i18n.constants';
 import { CommonI18n } from '../constants/i18n.constants';
 import {
   PLATFORM_PERMISSIONS_KEY,
@@ -21,6 +22,7 @@ import {
   hasAnyPermission,
 } from '../utils/permission-matcher.util';
 import { recordPermissionDenied } from './permission-denied-audit';
+import { permissionDeniedMessage } from './permission-denied-message';
 
 @Injectable()
 export class PlatformPermissionsGuard implements CanActivate {
@@ -55,7 +57,8 @@ export class PlatformPermissionsGuard implements CanActivate {
 
     if (!identity) {
       throw new UnauthorizedException(
-        'Identity token required for platform permission check',
+        I18nContext.current()?.t(AuthI18n.errors.IDENTITY_TOKEN_REQUIRED) ??
+          'Identity token required',
       );
     }
 
@@ -68,7 +71,8 @@ export class PlatformPermissionsGuard implements CanActivate {
         permissionMetadata,
       );
       throw new ForbiddenException(
-        'No platform role assigned. Platform access requires a platform role.',
+        I18nContext.current()?.t(CommonI18n.errors.PLATFORM_ROLE_REQUIRED) ??
+          'Platform access requires a platform role.',
       );
     }
 
@@ -90,10 +94,7 @@ export class PlatformPermissionsGuard implements CanActivate {
         { actorId: identity.userId, role: platformRole },
         permissionMetadata,
       );
-      const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
-      throw new ForbiddenException(
-        `Platform access denied. Required ${logicType} of: ${requiredPermission}`,
-      );
+      throw new ForbiddenException(permissionDeniedMessage(permissionMetadata));
     }
 
     return true;

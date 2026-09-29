@@ -42,6 +42,8 @@ import { EntitlementCacheService } from './entitlement-cache.service';
 import { EntitlementResolverService } from './entitlement-resolver.service';
 import { UsageIngestionService } from './usage-ingestion.service';
 import { UsageProjectionService } from './usage-projection.service';
+import { I18nService } from 'nestjs-i18n';
+import { EntitlementsI18n } from '../constants/i18n.constants';
 
 interface EnforceResult {
   result: EntitlementCheckResult;
@@ -117,6 +119,7 @@ export class EntitlementEnforcementService {
     private readonly configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
     private readonly entitlementCache: EntitlementCacheService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -136,7 +139,11 @@ export class EntitlementEnforcementService {
         { client },
       );
       if (!entitlement) {
-        throw new NotFoundException(`Feature not found: ${input.featureKey}`);
+        throw new NotFoundException(
+          this.i18n.t(EntitlementsI18n.errors.FEATURE_NOT_FOUND, {
+            args: { featureKey: input.featureKey },
+          }),
+        );
       }
       const subscription =
         await this.subscriptionsRepository.findCurrentByTenant(input.tenantId, {
@@ -144,7 +151,9 @@ export class EntitlementEnforcementService {
         });
       if (!subscription) {
         throw new NotFoundException(
-          `No active subscription for tenant: ${input.tenantId}`,
+          this.i18n.t(EntitlementsI18n.errors.NO_ACTIVE_SUBSCRIPTION, {
+            args: { tenantId: input.tenantId },
+          }),
         );
       }
       const usage = await this.usageProjectionService.getCurrentUsage(
@@ -212,7 +221,11 @@ export class EntitlementEnforcementService {
         this.logger.warn(
           `Feature not found: ${featureKey} for tenant ${tenantId}`,
         );
-        throw new NotFoundException(`Feature not found: ${featureKey}`);
+        throw new NotFoundException(
+          this.i18n.t(EntitlementsI18n.errors.FEATURE_NOT_FOUND, {
+            args: { featureKey },
+          }),
+        );
       }
 
       // Step 2: Handle boolean features (no usage tracking)
@@ -320,7 +333,9 @@ export class EntitlementEnforcementService {
         });
       if (!dbSubscription) {
         throw new NotFoundException(
-          `No active subscription for tenant: ${tenantId}`,
+          this.i18n.t(EntitlementsI18n.errors.NO_ACTIVE_SUBSCRIPTION, {
+            args: { tenantId },
+          }),
         );
       }
 
@@ -348,7 +363,11 @@ export class EntitlementEnforcementService {
         client,
       });
       if (!dbFeature) {
-        throw new NotFoundException(`Feature not found: ${featureKey}`);
+        throw new NotFoundException(
+          this.i18n.t(EntitlementsI18n.errors.FEATURE_NOT_FOUND, {
+            args: { featureKey },
+          }),
+        );
       }
 
       // Cache the feature
@@ -367,7 +386,11 @@ export class EntitlementEnforcementService {
     }
 
     if (!feature.is_active) {
-      throw new BadRequestException(`Feature is inactive: ${featureKey}`);
+      throw new BadRequestException(
+        this.i18n.t(EntitlementsI18n.errors.FEATURE_IS_INACTIVE, {
+          args: { featureKey },
+        }),
+      );
     }
 
     /* eslint-disable @typescript-eslint/no-unsafe-argument -- subscription/feature from findCurrentByTenantWithPlan */

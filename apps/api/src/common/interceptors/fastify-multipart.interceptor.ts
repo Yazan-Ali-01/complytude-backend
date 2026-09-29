@@ -4,14 +4,19 @@ import {
   ExecutionContext,
   CallHandler,
   BadRequestException,
+  Logger,
   mixin,
   Type,
 } from '@nestjs/common';
+import { I18nContext } from 'nestjs-i18n';
+import { StorageI18n } from 'src/modules/storage/constants/i18n.constants';
 import { Observable } from 'rxjs';
 import { FastifyRequest } from 'fastify';
 import { MulterLikeFile } from '../interfaces/multer-file.interface';
 import { JSON_FIELDS_KEY } from '../decorators/json-field.decorator';
 import { Reflector } from '@nestjs/core';
+
+const logger = new Logger('FastifyMultipartInterceptor');
 
 /**
  * Interceptor that parses multipart/form-data requests into request.body and request.file(s)
@@ -139,8 +144,12 @@ export function FastifyMultipartInterceptor(
         if (error instanceof BadRequestException) {
           throw error;
         }
+        // The parser's own text stays in the log
+        logger.warn(`Failed to process multipart request: ${error.message}`);
         throw new BadRequestException(
-          `Failed to process multipart request: ${error.message}`,
+          I18nContext.current()?.t(
+            StorageI18n.errors.FAILED_TO_PROCESS_FILE_UPLOAD,
+          ) ?? 'Failed to process file upload',
         );
       }
 

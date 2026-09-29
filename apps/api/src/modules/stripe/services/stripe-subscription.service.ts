@@ -15,6 +15,9 @@ import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/en
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
+import { I18nService } from 'nestjs-i18n';
+import { SubscriptionsI18n } from 'src/modules/subscriptions/constants/i18n.constants';
+import { BillingI18n } from '../constants/i18n.constants';
 import { StripeService } from '../stripe.service';
 
 export interface ScheduledPlanChange {
@@ -50,6 +53,7 @@ export class StripeSubscriptionService {
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly entitlementSnapshotsRepository: EntitlementSnapshotsRepository,
     private readonly domainEventsService: DomainEventsService,
+    private readonly i18n: I18nService,
   ) {}
 
   /**
@@ -65,7 +69,7 @@ export class StripeSubscriptionService {
 
     if (!subscription?.stripe_subscription_id) {
       throw new BadRequestException(
-        'No active Stripe subscription. Use the checkout flow to subscribe.',
+        this.i18n.t(BillingI18n.errors.NO_STRIPE_SUBSCRIPTION),
       );
     }
 
@@ -78,17 +82,23 @@ export class StripeSubscriptionService {
     ]);
 
     if (!newPlan) {
-      throw new NotFoundException(`Plan not found: ${newPlanKey}`);
+      throw new NotFoundException(
+        this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_FOUND),
+      );
     }
 
     if (!newPlan.is_active) {
-      throw new BadRequestException(`Plan is not active: ${newPlanKey}`);
+      throw new BadRequestException(
+        this.i18n.t(SubscriptionsI18n.errors.PLAN_NOT_ACTIVE),
+      );
     }
 
     // Resolve current plan to check for same-plan changes
     const currentItem = stripeSubscription.items.data[0];
     if (!currentItem) {
-      throw new BadRequestException('Stripe subscription has no items');
+      throw new BadRequestException(
+        this.i18n.t(BillingI18n.errors.STRIPE_SUBSCRIPTION_UNREADABLE),
+      );
     }
 
     const currentPriceId =
@@ -101,7 +111,7 @@ export class StripeSubscriptionService {
       currentPriceId === newPlan.stripe_price_id_annual
     ) {
       throw new BadRequestException(
-        `Already subscribed to plan: ${newPlanKey}`,
+        this.i18n.t(SubscriptionsI18n.errors.ALREADY_ON_PLAN),
       );
     }
 
@@ -119,7 +129,9 @@ export class StripeSubscriptionService {
 
     if (!newPriceId) {
       throw new BadRequestException(
-        `Plan ${newPlanKey} has no Stripe price configured for interval: ${currentInterval ?? 'monthly'}`,
+        this.i18n.t(BillingI18n.errors.PLAN_PRICE_NOT_CONFIGURED, {
+          args: { planKey: newPlanKey, interval: currentInterval ?? 'monthly' },
+        }),
       );
     }
 
@@ -135,7 +147,7 @@ export class StripeSubscriptionService {
 
     if (!periodStart || !periodEnd) {
       throw new BadRequestException(
-        'Could not determine current billing period from Stripe subscription',
+        this.i18n.t(BillingI18n.errors.STRIPE_SUBSCRIPTION_UNREADABLE),
       );
     }
 
@@ -249,7 +261,9 @@ export class StripeSubscriptionService {
     const subscription = await this.findActiveSubscription(tenantId);
 
     if (!subscription?.stripe_schedule_id) {
-      throw new BadRequestException('No pending plan change to cancel');
+      throw new BadRequestException(
+        this.i18n.t(BillingI18n.errors.NO_PENDING_PLAN_CHANGE),
+      );
     }
 
     await this.stripeService.client.subscriptionSchedules.release(
@@ -370,7 +384,9 @@ export class StripeSubscriptionService {
     const subscription = await this.findActiveSubscription(tenantId);
 
     if (!subscription?.stripe_subscription_id) {
-      throw new BadRequestException('No active Stripe subscription to cancel');
+      throw new BadRequestException(
+        this.i18n.t(BillingI18n.errors.NO_SUBSCRIPTION_TO_CANCEL),
+      );
     }
 
     const stripeSubscription =
@@ -387,7 +403,7 @@ export class StripeSubscriptionService {
 
     if (!periodEndTimestamp) {
       throw new BadRequestException(
-        'Could not determine cancellation date from Stripe subscription',
+        this.i18n.t(BillingI18n.errors.STRIPE_SUBSCRIPTION_UNREADABLE),
       );
     }
 
@@ -445,12 +461,14 @@ export class StripeSubscriptionService {
     const subscription = await this.findActiveSubscription(tenantId);
 
     if (!subscription?.stripe_subscription_id) {
-      throw new BadRequestException('No active subscription to reactivate');
+      throw new BadRequestException(
+        this.i18n.t(BillingI18n.errors.NO_SUBSCRIPTION_TO_REACTIVATE),
+      );
     }
 
     if (!subscription.cancel_at_period_end) {
       throw new BadRequestException(
-        'Subscription does not have a pending cancellation',
+        this.i18n.t(BillingI18n.errors.NO_PENDING_CANCELLATION),
       );
     }
 
