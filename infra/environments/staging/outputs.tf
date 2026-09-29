@@ -123,8 +123,17 @@ output "app_url" {
   value       = "https://${module.dns_record.app_fqdn}"
 }
 
-output "developer_access_keys" {
-  description = "AWS access keys for each developer. Retrieve with: terraform output -json developer_access_keys"
-  sensitive   = true
-  value       = module.developers.access_keys
+output "developer_permission_set_arn" {
+  description = "Developer permission set (IAM Identity Center); null until developers_identity_center_group_id is set"
+  value       = module.developers.permission_set_arn
+}
+
+output "github_deploy_role_arn" {
+  description = "Set as the GitHub repository variable AWS_DEPLOY_ROLE_ARN"
+  value       = module.github_oidc.deploy_role_arn
+}
+
+output "bastion_instance_id" {
+  description = "Target for SSM port forwarding to RDS / Bull Board"
+  value       = module.bastion.instance_id
 }

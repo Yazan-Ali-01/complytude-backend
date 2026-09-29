@@ -78,10 +78,10 @@ Secrets live in AWS Secrets Manager: `complytude/<env>/app` (issued credentials)
 
 **Required tfvars:** `cors_origins`, `frontend_url`, `alarm_email` (for CloudWatch alarm notifications). S3 is accessed with each task's IAM role.
 
-**Using app_login (production-like):** After RDS is up, run `scripts/setup-app-user-role.sql` via bastion SSH tunnel:
+**Using app_login (production-like):** After RDS is up, run `scripts/setup-app-user-role.sql` through the SSM tunnel (`docs/DEPLOYMENT.md` → *Open a Tunnel to RDS*):
 
 ```bash
-PGPASSWORD=$DB_PASSWORD psql -h localhost -p 5432 -U postgres -d complytude \
+PGPASSWORD=$DB_PASSWORD psql -h localhost -p 15432 -U postgres -d complytude \
   -v app_user="app_login" -v app_password="YOUR_APP_PASSWORD" -v db_name="complytude" \
   -f scripts/setup-app-user-role.sql
 ```
@@ -90,23 +90,25 @@ Use the value in the `db-app` secret as `app_password` (the deploy pipeline does
 
 **ECS integration:** The ECS module attaches `ecs_secrets_policy_arn` to the task execution role and injects, per service, only the keys that service uses (format: `valueFrom = "<secret arn>:KEY::"`); each service has its own task role.
 
-**OAuth2 SSO (Google / Microsoft):** Optional keys `GOOGLE_*`, `MICROSOFT_*`, `SSO_FRONTEND_*` are included in the same JSON secret (defaults empty = SSO disabled in the API). The SPA base URL comes from the required `frontend_url` variable and reaches the API as `FRONTEND_URL` (task environment); email links and post-OAuth redirects use it, and the API refuses to boot in production without an https value.
+**OAuth2 SSO (Google / Microsoft):** The client ids, callback URLs and `SSO_FRONTEND_*` paths are plain API environment (tfvars; empty client id = provider disabled); the client secrets are in the app secret. The SPA base URL comes from the required `frontend_url` variable and reaches the API as `FRONTEND_URL` (task environment); email links and post-OAuth redirects use it, and the API refuses to boot in production without an https value.
 
 **Rotation:** Terraform creates the secret containers only; values are set with `scripts/deploy/put-app-secrets.sh`, so an apply never overwrites a rotated value. Runbook: `docs/DEPLOYMENT.md` → *Rotating a credential*.
 
 ## Bull Board (queue dashboard)
 
-Bull Board is not behind the ALB: `https://<api>/admin/queues` returns 404. The API serves it on its internal port 3010 (`local.bull_board_port` in the environment's `main.tf`). The ECS security group admits that port from the bastion's security group only, and `BULL_BOARD_ADMIN_SECRET` goes to the API task only (never the workers). To open it, tunnel through the bastion to an API task:
+Bull Board is not behind the ALB: `https://<api>/admin/queues` returns 404. The API serves it on its internal port 3010 (`local.bull_board_port` in the environment's `main.tf`). The ECS security group admits that port from the bastion's security group only, and `BULL_BOARD_ADMIN_SECRET` goes to the API task only (never the workers). To open it, port-forward through the bastion with SSM Session Manager (no SSH key; see `docs/DEPLOYMENT.md` → *Open a Tunnel to RDS* for the prerequisites):
 
 ```bash
 CLUSTER=$(terraform output -raw ecs_cluster_name)
 TASK=$(aws ecs list-tasks --cluster $CLUSTER --service-name $CLUSTER-api --query 'taskArns[0]' --output text)
 TASK_IP=$(aws ecs describe-tasks --cluster $CLUSTER --tasks $TASK \
   --query "tasks[0].attachments[0].details[?name=='privateIPv4Address'].value" --output text)
-ssh -i ~/.ssh/<bastion-key>.pem -N -L 3010:$TASK_IP:3010 ec2-user@$(terraform output -raw bastion_public_ip)
+aws ssm start-session --target $(terraform output -raw bastion_instance_id) \
+  --document-name AWS-StartPortForwardingSessionToRemoteHost \
+  --parameters "host=$TASK_IP,portNumber=3010,localPortNumber=3010"
 ```
 
-Then open `http://localhost:3010/admin/queues`. The browser asks for credentials: any username, with `bull_board_admin_secret` as the password. From the command line, send `Authorization: Bearer <secret>` or `X-Admin-Secret: <secret>` instead.
+Then open `http://localhost:3010/admin/queues`. The browser asks for credentials: any username, with the `BULL_BOARD_ADMIN_SECRET` value from the app secret as the password. From the command line, send `Authorization: Bearer <secret>` or `X-Admin-Secret: <secret>` instead.
 
 ## ECS Deployment (Build, Push, Apply)
 

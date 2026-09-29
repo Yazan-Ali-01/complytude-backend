@@ -48,7 +48,7 @@ resource "aws_db_instance" "main" {
   # RDS generates the master password and keeps it in its own Secrets Manager secret (rotated by
   # RDS); it never passes through tfvars or Terraform state
   manage_master_user_password = true
-  port     = 5432
+  port                        = 5432
 
   # Networking
   db_subnet_group_name   = aws_db_subnet_group.main.name

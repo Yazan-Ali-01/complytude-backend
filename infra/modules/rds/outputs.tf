@@ -32,3 +32,8 @@ output "master_user_secret_arn" {
   description = "ARN of the RDS-managed secret holding the master username and password (for the migration pipeline)"
   value       = aws_db_instance.main.master_user_secret[0].secret_arn
 }
+
+output "instance_arn" {
+  description = "RDS instance ARN"
+  value       = aws_db_instance.main.arn
+}

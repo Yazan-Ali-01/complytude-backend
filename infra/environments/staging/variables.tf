@@ -29,13 +29,15 @@ variable "availability_zones" {
 }
 
 variable "bastion_key_name" {
-  description = "EC2 key pair name for bastion SSH access"
+  description = "EC2 key pair for bastion SSH, only if SSH is still wanted (null = none: use SSM Session Manager)"
   type        = string
+  default     = null
 }
 
 variable "bastion_ssh_allowed_cidrs" {
-  description = "CIDR blocks allowed to SSH to bastion (e.g. [\"YOUR_IP/32\"]). Get your IP: curl -s ifconfig.me"
+  description = "CIDR blocks allowed to SSH to the bastion (empty = port 22 closed: use SSM Session Manager)"
   type        = list(string)
+  default     = []
 }
 
 # ---- Application database login (its password is in the db-app secret) ----
@@ -303,14 +305,20 @@ variable "sso_frontend_error_path" {
 }
 
 # ---- Developer IAM Users ----
-variable "developer_usernames" {
-  description = "IAM usernames for developers (e.g. [\"john\", \"alice\"]). Each gets access keys with scoped permissions."
-  type        = list(string)
-  default     = []
+variable "developers_identity_center_group_id" {
+  description = "IAM Identity Center group id for developer access (null until Identity Center is enabled and the group exists)"
+  type        = string
+  default     = null
 }
 
 # ---- Monitoring ----
 variable "alarm_email" {
   description = "Email for CloudWatch alarm notifications. Set in terraform.tfvars. Must confirm SNS subscription after first apply."
   type        = string
+}
+
+variable "github_repository" {
+  description = "GitHub repository (owner/name) whose staging-environment jobs may deploy (OIDC)"
+  type        = string
+  default     = "Yazan-Ali-01/complytude-backend"
 }

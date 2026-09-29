@@ -57,3 +57,24 @@ output "log_group_names" {
     worker-generation = aws_cloudwatch_log_group.worker_generation.name
   }
 }
+
+output "service_arns" {
+  description = "ARNs of the four ECS services (the deploy role may update these only)"
+  value = [
+    aws_ecs_service.api.id,
+    aws_ecs_service.worker_ai.id,
+    aws_ecs_service.worker_ingestion.id,
+    aws_ecs_service.worker_generation.id,
+  ]
+}
+
+output "passable_role_arns" {
+  description = "Execution and task roles a new task-definition revision may name (iam:PassRole for the deploy role)"
+  value = [
+    aws_iam_role.ecs_task_execution.arn,
+    aws_iam_role.api_task.arn,
+    aws_iam_role.worker_ai_task.arn,
+    aws_iam_role.worker_ingestion_task.arn,
+    aws_iam_role.worker_generation_task.arn,
+  ]
+}

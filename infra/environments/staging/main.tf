@@ -299,13 +299,34 @@ module "dns_record" {
   alb_zone_id  = module.ecs.alb_zone_id
 }
 
+# CI deploys with short-lived credentials (OIDC); no access key exists
+module "github_oidc" {
+  source = "../../modules/github-oidc"
+
+  project_name       = var.project
+  environment        = var.environment
+  github_repository  = var.github_repository
+  github_environment = "staging"
+
+  ecr_repository_arns = module.ecr.repository_arns
+  ecs_service_arns    = module.ecs.service_arns
+  passable_role_arns  = module.ecs.passable_role_arns
+  rds_instance_arn    = module.rds.instance_arn
+  migration_secret_arns = [
+    module.rds.master_user_secret_arn,
+    module.secrets.db_app_secret_arn,
+  ]
+  bastion_instance_arn = module.bastion.instance_arn
+}
+
 module "developers" {
   source = "../../modules/developers"
 
-  project_name        = var.project
-  environment         = var.environment
-  developer_usernames = var.developer_usernames
-  s3_bucket_arns      = [module.s3.quarantine_bucket_arn, module.s3.clean_bucket_arn]
+  project_name             = var.project
+  environment              = var.environment
+  identity_center_group_id = var.developers_identity_center_group_id
+  s3_bucket_arns           = [module.s3.quarantine_bucket_arn, module.s3.clean_bucket_arn]
+  bastion_instance_arn     = module.bastion.instance_arn
 }
 
 module "monitoring" {

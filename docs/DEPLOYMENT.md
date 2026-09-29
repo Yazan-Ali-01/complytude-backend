@@ -69,7 +69,7 @@ Application Load Balancer
 │  ┌───────────────────────────────┐                                                                   │
 │  │  Bastion: complytude-staging- │                                                                   │
 │  │  bastion  (t4g.micro)         │                                                                   │
-│  │  SSH tunnel → RDS only        │                                                                   │
+│  │  SSM port forwarding → RDS    │                                                                   │
 │  └───────────────────────────────┘                                                                   │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
@@ -255,7 +255,7 @@ push → development
 quality         lint, type-check, unit and integration tests, dependency audit (ci.yml)
    │
    ▼
-migrate         SSH tunnel → bastion → RDS; setup-roles.sh, run-migrations.sh
+migrate         SSM port forwarding → bastion → RDS; setup-roles.sh, run-migrations.sh
    │            (a failed migration stops here: nothing is pushed or deployed)
    ▼
 build-and-push  matrix: api, worker-ai, worker-ingestion, worker-generation
@@ -269,22 +269,25 @@ deploy          scripts/deploy/ecs-deploy.sh --env staging --sha <git-sha>
 Every image is tagged with the full git SHA and nothing else, so "what is running" is the image
 digest in each service's task definition, and it maps back to a commit.
 
-### Required GitHub Actions Secrets
+### AWS access for GitHub Actions (OIDC)
 
-Set these in **Settings → Secrets and variables → Actions** in the GitHub repo:
+The deploy and rollback jobs get short-lived credentials by assuming `complytude-staging-github-deploy` through GitHub's OIDC provider (`infra/modules/github-oidc`). No AWS access key, database password or SSH key is stored in GitHub. The role trusts only jobs that declare `environment: staging` in this repository, and it can do only what the pipeline does:
+- push to and inspect the four ECR repositories;
+- register task definitions and update the four services (passing only their own roles);
+- read the RDS master secret and the `db-app` secret;
+- port-forward through the bastion with SSM.
 
-| Secret | Description |
-|---|---|
-| `AWS_ACCOUNT_ID` | AWS account number (12 digits) |
-| `AWS_ACCESS_KEY_ID` | IAM access key with deploy permissions |
-| `AWS_SECRET_ACCESS_KEY` | IAM secret key |
-| `BASTION_SSH_KEY` | Private key for `bastion-key-pair` (PEM format) |
+Set up once (after `terraform apply`):
 
-And this repository **variable** (Settings → Secrets and variables → Actions → Variables):
+1. **Settings → Environments → New environment → `staging`.** Under *Deployment branches*, allow `development` only (the rollback workflow runs from it too). Add required reviewers for a production environment.
+2. **Settings → Secrets and variables → Actions → Variables:**
 
 | Variable | Description |
 |---|---|
+| `AWS_DEPLOY_ROLE_ARN` | `terraform output -raw github_deploy_role_arn` |
 | `STAGING_API_URL` | Base URL the deploy smoke-tests, e.g. `https://api-staging.complytude.com`. Unset skips the smoke test. |
+
+3. Delete the old repository secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCOUNT_ID`, `BASTION_SSH_KEY` and `STAGING_DB_ADMIN_PASSWORD`. Deactivate and delete the IAM user whose keys they were.
 
 ### Concurrency
 
@@ -387,56 +390,46 @@ Each ECS task gets its own log stream named `api/{container-name}/{task-id}`.
 
 ## Running Migrations in Production
 
-RDS is not publicly accessible. Migrations run through an SSH tunnel via the bastion host, exactly as the CI/CD pipeline does.
+RDS is not publicly accessible. Migrations run through the bastion with SSM Session Manager port forwarding, exactly as the CI/CD pipeline does. There is no SSH key and port 22 is closed: access is by IAM (your SSO session), per person, and every session is logged in Session Manager.
 
-### One-time SSH key setup
+### Prerequisites
 
-The bastion uses the `bastion-key-pair` EC2 key pair. Retrieve the private key from whoever provisioned the infrastructure (it was generated at Terraform apply time and is stored in GitHub Actions as `BASTION_SSH_KEY`).
+- An SSO session with bastion port forwarding (the developer permission set has it; see *Developer access*): `aws sso login --profile complytude-staging`.
+- The Session Manager plugin for the AWS CLI: `brew install --cask session-manager-plugin` (macOS) or the package from the AWS docs.
 
-```bash
-chmod 600 ~/.ssh/bastion-key.pem
-```
-
-### Open SSH Tunnel to RDS
+### Open a Tunnel to RDS
 
 ```bash
-# Get bastion public IP
-BASTION_IP=$(aws ec2 describe-instances \
+BASTION_ID=$(aws ec2 describe-instances \
   --filters \
     "Name=tag:Name,Values=complytude-staging-bastion" \
     "Name=instance-state-name,Values=running" \
-  --query 'Reservations[0].Instances[0].PublicIpAddress' \
+  --query 'Reservations[0].Instances[0].InstanceId' \
   --output text \
   --region eu-central-1)
 
-# RDS hostname
 DB_HOST=$(aws rds describe-db-instances \
   --db-instance-identifier complytude-staging-postgres \
   --query 'DBInstances[0].Endpoint.Address' \
   --output text \
   --region eu-central-1)
 
-echo "Bastion: ${BASTION_IP}"
-echo "RDS:     ${DB_HOST}"
-
-# Open tunnel — forwards local :15432 → RDS :5432 through the bastion
-ssh -i ~/.ssh/bastion-key.pem \
-  -fNL 15432:${DB_HOST}:5432 \
-  ec2-user@${BASTION_IP} \
-  -o StrictHostKeyChecking=no
+# Forwards local :15432 → RDS :5432 through the bastion; leave it running (Ctrl-C closes it)
+aws ssm start-session --target "$BASTION_ID" --region eu-central-1 \
+  --document-name AWS-StartPortForwardingSessionToRemoteHost \
+  --parameters "host=${DB_HOST},portNumber=5432,localPortNumber=15432"
 ```
 
-> **Security groups:** Your IP must be in the bastion security group's SSH ingress. Add it temporarily if needed:
-> ```bash
-> MY_IP=$(curl -s https://checkip.amazonaws.com)
-> BASTION_SG=$(aws ec2 describe-security-groups \
->   --filters "Name=tag:Name,Values=complytude-staging-bastion-sg" \
->   --query 'SecurityGroups[0].GroupId' --output text --region eu-central-1)
-> aws ec2 authorize-security-group-ingress \
->   --group-id ${BASTION_SG} --protocol tcp --port 22 --cidr ${MY_IP}/32 --region eu-central-1
-> # Remember to revoke it when done:
-> # aws ec2 revoke-security-group-ingress ...
-> ```
+The master password is in the RDS-managed secret, readable by administrators only (not by the developer permission set):
+
+```bash
+MASTER_SECRET=$(aws rds describe-db-instances --db-instance-identifier complytude-staging-postgres \
+  --query 'DBInstances[0].MasterUserSecret.SecretArn' --output text --region eu-central-1)
+export DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "$MASTER_SECRET" \
+  --query SecretString --output text --region eu-central-1 | jq -r .password)
+```
+
+**Bull Board** (API port 3010, internal only): forward to an API task's private IP the same way, with `host=<task-ip>,portNumber=3010,localPortNumber=3010`.
 
 ### Run Migrations
 
@@ -446,7 +439,7 @@ DB_HOST=localhost \
 DB_PORT=15432 \
 DB_NAME=complytude \
 DB_USER=postgres \
-DB_PASSWORD=<staging-db-admin-password> \
+DB_PASSWORD="$DB_PASSWORD" \
   bash scripts/run-migrations.sh
 ```
 
@@ -457,7 +450,7 @@ DB_HOST=localhost \
 DB_PORT=15432 \
 DB_NAME=complytude \
 DB_USER=postgres \
-DB_PASSWORD=<staging-db-admin-password> \
+DB_PASSWORD="$DB_PASSWORD" \
   bash scripts/run-seeds.sh staging
 ```
 
@@ -477,7 +470,7 @@ aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE \
   --overrides '{"containerOverrides":[{"name":"api","command":["node","dist/apps/api/main.js","grant-platform-admin","you@company.com"]}]}'
 ```
 
-Locally (or through the bastion tunnel, with the target environment's variables set):
+Locally (or through the tunnel, with the target environment's variables set):
 
 ```bash
 pnpm admin:grant you@company.com                    # system_admin (default)
@@ -488,9 +481,7 @@ The command exits non-zero, and changes nothing, if the account exists but its e
 
 ### Close the Tunnel
 
-```bash
-pkill -f "ssh.*15432"
-```
+Stop the `aws ssm start-session` command (Ctrl-C).
 
 ---
 
@@ -628,7 +619,7 @@ aws rds restore-db-instance-to-point-in-time \
 aws rds wait db-instance-available --db-instance-identifier ${DB}-restored
 ```
 
-1. **Check the data** on the restored instance through the bastion tunnel (see "Open SSH Tunnel to RDS"), with its own endpoint (`aws rds describe-db-instances --db-instance-identifier ${DB}-restored --query 'DBInstances[0].Endpoint.Address'`).
+1. **Check the data** on the restored instance through the tunnel (see "Open a Tunnel to RDS"), with its own endpoint (`aws rds describe-db-instances --db-instance-identifier ${DB}-restored --query 'DBInstances[0].Endpoint.Address'`).
 2. **Stop writes:** scale the API and workers to 0 (`aws ecs update-service --cluster complytude-${ENV} --service complytude-${ENV}-<app> --desired-count 0`).
 3. **Swap by renaming**, so the endpoint the app and Terraform use stays the same:
    ```bash
@@ -719,6 +710,33 @@ done
 
 ---
 
+## Developer Access (IAM Identity Center)
+
+No IAM users or access keys exist for people. Developers sign in with IAM Identity Center and get short-lived credentials for the `complytude-staging-developer` permission set (`infra/modules/developers`). It allows:
+- logs;
+- ECS, RDS and ElastiCache read access;
+- ECR pull (no push: images come from CI);
+- S3 read on the staging buckets;
+- Textract, for local development;
+- port forwarding through the bastion.
+
+It denies IAM writes, the Terraform state bucket and secret writes.
+
+Set up once (account administrator):
+
+1. Enable IAM Identity Center in the account (console), create a group (e.g. `complytude-developers`) and add the developers.
+2. Set `developers_identity_center_group_id` in `terraform.tfvars` to the group's id and `terraform apply`.
+
+Each developer:
+
+```bash
+aws configure sso --profile complytude-staging     # start URL from the administrator; pick the developer permission set
+aws sso login --profile complytude-staging
+export AWS_PROFILE=complytude-staging              # the AWS SDK in the apps and scripts uses it
+```
+
+---
+
 ## Terraform Cheat Sheet
 
 All Terraform commands must be run from the environment directory.
@@ -763,11 +781,9 @@ terraform output
 
 # Specific output
 terraform output rds_hostname
-terraform output bastion_public_ip
+terraform output bastion_instance_id
 terraform output ecr_repository_urls
-
-# Developer access keys (sensitive)
-terraform output -json developer_access_keys
+terraform output github_deploy_role_arn
 ```
 
 ### State Management
@@ -846,9 +862,8 @@ If `rolloutState` is `FAILED`, the circuit breaker fired. Check stopped task log
 ### Database connection errors in logs
 
 ```bash
-# Verify the DB is accepting connections (from bastion)
-ssh -i ~/.ssh/bastion-key.pem ec2-user@<bastion-ip> \
-  "pg_isready -h <rds-hostname> -p 5432"
+# Verify the DB is accepting connections: open the tunnel (see "Open a Tunnel to RDS"), then
+pg_isready -h localhost -p 15432
 
 # Check RDS status in console
 aws rds describe-db-instances \
@@ -867,25 +882,22 @@ aws elasticache describe-cache-clusters \
   --region eu-central-1 \
   --query 'CacheClusters[?contains(CacheClusterId, `staging`)]'
 
-# Ping Redis from bastion
-ssh -i ~/.ssh/bastion-key.pem ec2-user@<bastion-ip> \
-  "redis-cli -h <redis-hostname> -p 6379 ping"
+# Redis admits the ECS tasks only (not the bastion): the API's readiness check reports it
+curl -s https://api-staging.complytude.com/api/health/ready
 ```
 
 ### BullMQ jobs not processing
 
 ```bash
-# Check queue depths via Redis (from bastion)
-ssh -i ~/.ssh/bastion-key.pem ec2-user@<bastion-ip> \
-  "redis-cli -h <redis-host> -p 6379 -n 1 keys 'bull:*:wait' | \
-   xargs -I{} redis-cli -h <redis-host> -p 6379 -n 1 llen {}"
+# Queue depths: the API publishes them every minute (queue-metrics job, CloudWatch alarms), and
+# Bull Board shows them (see "Open a Tunnel to RDS" → Bull Board)
 
 # Check worker logs for job pickup
 aws logs tail /ecs/complytude-staging/worker-ai \
   --follow --since 10m --region eu-central-1
 ```
 
-If workers are healthy but not picking up jobs, verify `REDIS_QUEUE_DB=1` is set correctly in Secrets Manager — jobs and sessions use different Redis databases.
+If workers are healthy but not picking up jobs, verify `REDIS_QUEUE_DB=1` in the task definitions' environment — jobs and sessions use different Redis databases.
 
 ### CloudWatch alarm firing
 

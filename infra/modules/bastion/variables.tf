@@ -19,13 +19,26 @@ variable "subnet_id" {
 }
 
 variable "key_name" {
-  description = "Name of existing EC2 key pair for SSH access"
+  description = "EC2 key pair for SSH, only if SSH is still wanted (null = none; use SSM Session Manager)"
   type        = string
+  default     = null
 }
 
 variable "ssh_allowed_cidrs" {
-  description = "CIDR blocks allowed to SSH to bastion (e.g. [\"YOUR_IP/32\"]). Use 0.0.0.0/0 only for testing."
+  description = "CIDR blocks allowed to SSH to the bastion (empty = port 22 closed; use SSM Session Manager)"
   type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for c in var.ssh_allowed_cidrs : !contains(["0.0.0.0/0", "::/0"], c)])
+    error_message = "SSH must not be open to the whole internet; give specific /32 addresses or none."
+  }
+}
+
+variable "ami_id" {
+  description = "AMI for the bastion (null = latest Amazon Linux 2023 arm64 at creation; later images don't replace it)"
+  type        = string
+  default     = null
 }
 
 variable "rds_security_group_id" {

@@ -10,9 +10,12 @@ concurrency:
   group: deploy-staging
   cancel-in-progress: false
 
+# Nothing but read access by default; the AWS jobs add id-token (OIDC) below
+permissions:
+  contents: read
+
 env:
   AWS_REGION: eu-central-1
-  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.eu-central-1.amazonaws.com
   ECS_CLUSTER: complytude-staging
 
 jobs:
@@ -24,18 +27,29 @@ jobs:
   migrate:
     runs-on: ubuntu-latest
     needs: quality
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
+      # Short-lived credentials for the deploy role (OIDC, infra/modules/github-oidc); only jobs in
+      # the staging environment can assume it
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: github-deploy-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install PostgreSQL client
-        run: sudo apt-get install -y postgresql-client
+      # psql for the role setup; the Session Manager plugin for port forwarding through the bastion
+      - name: Install PostgreSQL client and Session Manager plugin
+        run: |
+          sudo apt-get install -y postgresql-client
+          curl -fsSLo /tmp/session-manager-plugin.deb \
+            https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb
+          sudo dpkg -i /tmp/session-manager-plugin.deb
 
       # The migration runner is TypeScript (scripts/migrate.ts)
       - uses: pnpm/action-setup@v4
@@ -65,62 +79,34 @@ jobs:
           echo "::add-mask::$DB_ADMIN_PASSWORD"
           echo "::add-mask::$DB_APP_PASSWORD"
 
-          BASTION_IP=$(aws ec2 describe-instances \
+          BASTION_ID=$(aws ec2 describe-instances \
             --filters \
               "Name=tag:Name,Values=complytude-staging-bastion" \
               "Name=instance-state-name,Values=running" \
-            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --query 'Reservations[0].Instances[0].InstanceId' \
             --output text)
 
-          BASTION_SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=tag:Name,Values=complytude-staging-bastion-sg" \
-            --query 'SecurityGroups[0].GroupId' \
-            --output text)
-
-          RDS_SG_ID=$(aws ec2 describe-security-groups \
-            --filters "Name=tag:Name,Values=complytude-staging-rds-sg" \
-            --query 'SecurityGroups[0].GroupId' \
-            --output text)
-
-          echo "bastion_ip=$BASTION_IP" >> $GITHUB_OUTPUT
-          echo "bastion_sg_id=$BASTION_SG_ID" >> $GITHUB_OUTPUT
-          echo "rds_sg_id=$RDS_SG_ID" >> $GITHUB_OUTPUT
+          echo "bastion_id=$BASTION_ID" >> $GITHUB_OUTPUT
           echo "db_host=$DB_HOST" >> $GITHUB_OUTPUT
           echo "db_admin_password=$DB_ADMIN_PASSWORD" >> $GITHUB_OUTPUT
           echo "db_app_password=$DB_APP_PASSWORD" >> $GITHUB_OUTPUT
 
-      - name: Get runner public IP
-        id: runner-ip
-        run: echo "ip=$(curl -s https://checkip.amazonaws.com)" >> $GITHUB_OUTPUT
-
-      - name: Allow runner SSH access to bastion
+      # Session Manager port forwarding: IAM-authorised and logged, no SSH key, no inbound rule,
+      # no security-group edits (the bastion→RDS rule is Terraform's)
+      - name: Forward a local port to RDS through the bastion
         run: |
-          aws ec2 authorize-security-group-ingress \
-            --group-id ${{ steps.infra.outputs.bastion_sg_id }} \
-            --protocol tcp \
-            --port 22 \
-            --cidr ${{ steps.runner-ip.outputs.ip }}/32 || true
-
-      - name: Allow bastion access to RDS
-        run: |
-          aws ec2 authorize-security-group-ingress \
-            --group-id ${{ steps.infra.outputs.rds_sg_id }} \
-            --protocol tcp \
-            --port 5432 \
-            --source-group ${{ steps.infra.outputs.bastion_sg_id }} || true
-
-      - name: Open SSH tunnel to RDS
-        run: |
-          echo "${{ secrets.BASTION_SSH_KEY }}" > /tmp/bastion_key
-          chmod 600 /tmp/bastion_key
-
-          ssh -i /tmp/bastion_key \
-            -fNL 15432:${{ steps.infra.outputs.db_host }}:5432 \
-            ec2-user@${{ steps.infra.outputs.bastion_ip }} \
-            -o StrictHostKeyChecking=no \
-            -o ServerAliveInterval=30
-
-          sleep 2
+          aws ssm start-session \
+            --target ${{ steps.infra.outputs.bastion_id }} \
+            --document-name AWS-StartPortForwardingSessionToRemoteHost \
+            --parameters "host=${{ steps.infra.outputs.db_host }},portNumber=5432,localPortNumber=15432" \
+            >/tmp/ssm-session.log 2>&1 &
+          echo $! >/tmp/ssm-session.pid
+          for _ in $(seq 1 30); do
+            pg_isready -h localhost -p 15432 -q && exit 0
+            sleep 1
+          done
+          cat /tmp/ssm-session.log
+          exit 1
 
       # Idempotent: creates missing roles; an existing app_login keeps its password
       - name: Setup database roles
@@ -143,42 +129,36 @@ jobs:
           DB_PASSWORD: ${{ steps.infra.outputs.db_admin_password }}
         run: bash scripts/run-migrations.sh
 
-      - name: Cleanup
+      - name: Close the port forwarding
         if: always()
         run: |
-          pkill -f "ssh.*15432" || true
-          rm -f /tmp/bastion_key
-
-          aws ec2 revoke-security-group-ingress \
-            --group-id ${{ steps.infra.outputs.bastion_sg_id }} \
-            --protocol tcp \
-            --port 22 \
-            --cidr ${{ steps.runner-ip.outputs.ip }}/32 || true
-
-          aws ec2 revoke-security-group-ingress \
-            --group-id ${{ steps.infra.outputs.rds_sg_id }} \
-            --protocol tcp \
-            --port 5432 \
-            --source-group ${{ steps.infra.outputs.bastion_sg_id }} || true
+          [ -f /tmp/ssm-session.pid ] && kill "$(cat /tmp/ssm-session.pid)" || true
 
   # After migrations: no image of this commit exists unless its schema is in place
   build-and-push:
     runs-on: ubuntu-latest
     needs: migrate
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       matrix:
         app: [api, worker-ai, worker-ingestion, worker-generation]
     steps:
       - uses: actions/checkout@v4
 
+      # Short-lived credentials for the deploy role (OIDC, infra/modules/github-oidc); only jobs in
+      # the staging environment can assume it
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: github-deploy-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
+        id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
@@ -192,7 +172,7 @@ jobs:
           target: production
           push: true
           # The git SHA only: tags are immutable in ECR, and deploys pin the digest
-          tags: ${{ env.ECR_REGISTRY }}/complytude/${{ matrix.app }}:${{ github.sha }}
+          tags: ${{ steps.ecr.outputs.registry }}/complytude/${{ matrix.app }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -202,14 +182,20 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [build-and-push, migrate]
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
+      # Short-lived credentials for the deploy role (OIDC, infra/modules/github-oidc); only jobs in
+      # the staging environment can assume it
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: github-deploy-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
       # New task-definition revisions pinned to this commit's image digests; fails (red) when the
