@@ -265,9 +265,9 @@ export class AuditLogsRepository extends BaseRepository<
       FROM ${this.tableName}
       WHERE ${conditions.join(' AND ')}
       ORDER BY created_at DESC
-      LIMIT ${filters?.limit || 100}
-      OFFSET ${filters?.offset || 0}
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
+    params.push(filters?.limit || 100, filters?.offset || 0);
 
     const result = await this.executeQuery(query, params, {
       tenant: { tenantId, schema: 'public' },
@@ -313,9 +313,9 @@ export class AuditLogsRepository extends BaseRepository<
       FROM ${this.tableName}
       WHERE ${conditions.join(' AND ')}
       ORDER BY created_at DESC
-      LIMIT ${filters?.limit || 100}
-      OFFSET ${filters?.offset || 0}
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
+    params.push(filters?.limit || 100, filters?.offset || 0);
 
     // An actor's history spans tenants: platform admins only
     const result = await this.inRowContext(null, query, params);

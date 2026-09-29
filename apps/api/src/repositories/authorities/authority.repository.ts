@@ -59,6 +59,18 @@ export class AuthorityRepository extends BaseRepository<
   CreateAuthorityRow,
   UpdateAuthorityRow
 > {
+  // The service writes request DTOs through create/update: only these columns
+  protected readonly writableColumns: ReadonlySet<string> = new Set([
+    'id',
+    'code',
+    'name',
+    'description',
+    'country',
+    'is_active',
+    'created_at',
+    'updated_at',
+  ]);
+
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.authorities');
   }

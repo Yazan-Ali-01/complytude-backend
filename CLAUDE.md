@@ -140,7 +140,7 @@ await this.databaseService.transactionWithPlatformAdminContext(async (client) =>
 
 Context is set with `set_config(..., true)`, so it is transaction-scoped and never leaks between pooled connections. Policies read it through `current_tenant_id_or_null()` and fail closed: with no context, a read silently returns 0 rows (it does not error) and a write is rejected. So `BaseRepository` refuses to query a table with RLS (`RLS_TABLES` in `@lib/database`) unless it gets `{ client }` from a context transaction or `{ tenant }`, and throws instead. A bare `databaseService.query` still returns nothing silently: if a tenant-scoped query unexpectedly returns nothing, check that it runs inside `transactionWithTenantContext`. When you enable RLS on a table, add it to `RLS_TABLES` (the RLS integration suite checks the list).
 
-**Repository pattern:** All repositories extend `BaseRepository<TEntity, TCreate, TUpdate>`, implement `mapRow(row)` and `getSelectColumns()`, run SQL through `executeQuery()`, and never use `SELECT *`. Always use parameterised SQL.
+**Repository pattern:** All repositories extend `BaseRepository<TEntity, TCreate, TUpdate>`, implement `mapRow(row)` and `getSelectColumns()`, run SQL through `executeQuery()`, and never use `SELECT *`. Always use parameterised SQL, `LIMIT`/`OFFSET` included. The base `create`/`update`/`findOne` accept only snake_case keys as column names; a repository written from a request DTO declares `writableColumns`.
 
 **JSON/JSONB columns:** services `JSON.stringify` values before passing them to a repository. The `TCreate`/`TUpdate` types carry the string, and `mapRow()` parses it back into an object for `TEntity`.
 

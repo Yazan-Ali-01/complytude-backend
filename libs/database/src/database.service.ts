@@ -136,6 +136,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.getClient();
+    let broken: Error | undefined;
     try {
       await client.query('BEGIN');
       const result = await callback(client);
@@ -143,11 +144,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       this.logger.debug('Transaction committed successfully');
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      broken = await this.rollback(client);
       this.logger.error('Transaction rolled back', error);
       throw error;
     } finally {
-      client.release();
+      client.release(broken);
     }
   }
 
@@ -180,6 +181,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     const client = await this.getClient();
+    let broken: Error | undefined;
     try {
       await client.query('BEGIN');
       await this.setTenantContext(params, client);
@@ -188,14 +190,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       this.logger.debug(`Transaction committed for tenant ${params?.tenantId}`);
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      broken = await this.rollback(client);
       this.logger.error(
         `Transaction rolled back in tenant context (${params?.tenantId})`,
         error,
       );
       throw error;
     } finally {
-      client.release();
+      client.release(broken);
     }
   }
 
@@ -239,6 +241,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.getClient();
+    let broken: Error | undefined;
     try {
       await client.query('BEGIN');
       await client.query('SELECT set_config($1, $2, true)', [
@@ -249,10 +252,31 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       await client.query('COMMIT');
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      broken = await this.rollback(client);
       throw error;
     } finally {
-      client.release();
+      client.release(broken);
+    }
+  }
+
+  /**
+   * Rolls back after a failed transaction. If the ROLLBACK itself fails, the connection is in an
+   * unknown state: its error is returned so the caller releases the client with it (pg then
+   * destroys the connection instead of pooling it) and still throws the original error.
+   */
+  private async rollback(client: PoolClient): Promise<Error | undefined> {
+    try {
+      await client.query('ROLLBACK');
+      return undefined;
+    } catch (rollbackError) {
+      const error =
+        rollbackError instanceof Error
+          ? rollbackError
+          : new Error(String(rollbackError));
+      this.logger.error(
+        `ROLLBACK failed, discarding the connection: ${error.message}`,
+      );
+      return error;
     }
   }
 }

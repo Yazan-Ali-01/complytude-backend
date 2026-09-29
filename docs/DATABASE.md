@@ -139,6 +139,10 @@ a SHA-256 hash in `details.emailHash`). Retention of audit rows is not decided y
 
 `BaseRepository` refuses to run a query on a table with RLS unless it gets `{ client }` from one of the context transactions above or `{ tenant }`: it throws rather than let the query return no rows. The tables are listed in `RLS_TABLES` (`libs/database/src/base/rls-tables.ts`); the RLS suite fails if that list and the database disagree, so update it when you enable RLS on a table.
 
+`BaseRepository.create`, `createWithId`, `update` and `findOne` build column names from object keys. Each must be a bare snake_case identifier, and it is double-quoted; anything else is refused before a query is sent. A repository whose data comes from a request DTO also declares `writableColumns` (authorities, categories), and the base methods then write only those columns. Debug logs carry a query's SQL and parameter count, never parameter values.
+
+If `ROLLBACK` fails after an error in a transaction helper, the helper logs it, releases the client with that error (pg destroys the connection instead of pooling it) and rethrows the original error.
+
 ---
 
 ## Table Groups

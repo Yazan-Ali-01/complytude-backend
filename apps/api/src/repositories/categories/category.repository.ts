@@ -55,6 +55,17 @@ export class CategoryRepository extends BaseRepository<
   CreateCategoryRow,
   UpdateCategoryRow
 > {
+  // The service writes request DTOs through create/update: only these columns
+  protected readonly writableColumns: ReadonlySet<string> = new Set([
+    'id',
+    'code',
+    'name',
+    'description',
+    'parent_id',
+    'is_active',
+    'updated_at',
+  ]);
+
   constructor(databaseService: DatabaseService) {
     super(databaseService, 'public.categories');
   }

@@ -9,6 +9,9 @@ import {
 } from './repository.interface';
 import { RLS_TABLES } from './rls-tables';
 
+/** A bare snake_case identifier: what a column name built into SQL from an object key may be. */
+const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
+
 /**
  * Abstract base repository providing common CRUD operations and query execution.
  * Handles database connections, transaction contexts, and row mapping.
@@ -28,6 +31,12 @@ export abstract class BaseRepository<
 {
   protected readonly logger = new Logger(BaseRepository.name);
 
+  /**
+   * The columns `create`, `createWithId` and `update` may write, for a repository that receives
+   * data shaped by a client (a request DTO). Unset: any well-formed column name.
+   */
+  protected readonly writableColumns?: ReadonlySet<string>;
+
   constructor(
     protected readonly databaseService: DatabaseService,
     protected readonly tableName: string,
@@ -45,7 +54,7 @@ export abstract class BaseRepository<
     this.logger.debug(
       `executeQuery: table=${this.tableName}, client=${
         options?.client ? 'yes' : 'no'
-      }, tenant=${options?.tenant?.tenantId ?? 'none'}, ${options?.isAuthflow ? 'isAuthflow=true' : ''}, sql=${query}, params=${JSON.stringify(params)}`,
+      }, tenant=${options?.tenant?.tenantId ?? 'none'}, ${options?.isAuthflow ? 'isAuthflow=true' : ''}, sql=${query}, params=${params.length}`,
     );
     const { client, tenant, isAuthflow = false } = options ?? {};
     try {
@@ -104,11 +113,12 @@ export abstract class BaseRepository<
     this.logger.debug(
       `runWithClient: table=${this.tableName}, tenant=${
         tenant?.tenantId ?? 'none'
-      }, ${isAuthflow ? 'isAuthflow=true' : ''}, params=${JSON.stringify(params)}`,
+      }, ${isAuthflow ? 'isAuthflow=true' : ''}, params=${params.length}`,
     );
 
     if (isAuthflow) {
-      await client.query("SET LOCAL app.is_auth_flow = 'true'");
+      // Transaction-scoped, like the rest of the app context
+      await client.query("SELECT set_config('app.is_auth_flow', 'true', true)");
     }
 
     return await client.query<T>(query, params);
@@ -134,9 +144,9 @@ export abstract class BaseRepository<
 
   async findOne(options?: FindOneOptions<TEntity>): Promise<TEntity | null> {
     this.logger.debug(
-      `findOne: table=${this.tableName}, filters=${JSON.stringify(
+      `findOne: table=${this.tableName}, filters=${Object.keys(
         options?.filters ?? {},
-      )}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
+      ).join(', ')}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
     );
     const params: unknown[] = [];
     let whereClause = '';
@@ -144,12 +154,14 @@ export abstract class BaseRepository<
       whereClause = 'WHERE ';
       for (const [key, value] of Object.entries(options.filters)) {
         params.push(value);
-        whereClause += `${key} = $${params.length} AND `;
+        whereClause += `${this.column(key)} = $${params.length} AND `;
       }
       whereClause = whereClause.slice(0, -5);
     }
 
-    const select = options?.select ? options.select.join(', ') : '*';
+    const select = options?.select
+      ? options.select.map((name) => this.column(String(name))).join(', ')
+      : '*';
     const result = await this.executeQuery(
       `SELECT ${select} FROM ${this.tableName} ${whereClause} LIMIT 1`,
       params,
@@ -175,7 +187,7 @@ export abstract class BaseRepository<
         ', ',
       )}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
     );
-    const columns = keys.join(', ');
+    const columns = keys.map((key) => this.writableColumn(key)).join(', ');
     const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
 
     const query = `
@@ -206,7 +218,11 @@ export abstract class BaseRepository<
         ', ',
       )}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
     );
-    const columns = keys.join(', ');
+    const columns = keys
+      .map((key) =>
+        key === 'id' ? this.column(key) : this.writableColumn(key),
+      )
+      .join(', ');
     const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
 
     const query = `
@@ -239,7 +255,7 @@ export abstract class BaseRepository<
         .join(', ')}, tenant=${options?.tenant?.tenantId ?? 'none'}`,
     );
     const setClause = entries
-      .map(([key], idx) => `${key} = $${idx + 2}`)
+      .map(([key], idx) => `${this.writableColumn(key)} = $${idx + 2}`)
       .join(', ');
     const values = entries.map(([, value]) => value);
 
@@ -256,6 +272,26 @@ export abstract class BaseRepository<
     }
 
     return this.mapRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  /**
+   * A column name built into SQL from an object key, quoted. Anything but a bare snake_case
+   * identifier is refused before a query is sent.
+   */
+  protected column(name: string): string {
+    if (!IDENTIFIER.test(name)) {
+      throw new Error(
+        `Invalid column name for ${this.tableName}: ${JSON.stringify(name)}`,
+      );
+    }
+    return `"${name}"`;
+  }
+
+  private writableColumn(name: string): string {
+    if (this.writableColumns && !this.writableColumns.has(name)) {
+      throw new Error(`Column ${name} is not writable in ${this.tableName}`);
+    }
+    return this.column(name);
   }
 
   async delete(id: string, options?: QueryOptions): Promise<number> {
