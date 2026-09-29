@@ -28,6 +28,9 @@ cors_origins = "https://app-staging.complytude.com"
 # The web app's base URL (https): email links and SSO redirects point here
 frontend_url = "https://app-staging.complytude.com"
 
+# Stripe account mode: both Stripe keys in the app secret must be this mode's (sk_test_/pk_test_)
+stripe_mode = "test"
+
 # ---- Worker AI Configuration ----
 worker_ai_concurrency         = 5
 worker_ai_max_retries         = 3

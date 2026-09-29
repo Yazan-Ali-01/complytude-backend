@@ -32,10 +32,18 @@ export class StripeService implements OnModuleInit {
     const webhookSecret = this.configService.getOrThrow<string>(
       'stripe.webhookSecret',
     );
-    return this.stripeClient.webhooks.constructEvent(
+    const event = this.stripeClient.webhooks.constructEvent(
       payload,
       signature,
       webhookSecret,
     );
+    // A test-mode event on the live deployment (or the reverse) is from the wrong account
+    const live = this.configService.get<string>('stripe.mode') === 'live';
+    if (event.livemode !== live) {
+      throw new Error(
+        `Stripe event ${event.id} is livemode=${event.livemode}, this deployment is ${live ? 'live' : 'test'}`,
+      );
+    }
+    return event;
   }
 }

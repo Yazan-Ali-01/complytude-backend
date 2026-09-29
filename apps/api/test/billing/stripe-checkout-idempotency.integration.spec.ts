@@ -35,6 +35,22 @@ interface FakeSession {
 
 type Replayable<T> = T & { lastResponse: { headers: Record<string, string> } };
 
+interface FakePortalConfiguration {
+  id: string;
+  active: boolean;
+  metadata: Record<string, string>;
+  params: {
+    metadata: Record<string, string>;
+    features: {
+      subscription_update: {
+        enabled: boolean;
+        products: { product: string; prices: string[] }[];
+      };
+      subscription_cancel: { mode: string };
+    };
+  };
+}
+
 /**
  * An in-memory Stripe that honours idempotency keys like Stripe does: the first request with a
  * key creates the object; a later one with the same key and parameters replays the original
@@ -53,6 +69,12 @@ class FakeStripe {
     { id: string; status: string }[]
   >();
   readonly subscriptions = new Map<string, object>();
+  readonly portalConfigurations: FakePortalConfiguration[] = [];
+  readonly portalSessions: {
+    customer: string;
+    return_url: string;
+    configuration?: string;
+  }[] = [];
   private readonly keys = new Map<
     string,
     { params: string; response: string }
@@ -157,6 +179,43 @@ class FakeStripe {
         },
       },
     },
+    billingPortal: {
+      configurations: {
+        list: () =>
+          Promise.resolve({
+            data: this.portalConfigurations.filter((c) => c.active),
+          }),
+        create: (params: FakePortalConfiguration['params']) => {
+          const configuration = {
+            id: `bpc_${randomUUID()}`,
+            active: true,
+            metadata: params.metadata,
+            params,
+          };
+          this.portalConfigurations.push(configuration);
+          return Promise.resolve(configuration);
+        },
+        update: (id: string, params: FakePortalConfiguration['params']) => {
+          const configuration = this.portalConfigurations.find(
+            (c) => c.id === id,
+          )!;
+          configuration.params = params;
+          return Promise.resolve(configuration);
+        },
+      },
+      sessions: {
+        create: (params: {
+          customer: string;
+          return_url: string;
+          configuration?: string;
+        }) => {
+          this.portalSessions.push(params);
+          return Promise.resolve({
+            url: `https://billing.stripe.test/p/${randomUUID()}`,
+          });
+        },
+      },
+    },
     subscriptionItems: {
       create: (
         params: { subscription: string; price: string },
@@ -175,6 +234,8 @@ class FakeStripe {
   };
 
   reset(): void {
+    this.portalConfigurations.length = 0;
+    this.portalSessions.length = 0;
     this.customers.length = 0;
     this.items.length = 0;
     this.sessions.clear();
@@ -281,8 +342,9 @@ describe('Stripe checkout and customer idempotency', () => {
       payload: {
         planKey,
         interval: 'monthly',
-        successUrl: 'https://app.example.com/billing/success',
-        cancelUrl: 'https://app.example.com/billing',
+        // FRONTEND_URL in .env.test: Stripe may only send customers back to the web app
+        successUrl: 'http://localhost:3001/billing/success',
+        cancelUrl: 'http://localhost:3001/billing',
       },
     });
   }
@@ -295,6 +357,67 @@ describe('Stripe checkout and customer idempotency', () => {
     ]);
     return rows[0].stripe_customer_id;
   }
+
+  describe('redirects and the billing portal', () => {
+    it('refuses a checkout that would send the customer to another site, before anything reaches Stripe', async () => {
+      const { tenantId, adminEmail } = await freeTenant();
+      const cookie = await tenantAdminCookie(adminEmail, tenantId);
+
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/v1/billing/checkout/subscription',
+        headers: { cookie },
+        payload: {
+          planKey: 'shield',
+          interval: 'monthly',
+          successUrl: 'https://evil.example.net/phish',
+          cancelUrl: 'http://localhost:3001/billing',
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(stripe.sessions.size).toBe(0);
+    });
+
+    it('opens the portal on the managed configuration (catalog prices only), and never to another site', async () => {
+      const { tenantId, adminEmail } = await freeTenant();
+      const cookie = await tenantAdminCookie(adminEmail, tenantId);
+      const portal = (returnUrl: string) =>
+        server.inject({
+          method: 'POST',
+          url: '/api/v1/billing/portal/session',
+          headers: { cookie },
+          payload: { returnUrl },
+        });
+
+      expect((await portal('https://evil.example.net/')).statusCode).toBe(400);
+      expect(stripe.portalSessions).toHaveLength(0);
+
+      const opened = await portal('http://localhost:3001/billing');
+      expect(opened.statusCode).toBe(201);
+      expect(stripe.portalConfigurations).toHaveLength(1);
+      const [configuration] = stripe.portalConfigurations;
+      expect(stripe.portalSessions[0].configuration).toBe(configuration.id);
+      expect(configuration.metadata).toEqual({ managed_by: 'complytude' });
+      expect(configuration.params.features.subscription_cancel.mode).toBe(
+        'at_period_end',
+      );
+      const { rows } = await app.databaseService.query<{ price: string }>(
+        `SELECT unnest(ARRAY[stripe_price_id_monthly, stripe_price_id_annual]) AS price
+         FROM public.plans WHERE is_active AND stripe_product_id IS NOT NULL`,
+      );
+      const catalog = new Set(rows.map((r) => r.price).filter(Boolean));
+      const offered =
+        configuration.params.features.subscription_update.products.flatMap(
+          (product) => product.prices,
+        );
+      expect(offered.every((price) => catalog.has(price))).toBe(true);
+
+      // A second session reuses it rather than creating another
+      await portal('http://localhost:3001/billing');
+      expect(stripe.portalConfigurations).toHaveLength(1);
+    });
+  });
 
   describe('customers', () => {
     it('a double-clicked checkout creates one Stripe customer and one session', async () => {

@@ -171,7 +171,7 @@ These are not secret and are set directly in the task definition by Terraform (v
 
 **Every task** (`shared_environment` in `infra/environments/staging/main.tf`): `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_APP_USER` (`app_login`), `DB_SSL_ENABLED`/`DB_SSL_REJECT_UNAUTHORIZED` (`true`: verified against the RDS CA bundle, `DB_SSL_CA_PATH=/app/certs/rds-global-bundle.pem`), `DB_IDLE_TIMEOUT`, `DB_CONNECTION_TIMEOUT`, `DB_MAX_CONNECTIONS` (API 10, workers 5; keep (pool × tasks) × 2 under RDS `max_connections`), `REDIS_HOST`, `REDIS_PORT`, `REDIS_TLS`, `REDIS_DB` (0), `REDIS_QUEUE_DB` (1), `REDIS_KEY_PREFIX`, `AWS_REGION`, `S3_REGION`, `S3_ENDPOINT` (empty = AWS), `S3_FORCE_PATH_STYLE`, `COMPLYTUDE_FILES_BUCKET_NAME`/`TEMPLATES_BUCKET_NAME` (clean bucket), `QUARANTINE_BUCKET_NAME`.
 
-**API only**, besides the table below: `CORS_ORIGINS`, `FRONTEND_URL`, `TRUST_PROXY_HOPS`, JWT lifetimes, `SESSION_*`, upload limits and `SIGNED_URL_EXPIRES_IN`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_CATALOG_SYNC_ENABLED`, `STRIPE_TAX_ENABLED`, `BILLING_SCHEDULE_ENABLED`, `FROM_EMAIL`/`FROM_NAME`/`SUPPORT_EMAIL`, the SSO client ids, callback URLs and frontend paths.
+**API only**, besides the table below: `CORS_ORIGINS`, `FRONTEND_URL`, `TRUST_PROXY_HOPS`, JWT lifetimes, `SESSION_*`, upload limits and `SIGNED_URL_EXPIRES_IN`, `STRIPE_MODE` (`test` or `live`, required in production and checked against both Stripe keys; staging sets it from the `stripe_mode` variable), `STRIPE_PUBLISHABLE_KEY`, `STRIPE_CATALOG_SYNC_ENABLED`, `STRIPE_TAX_ENABLED`, `BILLING_SCHEDULE_ENABLED`, `FROM_EMAIL`/`FROM_NAME`/`SUPPORT_EMAIL`, the SSO client ids, callback URLs and frontend paths.
 
 **API task:**
 

@@ -475,7 +475,7 @@ this.queueProducer.enqueue(
 - **Atomic Transaction:** All operations succeed or fail together
 - **Subscription Required:** Every tenant must have an active subscription for entitlement resolution
 - **Default = 14-day trial of General Counsel** (full features). Trials downgrade to Navigator (free) on expiry via the `TRIAL_EXPIRY_CHECK` cron.
-- **Trial Reminder:** A "trial ending in ~3 days" email is sent by the `TRIAL_REMINDER_CHECK` cron (every 6h), idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
+- **Trial Reminder:** A "trial ending in ~3 days" email is sent by the `TRIAL_REMINDER_CHECK` cron (hourly), idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
 - **Paid plans:** Only granted by `StripeCheckoutService.createCheckoutSession` + `handleSubscriptionCheckout` webhook. Never on tenant create.
 - **RBAC Setup:** System roles are synced on app startup, not per-tenant
 - **Entitlement Snapshot:** Created lazily on first access by `EntitlementResolverService`

@@ -49,6 +49,7 @@ Configure `apps/api/.env` (see `apps/api/.env.example` for the full template). R
 
 | Variable                        | Required | Description                                                                   |
 | ------------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `STRIPE_MODE`                   | Prod     | `test` or `live` (default `test`; required in production). Both keys must be that mode's, and a webhook event from the other mode is rejected |
 | `STRIPE_SECRET_KEY`             | Yes      | Secret API key (`sk_test_...` or `sk_live_...`)                               |
 | `STRIPE_WEBHOOK_SECRET`         | Yes      | Signing secret from the webhook endpoint or `stripe listen`                   |
 | `STRIPE_PUBLISHABLE_KEY`        | Yes      | Publishable key (`pk_test_...`) — validated at startup                        |

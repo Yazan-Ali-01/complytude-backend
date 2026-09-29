@@ -287,7 +287,7 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 | `regulatory_queries_per_month` | quota    | queries   | ✅ Yes     | 3 credits   | Chat-with-Law queries per billing period                                                                                                                                                     |
 | `license_verifier_lookups`     | quota    | lookups   | ❌ No      | -           | DED API lookups per billing period                                                                                                                                                           |
 | `jurisdictions`                | boolean  | -         | ❌ No      | -           | Access to jurisdictions (single/all)                                                                                                                                                         |
-| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant. Enforced on invitation accept and create (see [API Contracts: Invitation System](../apps/api/docs/API_CONTRACTS.md#invitation-system--seat-enforcement)). |
+| `user_seats`                   | capacity | seats     | ❌ No      | -           | Maximum number of users in tenant. Enforced on invitation create and accept, and when a deactivated member is reactivated; each check holds a per-tenant advisory lock (`lockTenantSeats`) until its transaction ends, so concurrent requests can't take the same last seat. After a downgrade existing members stay, but nobody joins or comes back until there is room (see [API Contracts: Invitation System](../apps/api/docs/API_CONTRACTS.md#invitation-system--seat-enforcement)). |
 | `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)                                                                                                                                                 |
 | `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions                                                                                                                                                |
 | `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                                                                                                                                                          |
@@ -412,9 +412,9 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 - `current_period_end` — trial_ends_at (aligned)
 - `trial_reminder_sent_at` — `NULL` until the reminder cron sends the email
 
-**Trial Reminder (T-3 days):** The `TRIAL_REMINDER_CHECK` repeatable job runs every 6 hours on the `ENTITLEMENT_PROCESSING` queue. It queries trials whose `trial_ends_at` falls in a 2–4 day window with `trial_reminder_sent_at IS NULL`, sends a "trial ending soon" email to the tenant_admin user and `tenants.billing_email` (when set, deduplicated), then marks `trial_reminder_sent_at = NOW()`. The wide window absorbs missed cron ticks; the flag prevents duplicates. Recipients see a CTA to `${FRONTEND_URL}/billing/upgrade` for self-serve Stripe Checkout.
+**Trial Reminder (T-3 days):** The `TRIAL_REMINDER_CHECK` repeatable job runs every hour on the `ENTITLEMENT_PROCESSING` queue. It queries trials whose `trial_ends_at` falls in a 2–4 day window with `trial_reminder_sent_at IS NULL`, sends a "trial ending soon" email to the tenant_admin user and `tenants.billing_email` (when set, deduplicated), then marks `trial_reminder_sent_at = NOW()`. The wide window absorbs missed cron ticks; the flag prevents duplicates. Recipients see a CTA to `${FRONTEND_URL}/billing/upgrade` for self-serve Stripe Checkout.
 
-**Trial Expiry:** The `TRIAL_EXPIRY_CHECK` job (also every 6 hours) downgrades expired trials to Navigator (free), invalidates the entitlement snapshot, and emits `trial.expired`.
+**Trial Expiry:** The `TRIAL_EXPIRY_CHECK` job (also hourly, so an ended trial keeps its access for at most an hour) downgrades expired trials to Navigator (free), invalidates the entitlement snapshot, and emits `trial.expired`.
 
 **Important:** Without an active subscription, `EntitlementResolverService.resolveForTenant()` will throw `NotFoundException`. The trial subscription is created within the same transaction as the tenant to ensure atomicity.
 
@@ -449,8 +449,12 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 
 - Plan change → invalidate immediately
 - Add-on added/removed → invalidate immediately
-- Override applied/expired → invalidate immediately
+- Override applied → invalidate immediately
+- A snapshot ends (`__valid_until`) at the earliest of: the end of a past-due grace period, and the `expires_at` of any override or add-on it includes. The next read after that recomputes it
 - Stale (> 24h) → auto-invalidate on next read
+- Reconciliation fixing a subscription → invalidate immediately
+
+**Subscription cache:** each API process also keeps the tenant's subscription row in memory (`EntitlementCacheService`, 60 s TTL by default). `invalidateSubscription()` drops it locally and publishes the tenant id on the Redis channel `complytude:entitlement:subscription-invalidated`, which every other API process subscribes to, so a webhook handled by one process doesn't leave the others serving the old plan until the TTL.
 
 ### 2. Usage Enforcement
 

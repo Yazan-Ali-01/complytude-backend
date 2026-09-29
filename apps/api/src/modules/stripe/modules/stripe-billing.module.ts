@@ -11,6 +11,7 @@ import { BillingController } from '../controllers/billing.controller';
 import { StripeCustomerService } from '../services/stripe-customer.service';
 import { StripeCheckoutService } from '../services/stripe-checkout.service';
 import { StripeBillingPortalService } from '../services/stripe-billing-portal.service';
+import { StripePortalConfigurationService } from '../services/stripe-portal-configuration.service';
 import { StripeTaxService } from '../services/stripe-tax.service';
 import { StripeSubscriptionService } from '../services/stripe-subscription.service';
 import { StripeAddonService } from '../services/stripe-addon.service';
@@ -28,6 +29,7 @@ import { StripeAddonService } from '../services/stripe-addon.service';
     StripeCustomerService,
     StripeCheckoutService,
     StripeBillingPortalService,
+    StripePortalConfigurationService,
     StripeTaxService,
     StripeSubscriptionService,
     StripeAddonService,
@@ -37,6 +39,8 @@ import { StripeAddonService } from '../services/stripe-addon.service';
   ],
   exports: [
     StripeService,
+    // Global module: the catalog sync (another module) keeps the portal configuration current
+    StripePortalConfigurationService,
     StripeCustomerService,
     StripeTaxService,
     StripeSubscriptionService,

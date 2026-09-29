@@ -21,6 +21,7 @@ import {
   PLAN_CATALOG,
   PlanKey,
 } from 'src/common/constants/plan-entitlements.constant';
+import { StripePortalConfigurationService } from './stripe-portal-configuration.service';
 
 /**
  * StripeCatalogSyncService
@@ -45,6 +46,7 @@ export class StripeCatalogSyncService {
     private readonly addonsRepository: AddonsRepository,
     private readonly creditPackagesRepository: CreditPackagesRepository,
     private readonly configService: ConfigService,
+    private readonly portalConfiguration: StripePortalConfigurationService,
   ) {}
 
   /**
@@ -76,6 +78,8 @@ export class StripeCatalogSyncService {
       await this.syncPlans();
       await this.syncAddons();
       await this.syncCreditPackages();
+      // The portal offers exactly the catalog's plan prices
+      await this.portalConfiguration.sync();
 
       const paidPlanKeys = ALL_PLAN_KEYS.filter((p) => p !== 'navigator');
       const addons = await this.addonsRepository.findAllActive();

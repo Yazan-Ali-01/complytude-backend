@@ -372,11 +372,22 @@ export class EntitlementResolverService {
         restrictUsage(resolved);
       }
 
+      // A snapshot must not outlive what it was computed from: the grace period, or an override
+      // or add-on that expires (otherwise it keeps granting it for up to 24 h)
+      const expiries = [
+        access.state === 'grace' ? access.until : undefined,
+        ...overrides.map((override) => override.expires_at),
+        ...addons.map((addon) => addon.expires_at),
+      ]
+        .filter((date): date is Date => date instanceof Date)
+        .map((date) => date.getTime());
+
       return {
         entitlements: resolved,
         plan: planKey,
-        // A snapshot taken during the grace period must not outlive it
-        validUntil: access.state === 'grace' ? access.until : undefined,
+        validUntil: expiries.length
+          ? new Date(Math.min(...expiries))
+          : undefined,
       };
     };
 

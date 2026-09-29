@@ -322,3 +322,14 @@ variable "github_repository" {
   type        = string
   default     = "Yazan-Ali-01/complytude-backend"
 }
+
+variable "stripe_mode" {
+  description = "Stripe account mode the keys belong to: test (staging) or live"
+  type        = string
+  default     = "test"
+
+  validation {
+    condition     = contains(["test", "live"], var.stripe_mode)
+    error_message = "stripe_mode must be test or live."
+  }
+}

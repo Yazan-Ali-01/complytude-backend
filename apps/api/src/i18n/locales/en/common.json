@@ -15,7 +15,8 @@
     "PAYLOAD_TOO_LARGE": "The request is too large.",
     "UNSUPPORTED_MEDIA_TYPE": "This content type is not supported.",
     "PAYMENT_DECLINED": "The payment was declined. Check the card details or use another card.",
-    "PAYMENT_PROVIDER_ERROR": "The payment provider could not complete the request. Try again shortly."
+    "PAYMENT_PROVIDER_ERROR": "The payment provider could not complete the request. Try again shortly.",
+    "REDIRECT_NOT_ALLOWED": "This return address is not allowed: it must be on the Complytude web app."
   },
   "messages": {}
 }

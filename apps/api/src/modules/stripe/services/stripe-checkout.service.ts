@@ -18,6 +18,10 @@ import {
 } from '../dto/create-checkout-session.dto';
 import { CreateCreditCheckoutDto } from '../dto/create-credit-checkout.dto';
 import { StripeCustomerService } from './stripe-customer.service';
+import {
+  allowedRedirectOrigins,
+  assertAllowedRedirect,
+} from '../redirect-allowlist';
 import { StripeService } from '../stripe.service';
 
 /** Stripe statuses of a subscription that still exists and may bill the customer. */
@@ -60,6 +64,7 @@ export class StripeCheckoutService {
     tenantId: string,
     dto: CreateCheckoutSessionDto,
   ): Promise<CheckoutSessionResponseDto> {
+    this.assertRedirects(dto.successUrl, dto.cancelUrl);
     await this.assertNoLiveSubscription(tenantId);
 
     const plan = await this.plansRepository.findByKey(dto.planKey as PlanKey);
@@ -152,6 +157,7 @@ export class StripeCheckoutService {
     tenantId: string,
     dto: CreateCreditCheckoutDto,
   ): Promise<CheckoutSessionResponseDto> {
+    this.assertRedirects(dto.successUrl, dto.cancelUrl);
     const pkg = await this.creditPackagesRepository.findByKey(dto.packageKey);
     if (!pkg) {
       throw new NotFoundException(
@@ -277,6 +283,12 @@ export class StripeCheckoutService {
    * has completed or expired since, a new one is created, keyed by the stale one so a double
    * click still converges on a single session.
    */
+  /** Stripe sends the customer back to these: only to our own web app. */
+  private assertRedirects(...urls: string[]): void {
+    const allowed = allowedRedirectOrigins(this.configService);
+    for (const url of urls) assertAllowedRedirect(url, allowed);
+  }
+
   private async createSession(
     params: Stripe.Checkout.SessionCreateParams,
     idempotencyKey: string,

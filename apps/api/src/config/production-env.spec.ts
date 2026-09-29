@@ -22,6 +22,7 @@ const PRODUCTION: Record<string, string> = {
   JWT_REFRESH_SECRET: 'b'.repeat(16) + '0123456789abcdef',
   JWT_IDENTITY_SECRET: 'c'.repeat(16) + '0123456789abcdef',
   JWT_IDENTITY_REFRESH_SECRET: 'd'.repeat(16) + '0123456789abcdef',
+  STRIPE_MODE: 'live',
   STRIPE_SECRET_KEY: 'sk_live_51H8xYz0123456789abcdef',
   STRIPE_WEBHOOK_SECRET: 'whsec_0123456789abcdefghij',
   STRIPE_PUBLISHABLE_KEY: 'pk_live_51H8xYz0123456789',
@@ -105,6 +106,23 @@ describe('production environment validation', () => {
           JWT_REFRESH_SECRET: PRODUCTION.JWT_ACCESS_SECRET,
         }),
       ).toEqual([expect.stringContaining('must all be different')]);
+    });
+
+    it('needs STRIPE_MODE, and keys of that mode', () => {
+      expect(errors(api, without('STRIPE_MODE'))).toEqual([
+        'STRIPE_MODE (test or live) is required when NODE_ENV=production',
+      ]);
+      expect(errors(api, { ...PRODUCTION, STRIPE_MODE: 'test' })).toEqual([
+        'STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY must be test-mode keys (STRIPE_MODE=test)',
+      ]);
+      expect(
+        errors(api, {
+          ...PRODUCTION,
+          STRIPE_MODE: 'test',
+          STRIPE_SECRET_KEY: 'rk_test_51H8xYz0123456789abcdef',
+          STRIPE_PUBLISHABLE_KEY: 'pk_test_51H8xYz0123456789',
+        }),
+      ).toEqual([]);
     });
 
     it('needs an https FRONTEND_URL', () => {

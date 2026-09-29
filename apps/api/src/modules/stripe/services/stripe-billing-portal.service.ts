@@ -3,7 +3,13 @@ import {
   CreatePortalSessionDto,
   PortalSessionResponseDto,
 } from '../dto/create-portal-session.dto';
+import { ConfigService } from '@nestjs/config';
+import {
+  allowedRedirectOrigins,
+  assertAllowedRedirect,
+} from '../redirect-allowlist';
 import { StripeCustomerService } from './stripe-customer.service';
+import { StripePortalConfigurationService } from './stripe-portal-configuration.service';
 import { StripeService } from '../stripe.service';
 
 @Injectable()
@@ -13,6 +19,8 @@ export class StripeBillingPortalService {
   constructor(
     private readonly stripeService: StripeService,
     private readonly stripeCustomerService: StripeCustomerService,
+    private readonly configService: ConfigService,
+    private readonly portalConfiguration: StripePortalConfigurationService,
   ) {}
 
   /**
@@ -24,14 +32,17 @@ export class StripeBillingPortalService {
    * - Cancel subscription (at period end)
    * - Switch plan or billing interval
    *
-   * Portal configuration (allowed features, branding, available plans) is
-   * managed once in the Stripe Dashboard.
-   * TODO: automate via billingPortal.configurations.create in StripeCatalogSyncService.
+   * The portal's configuration (catalog prices only, cancel at period end) is kept in code by
+   * StripePortalConfigurationService, never the Dashboard default.
    */
   async createPortalSession(
     tenantId: string,
     dto: CreatePortalSessionDto,
   ): Promise<PortalSessionResponseDto> {
+    assertAllowedRedirect(
+      dto.returnUrl,
+      allowedRedirectOrigins(this.configService),
+    );
     const customerId =
       await this.stripeCustomerService.getOrCreateCustomer(tenantId);
 
@@ -45,6 +56,7 @@ export class StripeBillingPortalService {
       await this.stripeService.client.billingPortal.sessions.create({
         customer: customerId,
         return_url: dto.returnUrl,
+        configuration: await this.portalConfiguration.getId(),
       });
 
     this.logger.log(

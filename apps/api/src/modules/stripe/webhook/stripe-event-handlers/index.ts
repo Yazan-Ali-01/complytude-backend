@@ -7,7 +7,9 @@ import {
 } from 'src/common/types/entitlement.types';
 import {
   getSubscriptionPeriod,
+  ENDED_STRIPE_STATUSES,
   mapStripeStatusToInternal,
+  PROVISIONABLE_STRIPE_STATUSES,
 } from '../../stripe.utils';
 import { DatabaseService } from '@lib/database';
 import { CreditLedgerService } from 'src/modules/entitlements/services/credit-ledger.service';
@@ -132,6 +134,16 @@ export class StripeEventHandlersService {
 
     const { start: periodStart, end: periodEnd } = period;
 
+    // Only a paid (or trialing) subscription is provisioned, with Stripe's own status. One whose
+    // first payment is still pending (e.g. a 3-D Secure challenge) is adopted by
+    // customer.subscription.updated once Stripe marks it active; one that never pays expires.
+    if (!PROVISIONABLE_STRIPE_STATUSES.has(stripeSub.status)) {
+      this.logger.warn(
+        `Checkout ${session.id} completed but subscription ${subscriptionId} is ${stripeSub.status}; not provisioned until it is active (event: ${event.id})`,
+      );
+      return;
+    }
+
     await this.databaseService.transactionWithPlatformAdminContext(
       async (client) => {
         const rawInterval = session.metadata?.interval;
@@ -144,7 +156,7 @@ export class StripeEventHandlersService {
           {
             tenant_id: tenantId,
             plan_id: plan.id,
-            status: 'active',
+            status: mapStripeStatusToInternal(stripeSub.status),
             billing_period_start: periodStart,
             billing_period_end: periodEnd,
             current_period_start: periodStart,
@@ -259,7 +271,7 @@ export class StripeEventHandlersService {
 
     const tenantId = subscription.tenant_id;
 
-    if (stripeSub.status === 'canceled') {
+    if (ENDED_STRIPE_STATUSES.has(stripeSub.status)) {
       if (subscription.status === 'cancelled') {
         this.logger.log(
           `${event.type}: stripe subscription ${stripeSub.id} is already cancelled locally (event=${event.id})`,
@@ -493,7 +505,7 @@ export class StripeEventHandlersService {
     stripeSub: Stripe.Subscription,
     event: Stripe.Event,
   ): Promise<TenantSubscription | null> {
-    if (stripeSub.status !== 'active' && stripeSub.status !== 'trialing') {
+    if (!PROVISIONABLE_STRIPE_STATUSES.has(stripeSub.status)) {
       this.logger.log(
         `${event.type}: no local subscription for ${stripeSub.id} and its Stripe status is ${stripeSub.status}; nothing to adopt (event=${event.id})`,
       );
@@ -669,9 +681,9 @@ export class StripeEventHandlersService {
         stripeSubscriptionId,
       );
 
-    if (stripeSub.status === 'canceled') {
+    if (ENDED_STRIPE_STATUSES.has(stripeSub.status)) {
       this.logger.log(
-        `invoice.paid: stripe subscription ${stripeSubscriptionId} is canceled; the deletion event handles it (event: ${event.id})`,
+        `invoice.paid: stripe subscription ${stripeSubscriptionId} has ended (${stripeSub.status}); the deletion or update event handles it (event: ${event.id})`,
       );
       return;
     }
@@ -771,9 +783,9 @@ export class StripeEventHandlersService {
       this.stripeService.client.invoices.retrieve(invoice.id),
     ]);
 
-    if (stripeSub.status === 'canceled') {
+    if (ENDED_STRIPE_STATUSES.has(stripeSub.status)) {
       this.logger.log(
-        `invoice.payment_failed: stripe subscription ${stripeSubscriptionId} is canceled; the deletion event handles it (event: ${event.id})`,
+        `invoice.payment_failed: stripe subscription ${stripeSubscriptionId} has ended (${stripeSub.status}); the deletion or update event handles it (event: ${event.id})`,
       );
       return;
     }

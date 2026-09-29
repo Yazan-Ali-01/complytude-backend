@@ -186,6 +186,7 @@ describe('Rate limits, login lockout and HTTP hardening', () => {
         object: 'event',
         type: 'customer.created',
         created: Math.floor(Date.now() / 1000),
+        livemode: false,
         data: { object: { id: 'cus_1' } },
       });
 

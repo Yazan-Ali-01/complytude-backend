@@ -1,5 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { RedisService } from '@lib/redis';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type Redis from 'ioredis';
 import { FeatureKey } from '../../../common/types/entitlement.types';
 
 interface CachedSubscription {
@@ -31,12 +39,17 @@ interface CachedFeature {
  *
  * Cache invalidation:
  * - TTL-based expiration (30-60s)
- * - Webhook-based invalidation for subscription changes
+ * - Webhook-based invalidation for subscription changes, published on Redis so every API
+ *   process drops its entry (not only the one that handled the webhook)
  * - Manual invalidation for feature changes
  */
+export const SUBSCRIPTION_INVALIDATION_CHANNEL =
+  'complytude:entitlement:subscription-invalidated';
+
 @Injectable()
-export class EntitlementCacheService {
+export class EntitlementCacheService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EntitlementCacheService.name);
+  private subscriber?: Redis;
 
   // In-memory caches with TTL
   private readonly subscriptionCache = new Map<string, CachedSubscription>();
@@ -46,7 +59,10 @@ export class EntitlementCacheService {
   private readonly subscriptionTtlMs: number;
   private readonly featureTtlMs: number;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @Optional() private readonly redis?: RedisService,
+  ) {
     this.subscriptionTtlMs =
       this.configService.get<number>(
         'app.entitlement.subscriptionCacheTtlSeconds',
@@ -62,6 +78,27 @@ export class EntitlementCacheService {
     this.logger.log(
       `EntitlementCache initialized: subscriptionTTL=${this.subscriptionTtlMs}ms, featureTTL=${this.featureTtlMs}ms`,
     );
+  }
+
+  /** Listens for invalidations from the other processes (its own connection: subscribe mode). */
+  async onModuleInit(): Promise<void> {
+    if (!this.redis) return;
+    try {
+      this.subscriber = this.redis.getClient().duplicate();
+      this.subscriber.on('message', (_channel: string, tenantId: string) => {
+        this.subscriptionCache.delete(tenantId);
+      });
+      await this.subscriber.subscribe(SUBSCRIPTION_INVALIDATION_CHANNEL);
+    } catch (error) {
+      // Without it the 60 s TTL still bounds staleness
+      this.logger.warn(
+        `Subscription cache invalidation listener unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  onModuleDestroy(): void {
+    this.subscriber?.disconnect();
   }
 
   // ─── Subscription Cache ────────────────────────────────────────────────────
@@ -100,6 +137,14 @@ export class EntitlementCacheService {
    * Called by webhook handlers on subscription changes
    */
   invalidateSubscription(tenantId: string): void {
+    this.redis
+      ?.getClient()
+      .publish(SUBSCRIPTION_INVALIDATION_CHANNEL, tenantId)
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Could not publish subscription cache invalidation: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
     const deleted = this.subscriptionCache.delete(tenantId);
     if (deleted) {
       this.logger.debug(

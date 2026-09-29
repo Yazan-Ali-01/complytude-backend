@@ -16,6 +16,7 @@ export const UsersI18n = {
     ROLE_NOT_FOUND: 'users.errors.ROLE_NOT_FOUND',
     ONLY_ADMIN_CAN_GRANT_ADMIN: 'users.errors.ONLY_ADMIN_CAN_GRANT_ADMIN',
     LAST_ACTIVE_ADMIN: 'users.errors.LAST_ACTIVE_ADMIN',
+    SEAT_LIMIT_REACHED: 'users.errors.SEAT_LIMIT_REACHED',
   },
   messages: {
     PASSWORD_CHANGED: 'users.messages.PASSWORD_CHANGED',

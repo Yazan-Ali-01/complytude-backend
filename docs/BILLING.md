@@ -54,7 +54,7 @@ Complytude uses **Stripe** for subscription billing, one-time credit purchases, 
 
 ### Catalog sync
 
-Plans, add-ons, and credit packages are defined in code constants and synced to Stripe Products/Prices when **`STRIPE_CATALOG_SYNC_ENABLED=true`** (startup / manual `POST /api/v1/admin/stripe/sync-catalog`). Stripe IDs are persisted on `plans`, `addons`, and `credit_packages`.
+Plans, add-ons, and credit packages are defined in code constants and synced to Stripe Products/Prices when **`STRIPE_CATALOG_SYNC_ENABLED=true`** (startup / manual `POST /api/v1/admin/stripe/sync-catalog`). Stripe IDs are persisted on `plans`, `addons`, and `credit_packages`. The same sync keeps the Customer Portal configuration (below) in step with the catalog.
 
 ---
 
@@ -99,12 +99,14 @@ sequenceDiagram
   participant DB as PostgreSQL
 
   U->>API: POST /billing/checkout/subscription
+  API->>API: Refuse (400) if successUrl or cancelUrl is not on our frontend
   API->>API: Refuse (409) if a Stripe subscription is active, trialing or past due
   API->>S: Expire other open subscription checkouts
   API->>S: Create Checkout Session (idempotency key = tenant + request hash)
   API-->>U: checkoutUrl
   U->>S: Complete payment
   S->>WH: checkout.session.completed
+  WH->>WH: Provision only if Stripe reports it active or trialing
   WH->>DB: Upsert tenant_subscriptions, invalidate snapshots
   WH->>DB: Emit domain event subscription.created
 ```
@@ -129,6 +131,11 @@ The rule lives in `pastDueAccess()` (`modules/entitlements/utils/past-due-access
 - **Add-on items:** `idempotencyKey = 'addon-item:' + subscription + addon + previous adds`, so a double click creates one item and a re-add after removal a new one.
 - **Plan-change schedules:** a schedule Stripe already attached to the subscription is reused rather than created again.
 - The Stripe client retries network failures twice (`maxNetworkRetries: 2`, 30 s timeout); the SDK adds an idempotency key to every retried request.
+
+### Redirects and the Customer Portal
+
+- **Redirect allowlist:** checkout `successUrl`/`cancelUrl` and the portal `returnUrl` must be on the origin of `FRONTEND_URL` or one of `CORS_ORIGINS`; anything else is refused with 400 before Stripe is called, so a Stripe-hosted page can't send the customer to another site.
+- **Portal configuration:** every portal session uses the configuration the catalog sync manages (`metadata.managed_by = complytude`; `StripePortalConfigurationService`), never the dashboard default. Customers can update their details, tax id and payment method and see invoices; plan switches are limited to our active plans' monthly and annual prices, and cancelling takes effect at the end of the period. Change it in code, not in the Stripe dashboard: the next sync overwrites it.
 
 ### Recurring renewal
 
@@ -178,7 +185,7 @@ Key tables (see also [DATABASE.md](DATABASE.md)):
 
 ## Webhook Processing
 
-1. **Signature:** Raw body + `STRIPE_WEBHOOK_SECRET` (`constructWebhookEvent`).
+1. **Signature:** Raw body + `STRIPE_WEBHOOK_SECRET` (`constructWebhookEvent`). An event whose `livemode` doesn't match `STRIPE_MODE` is refused as well: it comes from the other Stripe account mode.
 2. **Persistence:** A new event is stored in `stripe_webhook_events` as `pending`; a repeat delivery only increments `deliveries`. If the event is already `completed`, the endpoint returns 200 without queueing.
 3. **Async:** Processing runs in a BullMQ job (`jobId` = the Stripe event ID, so a repeat delivery doesn't queue a second job) with 5 attempts over about 30 s.
 4. **At most once at a time:** `processEvent` claims the event atomically (`pending`/`failed` → `processing`, incrementing `attempts`), so a duplicate delivery or a second worker skips it. A `processing` claim older than 15 minutes is treated as a crashed worker and can be claimed again.
@@ -197,9 +204,9 @@ Events **routed** in `StripeWebhookService` (see `stripe.constants.ts` for full 
 
 | Stripe event                      | Handler                       | Behavior                                                                                                                                                                                      | Domain event(s)                                          |
 | --------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `checkout.session.completed`      | `handleCheckoutCompleted`     | If `metadata.checkout_type=credit_purchase` **or** inferred credit flow → credit purchase; else subscription checkout → upsert subscription, link `stripe_subscription_id`, invalidate caches | `credit.purchased` (via ledger) / `subscription.created` |
+| `checkout.session.completed`      | `handleCheckoutCompleted`     | If `metadata.checkout_type=credit_purchase` **or** inferred credit flow → credit purchase; else subscription checkout → if Stripe reports the subscription active or trialing, upsert it with that status, link `stripe_subscription_id`, invalidate caches; one still `incomplete` (first payment pending, e.g. 3-D Secure) is left for `customer.subscription.updated` to adopt | `credit.purchased` (via ledger) / `subscription.created` |
 | `customer.subscription.created`   | `handleSubscriptionChange`    | Re-fetch the subscription from Stripe; sync plan from price, status, periods; sync add-on subscription items. A live subscription with no local row is adopted for the tenant in its `complytude_tenant_id` metadata (or its Stripe customer's tenant) | `subscription.created` when adopted; `subscription.plan_changed` only if plan id changed |
-| `customer.subscription.updated`   | `handleSubscriptionChange`    | Same as created; if Stripe now reports the subscription canceled, handled as deleted                                                                                                          | `subscription.plan_changed` if plan changed              |
+| `customer.subscription.updated`   | `handleSubscriptionChange`    | Same as created; if Stripe now reports the subscription canceled or `incomplete_expired` (first payment never came), handled as deleted | `subscription.plan_changed` if plan changed              |
 | `customer.subscription.deleted`   | `handleSubscriptionChange`    | Cancel the add-ons billed on that subscription; downgrade to Navigator only if the tenant has no other live subscription (a newer paying one keeps its plan and add-ons). No-op if already cancelled locally | `subscription.cancelled`                                 |
 | `invoice.paid`                    | `handleInvoicePaid`           | Advance billing period from the re-fetched Stripe subscription; take its status (another open invoice can keep it `past_due`)                                                                  | `subscription.renewed`                                   |
 | `invoice.payment_failed`          | `handleInvoicePaymentFailed`  | Take the re-fetched subscription's status; if the invoice is still open, store failure metadata and queue dunning emails (a failure already paid off does neither)                              | `subscription.payment_failed`                            |

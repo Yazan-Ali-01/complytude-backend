@@ -20,6 +20,7 @@ export const CommonI18n = {
     UNSUPPORTED_MEDIA_TYPE: 'common.errors.UNSUPPORTED_MEDIA_TYPE',
     PAYMENT_DECLINED: 'common.errors.PAYMENT_DECLINED',
     PAYMENT_PROVIDER_ERROR: 'common.errors.PAYMENT_PROVIDER_ERROR',
+    REDIRECT_NOT_ALLOWED: 'common.errors.REDIRECT_NOT_ALLOWED',
   },
   messages: {},
 } as const;

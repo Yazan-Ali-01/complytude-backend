@@ -15,14 +15,15 @@ import { Queue } from 'bullmq';
  *   flag, so a missed tick still picks up the row on the next run without
  *   double-sending.
  *
- * Both run every 6 hours. Existing repeatable jobs with the same name are
+ * Both run every hour. Existing repeatable jobs with the same name are
  * pruned and re-registered on boot to keep the schedule authoritative.
  */
 @Injectable()
 export class TrialExpirySchedulerService implements OnModuleInit {
   private readonly logger = new Logger(TrialExpirySchedulerService.name);
 
-  private static readonly CRON_PATTERN = '0 */6 * * *';
+  // Hourly: a trial that ended keeps General Counsel access until the next run
+  private static readonly CRON_PATTERN = '0 * * * *';
 
   constructor(
     @InjectQueue(QUEUE_NAMES.ENTITLEMENT_PROCESSING)

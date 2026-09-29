@@ -16,7 +16,9 @@ import { UserTenantRepository } from '../../repositories/users/user-tenant.repos
 import { UserRepository } from '../../repositories/users/user.repository';
 import { SessionListResponseDto } from '../auth/dto/session-list-response.dto';
 import type { TenantSessionItemDto } from '../auth/dto/session-response.dto';
+import { lockTenantSeats } from 'src/common/utils/tenant-seats-lock.util';
 import { PasswordPolicyService } from '../auth/services/password-policy.service';
+import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { SessionInvalidationService } from '../auth/services/session-invalidation.service';
 import { SessionService } from '../auth/services/session.service';
 import { Tenant } from '../tenants/entities/tenant.entity';
@@ -51,6 +53,7 @@ export class UsersService {
     private readonly userTenantRepository: UserTenantRepository,
     private readonly tenantRepository: TenantRepository,
     private readonly passwordPolicy: PasswordPolicyService,
+    private readonly entitlementResolver: EntitlementResolverService,
   ) {}
 
   // ─── The signed-in user ───────────────────────────────────────
@@ -229,6 +232,12 @@ export class UsersService {
             await this.assertAnotherActiveAdmin(client, actor.tenantId);
           }
 
+          // Reactivating takes a seat like a new member: after a downgrade (or at the limit) the
+          // members stay, but nobody comes back until there is room
+          if (updateUserDto.isActive === true && !previous.is_active) {
+            await this.assertSeatAvailable(client, actor.tenantId);
+          }
+
           await this.userTenantRepository.updateByCompositeKey(
             { userId: targetUserId, tenantId: actor.tenantId },
             {
@@ -326,6 +335,25 @@ export class UsersService {
   }
 
   /** Called before an active admin loses the role or access: someone else must keep it. */
+  private async assertSeatAvailable(
+    client: PoolClient,
+    tenantId: string,
+  ): Promise<void> {
+    await lockTenantSeats(client, tenantId);
+    const [activeMembers, seatEntitlement] = await Promise.all([
+      this.userTenantRepository.countActiveByTenant(tenantId, { client }),
+      this.entitlementResolver.resolveForTenant(tenantId, 'user_seats', {
+        client,
+      }),
+    ]);
+    const seatLimit = seatEntitlement?.value_int ?? 0;
+    if (seatLimit !== -1 && activeMembers >= seatLimit) {
+      throw new ForbiddenException(
+        this.i18n.t(UsersI18n.errors.SEAT_LIMIT_REACHED),
+      );
+    }
+  }
+
   private async assertAnotherActiveAdmin(
     client: PoolClient,
     tenantId: string,

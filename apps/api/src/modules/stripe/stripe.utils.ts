@@ -20,6 +20,22 @@ export function getSubscriptionPeriod(stripeSub: Stripe.Subscription): {
 }
 
 /**
+ * Stripe statuses that mean the subscription is over: its local row is cancelled and the tenant
+ * falls back (webhook handlers downgrade them like a cancellation).
+ */
+export const ENDED_STRIPE_STATUSES: ReadonlySet<string> = new Set([
+  'canceled',
+  // The first payment never succeeded within 23 hours: Stripe gave up on it
+  'incomplete_expired',
+]);
+
+/** Statuses a subscription may be provisioned with (paid, or in a trial). */
+export const PROVISIONABLE_STRIPE_STATUSES: ReadonlySet<string> = new Set([
+  'active',
+  'trialing',
+]);
+
+/**
  * Maps a Stripe subscription status string to our internal SubscriptionStatus type.
  * Centralised here to avoid duplication across webhook handlers and subscription service.
  */
@@ -35,7 +51,16 @@ export function mapStripeStatusToInternal(
     case 'unpaid':
       return 'past_due';
     case 'canceled':
+    case 'incomplete_expired':
       return 'cancelled';
+    // Billing stopped (a Stripe trial ended without a payment method): the past-due policy
+    // decides access, from full access for 7 days to read-only
+    case 'paused':
+      return 'past_due';
+    // First payment still pending: never provisioned (checkout and adoption wait for active),
+    // so only an already-known row can reach this; treated as unpaid
+    case 'incomplete':
+      return 'past_due';
     default:
       return 'past_due';
   }

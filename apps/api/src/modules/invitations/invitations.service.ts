@@ -32,6 +32,7 @@ import { UserTenantRepository } from 'src/repositories/users/user-tenant.reposit
 import { UserRepository } from 'src/repositories/users/user.repository';
 import { EmailService } from '../email/email.service';
 import { EntitlementEnforcementService } from '../entitlements/services/entitlement-enforcement.service';
+import { lockTenantSeats } from 'src/common/utils/tenant-seats-lock.util';
 import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { InvitationsI18n } from './constants/i18n.constants';
 
@@ -251,6 +252,7 @@ export class InvitationsService {
         );
       const isNewMember = !existingMembership || !existingMembership.is_active;
       if (isNewMember) {
+        await lockTenantSeats(client, invitation.tenantId);
         const [activeMembers, seatEntitlement] = await Promise.all([
           this.userTenantRepository.countActiveByTenant(invitation.tenantId, {
             client,
@@ -514,6 +516,7 @@ export class InvitationsService {
       // Uses a live COUNT(*) from user_tenants (same source of truth as the
       // accept flow) because capacity features are bidirectional and the
       // aggregated_usage projection can only increment.
+      await lockTenantSeats(client, input.tenantId);
       const occupancyResult = await client.query<{
         active_members: string;
         pending_invitations: string;

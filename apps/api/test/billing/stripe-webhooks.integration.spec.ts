@@ -448,6 +448,81 @@ describe('Stripe webhooks: idempotency, ordering and re-drive', () => {
     });
   });
 
+  describe('provisioning follows the Stripe status', () => {
+    function checkoutCompleted(
+      tenantId: string,
+      stripeSubscriptionId: string,
+    ): Stripe.Event {
+      return stripeEvent('checkout.session.completed', {
+        id: `cs_test_${randomUUID()}`,
+        object: 'checkout.session',
+        mode: 'subscription',
+        subscription: stripeSubscriptionId,
+        payment_status: 'unpaid',
+        metadata: {
+          checkout_type: 'subscription_checkout',
+          complytude_tenant_id: tenantId,
+          plan_key: 'shield',
+        },
+      });
+    }
+
+    it('a checkout whose first payment is still pending grants nothing until Stripe marks it active', async () => {
+      const tenant = await createTestTenant(app.module);
+      await createTestSubscription(app.module, tenant.id, {
+        planKey: 'navigator',
+      });
+      const stripeSubscriptionId = `sub_test_${randomUUID()}`;
+      const pending = stripe.subscription(
+        stripeSubscriptionId,
+        SHIELD_PRICE,
+        'incomplete',
+        { complytude_tenant_id: tenant.id },
+      );
+      stripe.subscriptions.set(stripeSubscriptionId, pending);
+
+      await webhooks.processEvent(
+        checkoutCompleted(tenant.id, stripeSubscriptionId),
+      );
+      expect(await subscriptionOf(tenant.id)).toMatchObject({
+        plan_key: 'navigator',
+        stripe_subscription_id: null,
+      });
+
+      // The payment goes through: Stripe updates the subscription, and it is adopted then
+      const paid = { ...pending, status: 'active' as const };
+      stripe.subscriptions.set(stripeSubscriptionId, paid);
+      await webhooks.processEvent(
+        stripeEvent('customer.subscription.updated', paid),
+      );
+      expect(await subscriptionOf(tenant.id)).toMatchObject({
+        plan_key: 'shield',
+        status: 'active',
+        stripe_subscription_id: stripeSubscriptionId,
+      });
+    });
+
+    it('a subscription whose first payment never came (incomplete_expired) ends like a cancellation', async () => {
+      const { tenantId, stripeSubscriptionId } = await stripeBackedTenant();
+      const expired = stripe.subscription(
+        stripeSubscriptionId,
+        SHIELD_PRICE,
+        'incomplete_expired',
+      );
+      stripe.subscriptions.set(stripeSubscriptionId, expired);
+
+      await webhooks.processEvent(
+        stripeEvent('customer.subscription.updated', expired),
+      );
+
+      // Not a paid plan with 7 days of grace: back on the free plan
+      expect(await subscriptionOf(tenantId)).toMatchObject({
+        plan_key: 'navigator',
+        status: 'active',
+      });
+    });
+  });
+
   describe('re-drive', () => {
     function invoicePaid(stripeSubscriptionId: string): Stripe.Event {
       return stripeEvent('invoice.paid', {

@@ -224,6 +224,7 @@ module "ecs" {
     TEMPLATE_MAX_FILE_SIZE = "5242880"
     SIGNED_URL_EXPIRES_IN  = "900"
 
+    STRIPE_MODE                 = var.stripe_mode
     STRIPE_PUBLISHABLE_KEY      = var.stripe_publishable_key
     STRIPE_CATALOG_SYNC_ENABLED = var.stripe_catalog_sync_enabled
     STRIPE_TAX_ENABLED          = var.stripe_tax_enabled

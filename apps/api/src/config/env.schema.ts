@@ -141,7 +141,16 @@ export const validationSchema = Joi.object({
   // Redis Configuration
   ...redisEnvSchema,
 
-  // Stripe
+  // Stripe. STRIPE_MODE says which account the keys belong to; staging runs NODE_ENV=production
+  // with test keys, so the mode can't be derived from NODE_ENV
+  STRIPE_MODE: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().valid('test', 'live').required().messages({
+      'any.required':
+        'STRIPE_MODE (test or live) is required when NODE_ENV=production',
+    }),
+    otherwise: Joi.string().valid('test', 'live').default('test'),
+  }),
   STRIPE_SECRET_KEY: secretEnv('STRIPE_SECRET_KEY', { min: 20 }),
   STRIPE_WEBHOOK_SECRET: secretEnv('STRIPE_WEBHOOK_SECRET', { min: 20 }),
   STRIPE_PUBLISHABLE_KEY: Joi.string().required(),
@@ -200,9 +209,30 @@ export const validationSchema = Joi.object({
   SSO_FRONTEND_ERROR_PATH: Joi.string().default('/auth/error'),
 }).custom((env: Record<string, unknown>, helpers) => {
   const secrets = JWT_SECRET_KEYS.map((key) => env[key]);
-  return new Set(secrets).size === secrets.length
+  if (new Set(secrets).size !== secrets.length) {
+    return helpers.message({
+      custom: `${JWT_SECRET_KEYS.join(', ')} must all be different`,
+    });
+  }
+  // Test keys on the live deployment (or the reverse) would bill nobody, or bill real cards
+  const mode = env.STRIPE_MODE as string | undefined;
+  const mismatched = [
+    ['STRIPE_SECRET_KEY', ['sk_', 'rk_']],
+    ['STRIPE_PUBLISHABLE_KEY', ['pk_']],
+  ].filter(([key, prefixes]) => {
+    const value = env[key as string];
+    return (
+      mode &&
+      typeof value === 'string' &&
+      value.length > 0 &&
+      !(prefixes as string[]).some((prefix) =>
+        value.startsWith(`${prefix}${mode}_`),
+      )
+    );
+  });
+  return mismatched.length === 0
     ? env
     : helpers.message({
-        custom: `${JWT_SECRET_KEYS.join(', ')} must all be different`,
+        custom: `${mismatched.map(([key]) => key).join(', ')} must be ${mode}-mode keys (STRIPE_MODE=${mode})`,
       });
 });

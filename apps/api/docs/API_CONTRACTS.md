@@ -722,8 +722,8 @@ SSO-only users cannot use `POST /auth/login` with a password until a password ex
 - Default preferences applied (locale: `en`, timezone: `Asia/Dubai`)
 - Tenant slug is `null` on creation; user can set via `PATCH /tenants/me/slug` later
 - **Stripe:** Fire-and-forget customer creation via `StripeCustomerService.createCustomerForTenant()`. Creates Stripe customer with creator email and `metadata.creator_user_id` for traceability. Skips when `STRIPE_SECRET_KEY` is empty. Never blocks tenant creation. **No Stripe Subscription is created here** — paid plans require an explicit Checkout flow.
-- **Trial-ending reminder:** The `TRIAL_REMINDER_CHECK` cron (every 6h) sends a one-shot "trial ending soon" email ~3 days before `trial_ends_at`. Idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
-- **Trial expiry:** The `TRIAL_EXPIRY_CHECK` cron (every 6h) downgrades expired trials to Navigator (free) automatically.
+- **Trial-ending reminder:** The `TRIAL_REMINDER_CHECK` cron (hourly) sends a one-shot "trial ending soon" email ~3 days before `trial_ends_at`. Idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
+- **Trial expiry:** The `TRIAL_EXPIRY_CHECK` cron (hourly) downgrades expired trials to Navigator (free) automatically.
 
 ---
 
@@ -1182,22 +1182,24 @@ New tenants are created with:
 
 ### Seat Capacity Enforcement
 
-The `user_seats` entitlement (capacity feature) is enforced at two points:
+The `user_seats` entitlement (capacity feature) is enforced at three points:
 
 1. **Invitation Accept** (`POST /auth/invitations/:id/accept`): Before adding a new member, the system checks seat capacity via `EntitlementEnforcementService.checkAndRecord`. If at capacity, returns **403 Forbidden**.
 2. **Invitation Create** (`POST /tenants/admin/invitations`): Before creating a pending invitation, the system checks that `active_members + pending_invitations < seat_limit`. If at or over limit, returns **403 Forbidden**.
+3. **Member reactivation** (`PATCH /tenants/admin/users/:userId` with `isActive: true` for a deactivated member): a reactivated member takes a seat like a new one. If none is free, returns **403 Forbidden**. After a downgrade, existing members keep their access, but nobody joins or comes back until there is room.
 
 ### 403 Errors (Seat Limit)
 
 | Endpoint          | Key                             | Message                                                                                                                         |
 | ----------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Accept invitation | `SEAT_LIMIT_REACHED`            | "Workspace has reached its seat limit. Contact the workspace admin to upgrade."                                                 |
+| Reactivate member | `SEAT_LIMIT_REACHED` (users)    | "The workspace has no free seat: upgrade the plan or deactivate someone before reactivating this member."                       |
 | Create invitation | `SEAT_LIMIT_REACHED_FOR_INVITE` | "Cannot send invitation. Workspace has reached its seat limit including pending invitations. Upgrade to add more team members." |
 
 ### Edge Cases
 
 - **Reactivation:** If a user already belongs to the tenant (active or inactive) and accepts an invitation, no new seat is consumed for active members; inactive members being reactivated consume a seat.
-- **Concurrent accept:** CAS in entitlement enforcement handles race conditions when two users accept the last seat simultaneously.
+- **Concurrent requests:** every seat check (invitation create and accept, reactivation) takes a per-tenant advisory lock held until its transaction commits, so two requests for the last seat can't both succeed; the second sees the first's member or invitation.
 - **Invite sent before full, accepted after:** Check happens at accept time, not send time.
 
 ---
@@ -1225,7 +1227,7 @@ Login, tenant switch and the invitation screens return the tenant's real `name`.
 | Route | Purpose |
 |---|---|
 | `GET /tenants/admin/users` | Every member, active or not: `userId`, `email`, names, `role`, `roleName`, `isActive`, `joinedAt`. |
-| `PATCH /tenants/admin/users/:userId` | `{ role?, isActive? }`. `role` must be a system role or one of this tenant's roles (else 400). Their sessions in this tenant end when the role changes or access is turned off. |
+| `PATCH /tenants/admin/users/:userId` | `{ role?, isActive? }`. `role` must be a system role or one of this tenant's roles (else 400). Their sessions in this tenant end when the role changes or access is turned off. Turning access back on takes a seat: **403** `SEAT_LIMIT_REACHED` when the workspace has none free. |
 | `DELETE /tenants/admin/users/:userId` | Removes the membership and ends their sessions in this tenant. |
 
 Rules (403 unless noted): nobody changes or removes themselves; only a `tenant_admin` may change or remove another tenant admin or grant the role; the tenant always keeps one active tenant admin (400, checked under a row lock so two admins can't remove each other at once). Member sessions: see "Session management API" above (`sessions:manage`).
@@ -1331,7 +1333,7 @@ Removes pending end-of-period cancellation. **204 No Content**.
 | `cancelUrl`  | URL  | Yes      | Redirect if user cancels                                        |
 
 **Response (201):** `CheckoutSessionResponseDto` — `{ checkoutUrl, sessionId }`.
-**Errors:** 409 if the tenant already has a Stripe subscription that is active, trialing or past due (in our DB, or in Stripe before its webhook lands). Use the plan-change flow, or the billing portal to fix payment details.
+**Errors:** 400 `REDIRECT_NOT_ALLOWED` if `successUrl` or `cancelUrl` is not on the origin of `FRONTEND_URL` or one of `CORS_ORIGINS`. 409 if the tenant already has a Stripe subscription that is active, trialing or past due (in our DB, or in Stripe before its webhook lands). Use the plan-change flow, or the billing portal to fix payment details.
 
 **Idempotent:** a repeated request with the same body (double click) returns the same session. Opening a checkout for a different plan or interval expires the tenant's other open subscription checkout, so only one can be completed.
 
@@ -1339,7 +1341,8 @@ Removes pending end-of-period cancellation. **204 No Content**.
 
 **Permission:** `billing:manage`
 **Body:** `{ "returnUrl": "<URL>" }` — `CreatePortalSessionDto`.
-**Response (201):** `PortalSessionResponseDto` — `{ "url": "<Stripe portal URL>" }`.
+**Response (201):** `PortalSessionResponseDto` — `{ "url": "<Stripe portal URL>" }`. The session uses the portal configuration the catalog sync manages (see [BILLING.md](../../../docs/BILLING.md#redirects-and-the-customer-portal)).
+**Errors:** 400 `REDIRECT_NOT_ALLOWED` if `returnUrl` is not on our frontend (same rule as checkout).
 
 ### `GET /api/v1/billing/credits/packages`
 
@@ -1358,6 +1361,7 @@ Lists credit packages from code constants (no extra permission beyond tenant aut
 | `cancelUrl`  | URL    | Yes      | Cancel redirect                                        |
 
 **Response (201):** `CheckoutSessionResponseDto`.
+**Errors:** 400 `REDIRECT_NOT_ALLOWED` if `successUrl` or `cancelUrl` is not on our frontend (same rule as subscription checkout).
 
 **Architecture note:** Successful payment is applied via Stripe webhook `checkout.session.completed` (see [BILLING.md](../../../docs/BILLING.md)).
 

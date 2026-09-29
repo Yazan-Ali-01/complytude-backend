@@ -4,6 +4,7 @@ import { TenantSubscription } from 'src/common/types/entitlement.types';
 import { DatabaseService } from '@lib/database';
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
 import { AddonsRepository } from 'src/repositories/entitlements/addons.repository';
+import { EntitlementCacheService } from 'src/modules/entitlements/services/entitlement-cache.service';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { TenantAddonsRepository } from 'src/repositories/entitlements/tenant-addons.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
@@ -50,6 +51,7 @@ export class StripeReconciliationService {
     private readonly addonsRepository: AddonsRepository,
     private readonly tenantAddonsRepository: TenantAddonsRepository,
     private readonly addonSyncEngine: AddonSyncEngine,
+    private readonly entitlementCache: EntitlementCacheService,
   ) {}
 
   async reconcileAll(): Promise<ReconciliationReport> {
@@ -223,11 +225,11 @@ export class StripeReconciliationService {
           { client },
         );
 
-        if (planDrift) {
-          await this.entitlementSnapshotsRepository.invalidate(sub.tenant_id, {
-            client,
-          });
-        }
+        // Any correction changes what the tenant is entitled to (a status drift decides past-due
+        // access too), so neither the snapshot nor any process's cached subscription may outlive it
+        await this.entitlementSnapshotsRepository.invalidate(sub.tenant_id, {
+          client,
+        });
 
         await this.domainEventsService.emit(
           {
@@ -263,6 +265,8 @@ export class StripeReconciliationService {
         );
       },
     );
+    // After the commit: another process re-reading earlier would cache the old row again
+    this.entitlementCache.invalidateSubscription(sub.tenant_id);
 
     report.fixed++;
     this.logger.log(

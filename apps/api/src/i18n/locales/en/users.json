@@ -12,7 +12,8 @@
     "CANNOT_CHANGE_OWN_ACCESS": "You can't change your own role or access",
     "ROLE_NOT_FOUND": "Role not found in this tenant",
     "ONLY_ADMIN_CAN_GRANT_ADMIN": "Only a tenant admin can change a tenant admin's role or access, or grant the tenant admin role",
-    "LAST_ACTIVE_ADMIN": "The tenant must keep at least one active tenant admin"
+    "LAST_ACTIVE_ADMIN": "The tenant must keep at least one active tenant admin",
+    "SEAT_LIMIT_REACHED": "The workspace has no free seat: upgrade the plan or deactivate someone before reactivating this member."
   },
   "messages": {
     "PASSWORD_CHANGED": "Password changed. You were signed out on every other device.",
