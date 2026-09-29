@@ -399,7 +399,7 @@ HUSKY=0 git commit -m "your message"
 
 - Provide a clear description of the changes
 - Reference related issues
-- Ensure all CI checks pass (`.github/workflows/ci.yml`: lint without `--fix`, type-check, unit and integration tests)
+- Ensure all CI checks pass (`.github/workflows/ci.yml`: `pnpm audit --prod --audit-level=high`, lint without `--fix`, type-check, unit and integration tests). A new high or critical advisory in a production dependency fails CI; Dependabot (`.github/dependabot.yml`) opens weekly update PRs against `development`
 - Request review from maintainers
 - Address review feedback promptly
 

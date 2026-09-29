@@ -341,7 +341,7 @@ The pre-commit hook also runs `pnpm type-check` and `lint-staged` before every c
   - Any migration or env var changes that reviewers need to know about
   - Steps to test manually if the change is non-obvious
 - Keep PRs focused — one logical change per PR; split unrelated fixes into separate branches
-- Ensure `pnpm lint:ci`, `pnpm type-check`, and `pnpm test` all pass before requesting review. `.github/workflows/ci.yml` runs the same checks on every PR and before every staging deploy.
+- Ensure `pnpm lint:ci`, `pnpm type-check`, and `pnpm test` all pass before requesting review. `.github/workflows/ci.yml` runs the same checks on every PR and before every staging deploy, plus `pnpm audit --prod --audit-level=high` (a high or critical advisory in a production dependency fails CI).
 
 ---
 
