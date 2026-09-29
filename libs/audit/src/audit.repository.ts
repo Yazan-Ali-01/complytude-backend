@@ -1,5 +1,6 @@
 import { BaseRepository, DatabaseService } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
+import type { QueryResult } from 'pg';
 import { AuditLog, AuditLogFilters, CreateAuditLogInput } from './audit.types';
 
 const SELECT_COLUMNS =
@@ -50,7 +51,7 @@ export class AuditLogsRepository extends BaseRepository<
       RETURNING ${SELECT_COLUMNS}
     `;
 
-    const result = await this.executeQuery(query, [
+    const result = await this.inRowContext(input.tenantId, query, [
       input.tenantId || null,
       input.actorId || null,
       input.actorType || 'user',
@@ -71,6 +72,23 @@ export class AuditLogsRepository extends BaseRepository<
   async createBatch(inputs: CreateAuditLogInput[]): Promise<AuditLog[]> {
     if (inputs.length === 0) return [];
 
+    // One insert per tenant: each runs in that tenant's context (RLS)
+    const byTenant = new Map<string | null, CreateAuditLogInput[]>();
+    for (const input of inputs) {
+      const key = input.tenantId || null;
+      byTenant.set(key, [...(byTenant.get(key) ?? []), input]);
+    }
+    const results: AuditLog[] = [];
+    for (const [tenantId, group] of byTenant) {
+      results.push(...(await this.insertGroup(tenantId, group)));
+    }
+    return results;
+  }
+
+  private async insertGroup(
+    tenantId: string | null,
+    inputs: CreateAuditLogInput[],
+  ): Promise<AuditLog[]> {
     const COLS_PER_ROW = 12;
     const valuePlaceholders = inputs
       .map((_, rowIdx) => {
@@ -109,7 +127,7 @@ export class AuditLogsRepository extends BaseRepository<
     `;
 
     try {
-      const result = await this.executeQuery(query, params);
+      const result = await this.inRowContext(tenantId, query, params);
       return result.rows.map((row) => this.mapRow(row));
     } catch (batchError) {
       this.auditLogger.error(
@@ -131,6 +149,26 @@ export class AuditLogsRepository extends BaseRepository<
       }
       return results;
     }
+  }
+
+  /**
+   * audit_logs has RLS: a row is written and read in its own tenant's context, and a row with no
+   * tenant (system or identity-level events) in platform-admin context.
+   */
+  private inRowContext(
+    tenantId: string | null | undefined,
+    query: string,
+    params: unknown[],
+  ): Promise<QueryResult<Record<string, unknown>>> {
+    return tenantId
+      ? this.executeQuery<Record<string, unknown>>(query, params, {
+          tenant: { tenantId, schema: 'public' },
+        })
+      : this.databaseService.transactionWithPlatformAdminContext((client) =>
+          this.executeQuery<Record<string, unknown>>(query, params, {
+            client,
+          }),
+        );
   }
 
   async findByTenant(
@@ -175,7 +213,9 @@ export class AuditLogsRepository extends BaseRepository<
       OFFSET ${filters?.offset || 0}
     `;
 
-    const result = await this.executeQuery(query, params);
+    const result = await this.executeQuery(query, params, {
+      tenant: { tenantId, schema: 'public' },
+    });
     return result.rows.map((row) => this.mapRow(row));
   }
 
@@ -221,7 +261,8 @@ export class AuditLogsRepository extends BaseRepository<
       OFFSET ${filters?.offset || 0}
     `;
 
-    const result = await this.executeQuery(query, params);
+    // An actor's history spans tenants: platform admins only
+    const result = await this.inRowContext(null, query, params);
     return result.rows.map((row) => this.mapRow(row));
   }
 
@@ -264,7 +305,9 @@ export class AuditLogsRepository extends BaseRepository<
       WHERE ${conditions.join(' AND ')}
     `;
 
-    const result = await this.executeQuery(query, params);
+    const result = await this.executeQuery(query, params, {
+      tenant: { tenantId, schema: 'public' },
+    });
     return parseInt((result.rows[0]?.count as string) || '0', 10);
   }
 }

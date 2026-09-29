@@ -129,6 +129,10 @@ All variables are transaction-scoped (`is_local=true`) — they clear on COMMIT/
 
 Integration tests run the app as a non-superuser role (`app_login`, a member of `app_user`), so RLS applies as it does in deployed environments. `apps/api/test/rls/tenant-isolation.integration.spec.ts` has one case per policy, checks that no tenant can read or write another tenant's rows, and fails if any policy can be dropped without a test noticing or if a policy has no case. Add a case there when you add or change a policy; see `apps/api/test/README.md`.
 
+`audit_logs` has RLS too (migration 029): a tenant context reads and writes only its own rows;
+rows with no tenant (system and identity-level events) are written and read in platform-admin
+context. `AuditLogsRepository` picks the context from each row's `tenant_id`.
+
 `BaseRepository` refuses to run a query on a table with RLS unless it gets `{ client }` from one of the context transactions above or `{ tenant }`: it throws rather than let the query return no rows. The tables are listed in `RLS_TABLES` (`libs/database/src/base/rls-tables.ts`); the RLS suite fails if that list and the database disagree, so update it when you enable RLS on a table.
 
 ---
@@ -803,7 +807,10 @@ WITH CHECK (tenant_id = current_tenant_id_or_null() OR is_platform_admin());
 
 ### Session Context Functions
 
-Helper functions for RLS policies (defined in migration 003):
+Helper functions for RLS policies (defined in migration 003; since migration 030 they are
+`LANGUAGE sql STABLE` without exception blocks, so the planner inlines them instead of running
+plpgsql per row. A malformed `app.tenant_id` reads as NULL, and a flag counts only when it is
+exactly `'true'`):
 
 ```sql
 -- Get current tenant ID (strict — throws if not set)

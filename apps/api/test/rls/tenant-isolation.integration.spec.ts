@@ -29,6 +29,7 @@ interface TenantRows {
   subscriptionId: string;
   documentId: string;
   analysisJobId: string;
+  auditLogId: string;
   creditLedgerId: string;
   domainEventId: string;
   snapshotId: string;
@@ -117,6 +118,11 @@ const INSERT_FOR: Record<string, (t: TenantRows, w: World) => Op> = {
       'INSERT INTO public.analysis_jobs (tenant_id, document_id) VALUES ($1, $2)',
       [t.tenantId, t.documentId],
     ),
+  audit_logs: (t) =>
+    inserts(
+      `INSERT INTO public.audit_logs (tenant_id, action, resource_type) VALUES ($1, 'RLS_FIXTURE', 'test')`,
+      [t.tenantId],
+    ),
   credit_ledger: (t) =>
     inserts(
       `INSERT INTO public.credit_ledger (tenant_id, transaction_type, amount, balance_after) VALUES ($1, 'grant', 1, 1)`,
@@ -191,7 +197,7 @@ const membershipOf =
   async (c, w) =>
     (await rowCount(c, sql, [tenant(w).userId, tenant(w).tenantId])) === 1;
 
-/** One case per RLS policy (40): the operation the policy allows, in the context it allows it. */
+/** One case per RLS policy (42): the operation the policy allows, in the context it allows it. */
 const POLICY_CASES: PolicyCase[] = [
   // aggregated_usage
   {
@@ -246,6 +252,19 @@ const POLICY_CASES: PolicyCase[] = [
     ),
   },
   // credit_ledger (append-only)
+  // audit_logs (append-only)
+  {
+    policy: 'audit_logs_select',
+    table: 'audit_logs',
+    context: TENANT,
+    run: selectsById('audit_logs', (w) => w.a.auditLogId),
+  },
+  {
+    policy: 'audit_logs_insert',
+    table: 'audit_logs',
+    context: TENANT,
+    run: insertsForA('audit_logs'),
+  },
   {
     policy: 'credit_ledger_select',
     table: 'credit_ledger',
@@ -501,6 +520,7 @@ const POLICY_CASES: PolicyCase[] = [
 const TENANT_TABLES: Record<string, (t: TenantRows) => string> = {
   aggregated_usage: (t) => t.aggregatedUsageId,
   analysis_jobs: (t) => t.analysisJobId,
+  audit_logs: (t) => t.auditLogId,
   credit_ledger: (t) => t.creditLedgerId,
   documents: (t) => t.documentId,
   domain_events: (t) => t.domainEventId,
@@ -601,6 +621,10 @@ describe('Tenant isolation (RLS) as the app role', () => {
         analysisJobId: await one(
           'INSERT INTO public.analysis_jobs (tenant_id, document_id) VALUES ($1, $2) RETURNING id',
           [tenantId, documentId],
+        ),
+        auditLogId: await one(
+          `INSERT INTO public.audit_logs (tenant_id, action, resource_type) VALUES ($1, 'RLS_FIXTURE', 'test') RETURNING id`,
+          [tenantId],
         ),
         creditLedgerId: await one(
           `INSERT INTO public.credit_ledger (tenant_id, transaction_type, amount, balance_after) VALUES ($1, 'grant', 10, 10) RETURNING id`,
@@ -828,6 +852,62 @@ describe('Tenant isolation (RLS) as the app role', () => {
       if (tenants.rowCount) visible.push('tenants');
       expect(visible).toEqual([]);
     });
+  });
+
+  it('the helpers every policy calls are plain SQL, and keep their meaning', async () => {
+    const helpers = [
+      'current_tenant_id_or_null',
+      'is_tenant_admin',
+      'is_auth_flow',
+      'is_platform_admin',
+      'allow_cross_tenant_read',
+    ];
+    const { rows: languages } = await admin.query<{
+      proname: string;
+      lanname: string;
+    }>(
+      `SELECT p.proname, l.lanname FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang
+       WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY($1) ORDER BY 1`,
+      [helpers],
+    );
+    // plpgsql (with an EXCEPTION block) ran per row; SQL functions are inlined by the planner
+    expect(languages.map((r) => r.lanname)).toEqual(helpers.map(() => 'sql'));
+
+    const tenantId = randomUUID();
+    const evaluate = (settings: Record<string, string>) =>
+      appDb.transaction(async (client) => {
+        for (const [name, value] of Object.entries(settings)) {
+          await client.query('SELECT set_config($1, $2, true)', [name, value]);
+        }
+        const { rows } = await client.query<{
+          tenant: string | null;
+          admin: boolean;
+          platform: boolean;
+        }>(
+          `SELECT current_tenant_id_or_null() AS tenant, is_tenant_admin() AS admin,
+                  is_platform_admin() AS platform`,
+        );
+        return rows[0];
+      });
+
+    expect(await evaluate({})).toEqual({
+      tenant: null,
+      admin: false,
+      platform: false,
+    });
+    expect(
+      await evaluate({
+        'app.tenant_id': tenantId,
+        'app.is_tenant_admin': 'true',
+      }),
+    ).toEqual({ tenant: tenantId, admin: true, platform: false });
+    // A malformed id is no tenant (no error, no match); only the exact string 'true' counts
+    expect(
+      await evaluate({
+        'app.tenant_id': "x' OR '1'='1",
+        'app.platform_role': 'TRUE',
+      }),
+    ).toEqual({ tenant: null, admin: false, platform: false });
   });
 
   it("BaseRepository's RLS_TABLES lists exactly the tables with row-level security", async () => {
