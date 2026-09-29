@@ -138,7 +138,7 @@ Verify: `http://$(terraform output -raw alb_dns_name)/api/health` should return 
 
 ## Monitoring (CloudWatch Alarms)
 
-The monitoring module creates CloudWatch alarms for ECS (running tasks, CPU and memory as a percentage of reserved), the load balancer (5xx, p95 latency, API tasks failing readiness), RDS (connections, storage, CPU, memory), Redis (memory, evictions), error-level log lines per app, every BullMQ queue (backlog, oldest waiting job, failures; from the API's `queue-metrics` log lines) and an external Route 53 uptime check of `/api/health/ready` (alarm in us-east-1, so the root module passes an `aws.us_east_1` provider). Every alarm notifies on firing and on recovery, by email via SNS (`alarm_emails`).
+The monitoring module creates CloudWatch alarms for ECS (running tasks, CPU and memory as a percentage of reserved), the load balancer (5xx, p95 latency, API tasks failing readiness), RDS (connections, storage, CPU, memory), Redis (memory, evictions), error-level log lines per app, every BullMQ queue (backlog, oldest waiting job, failures; from the API's `queue-metrics` log lines) and an external Route 53 uptime check of `/api/health/ready` (alarm in us-east-1, so the root module passes an `aws.us_east_1` provider), and SES sender reputation (bounce and complaint rates, well below SES's review thresholds). Every alarm notifies on firing and on recovery, by email via SNS (`alarm_emails`).
 
 **After first apply:** every address gets **two** SNS confirmation emails (the main region and us-east-1). Click both, or the alarms reach nobody. Prefer a shared on-call address to one person's inbox.
 

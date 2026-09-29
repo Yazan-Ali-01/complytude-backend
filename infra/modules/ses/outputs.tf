@@ -22,3 +22,13 @@ output "ses_send_policy_arn" {
   description = "ARN of the IAM policy for sending emails via SES"
   value       = aws_iam_policy.ses_send_email.arn
 }
+
+output "feedback_topic_arn" {
+  description = "SNS topic receiving every bounce and complaint"
+  value       = aws_sns_topic.feedback.arn
+}
+
+output "mail_from_domain" {
+  description = "Custom MAIL FROM domain (bounces return here; SPF is published here)"
+  value       = aws_ses_domain_mail_from.main.mail_from_domain
+}

@@ -1,4 +1,8 @@
-import { SendEmailCommand, SESClient } from '@aws-sdk/client-ses';
+import {
+  SendEmailCommand,
+  SendEmailCommandInput,
+  SESClient,
+} from '@aws-sdk/client-ses';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
@@ -99,6 +103,19 @@ export class EmailService {
     });
   }
 
+  /**
+   * Every send names the configuration set, so SES records its delivery, bounce and complaint
+   * events and counts it in the reputation metrics the alarms watch.
+   */
+  private sesCommand(input: SendEmailCommandInput): SendEmailCommand {
+    return new SendEmailCommand({
+      ...input,
+      ...(this.config.configurationSet && {
+        ConfigurationSetName: this.config.configurationSet,
+      }),
+    });
+  }
+
   async sendVerificationEmail(
     email: string,
     token: string,
@@ -118,7 +135,7 @@ export class EmailService {
     const textBody = this.renderVerificationText(verificationUrl, locale);
 
     try {
-      const command = new SendEmailCommand({
+      const command = this.sesCommand({
         Source: `${this.config.fromName} <${this.config.fromEmail}>`,
         Destination: { ToAddresses: [email] },
         Message: {
@@ -216,7 +233,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     const textBody = this.renderPasswordResetText(resetUrl, locale);
 
     try {
-      const command = new SendEmailCommand({
+      const command = this.sesCommand({
         Source: `${this.config.fromName} <${this.config.fromEmail}>`,
         Destination: { ToAddresses: [email] },
         Message: {
@@ -332,7 +349,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
 
     try {
       await this.sesClient.send(
-        new SendEmailCommand({
+        this.sesCommand({
           Source: `${this.config.fromName} <${this.config.fromEmail}>`,
           Destination: { ToAddresses: [email] },
           Message: {
@@ -374,7 +391,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     const textBody = this.renderPaymentActionRequiredText(data, locale);
 
     try {
-      const command = new SendEmailCommand({
+      const command = this.sesCommand({
         Source: `${this.config.fromName} <${this.config.fromEmail}>`,
         Destination: {
           ToAddresses: [data.tenantAdminEmail],
@@ -512,7 +529,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     const textBody = this.renderTrialEndingText(data, tenantName, locale);
 
     try {
-      const command = new SendEmailCommand({
+      const command = this.sesCommand({
         Source: `${this.config.fromName} <${this.config.fromEmail}>`,
         Destination: { ToAddresses: uniqueRecipients },
         Message: {
@@ -632,7 +649,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     );
 
     try {
-      const command = new SendEmailCommand({
+      const command = this.sesCommand({
         Source: `${this.config.fromName} <${this.config.fromEmail}>`,
         Destination: {
           ToAddresses: [data.tenantAdminEmail],
@@ -1189,7 +1206,7 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
     }
     try {
       await this.sesClient.send(
-        new SendEmailCommand({
+        this.sesCommand({
           Source: `${this.config.fromName} <${this.config.fromEmail}>`,
           Destination: { ToAddresses: to },
           Message: {

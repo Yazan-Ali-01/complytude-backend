@@ -172,6 +172,8 @@ export const validationSchema = Joi.object({
   FROM_EMAIL: Joi.string().email().required(),
   FROM_NAME: Joi.string().default('Complytude Billing'),
   SUPPORT_EMAIL: Joi.string().email().required(),
+  // SES configuration set named on every send (delivery/bounce/complaint events); empty = none
+  SES_CONFIGURATION_SET: Joi.string().allow('').default(''),
 
   // Gotenberg (DOCX → PDF conversion)
   GOTENBERG_URL: Joi.string().uri().default('http://localhost:3100'),

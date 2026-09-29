@@ -710,6 +710,37 @@ done
 
 ---
 
+## Email (SES)
+
+`infra/modules/ses` sets up sending for `complytude.com`:
+- **DNS**, in the Route 53 zone this state manages:
+  - the verification TXT (`_amazonses`) and the three DKIM CNAMEs, so SES verifies the domain and signs every message;
+  - the custom MAIL FROM `mail.complytude.com`, with its MX (bounces) and `v=spf1 include:amazonses.com -all`, so SPF aligns without touching the root domain's TXT records;
+  - a DMARC record, `p=none` (reports only) to start.
+- **Configuration set** `complytude-staging`: the API names it on every send (`SES_CONFIGURATION_SET`). It counts send, delivery, bounce, complaint and reject events in CloudWatch per `EmailType`, and publishes every bounce and complaint to the SNS topic `complytude-staging-ses-feedback` (`feedback_emails` subscribes addresses).
+- **Suppression:** the account-level suppression list covers bounces and complaints. An address that hard-bounced or complained is not mailed again: SES drops the message and records a bounce.
+- **Alarms:** `Reputation.BounceRate` ≥ 3 % and `Reputation.ComplaintRate` ≥ 0.05 % notify the alarm topic. SES reviews the account at 5 % / 0.1 % and can pause sending at 10 % / 0.5 %.
+
+Tighten DMARC to `quarantine`, then `reject` (`dmarc_policy`), once the aggregate reports (`dmarc_report_email`) show every legitimate sender passing.
+
+### Leaving the SES sandbox (one-off, account owner)
+
+A new account can only send to verified addresses, so verification and password-reset mail doesn't reach users until production access is granted. Request it once per region, after the domain shows **Verified** with DKIM **Successful** in SES:
+
+```bash
+aws sesv2 put-account-details --region eu-central-1 \
+  --production-access-enabled \
+  --mail-type TRANSACTIONAL \
+  --website-url https://complytude.com \
+  --contact-language EN \
+  --use-case-description "Transactional email for a B2B compliance SaaS: account verification, password reset, team invitations and billing notices, to users who signed up. Bounces and complaints are handled with the SES account suppression list and a configuration set with event publishing; bounce and complaint rates are alarmed in CloudWatch." \
+  --additional-contact-email-addresses ops@complytude.com
+```
+
+AWS answers within about a day (Support case in the console). Check with `aws sesv2 get-account --region eu-central-1 --query ProductionAccessEnabled`.
+
+---
+
 ## Developer Access (IAM Identity Center)
 
 No IAM users or access keys exist for people. Developers sign in with IAM Identity Center and get short-lived credentials for the `complytude-staging-developer` permission set (`infra/modules/developers`). It allows:

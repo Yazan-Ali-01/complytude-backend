@@ -6,6 +6,8 @@ export interface EmailConfig {
   fromName: string;
   supportEmail: string;
   frontendUrl: string;
+  /** SES configuration set named on every send (event tracking, reputation); empty = none */
+  configurationSet?: string;
 }
 
 export const emailConfig = (configService: ConfigService): EmailConfig => ({
@@ -14,4 +16,6 @@ export const emailConfig = (configService: ConfigService): EmailConfig => ({
   fromName: configService.get<string>('FROM_NAME', 'Complytude Billing'),
   supportEmail: configService.get<string>('SUPPORT_EMAIL')!,
   frontendUrl: configService.getOrThrow<string>('FRONTEND_URL'),
+  configurationSet:
+    configService.get<string>('SES_CONFIGURATION_SET') || undefined,
 });

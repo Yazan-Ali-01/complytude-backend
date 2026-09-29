@@ -21,6 +21,7 @@ interface SentEmail {
   html: string;
   text: string;
   type: string;
+  configurationSet?: string;
 }
 
 type Headers = Record<string, string | string[] | undefined>;
@@ -41,6 +42,12 @@ describe('Transactional emails (SES mocked)', () => {
     // .env.test sets EMAIL_SKIP_SEND (read when AppModule is imported); send for real here, into
     // the mocked SES client
     Object.assign(app.module.get(EmailService), { skipSend: false });
+    // As SES_CONFIGURATION_SET sets it in a deployment
+    (
+      Reflect.get(app.module.get(EmailService), 'config') as {
+        configurationSet?: string;
+      }
+    ).configurationSet = 'complytude-test';
   }, 60000);
 
   beforeEach(async () => {
@@ -54,6 +61,7 @@ describe('Transactional emails (SES mocked)', () => {
         html: input.Message?.Body?.Html?.Data ?? '',
         text: input.Message?.Body?.Text?.Data ?? '',
         type: input.Tags?.find((tag) => tag.Name === 'EmailType')?.Value ?? '',
+        configurationSet: input.ConfigurationSetName,
       });
       return Promise.resolve({ MessageId: randomUUID() });
     };
@@ -131,6 +139,41 @@ describe('Transactional emails (SES mocked)', () => {
     expect(token).toBeDefined();
     expect(created.body).not.toContain(token);
     expectArabicRtl(invitations[0]);
+  });
+
+  it('every email names the SES configuration set and carries its EmailType tag', async () => {
+    const email = `cs-${randomUUID()}@example.com`;
+    const signup = () =>
+      server.inject({
+        method: 'POST',
+        url: '/api/v1/auth/signup',
+        payload: { email, password: 'Test123!@#' },
+      });
+    const verificationToken = (await signup()).json<{
+      verificationToken: string;
+    }>().verificationToken;
+    await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/verify-email',
+      payload: { token: verificationToken },
+    });
+    await signup(); // the account now exists: the owner is told instead
+    await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/forgot-password',
+      payload: { email },
+    });
+    // The account-exists send is not awaited by signup
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(sent.map((e) => e.type).sort()).toEqual([
+      'account_exists',
+      'password_reset',
+      'verification',
+    ]);
+    expect(sent.every((e) => e.configurationSet === 'complytude-test')).toBe(
+      true,
+    );
   });
 
   describe('POST /auth/resend-verification', () => {

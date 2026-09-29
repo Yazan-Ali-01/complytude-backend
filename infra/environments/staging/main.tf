@@ -119,6 +119,8 @@ module "ses" {
   project_name = var.project
   environment  = var.environment
   domain_name  = var.domain_name
+  # Verification, DKIM, MAIL FROM and DMARC records in the zone this state manages
+  zone_id = module.route53.zone_id
 }
 
 # Secret containers only: issued credentials are put in with scripts/deploy/put-app-secrets.sh,
@@ -230,6 +232,8 @@ module "ecs" {
     FROM_EMAIL    = var.from_email
     FROM_NAME     = var.from_name
     SUPPORT_EMAIL = var.support_email
+    # Every send names it: delivery, bounce and complaint events and reputation metrics
+    SES_CONFIGURATION_SET = module.ses.configuration_set_name
 
     # OAuth2 SSO (empty client id = provider off); the client secrets are in the app secret
     GOOGLE_CLIENT_ID          = var.google_client_id

@@ -484,3 +484,36 @@ resource "aws_cloudwatch_metric_alarm" "api_uptime" {
     HealthCheckId = aws_route53_health_check.api[0].id
   }
 }
+
+# ---- SES sender reputation ----
+# SES reviews the account at a 5 % bounce or 0.1 % complaint rate and can pause sending at 10 % /
+# 0.5 %: verification, password-reset and billing mail would stop. Alarm well before review.
+resource "aws_cloudwatch_metric_alarm" "ses_bounce_rate" {
+  alarm_name          = "${local.name}-ses-bounce-rate"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Reputation.BounceRate"
+  namespace           = "AWS/SES"
+  period              = 3600
+  statistic           = "Maximum"
+  threshold           = var.ses_bounce_rate_threshold
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "SES bounce rate at or above ${var.ses_bounce_rate_threshold * 100}% (SES reviews the account at 5%)"
+  alarm_actions       = local.actions
+  ok_actions          = local.actions
+}
+
+resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
+  alarm_name          = "${local.name}-ses-complaint-rate"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Reputation.ComplaintRate"
+  namespace           = "AWS/SES"
+  period              = 3600
+  statistic           = "Maximum"
+  threshold           = var.ses_complaint_rate_threshold
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "SES complaint rate at or above ${var.ses_complaint_rate_threshold * 100}% (SES reviews the account at 0.1%)"
+  alarm_actions       = local.actions
+  ok_actions          = local.actions
+}

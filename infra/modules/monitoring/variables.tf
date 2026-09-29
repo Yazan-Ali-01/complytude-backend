@@ -114,3 +114,15 @@ variable "queue_failed_threshold" {
   type        = number
   default     = 5
 }
+
+variable "ses_bounce_rate_threshold" {
+  description = "SES bounce rate (0–1) that raises the alarm; SES reviews the account at 0.05"
+  type        = number
+  default     = 0.03
+}
+
+variable "ses_complaint_rate_threshold" {
+  description = "SES complaint rate (0–1) that raises the alarm; SES reviews the account at 0.001"
+  type        = number
+  default     = 0.0005
+}
