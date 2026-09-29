@@ -540,7 +540,13 @@ export class DocumentsService {
       const job = await this.analysisJobRepository.findById(analysisJobId, {
         tenant: tenantContext,
       });
-      if (!job) {
+      // A deleted document's analyses go with it
+      const document =
+        job &&
+        (await this.documentRepository.findActiveById(job.document_id, {
+          tenant: tenantContext,
+        }));
+      if (!job || !document) {
         throw new NotFoundException(
           this.i18n.t(DocumentsI18n.errors.ANALYSIS_JOB_NOT_FOUND),
         );

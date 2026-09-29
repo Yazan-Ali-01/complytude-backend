@@ -943,6 +943,19 @@ pnpm db:migrate
 ./scripts/run-migrations.sh
 ```
 
+### Deletion and retention
+
+- **Deleting a document** (`DELETE /documents/:id`) is a soft delete that erases content at once:
+  `content`, `content_structured` and `generation_variables` are cleared, and so are the
+  document's `analysis_jobs.result` and `generation_jobs.variables`. The row stays (who deleted it,
+  when) and is hidden from the API, counts and both workers.
+- **Daily retention sweep** (`data-retention-sweep` job, 03:15 UTC): deletes email-verification and
+  password-reset tokens expired over 7 days (`cleanup_expired_tokens()`), marks expired invitations
+  (`mark_expired_invitations()`), and removes uploads never confirmed within 2 days.
+- **S3:** quarantine objects expire after 2 days, `previews/` after 1 day, previous versions after 30.
+- **Not yet decided:** how long deleted documents, audit rows and Stripe payloads are kept before a
+  hard delete, and tenant/user offboarding. These wait on a retention policy.
+
 ### Migration Tracking
 
 Executed migrations are tracked in `public.schema_migrations`, with each file's SHA-256:

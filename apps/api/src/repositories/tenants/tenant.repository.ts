@@ -449,7 +449,7 @@ export class TenantRepository extends BaseRepository<
     this.tenantLogger.debug(`Getting document count: tenant_id=${tenantId}`);
 
     const result = await this.executeQuery<{ count: string }>(
-      `SELECT COUNT(*) as count FROM public.documents WHERE tenant_id = $1`,
+      `SELECT COUNT(*) as count FROM public.documents WHERE tenant_id = $1 AND deleted_at IS NULL`,
       [tenantId],
       options,
     );

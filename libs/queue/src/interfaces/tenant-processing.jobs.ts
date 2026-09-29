@@ -4,6 +4,8 @@ export const TENANT_JOB_NAMES = {
   STUCK_WORK_SWEEP: 'stuck-work-sweep',
   /** Repeatable: logs each queue's depth, oldest waiting job and recent failures (alarms read them). */
   QUEUE_METRICS: 'queue-metrics',
+  /** Repeatable (daily): expired tokens and invitations, abandoned uploads. */
+  DATA_RETENTION_SWEEP: 'data-retention-sweep',
 } as const;
 
 export type TenantJobName =
@@ -20,5 +22,9 @@ export interface TenantStuckWorkSweepJobData {
 }
 
 export interface TenantQueueMetricsJobData {
+  triggeredAt: string;
+}
+
+export interface TenantDataRetentionSweepJobData {
   triggeredAt: string;
 }

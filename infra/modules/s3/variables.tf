@@ -13,3 +13,9 @@ variable "noncurrent_version_days" {
   type        = number
   default     = 30
 }
+
+variable "quarantine_expiration_days" {
+  description = "Days an upload may stay in quarantine before it expires (confirmed uploads leave within minutes)"
+  type        = number
+  default     = 2
+}

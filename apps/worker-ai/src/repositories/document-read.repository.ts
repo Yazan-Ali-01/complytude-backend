@@ -33,7 +33,7 @@ export class DocumentReadRepository {
       async (client) => {
         const result = await client.query<DocumentContent>(
           `SELECT id, title, content, content_structured, tenant_id
-           FROM public.documents WHERE id = $1`,
+           FROM public.documents WHERE id = $1 AND deleted_at IS NULL`,
           [id],
         );
         return result.rows[0] ?? null;

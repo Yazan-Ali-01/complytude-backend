@@ -106,6 +106,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "quarantine" {
   bucket     = aws_s3_bucket.quarantine.id
   depends_on = [aws_s3_bucket_versioning.quarantine]
 
+  # Files wait here only until ingestion promotes them (minutes): anything older was never
+  # confirmed, or failed ingestion for good (its document row is failed or removed)
+  rule {
+    id     = "expire-unpromoted-uploads"
+    status = "Enabled"
+    filter {}
+
+    expiration {
+      days = var.quarantine_expiration_days
+    }
+  }
+
   rule {
     id     = "noncurrent-versions"
     status = "Enabled"
@@ -126,6 +138,22 @@ resource "aws_s3_bucket_lifecycle_configuration" "quarantine" {
 resource "aws_s3_bucket_lifecycle_configuration" "clean" {
   bucket     = aws_s3_bucket.clean.id
   depends_on = [aws_s3_bucket_versioning.clean]
+
+  # Watermarked previews: their signed URL lasts an hour, nothing references them afterwards
+  rule {
+    id     = "expire-previews"
+    status = "Enabled"
+    filter {
+      prefix = "previews/"
+    }
+
+    expiration {
+      days = 1
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
 
   rule {
     id     = "noncurrent-versions"

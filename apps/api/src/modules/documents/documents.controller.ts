@@ -258,7 +258,7 @@ export class DocumentsController {
   @ApiOperation({
     summary: 'Delete a document',
     description:
-      'Permanently deletes a document and its associated S3 objects. This action cannot be undone.',
+      'Deletes a document: its text, structure and contract variables, and its analysis results and generation variables, are erased at once and its S3 objects removed; the document disappears from every list and endpoint. A record that it existed (who deleted it, and when) is kept. This action cannot be undone.',
   })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   @ApiResponse({

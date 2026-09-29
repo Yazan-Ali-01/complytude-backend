@@ -185,8 +185,27 @@ export class DocumentRepository extends BaseRepository<
     deletedBy: string,
     options?: QueryOptions,
   ): Promise<Document> {
+    // Deleting erases what the document says: its text, structure and contract variables, and
+    // the results and variables of its analysis and generation jobs (the constraints need an
+    // empty value, not NULL, for text-input content and generated variables). The row stays as
+    // the record that something was deleted, by whom and when.
     const result = await this.executeQuery<DocumentRow>(
-      `UPDATE ${this.tableName} SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING ${this.getSelectColumns()}`,
+      `WITH deleted AS (
+         UPDATE ${this.tableName}
+         SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW(),
+             content = CASE WHEN source_type = 'text_input' THEN '' END,
+             content_structured = NULL,
+             generation_variables = CASE WHEN source_type = 'generated' THEN '{}'::jsonb END
+         WHERE id = $1 AND deleted_at IS NULL
+         RETURNING ${this.getSelectColumns()}
+       ), analyses AS (
+         UPDATE public.analysis_jobs SET result = NULL, updated_at = NOW()
+         WHERE document_id IN (SELECT id FROM deleted)
+       ), generations AS (
+         UPDATE public.generation_jobs SET variables = '{}'::jsonb, updated_at = NOW()
+         WHERE document_id IN (SELECT id FROM deleted)
+       )
+       SELECT * FROM deleted`,
       [id, deletedBy],
       options,
     );

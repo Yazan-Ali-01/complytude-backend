@@ -40,7 +40,7 @@ export class DocumentWriteRepository {
                   s3_key, s3_bucket, original_filename, mime_type,
                   extraction_status, extraction_error, extracted_at, textract_job_id
            FROM public.documents
-           WHERE id = $1`,
+           WHERE id = $1 AND deleted_at IS NULL`,
           [documentId],
         );
       },

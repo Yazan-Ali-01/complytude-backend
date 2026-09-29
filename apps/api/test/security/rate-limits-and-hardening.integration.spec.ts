@@ -59,6 +59,10 @@ describe('Rate limits, login lockout and HTTP hardening', () => {
   }
 
   it('refuses a flood of logins from one IP with 429 and Retry-After', async () => {
+    // Limits count per fixed one-minute window: pin the clock mid-window, so a slow run can't
+    // spread the requests over two windows
+    const minuteStart = Math.floor(Date.now() / 60_000) * 60_000;
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(minuteStart + 20_000);
     const statuses: number[] = [];
     for (let i = 0; i < 21; i++) {
       // A different unknown email each time: only the per-IP limit applies
@@ -67,8 +71,9 @@ describe('Rate limits, login lockout and HTTP hardening', () => {
 
     expect(statuses.slice(0, 20).every((status) => status === 401)).toBe(true);
     const refused = await login('nobody-last@test.com', 'wrong');
+    clock.mockRestore();
     expect(refused.statusCode).toBe(429);
-    expect(Number(refused.headers['retry-after'])).toBeGreaterThan(0);
+    expect(Number(refused.headers['retry-after'])).toBe(40);
   });
 
   it('locks an account after five wrong passwords, then lets it in once the lock expires', async () => {
