@@ -3,7 +3,8 @@ resource "aws_ecr_repository" "main" {
   for_each = toset(var.repository_names)
 
   name                 = "${var.project_name}/${each.key}"
-  image_tag_mutability = "MUTABLE" # Allows overwriting tags (e.g., 'latest')
+  # A tag (the git SHA) always names the same image, so a rollback gets exactly what ran before
+  image_tag_mutability = "IMMUTABLE"
 
   # Scan images for vulnerabilities on push
   image_scanning_configuration {
@@ -16,7 +17,7 @@ resource "aws_ecr_repository" "main" {
   }
 }
 
-# Lifecycle policy: keep only the last 10 images (prevents storage bloat)
+# Lifecycle policy: keep the last 30 images, the window a rollback can go back to
 resource "aws_ecr_lifecycle_policy" "main" {
   for_each   = aws_ecr_repository.main
   repository = each.value.name
@@ -24,11 +25,11 @@ resource "aws_ecr_lifecycle_policy" "main" {
   policy = jsonencode({
     rules = [{
       rulePriority = 1
-      description  = "Keep only last 10 images"
+      description  = "Keep the last 30 images"
       selection = {
         tagStatus   = "any"
         countType   = "imageCountMoreThan"
-        countNumber = 10
+        countNumber = 30
       }
       action = {
         type = "expire"

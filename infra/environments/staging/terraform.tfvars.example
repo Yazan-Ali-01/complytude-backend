@@ -76,7 +76,7 @@ rag_bm25_limit         = 30
 rag_max_hybrid_results = 40
 
 # ECS — image tag and desired counts
-ecs_image_tag                  = "latest"
+ecs_image_tag                  = "CHANGE_ME_GIT_SHA_OF_A_BUILT_IMAGE"
 ecs_api_desired_count          = 1
 ecs_worker_ai_desired_count    = 1
 ecs_worker_ingestion_desired_count = 1

@@ -8,10 +8,10 @@
 # ============================================
 # Stage 1: Dependencies
 # ============================================
-FROM node:22.16.0-alpine AS dependencies
+FROM node:22.16.0-alpine@sha256:41e4389f3d988d2ed55392df4db1420ad048ae53324a8e2b7c6d19508288107e AS dependencies
 
 # Install pnpm globally
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.15.9
 
 # Set working directory
 WORKDIR /app
@@ -27,10 +27,10 @@ RUN pnpm install --frozen-lockfile
 # ============================================
 # Stage 2: Build
 # ============================================
-FROM node:22.16.0-alpine AS build
+FROM node:22.16.0-alpine@sha256:41e4389f3d988d2ed55392df4db1420ad048ae53324a8e2b7c6d19508288107e AS build
 
 # Install pnpm globally
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@9.15.9
 
 WORKDIR /app
 
@@ -49,7 +49,10 @@ RUN pnpm prune --prod
 # ============================================
 # Stage 3: Production (optimized)
 # ============================================
-FROM node:22.16.0-alpine AS production
+FROM node:22.16.0-alpine@sha256:41e4389f3d988d2ed55392df4db1420ad048ae53324a8e2b7c6d19508288107e AS production
+
+# Production behaviour (JSON logs, no Swagger) even when run outside ECS
+ENV NODE_ENV=production
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init

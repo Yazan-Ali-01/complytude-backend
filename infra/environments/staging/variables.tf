@@ -194,9 +194,8 @@ variable "domain_name" {
 
 # ---- ECS ----
 variable "ecs_image_tag" {
-  description = "Docker image tag to deploy (e.g. latest, v1.0.0)"
+  description = "Git SHA (image tag in ECR) the services are first created with; deploys and rollbacks then use scripts/deploy/ecs-deploy.sh"
   type        = string
-  default     = "latest"
 }
 
 variable "ecs_api_desired_count" {

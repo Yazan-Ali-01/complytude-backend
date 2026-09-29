@@ -4,9 +4,11 @@ on:
   push:
     branches: [development]
 
+# A newer push waits for the running deploy instead of cancelling it halfway (the rollback workflow
+# shares this group)
 concurrency:
   group: deploy-staging
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   AWS_REGION: eu-central-1
@@ -144,9 +146,10 @@ jobs:
             --port 5432 \
             --source-group ${{ steps.infra.outputs.bastion_sg_id }} || true
 
+  # After migrations: no image of this commit exists unless its schema is in place
   build-and-push:
     runs-on: ubuntu-latest
-    needs: quality
+    needs: migrate
     strategy:
       matrix:
         app: [api, worker-ai, worker-ingestion, worker-generation]
@@ -173,16 +176,20 @@ jobs:
           file: apps/${{ matrix.app }}/Dockerfile
           target: production
           push: true
-          tags: |
-            ${{ env.ECR_REGISTRY }}/complytude/${{ matrix.app }}:${{ github.sha }}
-            ${{ env.ECR_REGISTRY }}/complytude/${{ matrix.app }}:latest
+          # The git SHA only: tags are immutable in ECR, and deploys pin the digest
+          tags: ${{ env.ECR_REGISTRY }}/complytude/${{ matrix.app }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Gate on the image scan
+        run: bash scripts/deploy/ecr-scan-gate.sh complytude/${{ matrix.app }} ${{ github.sha }}
 
   deploy:
     runs-on: ubuntu-latest
     needs: [build-and-push, migrate]
     steps:
+      - uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -190,50 +197,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Update ECS services
-        run: |
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service complytude-staging-api \
-            --force-new-deployment
-
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service complytude-staging-worker-ai \
-            --force-new-deployment
-
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service complytude-staging-worker-ingestion \
-            --force-new-deployment
-
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service complytude-staging-worker-generation \
-            --force-new-deployment
-
-      - name: Wait for all services to stabilize
-        run: |
-          echo "Waiting for API service..."
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services complytude-staging-api
-          echo "API service is stable!"
-
-          echo "Waiting for Worker AI service..."
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services complytude-staging-worker-ai
-          echo "Worker AI service is stable!"
-
-          echo "Waiting for Worker Ingestion service..."
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services complytude-staging-worker-ingestion
-          echo "Worker Ingestion service is stable!"
-
-          echo "Waiting for Worker Generation service..."
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services complytude-staging-worker-generation
-          echo "Worker Generation service is stable!"
+      # New task-definition revisions pinned to this commit's image digests; fails (red) when the
+      # circuit breaker rolls a service back, then smoke-tests the API
+      - name: Deploy ${{ github.sha }}
+        run: bash scripts/deploy/ecs-deploy.sh --env staging --sha ${{ github.sha }} --smoke "${{ vars.STAGING_API_URL }}"

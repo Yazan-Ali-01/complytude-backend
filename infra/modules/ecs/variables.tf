@@ -44,9 +44,8 @@ variable "ecr_repository_urls" {
 }
 
 variable "image_tag" {
-  description = "Docker image tag to deploy"
+  description = "Git SHA whose images the task definitions are created with; later deploys and rollbacks go through scripts/deploy/ecs-deploy.sh"
   type        = string
-  default     = "latest"
 }
 
 variable "secret_arn" {

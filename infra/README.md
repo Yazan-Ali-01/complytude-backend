@@ -121,22 +121,15 @@ ECR_BASE=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 # Login to ECR
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_BASE
 
-# Build and push API
-docker build -f apps/api/Dockerfile -t $ECR_BASE/complytude/api:latest --target production .
-docker push $ECR_BASE/complytude/api:latest
+# Images are tagged with the full git SHA only (ECR tags are immutable)
+SHA=$(git rev-parse HEAD)
+for APP in api worker-ai worker-ingestion worker-generation; do
+  docker build -f apps/$APP/Dockerfile -t $ECR_BASE/complytude/$APP:$SHA --target production .
+  docker push $ECR_BASE/complytude/$APP:$SHA
+done
 
-# Build and push worker-ai
-docker build -f apps/worker-ai/Dockerfile -t $ECR_BASE/complytude/worker-ai:latest --target production .
-docker push $ECR_BASE/complytude/worker-ai:latest
-
-# Build and push worker-ingestion
-docker build -f apps/worker-ingestion/Dockerfile -t $ECR_BASE/complytude/worker-ingestion:latest --target production .
-docker push $ECR_BASE/complytude/worker-ingestion:latest
-
-# Force ECS to pull new images (or wait for next deploy)
-aws ecs update-service --cluster complytude-staging --service complytude-staging-api --force-new-deployment
-aws ecs update-service --cluster complytude-staging --service complytude-staging-worker-ai --force-new-deployment
-aws ecs update-service --cluster complytude-staging --service complytude-staging-worker-ingestion --force-new-deployment
+# First apply: create the services with that SHA (ecs_image_tag in terraform.tfvars).
+# Every later deploy or rollback: scripts/deploy/ecs-deploy.sh --env staging --sha <sha>
 ```
 
 Verify: `http://$(terraform output -raw alb_dns_name)/api/health` should return 200.

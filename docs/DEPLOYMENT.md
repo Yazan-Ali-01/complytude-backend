@@ -277,35 +277,24 @@ Every push to the `development` branch triggers the staging deploy pipeline defi
 
 ```
 push → development
-         │
-         ▼
-    ┌─────────┐
-    │ quality │  lint + type-check
-    └────┬────┘
-         │
-    ┌────┴────────────────────┐
-    │                         │
-    ▼                         ▼
-┌───────────────────┐   ┌─────────────────────┐
-│ migrate-and-seed  │   │   build-and-push     │
-│                   │   │  (matrix: api,       │
-│ SSH tunnel →      │   │   worker-ai,         │
-│ bastion → RDS     │   │   worker-ingestion,  │
-│ setup-roles.sh    │   │   worker-generation) │
-│ run-migrations.sh │   │                      │
-│ run-seeds.sh      │   │  Pushes to ECR:      │
-└─────────┬─────────┘   │  :latest + :sha      │
-          │             └──────────┬────────────┘
-          └──────────┬─────────────┘
-                     │
-                     ▼
-                ┌─────────┐
-                │ deploy  │
-                │         │
-                │ force-new-deployment on all 4 services
-                │ wait for services-stable
-                └─────────┘
+   │
+   ▼
+quality         lint, type-check, unit and integration tests, dependency audit (ci.yml)
+   │
+   ▼
+migrate         SSH tunnel → bastion → RDS; setup-roles.sh, run-migrations.sh
+   │            (a failed migration stops here: nothing is pushed or deployed)
+   ▼
+build-and-push  matrix: api, worker-ai, worker-ingestion, worker-generation
+   │            pushes :<git-sha> only (ECR tags are immutable); fails on CRITICAL scan findings
+   ▼
+deploy          scripts/deploy/ecs-deploy.sh --env staging --sha <git-sha>
+                new task-definition revision per service, image pinned by digest;
+                red if any service's circuit breaker rolls back; then GET /api/health
 ```
+
+Every image is tagged with the full git SHA and nothing else, so "what is running" is the image
+digest in each service's task definition, and it maps back to a commit.
 
 ### Required GitHub Actions Secrets
 
@@ -319,9 +308,15 @@ Set these in **Settings → Secrets and variables → Actions** in the GitHub re
 | `BASTION_SSH_KEY` | Private key for `bastion-key-pair` (PEM format) |
 | `STAGING_DB_ADMIN_PASSWORD` | RDS `postgres` superuser password (matches `db_password` in tfvars) |
 
+And this repository **variable** (Settings → Secrets and variables → Actions → Variables):
+
+| Variable | Description |
+|---|---|
+| `STAGING_API_URL` | Base URL the deploy smoke-tests, e.g. `https://api-staging.complytude.com`. Unset skips the smoke test. |
+
 ### Concurrency
 
-Only one staging deploy runs at a time. A newer push cancels an in-progress deploy (`cancel-in-progress: true`).
+Only one staging deploy (or rollback) runs at a time. A newer push waits for the running one to finish instead of cancelling it halfway (`cancel-in-progress: false`).
 
 ---
 
@@ -345,47 +340,31 @@ aws ecr get-login-password --region eu-central-1 | \
 
 ### Build and Push Images
 
+Tags are immutable: push each commit once, tagged with its full SHA.
+
 ```bash
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 REGISTRY="${ACCOUNT}.dkr.ecr.eu-central-1.amazonaws.com"
-TAG=$(git rev-parse --short HEAD)
+SHA=$(git rev-parse HEAD)
 
-# Build and push all apps (run in parallel if needed)
 for APP in api worker-ai worker-ingestion worker-generation; do
-  docker build \
-    -f apps/${APP}/Dockerfile \
-    --target production \
-    -t "${REGISTRY}/complytude/${APP}:${TAG}" \
-    -t "${REGISTRY}/complytude/${APP}:latest" \
-    .
-
-  docker push "${REGISTRY}/complytude/${APP}:${TAG}"
-  docker push "${REGISTRY}/complytude/${APP}:latest"
+  docker build -f apps/${APP}/Dockerfile --target production \
+    -t "${REGISTRY}/complytude/${APP}:${SHA}" .
+  docker push "${REGISTRY}/complytude/${APP}:${SHA}"
+  bash scripts/deploy/ecr-scan-gate.sh "complytude/${APP}" "${SHA}"
 done
 ```
 
-### Force New ECS Deployment
+### Deploy a SHA
 
 ```bash
-CLUSTER=complytude-staging
-
-for SERVICE in api worker-ai worker-ingestion worker-generation; do
-  aws ecs update-service \
-    --cluster ${CLUSTER} \
-    --service complytude-staging-${SERVICE} \
-    --force-new-deployment \
-    --region eu-central-1
-done
-
-# Wait for all services to stabilize (~3-5 minutes)
-for SERVICE in api worker-ai worker-ingestion worker-generation; do
-  echo "Waiting for complytude-staging-${SERVICE}..."
-  aws ecs wait services-stable \
-    --cluster ${CLUSTER} \
-    --services complytude-staging-${SERVICE}
-done
-echo "All services stable."
+bash scripts/deploy/ecs-deploy.sh --env staging --sha "${SHA}" --smoke https://api-staging.complytude.com
 ```
+
+The script registers a new task-definition revision per service (Terraform's latest, with only
+the app image changed to `repo@digest`), points the service at it and waits. It exits non-zero if
+any service's deployment fails, which means the circuit breaker rolled that service back to its
+previous revision. Terraform ignores the services' task definition, so it doesn't undo a deploy.
 
 ---
 
@@ -582,37 +561,30 @@ AWS Console → RDS → `complytude-staging-postgres` → Performance Insights.
 
 ## Rolling Back a Deployment
 
-ECS has a **deployment circuit breaker** enabled on all services: if a new deployment fails its health checks, ECS automatically rolls back to the previous task definition. This happens within ~5 minutes of a bad deploy.
-
 ### Automatic Rollback
 
-ECS will roll back automatically if the new tasks fail health checks 3 times. Check the ECS console under the service's **Deployments** tab to confirm rollback status.
+Every service has the ECS deployment circuit breaker with rollback: if the new tasks keep failing
+their health checks, ECS puts the service back on the previous revision (the previous image
+digest). The deploy job then fails (the rollout state is `FAILED`), so a rolled-back deploy is
+never green.
 
-### Manual Rollback to Previous Task Definition
+### Roll Back to an Earlier Commit
+
+Redeploy the images of the commit you want back. From GitHub:
 
 ```bash
-CLUSTER=complytude-staging
-SERVICE=complytude-staging-api  # repeat for other services as needed
-
-# List recent task definition revisions
-aws ecs list-task-definitions \
-  --family-prefix complytude-staging-api \
-  --sort DESC \
-  --region eu-central-1 \
-  --query 'taskDefinitionArns[:5]'
-
-# Deploy a specific previous revision (e.g., revision 12)
-aws ecs update-service \
-  --cluster ${CLUSTER} \
-  --service ${SERVICE} \
-  --task-definition complytude-staging-api:12 \
-  --region eu-central-1
-
-aws ecs wait services-stable \
-  --cluster ${CLUSTER} \
-  --services ${SERVICE} \
-  --region eu-central-1
+gh workflow run rollback-staging.yml -f sha=<git-sha>
 ```
+
+or from a machine with AWS credentials:
+
+```bash
+bash scripts/deploy/ecs-deploy.sh --env staging --sha <git-sha>
+```
+
+Find candidate SHAs with `git log --oneline development` or in ECR (the last 30 images per app are
+kept). Migrations are forward-only and are **not** rolled back: the older code runs against the
+current schema, so a migration that the older code can't work with needs a fix-forward instead.
 
 ### Rollback a Bad Migration
 
@@ -810,7 +782,7 @@ aws ecs describe-tasks \
 
 Common causes:
 - **Secret not found**: verify `complytude/staging/app` exists and has all required keys
-- **Image pull failure**: check ECR login and that the `:latest` tag exists
+- **Image pull failure**: check that an image tagged with the deployed SHA exists in each repository (`aws ecr describe-images --repository-name complytude/api --image-ids imageTag=<sha>`)
 - **Health check failing**: check `/api/health` returns 200; look at CloudWatch logs for startup errors
 - **Gotenberg not healthy**: the API and worker-generation tasks wait for Gotenberg to be `HEALTHY` before starting — check `/ecs/complytude-staging/gotenberg` logs
 

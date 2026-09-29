@@ -182,6 +182,12 @@ resource "aws_ecs_service" "api" {
     rollback = true
   }
 
+  # CI deploys new revisions pinned to image digests (scripts/deploy/ecs-deploy.sh); Terraform
+  # must not put the service back on its own revision
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   tags = {
     Name = "${var.project_name}-${var.environment}-api"
   }
@@ -254,6 +260,12 @@ resource "aws_ecs_service" "worker_ai" {
     rollback = true
   }
 
+  # CI deploys new revisions pinned to image digests (scripts/deploy/ecs-deploy.sh); Terraform
+  # must not put the service back on its own revision
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   tags = {
     Name = "${var.project_name}-${var.environment}-worker-ai"
   }
@@ -324,6 +336,12 @@ resource "aws_ecs_service" "worker_ingestion" {
   deployment_circuit_breaker {
     enable   = true
     rollback = true
+  }
+
+  # CI deploys new revisions pinned to image digests (scripts/deploy/ecs-deploy.sh); Terraform
+  # must not put the service back on its own revision
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = {
@@ -430,6 +448,12 @@ resource "aws_ecs_service" "worker_generation" {
   deployment_circuit_breaker {
     enable   = true
     rollback = true
+  }
+
+  # CI deploys new revisions pinned to image digests (scripts/deploy/ecs-deploy.sh); Terraform
+  # must not put the service back on its own revision
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = {
