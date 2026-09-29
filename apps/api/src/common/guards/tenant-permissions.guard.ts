@@ -1,3 +1,4 @@
+import { AuditService } from '@lib/audit';
 import {
   CanActivate,
   ExecutionContext,
@@ -15,6 +16,7 @@ import {
   TENANT_PERMISSIONS_KEY,
   TenantPermissionMetadata,
 } from '../decorators/tenant-permissions.decorator';
+import { recordPermissionDenied } from './permission-denied-audit';
 import {
   hasAllPermissions,
   hasAnyPermission,
@@ -33,6 +35,7 @@ export class TenantPermissionsGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private tenantRbacService: TenantRbacService,
+    private auditService: AuditService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -86,6 +89,16 @@ export class TenantPermissionsGuard implements CanActivate {
       const requiredPermission = permissionMetadata.permissions.join(', ');
       this.logger.warn(
         `Access denied: user ${tenant.userId} (role: ${tenant.role}) lacks permission ${requiredPermission}`,
+      );
+      recordPermissionDenied(
+        this.auditService,
+        context,
+        {
+          actorId: tenant.userId,
+          tenantId: tenant.tenantId,
+          role: tenant.role,
+        },
+        permissionMetadata,
       );
       const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
       throw new ForbiddenException(

@@ -3,7 +3,13 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 import { isIP } from 'node:net';
 import { AuditLogsRepository } from './audit.repository';
-import { AuditLog, AuditLogFilters, CreateAuditLogInput } from './audit.types';
+import {
+  AuditLog,
+  AuditLogFilters,
+  AuditLogPage,
+  AuditLogSearch,
+  CreateAuditLogInput,
+} from './audit.types';
 
 const TRACE_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 const MAX_USER_AGENT_LENGTH = 512;
@@ -86,6 +92,14 @@ export class AuditService {
     input: Omit<CreateAuditLogInput, 'actorId' | 'actorType'>,
   ): Promise<void> {
     return this.log({ ...input, actorType: 'system', actorId: undefined });
+  }
+
+  /** A page of audit rows for a tenant (its own rows only) or the platform (every row). */
+  search(
+    scope: { tenantId: string } | 'platform',
+    filters: AuditLogSearch,
+  ): Promise<AuditLogPage> {
+    return this.repository.search(scope, filters);
   }
 
   async getAuditLogs(

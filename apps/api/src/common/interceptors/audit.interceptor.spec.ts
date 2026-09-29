@@ -1,5 +1,9 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { CallHandler, ExecutionContext } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { AuditService } from '@lib/audit';
@@ -83,8 +87,8 @@ describe('AuditInterceptor', () => {
     });
   });
 
-  it('passes through without logging when no auth context at all', (done) => {
-    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
+  it('records a caller who is not signed in as anonymous', (done) => {
+    mockAuditConfig({ action: 'AUTH_VERIFICATION_RESENT', options: {} });
     const request = {
       ...baseRequest,
       auth: { tenant: undefined, identity: undefined },
@@ -93,7 +97,14 @@ describe('AuditInterceptor', () => {
 
     interceptor.intercept(context, next).subscribe({
       complete: () => {
-        expect(auditService.log).not.toHaveBeenCalled();
+        expect(auditService.log).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorType: 'anonymous',
+            action: 'AUTH_VERIFICATION_RESENT',
+            details: expect.objectContaining({ outcome: 'success' }),
+          }),
+        );
+        expect(auditService.log.mock.calls[0][0].actorId).toBeUndefined();
         done();
       },
     });
@@ -168,16 +179,42 @@ describe('AuditInterceptor', () => {
     });
   });
 
-  it('does NOT log on error response', (done) => {
+  it('records a failed attempt with its status, and still fails the request', (done) => {
     mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
     const context = createMockExecutionContext(baseRequest);
     const errorNext: CallHandler = {
-      handle: () => throwError(() => new Error('Forbidden')),
+      handle: () => throwError(() => new ForbiddenException('Forbidden')),
+    };
+
+    interceptor.intercept(context, errorNext).subscribe({
+      error: (error: unknown) => {
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect(auditService.log).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: 'CONTRACT_EXPORTED',
+            details: expect.objectContaining({
+              outcome: 'failure',
+              status: 403,
+            }),
+          }),
+        );
+        done();
+      },
+    });
+  });
+
+  it('records an unexpected error as a failure with status 500', (done) => {
+    mockAuditConfig({ action: 'CONTRACT_EXPORTED', options: {} });
+    const context = createMockExecutionContext(baseRequest);
+    const errorNext: CallHandler = {
+      handle: () => throwError(() => new Error('boom')),
     };
 
     interceptor.intercept(context, errorNext).subscribe({
       error: () => {
-        expect(auditService.log).not.toHaveBeenCalled();
+        expect(auditService.log.mock.calls[0][0].details).toEqual(
+          expect.objectContaining({ outcome: 'failure', status: 500 }),
+        );
         done();
       },
     });

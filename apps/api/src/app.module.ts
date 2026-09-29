@@ -19,6 +19,7 @@ import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { I18nModule } from './i18n/i18n.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthoritiesModule } from './modules/authorities/authorities.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -74,6 +75,7 @@ const mockRoutesEnabled = (env: NodeJS.ProcessEnv): boolean =>
     StorageModule,
     TemplatesModule,
     CategoriesModule,
+    AuditLogsModule,
     AuthoritiesModule,
     RulesetsModule,
     DocumentsModule,

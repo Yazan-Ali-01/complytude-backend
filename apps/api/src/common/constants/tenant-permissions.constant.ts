@@ -59,6 +59,10 @@ export const TENANT_PERMISSIONS = {
     MANAGE: 'sessions:manage' as const,
     ALL: 'sessions:*' as const,
   },
+  AUDIT: {
+    READ: 'audit:read' as const,
+    ALL: 'audit:*' as const,
+  },
   // Cross-resource wildcards
   WILDCARDS: {
     READ_ALL: '*:read' as const,

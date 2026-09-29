@@ -226,6 +226,7 @@ export class DocumentsController {
   }
 
   @Get(':documentId/download-url')
+  @Audit('DOCUMENT_DOWNLOADED', { resourceIdParam: 'documentId' })
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission('documents:read')
   @ApiOperation({

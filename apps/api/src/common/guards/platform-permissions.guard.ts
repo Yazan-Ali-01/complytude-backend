@@ -1,3 +1,4 @@
+import { AuditService } from '@lib/audit';
 import {
   CanActivate,
   ExecutionContext,
@@ -19,6 +20,7 @@ import {
   hasAllPermissions,
   hasAnyPermission,
 } from '../utils/permission-matcher.util';
+import { recordPermissionDenied } from './permission-denied-audit';
 
 @Injectable()
 export class PlatformPermissionsGuard implements CanActivate {
@@ -27,6 +29,7 @@ export class PlatformPermissionsGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private platformRbacService: PlatformRbacService,
+    private auditService: AuditService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -58,6 +61,12 @@ export class PlatformPermissionsGuard implements CanActivate {
 
     const platformRole = identity.platformRole ?? null;
     if (!platformRole) {
+      recordPermissionDenied(
+        this.auditService,
+        context,
+        { actorId: identity.userId, role: null },
+        permissionMetadata,
+      );
       throw new ForbiddenException(
         'No platform role assigned. Platform access requires a platform role.',
       );
@@ -74,6 +83,12 @@ export class PlatformPermissionsGuard implements CanActivate {
       const requiredPermission = permissionMetadata.permissions.join(', ');
       this.logger.warn(
         `Access denied: user ${identity.userId} (role: ${platformRole}) lacks permission ${requiredPermission}`,
+      );
+      recordPermissionDenied(
+        this.auditService,
+        context,
+        { actorId: identity.userId, role: platformRole },
+        permissionMetadata,
       );
       const logicType = permissionMetadata.requireAll ? 'ALL' : 'ANY';
       throw new ForbiddenException(

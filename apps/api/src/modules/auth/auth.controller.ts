@@ -90,7 +90,6 @@ export class AuthController {
   @Post('signup')
   @RateLimit(...AUTH_RATE_LIMITS.signup)
   @Public()
-  @Audit('AUTH_SIGNUP')
   @ApiOperation({
     summary: 'Register a new user account',
     description:
@@ -106,8 +105,11 @@ export class AuthController {
   })
   @ApiValidationError()
   @ApiPublicResponses()
-  signup(@Body() signupDto: SignupDto): Promise<MessageResponseDto> {
-    return this.authService.signup(signupDto);
+  signup(
+    @Body() signupDto: SignupDto,
+    @Req() request: FastifyRequest,
+  ): Promise<MessageResponseDto> {
+    return this.authService.signup(signupDto, request);
   }
 
   /**
@@ -142,7 +144,6 @@ export class AuthController {
   @Public()
   @UseGuards(GoogleSsoAuthGuard)
   @UseFilters(SsoCallbackExceptionFilter)
-  @Audit('AUTH_SSO_GOOGLE_CALLBACK')
   @ApiOperation({
     summary: 'Google OAuth2 callback',
     description:
@@ -193,7 +194,6 @@ export class AuthController {
   @Public()
   @UseGuards(MicrosoftSsoAuthGuard)
   @UseFilters(SsoCallbackExceptionFilter)
-  @Audit('AUTH_SSO_MICROSOFT_CALLBACK')
   @ApiOperation({
     summary: 'Microsoft OAuth2 callback',
     description:
@@ -238,7 +238,6 @@ export class AuthController {
   @Post('verify-email')
   @RateLimit(...AUTH_RATE_LIMITS.tokenCheck)
   @Public()
-  @Audit('AUTH_EMAIL_VERIFIED')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Verify email address',
@@ -256,8 +255,9 @@ export class AuthController {
   @ApiPublicResponses()
   verifyEmail(
     @Body() verifyEmailDto: VerifyEmailDto,
+    @Req() request: FastifyRequest,
   ): Promise<MessageResponseDto> {
-    return this.authService.verifyEmail(verifyEmailDto);
+    return this.authService.verifyEmail(verifyEmailDto, request);
   }
 
   /**
@@ -267,7 +267,6 @@ export class AuthController {
   @Post('login')
   @RateLimit(...AUTH_RATE_LIMITS.login)
   @Public()
-  @Audit('AUTH_LOGIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Login to user account',
@@ -751,7 +750,6 @@ export class AuthController {
   @Post('forgot-password')
   @RateLimit(...AUTH_RATE_LIMITS.sendsEmail)
   @Public()
-  @Audit('AUTH_PASSWORD_RESET_REQUESTED')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Request password reset',
@@ -767,8 +765,9 @@ export class AuthController {
   @ApiPublicResponses()
   forgotPassword(
     @Body() forgotPasswordDto: ForgotPasswordDto,
+    @Req() request: FastifyRequest,
   ): Promise<MessageResponseDto> {
-    return this.authService.forgotPassword(forgotPasswordDto);
+    return this.authService.forgotPassword(forgotPasswordDto, request);
   }
 
   /**
@@ -778,7 +777,6 @@ export class AuthController {
   @Post('reset-password')
   @RateLimit(...AUTH_RATE_LIMITS.tokenCheck)
   @Public()
-  @Audit('AUTH_PASSWORD_RESET')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Reset password using token',
@@ -796,8 +794,9 @@ export class AuthController {
   @ApiPublicResponses()
   async resetPassword(
     @Body() resetPasswordDto: ResetPasswordDto,
+    @Req() request: FastifyRequest,
   ): Promise<MessageResponseDto> {
-    return this.authService.resetPassword(resetPasswordDto);
+    return this.authService.resetPassword(resetPasswordDto, request);
   }
 
   /**

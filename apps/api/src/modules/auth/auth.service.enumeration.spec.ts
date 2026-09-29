@@ -47,6 +47,7 @@ describe('AuthService: no account enumeration by timing', () => {
       {} as never, // redis
       loginLockout as never,
       { assertNotBreached: jest.fn() } as never,
+      { log: jest.fn().mockResolvedValue(undefined) } as never, // auditService
     );
   }
 

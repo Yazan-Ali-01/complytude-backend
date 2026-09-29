@@ -230,7 +230,7 @@ Opt-in, method-level. Only handlers decorated with `@Audit()` (`common/decorator
 @Audit('USER_PASSWORD_CHANGED', { resourceType: 'users' })
 ```
 
-The resource type defaults to the first segment of the controller path. `AuditInterceptor` writes to `audit_logs` through `@lib/audit` on 2xx responses only, fire-and-forget.
+The resource type defaults to the first segment of the controller path. `AuditInterceptor` writes to `audit_logs` through `@lib/audit`, fire-and-forget, with `details.outcome` `success` or `failure` (and the status) for errors the handler throws; a caller who is not signed in is recorded as `anonymous`. The permission guards record their refusals as `PERMISSION_DENIED`. Auth events whose subject only the service knows (login, signup, SSO, password reset) are written by `AuthService`, not by `@Audit`. Tenant admins read their tenant's rows at `GET /audit-logs`, platform roles with `audit:read` everything at `GET /admin/audit-logs`.
 
 ### i18n
 

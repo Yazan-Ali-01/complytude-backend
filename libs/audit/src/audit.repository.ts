@@ -1,7 +1,13 @@
 import { BaseRepository, DatabaseService } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
-import type { QueryResult } from 'pg';
-import { AuditLog, AuditLogFilters, CreateAuditLogInput } from './audit.types';
+import type { PoolClient, QueryResult } from 'pg';
+import {
+  AuditLog,
+  AuditLogFilters,
+  AuditLogPage,
+  AuditLogSearch,
+  CreateAuditLogInput,
+} from './audit.types';
 
 const SELECT_COLUMNS =
   'id, tenant_id, actor_id, actor_type, user_role, action, resource_type, resource_id, details, ai_model_used, ip_address, user_agent, trace_id, created_at';
@@ -168,6 +174,56 @@ export class AuditLogsRepository extends BaseRepository<
           this.executeQuery<Record<string, unknown>>(query, params, {
             client,
           }),
+        );
+  }
+
+  /**
+   * One page of audit rows, newest first, with the total. `scope` decides the RLS context: a
+   * tenant reads only its own rows; the platform reads every row, including those with no tenant.
+   */
+  async search(
+    scope: { tenantId: string } | 'platform',
+    filters: AuditLogSearch,
+  ): Promise<AuditLogPage> {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    const add = (sql: string, value: unknown): void => {
+      params.push(value);
+      conditions.push(sql.replace('?', `$${params.length}`));
+    };
+    const tenantId = scope === 'platform' ? filters.tenantId : scope.tenantId;
+    if (tenantId) add('tenant_id = ?', tenantId);
+    if (filters.actorId) add('actor_id = ?', filters.actorId);
+    if (filters.action) add('action = ?', filters.action);
+    if (filters.resourceType) add('resource_type = ?', filters.resourceType);
+    if (filters.startDate) add('created_at >= ?', filters.startDate);
+    if (filters.endDate) add('created_at <= ?', filters.endDate);
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const read = (client: PoolClient): Promise<AuditLogPage> =>
+      Promise.all([
+        this.executeQuery<Record<string, unknown>>(
+          `SELECT ${SELECT_COLUMNS} FROM ${this.tableName} ${where}
+           ORDER BY created_at DESC, id DESC
+           LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+          [...params, filters.limit, filters.offset],
+          { client },
+        ),
+        this.executeQuery<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM ${this.tableName} ${where}`,
+          params,
+          { client },
+        ),
+      ]).then(([rows, count]) => ({
+        items: rows.rows.map((row) => this.mapRow(row)),
+        total: Number(count.rows[0]?.count ?? 0),
+      }));
+
+    return scope === 'platform'
+      ? this.databaseService.transactionWithPlatformAdminContext(read)
+      : this.databaseService.transactionWithTenantContext(
+          { tenantId: scope.tenantId },
+          read,
         );
   }
 

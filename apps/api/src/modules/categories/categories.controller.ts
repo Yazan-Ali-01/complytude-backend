@@ -40,6 +40,7 @@ import {
   ListCategoriesQueryDto,
   UpdateCategoryDto,
 } from './dto';
+import { Audit } from 'src/common/decorators/audit.decorator';
 
 @ApiTags('Categories')
 @Controller('categories')
@@ -109,6 +110,7 @@ export class CategoriesController {
   // ─── Write Endpoints (identity token + categories:manage) ──────
 
   @Post()
+  @Audit('CATEGORY_CREATED', { includeBody: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
@@ -127,6 +129,7 @@ export class CategoriesController {
   }
 
   @Patch(':id')
+  @Audit('CATEGORY_UPDATED', { resourceIdParam: 'id', includeBody: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({
@@ -150,6 +153,7 @@ export class CategoriesController {
   }
 
   @Delete(':id')
+  @Audit('CATEGORY_DELETED', { resourceIdParam: 'id' })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('categories:manage')
   @ApiOperation({

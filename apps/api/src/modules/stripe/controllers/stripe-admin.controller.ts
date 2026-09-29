@@ -31,6 +31,7 @@ import {
   WebhookStats,
 } from '../services/stripe-webhook-monitoring.service';
 import { StripeCatalogSyncService } from '../services/stripe-catalog-sync.service';
+import { Audit } from 'src/common/decorators/audit.decorator';
 
 @ApiTags('System Admin - Stripe')
 @Controller('admin/stripe')
@@ -49,6 +50,7 @@ export class StripeAdminController {
   ) {}
 
   @Post('backfill-customers')
+  @Audit('STRIPE_ADMIN_BACKFILL_CUSTOMERS', { resourceType: 'stripe' })
   @HttpCode(HttpStatus.OK)
   @RequireAnyPlatformPermission('entitlements:manage')
   @ApiOperation({
@@ -78,6 +80,7 @@ export class StripeAdminController {
   }
 
   @Post('backfill-tax')
+  @Audit('STRIPE_ADMIN_BACKFILL_TAX', { resourceType: 'stripe' })
   @HttpCode(HttpStatus.OK)
   @RequireAnyPlatformPermission('entitlements:manage')
   @ApiOperation({
@@ -109,6 +112,7 @@ export class StripeAdminController {
   }
 
   @Post('reconcile')
+  @Audit('STRIPE_ADMIN_RECONCILE', { resourceType: 'stripe' })
   @HttpCode(HttpStatus.OK)
   @RequireAnyPlatformPermission('entitlements:manage')
   @ApiOperation({
@@ -178,6 +182,10 @@ export class StripeAdminController {
   }
 
   @Post('retry-failed-webhooks')
+  @Audit('STRIPE_ADMIN_RETRY_WEBHOOKS', {
+    resourceType: 'stripe',
+    includeBody: true,
+  })
   @HttpCode(HttpStatus.OK)
   @RequireAnyPlatformPermission('entitlements:manage')
   @ApiOperation({
@@ -219,6 +227,7 @@ export class StripeAdminController {
   }
 
   @Post('sync-catalog')
+  @Audit('STRIPE_ADMIN_SYNC_CATALOG', { resourceType: 'stripe' })
   @HttpCode(HttpStatus.OK)
   @RequireAnyPlatformPermission('entitlements:manage')
   @ApiOperation({

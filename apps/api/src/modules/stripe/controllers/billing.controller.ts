@@ -47,6 +47,7 @@ import {
   PastDueAccess,
   pastDueAccess,
 } from 'src/modules/entitlements/utils/past-due-access.util';
+import { Audit } from 'src/common/decorators/audit.decorator';
 
 /**
  * Billing Controller
@@ -193,6 +194,7 @@ export class BillingController {
   // ============================================================
 
   @Post('plan/change')
+  @Audit('BILLING_PLAN_CHANGE_SCHEDULED', { includeBody: true })
   @HttpCode(HttpStatus.OK)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
@@ -226,6 +228,7 @@ export class BillingController {
   }
 
   @Post('plan/cancel-change')
+  @Audit('BILLING_PLAN_CHANGE_CANCELLED')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
@@ -274,6 +277,7 @@ export class BillingController {
   // ============================================================
 
   @Post('subscription/cancel')
+  @Audit('BILLING_SUBSCRIPTION_CANCELLED', { includeBody: true })
   @HttpCode(HttpStatus.OK)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
@@ -304,6 +308,7 @@ export class BillingController {
   }
 
   @Post('subscription/reactivate')
+  @Audit('BILLING_SUBSCRIPTION_REACTIVATED')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
@@ -336,6 +341,7 @@ export class BillingController {
   // ============================================================
 
   @Post('checkout/subscription')
+  @Audit('BILLING_CHECKOUT_STARTED', { includeBody: true })
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
@@ -369,6 +375,7 @@ export class BillingController {
   }
 
   @Post('portal/session')
+  @Audit('BILLING_PORTAL_OPENED')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)
@@ -425,6 +432,7 @@ export class BillingController {
   }
 
   @Post('checkout/credits')
+  @Audit('BILLING_CREDIT_CHECKOUT_STARTED', { includeBody: true })
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(TenantPermissionsGuard)
   @RequireAnyTenantPermission(TENANT_PERMISSIONS.BILLING.MANAGE)

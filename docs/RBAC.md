@@ -131,6 +131,7 @@ Permissions follow the pattern: `{resource}:{action}`
 - `billing` - Billing management
 - `team` - Team management
 - `settings` - Tenant settings
+- `audit` - The tenant's audit log (`audit:read`, `GET /audit-logs`; tenant admins through `*:*`)
 
 **Available Actions:**
 - `create`, `read`, `delete` - Standard CRUD

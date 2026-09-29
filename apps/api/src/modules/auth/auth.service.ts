@@ -1,3 +1,4 @@
+import { AuditService } from '@lib/audit';
 import { RedisService } from '@lib/redis';
 import { DatabaseService, type QueryOptions } from '@lib/database';
 import {
@@ -90,6 +91,7 @@ export class AuthService {
     private readonly redis: RedisService,
     private readonly loginLockout: LoginLockoutService,
     private readonly passwordPolicy: PasswordPolicyService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -233,8 +235,23 @@ export class AuthService {
    * @param signupDto - User registration information
    * @returns Success message (+ verificationToken for a new account with AUTH_ECHO_TOKENS)
    */
-  async signup(signupDto: SignupDto): Promise<MessageResponseDto> {
-    await this.passwordPolicy.assertNotBreached(signupDto.password);
+  async signup(
+    signupDto: SignupDto,
+    request?: FastifyRequest,
+  ): Promise<MessageResponseDto> {
+    try {
+      await this.passwordPolicy.assertNotBreached(signupDto.password);
+    } catch (error) {
+      this.recordAuthEvent('AUTH_SIGNUP', {
+        outcome: 'failure',
+        request,
+        details: {
+          reason: 'password_breached',
+          emailHash: this.emailHash(signupDto.email),
+        },
+      });
+      throw error;
+    }
 
     // Hashed on both paths, so a registered email doesn't answer faster
     const passwordHash = await bcrypt.hash(
@@ -253,6 +270,12 @@ export class AuthService {
     });
     if (existingUser) {
       this.notifyAccountExists(signupDto.email, existingUser.id);
+      this.recordAuthEvent('AUTH_SIGNUP', {
+        outcome: 'success',
+        actorId: existingUser.id,
+        request,
+        details: { result: 'email_already_registered' },
+      });
       return accepted;
     }
 
@@ -288,6 +311,12 @@ export class AuthService {
       throw error;
     }
     const { userId, verificationToken } = created;
+    this.recordAuthEvent('AUTH_SIGNUP', {
+      outcome: 'success',
+      actorId: userId,
+      request,
+      details: { result: 'account_created' },
+    });
 
     // Sent after the commit, so a rollback never leaves a mailed token without its row. A failed
     // send (e.g. SES rejecting the address) must not fail the signup or crash the process.
@@ -314,6 +343,46 @@ export class AuthService {
     });
   }
 
+  /**
+   * Records an auth event. The caller is usually not signed in yet, so the actor is anonymous and
+   * actor_id is the account concerned when it is known; an email that matches no account is kept
+   * only as a hash. Fire-and-forget: AuditService.log never throws.
+   */
+  private recordAuthEvent(
+    action: string,
+    event: {
+      outcome: 'success' | 'failure';
+      actorId?: string | null;
+      actorType?: 'anonymous' | 'user';
+      request?: FastifyRequest;
+      details?: Record<string, unknown>;
+    },
+  ): void {
+    this.auditService
+      .log({
+        actorId: event.actorId ?? undefined,
+        actorType: event.actorType ?? 'anonymous',
+        action,
+        resourceType: 'auth',
+        resourceId: event.actorId ?? undefined,
+        details: { outcome: event.outcome, ...event.details },
+        ipAddress: event.request?.ip || undefined,
+        userAgent: event.request?.headers['user-agent'] || undefined,
+      })
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Audit write failed for ${action}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }
+
+  private emailHash(email: string): string {
+    return crypto
+      .createHash('sha256')
+      .update(email.trim().toLowerCase())
+      .digest('hex');
+  }
+
   private dummyHash(): Promise<string> {
     this.dummyPasswordHash ??= bcrypt.hash(
       crypto.randomBytes(16).toString('hex'),
@@ -336,8 +405,20 @@ export class AuthService {
       identityRefreshToken: string;
     }
   > {
-    const user = await this.validateUser(loginDto.email, loginDto.password);
-    return this.completeIdentityLogin(user, request);
+    const user = await this.validateUser(
+      loginDto.email,
+      loginDto.password,
+      request,
+    );
+    const result = await this.completeIdentityLogin(user, request);
+    this.recordAuthEvent('AUTH_LOGIN', {
+      outcome: 'success',
+      actorId: user.id,
+      actorType: 'user',
+      request,
+      details: { method: 'password' },
+    });
+    return result;
   }
 
   /**
@@ -356,12 +437,34 @@ export class AuthService {
       );
     }
 
-    const user = await this.resolveOrCreateSsoUser(profile);
-    // A new account from an unverified provider email exists now (and was sent a verification
-    // email), but it gets no session until that email is verified.
-    this.assertEmailVerified(user);
+    let user: User | undefined;
+    try {
+      user = await this.resolveOrCreateSsoUser(profile, request);
+      // A new account from an unverified provider email exists now (and was sent a verification
+      // email), but it gets no session until that email is verified.
+      this.assertEmailVerified(user);
+    } catch (error) {
+      this.recordAuthEvent('AUTH_SSO_LOGIN', {
+        outcome: 'failure',
+        actorId: user?.id,
+        request,
+        details: {
+          provider: profile.provider,
+          reason: user ? 'email_not_verified' : 'account_not_linkable',
+          emailHash: this.emailHash(profile.email),
+        },
+      });
+      throw error;
+    }
     const { identityAccessToken, identityRefreshToken } =
       await this.issueIdentitySessionAndTokens(user, request);
+    this.recordAuthEvent('AUTH_SSO_LOGIN', {
+      outcome: 'success',
+      actorId: user.id,
+      actorType: 'user',
+      request,
+      details: { provider: profile.provider },
+    });
     return { identityAccessToken, identityRefreshToken };
   }
 
@@ -418,6 +521,7 @@ export class AuthService {
 
   private async resolveOrCreateSsoUser(
     profile: SsoOAuthProfile,
+    request?: FastifyRequest,
   ): Promise<User> {
     const email = profile.email.trim().toLowerCase();
     const providerCol =
@@ -452,10 +556,17 @@ export class AuthService {
         );
       }
       try {
-        return await this.userRepository.update(byEmail.id, {
+        const linked = await this.userRepository.update(byEmail.id, {
           [providerCol]: profile.providerSubjectId,
           updated_at: new Date(),
         });
+        this.recordAuthEvent('AUTH_SSO_LINKED', {
+          outcome: 'success',
+          actorId: linked.id,
+          request,
+          details: { provider: profile.provider },
+        });
+        return linked;
       } catch (err: unknown) {
         if ((err as { code?: string }).code === '23505') {
           const existing = await this.userRepository.findByProviderId(
@@ -512,6 +623,15 @@ export class AuthService {
           );
         });
     }
+    this.recordAuthEvent('AUTH_SSO_ACCOUNT_CREATED', {
+      outcome: 'success',
+      actorId: created.user.id,
+      request,
+      details: {
+        provider: profile.provider,
+        emailVerifiedByProvider: profile.emailVerified,
+      },
+    });
     return created.user;
   }
 
@@ -624,10 +744,27 @@ export class AuthService {
   /**
    * Validate user credentials
    */
-  async validateUser(email: string, password: string): Promise<User> {
+  async validateUser(
+    email: string,
+    password: string,
+    request?: FastifyRequest,
+  ): Promise<User> {
+    const loginFailed = (reason: string, userId?: string): void =>
+      this.recordAuthEvent('AUTH_LOGIN', {
+        outcome: 'failure',
+        actorId: userId,
+        request,
+        details: {
+          method: 'password',
+          reason,
+          ...(userId ? {} : { emailHash: this.emailHash(email) }),
+        },
+      });
+
     // Locked accounts are refused before the password is checked, so guessing gets nowhere
     const lockedFor = await this.loginLockout.lockedForSeconds(email);
     if (lockedFor > 0) {
+      loginFailed('locked');
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
@@ -669,6 +806,14 @@ export class AuthService {
           : 'Login failed: user not found for email',
       );
       await this.loginLockout.recordFailure(email);
+      loginFailed(
+        !user
+          ? 'unknown_email'
+          : user.password_hash === null
+            ? 'no_password_sso_account'
+            : 'wrong_password',
+        user?.id,
+      );
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
       );
@@ -677,6 +822,7 @@ export class AuthService {
     await this.loginLockout.recordSuccess(email);
 
     // Checked after the password, so only the password holder learns the account is unverified
+    if (!user.is_verified) loginFailed('email_not_verified', user.id);
     this.assertEmailVerified(user);
 
     return user;
@@ -851,6 +997,12 @@ export class AuthService {
       this.logger.warn(
         `Refresh token reuse on ${kind} session ${sessionId} of user ${userId}: revoking the session`,
       );
+      this.recordAuthEvent('AUTH_REFRESH_TOKEN_REUSE', {
+        outcome: 'failure',
+        actorId: userId,
+        actorType: 'user',
+        details: { kind, sessionId, action: 'session_revoked' },
+      });
       await withSessionStore(() =>
         this.sessionService.deleteIdentitySession(identitySessionId, userId),
       );
@@ -1121,6 +1273,7 @@ export class AuthService {
    */
   async verifyEmail(
     verifyEmailDto: VerifyEmailDto,
+    request?: FastifyRequest,
   ): Promise<MessageResponseDto> {
     const hashedToken = crypto
       .createHash('sha256')
@@ -1131,6 +1284,11 @@ export class AuthService {
       await this.emailVerificationRepository.findByToken(hashedToken);
 
     if (!verification) {
+      this.recordAuthEvent('AUTH_EMAIL_VERIFIED', {
+        outcome: 'failure',
+        request,
+        details: { reason: 'invalid_token' },
+      });
       throw new BadRequestException(
         this.i18n.t(AuthI18n.errors.INVALID_VERIFICATION_TOKEN),
       );
@@ -1149,6 +1307,11 @@ export class AuthService {
     });
 
     this.logger.log(`Email verified for user ${verification.userId}`);
+    this.recordAuthEvent('AUTH_EMAIL_VERIFIED', {
+      outcome: 'success',
+      actorId: verification.userId,
+      request,
+    });
 
     return { message: this.i18n.t(AuthI18n.messages.EMAIL_VERIFIED) };
   }
@@ -1210,11 +1373,11 @@ export class AuthService {
    * happen after the response, so its timing doesn't tell whether the account exists. (With
    * AUTH_ECHO_TOKENS, tests and local development, it waits so the token can be returned.)
    */
-  async forgotPassword({ email }: ForgotPasswordDto) {
+  async forgotPassword({ email }: ForgotPasswordDto, request?: FastifyRequest) {
     const response = {
       message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
     };
-    const issued = this.issuePasswordReset(email);
+    const issued = this.issuePasswordReset(email, request);
 
     if (this.echoTokens()) {
       const resetToken = await issued;
@@ -1232,12 +1395,23 @@ export class AuthService {
    * Issues a reset token for the account with this email (ending any older ones) and emails it.
    * Returns the token, or null when there is no such account.
    */
-  private async issuePasswordReset(email: string): Promise<string | null> {
+  private async issuePasswordReset(
+    email: string,
+    request?: FastifyRequest,
+  ): Promise<string | null> {
     const user = await this.userRepository.findOne({
       filters: {
         email,
       },
       select: ['id'],
+    });
+    this.recordAuthEvent('AUTH_PASSWORD_RESET_REQUESTED', {
+      outcome: 'success',
+      actorId: user?.id,
+      request,
+      details: user
+        ? { accountFound: true }
+        : { accountFound: false, emailHash: this.emailHash(email) },
     });
     if (!user) return null;
 
@@ -1269,20 +1443,36 @@ export class AuthService {
   /**
    * Reset password using token
    */
-  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+  async resetPassword(
+    resetPasswordDto: ResetPasswordDto,
+    request?: FastifyRequest,
+  ) {
     const hashedToken = crypto
       .createHash('sha256')
       .update(resetPasswordDto.token)
       .digest('hex');
     const reset =
       await this.userRepository.findPasswordResetByToken(hashedToken);
+    const resetFailed = (reason: string, userId?: string): void =>
+      this.recordAuthEvent('AUTH_PASSWORD_RESET', {
+        outcome: 'failure',
+        actorId: userId,
+        request,
+        details: { reason },
+      });
     if (!reset) {
+      resetFailed('invalid_token');
       throw new BadRequestException(
         this.i18n.t(AuthI18n.errors.INVALID_VERIFICATION_TOKEN),
       );
     }
 
-    await this.passwordPolicy.assertNotBreached(resetPasswordDto.newPassword);
+    try {
+      await this.passwordPolicy.assertNotBreached(resetPasswordDto.newPassword);
+    } catch (error) {
+      resetFailed('password_breached', reset.userId);
+      throw error;
+    }
 
     // Hash new password
     const passwordHash = await bcrypt.hash(
@@ -1297,6 +1487,7 @@ export class AuthService {
         { client },
       );
       if (!consumed) {
+        resetFailed('token_already_used', reset.userId);
         throw new BadRequestException(
           this.i18n.t(AuthI18n.errors.INVALID_VERIFICATION_TOKEN),
         );
@@ -1317,6 +1508,11 @@ export class AuthService {
     );
 
     this.logger.log(`Password reset for user ${reset.userId}`);
+    this.recordAuthEvent('AUTH_PASSWORD_RESET', {
+      outcome: 'success',
+      actorId: reset.userId,
+      request,
+    });
 
     return { message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_SUCCESS) };
   }

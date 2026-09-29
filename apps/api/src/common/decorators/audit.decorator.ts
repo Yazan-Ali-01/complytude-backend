@@ -19,7 +19,8 @@ export interface AuditConfig {
 /**
  * Method-level decorator for opt-in audit logging.
  * Only methods decorated with @Audit() will be logged to the audit trail.
- * Logging is fire-and-forget and only triggers on successful (2xx) responses.
+ * Logging is fire-and-forget. Successes and handler errors are both recorded (`details.outcome`
+ * and, for errors, `details.status`); a caller who is not signed in is recorded as anonymous.
  *
  * @param action - The audit action name (stored as `action` in audit_logs)
  * @param options - Optional configuration for resource type, ID extraction, and body inclusion

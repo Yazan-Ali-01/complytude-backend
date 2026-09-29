@@ -48,6 +48,9 @@ class MockAuditService {
   countAuditLogs(): Promise<number> {
     return Promise.resolve(0);
   }
+  search(): Promise<{ items: unknown[]; total: number }> {
+    return Promise.resolve({ items: [], total: 0 });
+  }
 }
 
 export interface TestApp {

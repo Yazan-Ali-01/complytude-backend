@@ -40,6 +40,7 @@ import {
   ListAuthoritiesQueryDto,
   UpdateAuthorityDto,
 } from './dto';
+import { Audit } from 'src/common/decorators/audit.decorator';
 
 @ApiTags('Authorities')
 @Controller('authorities')
@@ -114,6 +115,7 @@ export class AuthoritiesController {
   // ─── Write Endpoints (identity token + authorities:manage) ─────
 
   @Post()
+  @Audit('AUTHORITY_CREATED', { includeBody: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
@@ -132,6 +134,7 @@ export class AuthoritiesController {
   }
 
   @Patch(':id')
+  @Audit('AUTHORITY_UPDATED', { resourceIdParam: 'id', includeBody: true })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({
@@ -155,6 +158,7 @@ export class AuthoritiesController {
   }
 
   @Delete(':id')
+  @Audit('AUTHORITY_DELETED', { resourceIdParam: 'id' })
   @UseGuards(PlatformPermissionsGuard)
   @RequireAnyPlatformPermission('authorities:manage')
   @ApiOperation({

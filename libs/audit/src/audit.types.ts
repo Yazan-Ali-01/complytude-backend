@@ -1,4 +1,4 @@
-export type AuditActorType = 'user' | 'system' | 'api_key';
+export type AuditActorType = 'user' | 'system' | 'api_key' | 'anonymous';
 
 export interface AuditLog {
   id: string;
@@ -30,6 +30,23 @@ export interface CreateAuditLogInput {
   ipAddress?: string;
   userAgent?: string;
   traceId?: string;
+}
+
+/** Filters for the audit-log read endpoints. */
+export interface AuditLogSearch {
+  tenantId?: string;
+  actorId?: string;
+  action?: string;
+  resourceType?: string;
+  startDate?: Date;
+  endDate?: Date;
+  limit: number;
+  offset: number;
+}
+
+export interface AuditLogPage {
+  items: AuditLog[];
+  total: number;
 }
 
 export interface AuditLogFilters {

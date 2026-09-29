@@ -77,6 +77,7 @@ describe('AuthService when SES rejects the email', () => {
       {} as never, // redis
       {} as never, // loginLockout
       { assertNotBreached: () => Promise.resolve() } as never, // passwordPolicy
+      { log: () => Promise.resolve() } as never, // auditService
     );
   }
 

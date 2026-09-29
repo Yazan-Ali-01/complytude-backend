@@ -131,7 +131,11 @@ Integration tests run the app as a non-superuser role (`app_login`, a member of 
 
 `audit_logs` has RLS too (migration 029): a tenant context reads and writes only its own rows;
 rows with no tenant (system and identity-level events) are written and read in platform-admin
-context. `AuditLogsRepository` picks the context from each row's `tenant_id`.
+context. `AuditLogsRepository` picks the context from each row's `tenant_id`. `app_user` has only
+`SELECT, INSERT` on it, so the application can't change or delete history. `actor_type` is
+`user`, `system`, `api_key` or `anonymous` (migration 032: a caller who is not signed in; `actor_id`
+is then the account concerned when known, and an email that matches no account is kept only as
+a SHA-256 hash in `details.emailHash`). Retention of audit rows is not decided yet.
 
 `BaseRepository` refuses to run a query on a table with RLS unless it gets `{ client }` from one of the context transactions above or `{ tenant }`: it throws rather than let the query return no rows. The tables are listed in `RLS_TABLES` (`libs/database/src/base/rls-tables.ts`); the RLS suite fails if that list and the database disagree, so update it when you enable RLS on a table.
 

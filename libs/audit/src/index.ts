@@ -4,5 +4,7 @@ export type {
   AuditActorType,
   AuditLog,
   AuditLogFilters,
+  AuditLogPage,
+  AuditLogSearch,
   CreateAuditLogInput,
 } from './audit.types';

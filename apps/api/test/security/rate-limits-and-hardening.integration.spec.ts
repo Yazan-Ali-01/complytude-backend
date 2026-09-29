@@ -74,7 +74,8 @@ describe('Rate limits, login lockout and HTTP hardening', () => {
     clock.mockRestore();
     expect(refused.statusCode).toBe(429);
     expect(Number(refused.headers['retry-after'])).toBe(40);
-  });
+    // Every login costs a bcrypt, even for an unknown email (so timing reveals nothing): 22 of them
+  }, 30000);
 
   it('locks an account after five wrong passwords, then lets it in once the lock expires', async () => {
     const victim = await createTestUser(app.module);

@@ -286,6 +286,7 @@ graph TD
 | **entitlements**  | Plan-based feature access, usage tracking, credit system (Global)                  | database, subscriptions, queue             |
 | **subscriptions** | Subscription lifecycle (create, change plan, cancel, renew)                        | database                                   |
 | **audit**         | Audit logging (Global)                                                             | database                                   |
+| **audit-logs**    | Audit log read API: tenant `GET /audit-logs`, platform `GET /admin/audit-logs`     | audit                                      |
 | **authorities**   | Regulatory authority management                                                    | database                                   |
 | **categories**    | Template category management                                                       | database                                   |
 | **templates**     | Template CRUD, versioning, field extraction                                        | storage, database                          |

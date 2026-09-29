@@ -2,6 +2,7 @@ import { AuditActorType, AuditService } from '@lib/audit';
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
   Injectable,
   Logger,
   NestInterceptor,
@@ -9,8 +10,8 @@ import {
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { FastifyRequest } from 'fastify';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { Observable, throwError } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
 import {
   AuthenticatedIdentityUser,
   AuthenticatedTenantUser,
@@ -26,7 +27,7 @@ type AuditableRequest = FastifyRequest & {
 };
 
 interface ResolvedActor {
-  actorId: string;
+  actorId?: string;
   tenantId?: string;
   actorType: AuditActorType;
   userRole?: string;
@@ -52,50 +53,52 @@ export class AuditInterceptor implements NestInterceptor {
     }
 
     const request = context.switchToHttp().getRequest<AuditableRequest>();
+    // Not signed in (e.g. a public route): still recorded, as anonymous
+    const actor: ResolvedActor = this.resolveActor(request) ?? {
+      actorType: 'anonymous',
+    };
 
-    const actor = this.resolveActor(request);
-    if (!actor) {
-      return next.handle();
-    }
+    const write = (
+      response: unknown,
+      outcome: { outcome: 'success' | 'failure'; status?: number },
+    ): void => {
+      const details: Record<string, unknown> = {
+        method: request.method,
+        url: request.url,
+        ...outcome,
+      };
+      if (auditConfig.options.includeBody && request.body) {
+        details.body = sanitizeBody(request.body);
+      }
+
+      // Fire-and-forget: AuditService.log handles its own errors; this catch is the backstop
+      this.auditService
+        .log({
+          ...actor,
+          action: auditConfig.action,
+          resourceType:
+            this.resolveResourceType(auditConfig, context) ?? 'unknown',
+          resourceId: this.resolveResourceId(auditConfig, request, response),
+          details,
+          ipAddress: this.resolveIpAddress(request),
+          userAgent: request.headers['user-agent'] || undefined,
+        })
+        .catch((error: unknown) => {
+          this.logger.error(
+            `Audit write failed for ${auditConfig.action}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+    };
 
     return next.handle().pipe(
-      tap({
-        next: (response) => {
-          const resourceType = this.resolveResourceType(auditConfig, context);
-          const resourceId = this.resolveResourceId(
-            auditConfig,
-            request,
-            response,
-          );
-          const ipAddress = this.resolveIpAddress(request);
-          const userAgent = request.headers['user-agent'] || undefined;
-
-          const details: Record<string, unknown> = {
-            method: request.method,
-            url: request.url,
-          };
-
-          if (auditConfig.options.includeBody && request.body) {
-            details.body = sanitizeBody(request.body);
-          }
-
-          // Fire-and-forget: AuditService.log handles its own errors; this catch is the backstop
-          this.auditService
-            .log({
-              ...actor,
-              action: auditConfig.action,
-              resourceType: resourceType ?? 'unknown',
-              resourceId,
-              details,
-              ipAddress,
-              userAgent,
-            })
-            .catch((error: unknown) => {
-              this.logger.error(
-                `Audit write failed for ${auditConfig.action}: ${error instanceof Error ? error.message : String(error)}`,
-              );
-            });
-        },
+      tap({ next: (response) => write(response, { outcome: 'success' }) }),
+      // A refused or failed attempt is recorded too, with the status it got
+      catchError((error: unknown) => {
+        write(undefined, {
+          outcome: 'failure',
+          status: error instanceof HttpException ? error.getStatus() : 500,
+        });
+        return throwError(() => error);
       }),
     );
   }

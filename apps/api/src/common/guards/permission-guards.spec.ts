@@ -4,6 +4,7 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { AuditService } from '@lib/audit';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../../modules/auth/decorators/roles.decorator';
 import { RolesGuard } from '../../modules/auth/guards/roles.guard';
@@ -16,7 +17,14 @@ import { TenantPermissionsGuard } from './tenant-permissions.guard';
 
 function createContext(auth: Record<string, unknown>): ExecutionContext {
   return {
-    switchToHttp: () => ({ getRequest: () => ({ auth }) }),
+    switchToHttp: () => ({
+      getRequest: () => ({
+        auth,
+        method: 'POST',
+        url: '/api/v1/things',
+        headers: {},
+      }),
+    }),
     getHandler: () => function handler(): void {},
     getClass: () => class TestController {},
   } as unknown as ExecutionContext;
@@ -29,6 +37,8 @@ function reflectorReturning(byKey: Record<string, unknown>): Reflector {
 }
 
 const tenantUser = { userId: 'u1', tenantId: 't1', role: 'member' };
+const audit = { log: jest.fn().mockResolvedValue(undefined) };
+const auditService = audit as unknown as AuditService;
 const platformUser = { userId: 'u1', platformRole: 'support' };
 
 describe('Permission and role guards deny by default', () => {
@@ -40,7 +50,10 @@ describe('Permission and role guards deny by default', () => {
       .mockImplementation(() => undefined);
   });
 
-  afterEach(() => loggerError.mockRestore());
+  afterEach(() => {
+    loggerError.mockRestore();
+    audit.log.mockClear();
+  });
 
   describe('TenantPermissionsGuard', () => {
     const rbac = {
@@ -57,6 +70,7 @@ describe('Permission and role guards deny by default', () => {
       const guard = new TenantPermissionsGuard(
         reflectorReturning(metadata),
         rbac,
+        auditService,
       );
       await expect(
         guard.canActivate(createContext({ tenant: tenantUser })),
@@ -73,10 +87,41 @@ describe('Permission and role guards deny by default', () => {
           },
         }),
         rbac,
+        auditService,
       );
       await expect(
         guard.canActivate(createContext({ tenant: tenantUser })),
       ).resolves.toBe(true);
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
+    it('records a refused permission in the audit trail', async () => {
+      const guard = new TenantPermissionsGuard(
+        reflectorReturning({
+          [TENANT_PERMISSIONS_KEY]: {
+            permissions: ['billing:manage'],
+            requireAll: false,
+          },
+        }),
+        rbac,
+        auditService,
+      );
+      await expect(
+        guard.canActivate(createContext({ tenant: tenantUser })),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PERMISSION_DENIED',
+          actorId: 'u1',
+          tenantId: 't1',
+          userRole: 'member',
+          details: expect.objectContaining({
+            required: ['billing:manage'],
+            status: 403,
+            url: '/api/v1/things',
+          }),
+        }),
+      );
     });
   });
 
@@ -95,6 +140,7 @@ describe('Permission and role guards deny by default', () => {
       const guard = new PlatformPermissionsGuard(
         reflectorReturning(metadata),
         rbac,
+        auditService,
       );
       await expect(
         guard.canActivate(createContext({ identity: platformUser })),
@@ -111,10 +157,34 @@ describe('Permission and role guards deny by default', () => {
           },
         }),
         rbac,
+        auditService,
       );
       await expect(
         guard.canActivate(createContext({ identity: platformUser })),
       ).resolves.toBe(true);
+    });
+
+    it('records a refused platform permission in the audit trail', async () => {
+      const guard = new PlatformPermissionsGuard(
+        reflectorReturning({
+          [PLATFORM_PERMISSIONS_KEY]: {
+            permissions: ['tenants:create'],
+            requireAll: false,
+          },
+        }),
+        rbac,
+        auditService,
+      );
+      await expect(
+        guard.canActivate(createContext({ identity: platformUser })),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PERMISSION_DENIED',
+          actorId: 'u1',
+          userRole: 'support',
+        }),
+      );
     });
   });
 

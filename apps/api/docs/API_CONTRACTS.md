@@ -238,6 +238,15 @@ Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `te
 
 **System admin** (`platformRole === system_admin`): `GET /api/v1/admin/sessions/stats`, `GET /api/v1/admin/tenants/:tenantId/sessions`, `GET /api/v1/admin/users/:userId/sessions`, `DELETE /api/v1/admin/users/:userId/sessions`, `DELETE /api/v1/admin/sessions/:sessionId`. All audited as break-glass.
 
+### Audit log (`/api/v1/audit-logs`, `/api/v1/admin/audit-logs`)
+
+| Method | Path                        | Auth                                              | Description |
+| ------ | --------------------------- | ------------------------------------------------- | ----------- |
+| `GET`  | `/api/v1/audit-logs`        | Tenant access + `audit:read` (tenant admins)      | The tenant's own audit rows, newest first |
+| `GET`  | `/api/v1/admin/audit-logs`  | Identity access + platform `audit:read` (system_admin, support, auditor) | Every row, including platform-level events with no tenant; `tenantId` narrows to one tenant |
+
+Query: `page` (default 1), `limit` (1–100, default 50), `action`, `resourceType`, `actorId`, `from`, `to` (ISO 8601). Response: `{ data: AuditLog[], meta: { page, limit, total, totalPages, hasNextPage, hasPreviousPage } }`. Each row has `actorType` (`user`, `system`, `api_key`, or `anonymous` for a caller who was not signed in), and `details` with the request method and URL and `outcome` (`success`, or `failure` with `status`). Recorded: every `@Audit` route (successes and handler errors), permission refusals (`PERMISSION_DENIED`), and the auth events `AUTH_LOGIN`, `AUTH_SIGNUP`, `AUTH_EMAIL_VERIFIED`, `AUTH_PASSWORD_RESET_REQUESTED`, `AUTH_PASSWORD_RESET`, `AUTH_SSO_LOGIN`, `AUTH_SSO_LINKED`, `AUTH_SSO_ACCOUNT_CREATED` and `AUTH_REFRESH_TOKEN_REUSE`. An email that matches no account is stored only as a SHA-256 hash (`details.emailHash`).
+
 ### Authentication Flow
 
 **Regular User Authentication:**
