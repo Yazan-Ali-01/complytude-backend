@@ -99,6 +99,36 @@ describe('production environment validation', () => {
   });
 
   describe('api', () => {
+    it('accepts a list of https origins, spaces and trailing slashes included', () => {
+      expect(
+        errors(api, {
+          ...PRODUCTION,
+          CORS_ORIGINS: 'https://app.example.com, https://admin.example.com/',
+        }),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['http://app.example.com', 'must be https when NODE_ENV=production'],
+      ['*', 'is not an origin'],
+      ['app.example.com', 'is not an origin'],
+      ['https://app.example.com, ftp://files.example.com', 'must be https'],
+    ])('refuses CORS_ORIGINS=%s', (value, message) => {
+      expect(errors(api, { ...PRODUCTION, CORS_ORIGINS: value })).toEqual([
+        expect.stringContaining(message),
+      ]);
+    });
+
+    it('accepts http origins outside production', () => {
+      expect(
+        errors(api, {
+          ...PRODUCTION,
+          NODE_ENV: 'development',
+          CORS_ORIGINS: 'http://localhost:3001',
+        }).filter((message) => message.includes('CORS_ORIGINS')),
+      ).toEqual([]);
+    });
+
     it('needs the four JWT secrets to be different', () => {
       expect(
         errors(api, {

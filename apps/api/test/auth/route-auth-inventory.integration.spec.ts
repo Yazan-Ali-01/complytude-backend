@@ -277,6 +277,7 @@ describe('Route authentication inventory', () => {
         // Required in production (env.schema.ts); .env.test's test values are refused there
         BULL_BOARD_ADMIN_SECRET: 'route-auth-inventory-secret-0123456789',
         FRONTEND_URL: 'https://app.example.com',
+        CORS_ORIGINS: 'https://app.example.com',
         AUTH_ECHO_TOKENS: 'false',
         RATE_LIMIT_ENABLED: 'true',
         DB_SSL_ENABLED: 'true',

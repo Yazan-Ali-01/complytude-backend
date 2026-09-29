@@ -15,8 +15,6 @@ import {
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { AppModule } from './app.module';
 import {
   BULL_BOARD_BASE_PATH,
@@ -61,9 +59,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port') || 3000;
   const apiPrefix = configService.get<string>('app.apiPrefix') || 'api';
-  const corsOrigins = configService.get<string[]>('app.corsOrigins') || [
-    'http://localhost:3000',
-  ];
+  const corsOrigins = configService.getOrThrow<string[]>('app.corsOrigins');
   const environment =
     configService.get<string>('app.environment') || 'development';
   const maxFileSize =
@@ -134,7 +130,8 @@ async function bootstrap() {
   );
 
   // ========================================================================
-  // SWAGGER CONFIGURATION - Dev/staging only; disabled in production
+  // SWAGGER - local development and tests only: wherever NODE_ENV=production (staging included,
+  // which is internet-facing) the API serves no docs. Locally: /docs and /api/docs-json.
   // ========================================================================
   if (environment !== 'production') {
     const config = new DocumentBuilder()
@@ -254,28 +251,6 @@ async function bootstrap() {
     app.getHttpAdapter().get(`/${apiPrefix}/docs-json`, (req, reply) => {
       reply.type('application/json').send(document);
     });
-
-    // Export JSON to file system for version control (development only)
-    if (environment === 'development') {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const exportDir = join(process.cwd(), 'apps', 'api', 'docs', 'swagger');
-
-      try {
-        // Export latest version (always overwrites)
-        const latestPath = join(exportDir, 'openapi-latest.json');
-        writeFileSync(latestPath, JSON.stringify(document, null, 2));
-        logger.log(`📄 OpenAPI spec exported: ${latestPath}`);
-
-        // Export timestamped backup (never overwrites)
-        const backupPath = join(exportDir, `openapi-${timestamp}.json`);
-        writeFileSync(backupPath, JSON.stringify(document, null, 2));
-        logger.log(`💾 OpenAPI backup created: ${backupPath}`);
-      } catch (error) {
-        logger.warn(
-          `⚠️  Failed to export OpenAPI spec to file: ${error.message}`,
-        );
-      }
-    }
   } // end: if (environment !== 'production')
 
   // Enable graceful shutdown — fires onModuleDestroy on SIGTERM/SIGINT,

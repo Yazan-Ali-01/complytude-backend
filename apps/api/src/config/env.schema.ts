@@ -64,7 +64,41 @@ export const validationSchema = Joi.object({
       }),
     }),
   API_PREFIX: Joi.string().default('api'),
-  CORS_ORIGINS: Joi.string().required(),
+  // Browser origins allowed to call the API (and to be sent back to by Stripe): comma-separated
+  CORS_ORIGINS: Joi.string()
+    .required()
+    .custom((value: string, helpers) => {
+      const production =
+        (helpers.state.ancestors[0] as Record<string, unknown>)?.NODE_ENV ===
+        'production';
+      const entries = value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      if (entries.length === 0) {
+        return helpers.message({
+          custom: 'CORS_ORIGINS must list at least one origin',
+        });
+      }
+      for (const entry of entries) {
+        let protocol: string;
+        try {
+          protocol = new URL(entry).protocol;
+        } catch {
+          return helpers.message({
+            custom: `CORS_ORIGINS entry "${entry}" is not an origin such as https://app.example.com`,
+          });
+        }
+        if (protocol !== 'https:' && (production || protocol !== 'http:')) {
+          return helpers.message({
+            custom: production
+              ? `CORS_ORIGINS entry "${entry}" must be https when NODE_ENV=production`
+              : `CORS_ORIGINS entry "${entry}" must be an http(s) origin`,
+          });
+        }
+      }
+      return value;
+    }),
   ENTITLEMENT_STRICT_THRESHOLD_PERCENT: Joi.number()
     .integer()
     .min(1)

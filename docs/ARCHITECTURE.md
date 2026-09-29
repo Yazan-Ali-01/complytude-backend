@@ -943,10 +943,10 @@ Future versions: `/api/v2`
 
 ### Documentation
 
-Interactive API docs available at:
+Interactive API docs, served only when `NODE_ENV` is not `production` (local development and tests; staging and production serve none):
 
-- **Development:** http://localhost:3000/docs
-- **Swagger JSON:** http://localhost:3000/docs-json
+- **Swagger UI:** http://localhost:3000/docs
+- **OpenAPI JSON:** http://localhost:3000/api/docs-json (save it with `curl` when you need a file; the API no longer writes one on boot)
 
 ---
 

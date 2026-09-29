@@ -54,7 +54,7 @@ variable "s3_endpoint" {
 }
 
 variable "cors_origins" {
-  description = "CORS allowed origins (comma-separated): the web app's origin(s), not the API's"
+  description = "CORS allowed origins (comma-separated https origins): the web app's origin(s), not the API's; also the Stripe redirect allowlist"
   type        = string
 }
 
