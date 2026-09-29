@@ -8,3 +8,4 @@ export * from './database.module';
 export * from './database.schema';
 export * from './env-secret.schema';
 export * from './database.service';
+export * from './ssl-options';

@@ -14,4 +14,10 @@ export default registerAs('database', () => ({
   sslRejectUnauthorized:
     process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' &&
     process.env.DB_SSL_REJECT_UNAUTHORIZED !== '0',
+  sslCaPath: process.env.DB_SSL_CA_PATH || undefined,
+  statementTimeoutMs: parseInt(process.env.DB_STATEMENT_TIMEOUT!, 10),
+  idleInTransactionTimeoutMs: parseInt(
+    process.env.DB_IDLE_IN_TRANSACTION_TIMEOUT!,
+    10,
+  ),
 }));

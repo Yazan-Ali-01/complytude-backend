@@ -42,9 +42,9 @@ variable "db_ssl_enabled" {
 }
 
 variable "db_ssl_reject_unauthorized" {
-  description = "Reject self-signed DB certs. Set to false for AWS RDS (uses self-signed cert)"
+  description = "Verify the DB server certificate (RDS certificates chain to the Amazon RDS CA, shipped in the images and set as DB_SSL_CA_PATH)"
   type        = string
-  default     = "false"
+  default     = "true"
 }
 
 # ---- Redis (from ElastiCache outputs) ----

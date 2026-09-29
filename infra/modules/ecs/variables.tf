@@ -159,3 +159,17 @@ variable "waf_ip_rate_limit" {
   type        = number
   default     = 3000
 }
+
+# Connection budget: (api_db_pool_size x API tasks + worker_db_pool_size x worker tasks) x 2 during
+# a rolling deploy must stay under the RDS max_connections (db.t4g.micro: ~80 usable).
+variable "api_db_pool_size" {
+  description = "DB connections per API task"
+  type        = number
+  default     = 10
+}
+
+variable "worker_db_pool_size" {
+  description = "DB connections per worker task (at least the worker's BullMQ concurrency)"
+  type        = number
+  default     = 5
+}

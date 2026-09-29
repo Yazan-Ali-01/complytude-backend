@@ -1,6 +1,11 @@
 # ---- Secrets mapping for ECS task definitions ----
 # Format: valueFrom = "${secret_arn}:JSON_KEY::"
 locals {
+  # Every service verifies the DB certificate against the bundle baked into its image
+  db_client_environment = {
+    DB_SSL_CA_PATH = "/app/certs/rds-global-bundle.pem"
+  }
+
   secret_keys = [
     "DB_HOST",
     "DB_PORT",
@@ -9,7 +14,6 @@ locals {
     "DB_APP_PASSWORD",
     "DB_SSL_ENABLED",
     "DB_SSL_REJECT_UNAUTHORIZED",
-    "DB_MAX_CONNECTIONS",
     "DB_IDLE_TIMEOUT",
     "DB_CONNECTION_TIMEOUT",
     "REDIS_HOST",
@@ -97,7 +101,10 @@ resource "aws_ecs_task_definition" "api" {
       ]
 
       environment = [
-        for k, v in merge(var.api_environment, { BULL_BOARD_PORT = tostring(var.bull_board_port) }) : { name = k, value = v }
+        for k, v in merge(var.api_environment, local.db_client_environment, {
+          BULL_BOARD_PORT    = tostring(var.bull_board_port)
+          DB_MAX_CONNECTIONS = tostring(var.api_db_pool_size)
+        }) : { name = k, value = v }
       ]
 
       secrets = local.api_secrets
@@ -212,7 +219,9 @@ resource "aws_ecs_task_definition" "worker_ai" {
       stopTimeout = var.worker_stop_timeout
 
       environment = [
-        for k, v in var.worker_ai_environment : { name = k, value = v }
+        for k, v in merge(var.worker_ai_environment, local.db_client_environment, {
+          DB_MAX_CONNECTIONS = tostring(var.worker_db_pool_size)
+        }) : { name = k, value = v }
       ]
 
       secrets = local.secrets
@@ -290,7 +299,9 @@ resource "aws_ecs_task_definition" "worker_ingestion" {
       stopTimeout = var.worker_stop_timeout
 
       environment = [
-        for k, v in var.worker_ingestion_environment : { name = k, value = v }
+        for k, v in merge(var.worker_ingestion_environment, local.db_client_environment, {
+          DB_MAX_CONNECTIONS = tostring(var.worker_db_pool_size)
+        }) : { name = k, value = v }
       ]
 
       secrets = local.secrets
@@ -372,7 +383,9 @@ resource "aws_ecs_task_definition" "worker_generation" {
       stopTimeout = var.worker_stop_timeout
 
       environment = [
-        for k, v in var.worker_generation_environment : { name = k, value = v }
+        for k, v in merge(var.worker_generation_environment, local.db_client_environment, {
+          DB_MAX_CONNECTIONS = tostring(var.worker_db_pool_size)
+        }) : { name = k, value = v }
       ]
 
       secrets = local.secrets

@@ -10,6 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolConfig } from 'pg';
 import { DATABASE_POOL } from './database.constants';
+import { buildSslOptions } from './ssl-options';
 import { DatabaseService } from './database.service';
 
 export interface DatabaseModuleAsyncOptions
@@ -39,9 +40,13 @@ export class DatabaseModule {
           );
         }
 
-        const sslEnabled = configService.get<boolean>('database.sslEnabled');
-        const sslRejectUnauthorized =
-          configService.get<boolean>('database.sslRejectUnauthorized') ?? true;
+        const ssl = buildSslOptions({
+          enabled: configService.get<boolean>('database.sslEnabled') ?? false,
+          rejectUnauthorized:
+            configService.get<boolean>('database.sslRejectUnauthorized') ??
+            true,
+          caPath: configService.get<string>('database.sslCaPath'),
+        });
         return {
           host,
           port,
@@ -54,9 +59,14 @@ export class DatabaseModule {
           connectionTimeoutMillis:
             configService.get<number>('database.connectionTimeoutMillis') ??
             2000,
-          ...(sslEnabled && {
-            ssl: { rejectUnauthorized: sslRejectUnauthorized },
-          }),
+          // A runaway query or a transaction left open (a hung external call inside it) is ended by
+          // Postgres instead of holding a connection and its locks indefinitely
+          statement_timeout:
+            configService.get<number>('database.statementTimeoutMs') || 15000,
+          idle_in_transaction_session_timeout:
+            configService.get<number>('database.idleInTransactionTimeoutMs') ||
+            30000,
+          ...(ssl && { ssl }),
         };
       },
     });

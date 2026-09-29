@@ -112,6 +112,9 @@ COPY --from=build --chown=nestjs:nodejs /app/node_modules ./node_modules
 # Copy built API application
 COPY --from=build --chown=nestjs:nodejs /app/dist/apps/api ./dist/apps/api
 
+# Amazon RDS CA bundle: the DB server certificate is verified against it (DB_SSL_CA_PATH)
+COPY --from=build --chown=nestjs:nodejs /app/libs/database/certs ./certs
+
 # Copy necessary config files
 COPY --chown=nestjs:nodejs package.json ./
 

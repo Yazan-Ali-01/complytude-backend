@@ -12,6 +12,7 @@ const PRODUCTION: Record<string, string> = {
   DB_NAME: 'complytude',
   DB_APP_USER: 'app_login',
   DB_APP_PASSWORD: 'Vq3r8KxZp2Lm9Wt4Ys6N',
+  DB_SSL_ENABLED: 'true',
   REDIS_HOST: 'redis.internal',
   REDIS_PORT: '6379',
   CORS_ORIGINS: 'https://app.example.com',
@@ -121,6 +122,20 @@ describe('production environment validation', () => {
       ]);
       expect(errors(api, { ...PRODUCTION, TRUST_PROXY_HOPS: '0' })).toEqual([
         'TRUST_PROXY_HOPS must be at least 1 when NODE_ENV=production',
+      ]);
+    });
+
+    it('connects to the database over verified TLS only', () => {
+      expect(errors(api, without('DB_SSL_ENABLED'))).toEqual([
+        'DB_SSL_ENABLED must be true when NODE_ENV=production',
+      ]);
+      expect(errors(api, { ...PRODUCTION, DB_SSL_ENABLED: 'false' })).toEqual([
+        'DB_SSL_ENABLED must be true when NODE_ENV=production',
+      ]);
+      expect(
+        errors(api, { ...PRODUCTION, DB_SSL_REJECT_UNAUTHORIZED: 'false' }),
+      ).toEqual([
+        'DB_SSL_REJECT_UNAUTHORIZED must not be false when NODE_ENV=production',
       ]);
     });
 

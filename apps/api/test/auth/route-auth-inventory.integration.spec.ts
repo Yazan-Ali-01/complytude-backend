@@ -1,3 +1,4 @@
+import { DATABASE_POOL } from '@lib/database';
 import { RequestMethod } from '@nestjs/common';
 import {
   GUARDS_METADATA,
@@ -15,7 +16,7 @@ import {
 } from 'src/modules/auth/decorators/auth-options.decorator';
 import { ROLES_KEY } from 'src/modules/auth/decorators/roles.decorator';
 import { resetTestState } from '../helpers/redis-flush.helper';
-import type { TestApp } from '../setup/test-app.factory';
+import type { CreateTestAppOptions, TestApp } from '../setup/test-app.factory';
 
 /**
  * Every route the API serves says how it is authenticated: @AuthOptions (with a token),
@@ -92,9 +93,26 @@ async function bootApp(env: Record<string, string>): Promise<BootedApp> {
     const core =
       jest.requireActual<typeof import('@nestjs/core')>('@nestjs/core');
     const { createTestApp } = jest.requireActual<{
-      createTestApp: () => Promise<TestApp>;
+      createTestApp: (options?: CreateTestAppOptions) => Promise<TestApp>;
     }>('../setup/test-app.factory');
-    const testApp = await createTestApp();
+    const { Pool } = jest.requireActual<typeof import('pg')>('pg');
+    // Production config demands verified TLS to the database, which the test Postgres doesn't
+    // serve: the configuration is validated as production, the pool itself is a plain test one
+    const testApp = await createTestApp({
+      providers: [
+        {
+          provide: DATABASE_POOL,
+          useFactory: () =>
+            new Pool({
+              host: process.env.DB_HOST,
+              port: Number(process.env.DB_PORT),
+              database: process.env.DB_NAME,
+              user: process.env.DB_APP_USER,
+              password: process.env.DB_APP_PASSWORD,
+            }),
+        },
+      ],
+    });
     booted = {
       testApp,
       modulesContainer: testApp.module.get(core.ModulesContainer),
@@ -261,6 +279,8 @@ describe('Route authentication inventory', () => {
         FRONTEND_URL: 'https://app.example.com',
         AUTH_ECHO_TOKENS: 'false',
         RATE_LIMIT_ENABLED: 'true',
+        DB_SSL_ENABLED: 'true',
+        DB_SSL_REJECT_UNAUTHORIZED: 'true',
         TRUST_PROXY_HOPS: '1',
         STRIPE_SECRET_KEY: 'sk_test_route_inventory_0123456789',
         STRIPE_WEBHOOK_SECRET: 'whsec_route_inventory_0123456789',

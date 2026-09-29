@@ -10,12 +10,31 @@ resource "aws_db_subnet_group" "main" {
   }
 }
 
+# ---- Parameters ----
+# Refuse unencrypted connections at the server, whatever a client asks for (the apps also verify
+# the server certificate against the Amazon RDS CA bundle).
+resource "aws_db_parameter_group" "main" {
+  name   = "${var.project_name}-${var.environment}-postgres16"
+  family = "postgres16"
+
+  parameter {
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot"
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-postgres16"
+  }
+}
+
 # ---- RDS Instance ----
 resource "aws_db_instance" "main" {
-  identifier     = "${var.project_name}-${var.environment}-postgres"
-  engine         = "postgres"
-  engine_version = "16.12" # Latest 16.x in me-central-1 (16.4 not available)
-  instance_class = var.instance_class
+  identifier           = "${var.project_name}-${var.environment}-postgres"
+  engine               = "postgres"
+  engine_version       = "16.12" # Latest 16.x in me-central-1 (16.4 not available)
+  instance_class       = var.instance_class
+  parameter_group_name = aws_db_parameter_group.main.name
 
   # Storage
   allocated_storage     = 20    # 20 GB starting size
