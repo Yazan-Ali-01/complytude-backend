@@ -37,3 +37,23 @@ output "worker_generation_service_name" {
   description = "Worker Generation ECS service name"
   value       = aws_ecs_service.worker_generation.name
 }
+
+output "alb_arn_suffix" {
+  description = "ALB ARN suffix (CloudWatch LoadBalancer dimension)"
+  value       = aws_lb.main.arn_suffix
+}
+
+output "api_target_group_arn_suffix" {
+  description = "API target group ARN suffix (CloudWatch TargetGroup dimension)"
+  value       = aws_lb_target_group.api.arn_suffix
+}
+
+output "log_group_names" {
+  description = "CloudWatch log group per app (for metric filters)"
+  value = {
+    api               = aws_cloudwatch_log_group.api.name
+    worker-ai         = aws_cloudwatch_log_group.worker_ai.name
+    worker-ingestion  = aws_cloudwatch_log_group.worker_ingestion.name
+    worker-generation = aws_cloudwatch_log_group.worker_generation.name
+  }
+}

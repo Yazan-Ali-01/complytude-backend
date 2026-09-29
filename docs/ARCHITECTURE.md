@@ -1241,7 +1241,7 @@ A Bull Board dashboard for every queue in `QUEUE_NAMES` is served at `/admin/que
 - Without the secret (local development), the dashboard is open but bound to `127.0.0.1`, so no other machine can reach it.
 - On AWS, the ECS security group admits the port from the bastion's security group only. Reach it with an SSH tunnel (see `infra/README.md`).
 
-`GET /health/queues` checks only `ai-processing`, `data-ingestion` and `entitlement-processing`.
+Queue health is not an endpoint: the `queue-metrics` job (every minute, on `tenant-processing`) logs each queue's waiting count, oldest waiting job age and jobs failed in the last minute as one JSON line (`metric: "queue_depth"`); CloudWatch metric filters turn them into the backlog, stuck-job and failure alarms (`infra/modules/monitoring`). `GET /health/ready` checks that the queue connection answers.
 
 ---
 

@@ -26,6 +26,13 @@ provider "aws" {
   }
 }
 
+# Route 53 health-check metrics (the external uptime alarm) exist only in us-east-1
+provider "aws" {
+  alias   = "us_east_1"
+  region  = "us-east-1"
+  profile = "default"
+}
+
 # Bull Board's internal port in the API task; opened to the bastion only
 locals {
   bull_board_port = 3010
@@ -318,5 +325,14 @@ module "monitoring" {
   ]
   rds_instance_id              = module.rds.instance_id
   redis_replication_group_id   = module.elasticache.replication_group_id
-  alarm_email                  = var.alarm_email
+  alarm_emails                 = [var.alarm_email]
+  alb_arn_suffix               = module.ecs.alb_arn_suffix
+  api_target_group_arn_suffix  = module.ecs.api_target_group_arn_suffix
+  log_group_names              = module.ecs.log_group_names
+  api_fqdn                     = "api-staging.${var.domain_name}"
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
 }

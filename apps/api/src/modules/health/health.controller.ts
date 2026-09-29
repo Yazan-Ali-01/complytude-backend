@@ -1,6 +1,15 @@
-import { Controller, Get, VERSION_NEUTRAL } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  ServiceUnavailableException,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/auth-options.decorator';
+import {
+  HealthCheckResponseDto,
+  ReadinessResponseDto,
+} from './dto/health-response.dto';
 import { HealthService } from './health.service';
 
 @ApiTags('Health')
@@ -10,34 +19,30 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Health check endpoint' })
-  @ApiResponse({ status: 200, description: 'Service is healthy' })
-  @ApiResponse({ status: 503, description: 'Service is unhealthy' })
-  check() {
+  @ApiOperation({
+    summary: 'Liveness: the process is up (does not check dependencies)',
+  })
+  @ApiResponse({ status: 200, type: HealthCheckResponseDto })
+  check(): HealthCheckResponseDto {
     return this.healthService.check();
   }
 
-  @Get('db')
-  @ApiOperation({ summary: 'Database health check' })
-  @ApiResponse({ status: 200, description: 'Database is healthy' })
-  @ApiResponse({ status: 503, description: 'Database is unhealthy' })
-  async checkDatabase() {
-    return await this.healthService.checkDatabase();
-  }
-
-  @Get('redis')
-  @ApiOperation({ summary: 'Redis health check' })
-  @ApiResponse({ status: 200, description: 'Redis is healthy' })
-  @ApiResponse({ status: 503, description: 'Redis is unhealthy' })
-  async checkRedis() {
-    return await this.healthService.checkRedis();
-  }
-
-  @Get('queues')
-  @ApiOperation({ summary: 'Queue health check' })
-  @ApiResponse({ status: 200, description: 'Queues are healthy' })
-  @ApiResponse({ status: 503, description: 'One or more queues are unhealthy' })
-  async checkQueues() {
-    return await this.healthService.checkQueues();
+  @Get('ready')
+  @ApiOperation({
+    summary:
+      'Readiness: the database, Redis and the queues answer (load balancer and uptime checks)',
+  })
+  @ApiResponse({ status: 200, type: ReadinessResponseDto })
+  @ApiResponse({
+    status: 503,
+    description: 'A dependency is down; the body says which',
+    type: ReadinessResponseDto,
+  })
+  async ready(): Promise<ReadinessResponseDto> {
+    const result = await this.healthService.checkReadiness();
+    if (result.status !== 'ok') {
+      throw new ServiceUnavailableException(result);
+    }
+    return result;
   }
 }

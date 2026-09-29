@@ -37,6 +37,7 @@ import {
 import {
   TENANT_JOB_NAMES,
   TenantStripeCustomerCreationJobData,
+  TenantQueueMetricsJobData,
   TenantStuckWorkSweepJobData,
 } from './interfaces/tenant-processing.jobs';
 import { QUEUE_NAMES } from './queue.constants';
@@ -73,6 +74,7 @@ export interface QueueJobMap {
   [QUEUE_NAMES.TENANT_PROCESSING]: {
     [TENANT_JOB_NAMES.STRIPE_CUSTOMER_CREATION]: TenantStripeCustomerCreationJobData;
     [TENANT_JOB_NAMES.STUCK_WORK_SWEEP]: TenantStuckWorkSweepJobData;
+    [TENANT_JOB_NAMES.QUEUE_METRICS]: TenantQueueMetricsJobData;
   };
   [QUEUE_NAMES.DOCUMENT_GENERATION]: {
     [GENERATION_JOB_NAMES.DOCUMENT_GENERATION]: DocumentGenerationJobData;

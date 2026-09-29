@@ -932,14 +932,18 @@ If workers are healthy but not picking up jobs, verify `REDIS_QUEUE_DB=1` is set
 
 ### CloudWatch alarm firing
 
-Alarms publish to `complytude-staging-alarms` SNS → email to `yazan.ali.dev@gmail.com`. Alarm names follow the pattern:
+Alarms publish to the `complytude-staging-alarms` SNS topic, whose subscribers (`alarm_email`) must have confirmed the subscription email; the external uptime alarm uses a topic of the same name in us-east-1 (Route 53 metrics live there). Every alarm also notifies when it recovers. Names:
 
-- `complytude-staging-{service}-no-running-tasks` — ECS service has 0 tasks
-- `complytude-staging-{service}-high-cpu` — CPU > 80% for 15 minutes
-- `complytude-staging-{service}-high-memory` — Memory > 80% for 15 minutes
-- `complytude-staging-rds-high-connections` — DB connections high
-- `complytude-staging-rds-low-storage` — RDS free storage < 2 GB
-- `complytude-staging-redis-low-memory` — Redis freeable memory < 50 MB
+- `complytude-staging-{service}-no-running-tasks`: an ECS service has 0 tasks
+- `complytude-staging-{service}-high-cpu` / `-high-memory`: > 80% of reserved for 15 minutes (`AWS/ECS`)
+- `complytude-staging-alb-5xx` / `-api-5xx`: more than 10 5xx responses in 5 minutes from the load balancer / the API
+- `complytude-staging-api-latency-p95`: p95 response time > 2 s for 15 minutes
+- `complytude-staging-api-unhealthy-targets`: an API task fails readiness (database, Redis or queues unreachable)
+- `complytude-staging-api-uptime`: `https://api-staging.<domain>/api/health/ready` failing from outside AWS
+- `complytude-staging-rds-high-connections` / `-low-storage` / `-high-cpu` / `-low-memory`
+- `complytude-staging-redis-memory` / `-evictions`: Redis above 80% of maxmemory / evicting keys
+- `complytude-staging-{app}-errors`: more than 20 error-level log lines in 5 minutes
+- `complytude-staging-queue-{queue}-backlog` / `-stuck` / `-failed`: 500+ jobs waiting for 15 minutes / a job waiting over 15 minutes (its consumer stopped) / 5+ jobs failed for good in 5 minutes (from the API's `queue-metrics` log lines)
 
 View alarm history in CloudWatch → Alarms.
 

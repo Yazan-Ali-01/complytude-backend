@@ -2,6 +2,8 @@ export const TENANT_JOB_NAMES = {
   STRIPE_CUSTOMER_CREATION: 'stripe-customer-creation',
   /** Repeatable: fails documents and jobs stuck in queued/processing (all tenants). */
   STUCK_WORK_SWEEP: 'stuck-work-sweep',
+  /** Repeatable: logs each queue's depth, oldest waiting job and recent failures (alarms read them). */
+  QUEUE_METRICS: 'queue-metrics',
 } as const;
 
 export type TenantJobName =
@@ -14,5 +16,9 @@ export interface TenantStripeCustomerCreationJobData {
 }
 
 export interface TenantStuckWorkSweepJobData {
+  triggeredAt: string;
+}
+
+export interface TenantQueueMetricsJobData {
   triggeredAt: string;
 }

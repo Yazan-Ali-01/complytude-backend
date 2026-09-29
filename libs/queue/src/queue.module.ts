@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { reconnectOptions } from '@lib/redis/redis-connection';
 import IORedis from 'ioredis';
 import { QueueRedisConfig } from './interfaces/queue-config.interface';
+import { QueueConnectionShutdown } from './queue-connection-shutdown';
 import { QueueProducerService } from './queue-producer.service';
 import { DEFAULT_JOB_OPTIONS } from './queue.config';
 
@@ -120,7 +121,7 @@ export class QueueModule {
     return {
       module: QueueModule,
       imports: [bullRootModule, bullQueuesModule],
-      providers: [QueueProducerService],
+      providers: [QueueProducerService, QueueConnectionShutdown],
       exports: [BullModule, QueueProducerService],
     };
   }

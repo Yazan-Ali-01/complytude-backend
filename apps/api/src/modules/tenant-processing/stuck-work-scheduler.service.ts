@@ -5,12 +5,17 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 // eslint-disable-next-line no-restricted-imports
 import { Queue } from 'bullmq';
 
-/** Registers the stuck-work sweep every 5 minutes (re-registered on boot). */
+/**
+ * Registers the repeatable maintenance jobs (re-registered on boot): the stuck-work sweep every
+ * 5 minutes and the queue metrics every minute.
+ */
 @Injectable()
 export class StuckWorkSchedulerService implements OnModuleInit {
   private readonly logger = new Logger(StuckWorkSchedulerService.name);
 
   static readonly CRON_PATTERN = '*/5 * * * *';
+  /** Every minute: the window QueueMetricsHandler counts recent failures over. */
+  static readonly QUEUE_METRICS_PATTERN = '* * * * *';
 
   constructor(
     @InjectQueue(QUEUE_NAMES.TENANT_PROCESSING)
@@ -33,6 +38,22 @@ export class StuckWorkSchedulerService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `Failed to schedule the stuck-work sweep: ${(error as Error).message}`,
+      );
+    }
+    try {
+      await this.tenantQueue.upsertJobScheduler(
+        TENANT_JOB_NAMES.QUEUE_METRICS,
+        { pattern: StuckWorkSchedulerService.QUEUE_METRICS_PATTERN },
+        {
+          name: TENANT_JOB_NAMES.QUEUE_METRICS,
+          data: { triggeredAt: new Date().toISOString() },
+          // Metrics of a missed minute are worthless: never retry, keep little history
+          opts: { attempts: 1, removeOnComplete: 10, removeOnFail: 10 },
+        },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to schedule queue metrics: ${(error as Error).message}`,
       );
     }
   }

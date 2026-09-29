@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { StuckWorkRepository } from '../../repositories/maintenance/stuck-work.repository';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
+import { QueueMetricsHandler } from './handlers/queue-metrics.handler';
 import { StripeCustomerCreationHandler } from './handlers/stripe-customer-creation.handler';
 import { StuckWorkSweepHandler } from './handlers/stuck-work-sweep.handler';
 import { StuckWorkSchedulerService } from './stuck-work-scheduler.service';
@@ -20,6 +21,7 @@ import { TenantQueueProcessor } from './tenant-queue.processor';
     StripeCustomerCreationHandler,
     TenantRepository,
     StuckWorkSweepHandler,
+    QueueMetricsHandler,
     StuckWorkSchedulerService,
     StuckWorkRepository,
   ],

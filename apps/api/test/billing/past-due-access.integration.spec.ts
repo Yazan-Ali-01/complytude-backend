@@ -14,6 +14,7 @@ import {
   createTestTenant,
   createTestUserInTenant,
 } from '../factories';
+import { waitForQueueIdle } from '../helpers/queue.helper';
 import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
 
@@ -114,8 +115,14 @@ describe('Past-due access and dunning (app role)', () => {
     ) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+    // Usage recorded by a test queues projection jobs; one still running during the next test's
+    // table reset deadlocks with it
+    await waitForQueueIdle(
+      app.module.get<Queue>(getQueueToken(QUEUE_NAMES.ENTITLEMENT_PROCESSING)),
+      15000,
+    );
     sendDunningEmail.mockRestore();
-  }, 20000);
+  }, 40000);
 
   afterAll(async () => {
     if (app) await app.cleanup();

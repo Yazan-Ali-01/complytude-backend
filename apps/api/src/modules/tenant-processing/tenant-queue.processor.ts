@@ -6,9 +6,11 @@ import {
   QUEUE_NAMES,
   TENANT_JOB_NAMES,
   TenantStripeCustomerCreationJobData,
+  TenantQueueMetricsJobData,
   TenantStuckWorkSweepJobData,
 } from '@lib/queue';
 import { Logger } from '@nestjs/common';
+import { QueueMetricsHandler } from './handlers/queue-metrics.handler';
 import { StripeCustomerCreationHandler } from './handlers/stripe-customer-creation.handler';
 import { StuckWorkSweepHandler } from './handlers/stuck-work-sweep.handler';
 
@@ -33,6 +35,7 @@ export class TenantQueueProcessor extends AbstractProcessor<unknown> {
   constructor(
     private readonly stripeCustomerCreationHandler: StripeCustomerCreationHandler,
     private readonly stuckWorkSweepHandler: StuckWorkSweepHandler,
+    private readonly queueMetricsHandler: QueueMetricsHandler,
   ) {
     super();
   }
@@ -48,6 +51,12 @@ export class TenantQueueProcessor extends AbstractProcessor<unknown> {
         return this.stuckWorkSweepHandler.execute(
           job as Job<TenantStuckWorkSweepJobData>,
         );
+
+      case TENANT_JOB_NAMES.QUEUE_METRICS:
+        await this.queueMetricsHandler.execute(
+          job as Job<TenantQueueMetricsJobData>,
+        );
+        return;
 
       default:
         throw new PermanentError(

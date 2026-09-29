@@ -13,12 +13,19 @@ export interface HealthCheckResult {
   uptime: number;
 }
 
-export interface DatabaseHealthResult {
-  status: string;
-  database: string;
-  timestamp?: Date;
-  error?: string;
+export type DependencyState = 'up' | 'down';
+
+export interface ReadinessResult {
+  status: 'ok' | 'unavailable';
+  checks: {
+    database: DependencyState;
+    redis: DependencyState;
+    queues: DependencyState;
+  };
 }
+
+/** Longest a readiness probe waits for one dependency. */
+const CHECK_TIMEOUT_MS = 2000;
 
 @Injectable()
 export class HealthService {
@@ -27,13 +34,11 @@ export class HealthService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly redisHealthIndicator: RedisHealthIndicator,
-    @InjectQueue(QUEUE_NAMES.AI_PROCESSING) private readonly aiQueue: Queue,
-    @InjectQueue(QUEUE_NAMES.DATA_INGESTION)
-    private readonly ingestionQueue: Queue,
-    @InjectQueue(QUEUE_NAMES.ENTITLEMENT_PROCESSING)
-    private readonly entitlementQueue: Queue,
+    // Any queue: they share one BullMQ Redis connection setup
+    @InjectQueue(QUEUE_NAMES.TENANT_PROCESSING) private readonly queue: Queue,
   ) {}
 
+  /** Liveness: the process answers. Used by the ECS container check, so it never restarts tasks over a dependency outage. */
   check(): HealthCheckResult {
     return {
       status: 'ok',
@@ -42,77 +47,58 @@ export class HealthService {
     };
   }
 
-  async checkDatabase(): Promise<DatabaseHealthResult> {
-    try {
-      const result = await this.databaseService.query<{ time: Date }>(
-        'SELECT NOW() as time',
-      );
-      return {
-        status: 'ok',
-        database: 'connected',
-        timestamp: result.rows[0].time,
-      };
-    } catch (error) {
-      this.logger.error('Database health check failed', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      return {
-        status: 'error',
-        database: 'disconnected',
-        error: errorMessage,
-      };
-    }
-  }
-
-  async checkRedis() {
-    return await this.redisHealthIndicator.isHealthy();
-  }
-
-  async checkQueues() {
-    const queues = [
-      { name: QUEUE_NAMES.AI_PROCESSING, queue: this.aiQueue },
-      { name: QUEUE_NAMES.DATA_INGESTION, queue: this.ingestionQueue },
-      {
-        name: QUEUE_NAMES.ENTITLEMENT_PROCESSING,
-        queue: this.entitlementQueue,
-      },
-    ];
-
-    const results = await Promise.all(
-      queues.map(async ({ name, queue }) => {
-        try {
-          const [waiting, active, completed, failed, delayed] =
-            await Promise.all([
-              queue.getWaitingCount(),
-              queue.getActiveCount(),
-              queue.getCompletedCount(),
-              queue.getFailedCount(),
-              queue.getDelayedCount(),
-            ]);
-
-          return {
-            name,
-            status: 'healthy' as const,
-            counts: { waiting, active, completed, failed, delayed },
-          };
-        } catch (error) {
-          this.logger.warn(
-            `Queue health check failed: ${name} - ${error instanceof Error ? error.message : 'Connection failed'}`,
-          );
-          return {
-            name,
-            status: 'unhealthy' as const,
-            error: 'Connection failed',
-          };
+  /**
+   * Readiness: the database, Redis and the queue connection all answer within 2 s. Used by the
+   * load balancer and the uptime check. Reports only up/down: failures are logged, never returned.
+   */
+  async checkReadiness(): Promise<ReadinessResult> {
+    const [database, redis, queues] = await Promise.all([
+      this.probe('database', async () => {
+        await this.databaseService.query('SELECT 1');
+      }),
+      this.probe('redis', async () => {
+        const result = await this.redisHealthIndicator.isHealthy();
+        if (result.status !== 'ok') throw new Error('Redis ping failed');
+      }),
+      this.probe('queues', async () => {
+        const client = await this.queue.client;
+        if ((await client.ping()) !== 'PONG') {
+          throw new Error('BullMQ Redis ping failed');
         }
       }),
-    );
-
-    const allHealthy = results.every((r) => r.status === 'healthy');
-
+    ]);
+    const checks = { database, redis, queues };
     return {
-      status: allHealthy ? 'healthy' : 'unhealthy',
-      queues: results,
+      status: Object.values(checks).every((state) => state === 'up')
+        ? 'ok'
+        : 'unavailable',
+      checks,
     };
+  }
+
+  private async probe(
+    name: string,
+    check: () => Promise<void>,
+  ): Promise<DependencyState> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        check(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`timed out after ${CHECK_TIMEOUT_MS}ms`)),
+            CHECK_TIMEOUT_MS,
+          );
+        }),
+      ]);
+      return 'up';
+    } catch (error) {
+      this.logger.error(
+        `Readiness: ${name} is down: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return 'down';
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

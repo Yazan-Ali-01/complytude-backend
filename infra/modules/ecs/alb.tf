@@ -34,7 +34,9 @@ resource "aws_lb_target_group" "api" {
 
   health_check {
     enabled             = true
-    path                = "/api/health"
+    # Readiness: a task that lost the database or Redis stops receiving traffic (the container
+    # check uses liveness, so ECS doesn't restart tasks over a dependency outage)
+    path                = "/api/health/ready"
     port                = "3000"
     protocol            = "HTTP"
     healthy_threshold   = 2

@@ -115,7 +115,7 @@ pnpm type-check
 | Tenants               | `POST /api/tenants`, `GET /api/tenants/:id`                                                                                                                                                                |
 | Storage               | `POST /api/storage/upload`, `GET /api/storage/list`                                                                                                                                                        |
 | Templates             | `GET /api/templates`, `POST /api/templates`                                                                                                                                                                |
-| Health                | `GET /api/health`, `/health/db`, `/health/storage`                                                                                                                                                         |
+| Health                | `GET /api/health` (liveness), `GET /api/health/ready` (readiness)                                                                                                                                                         |
 
 ---
 

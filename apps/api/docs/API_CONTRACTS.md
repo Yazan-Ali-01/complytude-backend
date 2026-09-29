@@ -77,10 +77,8 @@ Some endpoints are **version-neutral** and do not include the version prefix:
 
 | Endpoint         | Purpose               | Reason                                      |
 | ---------------- | --------------------- | ------------------------------------------- |
-| `/health`        | Health check          | Infrastructure endpoint, stable contract    |
-| `/health/db`     | Database health       | Infrastructure endpoint, stable contract    |
-| `/health/redis`  | Redis health          | Infrastructure endpoint, stable contract    |
-| `/health/queues` | Queue health          | Infrastructure endpoint, stable contract    |
+| `/health`        | Liveness: the process answers (ECS container check) | Infrastructure endpoint, stable contract |
+| `/health/ready`  | Readiness: database, Redis and queues answer; `503` with `checks: {database, redis, queues}: up\|down` otherwise, never error text (load balancer and uptime check) | Infrastructure endpoint, stable contract |
 | `/docs`          | Swagger documentation | Documentation always reflects current state |
 | `/admin/queues`  | Bull Board dashboard  | Admin tool on its own internal port (`BULL_BOARD_PORT`, default 3010), not the API port |
 | `/api/` (root)   | API root              | Simple welcome/info endpoint                |
