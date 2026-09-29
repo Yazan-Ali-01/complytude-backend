@@ -22,15 +22,6 @@ resource "aws_cloudwatch_log_group" "api" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "gotenberg" {
-  name              = "/ecs/${var.project_name}-${var.environment}/gotenberg"
-  retention_in_days = var.log_retention_days
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-gotenberg-logs"
-  }
-}
-
 resource "aws_cloudwatch_log_group" "worker_ai" {
   name              = "/ecs/${var.project_name}-${var.environment}/worker-ai"
   retention_in_days = var.log_retention_days

@@ -2,6 +2,10 @@ import { installProcessErrorHandlers } from '@lib/logger';
 import { Logger as NestLogger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { WorkerAiModule } from './worker-ai.module';
 
@@ -9,7 +13,12 @@ import { WorkerAiModule } from './worker-ai.module';
 const processErrors = installProcessErrorHandlers();
 
 async function bootstrap() {
-  const app = await NestFactory.create(WorkerAiModule, { bufferLogs: true });
+  // Fastify, like the API: Nest's default HTTP driver (Express) is not installed
+  const app = await NestFactory.create<NestFastifyApplication>(
+    WorkerAiModule,
+    new FastifyAdapter(),
+    { bufferLogs: true },
+  );
   app.useLogger(app.get(Logger));
   processErrors.setShutdown(() => app.close());
 

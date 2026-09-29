@@ -1,5 +1,4 @@
 import { AuditModule } from '@lib/audit';
-import { PdfModule } from '@lib/pdf';
 import { ContextModule, TracingInterceptor } from '@lib/context';
 import { DatabaseModule } from '@lib/database';
 import { LoggerModule } from '@lib/logger';
@@ -87,7 +86,6 @@ const mockRoutesEnabled = (env: NodeJS.ProcessEnv): boolean =>
     TenantRbacModule,
     PlatformRbacModule,
     AuditModule.forRoot(),
-    PdfModule,
     ConditionalModule.registerWhen(MockModule, mockRoutesEnabled),
     ConditionalModule.registerWhen(RagMockModule, mockRoutesEnabled),
   ],

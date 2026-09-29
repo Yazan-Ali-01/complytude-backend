@@ -1,7 +1,8 @@
 name: CI
 
 # Runs on every pull request, and as the gate of the staging deploy (deploy-staging.yml calls it).
-# Make all four jobs required status checks in the branch protection of development and main.
+# Make every job (the four images included) a required status check in the branch protection of
+# development and main.
 on:
   pull_request:
     branches: [development, main]
@@ -105,3 +106,38 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Testcontainers starts Postgres (pgvector) and Redis on the runner's Docker
       - run: pnpm test:integration --ci
+
+  images:
+    name: Production image (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, worker-ai, worker-ingestion, worker-generation]
+    steps:
+      - uses: actions/checkout@v4
+      # pnpm version from package.json "packageManager"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # ts-node and psql apply the roles and migrations the smoke test boots against
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get install -y postgresql-client
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          target: production
+          load: true
+          tags: complytude/${{ matrix.app }}:ci
+          # One cache per app (shared with the deploy build of the same app)
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      # Every package the app requires loads from the image's own dependencies, and the image boots
+      # as ECS runs it (production env, TLS to Postgres) until its health endpoint answers
+      - name: Smoke test the image
+        run: bash scripts/ci/smoke-image.sh ${{ matrix.app }} complytude/${{ matrix.app }}:ci

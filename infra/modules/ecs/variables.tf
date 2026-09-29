@@ -48,6 +48,12 @@ variable "image_tag" {
   type        = string
 }
 
+variable "gotenberg_image" {
+  description = "Gotenberg image for the worker-generation sidecar, pinned by version and digest so a new release can't change conversions under a running system"
+  type        = string
+  default     = "gotenberg/gotenberg:8.37.0@sha256:f29984bd1e226bf1b93ba90af06000afa8b315853e99d27b9aaa41b93f15c769"
+}
+
 variable "app_secret_arn" {
   description = "ARN of the app secret (JWT, Stripe, OpenAI, Cohere, SSO client secrets, Bull Board)"
   type        = string

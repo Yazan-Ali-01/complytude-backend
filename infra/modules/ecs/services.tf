@@ -52,9 +52,8 @@ resource "aws_ecs_task_definition" "api" {
   family                   = "${var.project_name}-${var.environment}-api"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  # Bumped from 512/1024 to accommodate Gotenberg (LibreOffice needs ~1 vCPU + 1.5 GB)
-  cpu                      = 1024
-  memory                   = 2048
+  cpu                      = 512
+  memory                   = 1024
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.api_task.arn
 
@@ -100,37 +99,6 @@ resource "aws_ecs_task_definition" "api" {
         timeout     = 5
         retries     = 3
         startPeriod = 60
-      }
-
-      # Gotenberg must start before the API accepts traffic
-      dependsOn = [
-        {
-          containerName = "gotenberg"
-          condition     = "HEALTHY"
-        }
-      ]
-    },
-    {
-      name      = "gotenberg"
-      image     = "gotenberg/gotenberg:8"
-      essential = false
-      command   = ["gotenberg", "--api-port=3100"]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.gotenberg.name
-          "awslogs-region"         = var.aws_region
-          "awslogs-stream-prefix"  = "gotenberg"
-        }
-      }
-
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:3100/health || exit 1"]
-        interval    = 10
-        timeout     = 5
-        retries     = 3
-        startPeriod = 30
       }
     }
   ])
@@ -337,9 +305,9 @@ resource "aws_ecs_service" "worker_ingestion" {
 }
 
 # ---- Worker Generation Task Definition ----
-# Gotenberg sidecar: worker-generation calls localhost:3000 for DOCX→PDF conversion.
-# Fargate awsvpc tasks each get their own network namespace, so Gotenberg can't be shared
-# with the API task — each worker-generation task carries its own sidecar.
+# Gotenberg sidecar: worker-generation calls localhost:3100 for DOCX→PDF conversion (the only
+# service that converts). Fargate awsvpc tasks each get their own network namespace, so each
+# worker-generation task carries its own sidecar.
 resource "aws_ecs_task_definition" "worker_generation" {
   family                   = "${var.project_name}-${var.environment}-worker-generation"
   requires_compatibilities = ["FARGATE"]
@@ -391,10 +359,13 @@ resource "aws_ecs_task_definition" "worker_generation" {
       ]
     },
     {
-      name      = "gotenberg-generation"
-      image     = "gotenberg/gotenberg:8"
-      essential = false
-      command   = ["gotenberg", "--api-port=3100"]
+      name  = "gotenberg-generation"
+      image = var.gotenberg_image
+      # Without it every job fails: if it stops, ECS replaces the whole task (the worker gets
+      # stopTimeout to finish its jobs) instead of leaving a worker that can't convert
+      essential         = true
+      memoryReservation = 1024
+      command           = ["gotenberg", "--api-port=3100"]
 
       logConfiguration = {
         logDriver = "awslogs"

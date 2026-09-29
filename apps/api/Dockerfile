@@ -29,6 +29,10 @@ COPY apps/api/package.json ./apps/api/package.json
 # Install ALL dependencies (including dev dependencies for build)
 RUN pnpm install --frozen-lockfile
 
+# The app's production dependencies alone (apps/api/package.json, without the dev toolchain),
+# for the production stage. `pnpm prune --prod` does nothing at a workspace root.
+RUN pnpm --filter @complytude/api --prod deploy /prod
+
 # ============================================
 # Stage 2: Build (for production)
 # ============================================
@@ -47,9 +51,6 @@ COPY . .
 
 # Build only the API application
 RUN pnpm build:api
-
-# Prune dev dependencies after build
-RUN pnpm prune --prod
 
 # ============================================
 # Stage 3: Development (for hot-reload)
@@ -106,8 +107,8 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy production dependencies from build stage (after pruning)
-COPY --from=build --chown=nestjs:nodejs /app/node_modules ./node_modules
+# Production dependencies only
+COPY --from=dependencies --chown=nestjs:nodejs /prod/node_modules ./node_modules
 
 # Copy built API application
 COPY --from=build --chown=nestjs:nodejs /app/dist/apps/api ./dist/apps/api

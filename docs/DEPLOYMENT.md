@@ -42,11 +42,11 @@ Application Load Balancer
 │  │                                                                                                │  │
 │  │  ┌──────────────────────────┐   ┌─────────────────────┐   ┌──────────────────────────────┐   │  │
 │  │  │  Service: …-api          │   │  Service: …-worker-ai│   │  Service: …-worker-ingestion  │   │  │
-│  │  │  Fargate 1 vCPU / 2 GB  │   │  Fargate 0.5 / 1 GB │   │  Fargate 0.5 vCPU / 1 GB    │   │  │
-│  │  │  ┌──────────┐ ┌───────┐ │   │  ┌────────────────┐  │   │  ┌────────────────────────┐  │   │  │
-│  │  │  │ api      │ │ gotenb│ │   │  │   worker-ai    │  │   │  │    worker-ingestion    │  │   │  │
-│  │  │  │ :3000    │ │ :3100 │ │   │  │                │  │   │  │                        │  │   │  │
-│  │  │  └──────────┘ └───────┘ │   │  └────────────────┘  │   │  └────────────────────────┘  │   │  │
+│  │  │  Fargate 0.5 vCPU / 1 GB│   │  Fargate 0.5 / 1 GB │   │  Fargate 0.5 vCPU / 1 GB    │   │  │
+│  │  │  ┌────────────────────┐ │   │  ┌────────────────┐  │   │  ┌────────────────────────┐  │   │  │
+│  │  │  │ api                │ │   │  │   worker-ai    │  │   │  │    worker-ingestion    │  │   │  │
+│  │  │  │ :3000              │ │   │  │                │  │   │  │                        │  │   │  │
+│  │  │  └────────────────────┘ │   │  └────────────────┘  │   │  └────────────────────────┘  │   │  │
 │  │  └──────────────────────────┘   └─────────────────────┘   └──────────────────────────────┘   │  │
 │  │                                                                                                │  │
 │  │  ┌────────────────────────────────────────┐                                                   │  │
@@ -180,7 +180,6 @@ These are not secret and are set directly in the task definition by Terraform (v
 | `NODE_ENV` | `production` |
 | `LOG_LEVEL` | `info` |
 | `SERVICE_NAME` | `gateway` |
-| `GOTENBERG_URL` | `http://localhost:3100` |
 
 Leave `ENABLE_MOCK_ROUTES` unset. It defaults to `false`, and the API refuses to boot if it is `true` with `NODE_ENV=production`.
 
@@ -252,7 +251,8 @@ Every push to the `development` branch triggers the staging deploy pipeline defi
 push → development
    │
    ▼
-quality         lint, type-check, unit and integration tests, dependency audit (ci.yml)
+quality         lint, type-check, unit and integration tests, dependency audit, and each production
+   │            image built and smoke-tested: its packages load, it boots to healthy (ci.yml)
    │
    ▼
 migrate         SSM port forwarding → bastion → RDS; setup-roles.sh, run-migrations.sh
@@ -317,6 +317,8 @@ aws ecr get-login-password --region eu-central-1 | \
 
 Tags are immutable: push each commit once, tagged with its full SHA.
 
+Each image holds only its app's production dependencies: the Dockerfile runs `pnpm --filter @complytude/<app> --prod deploy`, which installs what `apps/<app>/package.json` lists. `scripts/ci/smoke-image.sh` (the same check CI runs) loads every package the bundle requires inside the image, then boots it with `NODE_ENV=production` against a throwaway Postgres (TLS) and Redis until its health endpoint answers; it needs Docker, `psql` and `pnpm install`.
+
 ```bash
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 REGISTRY="${ACCOUNT}.dkr.ecr.eu-central-1.amazonaws.com"
@@ -325,6 +327,7 @@ SHA=$(git rev-parse HEAD)
 for APP in api worker-ai worker-ingestion worker-generation; do
   docker build -f apps/${APP}/Dockerfile --target production \
     -t "${REGISTRY}/complytude/${APP}:${SHA}" .
+  bash scripts/ci/smoke-image.sh "${APP}" "${REGISTRY}/complytude/${APP}:${SHA}"
   docker push "${REGISTRY}/complytude/${APP}:${SHA}"
   bash scripts/deploy/ecr-scan-gate.sh "complytude/${APP}" "${SHA}"
 done
@@ -352,7 +355,6 @@ All containers log to CloudWatch Logs via the `awslogs` driver. Log streams are 
 | Service | Log Group |
 |---|---|
 | API | `/ecs/complytude-staging/api` |
-| Gotenberg (API sidecar) | `/ecs/complytude-staging/gotenberg` |
 | Worker AI | `/ecs/complytude-staging/worker-ai` |
 | Worker Ingestion | `/ecs/complytude-staging/worker-ingestion` |
 | Worker Generation | `/ecs/complytude-staging/worker-generation` |
@@ -874,7 +876,7 @@ Common causes:
 - **Secret not found** (`ResourceInitializationError … secrets`): verify `complytude/staging/app` and `complytude/staging/db-app` have values with every key (`scripts/deploy/put-app-secrets.sh` refuses to write one without them)
 - **Image pull failure**: check that an image tagged with the deployed SHA exists in each repository (`aws ecr describe-images --repository-name complytude/api --image-ids imageTag=<sha>`)
 - **Health check failing**: check `/api/health` returns 200; look at CloudWatch logs for startup errors
-- **Gotenberg not healthy**: the API and worker-generation tasks wait for Gotenberg to be `HEALTHY` before starting — check `/ecs/complytude-staging/gotenberg` logs
+- **Gotenberg not healthy**: worker-generation waits for its Gotenberg sidecar to be `HEALTHY` before starting, and the whole task is replaced if Gotenberg stops (`essential`). Check `/ecs/complytude-staging/worker-generation-gotenberg`. The image is pinned by version and digest (`gotenberg_image` in `infra/modules/ecs`); the API has no sidecar
 
 ### New deployment stuck (not rolling out)
 

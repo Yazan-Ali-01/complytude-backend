@@ -42,6 +42,10 @@ scripts/
 │
 ├── utilities/               # Management scripts
 │
+├── ci/                      # CI checks
+│   ├── smoke-image.sh       # Production image: its packages load, it boots to healthy
+│   └── check-bundle-requires.js # Loads every package a built app requires (run inside the image)
+│
 ├── setup-database.sh        # 🔥 Complete setup (migrations + seeds)
 ├── run-migrations.sh        # Run all migrations
 ├── run-seeds.sh             # Run all seed scripts

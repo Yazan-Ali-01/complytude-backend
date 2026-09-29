@@ -24,6 +24,10 @@ COPY apps/worker-ai/package.json ./apps/worker-ai/package.json
 # Install ALL dependencies (including dev dependencies for build)
 RUN pnpm install --frozen-lockfile
 
+# The app's production dependencies alone (apps/worker-ai/package.json, without the dev toolchain),
+# for the production stage. `pnpm prune --prod` does nothing at a workspace root.
+RUN pnpm --filter @complytude/worker-ai --prod deploy /prod
+
 # ============================================
 # Stage 2: Build
 # ============================================
@@ -43,9 +47,6 @@ COPY . .
 # Build only the worker-ai application
 RUN pnpm build:worker-ai
 
-# Prune dev dependencies after build
-RUN pnpm prune --prod
-
 # ============================================
 # Stage 3: Production (optimized)
 # ============================================
@@ -63,8 +64,8 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy production dependencies from build stage (after pruning)
-COPY --from=build --chown=nestjs:nodejs /app/node_modules ./node_modules
+# Production dependencies only
+COPY --from=dependencies --chown=nestjs:nodejs /prod/node_modules ./node_modules
 
 # Copy built worker-ai application
 COPY --from=build --chown=nestjs:nodejs /app/dist/apps/worker-ai ./dist/apps/worker-ai

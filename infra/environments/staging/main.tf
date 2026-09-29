@@ -203,11 +203,10 @@ module "ecs" {
   }
 
   api_environment = {
-    NODE_ENV      = "production"
-    LOG_LEVEL     = "info"
-    SERVICE_NAME  = "gateway"
-    GOTENBERG_URL = "http://localhost:3100"
-    FRONTEND_URL  = var.frontend_url
+    NODE_ENV     = "production"
+    LOG_LEVEL    = "info"
+    SERVICE_NAME = "gateway"
+    FRONTEND_URL = var.frontend_url
     # One ALB in front: only its X-Forwarded-For entry is trusted for the client IP
     TRUST_PROXY_HOPS = "1"
     CORS_ORIGINS     = var.cors_origins

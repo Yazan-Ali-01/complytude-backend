@@ -29,7 +29,6 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       REDIS_HOST: redis
-      GOTENBERG_URL: http://gotenberg:3000
       LOG_LEVEL: debug
       SERVICE_NAME: gateway
     ports:

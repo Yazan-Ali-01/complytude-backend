@@ -77,6 +77,23 @@ describe('Bull Board', () => {
         Object.values(QUEUE_NAMES).sort(),
       );
     });
+
+    // Its assets go through @fastify/static, which package.json overrides to a patched version
+    it('serves the dashboard page and its static assets with the secret', async () => {
+      const headers = { authorization: `Bearer ${SECRET}` };
+      const page = await fetch(dashboardUrl(server), { headers });
+      expect(page.status).toBe(200);
+      const asset = /(?:src|href)="((?:[^"]*\/)?static\/[^"]+)"/.exec(
+        await page.text(),
+      )?.[1];
+      expect(asset).toBeDefined();
+
+      const res = await fetch(new URL(asset!, dashboardUrl(server, '/')), {
+        headers,
+      });
+      expect(res.status).toBe(200);
+      expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(0);
+    });
   });
 
   describe('without a secret (local development)', () => {
