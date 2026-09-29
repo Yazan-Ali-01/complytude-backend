@@ -71,10 +71,10 @@ function tokenSubject(token: string): string {
   return payload.sub;
 }
 
-// The status code isn't asserted: the callback redirects currently go out as 200 + Location
-// (Nest sets 200 before the handler runs and Fastify 5 reply.redirect keeps it). The Location
-// target and the cookies are what decide the outcome.
+// A real redirect (302), so the browser follows it; the Location target and the cookies decide
+// the outcome.
 function expectRefusedWithoutSession(res: InjectResponse): void {
+  expect(res.statusCode).toBe(302);
   const location = new URL(String(res.headers.location));
   expect(location.searchParams.get('sso')).toBe('error');
   expect(cookieValue(res, IDENTITY_TOKEN_COOKIE_NAME)).toBeUndefined();
@@ -83,6 +83,7 @@ function expectRefusedWithoutSession(res: InjectResponse): void {
 
 /** Returns the user id the identity session was issued for. */
 function expectSignedInAs(res: InjectResponse): string {
+  expect(res.statusCode).toBe(302);
   const location = new URL(String(res.headers.location));
   expect(location.searchParams.get('sso')).toBe('success');
   const token = cookieValue(res, IDENTITY_TOKEN_COOKIE_NAME);

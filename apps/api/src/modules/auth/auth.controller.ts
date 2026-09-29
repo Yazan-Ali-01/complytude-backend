@@ -228,7 +228,8 @@ export class AuthController {
     const url = this.authService.getSsoFrontendRedirectUrl('success', {
       provider,
     });
-    await reply.redirect(url);
+    // Explicit 302: Nest has already set 200, and Fastify's redirect keeps a status that was set
+    await reply.redirect(url, 302);
   }
 
   /**
@@ -869,6 +870,7 @@ export class AuthController {
   @AuthOptions({ identity: true })
   @UseGuards(VerifiedUserGuard)
   @Post('invitations/:invitationId/accept')
+  @HttpCode(HttpStatus.OK)
   @Audit('INVITATION_ACCEPTED', {
     resourceIdParam: 'invitationId',
     resourceType: 'invitations',
@@ -917,6 +919,7 @@ export class AuthController {
   @AuthOptions({ identity: true })
   @UseGuards(VerifiedUserGuard)
   @Post('invitations/:invitationId/reject')
+  @HttpCode(HttpStatus.OK)
   @Audit('INVITATION_REJECTED', {
     resourceIdParam: 'invitationId',
     resourceType: 'invitations',

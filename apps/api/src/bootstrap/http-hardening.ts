@@ -6,6 +6,11 @@ import type {
   FastifyServerOptions,
 } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import { Logger } from '@nestjs/common';
+import {
+  toHttpErrorBody,
+  Translate,
+} from '../common/filters/http-error-response';
 import { Readable } from 'node:stream';
 
 /** JSON and form bodies. File uploads go straight to S3 or through multipart's own limits. */
@@ -85,8 +90,23 @@ class PayloadTooLargeError extends Error {
 export function installHttpHardening(
   fastify: FastifyInstance,
   apiPrefix: string,
+  translate: Translate = (key) => key,
 ): void {
   const stripeWebhookPath = `/${apiPrefix}/v1/stripe/webhook`;
+
+  // Errors raised before a route runs (body too large, bad JSON, unsupported content type) never
+  // reach Nest's exception filter: same envelope as AllExceptionsFilter, no framework text
+  const logger = new Logger('HttpErrors');
+  fastify.setErrorHandler((error, request, reply) => {
+    const body = toHttpErrorBody(error, request, translate);
+    if (body.statusCode >= 500) {
+      logger.error(
+        `${request.method} ${request.url} → ${body.statusCode} [${body.traceId}]: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+    void reply.status(body.statusCode).send(body);
+  });
 
   fastify.addHook(
     'onSend',

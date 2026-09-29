@@ -1,3 +1,4 @@
+import { I18nService } from 'nestjs-i18n';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import { installProcessErrorHandlers } from '@lib/logger';
@@ -70,7 +71,9 @@ async function bootstrap() {
 
   // Security headers, and the Stripe webhook's raw body for signature checks
   const fastifyInstance = app.getHttpAdapter().getInstance();
-  installHttpHardening(fastifyInstance, apiPrefix);
+  installHttpHardening(fastifyInstance, apiPrefix, (key) =>
+    app.get<I18nService<Record<string, unknown>>>(I18nService).t(key),
+  );
 
   // Register cookie plugin for HTTP-only cookie authentication
   await app.register(cookie);

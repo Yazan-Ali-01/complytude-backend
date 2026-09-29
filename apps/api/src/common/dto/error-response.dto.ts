@@ -26,18 +26,23 @@ export class ErrorResponseDto {
   error: string;
 
   @ApiProperty({
+    description:
+      'Request trace id (also the x-trace-id response header): quote it to support to find the request in the logs',
+    example: '6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f',
+  })
+  traceId: string;
+
+  @ApiProperty({
     description: 'ISO 8601 timestamp of when the error occurred',
     example: '2026-01-21T10:30:00.000Z',
-    required: false,
   })
-  timestamp?: string;
+  timestamp: string;
 
   @ApiProperty({
     description: 'API path where the error occurred',
     example: '/api/v1/templates',
-    required: false,
   })
-  path?: string;
+  path: string;
 }
 
 /**
@@ -59,15 +64,13 @@ export class UnauthorizedErrorDto extends ErrorResponseDto {
 
   @ApiProperty({
     example: '2026-01-21T10:30:00.000Z',
-    required: false,
   })
-  declare timestamp?: string;
+  declare timestamp: string;
 
   @ApiProperty({
     example: '/api/v1/templates',
-    required: false,
   })
-  declare path?: string;
+  declare path: string;
 }
 
 export class ForbiddenErrorDto extends ErrorResponseDto {
@@ -84,15 +87,13 @@ export class ForbiddenErrorDto extends ErrorResponseDto {
 
   @ApiProperty({
     example: '2026-01-21T10:30:00.000Z',
-    required: false,
   })
-  declare timestamp?: string;
+  declare timestamp: string;
 
   @ApiProperty({
     example: '/api/v1/templates',
-    required: false,
   })
-  declare path?: string;
+  declare path: string;
 }
 
 export class NotFoundErrorDto extends ErrorResponseDto {
@@ -109,15 +110,13 @@ export class NotFoundErrorDto extends ErrorResponseDto {
 
   @ApiProperty({
     example: '2026-01-21T10:30:00.000Z',
-    required: false,
   })
-  declare timestamp?: string;
+  declare timestamp: string;
 
   @ApiProperty({
     example: '/api/v1/templates',
-    required: false,
   })
-  declare path?: string;
+  declare path: string;
 }
 
 export class ValidationErrorDto {
@@ -139,15 +138,13 @@ export class ValidationErrorDto {
 
   @ApiProperty({
     example: '2026-01-21T10:30:00.000Z',
-    required: false,
   })
-  declare timestamp?: string;
+  declare timestamp: string;
 
   @ApiProperty({
     example: '/api/v1/templates',
-    required: false,
   })
-  declare path?: string;
+  declare path: string;
 }
 
 export class ConflictErrorDto {
@@ -164,15 +161,13 @@ export class ConflictErrorDto {
 
   @ApiProperty({
     example: '2026-01-21T10:30:00.000Z',
-    required: false,
   })
-  declare timestamp?: string;
+  declare timestamp: string;
 
   @ApiProperty({
     example: '/api/v1/templates',
-    required: false,
   })
-  declare path?: string;
+  declare path: string;
 }
 
 export class InternalServerErrorDto extends ErrorResponseDto {
@@ -189,13 +184,11 @@ export class InternalServerErrorDto extends ErrorResponseDto {
 
   @ApiProperty({
     example: '2026-01-21T10:30:00.000Z',
-    required: false,
   })
-  declare timestamp?: string;
+  declare timestamp: string;
 
   @ApiProperty({
     example: '/api/v1/templates',
-    required: false,
   })
-  declare path?: string;
+  declare path: string;
 }

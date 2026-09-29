@@ -1,3 +1,4 @@
+import { I18nService } from 'nestjs-i18n';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import { AuditService } from '@lib/audit';
@@ -115,7 +116,9 @@ export async function createTestApp(
 
   const apiPrefix = process.env.API_PREFIX || 'api';
   // As main.ts: security headers and the Stripe webhook's raw body
-  installHttpHardening(app.getHttpAdapter().getInstance(), apiPrefix);
+  installHttpHardening(app.getHttpAdapter().getInstance(), apiPrefix, (key) =>
+    app.get<I18nService<Record<string, unknown>>>(I18nService).t(key),
+  );
 
   await app.register(cookie);
   // As main.ts: file uploads (multipart/form-data), one file per request

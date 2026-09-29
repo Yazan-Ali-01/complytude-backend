@@ -1033,17 +1033,23 @@ createdAt: string;
 
 ### Standard Error Shape
 
-All errors use `ErrorResponseDto`:
+All errors use `ErrorResponseDto`, from a route or from the framework before a route runs (bad JSON, body too large, unsupported content type):
 
 ```json
 {
   "statusCode": 400,
   "message": "Validation failed",
   "error": "Bad Request",
+  "traceId": "6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f",
   "timestamp": "2026-01-21T10:30:00.000Z",
-  "path": "/api/templates"
+  "path": "/api/v1/templates"
 }
 ```
+
+- `traceId` equals the `x-trace-id` response header; support finds the request in the logs by it.
+- `message` is translated (`Accept-Language`, `x-lang` or `?lang=`). Extra fields an error carries stay in the body (validation `details`, `retryAfterSeconds`).
+- Only an `HttpException`'s own message reaches the client. Anything else gets a generic message: never SQL, a stack or a provider's text. Unexpected errors are logged with their stack (`AllExceptionsFilter`, `common/filters/`).
+- Database errors that reach the top are mapped: unique violation (`23505`) → 409; foreign key, not-null, check, bad input (`23503`, `23502`, `23514`, `22P02`, `22001`, `22003`) → 400; serialization failure or deadlock (`40001`, `40P01`) → 409, retry; statement timeout or too many connections (`57014`, `53300`) → 503. Stripe: declined card → 402, any other Stripe error → 502.
 
 ### HTTP Status Codes
 
@@ -1057,6 +1063,9 @@ All errors use `ErrorResponseDto`:
 | **403** | Forbidden    | Insufficient permissions           | `ForbiddenErrorDto`      |
 | **404** | Not Found    | Resource doesn't exist             | `NotFoundErrorDto`       |
 | **409** | Conflict     | Resource already exists            | `ConflictErrorDto`       |
+| **413** | Payload Too Large | Body over 1 MB                | `ErrorResponseDto`       |
+| **502** | Bad Gateway  | The payment provider failed        | `ErrorResponseDto`       |
+| **503** | Unavailable  | Session store down, database busy  | `ErrorResponseDto`       |
 | **500** | Server Error | Unexpected server error            | `InternalServerErrorDto` |
 
 ### Documenting Errors

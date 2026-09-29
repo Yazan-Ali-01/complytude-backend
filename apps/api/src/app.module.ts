@@ -7,7 +7,8 @@ import { QUEUE_NAMES, QueueModule } from '@lib/queue';
 import { RedisModule } from '@lib/redis';
 import { Module, RequestMethod } from '@nestjs/common';
 import { ConditionalModule, ConfigModule } from '@nestjs/config';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { configModuleOptions } from 'src/config/config-module.options';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { HealthModule } from 'src/modules/health/health.module';
@@ -91,6 +92,8 @@ const mockRoutesEnabled = (env: NodeJS.ProcessEnv): boolean =>
   ],
   controllers: [AppController],
   providers: [
+    // One error envelope for every route (ErrorResponseDto)
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
     AppService,
     {
       provide: APP_GUARD,

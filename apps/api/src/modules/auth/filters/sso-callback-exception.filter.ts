@@ -42,6 +42,7 @@ export class SsoCallbackExceptionFilter implements ExceptionFilter {
       this.configService.get<string>('sso.frontendErrorPath') ?? '/auth/error';
     const params = new URLSearchParams({ sso: 'error', provider, reason });
 
-    void reply.redirect(`${frontendUrl}${errorPath}?${params.toString()}`);
+    // Explicit 302: a status set before the error (Nest sets 200) would otherwise be kept
+    void reply.redirect(`${frontendUrl}${errorPath}?${params.toString()}`, 302);
   }
 }

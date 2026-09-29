@@ -343,8 +343,7 @@ describe('Invitation acceptance', () => {
             token: invitation.token,
           },
         );
-        // 201: the route has no @HttpCode, although Swagger documents 200
-        expect(accepted.statusCode).toBe(201);
+        expect(accepted.statusCode).toBe(200);
         expect(await invitationStatus(invitation.invitationId)).toBe(
           InvitationStatus.ACCEPTED,
         );
