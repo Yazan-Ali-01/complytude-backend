@@ -7,3 +7,9 @@ variable "environment" {
   description = "Environment name (staging, production)"
   type        = string
 }
+
+variable "noncurrent_version_days" {
+  description = "Days an overwritten or deleted object's previous version can be restored"
+  type        = number
+  default     = 30
+}

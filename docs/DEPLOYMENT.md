@@ -12,6 +12,7 @@ This guide covers the full AWS deployment for Complytude — staging and product
 - [Running Migrations in Production](#running-migrations-in-production)
 - [Connecting to RDS for Debugging](#connecting-to-rds-for-debugging)
 - [Rolling Back a Deployment](#rolling-back-a-deployment)
+- [Backups and Restore](#backups-and-restore)
 - [Cost Overview](#cost-overview)
 - [Terraform Cheat Sheet](#terraform-cheat-sheet)
 - [Troubleshooting](#troubleshooting)
@@ -618,6 +619,91 @@ DB_HOST=localhost DB_PORT=15432 DB_NAME=complytude \
 # Then create a platform admin: see "Create a Platform Admin" above
 ```
 
+---
+
+## Backups and Restore
+
+### What is backed up
+
+| Data | Backup | Kept | Recovery point (RPO) |
+|---|---|---|---|
+| PostgreSQL (RDS) | Automated daily snapshots plus transaction logs: restore to any second in the window (point-in-time restore). Tags copied to snapshots; backups survive an instance delete; final snapshot on destroy (production). | 14 days by default (`backup_retention_days`, 1-35); staging 7 | ~5 minutes (log upload interval) |
+| Documents and templates (S3 quarantine, clean) | Versioning: an overwritten or deleted object keeps its previous version | 30 days (`noncurrent_version_days`) | Zero for overwrites and deletes inside the window |
+| Redis (sessions, queues) | Daily snapshot | 7 days by default; staging 1 | Up to 24 hours. Sessions lost after a restore just mean signing in again; stuck jobs are re-driven by the stuck-work sweep. |
+
+**Recovery time target (RTO): 1 hour** for a database restore, to be confirmed by the drill below.
+
+### Restore PostgreSQL to a point in time
+
+A restore creates a **new** instance; the broken one is left untouched until you swap them.
+
+```bash
+ENV=staging
+DB=complytude-${ENV}-postgres
+TIME=2026-09-29T08:15:00Z   # just before the damage, UTC
+
+SUBNETS=$(aws rds describe-db-instances --db-instance-identifier $DB \
+  --query 'DBInstances[0].DBSubnetGroup.DBSubnetGroupName' --output text)
+SGS=$(aws rds describe-db-instances --db-instance-identifier $DB \
+  --query 'DBInstances[0].VpcSecurityGroups[].VpcSecurityGroupId' --output text)
+
+aws rds restore-db-instance-to-point-in-time \
+  --source-db-instance-identifier $DB \
+  --target-db-instance-identifier ${DB}-restored \
+  --restore-time $TIME \
+  --db-subnet-group-name $SUBNETS \
+  --vpc-security-group-ids $SGS \
+  --no-publicly-accessible
+aws rds wait db-instance-available --db-instance-identifier ${DB}-restored
+```
+
+1. **Check the data** on the restored instance through the bastion tunnel (see "Open SSH Tunnel to RDS"), with its own endpoint (`aws rds describe-db-instances --db-instance-identifier ${DB}-restored --query 'DBInstances[0].Endpoint.Address'`).
+2. **Stop writes:** scale the API and workers to 0 (`aws ecs update-service --cluster complytude-${ENV} --service complytude-${ENV}-<app> --desired-count 0`).
+3. **Swap by renaming**, so the endpoint the app and Terraform use stays the same:
+   ```bash
+   aws rds modify-db-instance --db-instance-identifier $DB \
+     --new-db-instance-identifier ${DB}-broken --apply-immediately
+   aws rds wait db-instance-available --db-instance-identifier ${DB}-broken
+   aws rds modify-db-instance --db-instance-identifier ${DB}-restored \
+     --new-db-instance-identifier $DB --apply-immediately
+   aws rds wait db-instance-available --db-instance-identifier $DB
+   ```
+4. **Start the services again** (restore the desired counts) and check `GET /api/health`.
+5. Run `terraform plan`: settings the restore did not copy (Performance Insights, backup window, deletion protection) show up as changes; apply them. Delete `${DB}-broken` once nothing more is needed from it.
+
+### Restore a document or template from S3
+
+```bash
+BUCKET=complytude-${ENV}-clean
+KEY=tenants/<tenant-id>/documents/<document-id>/contract.pdf
+
+# Versions and delete markers of the object, newest first
+aws s3api list-object-versions --bucket $BUCKET --prefix $KEY \
+  --query '{versions: Versions[].[VersionId, LastModified, IsLatest], deletes: DeleteMarkers[].[VersionId, LastModified, IsLatest]}'
+
+# Deleted: remove the delete marker and the previous version is current again
+aws s3api delete-object --bucket $BUCKET --key $KEY --version-id <delete-marker-version-id>
+
+# Overwritten: copy the good version back on top
+aws s3api copy-object --bucket $BUCKET --key $KEY \
+  --copy-source "${BUCKET}/${KEY}?versionId=<good-version-id>"
+```
+
+### Restore Redis
+
+Losing Redis loses sessions (users sign in again) and queued jobs (the stuck-work sweep re-drives
+documents and analyses stuck in `processing`). A restore from a snapshot is only worth it for a
+large backlog of queued work: `aws elasticache create-replication-group --snapshot-name <name>`
+creates a new group, and `REDIS_HOST` in the app secret must then point to it.
+
+### Restore drill
+
+Run one timed drill per environment before production launch, then every quarter: restore the
+database to a point in time, swap it in, restore one deleted S3 object, and record the results.
+
+| Date | Environment | Restored to | Time to healthy API (RTO) | Data lost (RPO) | By | Notes |
+|---|---|---|---|---|---|---|
+| _not yet performed_ | | | | | | |
 ---
 
 ## Cost Overview

@@ -80,3 +80,66 @@ resource "aws_s3_bucket_policy" "quarantine_textract" {
     ]
   })
 }
+
+# ---- Versioning ----
+# An overwritten or deleted object (a bad deploy, a bug, a mistaken delete) can be restored from
+# its previous version; see "Backups and restore" in docs/DEPLOYMENT.md.
+resource "aws_s3_bucket_versioning" "quarantine" {
+  bucket = aws_s3_bucket.quarantine.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "clean" {
+  bucket = aws_s3_bucket.clean.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# ---- Lifecycle ----
+# Previous versions are kept for noncurrent_version_days, then removed (so a deleted document is
+# really gone after that window); expired delete markers and abandoned multipart uploads are
+# cleaned up.
+resource "aws_s3_bucket_lifecycle_configuration" "quarantine" {
+  bucket     = aws_s3_bucket.quarantine.id
+  depends_on = [aws_s3_bucket_versioning.quarantine]
+
+  rule {
+    id     = "noncurrent-versions"
+    status = "Enabled"
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.noncurrent_version_days
+    }
+    expiration {
+      expired_object_delete_marker = true
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "clean" {
+  bucket     = aws_s3_bucket.clean.id
+  depends_on = [aws_s3_bucket_versioning.clean]
+
+  rule {
+    id     = "noncurrent-versions"
+    status = "Enabled"
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.noncurrent_version_days
+    }
+    expiration {
+      expired_object_delete_marker = true
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}

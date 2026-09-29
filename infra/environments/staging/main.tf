@@ -56,6 +56,8 @@ module "rds" {
   multi_az            = false # Single AZ — save ~$15/mo vs Multi-AZ
   deletion_protection = false # Allow destroy in staging
   skip_final_snapshot = true  # No need for a snapshot on destroy
+  # Backup storage up to the DB size is free, so a week costs nothing extra
+  backup_retention_days = 7
 }
 
 module "elasticache" {

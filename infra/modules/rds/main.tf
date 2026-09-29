@@ -35,10 +35,12 @@ resource "aws_db_instance" "main" {
   # false = no public IP; use bastion SSH tunnel or VPC-only clients
   publicly_accessible = false
 
-  # Backups — keep 7 days of automated backups
-  backup_retention_period = 1
-  backup_window           = "03:00-04:00"          # 3 AM UTC
-  maintenance_window      = "sun:04:00-sun:05:00"  # Sunday 4 AM UTC
+  # Automated backups, which also give point-in-time restore to any second in the window
+  backup_retention_period  = var.backup_retention_days
+  backup_window            = "03:00-04:00" # 3 AM UTC
+  copy_tags_to_snapshot    = true
+  delete_automated_backups = false                 # keep them after an (accidental) instance delete
+  maintenance_window       = "sun:04:00-sun:05:00" # Sunday 4 AM UTC
 
   # High Availability
   multi_az = var.multi_az # false for staging, true for production
@@ -47,9 +49,10 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled          = true
   performance_insights_retention_period = 7
 
-  # Pre-production safety valves (override these for production)
-  deletion_protection = var.deletion_protection
-  skip_final_snapshot = var.skip_final_snapshot
+  # Safe by default: an environment has to opt out of protection and the final snapshot
+  deletion_protection       = var.deletion_protection
+  skip_final_snapshot       = var.skip_final_snapshot
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.project_name}-${var.environment}-postgres-final"
 
   # Apply changes without a maintenance window in pre-prod
   apply_immediately = true

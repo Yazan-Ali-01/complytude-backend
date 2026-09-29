@@ -49,13 +49,24 @@ variable "multi_az" {
 }
 
 variable "deletion_protection" {
-  description = "Prevent accidental deletion. Set to true for production."
+  description = "Prevent accidental deletion (only a pre-production environment should turn this off)"
+  type        = bool
+  default     = true
+}
+
+variable "skip_final_snapshot" {
+  description = "Skip the final snapshot on destroy (only a pre-production environment should)"
   type        = bool
   default     = false
 }
 
-variable "skip_final_snapshot" {
-  description = "Skip final snapshot on destroy. Set to false for production."
-  type        = bool
-  default     = true
+variable "backup_retention_days" {
+  description = "Days of automated backups and point-in-time restore (production: 14-35)"
+  type        = number
+  default     = 14
+
+  validation {
+    condition     = var.backup_retention_days >= 1 && var.backup_retention_days <= 35
+    error_message = "backup_retention_days must be between 1 and 35 (RDS limits)."
+  }
 }
