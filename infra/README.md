@@ -82,7 +82,7 @@ Application secrets (DB, JWT, Redis, S3) are stored in AWS Secrets Manager as a 
 
 ```bash
 PGPASSWORD=$DB_PASSWORD psql -h localhost -p 5432 -U postgres -d complytude \
-  -v app_user="'app_login'" -v app_password="'YOUR_APP_PASSWORD'" -v db_name="complytude" \
+  -v app_user="app_login" -v app_password="YOUR_APP_PASSWORD" -v db_name="complytude" \
   -f scripts/setup-app-user-role.sql
 ```
 

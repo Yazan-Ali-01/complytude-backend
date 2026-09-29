@@ -1,19 +1,20 @@
 -- ============================================================================
 -- Setup Application User Role for Production
 -- ============================================================================
--- Run this ONCE by a database administrator before running migrations
--- This script should be executed with superuser privileges
+-- Run by a database administrator before the first migration (bootstrap), not on every deploy.
+-- Re-running it is safe: an existing role keeps its password unless -v reset_password=1 is given.
 -- 
 -- Required environment variables:
 --   DB_APP_USER     - Application role name (e.g., app_login)
 --   DB_APP_PASSWORD - Password for app_login role
 --   DB_NAME         - Target database name
 -- 
--- Usage:
+-- Usage (values unquoted; psql quotes them, so any character in the password is safe):
 --   PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U postgres \
---     -v app_user="'$DB_APP_USER'" \
---     -v app_password="'$DB_APP_PASSWORD'" \
+--     -v app_user="$DB_APP_USER" \
+--     -v app_password="$DB_APP_PASSWORD" \
 --     -v db_name="$DB_NAME" \
+--     [-v reset_password=1] \
 --     -f scripts/setup-app-user-role.sql
 -- ============================================================================
 
@@ -48,9 +49,13 @@
 -- 1. Create Roles
 -- ============================================================================
 
--- Set the variables as session settings so they can be used in DO blocks
-SELECT set_config('app.temp_user', :app_user, false);
-SELECT set_config('app.temp_password', :app_password, false);
+-- Set the variables as session settings so they can be used in DO blocks (\gset keeps the
+-- password out of the output)
+SELECT set_config('app.temp_user', :'app_user', false) AS ignored \gset
+SELECT set_config('app.temp_password', :'app_password', false) AS ignored \gset
+\if :{?reset_password}
+SELECT set_config('app.reset_password', 'on', false) AS ignored \gset
+\endif
 
 DO $$
 DECLARE
@@ -73,11 +78,15 @@ BEGIN
         RAISE NOTICE '[OK] Created role: %', v_app_user;
     ELSE
         RAISE NOTICE '[INFO] Role % already exists', v_app_user;
-        -- Update password if role exists
-        EXECUTE format('ALTER ROLE %I PASSWORD %L', v_app_user, v_app_password);
-        RAISE NOTICE '[OK] Updated password for %', v_app_user;
+        -- Only on request: rotating it under running tasks would break their connections
+        IF current_setting('app.reset_password', true) = 'on' THEN
+            EXECUTE format('ALTER ROLE %I PASSWORD %L', v_app_user, v_app_password);
+            RAISE NOTICE '[OK] Updated password for %', v_app_user;
+        END IF;
     END IF;
 END $$;
+
+SELECT set_config('app.temp_password', '', false) AS ignored \gset
 
 -- ============================================================================
 -- 2. Grant Database Privileges
@@ -89,7 +98,8 @@ END $$;
 
 GRANT CONNECT ON DATABASE :db_name TO app_user;
 GRANT USAGE ON SCHEMA public TO app_user;
-GRANT CREATE ON SCHEMA public TO app_user;
+-- No CREATE on public: the runtime role must not create objects in the schema its RLS policies
+-- rely on (migrations run as the admin role)
 
 -- Grant sequence usage (needed for SERIAL/auto-increment)
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;

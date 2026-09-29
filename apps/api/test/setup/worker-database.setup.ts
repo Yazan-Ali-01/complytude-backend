@@ -1,23 +1,16 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { Client } from 'pg';
+import { runMigrations } from '../../../../scripts/migrate';
 import { TEST_CONFIG_PATH, TestContainerConfig } from '../helpers/test-config';
-
-// From apps/api/test/setup: ../../.. = project root when rootDir is apps/api
-const MIGRATIONS_DIR = path.resolve(
-  __dirname,
-  '../../../../scripts/migrations',
-);
 
 // Fast path only: Jest gives every test file a fresh module registry, so this resets per file.
 // Applied migrations are tracked in the worker database itself (schema_migrations).
 let initialized = false;
 
 /**
- * Ensures the worker-specific database exists and has all migrations applied.
- * Idempotent across test files: like scripts/run-migrations.sh, it records each applied file in
- * public.schema_migrations and skips recorded ones, so a worker running a second file doesn't
- * re-run non-idempotent migrations.
+ * Ensures the worker-specific database exists and has all migrations applied, with the real runner
+ * (scripts/migrate.ts): applied files are recorded in public.schema_migrations and skipped, so a
+ * worker running a second test file doesn't re-run them.
  */
 export async function ensureWorkerDatabase(): Promise<void> {
   if (initialized) {
@@ -74,35 +67,8 @@ export async function ensureWorkerDatabase(): Promise<void> {
   await workerClient.connect();
 
   try {
-    await workerClient.query(
-      `CREATE TABLE IF NOT EXISTS public.schema_migrations (
-         migration_name VARCHAR(255) PRIMARY KEY,
-         executed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-       )`,
-    );
-    const applied = new Set(
-      (
-        await workerClient.query<{ migration_name: string }>(
-          'SELECT migration_name FROM public.schema_migrations',
-        )
-      ).rows.map((row) => row.migration_name),
-    );
-
-    const migrationFiles = fs
-      .readdirSync(MIGRATIONS_DIR)
-      .filter((f) => f.endsWith('.sql'))
-      .sort();
-
-    for (const file of migrationFiles) {
-      if (applied.has(file)) continue;
-      // Migration files manage their own transactions (BEGIN/COMMIT), as with run-migrations.sh
-      const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
-      await workerClient.query(sql);
-      await workerClient.query(
-        'INSERT INTO public.schema_migrations (migration_name) VALUES ($1)',
-        [file],
-      );
-    }
+    // The same runner as pnpm db:migrate and the deploy pipeline
+    await runMigrations(workerClient);
   } finally {
     await workerClient.end();
   }

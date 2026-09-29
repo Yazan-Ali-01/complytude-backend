@@ -938,20 +938,26 @@ pnpm db:migrate
 
 ### Migration Tracking
 
-Executed migrations are tracked in `public.schema_migrations`:
+Executed migrations are tracked in `public.schema_migrations`, with each file's SHA-256:
 
 ```sql
-SELECT migration_name, executed_at
+SELECT migration_name, checksum, executed_at
 FROM schema_migrations
 ORDER BY executed_at DESC;
 ```
 
+The runner (`scripts/migrate.ts`) refuses to run if an applied file's checksum changed, applies
+each file and its row in one transaction, and holds an advisory lock so two runners never apply the
+same file. `run-migrations.sh --check` verifies the checksums without applying anything.
+
 ### Creating New Migrations
 
-1. Create file: `scripts/migrations/017_description.sql`
+Migrations are append-only: never edit, rename or delete an existing file (CI fails a PR that does).
+
+1. Create file: `scripts/migrations/NNN_description.sql` with the next number
 2. Follow naming convention: `0XX_description.sql`
-3. Include BEGIN/COMMIT for transactions
-4. Make it idempotent (use `IF NOT EXISTS`)
+3. Exactly one `BEGIN;` and one `COMMIT;` around the statements (the runner adds its bookkeeping inside that transaction)
+4. Prefer backward-compatible, idempotent changes (`IF NOT EXISTS`)
 5. Run: `pnpm db:migrate`
 
 **Template:**

@@ -24,27 +24,17 @@ This project is in active development and has not yet been deployed to productio
 
 ### Database Migrations
 
-**✅ PREFERRED: Update Existing Migrations**
+Migrations are append-only, pre-production included: a shared database (staging) runs them, and
+an edited file would never reach it.
 
-When making database schema changes:
-
-1. **Edit existing migration files** in `scripts/migrations/` for most changes
-2. **Only create new migrations** for large, independent features
-3. **Drop and recreate the database** after editing migrations:
-
-```bash
-docker-compose down -v
-docker-compose up -d postgres
-pnpm db:migrate
-pnpm db:seed
-```
-
-**Examples of changes to make in existing migrations:**
-- Adding/removing/renaming columns
-- Changing column types or constraints
-- Adding/removing indexes
-- Modifying RLS policies
-- Updating foreign key relationships
+1. **Add a new numbered file** in `scripts/migrations/` for every schema change (`028_...sql`,
+   `029_...sql`). Never edit, rename or delete an existing one: `pnpm db:migrate` refuses to run
+   when an applied file's checksum changed, and CI fails a PR that modifies one.
+2. Keep the file's shape: one `BEGIN;` and one `COMMIT;` around the statements, and a commented
+   rollback block. The runner applies the file and its `schema_migrations` row in one transaction.
+3. Prefer backward-compatible changes (add first, remove in a later release): migrations run while
+   the previous version is still serving.
+4. A local database built from older files is reset with `pnpm services:reset`.
 
 ### Breaking Changes
 
@@ -73,7 +63,7 @@ pnpm db:seed
 
 These relaxations end at the **first production deployment** (real users, real data, or an external integration depending on the API). From then on:
 
-1. **Freeze migrations.** Never edit an applied migration; every schema change is a new file.
+1. **Migrations are already append-only** (see Database Migrations); nothing changes there.
 2. **Keep the API backward compatible.** Deprecate before removing; version the API when a break is unavoidable.
 3. **Provide migration paths** for data and clients affected by a change.
 4. **Write upgrade notes** for breaking changes.

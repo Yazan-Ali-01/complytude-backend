@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Complytude is a UAE-focused SaaS backend for legal document generation and compliance management. It is a **pnpm monorepo** with 4 NestJS applications and 10 shared libraries, using PostgreSQL 16 (with pgvector), Redis 7, and BullMQ for background jobs.
 
-**Status: PRE-PRODUCTION** — breaking changes are fine. Edit existing migrations rather than creating new ones unless the change is large and independent. What changes at the first production deployment is listed under "Leaving pre-production" in `CONTRIBUTING.md`.
+**Status: PRE-PRODUCTION** — breaking API and code changes are fine. Migrations are the exception: never edit an applied migration; every schema change is a new numbered file (CI fails on an edited one). What changes at the first production deployment is listed under "Leaving pre-production" in `CONTRIBUTING.md`.
 
 ---
 
@@ -88,7 +88,7 @@ libs/
   docx-renderer/        # DOCX rendering
   audit/                # Audit logging
 scripts/
-  migrations/           # SQL migration files (edit in place, pre-prod)
+  migrations/           # SQL migration files (append-only: never edit an applied one)
   seeds/                # SQL seed files
 docs/                   # Architecture, database, RBAC, entitlements, billing docs
 ```
@@ -143,7 +143,7 @@ Context is set with `set_config(..., true)`, so it is transaction-scoped and nev
 
 **JSON/JSONB columns:** services `JSON.stringify` values before passing them to a repository. The `TCreate`/`TUpdate` types carry the string, and `mapRow()` parses it back into an object for `TEntity`.
 
-**Migrations:** Edit files in `scripts/migrations/` directly (pre-production). After editing, run `pnpm services:reset` for a clean state. Only create a new migration file for large, independent features.
+**Migrations:** add a new numbered file in `scripts/migrations/` for every schema change; never edit, rename or delete an existing one. `pnpm db:migrate` (`scripts/migrate.ts`) records each file's checksum and refuses to run if an applied file changed, runs each migration with its bookkeeping row in one transaction, and holds an advisory lock. CI fails if a PR modifies an existing migration. Each file keeps its own `BEGIN;`/`COMMIT;` (exactly one of each) and a commented rollback block.
 
 ### Authentication — Dual-Token System
 

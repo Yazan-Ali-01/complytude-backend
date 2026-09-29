@@ -2,7 +2,7 @@
 
 This directory contains database migrations, seeding, and utility scripts for Complytude.
 
-> **⚠️ PRE-PRODUCTION:** This project is in pre-production. You can **edit existing migration files** for most changes. See [Creating/Editing Migrations](#creatingediting-migrations) below.
+> **Migrations are append-only:** never edit an applied migration; add a new numbered file. See [Creating Migrations](#creating-migrations) below.
 
 ## 🚀 Quick Start
 
@@ -182,49 +182,21 @@ FROM public.schema_migrations
 ORDER BY executed_at DESC;
 ```
 
-### Creating/Editing Migrations
+### Creating Migrations
 
-**⚠️ PRE-PRODUCTION APPROACH:**
-
-Since we're in pre-production, you have two options:
-
-#### Option 1: Edit Existing Migration (PREFERRED)
-
-For most schema changes, **edit the existing migration file**:
-
-1. Locate the relevant migration in `scripts/migrations/`
-2. Edit the SQL directly (add/remove columns, change types, etc.)
-3. Drop and recreate database:
-   ```bash
-   docker-compose down -v
-   docker-compose up -d postgres
-   ./scripts/run-migrations.sh
-   ./scripts/run-seeds.sh
-   ```
-
-**When to edit existing migrations:**
-
-- Adding/removing columns to existing tables
-- Changing column types or constraints
-- Renaming columns or tables
-- Modifying RLS policies
-- Small to medium-sized changes
-
-#### Option 2: Create New Migration (Only for Large Features)
-
-Only create a new migration when:
-
-- Adding multiple new tables for a new feature
-- The change is very large and complex
-- It would make existing migrations unreadable
+Every schema change is a **new** file; never edit, rename or delete an existing one. The runner
+(`scripts/migrate.ts`, called by `run-migrations.sh` and `pnpm db:migrate`) stores each applied
+file's SHA-256 and refuses to run if one changed, and CI fails a PR that modifies an existing file.
 
 **Steps:**
 
-1. Create file: `scripts/migrations/009_description.sql`
-2. Use next sequential number
-3. Include header with description
-4. Make it idempotent
-5. Run `./scripts/run-migrations.sh`
+1. Create `scripts/migrations/NNN_description.sql` with the next number
+2. Include the header with a description, one `BEGIN;` / `COMMIT;` pair, and a commented rollback block
+3. Prefer backward-compatible changes (the previous release still runs while it applies)
+4. Run `pnpm db:migrate` (or `./scripts/run-migrations.sh`); `--check` only verifies checksums
+
+The runner applies each file and its `schema_migrations` row in one transaction under an advisory
+lock, so a failed or interrupted migration leaves nothing half-recorded.
 
 **Template:**
 
@@ -491,7 +463,7 @@ Production environment only seeds reference data, not sample data.
 - Use production data in migrations
 - Forget to grant permissions to app user
 
-**Note:** Once in production, we'll switch to immutable migrations (never edit, only add new ones).
+**Note:** Migrations are immutable: never edit an applied one, only add new files.
 
 ### Seeds
 

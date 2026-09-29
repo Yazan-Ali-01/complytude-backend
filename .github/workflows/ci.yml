@@ -1,7 +1,7 @@
 name: CI
 
 # Runs on every pull request, and as the gate of the staging deploy (deploy-staging.yml calls it).
-# Make all three jobs required status checks in the branch protection of development and main.
+# Make all four jobs required status checks in the branch protection of development and main.
 on:
   pull_request:
     branches: [development, main]
@@ -24,6 +24,55 @@ jobs:
       # Fails on any high or critical advisory in production dependencies (the lockfile, not
       # node_modules, is audited, so no install is needed)
       - run: pnpm audit --prod --audit-level=high
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: '5432'
+      DB_NAME: complytude
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_APP_USER: app_login
+      DB_APP_PASSWORD: ci-only-app-password
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Applied migrations are never edited: only new files may be added
+      - name: Migrations are append-only
+        env:
+          BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No base to compare against; skipping"
+          else
+            bash scripts/check-migrations-append-only.sh "$BASE"
+          fi
+      # pnpm version from package.json "packageManager"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get install -y postgresql-client
+      # From zero, then again (nothing to apply), then verify the recorded checksums
+      - name: Migrate a fresh database
+        run: |
+          bash scripts/setup-roles.sh
+          bash scripts/run-migrations.sh
+          bash scripts/run-migrations.sh
+          bash scripts/run-migrations.sh --check
 
   checks:
     name: Lint, type-check, unit tests

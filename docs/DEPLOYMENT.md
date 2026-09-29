@@ -589,16 +589,16 @@ current schema, so a migration that the older code can't work with needs a fix-f
 
 ### Rollback a Bad Migration
 
-Migrations are plain SQL files in `scripts/migrations/`. Since the project is pre-production, the safest approach is to edit the migration file in place and re-run:
+Applied migrations are never edited: the runner (`scripts/migrate.ts`) refuses to run if an applied
+file's checksum changed. A migration that failed was rolled back with its bookkeeping row (one
+transaction), so fix the file and re-run. A migration that applied but is wrong is undone by a
+**new** migration (its commented rollback block is the starting point), deployed like any other:
 
 ```bash
-# 1. Connect via SSH tunnel (see above)
-# 2. Drop the offending objects manually
-# 3. Edit scripts/migrations/XXX_migration.sql
-# 4. Re-run migrations
+# Verify applied migrations are unchanged, without applying anything
 DB_HOST=localhost DB_PORT=15432 DB_NAME=complytude \
   DB_USER=postgres DB_PASSWORD=<password> \
-  bash scripts/run-migrations.sh
+  bash scripts/run-migrations.sh --check
 ```
 
 For a full reset (staging only — destroys all data):

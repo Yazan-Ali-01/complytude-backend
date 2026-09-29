@@ -72,8 +72,8 @@ Per Jest Worker (parallel)
   │   └── Override DB_*/REDIS_* with testcontainer config (the app connects as app_login)
   └── worker-database.setup.ts (called from createTestApp)
       ├── Create worker-specific database (test_w{workerId})
-      └── Run pending SQL migrations (applied ones are recorded in schema_migrations,
-          so a worker that runs several test files migrates only once)
+      └── Run pending SQL migrations with the real runner (scripts/migrate.ts): applied ones are
+          recorded in schema_migrations, so a worker that runs several test files migrates only once)
 
 Per Test Suite
   ├── beforeAll: createTestApp() → boots full NestJS app
@@ -154,7 +154,8 @@ apps/api/test/
 │   ├── global-setup.ts             # Starts Postgres + Redis testcontainers
 │   ├── global-teardown.ts          # Stops containers, removes temp config
 │   ├── jest.setup.ts               # Per-worker: loads .env.test, overrides env vars
-│   ├── worker-database.setup.ts    # Per-worker: creates DB + runs pending migrations (schema_migrations)
+│   ├── worker-database.setup.ts    # Per-worker: creates DB + runs pending migrations (scripts/migrate.ts)
+│   ├── migration-runner.integration.spec.ts  # The runner: checksums, atomic bookkeeping, lock
 │   ├── test-app.factory.ts         # createTestApp(): boots the app, wires both database connections
 │   ├── admin-database.ts           # TEST_ADMIN_DATABASE: superuser DatabaseService for fixtures
 │   └── smoke.integration.spec.ts   # Verifies the test infrastructure itself

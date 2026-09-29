@@ -4,7 +4,8 @@
 # Database Role Setup Script
 # ============================================================================
 # Sets up app_user and app_login roles with password from environment
-# Must be run with admin/superuser privileges BEFORE migrations
+# Must be run with admin/superuser privileges BEFORE the first migration (bootstrap).
+# An existing app_login keeps its password; set RESET_APP_PASSWORD=1 to rotate it.
 # ============================================================================
 
 set -e
@@ -73,9 +74,10 @@ echo "🔧 Setting up application roles..."
 
 # Run the setup script
 PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres \
-    -v app_user="'$DB_APP_USER'" \
-    -v app_password="'$DB_APP_PASSWORD'" \
+    -v app_user="$DB_APP_USER" \
+    -v app_password="$DB_APP_PASSWORD" \
     -v db_name="$DB_NAME" \
+    ${RESET_APP_PASSWORD:+-v reset_password=1} \
     -f scripts/setup-app-user-role.sql
 
 echo ""
