@@ -22,6 +22,13 @@ export const EmailI18n = {
     BODY_EXPIRY: 'email.passwordReset.BODY_EXPIRY',
     BODY_IGNORE: 'email.passwordReset.BODY_IGNORE',
   },
+  accountExists: {
+    SUBJECT: 'email.accountExists.SUBJECT',
+    BODY_INTRO: 'email.accountExists.BODY_INTRO',
+    BODY_SIGN_IN: 'email.accountExists.BODY_SIGN_IN',
+    BODY_RESET: 'email.accountExists.BODY_RESET',
+    BODY_IGNORE: 'email.accountExists.BODY_IGNORE',
+  },
   trialEnding: {
     SUBJECT: 'email.trial_ending.subject',
     TITLE: 'email.trial_ending.title',

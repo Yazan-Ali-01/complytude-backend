@@ -139,7 +139,7 @@ Table tenants {
 
 Table users {
   id uuid [pk, default: `gen_random_uuid()`]
-  email varchar(255) [unique, not null]
+  email varchar(255) [unique, not null, note: 'trimmed, lower-case (CHECK); unique on lower(email)']
   password_hash varchar(255) [null, note: 'NULL for SSO-only until password set']
   first_name varchar(255)
   last_name varchar(255)

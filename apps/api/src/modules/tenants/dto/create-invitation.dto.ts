@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { NormalizeEmail } from 'src/common/decorators/normalize-email.decorator';
 import { SystemTenantRole } from 'src/common/types';
 
 /**
@@ -12,8 +13,8 @@ export class CreateInvitationDto {
     description: 'Email address of the user to invite',
     example: 'newuser@example.com',
   })
+  @NormalizeEmail()
   @IsEmail()
-  @Transform(({ value }) => value.toLowerCase())
   email: string;
 
   @ApiProperty({

@@ -432,8 +432,8 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 | Field       | Type   | Required | Validation           | Description        |
 | ----------- | ------ | -------- | -------------------- | ------------------ |
-| `email`     | string | Yes      | Valid email          | User email address |
-| `password`  | string | Yes      | Min 8 chars, max 100 | User password      |
+| `email`     | string | Yes      | Valid email          | User email address (trimmed and lower-cased) |
+| `password`  | string | Yes      | Min 8 chars, max 72 bytes; not in a known data breach | User password |
 | `firstName` | string | No       | Max 255 chars        | First name         |
 | `lastName`  | string | No       | Max 255 chars        | Last name          |
 
@@ -441,21 +441,22 @@ After completing this flow, users have full tenant access with tenant tokens set
 
 ```json
 {
-  "message": "User registered successfully. Verification email sent."
+  "message": "Check your email to finish signing up."
 }
 ```
+
+The response is the same whether or not the email already has an account, so signup can't be used to find out who is registered. For an existing account nothing is created: its owner gets an email saying someone tried to sign up, with links to sign in or reset the password.
 
 **Error Responses:**
 
 | Status | Condition                | Response                 |
 | ------ | ------------------------ | ------------------------ |
-| 400    | Validation failed        | `ValidationErrorDto`     |
-| 409    | Email already registered | `ConflictErrorDto`       |
+| 400    | Validation failed, or the password appears in a known data breach (Have I Been Pwned, `PASSWORD_BREACH_CHECK_ENABLED`) | `ValidationErrorDto` |
 | 500    | Server error             | `InternalServerErrorDto` |
 
 **Behind the Scenes:**
 
-- User account created with email and hashed password
+- User account created with email and hashed password (bcrypt, cost 12)
 - Email verification token generated
 - Verification email sent via AWS SES (link: `{FRONTEND_URL}/verify-email?token={token}`), after the commit; a failed send is logged and doesn't fail the signup. With `EMAIL_SKIP_SEND=true`, no SES call is made (useful for local/tests).
 - User account is created but **email is not verified** (cannot proceed until verified)
@@ -570,6 +571,8 @@ After completing this flow, users have full tenant access with tenant tokens set
 | ------ | ----------------------------------------- | ------------------------ |
 | 400    | Validation failed                         | `ValidationErrorDto`     |
 | 401    | Invalid credentials or email not verified | `UnauthorizedErrorDto`   |
+
+An unknown email, an account that signs in with Google or Microsoft only, and a wrong password get the same 401 message after the same bcrypt work, so login reveals neither who has an account nor how they sign in. The email is matched lower-cased. `POST /auth/forgot-password` likewise answers at once and identically for any address: the lookup, the new link (which ends the user's older links) and the email happen after the response. A reset link is consumed exactly once, and using it ends every other outstanding link.
 | 500    | Server error                              | `InternalServerErrorDto` |
 
 **Behind the Scenes:**

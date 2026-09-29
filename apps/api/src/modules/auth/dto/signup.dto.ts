@@ -1,17 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsEmail,
-  IsOptional,
-  IsString,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { NormalizeEmail } from 'src/common/decorators/normalize-email.decorator';
+import { IsNewPassword } from 'src/common/decorators/new-password.decorator';
 
 export class SignupDto {
   @ApiProperty({
     description: 'User email address',
     example: 'user@example.com',
   })
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 
@@ -20,9 +17,7 @@ export class SignupDto {
     example: 'Test123!@#',
     minLength: 8,
   })
-  @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters long' })
-  @MaxLength(100)
+  @IsNewPassword()
   password: string;
 
   @ApiProperty({

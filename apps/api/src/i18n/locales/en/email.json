@@ -14,6 +14,13 @@
     "BODY_EXPIRY": "This link expires in 1 hour.",
     "BODY_IGNORE": "If you didn't request a password reset, you can safely ignore this email."
   },
+  "accountExists": {
+    "SUBJECT": "You already have a Complytude account",
+    "BODY_INTRO": "Someone tried to sign up with this email address, but it already has a Complytude account.",
+    "BODY_SIGN_IN": "Sign in",
+    "BODY_RESET": "Forgot your password? Reset it",
+    "BODY_IGNORE": "If this wasn't you, you can ignore this email: nothing has changed on your account."
+  },
   "payment_action_required": {
     "subject": "Payment Action Required - Complete Your Payment for {tenantName}",
     "title": "Payment Action Required",

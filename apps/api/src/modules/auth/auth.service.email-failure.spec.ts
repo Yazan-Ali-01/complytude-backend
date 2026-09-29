@@ -76,6 +76,7 @@ describe('AuthService when SES rejects the email', () => {
       {} as never, // geoLocationService
       {} as never, // redis
       {} as never, // loginLockout
+      { assertNotBreached: () => Promise.resolve() } as never, // passwordPolicy
     );
   }
 

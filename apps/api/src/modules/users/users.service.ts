@@ -16,6 +16,7 @@ import { UserTenantRepository } from '../../repositories/users/user-tenant.repos
 import { UserRepository } from '../../repositories/users/user.repository';
 import { SessionListResponseDto } from '../auth/dto/session-list-response.dto';
 import type { TenantSessionItemDto } from '../auth/dto/session-response.dto';
+import { PasswordPolicyService } from '../auth/services/password-policy.service';
 import { SessionInvalidationService } from '../auth/services/session-invalidation.service';
 import { SessionService } from '../auth/services/session.service';
 import { Tenant } from '../tenants/entities/tenant.entity';
@@ -49,6 +50,7 @@ export class UsersService {
     private readonly userRepository: UserRepository,
     private readonly userTenantRepository: UserTenantRepository,
     private readonly tenantRepository: TenantRepository,
+    private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
   // ─── The signed-in user ───────────────────────────────────────
@@ -134,6 +136,8 @@ export class UsersService {
         this.i18n.t(UsersI18n.errors.CURRENT_PASSWORD_INCORRECT),
       );
     }
+
+    await this.passwordPolicy.assertNotBreached(changePasswordDto.newPassword);
 
     const newPasswordHash = await bcrypt.hash(
       changePasswordDto.newPassword,

@@ -24,6 +24,7 @@ import {
   JwtTenantAccessStrategy,
 } from './strategies/jwt-tenant-access.strategy';
 import { JwtTenantRefreshStrategy } from './strategies/jwt-tenant-refresh.strategy';
+import { PasswordPolicyService } from './services/password-policy.service';
 import { LoginLockoutService } from './services/login-lockout.service';
 import { MicrosoftSsoStrategy } from './strategies/microsoft-sso.strategy';
 import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.filter';
@@ -44,6 +45,7 @@ import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.fil
     AuthService,
     GeoLocationService,
     LoginLockoutService,
+    PasswordPolicyService,
     JwtTenantAccessStrategy,
     JwtTenantRefreshStrategy,
     JwtIdentityAccessStrategy,
@@ -57,6 +59,6 @@ import { SsoCallbackExceptionFilter } from './filters/sso-callback-exception.fil
     EmailVerificationRepository,
     UserTenantRepository,
   ],
-  exports: [AuthService, SessionsModule],
+  exports: [AuthService, PasswordPolicyService, SessionsModule],
 })
 export class AuthModule {}

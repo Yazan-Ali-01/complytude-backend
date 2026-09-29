@@ -292,6 +292,69 @@ ${this.i18n.t('email.dunning.common.signature', { lang: locale })}
 `.trim();
   }
 
+  /**
+   * Sent instead of an error when someone signs up with an address that already has an account,
+   * so the signup response can't be used to learn which addresses are registered.
+   */
+  async sendAccountExistsEmail(
+    email: string,
+    locale: string = 'en',
+  ): Promise<void> {
+    if (this.skipSend) {
+      this.logger.log(
+        `Skipping account-exists email (EMAIL_SKIP_SEND): to=${email}`,
+      );
+      return;
+    }
+    const t = (key: string): string => this.i18n.t(key, { lang: locale });
+    const signInUrl = `${this.config.frontendUrl}/login`;
+    const resetUrl = `${this.config.frontendUrl}/forgot-password`;
+    const subject = t(EmailI18n.accountExists.SUBJECT);
+    const htmlBody = `
+<!DOCTYPE html>
+<html lang="${locale}" dir="${textDirection(locale)}">
+<head><meta charset="UTF-8"><title>${subject}</title></head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <p>${t(EmailI18n.accountExists.BODY_INTRO)}</p>
+    <p><a href="${signInUrl}">${t(EmailI18n.accountExists.BODY_SIGN_IN)}</a></p>
+    <p><a href="${resetUrl}">${t(EmailI18n.accountExists.BODY_RESET)}</a></p>
+    <p style="font-size: 14px; color: #666;">${t(EmailI18n.accountExists.BODY_IGNORE)}</p>
+    <p>${t('email.dunning.common.signature')}</p>
+</body>
+</html>`;
+    const textBody = [
+      t(EmailI18n.accountExists.BODY_INTRO),
+      `${t(EmailI18n.accountExists.BODY_SIGN_IN)}: ${signInUrl}`,
+      `${t(EmailI18n.accountExists.BODY_RESET)}: ${resetUrl}`,
+      t(EmailI18n.accountExists.BODY_IGNORE),
+      t('email.dunning.common.signature'),
+    ].join('\n\n');
+
+    try {
+      await this.sesClient.send(
+        new SendEmailCommand({
+          Source: `${this.config.fromName} <${this.config.fromEmail}>`,
+          Destination: { ToAddresses: [email] },
+          Message: {
+            Subject: { Data: subject, Charset: 'UTF-8' },
+            Body: {
+              Html: { Data: htmlBody, Charset: 'UTF-8' },
+              Text: { Data: textBody, Charset: 'UTF-8' },
+            },
+          },
+          Tags: [{ Name: 'EmailType', Value: 'account_exists' }],
+        }),
+      );
+      this.logger.log(`Account-exists email sent: email=${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send account-exists email: email=${email}`,
+        (error as Error).stack,
+      );
+      throw error;
+    }
+  }
+
   async sendPaymentActionRequiredEmail(
     data: PaymentActionRequiredEmailData,
     locale: string = 'en',

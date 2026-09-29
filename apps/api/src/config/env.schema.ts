@@ -26,6 +26,8 @@ export const validationSchema = Joi.object({
           'AUTH_ECHO_TOKENS must not be true when NODE_ENV=production',
       }),
     }),
+  // Refuse new passwords found in data breaches (Have I Been Pwned range API, k-anonymity)
+  PASSWORD_BREACH_CHECK_ENABLED: Joi.boolean().default(true),
   // Dev-only demo routes (MockModule, RagMockModule); see app.module.ts
   ENABLE_MOCK_ROUTES: Joi.boolean()
     .default(false)

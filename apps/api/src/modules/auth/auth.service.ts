@@ -36,6 +36,7 @@ import { InvitationsService } from '../invitations/invitations.service';
 import { TenantService } from '../tenants/tenant.service';
 import { UsersI18n } from '../users/constants/i18n.constants';
 import { AuthI18n } from './constants/i18n.constants';
+import { PasswordPolicyService } from './services/password-policy.service';
 import { LoginLockoutService } from './services/login-lockout.service';
 import { withSessionStore } from './utils/validate-sessions.util';
 import {
@@ -68,7 +69,9 @@ import { parseUserAgent } from './utils/user-agent.util';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly BCRYPT_ROUNDS = 10;
+  private readonly BCRYPT_ROUNDS = 12;
+  /** Compared against when there is no password to check, so every login costs one bcrypt. */
+  private dummyPasswordHash?: Promise<string>;
 
   constructor(
     private readonly jwtService: JwtService,
@@ -86,6 +89,7 @@ export class AuthService {
     private readonly geoLocationService: GeoLocationService,
     private readonly redis: RedisService,
     private readonly loginLockout: LoginLockoutService,
+    private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
   /**
@@ -219,17 +223,28 @@ export class AuthService {
    * Registers a new user account.
    *
    * @remarks
-   * - Checks for existing email (throws ConflictException if taken)
+   * - Answers the same whether or not the email is registered: an existing account's owner is
+   *   emailed instead, so signup can't be used to find out who has an account
    * - Creates a new user account (unverified)
    * - Creates email verification token
    * - Does NOT create a tenant — users create their organization
    *   separately via POST /tenants after verifying their email
    *
    * @param signupDto - User registration information
-   * @returns Success message (+ verificationToken in non-production)
-   * @throws {ConflictException} if the email is already registered
+   * @returns Success message (+ verificationToken for a new account with AUTH_ECHO_TOKENS)
    */
   async signup(signupDto: SignupDto): Promise<MessageResponseDto> {
+    await this.passwordPolicy.assertNotBreached(signupDto.password);
+
+    // Hashed on both paths, so a registered email doesn't answer faster
+    const passwordHash = await bcrypt.hash(
+      signupDto.password,
+      this.BCRYPT_ROUNDS,
+    );
+    const accepted = {
+      message: this.i18n.t(AuthI18n.messages.SIGNUP_SUCCESS),
+    } as MessageResponseDto;
+
     const existingUser = await this.userRepository.findOne({
       filters: {
         email: signupDto.email,
@@ -237,19 +252,13 @@ export class AuthService {
       select: ['id'],
     });
     if (existingUser) {
-      throw new ConflictException(
-        this.i18n.t(AuthI18n.errors.EMAIL_ALREADY_REGISTERED),
-      );
+      this.notifyAccountExists(signupDto.email, existingUser.id);
+      return accepted;
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(
-      signupDto.password,
-      this.BCRYPT_ROUNDS,
-    );
-
-    const { userId, verificationToken } =
-      await this.databaseService.transaction(async (client) => {
+    let created: { userId: string; verificationToken: string };
+    try {
+      created = await this.databaseService.transaction(async (client) => {
         // Create user account
         this.logger.log(`Creating user account for ${signupDto.email}`);
         const { id } = await this.userRepository.create(
@@ -270,6 +279,15 @@ export class AuthService {
         const token = await this.createEmailVerificationRecord(id, { client });
         return { userId: id, verificationToken: token };
       });
+    } catch (error) {
+      // A concurrent signup with the same email won the insert
+      if ((error as { code?: string }).code === '23505') {
+        this.notifyAccountExists(signupDto.email, null);
+        return accepted;
+      }
+      throw error;
+    }
+    const { userId, verificationToken } = created;
 
     // Sent after the commit, so a rollback never leaves a mailed token without its row. A failed
     // send (e.g. SES rejecting the address) must not fail the signup or crash the process.
@@ -281,16 +299,27 @@ export class AuthService {
         );
       });
 
-    const result = {
-      message: this.i18n.t(AuthI18n.messages.SIGNUP_SUCCESS),
-    } as unknown as MessageResponseDto & { verificationToken: string };
-
     if (this.echoTokens()) {
-      (result as unknown as { verificationToken: string }).verificationToken =
-        verificationToken;
+      return { ...accepted, verificationToken } as MessageResponseDto;
     }
+    return accepted;
+  }
 
-    return result;
+  /** Tells the owner of an existing account that someone tried to sign up with their email. */
+  private notifyAccountExists(email: string, userId: string | null): void {
+    this.emailService.sendAccountExistsEmail(email).catch((error: unknown) => {
+      this.logger.error(
+        `Account-exists email failed for user ${userId ?? 'unknown'}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
+
+  private dummyHash(): Promise<string> {
+    this.dummyPasswordHash ??= bcrypt.hash(
+      crypto.randomBytes(16).toString('hex'),
+      this.BCRYPT_ROUNDS,
+    );
+    return this.dummyPasswordHash;
   }
 
   /**
@@ -626,28 +655,19 @@ export class AuthService {
         'auth_provider',
       ],
     });
-    if (!user) {
-      this.logger.warn(`Login failed: user not found for email`);
-      await this.loginLockout.recordFailure(email);
-      throw new UnauthorizedException(
-        this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
+    // No account, or one that signs in with Google/Microsoft only: the same answer, after the
+    // same bcrypt work, as a wrong password, so login reveals neither who has an account nor how
+    // they sign in
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user?.password_hash ?? (await this.dummyHash()),
+    );
+    if (!user || user.password_hash === null || !isPasswordValid) {
+      this.logger.warn(
+        user
+          ? `Login failed: invalid password for user ${user.id}`
+          : 'Login failed: user not found for email',
       );
-    }
-
-    if (user.password_hash === null) {
-      throw new UnauthorizedException(
-        this.i18n.t(AuthI18n.errors.SSO_ACCOUNT_USE_PASSWORD_PROVIDER, {
-          args: {
-            provider: this.authProviderLabel(user.auth_provider),
-          },
-        }),
-      );
-    }
-
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-    if (!isPasswordValid) {
-      this.logger.warn(`Login failed: invalid password for user ${user.id}`);
       await this.loginLockout.recordFailure(email);
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.INVALID_CREDENTIALS),
@@ -672,17 +692,6 @@ export class AuthService {
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.EMAIL_NOT_VERIFIED),
       );
-    }
-  }
-
-  private authProviderLabel(provider: User['auth_provider']): string {
-    switch (provider) {
-      case 'google':
-        return 'Google';
-      case 'microsoft':
-        return 'Microsoft';
-      default:
-        return 'email';
     }
   }
 
@@ -1196,19 +1205,41 @@ export class AuthService {
     return this.configService.get<boolean>('AUTH_ECHO_TOKENS') === true;
   }
 
+  /**
+   * Answers at once and the same way for any address; the lookup, the new token and the email
+   * happen after the response, so its timing doesn't tell whether the account exists. (With
+   * AUTH_ECHO_TOKENS, tests and local development, it waits so the token can be returned.)
+   */
   async forgotPassword({ email }: ForgotPasswordDto) {
+    const response = {
+      message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
+    };
+    const issued = this.issuePasswordReset(email);
+
+    if (this.echoTokens()) {
+      const resetToken = await issued;
+      return resetToken ? { ...response, resetToken } : response;
+    }
+    issued.catch((error: unknown) => {
+      this.logger.error(
+        `Password reset request failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    return response;
+  }
+
+  /**
+   * Issues a reset token for the account with this email (ending any older ones) and emails it.
+   * Returns the token, or null when there is no such account.
+   */
+  private async issuePasswordReset(email: string): Promise<string | null> {
     const user = await this.userRepository.findOne({
       filters: {
         email,
       },
       select: ['id'],
     });
-    if (!user) {
-      // Don't reveal if email exists
-      return {
-        message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
-      };
-    }
+    if (!user) return null;
 
     const userId = user.id;
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -1224,24 +1255,15 @@ export class AuthService {
       expiresAt,
     });
 
-    // A failed send must not reveal whether the account exists, fail the request, or crash the process
-    this.emailService
+    // A failed send must not crash the process
+    await this.emailService
       .sendPasswordResetEmail(email, resetToken)
       .catch((error: unknown) => {
         this.logger.error(
           `Password reset email failed for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
-
-    const result = {
-      message: this.i18n.t(AuthI18n.messages.PASSWORD_RESET_EMAIL_SENT),
-    };
-
-    if (this.echoTokens()) {
-      (result as unknown as { resetToken: string }).resetToken = resetToken;
-    }
-
-    return result;
+    return resetToken;
   }
 
   /**
@@ -1260,6 +1282,8 @@ export class AuthService {
       );
     }
 
+    await this.passwordPolicy.assertNotBreached(resetPasswordDto.newPassword);
+
     // Hash new password
     const passwordHash = await bcrypt.hash(
       resetPasswordDto.newPassword,
@@ -1267,13 +1291,25 @@ export class AuthService {
     );
 
     await this.databaseService.transaction(async (client) => {
+      // Consumed exactly once: of two requests racing with the same token, one gets a 400
+      const consumed = await this.userRepository.markPasswordResetUsed(
+        reset.id,
+        { client },
+      );
+      if (!consumed) {
+        throw new BadRequestException(
+          this.i18n.t(AuthI18n.errors.INVALID_VERIFICATION_TOKEN),
+        );
+      }
+
       await this.userRepository.update(
         reset.userId,
         { password_hash: passwordHash, updated_at: new Date() },
         { client },
       );
 
-      await this.userRepository.markPasswordResetUsed(reset.id, { client });
+      // Any other reset link still out there stops working too
+      await this.userRepository.endPasswordResets(reset.userId, { client });
     });
 
     await this.sessionInvalidationService.invalidateAllUserSessions(

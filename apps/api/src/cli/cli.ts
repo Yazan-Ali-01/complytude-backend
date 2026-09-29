@@ -46,7 +46,11 @@ function parseGrantArgs(args: string[]): GrantArgs | string {
   if (!(Object.values(SystemPlatformRole) as string[]).includes(role)) {
     return `Unknown role: ${role}`;
   }
-  return { email, role: role as SystemPlatformRole };
+  // Accounts are keyed on the lower-case address
+  return {
+    email: email.trim().toLowerCase(),
+    role: role as SystemPlatformRole,
+  };
 }
 
 async function grantPlatformAdmin(args: string[]): Promise<number> {

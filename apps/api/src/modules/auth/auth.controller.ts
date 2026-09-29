@@ -94,15 +94,17 @@ export class AuthController {
   @ApiOperation({
     summary: 'Register a new user account',
     description:
-      'Create a new user account. Email verification will be sent. User does not create a tenant during signup.',
+      'Create a new user account. Email verification will be sent. User does not create a tenant during signup. ' +
+      'The answer is the same when the email already has an account (its owner is emailed instead), so it does not reveal who is registered. ' +
+      'The email is trimmed and lower-cased; the password must be 8 characters to 72 bytes and not appear in a known data breach.',
   })
   @ApiResponse({
     status: 201,
-    description: 'User registered successfully. Verification email sent.',
+    description:
+      'Accepted: check your email (a verification link, or a note that the account exists)',
     type: MessageResponseDto,
   })
   @ApiValidationError()
-  @ApiConflictError('Email already registered')
   @ApiPublicResponses()
   signup(@Body() signupDto: SignupDto): Promise<MessageResponseDto> {
     return this.authService.signup(signupDto);
@@ -281,7 +283,7 @@ export class AuthController {
   @ApiResponse({
     status: 401,
     description:
-      'Invalid credentials, or the email is not verified yet (checked after the password)',
+      'Invalid credentials (the same answer for an unknown email, an account that signs in with Google or Microsoft only, and a wrong password), or the email is not verified yet (checked after the password)',
   })
   @ApiValidationError()
   @ApiPublicResponses()

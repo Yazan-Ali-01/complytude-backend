@@ -282,7 +282,7 @@ User accounts that can access multiple tenants.
 | Column              | Type         | Description                                                                                |
 | ------------------- | ------------ | ------------------------------------------------------------------------------------------ |
 | `id`                | UUID         | Primary key                                                                                |
-| `email`             | VARCHAR(255) | Unique email address                                                                       |
+| `email`             | VARCHAR(255) | Unique email address, stored trimmed and lower-case (CHECK `users_email_lowercase`)       |
 | `password_hash`     | VARCHAR(255) | Bcrypt hashed password; NULL for SSO-only accounts until a password is set                 |
 | `first_name`        | VARCHAR(255) | First name                                                                                 |
 | `last_name`         | VARCHAR(255) | Last name                                                                                  |
@@ -296,7 +296,7 @@ User accounts that can access multiple tenants.
 
 **Indexes:**
 
-- Unique constraint on `email` (creates implicit index)
+- Unique constraint on `email` (creates implicit index), and `users_email_lower_key` unique on `lower(email)`
 - Partial unique index on `google_id` WHERE `google_id IS NOT NULL`
 - Partial unique index on `microsoft_id` WHERE `microsoft_id IS NOT NULL`
 
@@ -582,7 +582,7 @@ Tenant invitations for inviting users to join organizations.
 | Column        | Type         | Description                                                     |
 | ------------- | ------------ | --------------------------------------------------------------- |
 | `id`          | UUID         | Primary key                                                     |
-| `email`       | VARCHAR(255) | Email address of invited user                                   |
+| `email`       | VARCHAR(255) | Email address of invited user, trimmed and lower-case (CHECK)   |
 | `tenant_id`   | UUID         | FK to tenants (organization inviting the user)                  |
 | `token_hash`  | VARCHAR(255) | Hashed invitation token                                         |
 | `invited_by`  | UUID         | FK to users (who sent the invitation)                           |

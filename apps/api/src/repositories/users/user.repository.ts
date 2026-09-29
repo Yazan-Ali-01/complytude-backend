@@ -251,10 +251,27 @@ export class UserRepository extends BaseRepository<
     input: CreatePasswordResetInput,
     options?: QueryOptions,
   ): Promise<void> {
+    // A new link replaces the user's older ones
     await this.executeQuery(
-      `INSERT INTO public.password_resets (user_id, token, expires_at)
+      `WITH ended AS (
+         UPDATE public.password_resets SET used_at = NOW()
+         WHERE user_id = $1 AND used_at IS NULL
+       )
+       INSERT INTO public.password_resets (user_id, token, expires_at)
        VALUES ($1, $2, $3)`,
       [input.userId, input.token, input.expiresAt],
+      options,
+    );
+  }
+
+  /** Ends every reset token of the user that is still unused. */
+  async endPasswordResets(
+    userId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      'UPDATE public.password_resets SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL',
+      [userId],
       options,
     );
   }
@@ -290,19 +307,23 @@ export class UserRepository extends BaseRepository<
   }
 
   /**
-   * Mark a password reset token as used.
+   * Consume a password reset token. Only an unused, unexpired token is consumed, once.
    *
    * @param resetId - The ID of the reset record
    * @param options - Query options
+   * @returns Whether this call consumed it
    */
   async markPasswordResetUsed(
     resetId: string,
     options?: QueryOptions,
-  ): Promise<void> {
-    await this.executeQuery(
-      'UPDATE public.password_resets SET used_at = NOW() WHERE id = $1',
+  ): Promise<boolean> {
+    const result = await this.executeQuery(
+      `UPDATE public.password_resets SET used_at = NOW()
+       WHERE id = $1 AND used_at IS NULL AND expires_at > NOW()
+       RETURNING id`,
       [resetId],
       options,
     );
+    return result.rows.length === 1;
   }
 }

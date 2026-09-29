@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString } from 'class-validator';
+import { IsNewPassword } from 'src/common/decorators/new-password.decorator';
 
 export class ResetPasswordDto {
   @ApiProperty({
@@ -14,8 +15,6 @@ export class ResetPasswordDto {
     example: 'NewTest123!@#',
     minLength: 8,
   })
-  @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters long' })
-  @MaxLength(100)
+  @IsNewPassword()
   newPassword: string;
 }
