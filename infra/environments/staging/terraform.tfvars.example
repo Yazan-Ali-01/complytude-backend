@@ -21,9 +21,7 @@ bastion_ssh_allowed_cidrs = ["87.200.134.56/32"]  # curl -s ifconfig.me to get y
 app_db_user     = "app_login"
 app_db_password = "CHANGE_ME_APP_LOGIN_PASSWORD"
 
-# Redis: empty when transit_encryption_enabled is false
-redis_password = ""
-redis_tls      = false
+# Redis: the AUTH token and TLS flag come from the elasticache module (generated)
 
 # JWT — generate with: openssl rand -base64 64
 jwt_access_secret           = "CHANGE_ME_GENERATE_WITH_OPENSSL"

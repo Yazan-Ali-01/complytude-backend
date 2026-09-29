@@ -37,3 +37,14 @@ output "port" {
   description = "Redis port (6379)"
   value       = aws_elasticache_replication_group.main.port
 }
+
+output "auth_token" {
+  description = "Redis AUTH token (null when TLS is off); pass to the app as REDIS_PASSWORD"
+  value       = aws_elasticache_replication_group.main.auth_token
+  sensitive   = true
+}
+
+output "tls_enabled" {
+  description = "Whether clients must connect with TLS (REDIS_TLS)"
+  value       = aws_elasticache_replication_group.main.transit_encryption_enabled
+}

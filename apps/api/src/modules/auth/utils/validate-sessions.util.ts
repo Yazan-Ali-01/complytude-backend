@@ -1,9 +1,39 @@
-import { Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  HttpException,
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
 import { AuthI18n } from '../constants/i18n.constants';
 import { SessionService } from '../services/session.service';
 
 const logger = new Logger('SessionValidation');
+
+/**
+ * The session store (Redis) couldn't be asked. Sessions are then never accepted on the JWT alone
+ * (a revoked session would work again), but the answer is 503, not 401: the caller retries
+ * instead of logging the user out over a blip.
+ */
+export function sessionStoreUnavailable(): ServiceUnavailableException {
+  return new ServiceUnavailableException(
+    I18nContext.current()?.t(AuthI18n.errors.SESSION_STORE_UNAVAILABLE) ??
+      'Sign-in is temporarily unavailable, try again shortly',
+  );
+}
+
+/** Runs a session-store check; a store failure (not an HTTP error it threw) becomes a 503. */
+export async function withSessionStore<T>(check: () => Promise<T>): Promise<T> {
+  try {
+    return await check();
+  } catch (err) {
+    if (err instanceof HttpException) throw err;
+    logger.error(
+      `Session store unavailable, refusing the request: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    throw sessionStoreUnavailable();
+  }
+}
 
 export async function validateSessions(
   sessionService: SessionService,
@@ -14,7 +44,6 @@ export async function validateSessions(
     };
   },
   authOptions: { tenant?: boolean; identity?: boolean },
-  strictMode: boolean,
 ): Promise<void> {
   const i18n = I18nContext.current();
   const msg =
@@ -30,7 +59,7 @@ export async function validateSessions(
       throw new UnauthorizedException(msg);
     }
 
-    try {
+    await withSessionStore(async () => {
       const exists =
         type === 'identity'
           ? await sessionService.identitySessionExistsPure(sessionId)
@@ -42,22 +71,11 @@ export async function validateSessions(
       if (tenantId && (await sessionService.isTenantInactive(tenantId))) {
         throw new UnauthorizedException(msg);
       }
-      if (type === 'identity') {
-        sessionService.touchIdentityActivity(sessionId);
-      } else {
-        sessionService.touchTenantActivity(sessionId);
-      }
-    } catch (err) {
-      if (err instanceof UnauthorizedException) throw err;
-      if (strictMode) {
-        logger.error(
-          `Redis unavailable in strict mode, denying request: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        throw new UnauthorizedException(msg);
-      }
-      logger.warn(
-        `Redis unavailable, falling back to JWT-only validation: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    });
+    if (type === 'identity') {
+      sessionService.touchIdentityActivity(sessionId);
+    } else {
+      sessionService.touchTenantActivity(sessionId);
     }
   };
 

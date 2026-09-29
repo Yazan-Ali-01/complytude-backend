@@ -87,9 +87,7 @@ export class JwtAuthRefreshGuard implements CanActivate {
       );
     }
 
-    const strictMode =
-      this.configService.get<boolean>('session.strictMode') ?? false;
-    await validateSessions(this.sessionService, req, authOptions, strictMode);
+    await validateSessions(this.sessionService, req, authOptions);
     return true;
   }
 

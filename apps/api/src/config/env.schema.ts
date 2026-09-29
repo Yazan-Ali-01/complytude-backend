@@ -97,7 +97,6 @@ export const validationSchema = Joi.object({
     .min(60)
     .max(3600)
     .default(120),
-  SESSION_STRICT_MODE: Joi.boolean().default(false),
 
   // The web app: email links (verify, reset, invite, upgrade) and SSO redirects point here
   FRONTEND_URL: Joi.when('NODE_ENV', {

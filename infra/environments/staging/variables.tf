@@ -62,19 +62,6 @@ variable "app_db_password" {
   sensitive   = true
 }
 
-variable "redis_password" {
-  description = "Redis auth token — empty when transit_encryption_enabled is false"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "redis_tls" {
-  description = "Whether Redis uses TLS"
-  type        = bool
-  default     = false
-}
-
 variable "jwt_access_secret" {
   description = "JWT access token signing secret"
   type        = string

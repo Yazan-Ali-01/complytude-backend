@@ -31,9 +31,9 @@ variable "node_type" {
 }
 
 variable "num_cache_clusters" {
-  description = "Number of cache clusters (1 = single node, 2+ = primary + replicas)"
+  description = "Number of cache clusters (1 = single node, 2+ = primary + replicas with automatic Multi-AZ failover)"
   type        = number
-  default     = 1
+  default     = 2
 
   validation {
     condition     = var.num_cache_clusters >= 1 && var.num_cache_clusters <= 6
@@ -48,13 +48,13 @@ variable "apply_immediately" {
 }
 
 variable "transit_encryption_enabled" {
-  description = "Enable TLS in-transit encryption (requires auth_token when true)"
+  description = "Enable TLS in transit and Redis AUTH (a token is generated unless auth_token is given)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "auth_token" {
-  description = "Auth token for Redis (required when transit_encryption_enabled = true). 16-128 chars, alphanumeric + !&#$^<>-"
+  description = "Redis AUTH token (16-128 chars, alphanumeric + !&#$^<>-); generated when null and TLS is on"
   type        = string
   default     = null
   sensitive   = true
@@ -73,7 +73,7 @@ variable "snapshot_window" {
 }
 
 variable "snapshot_retention_limit" {
-  description = "Number of days to retain snapshots (0 = disabled)"
+  description = "Number of days to retain daily snapshots (0 = disabled)"
   type        = number
-  default     = 0
+  default     = 7
 }

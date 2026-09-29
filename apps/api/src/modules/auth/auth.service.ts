@@ -37,6 +37,7 @@ import { TenantService } from '../tenants/tenant.service';
 import { UsersI18n } from '../users/constants/i18n.constants';
 import { AuthI18n } from './constants/i18n.constants';
 import { LoginLockoutService } from './services/login-lockout.service';
+import { withSessionStore } from './utils/validate-sessions.util';
 import {
   ForgotPasswordDto,
   InvitationListResponseDto,
@@ -806,7 +807,7 @@ export class AuthService {
    *
    * SECURITY NOTE: Refresh token rotation was intentionally removed in favour of
    * Redis session-based revocation. A stolen refresh token can be used until the
-   * session is deleted or expires. Mitigations: SESSION_STRICT_MODE, idle timeout,
+   * session is deleted or expires. Mitigations: sessions fail closed when Redis is down, idle timeout,
    * and absolute TTL. If token-theft detection is needed later, consider
    * reuse-detection (family tracking) as a future enhancement.
    */
@@ -820,7 +821,9 @@ export class AuthService {
         this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
-    const exists = await this.sessionService.identitySessionExists(sessionId);
+    const exists = await withSessionStore(() =>
+      this.sessionService.identitySessionExists(sessionId),
+    );
     if (!exists) {
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
@@ -865,7 +868,9 @@ export class AuthService {
         this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
       );
     }
-    const exists = await this.sessionService.tenantSessionExists(sessionId);
+    const exists = await withSessionStore(() =>
+      this.sessionService.tenantSessionExists(sessionId),
+    );
     if (!exists) {
       throw new UnauthorizedException(
         this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),
@@ -1237,8 +1242,9 @@ export class AuthService {
     }
   > {
     if (identitySessionId) {
-      const exists =
-        await this.sessionService.identitySessionExists(identitySessionId);
+      const exists = await withSessionStore(() =>
+        this.sessionService.identitySessionExists(identitySessionId),
+      );
       if (!exists) {
         throw new UnauthorizedException(
           this.i18n.t(AuthI18n.errors.SESSION_EXPIRED_OR_INVALID),

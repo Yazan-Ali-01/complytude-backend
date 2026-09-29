@@ -9,6 +9,7 @@ import {
   OptionalFactoryDependency,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { reconnectOptions } from '@lib/redis/redis-connection';
 import IORedis from 'ioredis';
 import { QueueRedisConfig } from './interfaces/queue-config.interface';
 import { QueueProducerService } from './queue-producer.service';
@@ -50,7 +51,8 @@ export class QueueModule {
     });
   }
 
-  private static createConnection(config: QueueRedisConfig): IORedis {
+  /** The BullMQ connection, with the reconnect policy (public so tests can target a proxy). */
+  static createConnection(config: QueueRedisConfig): IORedis {
     const retryDelayMs = config.retryDelayMs ?? 100;
 
     // BullMQ requires maxRetriesPerRequest: null — it uses blocking
@@ -65,19 +67,7 @@ export class QueueModule {
       // during graceful shutdown when quit() runs with pending commands (ioredis #2025)
       disableClientInfo: true,
       maxRetriesPerRequest: null,
-      retryStrategy: (times) => {
-        if (times > 3) {
-          QueueModule.logger.error(
-            'BullMQ Redis connection failed after 3 retries',
-          );
-          return null;
-        }
-        const delay = Math.min(times * retryDelayMs, 2000);
-        QueueModule.logger.warn(
-          `BullMQ Redis connection attempt ${times}, retrying in ${delay}ms...`,
-        );
-        return delay;
-      },
+      ...reconnectOptions(QueueModule.logger, 'BullMQ Redis', retryDelayMs),
     });
 
     connection.on('connect', () => {

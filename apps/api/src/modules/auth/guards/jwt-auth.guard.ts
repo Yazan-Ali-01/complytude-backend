@@ -93,9 +93,7 @@ export class JwtAuthGuard implements CanActivate {
           'Identity token required',
       );
 
-    const strictMode =
-      this.configService.get<boolean>('session.strictMode') ?? false;
-    await validateSessions(this.sessionService, req, authOptions, strictMode);
+    await validateSessions(this.sessionService, req, authOptions);
     return true;
   }
 

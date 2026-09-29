@@ -289,6 +289,13 @@ Each JWT includes a `sessionId` linking to Redis (`identity-session:{id}` or `te
 | `@AuthRefreshOptions(...)` + `JwtAuthRefreshGuard` | Token refresh and logout                                    | 401 if no refresh token |
 | No decorator                                       | Denied: the global guard is deny-by-default                 | Always 401              |
 
+### Session store unavailable
+
+Every authenticated request and every token refresh checks the session in Redis. If Redis can't be
+reached, the API answers `503` (`Sign-in is temporarily unavailable, try again shortly`) rather than
+`401`: the session may still be valid, so clients should retry after a short wait instead of
+signing the user out. A request is never accepted on the JWT alone.
+
 ### Rate limits
 
 Every route allows 300 requests a minute per client IP. Some routes have tighter limits:

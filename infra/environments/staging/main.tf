@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -62,12 +66,13 @@ module "elasticache" {
   subnet_ids        = module.networking.public_subnet_ids
   security_group_id = module.networking.redis_security_group_id
 
-  # Staging: single node, minimal cost (~$12/mo)
-  engine_version       = "7.0"
-  node_type            = "cache.t4g.micro"
-  num_cache_clusters   = 1
-  apply_immediately    = true
-  transit_encryption_enabled = false # No TLS in staging; VPC + SG sufficient
+  # Staging: single node to keep the cost down (~$12/mo), so no failover; production uses the
+  # module default of 2 nodes. TLS and AUTH on (no extra cost), one day of snapshots.
+  engine_version           = "7.0"
+  node_type                = "cache.t4g.micro"
+  num_cache_clusters       = 1
+  apply_immediately        = true
+  snapshot_retention_limit = 1
 }
 
 module "bastion" {
@@ -123,8 +128,8 @@ module "secrets" {
   # Redis — from ElastiCache
   redis_host    = module.elasticache.hostname
   redis_port    = module.elasticache.port
-  redis_password = var.redis_password
-  redis_tls     = var.redis_tls
+  redis_password = module.elasticache.auth_token
+  redis_tls      = module.elasticache.tls_enabled
 
   # JWT — from tfvars (sensitive)
   jwt_access_secret          = var.jwt_access_secret

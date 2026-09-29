@@ -1,6 +1,7 @@
 import {
   ExecutionContext,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -226,7 +227,7 @@ describe('JwtAuthGuard', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it('falls back to JWT-only when Redis throws (graceful degradation)', async () => {
+  it('refuses the request (503) when Redis throws, never falling back to the JWT alone', async () => {
     reflector.getAllAndOverride.mockReturnValue({
       identity: true,
       tenant: false,
@@ -245,8 +246,9 @@ describe('JwtAuthGuard', () => {
       },
     );
 
-    const ok = await guard.canActivate(createContext({ auth: {} }));
-    expect(ok).toBe(true);
+    await expect(
+      guard.canActivate(createContext({ auth: {} })),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('throws when sessionId is missing on authenticated user (strict session)', async () => {

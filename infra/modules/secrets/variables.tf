@@ -63,6 +63,7 @@ variable "redis_password" {
   type        = string
   default     = ""
   sensitive   = true
+  nullable    = false
 }
 
 variable "redis_tls" {

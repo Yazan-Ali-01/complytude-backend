@@ -12,6 +12,7 @@ import Redis from 'ioredis';
 import { RedisConfig } from './interfaces/redis-config.interface';
 import { REDIS_CLIENT } from './redis.constants';
 import { RedisHealthIndicator } from './redis.health';
+import { reconnectOptions } from './redis-connection';
 import { RedisService } from './redis.service';
 
 export interface RedisModuleAsyncOptions
@@ -40,7 +41,8 @@ export class RedisModule {
     });
   }
 
-  private static createClient(config: RedisConfig): Redis {
+  /** The cache/session client, with the reconnect policy (public so tests can target a proxy). */
+  static createClient(config: RedisConfig): Redis {
     const client = new Redis({
       host: config.host,
       port: config.port,
@@ -51,17 +53,7 @@ export class RedisModule {
       disableClientInfo: true,
       maxRetriesPerRequest: config.maxRetriesPerRequest,
       connectTimeout: config.connectTimeout,
-      retryStrategy: (times) => {
-        if (times > 3) {
-          RedisModule.logger.error('Redis connection failed after 3 retries');
-          return null;
-        }
-        const delay = Math.min(times * config.retryDelayMs, 2000);
-        RedisModule.logger.warn(
-          `Redis connection attempt ${times}, retrying in ${delay}ms...`,
-        );
-        return delay;
-      },
+      ...reconnectOptions(RedisModule.logger, 'Redis', config.retryDelayMs),
     });
 
     client.on('connect', () => {
