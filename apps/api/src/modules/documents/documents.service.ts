@@ -401,7 +401,7 @@ export class DocumentsService {
         );
       }
 
-      // Textract bills every page it analyses: refuse an over-limit PDF before any job exists
+      // OCR bills every page it reads: refuse an over-limit PDF before any job exists
       if ((document.mime_type ?? 'application/pdf') === 'application/pdf') {
         const refusal = await this.checkPdfPageLimit(s3Key);
         if (refusal) {
@@ -858,7 +858,7 @@ export class DocumentsService {
 
   /** Why an uploaded PDF can't be extracted (too many pages, unreadable), or null if it can. */
   private async checkPdfPageLimit(s3Key: string): Promise<string | null> {
-    const maxPages = this.configService.get<number>('TEXTRACT_MAX_PAGES') ?? 50;
+    const maxPages = this.configService.get<number>('DOCUMENT_MAX_PAGES') ?? 50;
     try {
       const file = await this.storageService.getQuarantineObjectBuffer(s3Key);
       // What was uploaded must be a PDF, whatever Content-Type the upload claimed

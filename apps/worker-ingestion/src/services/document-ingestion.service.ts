@@ -20,12 +20,12 @@ import {
   type IS3PromotionService,
 } from '../interfaces/s3-promotion.interface';
 import {
-  TEXTRACT_SERVICE,
+  OCR_SERVICE,
   type DocumentSection,
-  type ITextractService,
-  type TextractResult,
-  TextractJobFailedError,
-} from '../interfaces/textract.interface';
+  type IOcrService,
+  type OcrResult,
+  OcrOperationLostError,
+} from '../interfaces/ocr.interface';
 import {
   DocumentWriteRepository,
   type DocumentRow,
@@ -38,28 +38,12 @@ import {
   UnreadableTextLayerError,
   type PageText,
 } from './pdf-text-layer';
-import { pageLimitExceeded } from './textract.service';
-
-/**
- * Where the PDF of a document's scanned pages waits for Textract, in the quarantine bucket. The
- * ingestion role may write only under this prefix there (infra/modules/ecs/iam.tf).
- */
-export const OCR_PAGES_PREFIX = 'ocr-pages/';
 
 interface Extraction {
   text: string;
   sections: DocumentSection[];
   /** Pages (1-based) whose text came from OCR. */
   ocrPages: number[];
-}
-
-/** What a Textract job reads: the uploaded file, or a PDF of some of its pages. */
-interface OcrTarget {
-  bucket: string;
-  key: string;
-  mimeType: string;
-  /** The document's pages in the file, in order; null when it is the uploaded file itself. */
-  pages: number[] | null;
 }
 
 @Injectable()
@@ -71,17 +55,17 @@ export class DocumentIngestionService implements OnModuleInit {
 
   constructor(
     private readonly documentWriteRepository: DocumentWriteRepository,
-    @Inject(TEXTRACT_SERVICE)
-    private readonly textractService: ITextractService,
+    @Inject(OCR_SERVICE)
+    private readonly ocrService: IOcrService,
     @Inject(S3_PROMOTION_SERVICE)
     private readonly s3PromotionService: IS3PromotionService,
     private readonly s3: S3Service,
     configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
   ) {
-    this.maxPages = configService.get<number>('textract.maxPages', 50);
+    this.maxPages = configService.get<number>('ocr.maxPages', 50);
     this.minTextCharsPerPage = configService.get<number>(
-      'textract.minTextCharsPerPage',
+      'ocr.minTextCharsPerPage',
       50,
     );
   }
@@ -245,9 +229,9 @@ export class DocumentIngestionService implements OnModuleInit {
   }
 
   /**
-   * A PDF's own text layer is read here, and only its pages without one (scans) go to Textract,
-   * as a PDF of just those pages; their text is merged back in page order. A born-digital PDF
-   * never leaves the worker. An image upload has no text layer and goes to Textract whole.
+   * A PDF's own text layer is read here, and only its pages without one (scans) go to OCR, as a
+   * PDF of just those pages; their text is merged back in page order. A born-digital PDF never
+   * leaves the worker.
    */
   private async extractText(
     tenantId: string,
@@ -256,17 +240,12 @@ export class DocumentIngestionService implements OnModuleInit {
     const documentId = document.id;
     const bucket = document.s3_bucket!;
     const key = document.s3_key!;
-    const mimeType = document.mime_type!;
 
-    if (mimeType !== 'application/pdf') {
-      const result = await this.ocr(tenantId, document, {
-        bucket,
-        key,
-        mimeType,
-        pages: null,
-      });
-      const pages = Array.from({ length: result.pageCount }, (_, i) => i + 1);
-      return this.assemble(documentId, result.items, pages);
+    // The API issues upload URLs for PDFs only
+    if (document.mime_type !== 'application/pdf') {
+      throw new PermanentError(
+        `Document ${documentId} is ${document.mime_type}: only PDFs are read`,
+      );
     }
 
     const pdf = await this.s3
@@ -279,12 +258,12 @@ export class DocumentIngestionService implements OnModuleInit {
       });
     const textLayer = await this.readPdf(documentId, pdf);
 
-    // A retry resumes the job it started, over the same pages. A job stored without pages
-    // predates local reading and covered the whole file.
+    // A retry resumes the operation it started, over the same pages
     const allPages = textLayer.map((p) => p.page);
-    let ocrPages = document.textract_job_id
-      ? (document.ocr_pages ?? allPages)
-      : await this.pagesNeedingOcr(documentId, pdf, textLayer);
+    let ocrPages =
+      document.ocr_operation_id && document.ocr_pages
+        ? document.ocr_pages
+        : await this.pagesNeedingOcr(documentId, pdf, textLayer);
 
     let local = layoutFromTextLayer(
       textLayer.filter((p) => !ocrPages.includes(p.page)),
@@ -302,25 +281,12 @@ export class DocumentIngestionService implements OnModuleInit {
       return this.assemble(documentId, local, []);
     }
 
-    const target: OcrTarget =
-      document.textract_job_id && document.ocr_pages === null
-        ? { bucket, key, mimeType, pages: null }
-        : {
-            bucket,
-            key: `${OCR_PAGES_PREFIX}${tenantId}/${documentId}.pdf`,
-            mimeType,
-            pages: ocrPages,
-          };
-    const result = await this.ocr(tenantId, document, target, () =>
-      copyPdfPages(pdf, ocrPages),
-    );
-    // Textract numbers the pages of the file it read: map them back to the document's
-    const pageMap = target.pages;
+    const result = await this.ocr(tenantId, document, pdf, ocrPages);
+    // OCR numbers the pages of the file it read: map them back to the document's
     const scanned = result.items.map((item) => ({
       ...item,
-      page: pageMap ? (pageMap[item.page - 1] ?? item.page) : item.page,
+      page: ocrPages[item.page - 1] ?? item.page,
     }));
-    if (pageMap) await this.removeOcrCopy(documentId, target);
 
     this.logger.log(
       `Text layer read locally: documentId=${documentId} pages=${textLayer.length}, OCR pages=[${ocrPages.join(',')}]`,
@@ -330,7 +296,7 @@ export class DocumentIngestionService implements OnModuleInit {
     return this.assemble(documentId, items, ocrPages);
   }
 
-  /** The page cap (Textract's, T-27) holds for every PDF, then its text layer. */
+  /** The page cap (T-27) holds for every PDF, then its text layer. */
   private async readPdf(documentId: string, pdf: Buffer): Promise<PageText[]> {
     try {
       const pages = await countPdfPages(pdf);
@@ -365,73 +331,56 @@ export class DocumentIngestionService implements OnModuleInit {
   }
 
   /**
-   * Textract bills when a job starts, so each document starts at most one job: its ID and the
-   * pages it reads are stored before polling, and a retry (poll timeout, crash, stall) resumes
-   * it. Only a job that itself failed is replaced.
+   * OCR bills when an analysis starts, so each document starts at most one: its operation ID and
+   * the pages it reads are stored before polling, and a retry (poll timeout, crash, stall)
+   * resumes it. Only an operation that itself failed, or whose result is gone, is replaced.
    */
   private async ocr(
     tenantId: string,
     document: DocumentRow,
-    target: OcrTarget,
-    pagesFile?: () => Promise<Uint8Array>,
-  ): Promise<TextractResult> {
+    pdf: Buffer,
+    pages: number[],
+  ): Promise<OcrResult> {
     const documentId = document.id;
     const toRetryable = (err: unknown): Error => {
       if (err instanceof PermanentError || err instanceof RetryableError) {
         return err;
       }
       return new RetryableError(
-        `Textract extraction failed for document ${documentId}`,
+        `OCR failed for document ${documentId}`,
         err instanceof Error ? err : undefined,
       );
     };
 
-    let jobId = document.textract_job_id;
-    if (jobId) {
+    let operationId = document.ocr_operation_id;
+    if (operationId) {
       this.logger.log(
-        `Resuming Textract job ${jobId} for documentId=${documentId} (retry)`,
+        `Resuming OCR operation ${operationId} for documentId=${documentId} (retry)`,
       );
     } else {
-      if (target.pages && pagesFile) {
-        const file = await pagesFile().catch((err: unknown) => {
-          throw new PermanentError(
-            `Document ${documentId}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
-        await this.s3
-          .putObject(
-            target.bucket,
-            target.key,
-            Buffer.from(file),
-            'application/pdf',
-          )
-          .catch((err: unknown) => {
-            throw new RetryableError(
-              `Could not store the scanned pages of document ${documentId} for OCR`,
-              err instanceof Error ? err : undefined,
-            );
-          });
-      }
-      jobId = await this.textractService
-        .startAnalysis(target.bucket, target.key, target.mimeType)
-        .catch((err: unknown) => {
-          throw toRetryable(err);
-        });
+      const file = await copyPdfPages(pdf, pages).catch((err: unknown) => {
+        throw new PermanentError(
+          `Document ${documentId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+      operationId = await this.ocrService.start(file).catch((err: unknown) => {
+        throw toRetryable(err);
+      });
       await this.documentWriteRepository
-        .setTextractJob(tenantId, documentId, jobId, target.pages)
+        .setOcrOperation(tenantId, documentId, operationId, pages)
         .catch((err: unknown) => {
           throw new RetryableError(
-            `DB error storing Textract job ${jobId} for document ${documentId}`,
+            `DB error storing OCR operation ${operationId} for document ${documentId}`,
             err instanceof Error ? err : undefined,
           );
         });
     }
 
-    const result = await this.textractService
-      .collectResult(jobId)
+    const result = await this.ocrService
+      .collect(operationId)
       .catch(async (err: unknown) => {
-        if (err instanceof TextractJobFailedError) {
-          await this.documentWriteRepository.setTextractJob(
+        if (err instanceof OcrOperationLostError) {
+          await this.documentWriteRepository.setOcrOperation(
             tenantId,
             documentId,
             null,
@@ -442,24 +391,10 @@ export class DocumentIngestionService implements OnModuleInit {
       });
 
     this.logger.log(
-      `Textract extraction complete: documentId=${documentId} ` +
+      `OCR complete: documentId=${documentId} ` +
         `blocks=${result.items.length} pages=${result.pageCount} confidence=${result.confidence ?? 'unknown'}`,
     );
     return result;
-  }
-
-  /** The OCR copy has served its purpose; the bucket's lifecycle rule removes any left behind. */
-  private async removeOcrCopy(
-    documentId: string,
-    target: OcrTarget,
-  ): Promise<void> {
-    await this.s3
-      .deleteObject(target.bucket, target.key)
-      .catch((err: unknown) => {
-        this.logger.warn(
-          `Could not delete the OCR copy of document ${documentId} (${target.key}); it expires with the quarantine bucket's lifecycle: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
   }
 
   private assemble(
@@ -532,4 +467,12 @@ export class DocumentIngestionService implements OnModuleInit {
         );
       });
   }
+}
+
+/** DOCUMENT_MAX_PAGES caps every PDF, read locally or by OCR. */
+function pageLimitExceeded(pages: number, maxPages: number): PermanentError {
+  return new PermanentError(
+    `Document has ${pages} pages, exceeding the maximum of ${maxPages}. ` +
+      `Increase DOCUMENT_MAX_PAGES if this is expected.`,
+  );
 }

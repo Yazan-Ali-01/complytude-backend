@@ -139,6 +139,8 @@ Each service is given only the keys it uses (`infra/modules/ecs/services.tf`) an
 
 S3 access keys are not used: the tasks sign with their roles.
 
+**Not yet in Terraform:** worker-ingestion now reads scanned pages with Azure AI Document Intelligence (UAE North) and no longer calls Textract or writes under `ocr-pages/`. Before its next deploy, its task needs `AZURE_DOCUMENT_INTELLIGENCE_KEY` (a secret) and `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`, or it won't boot with `NODE_ENV=production`; `TEXTRACT_MAX_PAGES` is renamed `DOCUMENT_MAX_PAGES` (API and worker-ingestion), `TEXTRACT_POLL_*` `OCR_POLL_*`; the Textract and `ocr-pages/*` grants above, and the developers' Textract access, can go.
+
 **First fill, after the first `terraform apply`:**
 
 ```bash

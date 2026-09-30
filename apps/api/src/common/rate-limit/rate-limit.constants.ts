@@ -33,7 +33,7 @@ export const AUTH_RATE_LIMITS = {
   ],
 } as const satisfies Record<string, RateLimitRule[]>;
 
-/** Routes that spend on OpenAI, Cohere, Textract or Gotenberg, per tenant. */
+/** Routes that spend on OpenAI, Cohere, OCR or Gotenberg, per tenant. */
 export const EXPENSIVE_RATE_LIMIT: RateLimitRule = {
   name: 'expensive-tenant',
   limit: 30,

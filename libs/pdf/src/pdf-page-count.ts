@@ -5,7 +5,7 @@ export class UnreadablePdfError extends Error {}
 
 /**
  * Pages in a PDF, read from its page tree without rendering anything. Used to refuse documents
- * over the extraction limit before paying for them (Textract bills per page).
+ * over the extraction limit before paying for them (OCR bills per page).
  */
 export async function countPdfPages(pdf: Uint8Array): Promise<number> {
   try {

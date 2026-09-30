@@ -62,6 +62,7 @@
     "test:integration": "jest --selectProjects integration",
     "test:integration:watch": "jest --selectProjects integration --watch",
     "eval:ai": "EVAL_AI=1 jest --selectProjects eval --runInBand",
+    "test:ocr-live": "DOCUMENT_INTELLIGENCE_LIVE=1 jest --selectProjects worker-ingestion-unit --testPathPattern=document-intelligence.live",
     "test:benchmark": "jest --selectProjects integration --testPathPattern=benchmark --runInBand --testTimeout=180000",
     "test:coverage": "jest --coverage"
   },

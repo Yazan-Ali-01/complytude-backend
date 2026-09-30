@@ -13,23 +13,25 @@ import type { S3Service } from '@lib/storage';
 import { ConfigService } from '@nestjs/config';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  DocumentIngestionService,
-  OCR_PAGES_PREFIX,
-} from './document-ingestion.service';
+import { DocumentIngestionService } from './document-ingestion.service';
+import type {
+  AnalyzeOperation,
+  DocumentIntelligenceClient,
+} from './document-intelligence.client';
+import { DocumentIntelligenceService } from './document-intelligence.service';
+import { readTextLayer } from './pdf-text-layer';
 import type { DocumentWriteRepository } from '../repositories/document-write.repository';
 import type { DocumentRow } from '../repositories/document-write.repository';
 import {
-  TextractJobFailedError,
+  OcrOperationLostError,
   type DocumentSection,
-  type ITextractService,
-  type TextractResult,
-} from '../interfaces/textract.interface';
+  type IOcrService,
+  type OcrResult,
+} from '../interfaces/ocr.interface';
 import type { IS3PromotionService } from '../interfaces/s3-promotion.interface';
 
 const QUARANTINE = 'complytude-quarantine';
 const KEY = 'tenants/tenant-456/documents/doc-123/file.pdf';
-const OCR_KEY = `${OCR_PAGES_PREFIX}tenant-456/doc-123.pdf`;
 
 const MOCK_JOB_DATA: DocumentIngestionJobData = {
   documentId: 'doc-123',
@@ -66,14 +68,14 @@ function makeDocumentRow(overrides?: Partial<DocumentRow>): DocumentRow {
     extraction_status: 'processing',
     extraction_error: null,
     extracted_at: null,
-    textract_job_id: null,
+    ocr_operation_id: null,
     ocr_pages: null,
     ...overrides,
   };
 }
 
-/** Textract's reading of a one-page file. */
-const OCRED: TextractResult = {
+/** OCR's reading of a one-page file. */
+const OCRED: OcrResult = {
   items: [{ kind: 'text', text: 'Salary is AED 18,000 per month.', page: 1 }],
   pageCount: 1,
 };
@@ -81,7 +83,7 @@ const OCRED: TextractResult = {
 describe('DocumentIngestionService', () => {
   let service: DocumentIngestionService;
   let repo: jest.Mocked<DocumentWriteRepository>;
-  let textract: jest.Mocked<ITextractService>;
+  let ocr: jest.Mocked<IOcrService>;
   let promotion: jest.Mocked<IS3PromotionService>;
   let s3: jest.Mocked<S3Service>;
   let producer: jest.Mocked<QueueProducerService>;
@@ -101,15 +103,15 @@ describe('DocumentIngestionService', () => {
     repo = {
       findById: jest.fn().mockResolvedValue(makeDocumentRow()),
       storeExtractedContent: jest.fn().mockResolvedValue(undefined),
-      setTextractJob: jest.fn().mockResolvedValue(undefined),
+      setOcrOperation: jest.fn().mockResolvedValue(undefined),
       markCompleted: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn(),
     } as unknown as jest.Mocked<DocumentWriteRepository>;
 
-    textract = {
-      startAnalysis: jest.fn().mockResolvedValue('textract-job-1'),
-      collectResult: jest.fn().mockResolvedValue(OCRED),
-    } as jest.Mocked<ITextractService>;
+    ocr = {
+      start: jest.fn().mockResolvedValue('ocr-operation-1'),
+      collect: jest.fn().mockResolvedValue(OCRED),
+    } as jest.Mocked<IOcrService>;
 
     promotion = {
       promote: jest
@@ -120,7 +122,6 @@ describe('DocumentIngestionService', () => {
     s3 = {
       getObjectBuffer: jest.fn(),
       putObject: jest.fn().mockResolvedValue(undefined),
-      deleteObject: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<S3Service>;
 
     producer = {
@@ -133,10 +134,10 @@ describe('DocumentIngestionService', () => {
   function withPageLimit(maxPages: number): DocumentIngestionService {
     return new DocumentIngestionService(
       repo,
-      textract,
+      ocr,
       promotion,
       s3,
-      new ConfigService({ textract: { maxPages, minTextCharsPerPage: 50 } }),
+      new ConfigService({ ocr: { maxPages, minTextCharsPerPage: 50 } }),
       producer,
     );
   }
@@ -146,13 +147,13 @@ describe('DocumentIngestionService', () => {
   }
 
   describe('a born-digital PDF', () => {
-    it('reads the demo contract locally: no Textract call, the sections of its source', async () => {
+    it('reads the demo contract locally: no OCR call, the sections of its source', async () => {
       upload(readFileSync(join(DEMO, 'dmcc_test_shareholders_agreement.pdf')));
 
       await service.process(MOCK_JOB_DATA);
 
-      expect(textract.startAnalysis).not.toHaveBeenCalled();
-      expect(textract.collectResult).not.toHaveBeenCalled();
+      expect(ocr.start).not.toHaveBeenCalled();
+      expect(ocr.collect).not.toHaveBeenCalled();
       expect(s3.putObject).not.toHaveBeenCalled();
       const { text, sections, ocrPages } = stored();
       expect(ocrPages).toEqual([]);
@@ -189,7 +190,7 @@ describe('DocumentIngestionService', () => {
 
       await service.process(MOCK_JOB_DATA);
 
-      expect(textract.startAnalysis).not.toHaveBeenCalled();
+      expect(ocr.start).not.toHaveBeenCalled();
       expect(stored().ocrPages).toEqual([]);
     });
 
@@ -198,7 +199,7 @@ describe('DocumentIngestionService', () => {
 
       await service.process(MOCK_JOB_DATA);
 
-      expect(textract.startAnalysis).not.toHaveBeenCalled();
+      expect(ocr.start).not.toHaveBeenCalled();
       expect(stored()).toMatchObject({
         text: 'Receipt: AED 500 paid in full.',
         ocrPages: [],
@@ -213,7 +214,7 @@ describe('DocumentIngestionService', () => {
       await service.process(MOCK_JOB_DATA);
 
       expect(s3.getObjectBuffer).not.toHaveBeenCalled();
-      expect(textract.startAnalysis).not.toHaveBeenCalled();
+      expect(ocr.start).not.toHaveBeenCalled();
       expect(repo.storeExtractedContent).not.toHaveBeenCalled();
       expect(promotion.promote).toHaveBeenCalled();
       expect(repo.markCompleted).toHaveBeenCalled();
@@ -221,31 +222,21 @@ describe('DocumentIngestionService', () => {
   });
 
   describe('a PDF with a scanned page', () => {
-    it('sends only that page to Textract and merges its text back in page order', async () => {
+    it('sends only that page to OCR, as bytes, and merges its text back in page order', async () => {
       upload(await pdfWith([PAGE_ONE, 'scan', PAGE_THREE]));
 
       await service.process(MOCK_JOB_DATA);
 
-      // A one-page PDF of the scan, in quarantine under the OCR prefix
-      expect(s3.putObject).toHaveBeenCalledTimes(1);
-      const [bucket, key, body, contentType] = s3.putObject.mock.calls[0];
-      expect([bucket, key, contentType]).toEqual([
-        QUARANTINE,
-        OCR_KEY,
-        'application/pdf',
-      ]);
-      await expect(countPdfPages(body)).resolves.toBe(1);
-      await expect(pagesWithImages(body, [1])).resolves.toEqual([1]);
-      expect(textract.startAnalysis).toHaveBeenCalledTimes(1);
-      expect(textract.startAnalysis).toHaveBeenCalledWith(
-        QUARANTINE,
-        OCR_KEY,
-        'application/pdf',
-      );
-      expect(repo.setTextractJob).toHaveBeenCalledWith(
+      // A one-page PDF of the scan, sent as bytes: nothing is written to storage for OCR
+      expect(ocr.start).toHaveBeenCalledTimes(1);
+      const [sentPdf] = ocr.start.mock.calls[0];
+      await expect(countPdfPages(sentPdf)).resolves.toBe(1);
+      await expect(pagesWithImages(sentPdf, [1])).resolves.toEqual([1]);
+      expect(s3.putObject).not.toHaveBeenCalled();
+      expect(repo.setOcrOperation).toHaveBeenCalledWith(
         'tenant-456',
         'doc-123',
-        'textract-job-1',
+        'ocr-operation-1',
         [2],
       );
 
@@ -259,41 +250,124 @@ describe('DocumentIngestionService', () => {
           'The Employee is entitled to thirty days of paid annual leave each year.',
         ].join('\n'),
       );
-      expect(s3.deleteObject).toHaveBeenCalledWith(QUARANTINE, OCR_KEY);
       // The upload itself is never overwritten, and it is what gets promoted
       expect(promotion.promote).toHaveBeenCalledWith(QUARANTINE, KEY);
     });
 
-    it('resumes the stored job on a retry, over the pages it was given, instead of paying for another', async () => {
+    it('reads a scanned Arabic page with Document Intelligence: only that page is sent, the rest never leaves', async () => {
+      upload(await pdfWith([PAGE_ONE, 'scan', PAGE_THREE]));
+      // What prebuilt-layout returns for the scan: an Arabic heading and clause, and a page number
+      const arabic: AnalyzeOperation = {
+        status: 'succeeded',
+        analyzeResult: {
+          pages: [
+            { pageNumber: 1, words: [{ content: 'الراتب', confidence: 0.98 }] },
+          ],
+          paragraphs: [
+            {
+              role: 'sectionHeading',
+              content: 'المادة 2: الراتب',
+              boundingRegions: [{ pageNumber: 1 }],
+              spans: [{ offset: 0, length: 16 }],
+            },
+            {
+              content: 'يتقاضى الموظف راتباً شهرياً قدره 18,000 درهم.',
+              boundingRegions: [{ pageNumber: 1 }],
+              spans: [{ offset: 17, length: 45 }],
+            },
+            {
+              role: 'pageNumber',
+              content: '2',
+              boundingRegions: [{ pageNumber: 1 }],
+              spans: [{ offset: 63, length: 1 }],
+            },
+          ],
+        },
+      };
+      const sent: Uint8Array[] = [];
+      const client = {
+        analyze: jest.fn((pdf: Uint8Array) => {
+          sent.push(pdf);
+          return Promise.resolve('result-ar');
+        }),
+        getResult: jest
+          .fn()
+          .mockResolvedValueOnce({ status: 'running' })
+          .mockResolvedValueOnce(arabic),
+        deleteResult: jest.fn().mockResolvedValue(undefined),
+      };
+      const ingestion = new DocumentIngestionService(
+        repo,
+        new DocumentIntelligenceService(
+          client as unknown as DocumentIntelligenceClient,
+          new ConfigService({ ocr: { pollInitialDelayMs: 0 } }),
+        ),
+        promotion,
+        s3,
+        new ConfigService({ ocr: { maxPages: 50, minTextCharsPerPage: 50 } }),
+        producer,
+      );
+
+      await ingestion.process(MOCK_JOB_DATA);
+
+      // One analysis, of a one-page PDF holding the scan and none of the text pages
+      expect(sent).toHaveLength(1);
+      await expect(countPdfPages(sent[0])).resolves.toBe(1);
+      await expect(pagesWithImages(sent[0], [1])).resolves.toEqual([1]);
+      expect((await readTextLayer(sent[0]))[0].usableChars).toBe(0);
+      expect(client.deleteResult).toHaveBeenCalledWith('result-ar');
+      expect(repo.setOcrOperation).toHaveBeenCalledWith(
+        'tenant-456',
+        'doc-123',
+        'result-ar',
+        [2],
+      );
+
+      const { text, sections, ocrPages } = stored();
+      expect(ocrPages).toEqual([2]);
+      const clause = sections.find((s) => s.heading === 'المادة 2: الراتب');
+      expect(clause?.pageStart).toBe(2);
+      expect(clause?.content.split('\n')[0]).toBe(
+        'يتقاضى الموظف راتباً شهرياً قدره 18,000 درهم.',
+      );
+      // Page order kept: page 1, the scan, page 3; the scan's page number dropped
+      expect(text.indexOf('forty-eight')).toBeLessThan(text.indexOf('الراتب'));
+      expect(text.indexOf('الراتب')).toBeLessThan(text.indexOf('thirty days'));
+      expect(text.split('\n')).not.toContain('2');
+    });
+
+    it('resumes the stored operation on a retry, over the pages it was given, instead of paying for another', async () => {
       upload(await pdfWith([PAGE_ONE, 'scan', PAGE_THREE]));
       repo.findById.mockResolvedValue(
-        makeDocumentRow({ textract_job_id: 'textract-job-1', ocr_pages: [2] }),
+        makeDocumentRow({
+          ocr_operation_id: 'ocr-operation-1',
+          ocr_pages: [2],
+        }),
       );
 
       await service.process(MOCK_JOB_DATA);
 
-      expect(s3.putObject).not.toHaveBeenCalled();
-      expect(textract.startAnalysis).not.toHaveBeenCalled();
-      expect(textract.collectResult).toHaveBeenCalledWith('textract-job-1');
+      expect(ocr.start).not.toHaveBeenCalled();
+      expect(ocr.collect).toHaveBeenCalledWith('ocr-operation-1');
       expect(stored().text.split('\n')[2]).toBe(
         'Salary is AED 18,000 per month.',
       );
     });
 
-    it('a poll timeout and its retry start one job in total', async () => {
+    it('a poll timeout and its retry start one analysis in total', async () => {
       upload(await pdfWith([PAGE_ONE, 'scan', PAGE_THREE]));
-      let job: Pick<DocumentRow, 'textract_job_id' | 'ocr_pages'> = {
-        textract_job_id: null,
+      let operation: Pick<DocumentRow, 'ocr_operation_id' | 'ocr_pages'> = {
+        ocr_operation_id: null,
         ocr_pages: null,
       };
-      repo.setTextractJob.mockImplementation((_tenant, _id, jobId, pages) => {
-        job = { textract_job_id: jobId, ocr_pages: pages };
+      repo.setOcrOperation.mockImplementation((_tenant, _id, id, pages) => {
+        operation = { ocr_operation_id: id, ocr_pages: pages };
         return Promise.resolve();
       });
       repo.findById.mockImplementation(() =>
-        Promise.resolve(makeDocumentRow(job)),
+        Promise.resolve(makeDocumentRow(operation)),
       );
-      textract.collectResult
+      ocr.collect
         .mockRejectedValueOnce(new RetryableError('did not complete in time'))
         .mockResolvedValueOnce(OCRED);
 
@@ -302,47 +376,28 @@ describe('DocumentIngestionService', () => {
       );
       await service.process(MOCK_JOB_DATA);
 
-      expect(textract.startAnalysis).toHaveBeenCalledTimes(1);
-      expect(textract.collectResult).toHaveBeenCalledTimes(2);
+      expect(ocr.start).toHaveBeenCalledTimes(1);
+      expect(ocr.collect).toHaveBeenCalledTimes(2);
       expect(stored().ocrPages).toEqual([2]);
     });
 
-    it('resumes a job stored before local reading as a job over the whole file', async () => {
+    it('forgets an operation that failed or expired, with its pages, so the retry starts a new one', async () => {
       upload(await pdfWith([PAGE_ONE, 'scan']));
       repo.findById.mockResolvedValue(
-        makeDocumentRow({ textract_job_id: 'textract-job-0', ocr_pages: null }),
+        makeDocumentRow({
+          ocr_operation_id: 'ocr-operation-1',
+          ocr_pages: [2],
+        }),
       );
-      textract.collectResult.mockResolvedValue({
-        items: [
-          { kind: 'text', text: 'Whole file, page one.', page: 1 },
-          { kind: 'text', text: 'Whole file, page two.', page: 2 },
-        ],
-        pageCount: 2,
-      });
-
-      await service.process(MOCK_JOB_DATA);
-
-      expect(stored()).toMatchObject({
-        text: 'Whole file, page one.\nWhole file, page two.',
-        ocrPages: [1, 2],
-      });
-      expect(s3.deleteObject).not.toHaveBeenCalled();
-    });
-
-    it('forgets a job that itself failed, with its pages, so the retry starts a new one', async () => {
-      upload(await pdfWith([PAGE_ONE, 'scan']));
-      repo.findById.mockResolvedValue(
-        makeDocumentRow({ textract_job_id: 'textract-job-1', ocr_pages: [2] }),
-      );
-      textract.collectResult.mockRejectedValue(
-        new TextractJobFailedError('Textract job textract-job-1 FAILED'),
+      ocr.collect.mockRejectedValue(
+        new OcrOperationLostError('analysis ocr-operation-1 failed'),
       );
 
       await expect(service.process(MOCK_JOB_DATA)).rejects.toThrow(
         RetryableError,
       );
 
-      expect(repo.setTextractJob).toHaveBeenCalledWith(
+      expect(repo.setOcrOperation).toHaveBeenCalledWith(
         'tenant-456',
         'doc-123',
         null,
@@ -352,7 +407,7 @@ describe('DocumentIngestionService', () => {
 
     it('OCRs every page of a PDF whose text layer holds no text at all', async () => {
       upload(await pdfWith([[], []]));
-      textract.collectResult.mockResolvedValue({
+      ocr.collect.mockResolvedValue({
         items: [
           { kind: 'text', text: 'Outlined text, page one.', page: 1 },
           { kind: 'text', text: 'Outlined text, page two.', page: 2 },
@@ -362,10 +417,10 @@ describe('DocumentIngestionService', () => {
 
       await service.process(MOCK_JOB_DATA);
 
-      expect(repo.setTextractJob).toHaveBeenCalledWith(
+      expect(repo.setOcrOperation).toHaveBeenCalledWith(
         'tenant-456',
         'doc-123',
-        'textract-job-1',
+        'ocr-operation-1',
         [1, 2],
       );
       expect(stored().text).toBe(
@@ -374,44 +429,28 @@ describe('DocumentIngestionService', () => {
     });
   });
 
-  describe('an image upload', () => {
-    it('goes to Textract whole: it has no text layer', async () => {
+  describe('a file that is not a PDF', () => {
+    it('is refused for good: the API issues upload URLs for PDFs only', async () => {
       const image = { ...MOCK_JOB_DATA, mimeType: 'image/png' };
       repo.findById.mockResolvedValue(
         makeDocumentRow({ mime_type: 'image/png' }),
       );
 
-      await service.process(image);
-
+      await expect(service.process(image)).rejects.toThrow(PermanentError);
       expect(s3.getObjectBuffer).not.toHaveBeenCalled();
-      expect(s3.putObject).not.toHaveBeenCalled();
-      expect(textract.startAnalysis).toHaveBeenCalledWith(
-        QUARANTINE,
-        KEY,
-        'image/png',
-      );
-      expect(repo.setTextractJob).toHaveBeenCalledWith(
-        'tenant-456',
-        'doc-123',
-        'textract-job-1',
-        null,
-      );
-      expect(stored()).toMatchObject({
-        text: 'Salary is AED 18,000 per month.',
-        ocrPages: [1],
-      });
+      expect(ocr.start).not.toHaveBeenCalled();
     });
   });
 
   describe('process — error paths', () => {
-    it('fails an over-limit PDF for good, before reading it or calling Textract', async () => {
+    it('fails an over-limit PDF for good, before reading it or calling OCR', async () => {
       upload(await pdfWith([PAGE_ONE, 'scan', PAGE_THREE]));
 
       await expect(withPageLimit(2).process(MOCK_JOB_DATA)).rejects.toThrow(
         /3 pages, exceeding the maximum of 2/,
       );
       expect(s3.putObject).not.toHaveBeenCalled();
-      expect(textract.startAnalysis).not.toHaveBeenCalled();
+      expect(ocr.start).not.toHaveBeenCalled();
       expect(repo.storeExtractedContent).not.toHaveBeenCalled();
     });
 
@@ -421,7 +460,7 @@ describe('DocumentIngestionService', () => {
       await expect(service.process(MOCK_JOB_DATA)).rejects.toThrow(
         PermanentError,
       );
-      expect(textract.startAnalysis).not.toHaveBeenCalled();
+      expect(ocr.start).not.toHaveBeenCalled();
     });
 
     it('retries when the file cannot be read from storage', async () => {
@@ -434,7 +473,7 @@ describe('DocumentIngestionService', () => {
 
     it('fails a document with no text in its layer or from OCR', async () => {
       upload(await pdfWith(['scan']));
-      textract.collectResult.mockResolvedValue({ items: [], pageCount: 1 });
+      ocr.collect.mockResolvedValue({ items: [], pageCount: 1 });
 
       const error = await service
         .process(MOCK_JOB_DATA)
@@ -481,7 +520,7 @@ describe('DocumentIngestionService', () => {
 
         expect(error).toBeInstanceOf(PermanentError);
         expect(s3.getObjectBuffer).not.toHaveBeenCalled();
-        expect(textract.startAnalysis).not.toHaveBeenCalled();
+        expect(ocr.start).not.toHaveBeenCalled();
         expect(promotion.promote).not.toHaveBeenCalled();
       },
     );

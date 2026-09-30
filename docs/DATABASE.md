@@ -734,8 +734,8 @@ Tenant-specific documents. Supports both text-input (pasted content) and file-up
 | `extraction_status` | `document_extraction_status` ENUM | Extraction lifecycle: `pending`, `processing`, `completed`, `failed`. NULL for text-input |
 | `extraction_error`  | TEXT                              | Error message if extraction failed                                                        |
 | `extracted_at`      | TIMESTAMPTZ                       | When text extraction completed                                                            |
-| `textract_job_id`   | TEXT                              | Textract job of this document; ingestion retries resume it instead of starting another    |
-| `ocr_pages`         | INTEGER[]                         | Pages (1-based) whose text came from Textract (scans); `{}` = read from the PDF's text layer only; NULL = not extracted yet, or before migration 034 |
+| `ocr_operation_id`  | TEXT                              | Document Intelligence analysis (result ID) of the scanned pages; ingestion retries resume it instead of starting another (migration 036; was `textract_job_id`) |
+| `ocr_pages`         | INTEGER[]                         | Pages (1-based) whose text came from OCR (scans); `{}` = read from the PDF's text layer only; NULL = not extracted yet, or before migration 034 |
 
 **Enums:**
 

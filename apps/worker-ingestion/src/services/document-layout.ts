@@ -1,8 +1,9 @@
-import type { DocumentSection } from '../interfaces/textract.interface';
+import type { DocumentSection } from '../interfaces/ocr.interface';
 
 /**
- * One block of a page in reading order, whoever read it: Textract LAYOUT for an OCRed page, the
- * PDF's own text layer otherwise. A title or heading starts a section; text is one paragraph.
+ * One block of a page in reading order, whoever read it: OCR (Document Intelligence) for a scanned
+ * page, the PDF's own text layer otherwise. A title or heading starts a section; text is one
+ * paragraph.
  */
 export interface LayoutItem {
   kind: 'title' | 'heading' | 'text';

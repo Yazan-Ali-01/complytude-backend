@@ -14,7 +14,7 @@ import type { LlmService } from '../../../worker-ai/src/services/llm.service';
 import { PromptBuilderService } from '../../../worker-ai/src/services/prompt-builder.service';
 import type { RerankerService } from '../../../worker-ai/src/services/reranker.service';
 import type { IS3PromotionService } from '../../../worker-ingestion/src/interfaces/s3-promotion.interface';
-import type { ITextractService } from '../../../worker-ingestion/src/interfaces/textract.interface';
+import type { IOcrService } from '../../../worker-ingestion/src/interfaces/ocr.interface';
 import { DocumentWriteRepository } from '../../../worker-ingestion/src/repositories/document-write.repository';
 import { DocumentIngestionService } from '../../../worker-ingestion/src/services/document-ingestion.service';
 import { createTestTenant } from '../factories';
@@ -202,13 +202,13 @@ describe('Workers act only inside the job payload tenant', () => {
   });
 
   describe('ingestion (worker-ingestion)', () => {
-    let startAnalysis: jest.Mock;
+    let startOcr: jest.Mock;
     let promote: jest.Mock;
     let getObjectBuffer: jest.Mock;
     let ingestion: DocumentIngestionService;
 
     beforeEach(async () => {
-      startAnalysis = jest.fn().mockResolvedValue('textract-job');
+      startOcr = jest.fn().mockResolvedValue('ocr-operation');
       promote = jest.fn().mockResolvedValue({ bucket: 'clean', key: 'k' });
       const pdf = Buffer.from(
         await pdfWith([
@@ -216,18 +216,18 @@ describe('Workers act only inside the job payload tenant', () => {
         ]),
       );
       getObjectBuffer = jest.fn().mockResolvedValue(pdf);
-      const textract: ITextractService = {
-        startAnalysis,
-        collectResult: jest.fn().mockResolvedValue({ items: [], pageCount: 1 }),
+      const ocr: IOcrService = {
+        start: startOcr,
+        collect: jest.fn().mockResolvedValue({ items: [], pageCount: 1 }),
       };
       const promotion: IS3PromotionService = { promote };
       ingestion = new DocumentIngestionService(
         new DocumentWriteRepository(app.appDatabaseService),
-        textract,
+        ocr,
         promotion,
         { getObjectBuffer } as unknown as S3Service,
         new ConfigService({
-          textract: { maxPages: 50, minTextCharsPerPage: 50 },
+          ocr: { maxPages: 50, minTextCharsPerPage: 50 },
         }),
         refundProducer,
       );
@@ -250,7 +250,7 @@ describe('Workers act only inside the job payload tenant', () => {
       expect(refundsEnqueued).toEqual([]);
 
       expect(getObjectBuffer).not.toHaveBeenCalled();
-      expect(startAnalysis).not.toHaveBeenCalled();
+      expect(startOcr).not.toHaveBeenCalled();
       expect(promote).not.toHaveBeenCalled();
       expect(await row('documents', doc.id)).toMatchObject({
         extraction_status: 'processing',
@@ -276,7 +276,7 @@ describe('Workers act only inside the job payload tenant', () => {
       await ingestion.process({ ...payload, s3Key: doc.s3Key });
       expect(getObjectBuffer).toHaveBeenCalledWith(QUARANTINE, doc.s3Key);
       // A born-digital PDF is read locally: no OCR processor sees it
-      expect(startAnalysis).not.toHaveBeenCalled();
+      expect(startOcr).not.toHaveBeenCalled();
       expect(await row('documents', doc.id)).toMatchObject({
         extraction_status: 'completed',
         content: 'The Employee shall work forty-eight hours a week in Dubai.',

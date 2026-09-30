@@ -49,12 +49,29 @@ export const validationSchema = Joi.object({
   // S3 Storage (for document ingestion)
   ...storageEnvSchema,
 
-  // Textract (document text extraction)
-  TEXTRACT_MAX_PAGES: Joi.number().default(50),
-  TEXTRACT_POLL_INITIAL_DELAY_MS: Joi.number().default(2000),
-  TEXTRACT_POLL_MAX_DELAY_MS: Joi.number().default(30000),
-  TEXTRACT_POLL_MAX_ATTEMPTS: Joi.number().default(60),
-  TEXTRACT_POLL_BACKOFF_MULTIPLIER: Joi.number().default(1.5),
+  // Most pages a PDF may have, read locally or by OCR (OCR bills per page); the API's must match
+  DOCUMENT_MAX_PAGES: Joi.number().integer().min(1).default(50),
+
+  // OCR of scanned pages: Azure AI Document Intelligence
+  AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string()
+      .uri({ scheme: ['https'] })
+      .required(),
+    otherwise: Joi.string()
+      .uri({ scheme: ['https'] })
+      .allow('')
+      .optional(),
+  }),
+  AZURE_DOCUMENT_INTELLIGENCE_KEY: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: secretEnv('AZURE_DOCUMENT_INTELLIGENCE_KEY', { min: 32 }),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  OCR_POLL_INITIAL_DELAY_MS: Joi.number().default(2000),
+  OCR_POLL_MAX_DELAY_MS: Joi.number().default(30000),
+  OCR_POLL_MAX_ATTEMPTS: Joi.number().default(60),
+  OCR_POLL_BACKOFF_MULTIPLIER: Joi.number().default(1.5),
 
   // A PDF page with fewer letters and digits in its text layer, and an image, goes to OCR
   PDF_TEXT_MIN_CHARS_PER_PAGE: Joi.number()

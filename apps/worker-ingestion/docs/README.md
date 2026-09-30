@@ -11,7 +11,7 @@
 The Data Ingestion Worker is a standalone NestJS application that consumes jobs from the `data-ingestion` BullMQ queue. It handles two ingestion pipelines:
 
 1. **Ruleset Ingestion** — chunks ruleset clauses, generates embeddings via OpenAI, and stores vectors in PostgreSQL (pgvector) for hybrid retrieval. The `ruleset_chunks` table has a `content_tsv` generated column (tsvector) that is automatically populated by PostgreSQL for BM25 full-text search.
-2. **Document Ingestion** — extracts text from uploaded documents (a PDF's own text layer, read locally; Textract only for scanned pages and image uploads), stores the extracted content, and promotes the file from the quarantine S3 bucket to the clean bucket.
+2. **Document Ingestion** — extracts text from uploaded documents (a PDF's own text layer, read locally; Azure AI Document Intelligence only for scanned pages), stores the extracted content, and promotes the file from the quarantine S3 bucket to the clean bucket.
 
 ### Ruleset Ingestion (`RULESET_INGESTION`)
 
@@ -27,30 +27,33 @@ The Data Ingestion Worker is a standalone NestJS application that consumes jobs 
 
 1. Receives jobs dispatched by the API after a file upload is confirmed
 2. Fetches the document record in the job's tenant (RLS: a document of another tenant is not found and the job fails), validates status (`pending` → `processing`), and refuses a job whose bucket, key or MIME type differ from the row's; extraction and promotion then use the row's file, never the payload's
-3. Extracts text (see [Text extraction](#text-extraction)): a PDF over `TEXTRACT_MAX_PAGES`, or unreadable, fails for good first. A born-digital PDF is read locally and never leaves the worker; only scanned pages go to Textract (LAYOUT), as a PDF of just those pages
+3. Extracts text (see [Text extraction](#text-extraction)): a PDF over `DOCUMENT_MAX_PAGES`, or unreadable, or a file that isn't a PDF, fails for good first. A born-digital PDF is read locally and never leaves the worker; only scanned pages go to Document Intelligence (`prebuilt-layout`), as a PDF of just those pages
 4. Stores the extracted content (`content`, `content_structured`) and the pages OCR read (`ocr_pages`) in the database
 5. Promotes the file from quarantine bucket to clean bucket, once GuardDuty Malware Protection has tagged it clean (`GuardDutyMalwareScanStatus=NO_THREATS_FOUND`) when `MALWARE_SCAN_REQUIRED` (always in production). Not scanned yet: the job waits up to `MALWARE_SCAN_WAIT_MS`, then retries. Any other result (threats found, or a file the scanner could not read) fails the document for good; the file stays in quarantine, which the API never hands out, and expires with it
 6. Marks the document as `completed` with the new S3 location
 7. On permanent failure or exhausted retries, marks the document as `failed`
 
-**Retry resilience:** If a retry occurs after content was already stored, extraction is skipped and the pipeline resumes from S3 promotion. A retry before that (poll timeout, crash, stall) resumes polling the stored Textract job (`documents.textract_job_id`, with the pages it reads in `ocr_pages`) instead of starting, and paying for, another; only a job that itself failed or expired is replaced.
+**Retry resilience:** If a retry occurs after content was already stored, extraction is skipped and the pipeline resumes from S3 promotion. A retry before that (poll timeout, crash, stall) resumes polling the stored Document Intelligence analysis (`documents.ocr_operation_id`, with the pages it reads in `ocr_pages`) instead of starting, and paying for, another; only an analysis that itself failed, or whose result is gone (kept 24 hours), is replaced.
 
-**Page limit:** `TEXTRACT_MAX_PAGES` caps every document, read locally or not: by the API at `confirm-upload` (400, the document stays pending) and again here before the file is parsed.
+**Page limit:** `DOCUMENT_MAX_PAGES` caps every document, read locally or not: by the API at `confirm-upload` (400, the document stays pending) and again here before the file is parsed.
 
 ### Text extraction
 
 | Upload | What reads it |
 | --- | --- |
-| PDF with a text layer on every page (exported from Word, a contract generator) | pdf.js, in the worker. **No Textract call.** |
-| PDF with some scanned pages | pdf.js for the text pages; Textract for the scanned pages only |
-| Scanned PDF, or a PDF whose text layer holds no text (text drawn as outlines) | Textract, every page |
-| Image (JPEG, PNG, TIFF) | Textract, the whole file |
+| PDF with a text layer on every page (exported from Word, a contract generator) | pdf.js, in the worker. **No OCR call.** |
+| PDF with some scanned pages | pdf.js for the text pages; Document Intelligence for the scanned pages only |
+| Scanned PDF, or a PDF whose text layer holds no text (text drawn as outlines) | Document Intelligence, every page |
+
+Only PDFs are uploaded (the API issues upload URLs for `application/pdf` only); anything else fails for good.
 
 - **Scanned page:** fewer than `PDF_TEXT_MIN_CHARS_PER_PAGE` letters and digits in its text layer, and at least one image on the page (read from the page's resources with pdf-lib; nothing is decoded). A nearly empty page without an image is a blank page, not a scan.
-- **OCR copy:** the scanned pages are copied into a new PDF at `ocr-pages/<tenant>/<document>.pdf` in the quarantine bucket, which Textract reads; it is deleted once Textract's result is in (the bucket's lifecycle rule removes any left behind). The ingestion role may write only under `ocr-pages/`, so it can't overwrite an upload. GuardDuty scans the copy like any other quarantine object.
-- **Merge:** Textract numbers the pages of the copy; they are mapped back to the document's pages and merged with the locally read pages in page order.
-- **Structure:** local pages produce the same `content_structured` as Textract LAYOUT (`document-layout.ts`): runs → lines (right-to-left lines read from the right; a page with two side-by-side columns, as bilingual English/Arabic contracts have, is read one column at a time, English first) → paragraphs (line spacing, list markers) → headings (larger than the body text, or a short line that reads as one: `ARTICLE 5`, `المادة 6`, `1.4 Bearer Share Certificates`, a line in capitals) → sections. Page numbers and running headers and footers are dropped. On the demo contract (`data/test-documents/dmcc_test_shareholders_agreement.pdf`) the sections match the headings of its source document exactly (`document-ingestion.service.spec.ts`).
-- **Record:** `documents.ocr_pages` lists the pages whose text came from Textract: `{}` when none did (nothing left the worker), every page for an image upload.
+- **OCR:** the scanned pages are copied into a new PDF in memory and sent as bytes (`base64Source`) to Azure AI Document Intelligence, REST API `2024-11-30`, model `prebuilt-layout` (reads printed Arabic and English), at `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` (the resource is in UAE North). Nothing is written to storage for it. Once the result is read it is deleted at the service (`DELETE …/analyzeResults/{id}`); one that can't be deleted expires there after 24 hours. Paragraph roles map to the same layout items as local pages: `title` and `sectionHeading` start sections, `pageHeader`, `pageFooter` and `pageNumber` are dropped; without paragraphs, each page's lines are one paragraph.
+- **Errors:** a document the service refuses (HTTP 400, 413, 415) fails for good; 401/403, 429, 5xx and network errors are retried; an analysis that failed, or a result that's gone (404), is cleared so the retry starts a new one.
+- **Merge:** OCR numbers the pages of the copy; they are mapped back to the document's pages and merged with the locally read pages in page order.
+- **Structure:** local pages produce the same `content_structured` as OCR's layout (`document-layout.ts`): runs → lines (right-to-left lines read from the right; a page with two side-by-side columns, as bilingual English/Arabic contracts have, is read one column at a time, English first) → paragraphs (line spacing, list markers) → headings (larger than the body text, or a short line that reads as one: `ARTICLE 5`, `المادة 6`, `1.4 Bearer Share Certificates`, a line in capitals) → sections. Page numbers and running headers and footers are dropped. On the demo contract (`data/test-documents/dmcc_test_shareholders_agreement.pdf`) the sections match the headings of its source document exactly (`document-ingestion.service.spec.ts`).
+- **Record:** `documents.ocr_pages` lists the pages whose text came from OCR: `{}` when none did (nothing left the worker).
+- **Live check:** `pnpm test:ocr-live` sends one scanned Arabic page (`data/test-documents/arabic_scanned_page.png`) to the resource in `apps/worker-ingestion/.env` and checks the text, a heading and the deletion (one billed page). Skipped in the normal test run.
 - **pdf.js** (`pdfjs-dist`, legacy build) runs with no font loading, XFA or WebAssembly, and only reads text. It ships only as an ES module and is loaded through Node's `require` (Node 22.12+), at boot, so a missing package fails the image's smoke test. Its optional native canvas package is removed (`pnpm.overrides`), so it logs three `Warning: Cannot polyfill …` lines at boot: expected, nothing is rendered.
 
 ### Pipelines
@@ -85,18 +88,20 @@ apps/worker-ingestion/src/
 ├── worker-ingestion.service.ts          # App-level service
 ├── config/
 │   ├── env.schema.ts                    # Joi validation for env vars
+│   ├── ocr.config.ts                    # OCR endpoint, key, page cap, polling
 │   └── worker-ingestion.config.ts       # ConfigService factory
 ├── processors/
 │   └── data-ingestion.processor.ts      # BullMQ processor (routes by job.name)
 ├── interfaces/
-│   ├── textract.interface.ts            # ITextractService interface + DI token
+│   ├── ocr.interface.ts                 # IOcrService interface + DI tokens
 │   └── s3-promotion.interface.ts        # IS3PromotionService interface + DI token
 ├── services/
 │   ├── ruleset-ingestion.service.ts     # Ruleset chunking + embedding pipeline
 │   ├── document-ingestion.service.ts    # Document extraction pipeline orchestrator
 │   ├── pdf-text-layer.ts                # Local text layer (pdf.js) → lines, paragraphs, headings
-│   ├── document-layout.ts               # Layout items → sections + flat text (local and Textract)
-│   ├── textract.service.ts             # AWS Textract async OCR of scanned pages and images
+│   ├── document-layout.ts               # Layout items → sections + flat text (local and OCR)
+│   ├── document-intelligence.client.ts  # Azure AI Document Intelligence REST calls (analyze, result, delete)
+│   ├── document-intelligence.service.ts # OCR of scanned pages: poll, parse the layout, delete the result
 │   └── s3-promotion.service.ts           # S3 file promotion (quarantine → clean bucket)
 └── repositories/
     ├── ruleset-version-read.repository.ts # Read ruleset versions + ruleset metadata
@@ -117,7 +122,7 @@ DataIngestionProcessor.handle(job) routes by job.name:
 ── DOCUMENT_INGESTION ─────────────────────────────────────────────
   API: QueueProducerService.enqueue(DATA_INGESTION, DOCUMENT_INGESTION, { documentId, tenantId, ... })
     → DocumentIngestionService.process(data)
-    → Fetch doc → Validate status → Extract text (text layer; Textract for scanned pages) → Store content
+    → Fetch doc → Validate status → Extract text (text layer; Document Intelligence for scanned pages) → Store content
     → Require a clean malware scan → Promote S3 (quarantine → clean) → Mark completed
     On failure: DataIngestionProcessor.onPermanentFailure/onDeadLetter → markFailed()
 ```
@@ -219,7 +224,10 @@ cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
 | `EMBEDDING_CHUNK_OVERLAP`      | `50`                     | Token overlap between chunks                   |
 | `WORKER_INGESTION_CONCURRENCY` | `10`                     | Max concurrent jobs                            |
 | `WORKER_INGESTION_BATCH_SIZE`  | `500`                    | DB insert batch size                           |
-| `TEXTRACT_MAX_PAGES`           | `50`                     | Most pages a PDF may have (checked before it is read; keep equal to the API's) |
+| `DOCUMENT_MAX_PAGES`           | `50`                     | Most pages a PDF may have (checked before it is read; keep equal to the API's) |
+| `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | (required in production) | `https://<resource>.cognitiveservices.azure.com/` |
+| `AZURE_DOCUMENT_INTELLIGENCE_KEY` | (required in production, secret) | KEY 1 or KEY 2 of the resource; without it locally, a scanned page fails its document |
+| `OCR_POLL_INITIAL_DELAY_MS` / `OCR_POLL_MAX_DELAY_MS` / `OCR_POLL_MAX_ATTEMPTS` / `OCR_POLL_BACKOFF_MULTIPLIER` | `2000` / `30000` / `60` / `1.5` | Polling of an analysis |
 | `PDF_TEXT_MIN_CHARS_PER_PAGE`  | `50`                     | A PDF page with fewer letters and digits in its text layer, and an image, is OCRed |
 | `REDIS_HOST`                   | `localhost`              | Redis host for BullMQ                          |
 | `DB_HOST`                      | `localhost`              | PostgreSQL host                                |

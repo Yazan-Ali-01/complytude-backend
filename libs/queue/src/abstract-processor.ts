@@ -46,7 +46,7 @@ export abstract class AbstractProcessor<TData = unknown, TResult = unknown>
 
   /**
    * How many jobs this worker runs at once. BullMQ's default is 1, so one slow job (a long
-   * Textract poll, an LLM call) holds up every tenant behind it. Override to read the worker's
+   * OCR poll, an LLM call) holds up every tenant behind it. Override to read the worker's
    * configured concurrency.
    */
   protected workerConcurrency(): number | undefined {

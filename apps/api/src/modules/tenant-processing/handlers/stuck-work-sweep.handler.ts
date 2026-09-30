@@ -10,7 +10,7 @@ import { StuckWorkRepository } from '../../../repositories/maintenance/stuck-wor
 
 /**
  * How long work may stay unfinished before it counts as stuck. Each is above the longest a
- * healthy run takes with all its retries: extraction polls Textract for up to ~27 minutes per
+ * healthy run takes with all its retries: extraction polls OCR for up to ~27 minutes per
  * attempt (3 attempts), analysis and generation have 5- and 2-minute processing limits.
  */
 export const STUCK_WORK_TIMEOUT_MINUTES = {

@@ -99,6 +99,8 @@ FROM_EMAIL=noreply@example.com
 SUPPORT_EMAIL=support@example.com
 OPENAI_API_KEY=sk-smoke-$(secret)
 COHERE_API_KEY=smoke-$(secret)
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://smoke.cognitiveservices.azure.com/
+AZURE_DOCUMENT_INTELLIGENCE_KEY=$(secret)
 GOTENBERG_URL=http://gotenberg.invalid:3000
 EOF
 docker run -d --name "$name-app" --network "$name" -p "127.0.0.1::$port" \

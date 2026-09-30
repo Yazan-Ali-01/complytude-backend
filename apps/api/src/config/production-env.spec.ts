@@ -32,6 +32,9 @@ const PRODUCTION: Record<string, string> = {
   OPENAI_API_KEY: 'sk-proj-0123456789abcdefghijklmn',
   COHERE_API_KEY: 'co-0123456789abcdefghijklmnop',
   GOTENBERG_URL: 'http://gotenberg.internal:3000',
+  AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
+    'https://complytude-docintel.cognitiveservices.azure.com/',
+  AZURE_DOCUMENT_INTELLIGENCE_KEY: 'f'.repeat(84),
 };
 
 const APPS: Array<[string, ObjectSchema, string[]]> = [
@@ -53,7 +56,11 @@ const APPS: Array<[string, ObjectSchema, string[]]> = [
     workerAi,
     ['DB_APP_PASSWORD', 'OPENAI_API_KEY', 'COHERE_API_KEY'],
   ],
-  ['worker-ingestion', workerIngestion, ['DB_APP_PASSWORD', 'OPENAI_API_KEY']],
+  [
+    'worker-ingestion',
+    workerIngestion,
+    ['DB_APP_PASSWORD', 'OPENAI_API_KEY', 'AZURE_DOCUMENT_INTELLIGENCE_KEY'],
+  ],
   ['worker-generation', workerGeneration, ['DB_APP_PASSWORD']],
 ];
 
@@ -95,6 +102,24 @@ describe('production environment validation', () => {
       ).toEqual([
         `${key} is a placeholder value; set a real secret when NODE_ENV=production`,
       ]);
+    });
+  });
+
+  describe('worker-ingestion', () => {
+    it('refuses to boot without an https Document Intelligence endpoint', () => {
+      expect(
+        errors(
+          workerIngestion,
+          without('AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT'),
+        ),
+      ).toEqual(['"AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT" is required']);
+      expect(
+        errors(workerIngestion, {
+          ...PRODUCTION,
+          AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
+            'http://complytude-docintel.cognitiveservices.azure.com/',
+        }),
+      ).toEqual([expect.stringContaining('https')]);
     });
   });
 

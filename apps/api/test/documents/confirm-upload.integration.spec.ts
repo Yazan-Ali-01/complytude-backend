@@ -228,7 +228,7 @@ describe('DocumentsService.confirmUpload', () => {
     enqueueSpy.mockRestore();
   });
   // -------------------------------------------------------------------------
-  // Page limit: Textract bills per page, so the limit holds before any job
+  // Page limit: OCR bills per page, so the limit holds before any job
   // -------------------------------------------------------------------------
 
   describe('page limit', () => {

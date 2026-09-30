@@ -248,7 +248,7 @@ function looksLikeHeading(text: string, neighbourInCapitals: boolean): boolean {
 }
 
 /**
- * The pages' text layers → layout items, like Textract LAYOUT's: page numbers and running
+ * The pages' text layers → layout items, like OCR's layout: page numbers and running
  * headers or footers dropped, lines joined into paragraphs, and headings (larger than the body
  * text, or reading as one) starting sections. The largest heading on the first page is the title.
  */
@@ -331,7 +331,7 @@ export function layoutFromTextLayer(pages: PageText[]): LayoutItem[] {
 
 /**
  * Page numbers in the top or bottom margin, and lines repeated in a margin on at least half the
- * pages (running headers and footers). Textract LAYOUT drops them too.
+ * pages (running headers and footers). OCR's layout drops them too.
  */
 function dropPageFurniture(pages: PageText[]): PageText[] {
   const inMargin = (line: TextLine, height: number): boolean =>

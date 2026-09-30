@@ -964,7 +964,7 @@ Interactive API docs, served only when `NODE_ENV` is not `production` (local dev
 6. **Rate Limiting:** AWS WAF on the ALB (managed rule sets, per-IP rate rules), then the API's
    Redis-backed limiter (`common/rate-limit/`): 300 requests/min per IP on every route, tighter
    `@RateLimit(...)` rules on the public auth routes (per IP and per email) and on routes that spend
-   on OpenAI, Cohere, Textract or Gotenberg (per tenant). Exceeding a limit returns 429 with
+   on OpenAI, Cohere, OCR or Gotenberg (per tenant). Exceeding a limit returns 429 with
    `Retry-After`. Five failed logins for an account lock it for 15 minutes, doubling on each later
    lock the same day (up to 24 hours).
 
@@ -997,7 +997,7 @@ FRONTEND_URL=https://app.complytude.com
 
 **Never commit secrets to version control.**
 
-**Production fails fast.** Each app (API and the three workers) validates its environment with its own Joi schema at boot. With `NODE_ENV=production`, every secret it needs (`secretEnv()` in `@lib/database`: DB password, JWT secrets, Stripe secret and webhook secret, OpenAI and Cohere keys, set SSO client secrets) must be present, long enough and not a placeholder (`change-this`, `your-…-key`, `placeholder`, `postgres`, …); the four JWT secrets must all differ; `FRONTEND_URL` must be an https URL; and `AUTH_ECHO_TOKENS` (tokens in signup / forgot-password responses, tests only) must be off. The app refuses to start with a message naming the variable.
+**Production fails fast.** Each app (API and the three workers) validates its environment with its own Joi schema at boot. With `NODE_ENV=production`, every secret it needs (`secretEnv()` in `@lib/database`: DB password, JWT secrets, Stripe secret and webhook secret, OpenAI and Cohere keys, the Document Intelligence key, set SSO client secrets) must be present, long enough and not a placeholder (`change-this`, `your-…-key`, `placeholder`, `postgres`, …); the four JWT secrets must all differ; `FRONTEND_URL` must be an https URL; and `AUTH_ECHO_TOKENS` (tokens in signup / forgot-password responses, tests only) must be off. The app refuses to start with a message naming the variable.
 
 ---
 
@@ -1125,7 +1125,8 @@ API App
 ├── Consumes jobs from: ENTITLEMENT_PROCESSING  (light DB ops, same service graph)
 
 Worker-Ingestion App (apps/worker-ingestion)
-├── Consumes jobs from: DATA_INGESTION  (ruleset chunking + embedding)
+├── Consumes jobs from: DATA_INGESTION  (ruleset chunking + embedding; document text: local text
+│                                        layer, scanned pages OCRed by Azure AI Document Intelligence)
 
 Worker-AI App (apps/worker-ai)
 ├── Consumes jobs from: AI_PROCESSING   (LLM document analysis)
@@ -1236,7 +1237,7 @@ Configured in `libs/queue/src/queue.config.ts`:
 2. `@nestjs/bullmq` workers stop taking jobs and drain the active ones before closing
 3. `RedisService` closes the Redis connection
 
-ECS gives worker containers `stopTimeout` = 120 s (`worker_stop_timeout`, the Fargate maximum). A job still running then is re-run after its lock expires, resuming from its checkpoint where it has one (a stored Textract job, a completed row).
+ECS gives worker containers `stopTimeout` = 120 s (`worker_stop_timeout`, the Fargate maximum). A job still running then is re-run after its lock expires, resuming from its checkpoint where it has one (a stored OCR analysis, a completed row).
 
 ### Queue Monitoring (Bull Board)
 

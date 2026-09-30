@@ -1,7 +1,7 @@
 import { DatabaseService } from '@lib/database';
 import type { ExtractionStatus } from '@lib/queue';
 import { Injectable } from '@nestjs/common';
-import type { DocumentSection } from '../interfaces/textract.interface';
+import type { DocumentSection } from '../interfaces/ocr.interface';
 
 export interface DocumentRow {
   id: string;
@@ -17,8 +17,8 @@ export interface DocumentRow {
   extraction_status: ExtractionStatus | null;
   extraction_error: string | null;
   extracted_at: Date | null;
-  textract_job_id: string | null;
-  /** Pages sent to OCR: set with the Textract job, final with the content. */
+  ocr_operation_id: string | null;
+  /** Pages sent to OCR: set with the OCR operation, final with the content. */
   ocr_pages: number[] | null;
 }
 
@@ -40,7 +40,7 @@ export class DocumentWriteRepository {
         return client.query<DocumentRow>(
           `SELECT id, tenant_id, title, content, content_structured, source_type,
                   s3_key, s3_bucket, original_filename, mime_type,
-                  extraction_status, extraction_error, extracted_at, textract_job_id,
+                  extraction_status, extraction_error, extracted_at, ocr_operation_id,
                   ocr_pages
            FROM public.documents
            WHERE id = $1 AND deleted_at IS NULL`,
@@ -52,13 +52,13 @@ export class DocumentWriteRepository {
   }
 
   /**
-   * The Textract job to resume on a retry, with the pages it reads (null: the whole file); both
-   * null once a failed job must be replaced.
+   * The OCR operation to resume on a retry, with the pages it reads; both null once a failed or
+   * expired operation must be replaced.
    */
-  async setTextractJob(
+  async setOcrOperation(
     tenantId: string,
     documentId: string,
-    jobId: string | null,
+    operationId: string | null,
     ocrPages: number[] | null,
   ): Promise<void> {
     await this.databaseService.transactionWithTenantContext(
@@ -66,9 +66,9 @@ export class DocumentWriteRepository {
       async (client) => {
         await client.query(
           `UPDATE public.documents
-           SET textract_job_id = $1, ocr_pages = $2, updated_at = NOW()
+           SET ocr_operation_id = $1, ocr_pages = $2, updated_at = NOW()
            WHERE id = $3`,
-          [jobId, ocrPages, documentId],
+          [operationId, ocrPages, documentId],
         );
       },
     );
