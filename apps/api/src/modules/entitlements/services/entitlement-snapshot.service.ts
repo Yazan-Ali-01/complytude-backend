@@ -241,7 +241,6 @@ export class EntitlementSnapshotService {
    * getOrNull() will return null, triggering a fresh compute.
    *
    * This is called by:
-   * - SubscriptionsService.changePlan() (already implemented)
    * - TenantAddonsService when addons are added/removed/updated
    * - TenantOverridesService when overrides are applied/revoked/updated
    *

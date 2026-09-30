@@ -1,10 +1,48 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { TemplateField } from '../../templates/entities/template-version.entity';
+import { DocumentsI18n } from '../constants/i18n.constants';
+
+/** Why a field failed, stable for clients that render their own text. */
+export type VariableErrorCode =
+  | 'unknown_field'
+  | 'required'
+  | 'pattern'
+  | 'min_length'
+  | 'max_length'
+  | 'not_a_number'
+  | 'min_value'
+  | 'max_value'
+  | 'invalid_date'
+  | 'not_boolean'
+  | 'not_an_option'
+  | 'invalid_email'
+  | 'invalid_phone';
 
 export interface VariableValidationError {
   field: string;
+  code: VariableErrorCode;
+  /** Values the message refers to (limits, allowed options). */
+  params?: Record<string, string | number>;
+  /** In the request's language. */
   message: string;
 }
+
+const MESSAGE_KEYS: Record<VariableErrorCode, string> = {
+  unknown_field: DocumentsI18n.errors.VARIABLE_UNKNOWN_FIELD,
+  required: DocumentsI18n.errors.VARIABLE_REQUIRED,
+  pattern: DocumentsI18n.errors.VARIABLE_PATTERN,
+  min_length: DocumentsI18n.errors.VARIABLE_MIN_LENGTH,
+  max_length: DocumentsI18n.errors.VARIABLE_MAX_LENGTH,
+  not_a_number: DocumentsI18n.errors.VARIABLE_NOT_A_NUMBER,
+  min_value: DocumentsI18n.errors.VARIABLE_MIN_VALUE,
+  max_value: DocumentsI18n.errors.VARIABLE_MAX_VALUE,
+  invalid_date: DocumentsI18n.errors.VARIABLE_INVALID_DATE,
+  not_boolean: DocumentsI18n.errors.VARIABLE_NOT_BOOLEAN,
+  not_an_option: DocumentsI18n.errors.VARIABLE_NOT_AN_OPTION,
+  invalid_email: DocumentsI18n.errors.VARIABLE_INVALID_EMAIL,
+  invalid_phone: DocumentsI18n.errors.VARIABLE_INVALID_PHONE,
+};
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,6 +53,8 @@ const BOOLEAN_FALSY = new Set<unknown>([false, 'false', 0]);
 
 @Injectable()
 export class VariableValidationService {
+  constructor(private readonly i18n: I18nService) {}
+
   /**
    * Validates user input against field definitions.
    * Merges system variables and applies defaults before validation.
@@ -31,10 +71,7 @@ export class VariableValidationService {
 
     for (const key of Object.keys(userVariables)) {
       if (!fieldMap.has(key)) {
-        errors.push({
-          field: key,
-          message: `Unknown field '${key}' is not allowed`,
-        });
+        errors.push(this.fieldError(key, 'unknown_field', { field: key }));
       }
     }
 
@@ -67,10 +104,7 @@ export class VariableValidationService {
 
       if (this.isEmpty(value)) {
         if (field.required) {
-          errors.push({
-            field: field.key,
-            message: 'Required field is missing',
-          });
+          errors.push(this.fieldError(field.key, 'required'));
         }
         continue;
       }
@@ -82,12 +116,27 @@ export class VariableValidationService {
     if (errors.length > 0) {
       throw new BadRequestException({
         statusCode: 400,
-        message: `Validation failed for ${errors.length} field${errors.length === 1 ? '' : 's'}`,
+        message: this.i18n.t(DocumentsI18n.errors.VARIABLES_INVALID, {
+          args: { count: errors.length },
+        }),
         errors,
       });
     }
 
     return this.formatValues(fields, merged);
+  }
+
+  private fieldError(
+    field: string,
+    code: VariableErrorCode,
+    params?: Record<string, string | number>,
+  ): VariableValidationError {
+    return {
+      field,
+      code,
+      ...(params ? { params } : {}),
+      message: this.i18n.t(MESSAGE_KEYS[code], { args: params }),
+    };
   }
 
   private validateField(
@@ -129,10 +178,7 @@ export class VariableValidationService {
     if (field.validation_rules?.pattern) {
       const regex = new RegExp(field.validation_rules.pattern);
       if (!regex.test(str)) {
-        errors.push({
-          field: field.key,
-          message: 'Value does not match required pattern',
-        });
+        errors.push(this.fieldError(field.key, 'pattern'));
       }
     }
 
@@ -140,20 +186,22 @@ export class VariableValidationService {
       field.validation_rules?.min !== undefined &&
       str.length < field.validation_rules.min
     ) {
-      errors.push({
-        field: field.key,
-        message: `Must be at least ${field.validation_rules.min} characters`,
-      });
+      errors.push(
+        this.fieldError(field.key, 'min_length', {
+          min: field.validation_rules.min,
+        }),
+      );
     }
 
     if (
       field.validation_rules?.max !== undefined &&
       str.length > field.validation_rules.max
     ) {
-      errors.push({
-        field: field.key,
-        message: `Must be at most ${field.validation_rules.max} characters`,
-      });
+      errors.push(
+        this.fieldError(field.key, 'max_length', {
+          max: field.validation_rules.max,
+        }),
+      );
     }
 
     return errors;
@@ -167,10 +215,9 @@ export class VariableValidationService {
 
     const num = Number(value);
     if (isNaN(num)) {
-      errors.push({
-        field: field.key,
-        message: `Must be a number, got '${String(value)}'`,
-      });
+      errors.push(
+        this.fieldError(field.key, 'not_a_number', { value: String(value) }),
+      );
       return errors;
     }
 
@@ -178,20 +225,22 @@ export class VariableValidationService {
       field.validation_rules?.min !== undefined &&
       num < field.validation_rules.min
     ) {
-      errors.push({
-        field: field.key,
-        message: `Must be at least ${field.validation_rules.min}`,
-      });
+      errors.push(
+        this.fieldError(field.key, 'min_value', {
+          min: field.validation_rules.min,
+        }),
+      );
     }
 
     if (
       field.validation_rules?.max !== undefined &&
       num > field.validation_rules.max
     ) {
-      errors.push({
-        field: field.key,
-        message: `Must be at most ${field.validation_rules.max}`,
-      });
+      errors.push(
+        this.fieldError(field.key, 'max_value', {
+          max: field.validation_rules.max,
+        }),
+      );
     }
 
     return errors;
@@ -205,10 +254,7 @@ export class VariableValidationService {
     const str = String(value);
 
     if (!ISO_DATE_RE.test(str) || isNaN(Date.parse(str))) {
-      errors.push({
-        field: field.key,
-        message: 'Invalid date format, expected YYYY-MM-DD',
-      });
+      errors.push(this.fieldError(field.key, 'invalid_date'));
     }
 
     return errors;
@@ -221,7 +267,7 @@ export class VariableValidationService {
     const errors: VariableValidationError[] = [];
 
     if (!BOOLEAN_TRUTHY.has(value) && !BOOLEAN_FALSY.has(value)) {
-      errors.push({ field: _field.key, message: 'Must be true or false' });
+      errors.push(this.fieldError(_field.key, 'not_boolean'));
     }
 
     return errors;
@@ -245,10 +291,11 @@ export class VariableValidationService {
           );
 
     if (!allowedValues.includes(String(value))) {
-      errors.push({
-        field: field.key,
-        message: `Must be one of: ${allowedValues.join(', ')}`,
-      });
+      errors.push(
+        this.fieldError(field.key, 'not_an_option', {
+          options: allowedValues.join(', '),
+        }),
+      );
     }
 
     return errors;
@@ -262,7 +309,7 @@ export class VariableValidationService {
     const email = String(value).trim().toLowerCase();
 
     if (!EMAIL_RE.test(email)) {
-      errors.push({ field: field.key, message: 'Invalid email format' });
+      errors.push(this.fieldError(field.key, 'invalid_email'));
     }
 
     return errors;
@@ -276,10 +323,7 @@ export class VariableValidationService {
     const phone = String(value).trim();
 
     if (!PHONE_RE.test(phone)) {
-      errors.push({
-        field: field.key,
-        message: 'Invalid phone number format',
-      });
+      errors.push(this.fieldError(field.key, 'invalid_phone'));
     }
 
     return errors;

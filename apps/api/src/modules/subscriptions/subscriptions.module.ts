@@ -9,7 +9,7 @@ import { SubscriptionsService } from './subscriptions.service';
  * All paid subscription mutations go through StripeModule/StripeSubscriptionService.
  *
  * Exports:
- * - SubscriptionsService: Read access + Navigator lifecycle (renewal, creation, changePlan, cancel)
+ * - SubscriptionsService: Read access + Navigator lifecycle (creation, trials, renewal)
  *
  * Dependencies:
  * - DatabaseModule: For database access

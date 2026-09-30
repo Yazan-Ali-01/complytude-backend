@@ -169,5 +169,18 @@ describe('Session HTTP endpoints', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { sessions: unknown[] };
     expect(Array.isArray(body.sessions)).toBe(true);
+
+    // A user ID that isn't a UUID is a bad request, not a database error
+    for (const [method, url] of [
+      ['GET', '/api/v1/tenants/admin/users/not-a-uuid/sessions'],
+      ['DELETE', '/api/v1/tenants/admin/users/not-a-uuid/sessions'],
+    ] as const) {
+      const bad = await server.inject({
+        method,
+        url,
+        headers: { cookie: allCookies },
+      });
+      expect(`${method} ${bad.statusCode}`).toBe(`${method} 400`);
+    }
   });
 });

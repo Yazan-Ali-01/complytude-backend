@@ -18,6 +18,8 @@
 - [Error Handling](#error-handling)
 - [Onboarding Metadata Schema](#onboarding-metadata-schema)
 - [Invitation System & Seat Enforcement](#invitation-system--seat-enforcement)
+- [Document Flows](#document-flows)
+- [Compliance Analysis Scope](#compliance-analysis-scope)
 - [Billing API](#billing-api)
 - [Stripe Webhook Receiver](#stripe-webhook-receiver)
 - [Platform Admin — Stripe](#platform-admin--stripe)
@@ -66,9 +68,9 @@ https://api.complytude.com/api/v1/{resource}
 POST   /api/v1/auth/login
 GET    /api/v1/auth/google
 GET    /api/v1/auth/google/callback
-GET    /api/v1/users/profile
-POST   /api/v1/documents
-GET    /api/v1/tenants
+GET    /api/v1/users/me
+POST   /api/v1/documents/analyze
+GET    /api/v1/tenants/me
 ```
 
 ### Version-Neutral Endpoints
@@ -215,9 +217,9 @@ The application uses **HTTP-only cookies** for JWT token management with a **dua
 | Cookie Name            | Purpose                    | Lifetime    | Usage                                                  |
 | ---------------------- | -------------------------- | ----------- | ------------------------------------------------------ |
 | `identityAccessToken`  | User identity verification | Short-lived | Identity-based operations, tenant selection, sys admin |
-| `identityRefreshToken` | Identity token renewal     | Long-lived  | Used at `/auth/refresh/identity` endpoint              |
+| `identityRefreshToken` | Identity token renewal     | Long-lived  | Renewed by `POST /auth/refresh-identity`               |
 | `tenantAccessToken`    | Tenant-scoped API access   | Short-lived | Sent with tenant-specific API requests                 |
-| `tenantRefreshToken`   | Tenant token renewal       | Long-lived  | Used at `/auth/refresh/tenant` endpoint                |
+| `tenantRefreshToken`   | Tenant token renewal       | Long-lived  | Renewed by `POST /auth/refresh-tenant`                 |
 
 > Token lifetimes are configured via environment variables (`JWT_IDENTITY_EXPIRES_IN`, `JWT_ACCESS_EXPIRES_IN`). Refresh JWT expiry is derived from `SESSION_MAX_TTL` (default `14d`).
 
@@ -266,7 +268,7 @@ Query: `page` (default 1), `limit` (1–100, default 50), `action`, `resourceTyp
    ↓
 7. Tenant access token expires (per `JWT_ACCESS_EXPIRES_IN`)
    ↓
-8. Client calls /auth/refresh/tenant
+8. Client calls POST /auth/refresh-tenant
    ↓
 9. Server issues new tenant tokens in cookies
 ```
@@ -417,8 +419,9 @@ After completing this flow, users have full tenant access with tenant tokens set
 - After **Login**: Check if `tenants.length === 0` to determine if user needs onboarding
 - After **Create Organization**: Must immediately call **Switch Tenant** to activate the tenant
 - **Limbo State**: User is logged in (identity token valid) but not in any tenant (no tenant token) - show onboarding UI
-- **Identity Token Lifetime**: Configured via `JWT_IDENTITY_EXPIRES_IN` - refresh using `/auth/refresh/identity` endpoint
-- **Tenant Token Lifetime**: Configured via `JWT_ACCESS_EXPIRES_IN` - refresh using `/auth/refresh/tenant` endpoint
+- **Identity Token Lifetime**: Configured via `JWT_IDENTITY_EXPIRES_IN` - refresh with `POST /auth/refresh-identity`
+- **Tenant Token Lifetime**: Configured via `JWT_ACCESS_EXPIRES_IN` - refresh with `POST /auth/refresh-tenant`
+- **Refresh one at a time**: each refresh rotates the refresh token. A second refresh with the previous token is accepted for 30 seconds (two tabs at once); after that, reusing an old refresh token signs the user out everywhere. Share one in-flight refresh across tabs.
 
 ### Step 1: Register New User Account
 
@@ -656,7 +659,7 @@ SSO-only users cannot use `POST /auth/login` with a password until a password ex
 | ------ | ------ | -------- | -------------------- | ----------------- |
 | `name` | string | Yes      | Min 1, max 255 chars | Organization name |
 
-> Plan selection is intentionally **not** exposed on this endpoint. New tenants always start on a **14-day trial of General Counsel** (see `TRIAL_CONFIG`). Paid plans are granted only via Stripe Checkout (`POST /api/v1/billing/checkout/session`) and the `checkout.session.completed` webhook — this keeps "only Stripe can grant paid plans" as a hard invariant and prevents a billing bypass at signup.
+> Plan selection is intentionally **not** exposed on this endpoint. New tenants always start on a **14-day trial of General Counsel** (see `TRIAL_CONFIG`). Paid plans are granted only via Stripe Checkout (`POST /api/v1/billing/checkout/subscription`) and the `checkout.session.completed` webhook — this keeps "only Stripe can grant paid plans" as a hard invariant and prevents a billing bypass at signup.
 
 **Response (201 Created):**
 
@@ -1260,6 +1263,43 @@ Write routes additionally require the platform permission **`templates:manage`**
 
 ---
 
+## Document Flows
+
+What a frontend calls to upload, analyse and generate documents. Every route needs the tenant token; long-running work is a job the client polls (there is no push channel): poll every 2-3 seconds, backing off to ~10 seconds. Job statuses are `queued`, `processing`, `completed`, `completed_with_warnings` (analysis only) and `failed`.
+
+### Upload a PDF, then analyse it
+
+1. `POST /documents/upload-url` with `{ filename, contentType: 'application/pdf', fileSizeBytes }` → `{ documentId, uploadUrl, expiresIn, s3Key }`. Needs the plan's `document_scans` allowance (402/403 otherwise). Only PDFs are accepted.
+2. `PUT` the file to `uploadUrl` directly (not through the API, no cookies), with `Content-Type: application/pdf`, before `expiresIn` seconds pass.
+3. `POST /documents/:documentId/confirm-upload` → `{ documentId, status: 'processing' }`. A file that isn't a PDF, or has more pages than the limit, is refused with 400 and the document stays pending.
+4. Poll `GET /documents/:documentId` until `extractionStatus` is `completed` (text extracted; `failed` with `extractionError` otherwise). Text PDFs are read in seconds; scanned pages go through OCR and take longer.
+5. `POST /documents/:documentId/trigger-analysis` with the scope (see Compliance Analysis Scope: `{ jurisdiction, documentType }`, or `{ rulesetKeys }`) → `{ documentId, analysisJobId }`.
+6. Poll `GET /analysis-jobs/:analysisJobId` (or `GET /documents/:documentId/analysis`) until the status is final.
+
+**Pasted text** skips steps 1-5: `POST /documents/analyze` with `{ title, content, jurisdiction, documentType }` → `{ documentId, analysisJobId }`, then step 6.
+
+### Reading an analysis result
+
+`result` (full schema: `apps/worker-ai/docs/README.md` → Analysis Result Schema):
+
+- `findings[]`: `clauseId`, `citation` (the regulation, built from the ruleset, never by the model), `riskLevel` (`high`/`medium`/`low`), `evidence` (the contract passage, verbatim; empty only when a required clause is missing) and `evidenceOffset` (where it starts in the document text, for highlighting; null when it can't be placed), `title`, `description`, `suggestion`.
+- `clauseVerdicts[]`: one per clause checked, `status` `violated` / `compliant` / `not_applicable` / `unclear` / `unassessed`, with a one-line `reason`.
+- `summary`, `scope` (`jurisdiction`, `documentType`), `requiredClausesChecked`, `documentExcerpted`.
+- `warnings[]`: show them. `completed_with_warnings` means the result is partial or uncertain (`document_truncated`, `not_reranked`, `rulesets_without_context`, `unverified_evidence_dropped`, `clauses_not_assessed`, …); `no_findings` means nothing was reported, which is **not** a statement that the contract complies.
+
+### Generate a document from a template
+
+1. `GET /templates` lists the templates; `GET /templates/:key` gives the active version's fields.
+2. `GET /documents/generation-context` returns values from the current user and tenant; prefill the fields whose `system_variable_key` matches.
+3. `POST /documents/preview` with `{ templateKey, templateVersion?, variables }` → `{ generationJobId }`. Poll `GET /generation-jobs/:generationJobId`; a completed preview has `result.previewUrl` (a watermarked PDF, short-lived).
+4. `POST /documents/generate` with the same body → `{ generationJobId }`. Poll; a completed job has `result.documentId`. Download with `GET /documents/:documentId/download-url` → `{ url, expiresAt }`.
+
+Invalid variables answer 400 with `errors[]`, one per field: `{ field, code, params?, message }`. `message` is in the request's language; `code` is stable (`unknown_field`, `required`, `pattern`, `min_length`, `max_length`, `not_a_number`, `min_value`, `max_value`, `invalid_date`, `not_boolean`, `not_an_option`, `invalid_email`, `invalid_phone`) and `params` carries the values it refers to (`min`, `max`, `options`, `value`, `field`), for clients that render their own text.
+
+### Listing and deleting
+
+`GET /documents` lists the tenant's documents (paginated; `DocumentSummaryDto` with `extractionStatus`). `DELETE /documents/:documentId` deletes one: its text, variables and analysis results are erased at once.
+
 ## Compliance Analysis Scope
 
 `POST /documents/analyze` (text) and `POST /documents/:documentId/trigger-analysis` (an extracted upload) check the contract only against the rulesets that apply to it. Both take the same scope fields (`AnalysisScopeDto`):
@@ -1271,7 +1311,7 @@ Write routes additionally require the platform permission **`templates:manage`**
 | `rulesetIds` / `rulesetKeys` | Pick the rulesets explicitly; unknown or inactive ones are refused |
 
 - Explicit rulesets decide alone (the jurisdiction and document type, if given, are still told to the model).
-- Otherwise `jurisdiction` **and** `documentType` are required and resolve to the active rulesets tagged with both (`rulesets.jurisdictions`, `rulesets.document_types`, set with `POST/PATCH /rulesets` as `jurisdictions` / `document_types`).
+- Otherwise `jurisdiction` **and** `documentType` are required and resolve to the active rulesets tagged with both (`rulesets.jurisdictions`, `rulesets.document_types`, set with `POST /rulesets` or `PATCH /rulesets/:key` as `jurisdictions` / `document_types`).
 - 400 `ANALYSIS_SCOPE_REQUIRED` without either; 400 `NO_APPLICABLE_RULESETS` when nothing applies. There is no global, all-rulesets analysis.
 - The result (`GET /analysis-jobs/:id`) carries `scope`, and `clauseVerdicts`: one entry per clause the model was given (`violated`, `compliant`, `not_applicable`, `unclear`, or `unassessed`), with its citation. Only violated or unclear clauses produce findings.
 
@@ -1300,7 +1340,7 @@ Mutation endpoints (POST) additionally require **`billing:manage`** (`TenantPerm
 
 ### `GET /api/v1/billing/subscription`
 
-Returns the current subscription for the authenticated tenant (404 if none).
+Returns the current subscription for the authenticated tenant, whatever the plan (the free Navigator plan and trials included; 404 if none). This is the route for "which plan am I on": there is no `/subscriptions/current`.
 **Response:** `SubscriptionResponseDto` — includes plan, status, period dates, Stripe ids where applicable.
 
 ### `GET /api/v1/billing/status`

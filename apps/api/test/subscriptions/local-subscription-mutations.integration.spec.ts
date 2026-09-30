@@ -99,8 +99,8 @@ describe('Local subscription mutations', () => {
     );
   }
 
-  // SubscriptionsController is not registered in any module (since the Stripe integration), so these
-  // are 404 today; this guards against the local mutation routes coming back.
+  // Plan changes and cancellations go through /billing/* (Stripe) only; this guards against
+  // local mutation routes coming back.
   it('has no local change-plan, cancel or renew routes, even for a tenant admin', async () => {
     const { tenantId, adminEmail } = await stripeBackedTenant();
     const cookie = await tenantAdminCookie(adminEmail, tenantId);
@@ -124,16 +124,10 @@ describe('Local subscription mutations', () => {
     expect(await subscriptionOf(tenantId)).toEqual(before);
   });
 
-  it('refuses to change, cancel or renew a Stripe-backed subscription in the service', async () => {
-    const { tenantId, adminId } = await stripeBackedTenant();
+  it('refuses to renew a Stripe-backed subscription in the service', async () => {
+    const { tenantId } = await stripeBackedTenant();
     const before = await subscriptionOf(tenantId);
 
-    await expect(
-      subscriptions.changePlan(tenantId, 'infrastructure', adminId),
-    ).rejects.toBeInstanceOf(ConflictException);
-    await expect(
-      subscriptions.cancel(tenantId, adminId),
-    ).rejects.toBeInstanceOf(ConflictException);
     await expect(subscriptions.renewPeriod(tenantId)).rejects.toBeInstanceOf(
       ConflictException,
     );

@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import type { FastifyInstance } from 'fastify';
 import type { Response as InjectResponse } from 'light-my-request';
 import { randomBytes, randomUUID } from 'node:crypto';
+import type { PlanKey } from 'src/common/constants/plan-entitlements.constant';
 import { IDENTITY_TOKEN_COOKIE_NAME } from 'src/common/swagger/common';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { AuthService } from 'src/modules/auth/auth.service';
@@ -99,15 +100,13 @@ describe('Invitation acceptance', () => {
     });
   }
 
-  /** Tenant-admin session cookies for a new tenant with unlimited seats. */
-  async function newTenantAdmin(): Promise<{
+  /** Tenant-admin session cookies for a new tenant (unlimited seats unless a plan is named). */
+  async function newTenantAdmin(planKey: PlanKey = 'infrastructure'): Promise<{
     tenantId: string;
     cookie: string;
   }> {
     const tenant = await createTestTenant(app.module);
-    await createTestSubscription(app.module, tenant.id, {
-      planKey: 'infrastructure',
-    });
+    await createTestSubscription(app.module, tenant.id, { planKey });
     const { user: admin } = await createTestUserInTenant(
       app.module,
       tenant.id,
@@ -136,8 +135,8 @@ describe('Invitation acceptance', () => {
   }
 
   /** An invitation made through the tenant-admin API, as a real admin would. */
-  async function invite(email: string): Promise<Invitation> {
-    const admin = await newTenantAdmin();
+  async function invite(email: string, planKey?: PlanKey): Promise<Invitation> {
+    const admin = await newTenantAdmin(planKey);
     const emails = captureInvitationEmails();
     try {
       const created = await server.inject({
@@ -325,33 +324,43 @@ describe('Invitation acceptance', () => {
       );
     });
 
-    // KNOWN BUG, so marked failing: under RLS (the real app role) the accept's seat check
-    // resolves the inviting tenant's subscription without that tenant's context, and gets 404
-    // "No active subscription found". It only passed while tests ran as a superuser. When the
-    // accept flow is fixed, this test starts passing, which fails the suite: remove `.failing`.
-    it.failing(
-      'accepts with the invitation token, then switches in',
-      async () => {
-        const email = inviteeEmail();
-        const invitation = await invite(email);
-        const { cookie } = await verifiedInviteeSession(email);
+    it('accepts with the invitation token, then switches in', async () => {
+      const email = inviteeEmail();
+      const invitation = await invite(email);
+      const { cookie } = await verifiedInviteeSession(email);
 
-        const accepted = await acceptInvitation(
-          cookie,
-          invitation.invitationId,
-          {
-            token: invitation.token,
-          },
-        );
-        expect(accepted.statusCode).toBe(200);
-        expect(await invitationStatus(invitation.invitationId)).toBe(
-          InvitationStatus.ACCEPTED,
-        );
+      const accepted = await acceptInvitation(cookie, invitation.invitationId, {
+        token: invitation.token,
+      });
+      expect(accepted.statusCode).toBe(200);
+      expect(await invitationStatus(invitation.invitationId)).toBe(
+        InvitationStatus.ACCEPTED,
+      );
 
-        const switched = await tenantSwitch(cookie, invitation.tenantId);
-        expect(switched.statusCode).toBe(200);
-      },
-    );
+      const switched = await tenantSwitch(cookie, invitation.tenantId);
+      expect(switched.statusCode).toBe(200);
+    });
+
+    it('is refused once the workspace has filled its seats since the invitation', async () => {
+      const email = inviteeEmail();
+      // Shield: 3 seats. The admin holds one; two members join after the invitation went out
+      const invitation = await invite(email, 'shield');
+      for (let i = 0; i < 2; i++) {
+        await createTestUserInTenant(app.module, invitation.tenantId, {
+          role: SystemTenantRole.MEMBER,
+        });
+      }
+      const { cookie } = await verifiedInviteeSession(email);
+
+      const res = await acceptInvitation(cookie, invitation.invitationId, {
+        token: invitation.token,
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect(await invitationStatus(invitation.invitationId)).toBe(
+        InvitationStatus.PENDING,
+      );
+    });
 
     it("cannot use another invitation's token", async () => {
       const email = inviteeEmail();

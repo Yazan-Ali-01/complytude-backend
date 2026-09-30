@@ -1,9 +1,27 @@
 import { BadRequestException } from '@nestjs/common';
+import type { I18nService } from 'nestjs-i18n';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { TemplateField } from '../../templates/entities/template-version.entity';
 import {
   VariableValidationError,
   VariableValidationService,
 } from './variable-validation.service';
+
+/** The English messages, rendered as the API does for `Accept-Language: en`. */
+const english = JSON.parse(
+  readFileSync(
+    join(__dirname, '../../../i18n/locales/en/documents.json'),
+    'utf8',
+  ),
+) as { errors: Record<string, string> };
+const i18n = {
+  t: (key: string, options?: { args?: Record<string, unknown> }): string =>
+    english.errors[key.split('.').pop()!].replace(
+      /\{(\w+)\}/g,
+      (_match: string, name: string) => String(options?.args?.[name]),
+    ),
+} as unknown as I18nService;
 
 function field(
   overrides: Partial<TemplateField> & Pick<TemplateField, 'key' | 'type'>,
@@ -63,7 +81,43 @@ describe('VariableValidationService', () => {
   let service: VariableValidationService;
 
   beforeEach(() => {
-    service = new VariableValidationService();
+    service = new VariableValidationService(i18n);
+  });
+
+  it('gives each error a stable code and its values, besides the translated message', () => {
+    expectError(
+      service,
+      [
+        field({ key: 'name', type: 'text', validation_rules: { min: 5 } }),
+        field({ key: 'status', type: 'select', options: ['active', 'closed'] }),
+      ],
+      { name: 'Al', status: 'paused', extra: 1 },
+      {},
+      (errors) => {
+        expect(errors).toEqual(
+          expect.arrayContaining([
+            {
+              field: 'name',
+              code: 'min_length',
+              params: { min: 5 },
+              message: 'Must be at least 5 characters',
+            },
+            {
+              field: 'status',
+              code: 'not_an_option',
+              params: { options: 'active, closed' },
+              message: 'Must be one of: active, closed',
+            },
+            {
+              field: 'extra',
+              code: 'unknown_field',
+              params: { field: 'extra' },
+              message: "Unknown field 'extra' is not allowed",
+            },
+          ]),
+        );
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -95,10 +149,12 @@ describe('VariableValidationService', () => {
         {},
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'name',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'name',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -110,10 +166,12 @@ describe('VariableValidationService', () => {
         { name: '' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'name',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'name',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -125,10 +183,12 @@ describe('VariableValidationService', () => {
         { name: null },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'name',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'name',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -146,10 +206,12 @@ describe('VariableValidationService', () => {
         { code: 'abc' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'code',
-            message: 'Value does not match required pattern',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'code',
+              message: 'Value does not match required pattern',
+            }),
+          );
         },
       );
     });
@@ -176,10 +238,12 @@ describe('VariableValidationService', () => {
         { bio: 'hi' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'bio',
-            message: 'Must be at least 5 characters',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'bio',
+              message: 'Must be at least 5 characters',
+            }),
+          );
         },
       );
     });
@@ -191,10 +255,12 @@ describe('VariableValidationService', () => {
         { bio: 'toolong' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'bio',
-            message: 'Must be at most 3 characters',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'bio',
+              message: 'Must be at most 3 characters',
+            }),
+          );
         },
       );
     });
@@ -229,10 +295,12 @@ describe('VariableValidationService', () => {
         {},
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'notes',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'notes',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -320,10 +388,12 @@ describe('VariableValidationService', () => {
         {},
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'salary',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'salary',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -335,10 +405,12 @@ describe('VariableValidationService', () => {
         { salary: 'abc' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'salary',
-            message: "Must be a number, got 'abc'",
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'salary',
+              message: "Must be a number, got 'abc'",
+            }),
+          );
         },
       );
     });
@@ -356,10 +428,12 @@ describe('VariableValidationService', () => {
         { age: 16 },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'age',
-            message: 'Must be at least 18',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'age',
+              message: 'Must be at least 18',
+            }),
+          );
         },
       );
     });
@@ -377,10 +451,12 @@ describe('VariableValidationService', () => {
         { age: 70 },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'age',
-            message: 'Must be at most 65',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'age',
+              message: 'Must be at most 65',
+            }),
+          );
         },
       );
     });
@@ -421,10 +497,12 @@ describe('VariableValidationService', () => {
         {},
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'start_date',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'start_date',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -436,10 +514,12 @@ describe('VariableValidationService', () => {
         { start_date: '29/03/2026' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'start_date',
-            message: 'Invalid date format, expected YYYY-MM-DD',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'start_date',
+              message: 'Invalid date format, expected YYYY-MM-DD',
+            }),
+          );
         },
       );
     });
@@ -451,10 +531,12 @@ describe('VariableValidationService', () => {
         { start_date: '9999-99-99' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'start_date',
-            message: 'Invalid date format, expected YYYY-MM-DD',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'start_date',
+              message: 'Invalid date format, expected YYYY-MM-DD',
+            }),
+          );
         },
       );
     });
@@ -534,10 +616,12 @@ describe('VariableValidationService', () => {
         { active: 'yes' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'active',
-            message: 'Must be true or false',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'active',
+              message: 'Must be true or false',
+            }),
+          );
         },
       );
     });
@@ -549,10 +633,12 @@ describe('VariableValidationService', () => {
         {},
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'active',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'active',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -608,10 +694,12 @@ describe('VariableValidationService', () => {
         { status: 'pending' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'status',
-            message: 'Must be one of: active, inactive',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'status',
+              message: 'Must be one of: active, inactive',
+            }),
+          );
         },
       );
     });
@@ -632,10 +720,12 @@ describe('VariableValidationService', () => {
         { status: 'pending' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'status',
-            message: 'Must be one of: active, inactive',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'status',
+              message: 'Must be one of: active, inactive',
+            }),
+          );
         },
       );
     });
@@ -654,10 +744,12 @@ describe('VariableValidationService', () => {
         {},
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'status',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'status',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -683,10 +775,12 @@ describe('VariableValidationService', () => {
         {},
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'email',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'email',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -698,10 +792,12 @@ describe('VariableValidationService', () => {
         { email: 'not-an-email' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'email',
-            message: 'Invalid email format',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'email',
+              message: 'Invalid email format',
+            }),
+          );
         },
       );
     });
@@ -713,10 +809,12 @@ describe('VariableValidationService', () => {
         { email: 'alice@example' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'email',
-            message: 'Invalid email format',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'email',
+              message: 'Invalid email format',
+            }),
+          );
         },
       );
     });
@@ -751,10 +849,12 @@ describe('VariableValidationService', () => {
         {},
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'phone',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'phone',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });
@@ -766,10 +866,12 @@ describe('VariableValidationService', () => {
         { phone: 'not-a-phone!!!' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'phone',
-            message: 'Invalid phone number format',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'phone',
+              message: 'Invalid phone number format',
+            }),
+          );
         },
       );
     });
@@ -786,10 +888,12 @@ describe('VariableValidationService', () => {
         { name: 'Alice', injected_field: 'evil' },
         {},
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'injected_field',
-            message: "Unknown field 'injected_field' is not allowed",
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'injected_field',
+              message: "Unknown field 'injected_field' is not allowed",
+            }),
+          );
         },
       );
     });
@@ -969,7 +1073,7 @@ describe('VariableValidationService', () => {
         {},
         {},
         (body) => {
-          expect(body.message).toBe('Validation failed for 2 fields');
+          expect(body.message).toBe('Some fields are invalid (2)');
         },
       );
     });
@@ -981,7 +1085,7 @@ describe('VariableValidationService', () => {
         {},
         {},
         (body) => {
-          expect(body.message).toBe('Validation failed for 1 field');
+          expect(body.message).toBe('Some fields are invalid (1)');
         },
       );
     });
@@ -1056,10 +1160,12 @@ describe('VariableValidationService', () => {
         { name: null },
         { 'sys.name': 'System' },
         (errors) => {
-          expect(errors).toContainEqual({
-            field: 'name',
-            message: 'Required field is missing',
-          });
+          expect(errors).toContainEqual(
+            expect.objectContaining({
+              field: 'name',
+              message: 'Required field is missing',
+            }),
+          );
         },
       );
     });

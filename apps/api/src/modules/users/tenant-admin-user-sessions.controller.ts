@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
   Param,
+  ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -65,7 +66,7 @@ export class TenantAdminUserSessionsController {
     description: 'Target user not found in tenant',
   })
   listUserSessions(
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @CurrentUserTenant() admin: AuthenticatedTenantUser,
   ): Promise<SessionListResponseDto> {
     this.logger.log(
@@ -109,7 +110,7 @@ export class TenantAdminUserSessionsController {
     description: 'Target user not found in tenant',
   })
   async forceLogoutUserFromTenant(
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @CurrentUserTenant() admin: AuthenticatedTenantUser,
   ): Promise<MessageResponseDto> {
     this.logger.warn(
@@ -162,7 +163,7 @@ export class TenantAdminUserSessionsController {
     description: 'Target user not found in tenant or session not found',
   })
   async forceLogoutSpecificUserSession(
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @Param() params: SessionIdParamDto,
     @CurrentUserTenant() admin: AuthenticatedTenantUser,
   ): Promise<MessageResponseDto> {

@@ -241,6 +241,11 @@ export class InvitationsService {
         );
       }
 
+      // Verified invitee: from here the transaction acts in the inviting tenant, whose
+      // subscription the seat check reads and where the membership is written (RLS hides both
+      // under the auth-flow context alone)
+      await this.setTenantContext(invitation.tenantId, client);
+
       // Seat capacity check: only for NEW members (not already active).
       // Uses a live COUNT(*) from user_tenants rather than the ledger-based
       // projection, because capacity features are bidirectional (users can be

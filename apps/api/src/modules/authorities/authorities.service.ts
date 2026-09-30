@@ -42,8 +42,13 @@ export class AuthoritiesService {
         );
       }
 
-      const authority =
-        await this.authorityRepository.create(createAuthorityDto);
+      const authority = await this.authorityRepository.create({
+        code: createAuthorityDto.code,
+        name: createAuthorityDto.name,
+        description: createAuthorityDto.description ?? null,
+        country: createAuthorityDto.country,
+        is_active: createAuthorityDto.isActive,
+      });
 
       this.logger.log(`Created authority: ${authority.code}`);
       return authority;
@@ -129,8 +134,12 @@ export class AuthoritiesService {
   ): Promise<Authority> {
     try {
       await this.findById(id);
+      // Unset fields stay undefined, and the repository leaves those columns alone
       const authority = await this.authorityRepository.update(id, {
-        ...updateAuthorityDto,
+        name: updateAuthorityDto.name,
+        description: updateAuthorityDto.description,
+        country: updateAuthorityDto.country,
+        is_active: updateAuthorityDto.isActive,
         updated_at: new Date(),
       });
 

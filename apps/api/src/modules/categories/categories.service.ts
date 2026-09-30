@@ -39,7 +39,13 @@ export class CategoriesService {
         );
       }
 
-      const category = await this.categoryRepository.create(createCategoryDto);
+      const category = await this.categoryRepository.create({
+        code: createCategoryDto.code,
+        name: createCategoryDto.name,
+        description: createCategoryDto.description ?? null,
+        parent_id: createCategoryDto.parentId ?? null,
+        is_active: createCategoryDto.isActive,
+      });
 
       this.logger.log(`Created category: ${category.code}`);
       return category;
@@ -130,8 +136,12 @@ export class CategoriesService {
     try {
       await this.findById(id);
 
+      // Unset fields stay undefined, and the repository leaves those columns alone
       const category = await this.categoryRepository.update(id, {
-        ...updateCategoryDto,
+        name: updateCategoryDto.name,
+        description: updateCategoryDto.description,
+        parent_id: updateCategoryDto.parentId,
+        is_active: updateCategoryDto.isActive,
         updated_at: new Date(),
       });
 

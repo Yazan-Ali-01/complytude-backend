@@ -26,7 +26,21 @@
     "NO_APPLICABLE_RULESETS": "لا توجد مجموعة قواعد نشطة تنطبق على عقد من نوع {documentType} في {jurisdiction}.",
     "TOO_MANY_PAGES": "يحتوي ملف PDF على {pages} صفحة؛ الحد الأقصى الذي يمكننا تحليله هو {maxPages}.",
     "INVALID_PDF": "الملف المرفوع ليس ملف PDF قابلاً للقراءة.",
-    "DOCUMENT_NOT_READY": "يمكن تنزيل الملف بعد فحصه ومعالجته."
+    "DOCUMENT_NOT_READY": "يمكن تنزيل الملف بعد فحصه ومعالجته.",
+    "VARIABLES_INVALID": "بعض الحقول غير صالحة ({count})",
+    "VARIABLE_UNKNOWN_FIELD": "الحقل '{field}' غير معروف وغير مسموح به",
+    "VARIABLE_REQUIRED": "هذا الحقل مطلوب",
+    "VARIABLE_PATTERN": "القيمة لا تطابق التنسيق المطلوب",
+    "VARIABLE_MIN_LENGTH": "يجب ألا يقل عن {min} حرفًا",
+    "VARIABLE_MAX_LENGTH": "يجب ألا يزيد عن {max} حرفًا",
+    "VARIABLE_NOT_A_NUMBER": "يجب أن تكون القيمة رقمًا، وليس '{value}'",
+    "VARIABLE_MIN_VALUE": "يجب ألا تقل القيمة عن {min}",
+    "VARIABLE_MAX_VALUE": "يجب ألا تزيد القيمة عن {max}",
+    "VARIABLE_INVALID_DATE": "تنسيق التاريخ غير صالح، المطلوب YYYY-MM-DD",
+    "VARIABLE_NOT_BOOLEAN": "يجب أن تكون القيمة صحيح أو خطأ",
+    "VARIABLE_NOT_AN_OPTION": "يجب أن تكون القيمة إحدى الخيارات: {options}",
+    "VARIABLE_INVALID_EMAIL": "تنسيق البريد الإلكتروني غير صالح",
+    "VARIABLE_INVALID_PHONE": "تنسيق رقم الهاتف غير صالح"
   },
   "messages": {
     "UPLOAD_CONFIRMED": "تم تأكيد الرفع. تم وضع استخراج النص في قائمة الانتظار.",

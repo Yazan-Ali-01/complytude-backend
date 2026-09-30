@@ -26,7 +26,21 @@
     "NO_APPLICABLE_RULESETS": "No active ruleset applies to a {documentType} contract in {jurisdiction}.",
     "TOO_MANY_PAGES": "The PDF has {pages} pages; the most we can analyse is {maxPages}.",
     "INVALID_PDF": "The uploaded file is not a readable PDF.",
-    "DOCUMENT_NOT_READY": "The file can be downloaded once it has been checked and processed."
+    "DOCUMENT_NOT_READY": "The file can be downloaded once it has been checked and processed.",
+    "VARIABLES_INVALID": "Some fields are invalid ({count})",
+    "VARIABLE_UNKNOWN_FIELD": "Unknown field '{field}' is not allowed",
+    "VARIABLE_REQUIRED": "Required field is missing",
+    "VARIABLE_PATTERN": "Value does not match required pattern",
+    "VARIABLE_MIN_LENGTH": "Must be at least {min} characters",
+    "VARIABLE_MAX_LENGTH": "Must be at most {max} characters",
+    "VARIABLE_NOT_A_NUMBER": "Must be a number, got '{value}'",
+    "VARIABLE_MIN_VALUE": "Must be at least {min}",
+    "VARIABLE_MAX_VALUE": "Must be at most {max}",
+    "VARIABLE_INVALID_DATE": "Invalid date format, expected YYYY-MM-DD",
+    "VARIABLE_NOT_BOOLEAN": "Must be true or false",
+    "VARIABLE_NOT_AN_OPTION": "Must be one of: {options}",
+    "VARIABLE_INVALID_EMAIL": "Invalid email format",
+    "VARIABLE_INVALID_PHONE": "Invalid phone number format"
   },
   "messages": {
     "UPLOAD_CONFIRMED": "Upload confirmed. Text extraction has been queued.",
