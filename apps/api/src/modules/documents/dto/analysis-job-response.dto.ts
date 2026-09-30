@@ -48,7 +48,7 @@ export class AnalysisJobResponseDto {
 
   @ApiPropertyOptional({
     description:
-      'Full analysis result when status is completed: findings, summary, warnings, and provenance (prompt version, embedding model, ruleset versions and chunks given to the model, retrieval settings)',
+      'Full analysis result when status is completed: findings (each with a citation built from the ruleset clause, never by the model, and a risk level that starts from the clause severity), summary, warnings, and provenance (prompt version, embedding model, ruleset versions and chunks given to the model, retrieval settings)',
   })
   result?: Record<string, unknown> | null;
 

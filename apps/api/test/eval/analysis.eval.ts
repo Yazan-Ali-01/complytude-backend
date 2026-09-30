@@ -38,6 +38,7 @@ import type { AnalysisResult } from '../../../worker-ai/src/interfaces/analysis-
 import { AnalysisJobWriteRepository } from '../../../worker-ai/src/repositories/analysis-job-write.repository';
 import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
 import { RulesetChunkSearchRepository } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
+import { citationOf } from '../../../worker-ai/src/services/citation';
 import { DocumentAnalysisService } from '../../../worker-ai/src/services/document-analysis.service';
 import { LlmService } from '../../../worker-ai/src/services/llm.service';
 import {
@@ -223,16 +224,18 @@ describeEval('AI evaluation', () => {
     tokenCounter.onModuleDestroy();
   }
 
-  /** Each finding's source clause (the chunk's `clauseId` metadata), keyed by chunk ID. */
-  async function clauseIdsOf(chunkIds: string[]): Promise<Map<string, string>> {
+  /** The metadata of the chunks findings rest on (source clause ID, citation facts), by chunk ID. */
+  async function chunkMetadataOf(
+    chunkIds: string[],
+  ): Promise<Map<string, Record<string, unknown>>> {
     const { rows } = await app.databaseService.query<{
       id: string;
-      clause_id: string;
+      metadata: Record<string, unknown>;
     }>(
-      `SELECT id, metadata->>'clauseId' AS clause_id FROM public.ruleset_chunks WHERE id = ANY($1::uuid[])`,
+      `SELECT id, metadata FROM public.ruleset_chunks WHERE id = ANY($1::uuid[])`,
       [chunkIds],
     );
-    return new Map(rows.map((row) => [row.id, row.clause_id]));
+    return new Map(rows.map((row) => [row.id, row.metadata]));
   }
 
   async function runCase(
@@ -274,22 +277,28 @@ describeEval('AI evaluation', () => {
         [data.analysisJobId],
       );
       const { status, result, error } = rows[0];
-      const clauseIds = await clauseIdsOf(
+      const chunks = await chunkMetadataOf(
         (result?.findings ?? []).map((f) => f.chunkId),
       );
       runs.push({
         status: thrown && status !== 'failed' ? 'error' : status,
         warnings: result?.warnings ?? [],
         summary: result?.summary ?? '',
-        findings: (result?.findings ?? []).map(
-          (f): RunFinding => ({
+        findings: (result?.findings ?? []).map((f): RunFinding => {
+          const metadata = chunks.get(f.chunkId) ?? {};
+          return {
             rulesetKey: f.rulesetKey ?? 'unknown',
-            clauseId: clauseIds.get(f.chunkId) ?? 'unknown',
+            clauseId:
+              typeof metadata.clauseId === 'string'
+                ? metadata.clauseId
+                : 'unknown',
             riskLevel: f.riskLevel,
             title: f.title,
             description: f.description,
-          }),
-        ),
+            // The stored citation must be the one its clause's ruleset data gives
+            citationValid: f.citation === citationOf(metadata),
+          };
+        }),
         ...((error ?? thrown) && { error: (error ?? thrown)! }),
       });
     }

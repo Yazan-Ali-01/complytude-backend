@@ -35,6 +35,7 @@ export class ClauseChunkerService {
           clauseId: clause.id,
           clauseTitle: clause.title,
           clauseOrder: clause.order,
+          isRequired: clause.isRequired === true,
           isPartial: false,
           metadata: clause.metadata,
         });
@@ -50,6 +51,7 @@ export class ClauseChunkerService {
             clauseId: clause.id,
             clauseTitle: clause.title,
             clauseOrder: clause.order,
+            isRequired: clause.isRequired === true,
             isPartial: true,
             partIndex: subChunk.index,
             totalParts,

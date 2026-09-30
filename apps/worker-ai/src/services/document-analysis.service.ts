@@ -8,6 +8,7 @@ import {
   AnalysisFinding,
   AnalysisResult,
   AnalysisWarning,
+  RiskLevel,
 } from '../interfaces/analysis-result.interface';
 import { AnalysisJobWriteRepository } from '../repositories/analysis-job-write.repository';
 import {
@@ -18,6 +19,7 @@ import {
   RulesetChunkMatch,
   RulesetChunkSearchRepository,
 } from '../repositories/ruleset-chunk-search.repository';
+import { baselineRiskOf, citationOf, finalRisk } from './citation';
 import { LlmService } from './llm.service';
 import { PROMPT_VERSION, PromptBuilderService } from './prompt-builder.service';
 import { RerankerService } from './reranker.service';
@@ -38,16 +40,16 @@ function analysisResultSchema(
             type: 'object',
             properties: {
               clauseId: { type: 'string', enum: clauseIds },
-              clauseRef: { type: 'string' },
               riskLevel: { type: 'string', enum: ['high', 'medium', 'low'] },
+              riskReason: { type: 'string' },
               title: { type: 'string' },
               description: { type: 'string' },
               suggestion: { type: 'string' },
             },
             required: [
               'clauseId',
-              'clauseRef',
               'riskLevel',
+              'riskReason',
               'title',
               'description',
               'suggestion',
@@ -63,7 +65,14 @@ function analysisResultSchema(
   };
 }
 
-type ModelFinding = Omit<AnalysisFinding, 'chunkId' | 'rulesetKey'>;
+interface ModelFinding {
+  clauseId: string;
+  riskLevel: RiskLevel;
+  riskReason: string;
+  title: string;
+  description: string;
+  suggestion: string;
+}
 
 /** Document chunks sampled for the rerank query, and its size in characters. */
 const RERANK_QUERY_SAMPLES = 8;
@@ -335,14 +344,29 @@ export class DocumentAnalysisService {
       );
     }
 
-    // Keep only findings that rest on a clause we supplied
+    // Keep only findings that rest on a clause we supplied; the citation and the baseline risk
+    // come from that clause's ruleset data
     const findings: AnalysisFinding[] = [];
     for (const finding of parsed.findings) {
       const chunk = clauses.get(finding.clauseId);
       if (!chunk) continue;
       const rulesetKey = chunk.metadata.rulesetKey;
+      const baselineRiskLevel = baselineRiskOf(chunk.metadata);
+      const { riskLevel, raised } = finalRisk(
+        baselineRiskLevel,
+        finding.riskLevel,
+      );
+      const riskReason =
+        typeof finding.riskReason === 'string' ? finding.riskReason.trim() : '';
       findings.push({
-        ...finding,
+        clauseId: finding.clauseId,
+        citation: citationOf(chunk.metadata),
+        riskLevel,
+        baselineRiskLevel,
+        ...(raised && riskReason && { riskReason }),
+        title: finding.title,
+        description: finding.description,
+        suggestion: finding.suggestion,
         chunkId: chunk.id,
         rulesetKey: typeof rulesetKey === 'string' ? rulesetKey : null,
       });

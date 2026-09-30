@@ -110,7 +110,7 @@ export class FakeLlmService {
         .slice(0, 1)
         .map((clauseId) => ({
           clauseId,
-          clauseRef: 'fake',
+          riskReason: 'Fake.',
           riskLevel: 'high',
           title: 'Fake finding',
           description: 'Fake finding on the first supplied clause.',

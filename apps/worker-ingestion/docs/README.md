@@ -21,7 +21,7 @@ The Data Ingestion Worker is a standalone NestJS application that consumes jobs 
 4. Chunks clauses using `ClauseChunkerService` (clause-level chunking with token-aware splitting)
 5. Generates embeddings for all chunks (OpenAI `text-embedding-3-small`)
 6. Atomic replace: deletes old chunks for the version, inserts new ones in a single transaction
-7. Stores chunks with rich metadata (clause ID, title, order, authority name, ruleset key, version)
+7. Stores chunks with rich metadata (clause ID, title, order, whether it's required, severity, article, section, source, authority name, ruleset key and name, version)
 
 ### Document Ingestion (`DOCUMENT_INGESTION`)
 
@@ -119,16 +119,24 @@ Each `ruleset_chunks` row includes metadata for traceability:
 
 ```json
 {
-  "clauseId": "clause-uuid",
-  "clauseTitle": "Employment Termination",
-  "clauseOrder": 4,
+  "clauseId": "dmcc_emp_05",
+  "clauseTitle": "Termination Notice – DMCC Specifics",
+  "clauseOrder": 5,
+  "isRequired": true,
+  "severity": "high",
+  "article": "Art. 12",
+  "section": null,
+  "source": null,
   "isPartial": false,
   "tokenCount": 380,
-  "authorityName": "DMCC",
-  "rulesetKey": "dmcc_employment_rules_v1",
+  "authorityName": "Dubai Multi Commodities Centre",
+  "rulesetKey": "dmcc_employment_regulations_v1",
+  "rulesetName": "DMCC Employment Regulations",
   "version": "1.0.0"
 }
 ```
+
+`isRequired` comes from the clause's `is_required`; `severity`, `article`, `section` and `source` (`source_document`) from its `metadata`, `null` when absent. worker-ai builds each finding's citation and baseline severity from them.
 
 For clauses that exceed the token limit and are split:
 

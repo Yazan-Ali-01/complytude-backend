@@ -14,6 +14,8 @@ export interface ClauseInput {
   title: string;
   content: string;
   order: number;
+  /** A mandatory requirement: checked whatever the contract says. */
+  isRequired?: boolean;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -24,6 +26,7 @@ export interface ClauseChunk {
   clauseId: string;
   clauseTitle: string;
   clauseOrder: number;
+  isRequired: boolean;
   isPartial: boolean;
   partIndex?: number;
   totalParts?: number;

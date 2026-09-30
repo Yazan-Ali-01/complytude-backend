@@ -129,8 +129,10 @@ Tracks the lifecycle of each analysis request.
 {
   "findings": [
     {
-      "clauseRef": "DMCC Employment Rule 4.2",
+      "clauseId": "C3",
+      "citation": "Dubai Multi Commodities Centre — DMCC Employment Regulations v1.0.0, Art. 4: DMCC Working Hours",
       "riskLevel": "high",
+      "baselineRiskLevel": "high",
       "title": "Probation exceeds maximum",
       "description": "The contract specifies a 12-month probation...",
       "suggestion": "Reduce probation period to 6 months..."

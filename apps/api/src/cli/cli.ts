@@ -6,16 +6,22 @@ import {
   PlatformAdminBootstrapService,
 } from './platform-admin/platform-admin-bootstrap.service';
 import { PlatformAdminCliModule } from './platform-admin/platform-admin-cli.module';
+import { RulesetReingestCliModule } from './rulesets/ruleset-reingest-cli.module';
+import { RulesetReingestService } from './rulesets/ruleset-reingest.service';
 
 export const GRANT_PLATFORM_ADMIN_COMMAND = 'grant-platform-admin';
+export const REINGEST_RULESETS_COMMAND = 'reingest-rulesets';
 
 const USAGE = [
   `Usage: node dist/apps/api/main.js ${GRANT_PLATFORM_ADMIN_COMMAND} <email> [--role <role>]`,
   `       pnpm admin:grant <email> [--role <role>]`,
+  `       node dist/apps/api/main.js ${REINGEST_RULESETS_COMMAND}`,
+  `       pnpm rulesets:reingest`,
   '',
   `Roles: ${Object.values(SystemPlatformRole).join(', ')} (default ${SystemPlatformRole.SYSTEM_ADMIN})`,
   'A new account is created verified, without a password, and emailed a set-password link.',
   'An existing account must have a verified email; its sessions are ended when its role changes.',
+  `${REINGEST_RULESETS_COMMAND} queues ingestion of every active ruleset version (worker-ingestion runs it).`,
 ].join('\n');
 
 interface GrantArgs {
@@ -95,6 +101,33 @@ async function grantPlatformAdmin(args: string[]): Promise<number> {
   }
 }
 
+async function reingestRulesets(args: string[]): Promise<number> {
+  if (args.length > 0) {
+    console.error(`Unexpected argument: ${args[0]}\n\n${USAGE}`);
+    return 2;
+  }
+  const app = await NestFactory.createApplicationContext(
+    RulesetReingestCliModule,
+    { logger: ['error', 'warn', 'log'] },
+  );
+  try {
+    const queued = await app
+      .get(RulesetReingestService)
+      .reingestActiveVersions();
+    for (const version of queued) {
+      console.log(
+        `Queued ruleset ${version.rulesetId} v${version.version} (version ${version.versionId}, job ${version.jobId ?? '?'})`,
+      );
+    }
+    console.log(
+      `${queued.length} active ruleset versions queued for re-ingestion.`,
+    );
+    return 0;
+  } finally {
+    await app.close();
+  }
+}
+
 /**
  * Runs a one-off command instead of the HTTP server. Returns the process exit code.
  */
@@ -102,6 +135,9 @@ export async function runCli(argv: string[]): Promise<number> {
   const [command, ...args] = argv;
   if (command === GRANT_PLATFORM_ADMIN_COMMAND) {
     return grantPlatformAdmin(args);
+  }
+  if (command === REINGEST_RULESETS_COMMAND) {
+    return reingestRulesets(args);
   }
   console.error(`Unknown command: ${command}\n\n${USAGE}`);
   return 2;

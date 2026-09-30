@@ -123,6 +123,12 @@ The worker uses a **hybrid retrieval** approach combining two complementary sear
 
 Contracts are untrusted: the counterparty drafts them. The system message holds our instructions and the retrieved clauses, each with an ID (`C1`, `C2`, …). The document goes in the user message between `<<<DOCUMENT-{nonce}>>>` and `<<<END-DOCUMENT-{nonce}>>>`, with a random nonce per call; anything in the document that looks like one of those markers is replaced, and the model is told to treat the block as data and to report text that tries to steer the review. Every finding must carry a `clauseId` from the supplied set (the JSON schema enumerates them); findings that don't are dropped and counted.
 
+### Citations and severity
+
+The model never writes a citation. Each clause in the prompt is headed with the citation built from its ruleset data (`citation.ts`: authority, ruleset name, version, article or section, title), and the finding stores that same citation. A finding's `riskLevel` starts from the clause's own `severity` (critical/high → high, medium → medium, low → low); the model can only raise it, and its `riskReason` is kept when it does. Clauses without a severity take the model's level.
+
+This needs the clause facts on every chunk (`isRequired`, `severity`, `article`, `section`, `source`, `rulesetName`, written by worker-ingestion). Chunks ingested before those fields existed cite only the ruleset and title: re-ingest them with `pnpm rulesets:reingest` (see `docs/DEPLOYMENT.md`).
+
 ### What leaves the worker
 
 - **OpenAI embeddings:** the document's chunks. **Cohere rerank:** chunks sampled across the document. **OpenAI chat:** the document (up to the context budget) and the retrieved clauses.
@@ -146,8 +152,11 @@ The API refuses (400) unknown or inactive `rulesetKeys` / `rulesetIds` instead o
 interface AnalysisResult {
   findings: Array<{
     clauseId: string;      // The supplied clause cited (C1, C2, …)
-    clauseRef: string;     // e.g., "DMCC Employment Rule 4.2"
-    riskLevel: 'high' | 'medium' | 'low';
+    citation: string;      // Built from the clause's ruleset data, never by the model:
+                           // "<authority> — <ruleset> v<version>, <article>: <title>"
+    riskLevel: 'high' | 'medium' | 'low';          // The clause's own severity, or higher if the model raised it
+    baselineRiskLevel: 'high' | 'medium' | 'low' | null; // From the clause's severity (critical/high → high)
+    riskReason?: string;   // The model's one-line reason, kept only when it raised the level
     title: string;         // Short issue title
     description: string;   // Detailed compliance gap description
     suggestion: string;    // Concrete recommendation
@@ -201,7 +210,8 @@ Each run writes `data/eval/results/<timestamp>-<commit>.md` and `.json` (per-run
 | Must-not-flag hits | Findings on a clause or ruleset the label says doesn't apply (e.g. federal labour law on a DIFC contract). |
 | Severity | Matched findings whose highest risk level equals the label. |
 | Mentions | Required mentions found in titles, descriptions or the summary (e.g. the injection attempt is reported). |
-| Citations / Evidence | n/a until findings carry a checkable citation and a quote from the contract. |
+| Citations | Findings whose stored citation is the one their clause's ruleset data gives. |
+| Evidence | n/a until findings carry a quote from the contract. |
 | Agreement | Mean pairwise overlap (Jaccard) of the clauses flagged by repeated runs of the same contract. |
 
 The report also lists, per contract, the expected clauses missed, the must-not-flag hits, and the unlabelled findings (candidates for new labels).

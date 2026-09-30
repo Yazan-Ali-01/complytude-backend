@@ -121,6 +121,18 @@ export class RulesetVersionRepository extends BaseRepository<
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
 
+  /** Every ruleset's active version: what retrieval can cite. */
+  async findAllActive(options?: QueryOptions): Promise<RulesetVersion[]> {
+    const result = await this.executeQuery<RulesetVersionRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE is_active = true
+       ORDER BY created_at`,
+      [],
+      options,
+    );
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
   protected getSelectColumns(): string {
     return 'id, ruleset_id, version, clauses, changelog, rolled_back_from_version, is_active, created_by, created_at';
   }

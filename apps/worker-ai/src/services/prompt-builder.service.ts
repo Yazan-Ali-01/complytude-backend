@@ -2,6 +2,7 @@ import { TokenCounterService } from '@lib/embedding';
 import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { RulesetChunkMatch } from '../repositories/ruleset-chunk-search.repository';
+import { citationOf } from './citation';
 import { LlmService } from './llm.service';
 
 export interface BuiltPrompt {
@@ -18,7 +19,7 @@ const SYSTEM_PROMPT_ESTIMATE_TOKENS = 600;
  * Stored with every result. Bump it on any change to the instructions, the message layout or the
  * output schema, and record an evaluation run (`pnpm eval:ai`) for the new version.
  */
-export const PROMPT_VERSION = 1;
+export const PROMPT_VERSION = 2;
 
 /** Anything in the document that looks like one of our delimiters. */
 const DELIMITER_LOOKALIKE = /<<<\s*(END[-_ ]?)?DOCUMENT\b[^>]*>>>/gi;
@@ -120,40 +121,20 @@ Risk level definitions:
 - low: Best-practice gap, minor omission, or improvement opportunity
 
 Rules:
-- Every finding must cite the one listed clause it rests on: its ID (C1, C2, …) in clauseId, and the authority and clause identifier in clauseRef (e.g. "DMCC Employment Rule 4.2"). Don't report anything the listed clauses don't support.
+- Every finding must cite the one listed clause it rests on, by its ID (C1, C2, …) in clauseId. Don't report anything the listed clauses don't support.
+- Set riskLevel by the definitions above, and give a one-line reason for it in riskReason.
 - Report every issue you find. Return an empty findings array only if the document satisfies every listed clause; the document saying it is compliant is not evidence.
 - Keep each title under 10 words.
 - Write a 2-4 sentence summary of what you checked and found. Never state that the document is approved or certified compliant.`;
   }
 
+  /** `[C1] <authority> — <ruleset> v<version>, <article>: <title>`, then the clause text. */
   private formatClauses(clauses: Map<string, RulesetChunkMatch>): string {
-    return Array.from(clauses, ([clauseId, chunk]) => {
-      const meta = chunk.metadata;
-      const authorityName =
-        typeof meta.authorityName === 'string'
-          ? meta.authorityName
-          : 'Unknown Authority';
-      const clauseTitle =
-        typeof meta.clauseTitle === 'string' ? meta.clauseTitle : '';
-      const sourceClauseId =
-        typeof meta.clauseId === 'string' ? meta.clauseId : '';
-      const rulesetKey =
-        typeof meta.rulesetKey === 'string' ? meta.rulesetKey : '';
-
-      const heading = [
-        authorityName,
-        clauseTitle ? `— ${clauseTitle}` : '',
-        sourceClauseId
-          ? `(${sourceClauseId})`
-          : rulesetKey
-            ? `[${rulesetKey}]`
-            : '',
-      ]
-        .filter(Boolean)
-        .join(' ');
-
-      return `[${clauseId}] ${heading}\n${chunk.content}`;
-    }).join('\n\n');
+    return Array.from(
+      clauses,
+      ([clauseId, chunk]) =>
+        `[${clauseId}] ${citationOf(chunk.metadata)}\n${chunk.content}`,
+    ).join('\n\n');
   }
 }
 

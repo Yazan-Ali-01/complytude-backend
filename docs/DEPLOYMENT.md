@@ -487,6 +487,14 @@ pnpm admin:grant auditor@company.com --role auditor # support | auditor
 
 The command exits non-zero, and changes nothing, if the account exists but its email isn't verified.
 
+### Re-ingest Rulesets
+
+When ingestion starts storing something new on ruleset chunks (as it did for each clause's article, severity and required flag, which citations are built from), rebuild the existing chunks: this queues an ingestion job for every active ruleset version, which worker-ingestion runs (it re-embeds every clause, so it costs one embedding call per chunk).
+
+```bash
+pnpm rulesets:reingest   # or, as a one-off ECS task: ["node","dist/apps/api/main.js","reingest-rulesets"]
+```
+
 ### Close the Tunnel
 
 Stop the `aws ssm start-session` command (Ctrl-C).

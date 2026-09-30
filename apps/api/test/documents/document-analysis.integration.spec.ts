@@ -71,16 +71,28 @@ describe('Document analysis: injection, grounding and honest status', () => {
   /** Every faked clause comes from version 1 of its ruleset. */
   const versionOf = (rulesetId: string): string => `${rulesetId}:v1`;
 
-  function chunk(rulesetId: string, clause: string): RulesetChunkMatch {
+  /** A clause as ingestion stores it: `clause` is its article. */
+  function chunk(
+    rulesetId: string,
+    clause: string,
+    metadata: Record<string, unknown> = {},
+  ): RulesetChunkMatch {
     return {
       id: randomUUID(),
       rulesetId,
       rulesetVersionId: versionOf(rulesetId),
       content: `${clause}: working time and wages must follow the law.`,
       metadata: {
-        authorityName: 'UAE Labour Law',
-        clauseId: clause,
+        authorityName: 'MOHRE',
+        rulesetName: 'UAE Labour Law',
         rulesetKey: 'uae_labour_law',
+        version: '1.0.0',
+        clauseId: `lab_${clause}`,
+        clauseTitle: 'Working time and wages',
+        article: clause,
+        severity: 'high',
+        isRequired: true,
+        ...metadata,
       },
       score: 1,
     };
@@ -205,7 +217,9 @@ describe('Document analysis: injection, grounding and honest status', () => {
 
     const [call] = calls;
     // The rules and the untrusted-data instruction are ours, in the system message
-    expect(call.systemPrompt).toContain('[C1] UAE Labour Law (Art. 17)');
+    expect(call.systemPrompt).toContain(
+      '[C1] MOHRE — UAE Labour Law v1.0.0, Art. 17: Working time and wages',
+    );
     expect(call.systemPrompt).toMatch(/untrusted input/);
     expect(call.userMessage).not.toContain('Art. 17');
     // The document sits between markers with a nonce it can't guess; its forged marker is removed
@@ -257,6 +271,65 @@ describe('Document analysis: injection, grounding and honest status', () => {
     expect(rerankQueries[0]).toContain('70 hours a week');
   });
 
+  it('takes the citation and baseline risk from the clause, whatever the model says', async () => {
+    const data = await job('The employee works 70 hours a week.');
+    const hours = chunk(ruleset, 'Art. 17', { severity: 'critical' });
+    const leave = chunk(ruleset, 'Art. 29', {
+      severity: 'medium',
+      clauseTitle: 'Annual leave',
+    });
+    modelAnswer = {
+      summary: 'Checked.',
+      findings: [
+        {
+          clauseId: 'C1',
+          riskLevel: 'low',
+          riskReason: 'Only a few extra hours.',
+          title: 'Hours over the limit',
+          description: '70 hours a week',
+          suggestion: 'Cap at 48 hours',
+        },
+        {
+          clauseId: 'C2',
+          riskLevel: 'high',
+          riskReason: 'Leave is removed for every employee.',
+          title: 'No annual leave',
+          description: 'No leave in the first year',
+          suggestion: 'Grant 30 days',
+        },
+      ],
+    };
+
+    await worker({ chunks: [hours, leave] }).analyze(data);
+
+    // The model is never asked for a citation, and names no article
+    expect(calls[0].systemPrompt).toContain(
+      '[C1] MOHRE — UAE Labour Law v1.0.0, Art. 17: Working time and wages',
+    );
+    const { result } = await stored(data.analysisJobId);
+    const [first, second] = result!.findings;
+    // A critical clause stays high even though the model said low, and its reason is dropped
+    expect(first).toEqual({
+      clauseId: 'C1',
+      citation:
+        'MOHRE — UAE Labour Law v1.0.0, Art. 17: Working time and wages',
+      riskLevel: 'high',
+      baselineRiskLevel: 'high',
+      title: 'Hours over the limit',
+      description: '70 hours a week',
+      suggestion: 'Cap at 48 hours',
+      chunkId: hours.id,
+      rulesetKey: 'uae_labour_law',
+    });
+    // The model may raise a medium clause, and its reason is kept
+    expect(second).toMatchObject({
+      citation: 'MOHRE — UAE Labour Law v1.0.0, Art. 29: Annual leave',
+      riskLevel: 'high',
+      baselineRiskLevel: 'medium',
+      riskReason: 'Leave is removed for every employee.',
+    });
+  });
+
   it('keeps only findings that cite a supplied clause', async () => {
     const data = await job('The employee works 70 hours a week.');
     const cited = chunk(ruleset, 'Art. 17');
@@ -265,7 +338,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
       findings: [
         {
           clauseId: 'C1',
-          clauseRef: 'UAE Labour Law Art. 17',
+          riskReason: 'Stated by the clause.',
           riskLevel: 'high',
           title: 'Hours over the legal limit',
           description: '70 hours a week',
@@ -273,7 +346,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
         },
         {
           clauseId: 'C7',
-          clauseRef: 'Invented Rule 99',
+          riskReason: 'Stated by the clause.',
           riskLevel: 'low',
           title: 'Not in the supplied clauses',
           description: '…',
@@ -308,7 +381,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
       findings: [
         {
           clauseId: 'C1',
-          clauseRef: 'UAE Labour Law Art. 17',
+          riskReason: 'Stated by the clause.',
           riskLevel: 'high',
           title: 'Hours over the legal limit',
           description: '70 hours a week',
@@ -372,7 +445,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
       findings: [
         {
           clauseId: 'C1',
-          clauseRef: 'UAE Labour Law Art. 17',
+          riskReason: 'Stated by the clause.',
           riskLevel: 'low',
           title: 'Minor gap',
           description: '…',
@@ -454,7 +527,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
       findings: [
         {
           clauseId: 'C1',
-          clauseRef: 'UAE Labour Law Art. 17',
+          riskReason: 'Stated by the clause.',
           riskLevel: 'high',
           title: 'Hours over the legal limit',
           description: '70 hours a week',

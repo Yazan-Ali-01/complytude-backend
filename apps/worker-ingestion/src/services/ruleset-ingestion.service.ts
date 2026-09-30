@@ -96,7 +96,8 @@ export class RulesetIngestionService {
         );
       });
 
-    // 5. Build rows for insert
+    // 5. Build rows for insert. The clause's own facts (mandatory, severity, article) travel with
+    // every chunk: citations and baseline severity are built from them, never by the model.
     const rows: RulesetChunkInsertRow[] = chunks.map((chunk, i) => ({
       rulesetId,
       rulesetVersionId: versionId,
@@ -107,6 +108,11 @@ export class RulesetIngestionService {
         clauseId: chunk.clauseId,
         clauseTitle: chunk.clauseTitle,
         clauseOrder: chunk.clauseOrder,
+        isRequired: chunk.isRequired,
+        severity: stringOrNull(chunk.metadata?.severity),
+        article: stringOrNull(chunk.metadata?.article),
+        section: stringOrNull(chunk.metadata?.section),
+        source: stringOrNull(chunk.metadata?.source_document),
         isPartial: chunk.isPartial,
         ...(chunk.isPartial && {
           partIndex: chunk.partIndex,
@@ -115,6 +121,7 @@ export class RulesetIngestionService {
         tokenCount: chunk.tokenCount,
         authorityName: ruleset.authorityName,
         rulesetKey: ruleset.key,
+        rulesetName: ruleset.name,
         version: version.version,
       },
     }));
@@ -164,6 +171,7 @@ export class RulesetIngestionService {
         title: typeof c.title === 'string' ? c.title : '',
         content: typeof c.content === 'string' ? c.content : '',
         order: typeof c.order === 'number' ? c.order : 0,
+        isRequired: c.is_required === true,
         metadata:
           typeof c.metadata === 'object' && c.metadata !== null
             ? (c.metadata as Record<string, unknown>)
@@ -181,4 +189,8 @@ export class RulesetIngestionService {
 
     return valid;
   }
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }

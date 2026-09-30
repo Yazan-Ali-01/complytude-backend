@@ -3,8 +3,14 @@ export type RiskLevel = 'high' | 'medium' | 'low';
 export interface AnalysisFinding {
   /** The supplied clause the finding rests on (C1, C2, … in the prompt); always one we gave it. */
   clauseId: string;
-  clauseRef: string;
+  /** Built from the clause's ruleset data (authority, ruleset, version, article), not by the model. */
+  citation: string;
+  /** The clause's own severity, or the model's level when it raised it (with riskReason). */
   riskLevel: RiskLevel;
+  /** From the clause's severity (critical/high → high); null when the ruleset gives none. */
+  baselineRiskLevel: RiskLevel | null;
+  /** The model's reason, kept only when it raised the risk above the baseline. */
+  riskReason?: string;
   title: string;
   description: string;
   suggestion: string;
