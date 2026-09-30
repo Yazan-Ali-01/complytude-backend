@@ -739,7 +739,7 @@ Table usage_ledger {
   feature_id uuid [not null, ref: > features.id]
   user_id uuid [ref: > users.id]
   units integer [not null, note: 'Must be > 0']
-  billing_period varchar(7) [not null, note: 'YYYY-MM format']
+  billing_period varchar(32) [not null, note: 'Period key: current_period_start in UTC to the millisecond (migration 035)']
   resource_type varchar(50)
   resource_id uuid
   metadata jsonb [default: '{}']
@@ -819,7 +819,7 @@ Table aggregated_usage {
   tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
   subscription_id uuid [not null, ref: > tenant_subscriptions.id]
   feature_id uuid [not null, ref: > features.id]
-  billing_period varchar(7) [not null]
+  billing_period varchar(32) [not null, note: 'Period key: current_period_start in UTC to the millisecond (migration 035)']
   total_units integer [not null, default: 0]
   plan_units integer [not null, default: 0]
   addon_units integer [not null, default: 0]
@@ -833,7 +833,7 @@ Table aggregated_usage {
     subscription_id
     feature_id
     billing_period
-    (tenant_id, subscription_id, feature_id, billing_period) [unique]
+    (subscription_id, feature_id, billing_period) [unique, note: 'One row per period: quotas reset every period (migration 035)']
   }
 
   Note: 'Derived projection of usage. Updated async (BullMQ) or via strict CAS near limits. Rebuildable from usage_allocations.'

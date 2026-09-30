@@ -1,4 +1,5 @@
 import { DatabaseService } from '@lib/database';
+import { deriveBillingPeriod } from 'src/common/utils/billing.util';
 import {
   BadRequestException,
   Body,
@@ -364,7 +365,7 @@ export class UsageMockController {
           throw new BadRequestException('No active subscription');
         }
 
-        const billingPeriod = this.deriveBillingPeriod(
+        const billingPeriod = deriveBillingPeriod(
           subscription.current_period_start,
         );
 
@@ -372,6 +373,7 @@ export class UsageMockController {
           user.tenantId,
           subscription.id, // Use subscription ID (unambiguous)
           featureKey,
+          deriveBillingPeriod(subscription.current_period_start),
           { client },
         );
 
@@ -430,7 +432,7 @@ export class UsageMockController {
           throw new BadRequestException('No active subscription');
         }
 
-        const billingPeriod = this.deriveBillingPeriod(
+        const billingPeriod = deriveBillingPeriod(
           subscription.current_period_start,
         );
 
@@ -489,7 +491,7 @@ export class UsageMockController {
   // Shows the current billing period from the tenant's subscription
   // Expected behavior:
   // - Returns current period start/end dates
-  // - Shows billing period string (YYYY-MM format)
+  // - Shows the billing period key (the period start, UTC)
   // Demonstrates:
   // - How billing periods are derived from subscriptions
   // - Period boundaries for usage tracking
@@ -508,7 +510,7 @@ export class UsageMockController {
         if (!subscription) {
           throw new BadRequestException('No active subscription');
         }
-        const billingPeriod = this.deriveBillingPeriod(
+        const billingPeriod = deriveBillingPeriod(
           subscription.current_period_start,
         );
 
@@ -520,7 +522,7 @@ export class UsageMockController {
           currentPeriodEnd: subscription.current_period_end,
           billingPeriodStart: subscription.billing_period_start,
           billingPeriodEnd: subscription.billing_period_end,
-          note: 'Usage is tracked per billing period (YYYY-MM format)',
+          note: 'Usage is tracked per billing period (keyed by the period start)',
         };
       },
     );
@@ -558,7 +560,7 @@ export class UsageMockController {
         if (!subscription) {
           throw new BadRequestException('No active subscription');
         }
-        const billingPeriod = this.deriveBillingPeriod(
+        const billingPeriod = deriveBillingPeriod(
           subscription.current_period_start,
         );
         const feature = await this.featuresRepository.findByKey(featureKey, {
@@ -630,7 +632,7 @@ export class UsageMockController {
           throw new BadRequestException('No active subscription');
         }
 
-        const billingPeriod = this.deriveBillingPeriod(
+        const billingPeriod = deriveBillingPeriod(
           subscription.current_period_start,
         );
 
@@ -664,6 +666,7 @@ export class UsageMockController {
             user.tenantId,
             subscription.id, // Use subscription ID
             featureKey,
+            deriveBillingPeriod(subscription.current_period_start),
             { client },
           );
 
@@ -743,6 +746,7 @@ export class UsageMockController {
       user.tenantId,
       subscription.id, // Use subscription ID
       featureKey,
+      deriveBillingPeriod(subscription.current_period_start),
       { tenant },
     );
 
@@ -787,10 +791,4 @@ export class UsageMockController {
   // ============================================
   // Helper Methods
   // ============================================
-
-  private deriveBillingPeriod(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  }
 }

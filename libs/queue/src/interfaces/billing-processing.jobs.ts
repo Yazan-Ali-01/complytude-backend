@@ -4,6 +4,7 @@ export const BILLING_JOB_NAMES = {
   STRIPE_RECONCILIATION: 'stripe-reconciliation',
   STRIPE_WEBHOOK_PROCESSING: 'stripe-webhook-processing',
   STRIPE_WEBHOOK_REDRIVE: 'stripe-webhook-redrive',
+  SUBSCRIPTION_RENEWAL: 'subscription-renewal',
 } as const;
 
 export type BillingJobName =
@@ -45,3 +46,6 @@ export interface StripeWebhookProcessingJobData {
 
 /** Scheduled sweep that re-drives failed and stranded webhook events. */
 export type StripeWebhookRedriveJobData = Record<string, never>;
+
+/** Scheduled renewal of local (free plan) subscriptions whose period has ended. */
+export type SubscriptionRenewalJobData = Record<string, never>;

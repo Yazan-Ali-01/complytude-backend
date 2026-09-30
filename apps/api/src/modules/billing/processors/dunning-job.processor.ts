@@ -15,6 +15,7 @@ import { PaymentActionRequiredHandler } from '../handlers/payment-action-require
 import { StripeReconciliationHandler } from '../handlers/stripe-reconciliation.handler';
 import { StripeWebhookProcessingHandler } from '../handlers/stripe-webhook-processing.handler';
 import { StripeWebhookRedriveHandler } from '../handlers/stripe-webhook-redrive.handler';
+import { SubscriptionRenewalHandler } from '../handlers/subscription-renewal.handler';
 
 /**
  * Billing Queue Processor
@@ -27,6 +28,7 @@ import { StripeWebhookRedriveHandler } from '../handlers/stripe-webhook-redrive.
  * - Stripe reconciliation jobs (scheduled and manual)
  * - Stripe webhook processing (async webhook handling)
  * - Stripe webhook re-drive (scheduled sweep of failed events)
+ * - Free-plan subscription renewal (scheduled)
  */
 @Processor(QUEUE_NAMES.BILLING_PROCESSING)
 export class DunningJobProcessor extends AbstractProcessor<unknown> {
@@ -38,6 +40,7 @@ export class DunningJobProcessor extends AbstractProcessor<unknown> {
     private readonly stripeReconciliationHandler: StripeReconciliationHandler,
     private readonly stripeWebhookProcessingHandler: StripeWebhookProcessingHandler,
     private readonly stripeWebhookRedriveHandler: StripeWebhookRedriveHandler,
+    private readonly subscriptionRenewalHandler: SubscriptionRenewalHandler,
   ) {
     super();
   }
@@ -66,6 +69,9 @@ export class DunningJobProcessor extends AbstractProcessor<unknown> {
 
       case BILLING_JOB_NAMES.STRIPE_WEBHOOK_REDRIVE:
         return this.stripeWebhookRedriveHandler.execute();
+
+      case BILLING_JOB_NAMES.SUBSCRIPTION_RENEWAL:
+        return this.subscriptionRenewalHandler.execute();
 
       default:
         throw new Error(`Unknown billing job type: ${job.name}`);

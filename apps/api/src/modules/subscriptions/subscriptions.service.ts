@@ -20,6 +20,8 @@ import {
   TenantSubscriptionWithPlan,
 } from 'src/repositories/subscriptions/subscriptions.repository';
 import { DomainEventsService } from '../entitlements/services/domain-events.service';
+import { EntitlementCacheService } from '../entitlements/services/entitlement-cache.service';
+import { addMonths } from 'src/common/utils/billing.util';
 import { SubscriptionsI18n } from './constants/i18n.constants';
 
 /**
@@ -44,6 +46,7 @@ export class SubscriptionsService {
     private readonly entitlementSnapshotsRepository: EntitlementSnapshotsRepository,
     private readonly domainEventsService: DomainEventsService,
     private readonly i18n: I18nService,
+    private readonly entitlementCache: EntitlementCacheService,
   ) {}
 
   /**
@@ -124,8 +127,7 @@ export class SubscriptionsService {
       );
 
       const now = new Date();
-      const periodEnd = new Date(now);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      const periodEnd = addMonths(now, 1);
 
       const subscription = await this._createSubscription(
         tenantId,
@@ -309,20 +311,10 @@ export class SubscriptionsService {
   }
 
   /**
-   * Renew billing period for a tenant
-   *
-   * Flow:
-   * 1. Find active subscription
-   * 2. Set current_period_start = old current_period_end
-   * 3. Set current_period_end = +1 month from new start
-   * 4. Update subscription
-   * 5. Emit domain event
-   * 6. Return updated subscription
-   *
-   * Note: This does NOT reset aggregated usage. Usage is tied to subscription_id,
-   * so a new period within the same subscription continues accumulating usage.
-   * To reset usage, you would need to create a new subscription or manually clear
-   * the aggregated_usage table.
+   * Renew the billing period of a local (free plan) subscription: the new period starts where the
+   * old one ended and runs one month, repeated until it contains now (a renewal that ran late
+   * catches up in one go). Usage is counted per period, so the new period starts from zero.
+   * Stripe-backed subscriptions renew through Stripe's webhooks instead.
    *
    * @param tenantId - Tenant ID
    * @returns Updated subscription with new period
@@ -349,9 +341,13 @@ export class SubscriptionsService {
 
       this.assertNotStripeManaged(subscription);
 
-      const newPeriodStart = subscription.current_period_end;
-      const newPeriodEnd = new Date(newPeriodStart);
-      newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+      let newPeriodStart = subscription.current_period_end;
+      let newPeriodEnd = addMonths(newPeriodStart, 1);
+      const now = new Date();
+      while (newPeriodEnd <= now) {
+        newPeriodStart = newPeriodEnd;
+        newPeriodEnd = addMonths(newPeriodStart, 1);
+      }
 
       const renewedSubscription =
         await this.subscriptionsRepository.updatePeriod(
@@ -394,10 +390,13 @@ export class SubscriptionsService {
       return execute(options.client);
     }
 
-    return this.databaseService.transactionWithTenantContext(
+    const renewed = await this.databaseService.transactionWithTenantContext(
       { tenantId },
       execute,
     );
+    // Enforcement caches the subscription, period included: drop it once the new period is in
+    this.entitlementCache.invalidateSubscription(tenantId);
+    return renewed;
   }
 
   /**

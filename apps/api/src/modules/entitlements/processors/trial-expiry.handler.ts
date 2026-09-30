@@ -1,4 +1,6 @@
 import { DatabaseService } from '@lib/database';
+import { EntitlementCacheService } from '../services/entitlement-cache.service';
+import { addMonths } from 'src/common/utils/billing.util';
 import type { EntitlementTrialExpiryCheckJobData, Job } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
 import { TRIAL_CONFIG } from 'src/common/constants/trial-config.constant';
@@ -31,6 +33,7 @@ export class TrialExpiryHandler {
     private readonly plansRepository: PlansRepository,
     private readonly entitlementSnapshotsRepository: EntitlementSnapshotsRepository,
     private readonly domainEventsService: DomainEventsService,
+    private readonly entitlementCache: EntitlementCacheService,
   ) {}
 
   async execute(job: Job<EntitlementTrialExpiryCheckJobData>): Promise<void> {
@@ -73,8 +76,7 @@ export class TrialExpiryHandler {
           await this.databaseService.transactionWithPlatformAdminContext(
             async (client) => {
               const now = new Date();
-              const periodEnd = new Date(now);
-              periodEnd.setMonth(periodEnd.getMonth() + 1);
+              const periodEnd = addMonths(now, 1);
 
               const previousPlan = await this.plansRepository.findById(
                 subscription.plan_id,
@@ -127,6 +129,8 @@ export class TrialExpiryHandler {
               );
             },
           );
+          // Enforcement caches the subscription (plan and period): drop it once the change is in
+          this.entitlementCache.invalidateSubscription(subscription.tenant_id);
           totalProcessed++;
         } catch (error) {
           this.logger.error(

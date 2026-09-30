@@ -1,4 +1,5 @@
 import { DatabaseService } from '@lib/database';
+import { deriveBillingPeriod } from 'src/common/utils/billing.util';
 import {
   BadRequestException,
   Body,
@@ -355,6 +356,7 @@ export class CreditsMockController {
           user.tenantId,
           subscription.id,
           'documents_per_month',
+          deriveBillingPeriod(subscription.current_period_start),
           { client },
         );
 
@@ -444,6 +446,7 @@ export class CreditsMockController {
           user.tenantId,
           subscription.id,
           'documents_per_month',
+          deriveBillingPeriod(subscription.current_period_start),
           { client },
         );
 
@@ -555,6 +558,7 @@ export class CreditsMockController {
           user.tenantId,
           subscription.id,
           'license_verifier_lookups',
+          deriveBillingPeriod(subscription.current_period_start),
           { client },
         );
 
@@ -804,6 +808,7 @@ export class CreditsMockController {
             user.tenantId,
             subscription.id,
             featureKey,
+            deriveBillingPeriod(subscription.current_period_start),
             { client },
           );
 

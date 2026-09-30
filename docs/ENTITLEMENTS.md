@@ -105,10 +105,12 @@ Every time a tenant uses a feature, a **usage event** is recorded:
   allocations: [
     { source: "plan", units: 1 }  // or "addon", "credit", "override"
   ],
-  billing_period: "2026-02",
+  billing_period: "2026-02-01T08:00:00.000Z", // the period's start: usage counts per period
   recorded_at: "2026-02-07T10:30:00Z"
 }
 ```
+
+**Billing periods:** usage is counted per period, keyed by the instant the period started (`current_period_start`, UTC to the millisecond; `deriveBillingPeriod` in `common/utils/billing.util.ts`). `aggregated_usage` is unique on `(subscription_id, feature_id, billing_period)`, so every new period starts from zero: a Stripe renewal (`invoice.paid` / `customer.subscription.updated` store the new period), a free-plan renewal (the hourly `subscription-renewal` job), a trial ending, a paid checkout. Enforcement caches the subscription for up to 60 s; each of these drops the cached copy.
 
 **Source Attribution:**
 
@@ -486,7 +488,7 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 4. Record usage event to ledger (in transaction):
    - tenant_id, feature_id, units: 1
    - allocations: [{ source: 'plan', units: 1 }]
-   - billing_period: '2026-02'
+   - billing_period: '2026-02-01T08:00:00.000Z'
 
 5. Transaction commits
 
@@ -822,16 +824,17 @@ A Stripe-backed subscription's plan, status and period change only through Strip
 ### Flow 9: Billing Period Renewal
 
 ```
-1. Scheduled job runs daily at midnight (BullMQ cron)
+1. `subscription-renewal` (billing-processing queue) runs every hour, in every environment
 2. Job calls: SubscriptionsService.renewAllDuePeriods()
-3. For each subscription where current_period_end <= now:
-   - Update current_period_start = old current_period_end
-   - Update current_period_end = +1 month
-   - Emit 'subscription.renewed' event
+3. For each local (free-plan) subscription where current_period_end <= now:
+   - current_period_start = old current_period_end, current_period_end = one calendar month later
+     (clamped to month end), repeated until the period contains now
+   - Emit 'subscription.renewed' event; drop the cached subscription
 4. Next usage request:
-   - Derives billing_period from new current_period_start
-   - Usage is tracked against new period
-   - Old period's aggregated_usage remains for history
+   - Derives billing_period from the new current_period_start
+   - Usage counts from zero in the new period
+   - Old period's aggregated_usage rows remain as history
+(Stripe-backed subscriptions renew through Stripe's webhooks, which store the new period.)
 ```
 
 ---
@@ -1226,7 +1229,7 @@ export class AuditService {
     "feature_type": "quota",
     "units": 1,
     "allocations": [{ "source": "plan", "units": 1 }],
-    "billing_period": "2026-02",
+    "billing_period": "2026-02-01T08:00:00.000Z",
     "resource_type": "document",
     "resource_id": "document_uuid",
     "enforcement_mode": "async",

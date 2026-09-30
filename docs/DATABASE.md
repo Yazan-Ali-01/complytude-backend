@@ -185,7 +185,7 @@ Production-grade entitlement engine with usage tracking and credit system:
 
 **Projections & Snapshots (Performance Cache):**
 
-- `aggregated_usage` - Derived usage counts per billing period
+- `aggregated_usage` - Derived usage counts per billing period (unique on subscription, feature and period; the period key is `current_period_start` in UTC to the millisecond, migration 035)
 - `entitlement_snapshots` - Cached effective entitlements (24h TTL)
 
 **Domain Events (Audit Trail):**

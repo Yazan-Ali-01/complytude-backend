@@ -61,17 +61,13 @@ export class UsageProjectionService {
   }
 
   /**
-   * Get current aggregated usage for a tenant and feature
-   *
-   * This is the fast read path for quota enforcement checks.
+   * Usage of a feature in a billing period: the fast read path for quota enforcement checks.
    * Returns the projection (not the ledger).
    *
-   * Using subscription_id ensures we check usage for the correct
-   * billing period, even if the subscription started mid-month.
-   *
    * @param tenantId - Tenant ID
-   * @param subscriptionId - Subscription ID (identifies the billing period)
+   * @param subscriptionId - Subscription ID
    * @param featureKey - Feature key (e.g., 'documents_per_month')
+   * @param billingPeriod - Billing period key (`deriveBillingPeriod` of `current_period_start`)
    * @param options - Query options
    * @returns Aggregated usage or null if no usage recorded yet
    */
@@ -79,12 +75,14 @@ export class UsageProjectionService {
     tenantId: string,
     subscriptionId: string,
     featureKey: FeatureKey,
+    billingPeriod: string,
     options?: QueryOptions,
   ): Promise<AggregatedUsage | null> {
     return this.aggregatedUsageRepository.findCurrent(
       tenantId,
       subscriptionId,
       featureKey,
+      billingPeriod,
       options,
     );
   }
@@ -103,7 +101,7 @@ export class UsageProjectionService {
    * @param tenantId - Tenant ID
    * @param subscriptionId - Subscription ID (identifies the billing period)
    * @param featureId - Feature UUID
-   * @param billingPeriod - Billing period (YYYY-MM format)
+   * @param billingPeriod - Billing period key (`deriveBillingPeriod`)
    * @param options - Query options
    * @returns Rebuilt aggregated usage
    */

@@ -7,6 +7,7 @@ import {
   IncrementUsageInput,
   UpdateAggregatedUsageRow,
 } from 'src/common/types/entitlement.types';
+import { billingPeriodSql } from 'src/common/utils/billing.util';
 
 type AggregatedUsageRow = {
   id: string;
@@ -24,9 +25,8 @@ type AggregatedUsageRow = {
 
 /**
  * Repository for managing Aggregated Usage projections.
- * Derived from usage_ledger (not source of truth).
- *
- * Note: This is a stub for Phase 3.
+ * Derived from usage_ledger (not source of truth). One row per subscription, feature and billing
+ * period (`deriveBillingPeriod`): a new period starts from zero.
  */
 @Injectable()
 export class AggregatedUsageRepository extends BaseRepository<
@@ -59,9 +59,15 @@ export class AggregatedUsageRepository extends BaseRepository<
     };
   }
 
+  /** Rows of each subscription's current billing period (its `current_period_start`). */
+  private readonly currentPeriodJoin = `JOIN public.tenant_subscriptions ts
+       ON ts.id = au.subscription_id
+      AND au.billing_period = ${billingPeriodSql('ts.current_period_start')}`;
+
   /**
-   * Get distinct subscription IDs that have aggregated_usage rows.
-   * Used for orphan detection — find subscriptions with projections but no ledger.
+   * Distinct subscription IDs with a projection row in their current period.
+   * Used for orphan detection — find subscriptions with projections but no ledger. Rows of past
+   * periods are history, not orphans.
    *
    * @param tenantId - Optional. If provided, only return subscriptions for this tenant.
    */
@@ -69,65 +75,44 @@ export class AggregatedUsageRepository extends BaseRepository<
     tenantId?: string,
     options?: QueryOptions,
   ): Promise<string[]> {
-    const conditions = tenantId ? ['tenant_id = $1'] : [];
-    const params = tenantId ? [tenantId] : [];
-    const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const result = await this.executeQuery<{ subscription_id: string }>(
-      `SELECT DISTINCT subscription_id FROM ${this.tableName} ${whereClause}`,
-      params,
+      `SELECT DISTINCT au.subscription_id
+       FROM ${this.tableName} au ${this.currentPeriodJoin}
+       ${tenantId ? 'WHERE au.tenant_id = $1' : ''}`,
+      tenantId ? [tenantId] : [],
       options,
     );
     return result.rows.map((r) => r.subscription_id);
   }
 
   /**
-   * Batch-fetch all aggregated usage rows for a set of subscription IDs.
+   * Batch-fetch the current-period projection rows of a set of subscriptions.
    * Used by ProjectionReconciliationService to avoid N+1 queries.
    */
-  async findBySubscriptionIds(
+  async findCurrentPeriodBySubscriptionIds(
     subscriptionIds: string[],
     options?: QueryOptions,
   ): Promise<AggregatedUsage[]> {
     if (subscriptionIds.length === 0) return [];
+    const columns = this.getSelectColumns()
+      .split(', ')
+      .map((col) => `au.${col}`)
+      .join(', ');
     const result = await this.executeQuery<AggregatedUsageRow>(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName} WHERE subscription_id = ANY($1)`,
+      `SELECT ${columns} FROM ${this.tableName} au ${this.currentPeriodJoin}
+       WHERE au.subscription_id = ANY($1)`,
       [subscriptionIds],
       options,
     );
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  /**
-   * Find aggregated usage row by subscription and feature.
-   * Used by ProjectionReconciliationService for drift detection.
-   *
-   * @param subscriptionId - Subscription ID
-   * @param featureId - Feature UUID
-   * @param options - Query options
-   */
-  async findBySubscriptionAndFeature(
-    subscriptionId: string,
-    featureId: string,
-    options?: QueryOptions,
-  ): Promise<AggregatedUsage | null> {
-    const result = await this.executeQuery(
-      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
-       WHERE subscription_id = $1 AND feature_id = $2`,
-      [subscriptionId, featureId],
-      options,
-    );
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
-  }
-
-  /**
-   * Find current usage for tenant, subscription, and feature
-   * Phase 3 implementation (updated to use subscription_id)
-   */
+  /** Usage of a feature in one billing period of a subscription (null: none recorded yet). */
   async findCurrent(
     tenantId: string,
     subscriptionId: string,
     featureKey: string,
+    billingPeriod: string,
     options?: QueryOptions,
   ): Promise<AggregatedUsage | null> {
     const query = `
@@ -138,11 +123,12 @@ export class AggregatedUsageRepository extends BaseRepository<
       FROM ${this.tableName} au
       JOIN public.features f ON f.id = au.feature_id
       WHERE au.tenant_id = $1 AND au.subscription_id = $2 AND f.key = $3
+        AND au.billing_period = $4
     `;
 
     const result = await this.executeQuery(
       query,
-      [tenantId, subscriptionId, featureKey],
+      [tenantId, subscriptionId, featureKey, billingPeriod],
       options,
     );
 
@@ -161,7 +147,7 @@ export class AggregatedUsageRepository extends BaseRepository<
       `
       INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      ON CONFLICT (subscription_id, feature_id) DO UPDATE SET
+      ON CONFLICT (subscription_id, feature_id, billing_period) DO UPDATE SET
         total_units = EXCLUDED.total_units,
         plan_units = EXCLUDED.plan_units,
         addon_units = EXCLUDED.addon_units,
@@ -194,15 +180,12 @@ export class AggregatedUsageRepository extends BaseRepository<
    * This method performs atomic increments to prevent race conditions
    * when multiple requests record usage simultaneously.
    *
-   * Using subscription_id ensures:
-   * - Each billing period gets its own projection (unambiguous)
-   * - Quota enforcement checks the correct subscription
-   * - Works for any billing cycle (monthly, yearly, custom)
+   * Keyed by subscription, feature and billing period, so each period gets its own counters.
    *
    * @param tenantId - Tenant ID
    * @param subscriptionId - Subscription ID
    * @param featureId - Feature UUID
-   * @param billingPeriod - Billing period (YYYY-MM format)
+   * @param billingPeriod - Billing period key (`deriveBillingPeriod`)
    * @param allocations - Array of { source, units } allocations
    * @param eventId - Usage ledger event ID
    * @param options - Query options
@@ -233,7 +216,7 @@ export class AggregatedUsageRepository extends BaseRepository<
       `
       INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      ON CONFLICT (subscription_id, feature_id) DO UPDATE SET
+      ON CONFLICT (subscription_id, feature_id, billing_period) DO UPDATE SET
         total_units = ${this.tableName}.total_units + $5,
         plan_units = ${this.tableName}.plan_units + $6,
         addon_units = ${this.tableName}.addon_units + $7,
@@ -267,8 +250,8 @@ export class AggregatedUsageRepository extends BaseRepository<
    * another concurrent request consumed the remaining quota.
    */
   /**
-   * Take refunded units back out of an existing projection row (never below zero). Unlike
-   * `increment`, it never creates a row. Returns whether a row was updated.
+   * Take refunded units back out of the projection row of the period they were used in (never
+   * below zero). Unlike `increment`, it never creates a row. Returns whether a row was updated.
    */
   async decrement(
     input: IncrementUsageInput,
@@ -287,7 +270,7 @@ export class AggregatedUsageRepository extends BaseRepository<
          credit_units = GREATEST(credit_units - $6, 0),
          override_units = GREATEST(override_units - $7, 0),
          last_updated_at = now()
-       WHERE subscription_id = $1 AND feature_id = $2`,
+       WHERE subscription_id = $1 AND feature_id = $2 AND billing_period = $8`,
       [
         input.subscriptionId,
         input.featureId,
@@ -296,6 +279,7 @@ export class AggregatedUsageRepository extends BaseRepository<
         units('addon'),
         units('credit'),
         units('override'),
+        input.billingPeriod,
       ],
       options,
     );
@@ -332,7 +316,7 @@ export class AggregatedUsageRepository extends BaseRepository<
       `
       INSERT INTO ${this.tableName} (tenant_id, subscription_id, feature_id, billing_period, total_units, plan_units, addon_units, credit_units, override_units)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      ON CONFLICT (subscription_id, feature_id) DO UPDATE SET
+      ON CONFLICT (subscription_id, feature_id, billing_period) DO UPDATE SET
         total_units = ${this.tableName}.total_units + $5,
         plan_units = ${this.tableName}.plan_units + $6,
         addon_units = ${this.tableName}.addon_units + $7,

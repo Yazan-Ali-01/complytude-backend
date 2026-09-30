@@ -10,6 +10,7 @@ import {
  * Billing Scheduler Service
  *
  * Sets up recurring BullMQ jobs for billing operations:
+ * - Free-plan subscription renewal every hour (every environment: it calls no provider)
  * - Daily Stripe reconciliation at 3 AM
  * - Stripe webhook re-drive every 5 minutes
  *
@@ -26,7 +27,9 @@ export class BillingSchedulerService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Only schedule jobs in production or when explicitly enabled
+    await this.scheduleSubscriptionRenewalJob();
+
+    // Stripe jobs only in production or when explicitly enabled
     const shouldSchedule = this.shouldScheduleJobs();
     if (!shouldSchedule) {
       this.logger.log('Billing job scheduling disabled');
@@ -91,6 +94,25 @@ export class BillingSchedulerService implements OnModuleInit {
     );
 
     this.logger.log('Scheduled Stripe webhook re-drive job (every 5 minutes)');
+  }
+
+  /**
+   * Renew free-plan subscriptions whose period has ended, every hour: their monthly allowances
+   * start again with the new period. (Stripe renews paid plans itself, through webhooks.)
+   */
+  private async scheduleSubscriptionRenewalJob(): Promise<void> {
+    await this.queueProducer.enqueue(
+      QUEUE_NAMES.BILLING_PROCESSING,
+      BILLING_JOB_NAMES.SUBSCRIPTION_RENEWAL,
+      {},
+      {
+        repeat: { pattern: '5 * * * *' },
+        removeOnComplete: 10,
+        removeOnFail: 50,
+      },
+    );
+
+    this.logger.log('Scheduled free-plan subscription renewal job (hourly)');
   }
 
   /**

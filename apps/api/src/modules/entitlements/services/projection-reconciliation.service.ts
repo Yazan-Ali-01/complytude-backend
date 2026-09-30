@@ -2,7 +2,10 @@ import { DatabaseService } from '@lib/database';
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { AggregatedUsage } from 'src/common/types/entitlement.types';
-import { deriveBillingPeriod } from 'src/common/utils/billing.util';
+import {
+  billingPeriodSql,
+  deriveBillingPeriod,
+} from 'src/common/utils/billing.util';
 import { AggregatedUsageRepository } from 'src/repositories/usage/aggregated-usage.repository';
 import { UsageProjectionService } from './usage-projection.service';
 
@@ -156,7 +159,7 @@ export class ProjectionReconciliationService {
           ]),
         ];
         const projections =
-          await this.aggregatedUsageRepository.findBySubscriptionIds(
+          await this.aggregatedUsageRepository.findCurrentPeriodBySubscriptionIds(
             subscriptionIds,
             { client },
           );
@@ -362,7 +365,10 @@ export class ProjectionReconciliationService {
       JOIN public.usage_allocations ua ON ua.usage_ledger_id = ul.id
       JOIN public.tenant_subscriptions ts
         ON ts.tenant_id = ul.tenant_id AND ts.status = 'active'
-      WHERE ul.recorded_at >= ts.current_period_start
+      -- The current period's rows, by the period key they were recorded under; refunded
+      -- (voided) rows are left out, as the rebuild leaves them out
+      WHERE ul.billing_period = ${billingPeriodSql('ts.current_period_start')}
+        AND ul.voided_at IS NULL
       ${tenantId ? 'AND ul.tenant_id = $1' : ''}
       GROUP BY ul.tenant_id, ul.feature_id, ts.id, ts.current_period_start, ua.source
     `;

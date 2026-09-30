@@ -119,7 +119,7 @@ export class UsageAllocationsRepository extends BaseRepository<
    *
    * @param tenantId - Tenant ID
    * @param featureId - Feature UUID
-   * @param billingPeriod - Billing period (YYYY-MM format)
+   * @param billingPeriod - Billing period key (`deriveBillingPeriod`)
    * @param options - Query options
    * @returns Array of allocations with usage_ledger_id
    */

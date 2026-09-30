@@ -160,6 +160,7 @@ export class EntitlementEnforcementService {
         input.tenantId,
         subscription.id,
         input.featureKey,
+        deriveBillingPeriod(subscription.current_period_start),
         { client },
       );
       return {
@@ -394,18 +395,19 @@ export class EntitlementEnforcementService {
     }
 
     /* eslint-disable @typescript-eslint/no-unsafe-argument -- subscription/feature from findCurrentByTenantWithPlan */
+    const billingPeriod = deriveBillingPeriod(
+      subscription.current_period_start as Date,
+    );
     const usage = await this.usageProjectionService.getCurrentUsage(
       tenantId,
       subscription.id,
       featureKey,
+      billingPeriod,
       { client },
     );
 
     const limit = entitlement.value_int ?? 0;
     const used = usage?.total_units ?? 0;
-    const billingPeriod = deriveBillingPeriod(
-      subscription.current_period_start as Date,
-    );
 
     // Unlimited -> always async path (no strict CAS needed).
     if (limit === -1) {

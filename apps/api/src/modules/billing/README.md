@@ -11,6 +11,12 @@ Handles billing-related background jobs and scheduled tasks.
 - Automatically enabled in production
 - Can be enabled in development via `BILLING_SCHEDULE_ENABLED=true`
 
+### Free-plan Renewal
+
+- `subscription-renewal` runs every hour in every environment (it calls no provider)
+- Renews local (free-plan) subscriptions whose period has ended, up to the period containing now; their monthly allowances start again (usage counts per billing period)
+- Stripe-backed subscriptions renew through Stripe's webhooks instead
+
 ### Webhook Re-drive
 
 - `stripe-webhook-redrive` runs every 5 minutes (scheduled with reconciliation)
