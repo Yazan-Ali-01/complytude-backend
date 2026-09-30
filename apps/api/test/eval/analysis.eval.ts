@@ -151,39 +151,51 @@ function fakeProviders(): Providers {
   };
 }
 
+/**
+ * `target` with every method forwarded (so a provider method added later isn't lost), and the
+ * arguments of the named ones handed to `before` first.
+ */
+function recorded<T extends object>(
+  target: T,
+  before: { [K in keyof T]?: (...args: unknown[]) => void },
+): T {
+  return new Proxy(target, {
+    get(object, property) {
+      const value: unknown = Reflect.get(object, property);
+      if (typeof value !== 'function') return value;
+      const hook = before[property as keyof T];
+      return (...args: unknown[]): unknown => {
+        hook?.(...args);
+        return (value as (...forwarded: unknown[]) => unknown).apply(
+          object,
+          args,
+        );
+      };
+    },
+  });
+}
+
 /** The same providers, recording every text sent to them, to check no personal data leaves. */
 function capturing(providers: Providers, sent: string[]): Providers {
   const { embeddings, reranker, llm } = providers;
   return {
-    embeddings: {
-      getModel: () => embeddings.getModel(),
-      generateEmbedding: (text: string) => {
-        sent.push(text);
-        return embeddings.generateEmbedding(text);
+    embeddings: recorded(embeddings, {
+      generateEmbedding: (text) => sent.push(text as string),
+      generateEmbeddings: (texts) => sent.push(...(texts as string[])),
+    }),
+    reranker: recorded(reranker, {
+      rerank: (query, chunks) =>
+        sent.push(
+          query as string,
+          ...(chunks as RulesetChunkMatch[]).map((c) => c.content),
+        ),
+    }),
+    llm: recorded(llm, {
+      chatCompletion: (options) => {
+        const { systemPrompt, userMessage } = options as ChatCompletionOptions;
+        sent.push(systemPrompt, userMessage);
       },
-      generateEmbeddings: (texts: string[]) => {
-        sent.push(...texts);
-        return embeddings.generateEmbeddings(texts);
-      },
-    } as unknown as EmbeddingService,
-    reranker: {
-      getModel: () => reranker.getModel(),
-      getTopN: () => reranker.getTopN(),
-      rerank: (query: string, chunks: RulesetChunkMatch[]) => {
-        sent.push(query, ...chunks.map((c) => c.content));
-        return reranker.rerank(query, chunks);
-      },
-    } as unknown as RerankerService,
-    llm: {
-      getModel: () => llm.getModel(),
-      getContextWindowTokens: () => llm.getContextWindowTokens(),
-      getMaxOutputTokens: () => llm.getMaxOutputTokens(),
-      getTokenEncoding: () => llm.getTokenEncoding(),
-      chatCompletion: (options: ChatCompletionOptions) => {
-        sent.push(options.systemPrompt, options.userMessage);
-        return llm.chatCompletion(options);
-      },
-    } as unknown as LlmService,
+    }),
   };
 }
 
@@ -495,6 +507,16 @@ describeEval('AI evaluation', () => {
       console.log(`AI evaluation report: ${reportFile}`);
 
       expect(score.cases).toHaveLength(cases.length);
+      // The fake providers never fail: a failed run is a bug in the pipeline or this harness
+      if (PROVIDERS === 'fake') {
+        expect(
+          results.flatMap(({ evalCase, runs }) =>
+            runs
+              .filter((run) => run.error)
+              .map((run) => `${evalCase.id}: ${run.error}`),
+          ),
+        ).toEqual([]);
+      }
     },
     60 * 60_000,
   );
