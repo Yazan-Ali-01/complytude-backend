@@ -30,6 +30,17 @@ export default registerAs('workerAi', () => ({
     : undefined,
   llmTimeout: parseInt(process.env.OPENAI_CHAT_TIMEOUT || '120000', 10),
 
+  // Redaction of personal data before any AI provider call
+  redactionEnabled: process.env.REDACTION_ENABLED !== 'false',
+  redactionNerUrl: process.env.REDACTION_NER_URL || undefined,
+  redactionNerLanguages: (process.env.REDACTION_NER_LANGUAGES || 'en').split(
+    ',',
+  ),
+  redactionNerTimeoutMs: parseInt(
+    process.env.REDACTION_NER_TIMEOUT_MS || '10000',
+    10,
+  ),
+
   // Cohere re-ranking configuration
   cohereApiKey: process.env.COHERE_API_KEY!,
   cohereRerankModel: process.env.COHERE_RERANK_MODEL || 'rerank-v3.5',

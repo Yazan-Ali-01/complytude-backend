@@ -165,6 +165,12 @@ variable "openai_base_url" {
   }
 }
 
+variable "redaction_ner_url" {
+  description = "Self-hosted name-recognition service for redaction (Presidio analyzer API), e.g. a sidecar on http://localhost:5002; null until one is deployed"
+  type        = string
+  default     = null
+}
+
 variable "openai_chat_model" {
   description = "OpenAI chat model for compliance analysis"
   type        = string

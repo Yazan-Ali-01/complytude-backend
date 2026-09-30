@@ -200,6 +200,8 @@ Leave `ENABLE_MOCK_ROUTES` unset. It defaults to `false`, and the API refuses to
 | `OPENAI_CHAT_MAX_TOKENS` | `openai_chat_max_tokens` tfvar (default: 4096) |
 | `OPENAI_CHAT_TEMPERATURE` | `openai_chat_temperature` tfvar, set only when given (unset: 0.1 for a known model, none for others) |
 | `OPENAI_CHAT_TIMEOUT` | `openai_chat_timeout` tfvar (default: 120000 ms) |
+| `REDACTION_ENABLED` | `true` (the worker refuses `false` in production) |
+| `REDACTION_NER_URL` | `redaction_ner_url` tfvar, set only when given (no name-recognition service is deployed yet) |
 | `OPENAI_EMBEDDING_MODEL` | `openai_embedding_model` tfvar (default: `text-embedding-3-small`) |
 | `OPENAI_EMBEDDING_DIMENSIONS` | `openai_embedding_dimensions` tfvar (default: 1536) |
 | `OPENAI_MAX_RETRIES` | `openai_max_retries` tfvar (default: 3) |

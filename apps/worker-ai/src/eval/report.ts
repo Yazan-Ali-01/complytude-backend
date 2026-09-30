@@ -15,8 +15,8 @@ export interface EvalMeta {
 }
 
 export const HISTORY_HEADER = [
-  '| Date | Commit | Chat model | Embeddings | Rerank | Prompt | Runs | Recall | Precision | Strict precision | Must-not-flag hits | Severity | Mentions | Agreement | Report |',
-  '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
+  '| Date | Commit | Chat model | Embeddings | Rerank | Prompt | Runs | Recall | Precision | Strict precision | Must-not-flag hits | Severity | Mentions | Agreement | Redaction | Report |',
+  '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
 ].join('\n');
 
 export function percent(value: number | null): string {
@@ -59,6 +59,14 @@ function caseSection(scored: CaseScore): string {
     `- Missed: ${clauseList(scored.missed, counts.runs)}`,
     `- Must-not-flag hits: ${clauseList(scored.wrong, counts.runs)}`,
     `- Unlabelled (candidates for new labels): ${clauseList(scored.unlabelled, counts.runs)}`,
+    ...(scored.counts.piiChecked > 0
+      ? [
+          `- Redaction: ${percent(scored.redactionRecall)} of personal-data values never reached a provider` +
+            (scored.leakedPii.length > 0
+              ? `; leaked: ${scored.leakedPii.map((l) => `\`${l.value}\` (${l.runs}/${scored.counts.runs})`).join(', ')}`
+              : ''),
+        ]
+      : []),
     ...(scored.errors.length > 0
       ? [`- Errors: ${scored.errors.map((e) => `\`${e}\``).join('; ')}`]
       : []),
@@ -82,8 +90,8 @@ export function renderReport(score: EvalScore, meta: EvalMeta): string {
     '',
     '## Overall',
     '',
-    '| Recall | Precision | Strict precision | Must-not-flag hits | Severity | Mentions | Citations | Evidence | Agreement | Completed runs |',
-    '|---|---|---|---|---|---|---|---|---|---|',
+    '| Recall | Precision | Strict precision | Must-not-flag hits | Severity | Mentions | Citations | Evidence | Agreement | Redaction | Completed runs |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
     `| ${[
       ...scoreCells(overall),
       String(overall.counts.wrong),
@@ -92,10 +100,11 @@ export function renderReport(score: EvalScore, meta: EvalMeta): string {
       percent(overall.citationValidity),
       percent(overall.evidenceValidity),
       percent(overall.agreement),
+      percent(overall.redactionRecall),
       `${overall.counts.completedRuns}/${overall.counts.runs}`,
     ].join(' | ')} |`,
     '',
-    'Recall: expected findings reported. Precision: labelled findings that were expected or acceptable. Strict precision counts unlabelled findings as wrong. Agreement: overlap of the clauses flagged by repeated runs.',
+    'Recall: expected findings reported. Precision: labelled findings that were expected or acceptable. Strict precision counts unlabelled findings as wrong. Agreement: overlap of the clauses flagged by repeated runs. Redaction: personal-data values that never reached a provider.',
     '',
     '## Cases',
     '',
@@ -124,6 +133,7 @@ export function historyLine(
     percent(overall.severityAgreement),
     percent(overall.mentionRate),
     percent(overall.agreement),
+    percent(overall.redactionRecall),
     `[report](${reportFile})`,
   ].join(' | ')} |`;
 }

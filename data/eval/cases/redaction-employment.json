@@ -1,0 +1,70 @@
+{
+  "id": "redaction-employment",
+  "description": "Dubai mainland employment contract full of synthetic personal data (names in English and Arabic, Emirates ID, passport, address, P.O. box, email, phones, IBAN): none of it may reach a provider, and the planted breaches must still be found in the redacted text",
+  "contract": "redaction-employment.md",
+  "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
+  "expected": [
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_03",
+      "severity": "high",
+      "why": "60 hours a week over six days exceeds 48"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_05",
+      "severity": "high",
+      "why": "No annual leave in the first year"
+    }
+  ],
+  "acceptable": [
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_04",
+      "why": "No overtime pay"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_01",
+      "why": "English only; particulars missing"
+    }
+  ],
+  "mustNotFlag": [
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "why": "Dubai mainland employer"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "why": "Dubai mainland employer"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "why": "Personal details of the employee, not a data-processing contract"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "why": "Not a commercial supply contract"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "why": "Not a DMCC company"
+    }
+  ],
+  "pii": [
+    "Falcon Logistics",
+    "Mariam",
+    "Suwaidi",
+    "784-1990-1234567-6",
+    "N1234567",
+    "Villa 12",
+    "55555",
+    "mariam.suwaidi@example.com",
+    "+971 50 123 4567",
+    "04 321 7654",
+    "AE07 0331 2345 6789 0123 456",
+    "Rashid Al Mansoori",
+    "أحمد محمد الهاشمي",
+    "Layla Haddad"
+  ]
+}

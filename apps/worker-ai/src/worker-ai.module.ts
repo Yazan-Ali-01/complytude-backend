@@ -15,6 +15,7 @@ import { RulesetChunkSearchRepository } from './repositories/ruleset-chunk-searc
 import { DocumentAnalysisService } from './services/document-analysis.service';
 import { LlmService } from './services/llm.service';
 import { PromptBuilderService } from './services/prompt-builder.service';
+import { RedactionService } from './redaction/redaction.service';
 import { RerankerService } from './services/reranker.service';
 import { WorkerAiController } from './worker-ai.controller';
 
@@ -43,6 +44,7 @@ import { WorkerAiController } from './worker-ai.controller';
     LlmService,
     PromptBuilderService,
     RerankerService,
+    RedactionService,
     AnalysisJobWriteRepository,
     DocumentReadRepository,
     RulesetChunkSearchRepository,

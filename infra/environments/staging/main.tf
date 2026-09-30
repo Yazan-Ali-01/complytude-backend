@@ -256,6 +256,7 @@ module "ecs" {
     WORKER_AI_MAX_PROCESSING_TIME = tostring(var.worker_ai_max_processing_time)
 
     OPENAI_BASE_URL        = var.openai_base_url
+    REDACTION_ENABLED      = "true"
     OPENAI_CHAT_MODEL      = var.openai_chat_model
     OPENAI_CHAT_MAX_TOKENS = tostring(var.openai_chat_max_tokens)
     OPENAI_CHAT_TIMEOUT    = tostring(var.openai_chat_timeout)
@@ -277,6 +278,7 @@ module "ecs" {
     # Set only when given: an unknown model needs a context window, and reasoning models reject a temperature
     var.openai_chat_context_window == null ? {} : { OPENAI_CHAT_CONTEXT_WINDOW = tostring(var.openai_chat_context_window) },
     var.openai_chat_temperature == null ? {} : { OPENAI_CHAT_TEMPERATURE = tostring(var.openai_chat_temperature) },
+    var.redaction_ner_url == null ? {} : { REDACTION_NER_URL = var.redaction_ner_url },
   )
   worker_ingestion_environment = {
     NODE_ENV     = "production"

@@ -43,6 +43,8 @@ export interface EvalCase {
   acceptable?: AcceptableFinding[];
   mustNotFlag: MustNotFlag[];
   expectedMentions?: ExpectedMention[];
+  /** Personal data in the contract that must never reach an AI provider. */
+  pii?: string[];
 }
 
 /** One finding of a run, resolved to the source clause it cites. */
@@ -64,5 +66,7 @@ export interface EvalRun {
   findings: RunFinding[];
   /** Findings the worker dropped because their quote wasn't in the contract. */
   unverifiedFindingsDropped?: number;
+  /** The case's `pii` values found in anything sent to a provider during the run. */
+  leakedPii?: string[];
   error?: string;
 }

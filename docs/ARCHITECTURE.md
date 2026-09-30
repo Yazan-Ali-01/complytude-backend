@@ -115,6 +115,7 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 - **OpenAI API** - Document analysis, embedding generation
 - **tiktoken** - Token counting for chunking
 - **pgvector** - Vector similarity search for semantic retrieval
+- **Redaction** (`apps/worker-ai/src/redaction/`) - Personal data in a contract (names, Emirates IDs, passports, IBANs, phones, emails, addresses) is replaced with placeholders before any text goes to OpenAI or Cohere, and put back in the stored result; a failure stops the job before any provider call. Names outside the preamble come from an optional self-hosted name-recognition service (Presidio analyzer API, `REDACTION_NER_URL`). See `apps/worker-ai/docs/README.md` → Redaction.
 
 ### Authentication & Security
 
@@ -305,6 +306,7 @@ Each command boots its own minimal module rather than `AppModule`. `AppModule` r
 | Command | Purpose |
 | --- | --- |
 | `grant-platform-admin <email> [--role …]` (`pnpm admin:grant`) | Grant a platform role. New accounts are created verified, without a password, and emailed a set-password link. Audited. See `docs/RBAC.md`. |
+| `reingest-rulesets` (`pnpm rulesets:reingest`) | Queue ingestion of every active ruleset version, so existing chunks carry what ingestion stores today. See `docs/DEPLOYMENT.md` → Re-ingest Rulesets. |
 
 ---
 

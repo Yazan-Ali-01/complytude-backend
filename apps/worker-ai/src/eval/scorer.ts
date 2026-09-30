@@ -26,6 +26,9 @@ export interface ScoreCounts {
   citationsValid: number;
   evidenceChecked: number;
   evidenceValid: number;
+  /** Personal-data values checked in outbound payloads, and how many leaked. */
+  piiChecked: number;
+  piiLeaked: number;
 }
 
 export interface Scores {
@@ -44,6 +47,8 @@ export interface Scores {
   evidenceValidity: number | null;
   /** Mean pairwise Jaccard similarity of the clauses flagged by the completed runs. */
   agreement: number | null;
+  /** Personal-data values that never reached a provider / values checked. */
+  redactionRecall: number | null;
 }
 
 export interface ClauseTally extends ClauseRef {
@@ -60,6 +65,8 @@ export interface CaseScore extends Scores {
   wrong: ClauseTally[];
   /** Findings on clauses the case doesn't label: candidates for new labels. */
   unlabelled: ClauseTally[];
+  /** Personal-data values that reached a provider, with how many runs leaked them. */
+  leakedPii: Array<{ value: string; runs: number }>;
   statuses: Record<string, number>;
   warnings: Record<string, number>;
   errors: string[];
@@ -103,6 +110,8 @@ function emptyCounts(): ScoreCounts {
     citationsValid: 0,
     evidenceChecked: 0,
     evidenceValid: 0,
+    piiChecked: 0,
+    piiLeaked: 0,
   };
 }
 
@@ -117,6 +126,10 @@ function scoresOf(counts: ScoreCounts, agreement: number | null): Scores {
     citationValidity: ratio(counts.citationsValid, counts.citationsChecked),
     evidenceValidity: ratio(counts.evidenceValid, counts.evidenceChecked),
     agreement,
+    redactionRecall: ratio(
+      counts.piiChecked - counts.piiLeaked,
+      counts.piiChecked,
+    ),
   };
 }
 
@@ -177,6 +190,7 @@ export function scoreCase(evalCase: EvalCase, runs: EvalRun[]): CaseScore {
   const statuses: Record<string, number> = {};
   const warnings: Record<string, number> = {};
   const errors: string[] = [];
+  const leaked = new Map<string, number>();
   const flaggedByCompletedRun: Set<string>[] = [];
 
   for (const run of runs) {
@@ -188,6 +202,13 @@ export function scoreCase(evalCase: EvalCase, runs: EvalRun[]): CaseScore {
       warnings[warning] = (warnings[warning] ?? 0) + 1;
     }
     if (run.error) errors.push(run.error);
+    if (evalCase.pii && run.leakedPii) {
+      counts.piiChecked += evalCase.pii.length;
+      counts.piiLeaked += run.leakedPii.length;
+      for (const value of run.leakedPii) {
+        leaked.set(value, (leaked.get(value) ?? 0) + 1);
+      }
+    }
 
     const completed = isCompleted(run);
     const findings = completed ? run.findings : [];
@@ -259,6 +280,7 @@ export function scoreCase(evalCase: EvalCase, runs: EvalRun[]): CaseScore {
     missed: [...missed.values()].sort(byRuns),
     wrong: [...wrong.values()].sort(byRuns),
     unlabelled: [...unlabelled.values()].sort(byRuns),
+    leakedPii: [...leaked].map(([value, runs]) => ({ value, runs })),
     statuses,
     warnings,
     errors,

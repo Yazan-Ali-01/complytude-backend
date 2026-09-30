@@ -133,12 +133,23 @@ This needs the clause facts on every chunk (`isRequired`, `severity`, `article`,
 
 Every finding quotes the contract passage it is about (`evidence`, at most about 300 characters). `evidence.ts` looks the quote up in the document's text, ignoring what a model changes when it copies text (spacing and line breaks, case, typographic quotes and dashes, Arabic diacritics and tatweel), and stores the passage exactly as it appears with its offset, so the UI can highlight it. A quote that isn't in the document (or is shorter than 8 or longer than 600 characters once normalised) drops the finding, counted in `unverifiedFindingsDropped` with the warning `unverified_evidence_dropped`. An empty quote is accepted only for a clause marked `[required]` in the prompt: the finding is then that the contract leaves it out.
 
+### Redaction
+
+The first step of every analysis (`src/redaction/`). Chunking, embeddings, the rerank query and the prompt only ever see the redacted text; a failure fails the attempt (retryable) before any provider is called.
+
+- **Detected** (`detectors.ts`): Emirates IDs (check digit validated; the `784-XXXX-XXXXXXX-X` shape also when partly masked), IBANs (mod-97), passport numbers (after "passport" / "جواز"), UAE phone numbers, emails, P.O. boxes, villa/flat/building/street addresses, the **parties the preamble defines** (`Name, … ("Employer")`), names after an honorific (Mr, Ms, Dr, Sheikh, السيد, الشيخ, …) or a `Name:` / `الاسم:` label, and names from the name-recognition service when configured.
+- **Placeholders** (`redactor.ts`): a party keeps its contractual role (`[EMPLOYER]`, `[FIRST_SHAREHOLDER]`), others are numbered (`[PERSON_1]`, `[EMIRATES_ID_1]`); the same value always gets the same placeholder, and a known name is replaced wherever it appears (a surname after an honorific gets `[EMPLOYEE_SURNAME]`). A company's legal form stays (`[COMPANY] DMCC`) because it tells the jurisdiction.
+- **Kept**, because the rules test them: amounts, dates, durations, percentages, working hours, governing law, authority and free-zone names.
+- **Put back**: the placeholder map lives in memory for the job only. Titles, descriptions, suggestions, reasons and the summary are re-hydrated before storing; a quote is found in the redacted text and mapped back to the contract's exact passage and offset.
+- **Names in the body** with no honorific or label need the name-recognition service: `REDACTION_NER_URL` points at a self-hosted service speaking the Presidio analyzer API (`POST /analyze`, PERSON only, languages from `REDACTION_NER_LANGUAGES`). Without it the worker logs a warning at start. Never point it at an external API: that would be one more processor receiving the contract.
+- `REDACTION_ENABLED=false` switches it off in development only (the env schema refuses it in production). Each result records `provenance.redaction` (whether it ran, how many values it masked).
+
 ### What leaves the worker
 
 - **OpenAI embeddings:** the document's chunks. **Cohere rerank:** chunks sampled across the document. **OpenAI chat:** the document (up to the context budget) and the retrieved clauses.
 - **Never sent:** the document title. Upload titles are filenames and often name a party; they add nothing to the review. (The BM25 query that uses it runs in our own Postgres.)
 - **Logs** identify a document by its ID only. `libs/logger/src/no-secrets-in-logs.spec.ts` fails the build if a log call interpolates a title, content or generation variables.
-- Personal data inside the document text still reaches the providers: there is no redaction step yet.
+- **Personal data** in the text is replaced with placeholders first (below): the providers see `[EMPLOYEE]`, `[EMIRATES_ID_1]`, never the values.
 
 ### Job status
 
@@ -184,6 +195,7 @@ interface AnalysisResult {
   warnings: string[];      // See "Job status"
   provenance: {            // What produced this result, to reproduce and compare runs
     promptVersion: number;       // PROMPT_VERSION in prompt-builder.service.ts
+    redaction: { enabled: boolean; valuesMasked: number };
     embeddingModel: string;
     rulesetVersionIds: string[]; // Versions of the rulesets whose clauses the model saw
     suppliedChunkIds: string[];  // The chunks behind C1, C2, … in order
@@ -220,6 +232,7 @@ Each run writes `data/eval/results/<timestamp>-<commit>.md` and `.json` (per-run
 | Citations | Findings whose stored citation is the one their clause's ruleset data gives. |
 | Evidence | The model's findings whose quote holds up: stored quotes re-checked against the contract, findings the worker dropped for a quote not in it counted as failures. |
 | Agreement | Mean pairwise overlap (Jaccard) of the clauses flagged by repeated runs of the same contract. |
+| Redaction | For cases with a `pii` list: the personal-data values that never appeared in anything sent to a provider (the runner records every embedding input, rerank query and prompt). `EVAL_REDACTION=off` runs without redaction, to compare the analysis scores with and without it. |
 
 The report also lists, per contract, the expected clauses missed, the must-not-flag hits, and the unlabelled findings (candidates for new labels).
 
@@ -270,6 +283,10 @@ cp apps/worker-ai/.env.example apps/worker-ai/.env
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
 | `OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Embedding vector dimensions |
 | `COHERE_API_KEY` | (required) | Cohere API key for re-ranking |
+| `REDACTION_ENABLED` | `true` | Mask personal data before any provider call. Only development may set `false`. |
+| `REDACTION_NER_URL` | (unset) | Self-hosted name-recognition service (Presidio analyzer API), e.g. a sidecar on `http://localhost:5002` |
+| `REDACTION_NER_LANGUAGES` | `en` | Comma-separated languages to ask it for (e.g. `en,ar` with an Arabic model loaded) |
+| `REDACTION_NER_TIMEOUT_MS` | `10000` | Per-request timeout; a timeout fails the attempt |
 | `COHERE_RERANK_MODEL` | `rerank-v3.5` | Cohere rerank model |
 | `RERANK_TOP_N` | `10` | Number of chunks to keep after re-ranking |
 | `WORKER_AI_CONCURRENCY` | `5` | Max concurrent jobs |

@@ -183,6 +183,17 @@ describe('AI evaluation scorer', () => {
     expect(scored.evidenceValidity).toBe(0.5);
   });
 
+  it('measures redaction as the personal data that never reached a provider', () => {
+    const scored = scoreCase({ ...CASE, pii: ['Mariam', 'N1234567'] }, [
+      { ...run([finding('probation')]), leakedPii: [] },
+      { ...run([finding('probation')]), leakedPii: ['N1234567'] },
+    ]);
+
+    expect(scored.redactionRecall).toBe(0.75);
+    expect(scored.leakedPii).toEqual([{ value: 'N1234567', runs: 1 }]);
+    expect(scoreCase(CASE, [run([])]).redactionRecall).toBeNull();
+  });
+
   it('sums the cases into an overall score', () => {
     const score = scoreEvaluation([
       { evalCase: CASE, runs: [run([finding('probation')])] },
@@ -218,7 +229,7 @@ describe('AI evaluation scorer', () => {
     expect(report).toContain('Recall 33% (1/3)');
     expect(report).toContain('`labour/hours` (1/1): 60 hours');
     expect(historyLine(score, meta, 'results/x.md')).toBe(
-      '| 2026-09-30 | `abc1234` | fake-chat | fake-embeddings | fake-rerank | v1 | 1×1 | 33% | 100% | 100% | 0 | 100% | 0% | n/a | [report](results/x.md) |',
+      '| 2026-09-30 | `abc1234` | fake-chat | fake-embeddings | fake-rerank | v1 | 1×1 | 33% | 100% | 100% | 0 | 100% | 0% | n/a | n/a | [report](results/x.md) |',
     );
   });
 });

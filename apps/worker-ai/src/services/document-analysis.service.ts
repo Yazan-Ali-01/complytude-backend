@@ -10,6 +10,7 @@ import {
   AnalysisWarning,
   RiskLevel,
 } from '../interfaces/analysis-result.interface';
+import { RedactionService } from '../redaction/redaction.service';
 import { AnalysisJobWriteRepository } from '../repositories/analysis-job-write.repository';
 import {
   DocumentReadRepository,
@@ -100,6 +101,7 @@ export class DocumentAnalysisService {
     private readonly promptBuilderService: PromptBuilderService,
     private readonly llmService: LlmService,
     private readonly rerankerService: RerankerService,
+    private readonly redactionService: RedactionService,
     configService: ConfigService,
   ) {
     this.topKPerQuery = configService.get<number>(
@@ -246,9 +248,25 @@ export class DocumentAnalysisService {
     // Each section is prefixed with a markdown heading so both the embedding
     // model and the LLM receive section-boundary context.
     // Falls back to raw flat text for documents ingested before this feature.
-    const contentForAnalysis = hasStructure
+    const analysedOriginal = hasStructure
       ? this.buildStructuredContent(document.content_structured!)
       : document.content;
+
+    // Personal data is masked before anything leaves: chunking, embeddings, the rerank query and
+    // the prompt only ever see the redacted text. No redaction, no provider call.
+    const redaction = await this.redactionService
+      .redact(analysedOriginal)
+      .catch((err: unknown) => {
+        throw new RetryableError(
+          `Redaction failed for document ${documentId}; nothing was sent to an AI provider`,
+          err instanceof Error ? err : undefined,
+        );
+      });
+    const contentForAnalysis = redaction.text;
+    this.logger.log(
+      `Redacted document=${documentId}: ${redaction.entities.size} values masked` +
+        (this.redactionService.isEnabled() ? '' : ' (redaction is off)'),
+    );
 
     // Chunk the document (structured content gives embeddings better context)
     const documentChunks = this.textChunkerService.chunk(contentForAnalysis);
@@ -351,10 +369,7 @@ export class DocumentAnalysisService {
     // Keep only findings that rest on a clause we supplied and quote the contract; the citation
     // and the baseline risk come from that clause's ruleset data
     const findInContent = createQuoteLocator(document.content);
-    const findInAnalysed =
-      contentForAnalysis === document.content
-        ? null
-        : createQuoteLocator(contentForAnalysis);
+    const findInRedacted = createQuoteLocator(contentForAnalysis);
     const findings: AnalysisFinding[] = [];
     let unverifiedFindingsDropped = 0;
     let groundedFindings = 0;
@@ -371,14 +386,21 @@ export class DocumentAnalysisService {
           evidence = { text: '', offset: null };
         }
       } else {
-        const span = findInContent(quote);
+        // Found in the redacted text the model saw, then mapped back to the original passage
+        const span = findInRedacted(quote);
         if (span) {
-          evidence = {
-            text: document.content.slice(span.start, span.end),
-            offset: span.start,
-          };
-        } else if (findInAnalysed?.(quote)) {
-          evidence = { text: quote, offset: null };
+          const at = redaction.toOriginal(span.start, span.end);
+          const passage = analysedOriginal.slice(at.start, at.end);
+          const inContent =
+            analysedOriginal === document.content
+              ? { start: at.start, end: at.end }
+              : findInContent(passage);
+          evidence = inContent
+            ? {
+                text: document.content.slice(inContent.start, inContent.end),
+                offset: inContent.start,
+              }
+            : { text: passage, offset: null };
         }
       }
       if (!evidence) {
@@ -398,10 +420,11 @@ export class DocumentAnalysisService {
         citation: citationOf(chunk.metadata),
         riskLevel,
         baselineRiskLevel,
-        ...(raised && riskReason && { riskReason }),
-        title: finding.title,
-        description: finding.description,
-        suggestion: finding.suggestion,
+        ...(raised &&
+          riskReason && { riskReason: redaction.rehydrate(riskReason) }),
+        title: redaction.rehydrate(finding.title),
+        description: redaction.rehydrate(finding.description),
+        suggestion: redaction.rehydrate(finding.suggestion),
         evidence: evidence.text,
         evidenceOffset: evidence.offset,
         chunkId: chunk.id,
@@ -444,7 +467,7 @@ export class DocumentAnalysisService {
 
     const result: AnalysisResult = {
       findings,
-      summary: parsed.summary,
+      summary: redaction.rehydrate(parsed.summary),
       model: this.llmService.getModel(),
       documentChunks: documentChunks.length,
       rulesetChunksMatched: rerankedChunks.length,
@@ -465,6 +488,10 @@ export class DocumentAnalysisService {
       warnings,
       provenance: {
         promptVersion: PROMPT_VERSION,
+        redaction: {
+          enabled: this.redactionService.isEnabled(),
+          valuesMasked: redaction.entities.size,
+        },
         embeddingModel: this.embeddingService.getModel(),
         rulesetVersionIds: [
           ...new Set(rerankedChunks.map((c) => c.rulesetVersionId)),

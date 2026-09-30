@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { AnalysisJobWriteRepository } from '../../../worker-ai/src/repositories/analysis-job-write.repository';
 import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
 import type { RulesetChunkSearchRepository } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
+import { RedactionService } from '../../../worker-ai/src/redaction/redaction.service';
 import { DocumentAnalysisService } from '../../../worker-ai/src/services/document-analysis.service';
 import type { LlmService } from '../../../worker-ai/src/services/llm.service';
 import { PromptBuilderService } from '../../../worker-ai/src/services/prompt-builder.service';
@@ -117,6 +118,9 @@ describe('Workers act only inside the job payload tenant', () => {
         new PromptBuilderService(tokenCounter, llm),
         llm,
         { rerank: () => Promise.resolve([]) } as unknown as RerankerService,
+        new RedactionService({
+          get: (_key: string, fallback: unknown) => fallback,
+        } as ConfigService),
         { get: (_key: string, fallback: unknown) => fallback } as ConfigService,
       );
     }

@@ -47,6 +47,8 @@ export type AnalysisWarning =
 export interface AnalysisProvenance {
   /** PROMPT_VERSION in prompt-builder.service.ts. */
   promptVersion: number;
+  /** Whether personal data was masked before the provider calls, and how many distinct values. */
+  redaction: { enabled: boolean; valuesMasked: number };
   embeddingModel: string;
   /** Versions of the rulesets whose clauses the model was given. */
   rulesetVersionIds: string[];

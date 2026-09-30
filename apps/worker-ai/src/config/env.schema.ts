@@ -43,6 +43,19 @@ export const validationSchema = Joi.object({
   OPENAI_CHAT_TEMPERATURE: Joi.number().min(0).max(2),
   OPENAI_CHAT_TIMEOUT: Joi.number().default(120000),
 
+  // Personal data is masked before any text goes to an AI provider; only development may turn it off
+  REDACTION_ENABLED: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.boolean().valid(true).default(true),
+    otherwise: Joi.boolean().default(true),
+  }),
+  // Self-hosted name recognition (Presidio analyzer API), e.g. a sidecar on http://localhost:5002
+  REDACTION_NER_URL: Joi.string().uri({ scheme: ['http', 'https'] }),
+  REDACTION_NER_LANGUAGES: Joi.string()
+    .pattern(/^[a-z]{2}(,[a-z]{2})*$/)
+    .default('en'),
+  REDACTION_NER_TIMEOUT_MS: Joi.number().integer().min(100).default(10000),
+
   // Cohere Re-ranking
   COHERE_API_KEY: secretEnv('COHERE_API_KEY', { min: 20 }),
   COHERE_RERANK_MODEL: Joi.string().default('rerank-v3.5'),

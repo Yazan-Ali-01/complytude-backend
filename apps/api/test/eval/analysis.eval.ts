@@ -35,12 +35,19 @@ import {
 } from '../../../worker-ai/src/eval/report';
 import { scoreEvaluation } from '../../../worker-ai/src/eval/scorer';
 import type { AnalysisResult } from '../../../worker-ai/src/interfaces/analysis-result.interface';
+import { RedactionService } from '../../../worker-ai/src/redaction/redaction.service';
 import { AnalysisJobWriteRepository } from '../../../worker-ai/src/repositories/analysis-job-write.repository';
 import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
-import { RulesetChunkSearchRepository } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
+import {
+  type RulesetChunkMatch,
+  RulesetChunkSearchRepository,
+} from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
 import { citationOf } from '../../../worker-ai/src/services/citation';
 import { DocumentAnalysisService } from '../../../worker-ai/src/services/document-analysis.service';
-import { LlmService } from '../../../worker-ai/src/services/llm.service';
+import {
+  type ChatCompletionOptions,
+  LlmService,
+} from '../../../worker-ai/src/services/llm.service';
 import {
   PROMPT_VERSION,
   PromptBuilderService,
@@ -75,6 +82,8 @@ loadEnv({ path: join(REPO, 'apps/worker-ai/.env') });
 const PROVIDERS = process.env.EVAL_PROVIDERS === 'fake' ? 'fake' : 'real';
 const RUNS = Math.max(1, parseInt(process.env.EVAL_RUNS ?? '3', 10));
 const ONLY = process.env.EVAL_CASES?.split(',').map((id) => id.trim());
+/** EVAL_REDACTION=off measures the analysis without redaction, for the comparison. */
+const REDACTION = process.env.EVAL_REDACTION !== 'off';
 
 interface Providers {
   embeddings: EmbeddingService;
@@ -132,6 +141,42 @@ function fakeProviders(): Providers {
     embeddings: new FakeEmbeddingService() as unknown as EmbeddingService,
     reranker: new FakeRerankerService() as unknown as RerankerService,
     llm: new FakeLlmService() as unknown as LlmService,
+  };
+}
+
+/** The same providers, recording every text sent to them, to check no personal data leaves. */
+function capturing(providers: Providers, sent: string[]): Providers {
+  const { embeddings, reranker, llm } = providers;
+  return {
+    embeddings: {
+      getModel: () => embeddings.getModel(),
+      generateEmbedding: (text: string) => {
+        sent.push(text);
+        return embeddings.generateEmbedding(text);
+      },
+      generateEmbeddings: (texts: string[]) => {
+        sent.push(...texts);
+        return embeddings.generateEmbeddings(texts);
+      },
+    } as unknown as EmbeddingService,
+    reranker: {
+      getModel: () => reranker.getModel(),
+      getTopN: () => reranker.getTopN(),
+      rerank: (query: string, chunks: RulesetChunkMatch[]) => {
+        sent.push(query, ...chunks.map((c) => c.content));
+        return reranker.rerank(query, chunks);
+      },
+    } as unknown as RerankerService,
+    llm: {
+      getModel: () => llm.getModel(),
+      getContextWindowTokens: () => llm.getContextWindowTokens(),
+      getMaxOutputTokens: () => llm.getMaxOutputTokens(),
+      getTokenEncoding: () => llm.getTokenEncoding(),
+      chatCompletion: (options: ChatCompletionOptions) => {
+        sent.push(options.systemPrompt, options.userMessage);
+        return llm.chatCompletion(options);
+      },
+    } as unknown as LlmService,
   };
 }
 
@@ -241,6 +286,7 @@ describeEval('AI evaluation', () => {
   async function runCase(
     evalCase: EvalCase,
     analysis: DocumentAnalysisService,
+    sent: string[],
   ): Promise<EvalRun[]> {
     const tenant = await createTestTenant(app.module);
     const content = readFileSync(
@@ -264,9 +310,13 @@ describeEval('AI evaluation', () => {
         tenantId: tenant.id,
       };
       let thrown: string | undefined;
+      sent.length = 0;
       await analysis.analyze(data).catch((error: unknown) => {
         thrown = error instanceof Error ? error.message : String(error);
       });
+      const leakedPii = evalCase.pii?.filter((value) =>
+        sent.some((text) => text.includes(value)),
+      );
 
       const { rows } = await app.databaseService.query<{
         status: string;
@@ -285,6 +335,7 @@ describeEval('AI evaluation', () => {
         warnings: result?.warnings ?? [],
         summary: result?.summary ?? '',
         unverifiedFindingsDropped: result?.unverifiedFindingsDropped ?? 0,
+        ...(leakedPii && { leakedPii }),
         findings: (result?.findings ?? []).map((f): RunFinding => {
           const metadata = chunks.get(f.chunkId) ?? {};
           return {
@@ -321,15 +372,25 @@ describeEval('AI evaluation', () => {
       await seedRulesets(providers);
 
       const tokenCounter = new TokenCounterService();
+      const sent: string[] = [];
+      const outbound = capturing(providers, sent);
       const analysis = new DocumentAnalysisService(
         new AnalysisJobWriteRepository(app.appDatabaseService),
         new DocumentReadRepository(app.appDatabaseService),
         new RulesetChunkSearchRepository(app.appDatabaseService),
         new TextChunkerService(tokenCounter),
-        providers.embeddings,
-        new PromptBuilderService(tokenCounter, providers.llm),
-        providers.llm,
-        providers.reranker,
+        outbound.embeddings,
+        new PromptBuilderService(tokenCounter, outbound.llm),
+        outbound.llm,
+        outbound.reranker,
+        new RedactionService(
+          new ConfigService({
+            workerAi: {
+              ...workerAiConfig(),
+              redactionEnabled: REDACTION,
+            },
+          }),
+        ),
         new ConfigService({ workerAi: workerAiConfig() }),
       );
 
@@ -337,7 +398,10 @@ describeEval('AI evaluation', () => {
       expect(cases.length).toBeGreaterThan(0);
       const results: Array<{ evalCase: EvalCase; runs: EvalRun[] }> = [];
       for (const evalCase of cases) {
-        results.push({ evalCase, runs: await runCase(evalCase, analysis) });
+        results.push({
+          evalCase,
+          runs: await runCase(evalCase, analysis, sent),
+        });
       }
       tokenCounter.onModuleDestroy();
 

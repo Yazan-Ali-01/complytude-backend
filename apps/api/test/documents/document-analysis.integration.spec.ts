@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import type { AnalysisResult } from '../../../worker-ai/src/interfaces/analysis-result.interface';
+import { RedactionService } from '../../../worker-ai/src/redaction/redaction.service';
 import { AnalysisJobWriteRepository } from '../../../worker-ai/src/repositories/analysis-job-write.repository';
 import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
 import type {
@@ -104,6 +105,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
     contextWindow?: number;
     /** The model call fails (like a rate limit) this many times before answering. */
     modelFailures?: number;
+    /** Defaults to the real one with its deterministic detectors (no name service). */
+    redaction?: RedactionService;
   }): DocumentAnalysisService {
     let failuresLeft = options.modelFailures ?? 0;
     const llm = {
@@ -166,6 +169,10 @@ describe('Document analysis: injection, grounding and honest status', () => {
           });
         },
       } as unknown as RerankerService,
+      options.redaction ??
+        new RedactionService({
+          get: (_key: string, fallback: unknown) => fallback,
+        } as ConfigService),
       { get: (_key: string, fallback: unknown) => fallback } as ConfigService,
     );
   }
@@ -410,6 +417,122 @@ describe('Document analysis: injection, grounding and honest status', () => {
     ]);
   });
 
+  describe('personal data', () => {
+    /** Synthetic personal data only; the ID and IBAN carry valid check digits. */
+    const CONTRACT = [
+      'EMPLOYMENT AGREEMENT',
+      '',
+      'BETWEEN:',
+      'Falcon Logistics LLC, a company registered in Dubai, UAE ("Employer")',
+      '',
+      'AND:',
+      'Mariam Khalid Al Suwaidi, UAE national, Emirates ID 784-1990-1234567-6, Passport No. N1234567 ("Employee")',
+      '',
+      '1. The Employee lives at Villa 12, Street 5, Al Barsha, Dubai; P.O. Box 55555.',
+      '2. Contact: mariam.suwaidi@example.com, +971 50 123 4567, 04 321 7654.',
+      '3. A salary of AED 18,000 is paid monthly to IBAN AE07 0331 2345 6789 0123 456.',
+      '4. The Employee shall work 60 hours a week, reporting to Mr. Rashid Al Mansoori.',
+      '5. Ms. Al Suwaidi may not take leave in her first year.',
+      '6. يعمل السيد أحمد محمد الهاشمي مشرفاً على الموظفة.',
+      'Name: Layla Haddad',
+    ].join('\n');
+    const PERSONAL = [
+      'Falcon Logistics',
+      'Mariam',
+      'Suwaidi',
+      '784-1990-1234567-6',
+      'N1234567',
+      'Villa 12',
+      '55555',
+      'mariam.suwaidi@example.com',
+      '123 4567',
+      '321 7654',
+      'AE07 0331',
+      'Rashid',
+      'Mansoori',
+      'أحمد محمد الهاشمي',
+      'Layla Haddad',
+    ];
+
+    it('sends no provider any of it, and stores the result with the real names', async () => {
+      const data = await job(CONTRACT);
+      modelAnswer = {
+        summary: '[EMPLOYER] overworks [EMPLOYEE].',
+        findings: [
+          {
+            clauseId: 'C1',
+            riskLevel: 'high',
+            riskReason: '…',
+            title: 'Hours over the limit',
+            description: '[EMPLOYER] makes [EMPLOYEE] work 60 hours a week.',
+            suggestion: 'Cap the hours of [EMPLOYEE] at 48.',
+            evidence:
+              'Ms. [EMPLOYEE_SURNAME] may not take leave in her first year.',
+          },
+        ],
+      };
+
+      await worker({ chunks: [chunk(ruleset, 'Art. 17')] }).analyze(data);
+
+      const outbound = [
+        ...embeddedTexts,
+        ...rerankQueries,
+        calls[0].systemPrompt,
+        calls[0].userMessage,
+      ];
+      expect(embeddedTexts.length).toBeGreaterThan(0);
+      for (const value of PERSONAL) {
+        expect(outbound.filter((payload) => payload.includes(value))).toEqual(
+          [],
+        );
+      }
+      // What the rules test is still there
+      expect(calls[0].userMessage).toContain('60 hours a week');
+      expect(calls[0].userMessage).toContain('AED 18,000');
+
+      const { result } = await stored(data.analysisJobId);
+      expect(result).toMatchObject({
+        summary: 'Falcon Logistics overworks Mariam Khalid Al Suwaidi.',
+        provenance: { redaction: { enabled: true } },
+      });
+      expect(result!.findings[0]).toMatchObject({
+        description:
+          'Falcon Logistics makes Mariam Khalid Al Suwaidi work 60 hours a week.',
+        suggestion: 'Cap the hours of Mariam Khalid Al Suwaidi at 48.',
+        // The passage as the contract has it, where the contract has it
+        evidence: 'Ms. Al Suwaidi may not take leave in her first year.',
+        evidenceOffset: CONTRACT.indexOf('Ms. Al Suwaidi'),
+      });
+    });
+
+    it('when redaction fails, the attempt fails and no provider is called', async () => {
+      const data = await job(CONTRACT);
+      modelAnswer = { summary: 'x', findings: [] };
+      const unreachable = new RedactionService({
+        get: (key: string, fallback: unknown) =>
+          ({
+            'workerAi.redactionNerUrl': 'http://127.0.0.1:9',
+            'workerAi.redactionNerTimeoutMs': 500,
+          })[key] ?? fallback,
+      } as ConfigService);
+
+      await expect(
+        worker({
+          chunks: [chunk(ruleset, 'Art. 17')],
+          redaction: unreachable,
+        }).analyze(data),
+      ).rejects.toThrow('Redaction failed');
+
+      expect(embeddedTexts).toEqual([]);
+      expect(rerankQueries).toEqual([]);
+      expect(calls).toEqual([]);
+      expect(await stored(data.analysisJobId)).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('nothing was sent to an AI provider'),
+      });
+    });
+  });
+
   it('keeps only findings that cite a supplied clause', async () => {
     const data = await job('The employee works 70 hours a week.');
     const cited = chunk(ruleset, 'Art. 17');
@@ -489,6 +612,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
     const { result } = await stored(data.analysisJobId);
     expect(result?.provenance).toEqual({
       promptVersion: PROMPT_VERSION,
+      redaction: { enabled: true, valuesMasked: 0 },
       embeddingModel: 'text-embedding-3-small',
       rulesetVersionIds: [versionOf(ruleset), versionOf(other)],
       suppliedChunkIds: clauses.map((c) => c.id),
