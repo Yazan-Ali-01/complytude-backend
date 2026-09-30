@@ -1,5 +1,6 @@
 import type { Block } from '@aws-sdk/client-textract';
 import { PermanentError } from '@lib/queue';
+import { sectionsFromLayout } from './document-layout';
 import { parseLayoutBlocks } from './textract.service';
 
 let nextId = 0;
@@ -31,6 +32,17 @@ function layout(
   ];
 }
 
+/** Textract's result as ingestion stores it: sections and flat text. */
+function parse(
+  blocks: Block[],
+  jobId: string,
+  maxPages: number,
+): ReturnType<typeof parseLayoutBlocks> &
+  ReturnType<typeof sectionsFromLayout> {
+  const result = parseLayoutBlocks(blocks, jobId, maxPages);
+  return { ...result, ...sectionsFromLayout(result.items) };
+}
+
 /**
  * Textract LAYOUT output → sections and flat text: reading order (page, then position), headings
  * split sections, headers/footers/page numbers dropped, LINE fallback without LAYOUT, page limit.
@@ -48,7 +60,7 @@ describe('parseLayoutBlocks', () => {
       ...layout('LAYOUT_HEADER', 'CONFIDENTIAL', 2, 0.01),
     ];
 
-    const result = parseLayoutBlocks(blocks, 'job-1', 50);
+    const result = parse(blocks, 'job-1', 50);
 
     expect(result.sections).toEqual([
       { heading: 'EMPLOYMENT AGREEMENT', level: 0, content: '', pageStart: 1 },
@@ -83,7 +95,7 @@ describe('parseLayoutBlocks', () => {
       ...layout('LAYOUT_LIST', 'a) first item', 1, 0.6),
     ];
 
-    expect(parseLayoutBlocks(blocks, 'job-2', 50).sections).toEqual([
+    expect(parse(blocks, 'job-2', 50).sections).toEqual([
       { heading: null, level: 1, content: 'Preamble text.', pageStart: 1 },
       { heading: 'Clause 1', level: 1, content: 'a) first item', pageStart: 1 },
     ]);
@@ -114,10 +126,13 @@ describe('parseLayoutBlocks', () => {
       },
     ];
 
-    const result = parseLayoutBlocks(lines, 'job-3', 50);
+    const result = parse(lines, 'job-3', 50);
 
-    expect(result.sections).toEqual([]);
-    expect(result.text).toBe('first\nsecond\n\npage two');
+    expect(result.items).toEqual([
+      { kind: 'text', text: 'first\nsecond', page: 1 },
+      { kind: 'text', text: 'page two', page: 2 },
+    ]);
+    expect(result.text).toBe('first\nsecond\npage two');
   });
 
   it('refuses a document over the page limit', () => {

@@ -145,6 +145,7 @@ const config = {
         '^@lib/storage$': '<rootDir>/../../libs/storage/src/index.ts',
         '^@lib/storage/(.*)$': '<rootDir>/../../libs/storage/src/$1',
         '^@lib/pdf$': '<rootDir>/../../libs/pdf/src/index.ts',
+        '^@lib/pdf/(.*)$': '<rootDir>/../../libs/pdf/src/$1',
       },
       moduleFileExtensions: ['ts', 'js', 'json'],
       testEnvironment: 'node',

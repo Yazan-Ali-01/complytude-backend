@@ -910,6 +910,7 @@ Table documents {
   extraction_error text [null, note: 'Error message if extraction failed']
   extracted_at timestamptz [null, note: 'When text extraction completed']
   textract_job_id text [null, note: 'Textract job of this document, resumed by ingestion retries']
+  ocr_pages integer[] [null, note: 'Pages whose text came from Textract (scans); {} = text layer only']
 
   indexes {
     tenant_id [note: 'Critical for RLS performance']

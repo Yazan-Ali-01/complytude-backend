@@ -106,8 +106,9 @@ resource "aws_iam_role_policy_attachment" "api_ses" {
   policy_arn = var.ses_send_policy_arn
 }
 
-# Ingestion: Textract on the quarantined upload, read its malware-scan tag, promote it (CopyObject
-# carries the tags) and delete the quarantined copy
+# Ingestion: Textract on the quarantined upload (or on a PDF of its scanned pages, written under
+# ocr-pages/ and deleted after), read its malware-scan tag, promote it (CopyObject carries the tags)
+# and delete the quarantined copy
 resource "aws_iam_role_policy" "worker_ingestion" {
   name = "ingestion-access"
   role = aws_iam_role.worker_ingestion_task.id
@@ -124,6 +125,12 @@ resource "aws_iam_role_policy" "worker_ingestion" {
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:GetObjectTagging", "s3:DeleteObject"]
         Resource = [local.quarantine_objects]
+      },
+      {
+        # Only the OCR copies: ingestion can't overwrite an upload
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
+        Resource = ["${var.quarantine_bucket_arn}/ocr-pages/*"]
       },
       {
         Effect   = "Allow"

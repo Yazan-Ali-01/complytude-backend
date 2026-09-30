@@ -14,6 +14,10 @@ export const textractConfig = registerAs('textract', () => ({
   pollBackoffMultiplier: parseFloat(
     process.env.TEXTRACT_POLL_BACKOFF_MULTIPLIER ?? '1.5',
   ),
+  minTextCharsPerPage: parseInt(
+    process.env.PDF_TEXT_MIN_CHARS_PER_PAGE ?? '50',
+    10,
+  ),
 }));
 
 export type TextractConfig = ReturnType<typeof textractConfig>;

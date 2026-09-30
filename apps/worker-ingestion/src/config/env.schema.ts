@@ -55,4 +55,11 @@ export const validationSchema = Joi.object({
   TEXTRACT_POLL_MAX_DELAY_MS: Joi.number().default(30000),
   TEXTRACT_POLL_MAX_ATTEMPTS: Joi.number().default(60),
   TEXTRACT_POLL_BACKOFF_MULTIPLIER: Joi.number().default(1.5),
+
+  // A PDF page with fewer letters and digits in its text layer, and an image, goes to OCR
+  PDF_TEXT_MIN_CHARS_PER_PAGE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1000)
+    .default(50),
 });

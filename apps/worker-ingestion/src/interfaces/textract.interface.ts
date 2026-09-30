@@ -1,4 +1,5 @@
 import { RetryableError } from '@lib/queue';
+import type { LayoutItem } from '../services/document-layout';
 
 export interface DocumentSection {
   heading: string | null;
@@ -8,8 +9,8 @@ export interface DocumentSection {
 }
 
 export interface TextractResult {
-  text: string;
-  sections: DocumentSection[];
+  /** The pages' blocks in reading order, numbered by the pages of the file Textract read. */
+  items: LayoutItem[];
   pageCount: number;
   confidence?: number;
   textractJobId?: string;

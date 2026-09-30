@@ -182,6 +182,8 @@ apps/api/test/
     └── file-type.mock.ts           # file-type ESM compatibility mock
 ```
 
+PDFs for ingestion tests come from `@lib/pdf/testing/pdf-fixtures`: `pdfWith([['a line', 'another'], 'scan'])` builds a PDF whose pages are either text (a text layer) or `'scan'` (only an image, as a scanner makes). Worker unit tests use it too.
+
 ---
 
 ## Writing Integration Tests

@@ -1,7 +1,9 @@
 import { TextChunkerService, TokenCounterService } from '@lib/embedding';
 import type { EmbeddingService } from '@lib/embedding';
+import { pdfWith } from '@lib/pdf/testing/pdf-fixtures';
 import { PermanentError } from '@lib/queue';
-import type { ConfigService } from '@nestjs/config';
+import type { S3Service } from '@lib/storage';
+import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { AnalysisJobWriteRepository } from '../../../worker-ai/src/repositories/analysis-job-write.repository';
 import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
@@ -190,26 +192,35 @@ describe('Workers act only inside the job payload tenant', () => {
   describe('ingestion (worker-ingestion)', () => {
     let startAnalysis: jest.Mock;
     let promote: jest.Mock;
+    let getObjectBuffer: jest.Mock;
     let ingestion: DocumentIngestionService;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       startAnalysis = jest.fn().mockResolvedValue('textract-job');
       promote = jest.fn().mockResolvedValue({ bucket: 'clean', key: 'k' });
+      const pdf = Buffer.from(
+        await pdfWith([
+          ['The Employee shall work forty-eight hours a week in Dubai.'],
+        ]),
+      );
+      getObjectBuffer = jest.fn().mockResolvedValue(pdf);
       const textract: ITextractService = {
         startAnalysis,
-        collectResult: jest
-          .fn()
-          .mockResolvedValue({ text: 'Extracted', sections: [], pageCount: 1 }),
+        collectResult: jest.fn().mockResolvedValue({ items: [], pageCount: 1 }),
       };
       const promotion: IS3PromotionService = { promote };
       ingestion = new DocumentIngestionService(
         new DocumentWriteRepository(app.appDatabaseService),
         textract,
         promotion,
+        { getObjectBuffer } as unknown as S3Service,
+        new ConfigService({
+          textract: { maxPages: 50, minTextCharsPerPage: 50 },
+        }),
       );
     });
 
-    it("refuses a job whose tenantId doesn't own the document, before Textract", async () => {
+    it("refuses a job whose tenantId doesn't own the document, before reading its file", async () => {
       const doc = await document(victim);
       const payload = {
         documentId: doc.id,
@@ -224,6 +235,7 @@ describe('Workers act only inside the job payload tenant', () => {
       // What the processor does after a permanent failure: it can't touch the victim's row either
       await ingestion.markFailed(attacker, doc.id, 'forged');
 
+      expect(getObjectBuffer).not.toHaveBeenCalled();
       expect(startAnalysis).not.toHaveBeenCalled();
       expect(promote).not.toHaveBeenCalled();
       expect(await row('documents', doc.id)).toMatchObject({
@@ -245,17 +257,17 @@ describe('Workers act only inside the job payload tenant', () => {
       };
 
       await expect(ingestion.process(payload)).rejects.toThrow(PermanentError);
-      expect(startAnalysis).not.toHaveBeenCalled();
+      expect(getObjectBuffer).not.toHaveBeenCalled();
 
       await ingestion.process({ ...payload, s3Key: doc.s3Key });
-      expect(startAnalysis).toHaveBeenCalledWith(
-        QUARANTINE,
-        doc.s3Key,
-        'application/pdf',
-      );
-      expect((await row('documents', doc.id)).extraction_status).toBe(
-        'completed',
-      );
+      expect(getObjectBuffer).toHaveBeenCalledWith(QUARANTINE, doc.s3Key);
+      // A born-digital PDF is read locally: no OCR processor sees it
+      expect(startAnalysis).not.toHaveBeenCalled();
+      expect(await row('documents', doc.id)).toMatchObject({
+        extraction_status: 'completed',
+        content: 'The Employee shall work forty-eight hours a week in Dubai.',
+        ocr_pages: [],
+      });
     });
   });
 });

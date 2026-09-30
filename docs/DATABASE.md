@@ -735,6 +735,7 @@ Tenant-specific documents. Supports both text-input (pasted content) and file-up
 | `extraction_error`  | TEXT                              | Error message if extraction failed                                                        |
 | `extracted_at`      | TIMESTAMPTZ                       | When text extraction completed                                                            |
 | `textract_job_id`   | TEXT                              | Textract job of this document; ingestion retries resume it instead of starting another    |
+| `ocr_pages`         | INTEGER[]                         | Pages (1-based) whose text came from Textract (scans); `{}` = read from the PDF's text layer only; NULL = not extracted yet, or before migration 034 |
 
 **Enums:**
 

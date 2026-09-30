@@ -11,11 +11,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   TEXTRACT_CLIENT,
-  type DocumentSection,
   type ITextractService,
   type TextractResult,
   TextractJobFailedError,
 } from '../interfaces/textract.interface';
+import type { LayoutItem } from './document-layout';
 
 const SUPPORTED_MIME_TYPES = new Set([
   'application/pdf',
@@ -125,10 +125,7 @@ export class TextractService implements ITextractService {
       throw error;
     }
     if (pages > this.config.maxPages) {
-      throw new PermanentError(
-        `Document has ${pages} pages, exceeding the maximum of ${this.config.maxPages}. ` +
-          `Increase TEXTRACT_MAX_PAGES if this is expected.`,
-      );
+      throw pageLimitExceeded(pages, this.config.maxPages);
     }
   }
 
@@ -288,16 +285,23 @@ export class TextractService implements ITextractService {
   }
 }
 
+/** TEXTRACT_MAX_PAGES caps every document, read locally or by Textract. */
+export function pageLimitExceeded(
+  pages: number,
+  maxPages: number,
+): PermanentError {
+  return new PermanentError(
+    `Document has ${pages} pages, exceeding the maximum of ${maxPages}. ` +
+      `Increase TEXTRACT_MAX_PAGES if this is expected.`,
+  );
+}
+
 /**
- * Parse Textract blocks from a LAYOUT-featured analysis job into structured sections
- * and a flat text fallback.
- *
- * LAYOUT blocks (LAYOUT_SECTION_HEADER, LAYOUT_TEXT, etc.) carry spatial hierarchy.
- * Each LAYOUT block's text is resolved by following CHILD relationships to LINE blocks.
- * Sections are delimited by LAYOUT_TITLE and LAYOUT_SECTION_HEADER blocks.
- *
- * Falls back to LINE-block concatenation when no LAYOUT blocks are returned
- * (e.g. image-only PDFs where LAYOUT feature produced nothing).
+ * Textract blocks from a LAYOUT-featured analysis job → the pages' blocks in reading order
+ * (page, then position). Each LAYOUT block's text is resolved by following CHILD relationships to
+ * LINE blocks; titles and section headers become headings; headers, footers, page numbers and
+ * figures are dropped. Without LAYOUT blocks (e.g. image-only PDFs where LAYOUT produced
+ * nothing), each page's LINE blocks become one paragraph.
  */
 export function parseLayoutBlocks(
   blocks: Block[],
@@ -306,12 +310,7 @@ export function parseLayoutBlocks(
 ): TextractResult {
   const pageCount = new Set(blocks.map((b) => b.Page ?? 1)).size;
 
-  if (pageCount > maxPages) {
-    throw new PermanentError(
-      `Document has ${pageCount} pages, exceeding the maximum of ${maxPages}. ` +
-        `Increase TEXTRACT_MAX_PAGES if this is expected.`,
-    );
-  }
+  if (pageCount > maxPages) throw pageLimitExceeded(pageCount, maxPages);
 
   // Build ID → block lookup for resolving CHILD relationships
   const blockMap = new Map<string, Block>();
@@ -335,14 +334,7 @@ export function parseLayoutBlocks(
 
   const layoutBlocks = blocks
     .filter((b) => b.BlockType?.startsWith('LAYOUT_'))
-    .sort((a, b) => {
-      const pageDiff = (a.Page ?? 1) - (b.Page ?? 1);
-      if (pageDiff !== 0) return pageDiff;
-      return (
-        (a.Geometry?.BoundingBox?.Top ?? 0) -
-        (b.Geometry?.BoundingBox?.Top ?? 0)
-      );
-    });
+    .sort(byReadingOrder);
 
   // Compute confidence from LINE blocks (available regardless of LAYOUT)
   const lineBlocks = blocks.filter((b) => b.BlockType === 'LINE');
@@ -357,19 +349,11 @@ export function parseLayoutBlocks(
 
   // Fallback: no LAYOUT blocks (scanned image without LAYOUT output)
   if (layoutBlocks.length === 0) {
-    const text = flattenLineBlocks(lineBlocks);
-    return { text, sections: [], pageCount, confidence, textractJobId: jobId };
+    const items = linesByPage(lineBlocks);
+    return { items, pageCount, confidence, textractJobId: jobId };
   }
 
-  // Group content under section headings
-  const sections: DocumentSection[] = [];
-  let current: {
-    heading: string | null;
-    level: number;
-    lines: string[];
-    pageStart: number;
-  } = { heading: null, level: 1, lines: [], pageStart: 1 };
-
+  const items: LayoutItem[] = [];
   for (const block of layoutBlocks) {
     const type = block.BlockType!;
     if (SKIP_LAYOUT_TYPES.has(type)) continue;
@@ -377,55 +361,31 @@ export function parseLayoutBlocks(
     const text = getBlockText(block);
     if (!text) continue;
 
-    if (HEADING_LAYOUT_TYPES.has(type)) {
-      if (current.lines.length > 0 || current.heading !== null) {
-        sections.push({
-          heading: current.heading,
-          level: current.level,
-          content: current.lines.join('\n'),
-          pageStart: current.pageStart,
-        });
-      }
-      current = {
-        heading: text,
-        level: type === 'LAYOUT_TITLE' ? 0 : 1,
-        lines: [],
-        pageStart: block.Page ?? 1,
-      };
-    } else {
-      current.lines.push(text);
-    }
-  }
-
-  if (current.lines.length > 0 || current.heading !== null) {
-    sections.push({
-      heading: current.heading,
-      level: current.level,
-      content: current.lines.join('\n'),
-      pageStart: current.pageStart,
+    items.push({
+      kind: HEADING_LAYOUT_TYPES.has(type)
+        ? type === 'LAYOUT_TITLE'
+          ? 'title'
+          : 'heading'
+        : 'text',
+      text,
+      page: block.Page ?? 1,
     });
   }
 
-  // Build flat text from sections for backward compat (documents.content column)
-  const text = sections
-    .map((s) => (s.heading ? `${s.heading}\n${s.content}` : s.content))
-    .filter(Boolean)
-    .join('\n\n');
-
-  return { text, sections, pageCount, confidence, textractJobId: jobId };
+  return { items, pageCount, confidence, textractJobId: jobId };
 }
 
-function flattenLineBlocks(lineBlocks: Block[]): string {
-  lineBlocks.sort((a, b) => {
-    const pageDiff = (a.Page ?? 1) - (b.Page ?? 1);
-    if (pageDiff !== 0) return pageDiff;
-    return (
-      (a.Geometry?.BoundingBox?.Top ?? 0) - (b.Geometry?.BoundingBox?.Top ?? 0)
-    );
-  });
+function byReadingOrder(a: Block, b: Block): number {
+  const pageDiff = (a.Page ?? 1) - (b.Page ?? 1);
+  if (pageDiff !== 0) return pageDiff;
+  return (
+    (a.Geometry?.BoundingBox?.Top ?? 0) - (b.Geometry?.BoundingBox?.Top ?? 0)
+  );
+}
 
+function linesByPage(lineBlocks: Block[]): LayoutItem[] {
   const textByPage = new Map<number, string[]>();
-  for (const block of lineBlocks) {
+  for (const block of [...lineBlocks].sort(byReadingOrder)) {
     const page = block.Page ?? 1;
     if (!textByPage.has(page)) textByPage.set(page, []);
     if (block.Text) textByPage.get(page)!.push(block.Text);
@@ -433,8 +393,11 @@ function flattenLineBlocks(lineBlocks: Block[]): string {
 
   return [...textByPage.keys()]
     .sort((a, b) => a - b)
-    .map((page) => textByPage.get(page)!.join('\n'))
-    .join('\n\n');
+    .map((page) => ({
+      kind: 'text' as const,
+      text: textByPage.get(page)!.join('\n'),
+      page,
+    }));
 }
 
 function sleep(ms: number): Promise<void> {

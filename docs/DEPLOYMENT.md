@@ -75,7 +75,7 @@ Application Load Balancer
 
 AWS Services (global / regional, not in VPC):
   ECR:               {account}.dkr.ecr.eu-central-1.amazonaws.com/complytude/{api|worker-*}
-  S3 Quarantine:     complytude-staging-quarantine   (raw uploads → GuardDuty malware scan, Textract)
+  S3 Quarantine:     complytude-staging-quarantine   (raw uploads → GuardDuty malware scan; Textract reads scanned pages, copied under ocr-pages/)
   S3 Clean:          complytude-staging-clean        (validated files + templates)
   Secrets Manager:   complytude/staging/{app,db-app,redis} + RDS-managed master secret
   SES:               billing@complytude.com, support@complytude.com
@@ -134,7 +134,7 @@ Each service is given only the keys it uses (`infra/modules/ecs/services.tf`) an
 |---|---|---|
 | API | `DB_APP_PASSWORD`, `REDIS_PASSWORD`, the four JWT keys, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_SECRET`, `BULL_BOARD_ADMIN_SECRET` | S3 get/put/delete on both buckets, SES send |
 | worker-ai | `DB_APP_PASSWORD`, `REDIS_PASSWORD`, `OPENAI_API_KEY`, `COHERE_API_KEY` | none |
-| worker-ingestion | `DB_APP_PASSWORD`, `REDIS_PASSWORD`, `OPENAI_API_KEY` | Textract Start/GetDocumentAnalysis; quarantine get, get-tags, delete; clean put, put-tags, get |
+| worker-ingestion | `DB_APP_PASSWORD`, `REDIS_PASSWORD`, `OPENAI_API_KEY` | Textract Start/GetDocumentAnalysis; quarantine get, get-tags, delete, put under `ocr-pages/` only; clean put, put-tags, get |
 | worker-generation | `DB_APP_PASSWORD`, `REDIS_PASSWORD` | S3 get/put/delete on the clean bucket |
 
 S3 access keys are not used: the tasks sign with their roles.
