@@ -143,6 +143,10 @@ a SHA-256 hash in `details.emailHash`). Retention of audit rows is not decided y
 
 If `ROLLBACK` fails after an error in a transaction helper, the helper logs it, releases the client with that error (pg destroys the connection instead of pooling it) and rethrows the original error.
 
+### Runtime role privileges
+
+The application connects as `app_login`, a member of `app_user`. `app_user` may not create objects in `public` (migration 028) and has, per table, only the operations the code performs (migration 038): catalogs the app never writes (`addon_entitlements`, `template_version_ruleset_versions`) are read-only, `addons` only takes updates (Stripe catalog sync), nothing deletes plans, features, rulesets, templates' versions or Stripe events, and link tables filled with `ON CONFLICT DO NOTHING` have no `UPDATE`. `apps/api/test/rls/app-role-privileges.integration.spec.ts` pins the full map: when a feature needs a new privilege, grant it in a new migration and update the map there. The API still writes most catalogs itself (startup syncs, platform-admin endpoints); moving those writes to a separate role is not done yet.
+
 ---
 
 ## Table Groups

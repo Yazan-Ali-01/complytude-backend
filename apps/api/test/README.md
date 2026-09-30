@@ -262,6 +262,8 @@ it('should respect RLS policies', async () => {
 
 **When you add or change an RLS policy,** add or update its entry in `POLICY_CASES`. When `app_user` lacks the privilege for a policy's command (for example there is no `DELETE` on `documents`, which are soft-deleted), mark the case `blockedByGrant` with the reason; the suite then asserts the privilege error, and fails if the privilege is granted later so the case gets a real operation. A new tenant-scoped table also needs a fixture row in `seedWorld()` and entries in `TENANT_TABLES` and `INSERT_FOR`.
 
+**When you add a table or change a grant,** update the pinned map in `apps/api/test/rls/app-role-privileges.integration.spec.ts` (`PRIVILEGES`): `app_user` gets only the operations the code performs, and the suite fails on any difference.
+
 ### Overriding Providers
 
 ```typescript
