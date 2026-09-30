@@ -7,7 +7,14 @@ import {
 } from '@nestjs/common/constants';
 import type { ModulesContainer } from '@nestjs/core';
 import type { FastifyInstance } from 'fastify';
+import { isFeatureAvailable } from 'src/common/constants/plan-entitlements.constant';
+import type { FeatureKey } from 'src/common/types/entitlement.types';
 import { PLATFORM_PERMISSIONS_KEY } from 'src/common/decorators/platform-permissions.decorator';
+import {
+  ENTITLEMENT_KEY,
+  type EntitlementRequirement,
+} from 'src/common/decorators/require-entitlement.decorator';
+import { TRACK_USAGE_KEY } from 'src/common/decorators/track-usage.decorator';
 import { TENANT_PERMISSIONS_KEY } from 'src/common/decorators/tenant-permissions.decorator';
 import {
   AUTH_OPTIONS_KEY,
@@ -68,6 +75,8 @@ interface RouteInfo {
   tenantPermissions?: PermissionMetadata;
   platformPermissions?: PermissionMetadata;
   roles?: string[];
+  /** Features the route requires (@RequireEntitlement) or meters (@TrackUsage). */
+  features: FeatureKey[];
 }
 
 interface BootedApp {
@@ -193,6 +202,14 @@ function collectRoutes(modulesContainer: ModulesContainer): RouteInfo[] {
                 PLATFORM_PERMISSIONS_KEY,
               ),
               roles: meta<string[]>(ROLES_KEY),
+              features: [
+                ...(meta<EntitlementRequirement[]>(ENTITLEMENT_KEY) ?? []).map(
+                  (r) => r.featureKey,
+                ),
+                ...[meta<{ featureKey: FeatureKey }>(TRACK_USAGE_KEY)]
+                  .filter((t) => t !== undefined)
+                  .map((t) => t.featureKey),
+              ],
             });
           }
         }
@@ -309,6 +326,17 @@ describe('Route authentication inventory', () => {
 
     it('mounts no mock, queue-test or rag-mock routes', () => {
       expect(routes.filter(isMockRoute).map((r) => r.id)).toEqual([]);
+    });
+
+    it('enforces or meters only features that exist, never a coming-soon one', () => {
+      const gated = routes.filter((r) => r.features.length > 0);
+      expect(gated.length).toBeGreaterThan(0);
+      const comingSoon = gated.flatMap((r) =>
+        r.features
+          .filter((feature) => !isFeatureAvailable(feature))
+          .map((feature) => `${r.id} ${feature}`),
+      );
+      expect(comingSoon).toEqual([]);
     });
 
     it('gives no route an ambiguous or unenforced authentication mode', () => {

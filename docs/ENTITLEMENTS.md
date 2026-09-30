@@ -72,10 +72,12 @@ A **plan** is a subscription tier with predefined feature limits:
 
 | Plan                 | Target Audience        | Price         | Key Features                                  |
 | -------------------- | ---------------------- | ------------- | --------------------------------------------- |
-| **Navigator** (Free) | Founders in idea phase | AED 0/mo      | 3 docs/mo, basic regulatory                   |
-| **Shield**           | Solo entrepreneurs     | AED 249/mo    | 25 docs/mo, essential templates               |
-| **General Counsel**  | Active SMEs            | AED 599/mo    | 100 docs/mo, full library, AI redlining       |
-| **Infrastructure**   | Agencies, enterprises  | AED 2,499+/mo | Unlimited docs, custom playbooks, white-label |
+| **Navigator** (Free) | Founders in idea phase | AED 0/mo      | 3 docs/mo, essential templates                |
+| **Shield**           | Solo entrepreneurs     | AED 349/mo    | 25 docs/mo, 5 AI reviews/mo, 3 seats          |
+| **General Counsel**  | Active SMEs            | AED 599/mo    | 100 docs/mo, 30 AI reviews/mo, full library   |
+| **Infrastructure**   | Agencies, enterprises  | AED 2,499/mo  | Unlimited docs, reviews and seats, white-label |
+
+Prices and limits come from `PLAN_CATALOG` / `PLAN_ENTITLEMENTS` (`plan-entitlements.constant.ts`); the plan descriptions there are synced to Stripe and name only features that exist.
 
 ### 3. Effective Entitlement
 
@@ -292,6 +294,16 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 | `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions                                                                                                                                                |
 | `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                                                                                                                                                          |
 
+### Availability: coming soon
+
+Each feature in `FEATURE_CATALOG` has an `availability`: `available` (built) or `coming_soon` (shown in the plan comparison, not built yet). Coming soon today: `regulatory_hub_access`, `regulatory_queries_per_month`, `license_verifier_lookups`, `redlining_enabled`, `localizer_check`, `bilingual_quality`, `custom_playbooks`, `data_isolation`, `jurisdictions`. A plan may carry a value for them (what it will include), but:
+
+- `GET /entitlements/plans`, `/plans/:key` and `/entitlements/current` return `availability` on every feature, so the frontend labels coming-soon features instead of presenting them as included;
+- no route may require (`@RequireEntitlement`) or meter (`@TrackUsage`) a coming-soon feature: `route-auth-inventory.integration.spec.ts` fails if one does (the dev-only mock routes are exempt);
+- plan descriptions (synced to Stripe) don't name them (`plan-entitlements.constant.spec.ts`).
+
+When a feature ships, set it `available` in the same change that adds its enforcement.
+
 ---
 
 ## Plan Tiers
@@ -322,7 +334,7 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 ### Shield
 
 **Target:** Solo entrepreneurs (1-5 employees)
-**Price:** AED 249/month
+**Price:** AED 349/month
 
 | Feature             | Value         |
 | ------------------- | ------------- |
@@ -368,7 +380,7 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 ### Infrastructure
 
 **Target:** Agencies, law firms, enterprises
-**Price:** AED 2,499+/month
+**Price:** AED 2,499/month
 
 | Feature             | Value              |
 | ------------------- | ------------------ |
@@ -613,13 +625,13 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 ### 3. Boolean Feature Check
 
 ```typescript
-// Example: Check if redlining is enabled
+// Example: white-label exports (tenant branding)
 @AuthOptions({ tenant: true })
 @UseGuards(EntitlementGuard)
-@RequireEntitlement('redlining_enabled')
-async analyzeContract() {
+@RequireEntitlement('white_label_exports')
+async uploadLogo() {
   // Guard checks:
-  // 1. Resolve entitlement for 'redlining_enabled'
+  // 1. Resolve entitlement for 'white_label_exports'
   // 2. Check: value_bool === true
   // 3. If false → throw ForbiddenException
   // 4. If true → allow request

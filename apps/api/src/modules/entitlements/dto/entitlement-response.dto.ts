@@ -4,7 +4,11 @@ import type {
   PlanKey,
   UsageSource,
 } from 'src/common/types/entitlement.types';
-import { ALL_PLAN_KEYS } from '../../../common/constants/plan-entitlements.constant';
+import {
+  ALL_PLAN_KEYS,
+  FEATURE_AVAILABILITY,
+  type FeatureAvailability,
+} from '../../../common/constants/plan-entitlements.constant';
 
 /**
  * Effective entitlement response DTO
@@ -50,6 +54,15 @@ export class EffectiveEntitlementDto {
     example: 'plan',
   })
   source: UsageSource;
+
+  @ApiProperty({
+    description:
+      'available: built and included. coming_soon: shown in the plan comparison but not built yet, ' +
+      'so not included whatever the value says',
+    enum: FEATURE_AVAILABILITY,
+    example: 'available',
+  })
+  availability: FeatureAvailability;
 }
 
 /**

@@ -17,6 +17,13 @@ import { DEFAULT_CURRENCY } from './billing.constant';
 export const FEATURE_STORAGE_TYPES = ['bool', 'int', 'text'] as const;
 export type FeatureStorageType = (typeof FEATURE_STORAGE_TYPES)[number];
 
+/**
+ * Whether a feature is built. A coming-soon feature appears in the plan comparison, marked as
+ * such, but is never sold as included, enforced, or named in a plan's description.
+ */
+export const FEATURE_AVAILABILITY = ['available', 'coming_soon'] as const;
+export type FeatureAvailability = (typeof FEATURE_AVAILABILITY)[number];
+
 export interface FeatureCatalogEntry {
   name: string;
   feature_type: FeatureType;
@@ -30,6 +37,7 @@ export interface FeatureCatalogEntry {
   creditable?: boolean;
   credit_cost?: number | null; // Cost in credits per unit (null for non-creditable features)
   description?: string;
+  availability: FeatureAvailability;
 }
 
 /**
@@ -45,12 +53,14 @@ export const FEATURE_CATALOG = {
     creditable: true,
     credit_cost: 5, // 5 credits per document
     description: 'Number of documents that can be generated per billing period',
+    availability: 'available',
   },
   template_library: {
     name: 'Template Library',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'essential' | 'full'
     description: 'Access to template library (essential or full)',
+    availability: 'available',
   },
   bilingual_quality: {
     name: 'Bilingual Quality',
@@ -58,6 +68,7 @@ export const FEATURE_CATALOG = {
     storage_type: 'text', // tiered: 'standard' | 'jais_native'
     description:
       'Quality of bilingual document generation (standard or jais_native)',
+    availability: 'coming_soon',
   },
   contract_reviews_per_month: {
     name: 'Contract Reviews Per Month',
@@ -66,30 +77,35 @@ export const FEATURE_CATALOG = {
     unit: 'reviews',
     creditable: false,
     description: 'Number of AI contract reviews per billing period',
+    availability: 'available',
   },
   risk_analysis_level: {
     name: 'Risk Analysis Level',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'none' | 'critical_only' | 'full'
     description: 'Level of risk analysis (none, critical_only, or full)',
+    availability: 'available',
   },
   redlining_enabled: {
     name: 'AI Redlining',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'AI suggests alternative compliant wording',
+    availability: 'coming_soon',
   },
   localizer_check: {
     name: 'Localizer Check',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'Flags governing law / jurisdiction mismatches',
+    availability: 'coming_soon',
   },
   regulatory_hub_access: {
     name: 'Regulatory Hub Access',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'Access to compliance dashboard',
+    availability: 'coming_soon',
   },
   regulatory_queries_per_month: {
     name: 'Regulatory Queries',
@@ -99,6 +115,7 @@ export const FEATURE_CATALOG = {
     creditable: true,
     credit_cost: 3, // 3 credits per query
     description: 'Chat-with-Law queries per billing period',
+    availability: 'coming_soon',
   },
   license_verifier_lookups: {
     name: 'License Verifier Lookups',
@@ -107,12 +124,14 @@ export const FEATURE_CATALOG = {
     unit: 'lookups',
     creditable: false,
     description: 'DED API lookups per billing period',
+    availability: 'coming_soon',
   },
   jurisdictions: {
     name: 'Jurisdictions',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'single' | 'all'
     description: 'Access to jurisdictions (single or all)',
+    availability: 'coming_soon',
   },
   user_seats: {
     name: 'User Seats',
@@ -120,24 +139,28 @@ export const FEATURE_CATALOG = {
     storage_type: 'int',
     unit: 'seats',
     description: 'Maximum number of users in tenant',
+    availability: 'available',
   },
   data_isolation: {
     name: 'Data Isolation',
     feature_type: 'boolean',
     storage_type: 'text', // tiered: 'shared' | 'row_level' | 'silo'
     description: 'Level of data isolation (shared, row_level, or silo)',
+    availability: 'coming_soon',
   },
   custom_playbooks: {
     name: 'Custom Playbooks',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'Upload company-specific negotiating positions',
+    availability: 'coming_soon',
   },
   white_label_exports: {
     name: 'White Label Exports',
     feature_type: 'boolean',
     storage_type: 'bool',
     description: 'Export reports with tenant branding',
+    availability: 'available',
   },
   document_scans: {
     name: 'Document Scans',
@@ -148,6 +171,7 @@ export const FEATURE_CATALOG = {
     credit_cost: 5,
     description:
       'Number of document file scans (Textract extraction) per billing period',
+    availability: 'available',
   },
 } as const satisfies Record<string, FeatureCatalogEntry>;
 
@@ -178,7 +202,7 @@ export interface PlanCatalogEntry {
 export const PLAN_CATALOG = {
   navigator: {
     name: 'Navigator',
-    description: 'Lead magnet — Regulatory Watch + basic Chat with Law',
+    description: 'Free — essential templates and document generation',
     price_monthly: 0,
     price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
@@ -186,7 +210,8 @@ export const PLAN_CATALOG = {
   },
   shield: {
     name: 'Shield',
-    description: 'Solo entrepreneurs — Essential templates + basic analysis',
+    description:
+      'Solo entrepreneurs — essential templates and AI contract reviews',
     price_monthly: 349,
     price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
@@ -194,7 +219,8 @@ export const PLAN_CATALOG = {
   },
   general_counsel: {
     name: 'General Counsel',
-    description: 'Active SMEs — Full library + Jais-native Arabic + redlining',
+    description:
+      'Active SMEs — the full template library, more AI contract reviews and seats',
     price_monthly: 599,
     price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
@@ -202,7 +228,8 @@ export const PLAN_CATALOG = {
   },
   infrastructure: {
     name: 'Infrastructure',
-    description: 'Agencies — Silo isolation + custom playbooks + white-label',
+    description:
+      'Agencies — unlimited documents, reviews and seats, with white-label exports',
     price_monthly: 2499,
     price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
@@ -355,6 +382,11 @@ export function isValidFeatureKey(
 /**
  * Helper: Get feature definition by key
  */
+/** Built and sold; coming-soon features are shown but never enforced or included. */
+export function isFeatureAvailable(featureKey: FeatureKey): boolean {
+  return FEATURE_CATALOG[featureKey].availability === 'available';
+}
+
 export function getFeatureDefinition(
   featureKey: FeatureKey,
 ): FeatureCatalogEntry | undefined {

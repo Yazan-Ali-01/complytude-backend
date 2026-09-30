@@ -4,6 +4,7 @@ import type { FeatureKey, PlanKey } from 'src/common/types/entitlement.types';
 import {
   getAllPlanEntitlements,
   getFeatureDefinition,
+  isFeatureAvailable,
 } from '../../common/constants/plan-entitlements.constant';
 import { PlansRepository } from '../../repositories/plans/plans.repository';
 import { AuthOptions, Public } from '../auth/decorators/auth-options.decorator';
@@ -60,6 +61,9 @@ export class EntitlementsController {
         valueInt: value.value_int,
         valueText: value.value_text,
         source: value.source,
+        availability: isFeatureAvailable(value.feature_key)
+          ? 'available'
+          : 'coming_soon',
       };
     }
 
@@ -85,23 +89,6 @@ export class EntitlementsController {
     const plans = await this.plansRepository.findAll();
 
     return plans.map((plan) => {
-      const planEntitlements = getAllPlanEntitlements(plan.key);
-      const entitlementsDto: Record<string, EffectiveEntitlementDto> = {};
-
-      for (const [featureKey, value] of Object.entries(planEntitlements)) {
-        const featureDef = getFeatureDefinition(featureKey as FeatureKey);
-        if (!featureDef) continue;
-
-        entitlementsDto[featureKey] = {
-          featureKey,
-          featureType: featureDef.feature_type,
-          valueBool: value.value_bool,
-          valueInt: value.value_int,
-          valueText: value.value_text,
-          source: 'plan',
-        };
-      }
-
       return {
         id: plan.id,
         key: plan.key,
@@ -110,7 +97,7 @@ export class EntitlementsController {
         priceMonthly: plan.price_monthly,
         priceCurrency: plan.price_currency,
         billingPeriod: plan.billing_period,
-        entitlements: entitlementsDto,
+        entitlements: planEntitlementsDto(plan.key),
       };
     });
   }
@@ -139,23 +126,6 @@ export class EntitlementsController {
       );
     }
 
-    const planEntitlements = getAllPlanEntitlements(plan.key);
-    const entitlementsDto: Record<string, EffectiveEntitlementDto> = {};
-
-    for (const [featureKey, value] of Object.entries(planEntitlements)) {
-      const featureDef = getFeatureDefinition(featureKey as FeatureKey);
-      if (!featureDef) continue;
-
-      entitlementsDto[featureKey] = {
-        featureKey,
-        featureType: featureDef.feature_type,
-        valueBool: value.value_bool,
-        valueInt: value.value_int,
-        valueText: value.value_text,
-        source: 'plan',
-      };
-    }
-
     return {
       id: plan.id,
       key: plan.key,
@@ -164,7 +134,31 @@ export class EntitlementsController {
       priceMonthly: plan.price_monthly,
       priceCurrency: plan.price_currency,
       billingPeriod: plan.billing_period,
-      entitlements: entitlementsDto,
+      entitlements: planEntitlementsDto(plan.key),
     };
   }
+}
+
+/** A plan's entitlements as the plans endpoints return them. */
+function planEntitlementsDto(
+  planKey: PlanKey,
+): Record<string, EffectiveEntitlementDto> {
+  const entitlementsDto: Record<string, EffectiveEntitlementDto> = {};
+  for (const [featureKey, value] of Object.entries(
+    getAllPlanEntitlements(planKey),
+  )) {
+    const featureDef = getFeatureDefinition(featureKey as FeatureKey);
+    if (!featureDef) continue;
+
+    entitlementsDto[featureKey] = {
+      featureKey,
+      featureType: featureDef.feature_type,
+      valueBool: value.value_bool,
+      valueInt: value.value_int,
+      valueText: value.value_text,
+      source: 'plan',
+      availability: featureDef.availability,
+    };
+  }
+  return entitlementsDto;
 }

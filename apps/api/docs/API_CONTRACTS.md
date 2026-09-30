@@ -20,6 +20,7 @@
 - [Invitation System & Seat Enforcement](#invitation-system--seat-enforcement)
 - [Document Flows](#document-flows)
 - [Compliance Analysis Scope](#compliance-analysis-scope)
+- [Plans and Entitlements](#plans-and-entitlements)
 - [Billing API](#billing-api)
 - [Stripe Webhook Receiver](#stripe-webhook-receiver)
 - [Platform Admin — Stripe](#platform-admin--stripe)
@@ -1329,6 +1330,12 @@ Sent in the tenant's `locale` (English or Arabic; Arabic emails are right-to-lef
 | Payment action required, dunning, trial ending | See Billing. |
 
 ---
+
+## Plans and Entitlements
+
+- `GET /entitlements/plans` and `GET /entitlements/plans/:key` (public): each plan with its price, description and `entitlements` (per feature: `featureType`, `valueBool` / `valueInt` (-1 = unlimited) / `valueText`, `availability`).
+- `GET /entitlements/current` (tenant token): the tenant's effective entitlements, same shape, with `source` (`plan`, `addon`, `credit`, `override`).
+- `availability` is `available` or `coming_soon`. Show coming-soon features as "coming soon" in the plan comparison, never as included, whatever their value says.
 
 ## Billing API
 
