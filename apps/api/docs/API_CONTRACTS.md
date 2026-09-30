@@ -1260,6 +1260,22 @@ Write routes additionally require the platform permission **`templates:manage`**
 
 ---
 
+## Compliance Analysis Scope
+
+`POST /documents/analyze` (text) and `POST /documents/:documentId/trigger-analysis` (an extracted upload) check the contract only against the rulesets that apply to it. Both take the same scope fields (`AnalysisScopeDto`):
+
+| Field | |
+|---|---|
+| `jurisdiction` | `MAINLAND`, `DMCC`, `IFZA`, `RAKEZ`, `SHAMS`, `DAFZA`, `JAFZA`, `DIFC`, `ADGM` |
+| `documentType` | `employment`, `shareholders_agreement`, `services`, `data_processing`, `commercial` |
+| `rulesetIds` / `rulesetKeys` | Pick the rulesets explicitly; unknown or inactive ones are refused |
+
+- Explicit rulesets decide alone (the jurisdiction and document type, if given, are still told to the model).
+- Otherwise `jurisdiction` **and** `documentType` are required and resolve to the active rulesets tagged with both (`rulesets.jurisdictions`, `rulesets.document_types`, set with `POST/PATCH /rulesets` as `jurisdictions` / `document_types`).
+- 400 `ANALYSIS_SCOPE_REQUIRED` without either; 400 `NO_APPLICABLE_RULESETS` when nothing applies. There is no global, all-rulesets analysis.
+- The result (`GET /analysis-jobs/:id`) carries `scope`, and `clauseVerdicts`: one entry per clause the model was given (`violated`, `compliant`, `not_applicable`, `unclear`, or `unassessed`), with its citation. Only violated or unclear clauses produce findings.
+
+
 ## Notification Emails
 
 Sent in the tenant's `locale` (English or Arabic; Arabic emails are right-to-left), to the first tenant admin and the tenant's `billing_email`. Tenant and user names are HTML-escaped.

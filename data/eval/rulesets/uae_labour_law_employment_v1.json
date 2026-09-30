@@ -6,6 +6,18 @@
     "code": "DED",
     "name": "Department of Economic Development"
   },
+  "jurisdictions": [
+    "MAINLAND",
+    "DMCC",
+    "IFZA",
+    "RAKEZ",
+    "SHAMS",
+    "DAFZA",
+    "JAFZA"
+  ],
+  "documentTypes": [
+    "employment"
+  ],
   "source": "scripts/seeds/009_seed_rulesets.sql, frozen for the evaluation (paraphrased demo text, not legal text)",
   "clauses": [
     {

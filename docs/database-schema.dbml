@@ -440,6 +440,8 @@ Table rulesets {
   name varchar(255) [not null]
   description text
   authority_id uuid [null, ref: > authorities.id]
+  jurisdictions text[] [not null, default: '{}', note: 'MAINLAND, DMCC, DIFC, ... (migration 033)']
+  document_types text[] [not null, default: '{}', note: 'employment, services, ... (migration 033)']
   current_version varchar(50) [not null, default: '1.0.0']
   status ruleset_status [not null, default: 'active']
   created_by uuid [null, ref: > users.id]

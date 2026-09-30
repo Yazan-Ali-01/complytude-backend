@@ -2,6 +2,8 @@
   "id": "difc-employment",
   "description": "DIFC employment contract (Meridian Capital Advisors). The demo coverage matrix also claimed UAE Labour Law breaches; federal labour law and the federal PDPL do not apply in the DIFC, so those are labelled must-not-flag here",
   "contract": "difc-employment.md",
+  "jurisdiction": "DIFC",
+  "documentType": "employment",
   "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
   "expected": [
     {

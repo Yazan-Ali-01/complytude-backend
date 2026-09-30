@@ -695,6 +695,8 @@ Immutable version history for templates.
 
 Legal rulesets containing authority-specific clauses.
 
+`jurisdictions` and `document_types` (text arrays, migration 033) say which contracts a ruleset applies to: an analysis given a jurisdiction and a document type searches only the active rulesets tagged with both. Codes are validated by the API (`ANALYSIS_JURISDICTIONS` / `ANALYSIS_DOCUMENT_TYPES` in `libs/queue`); an empty array means the ruleset is used only when picked explicitly.
+
 Similar structure to `templates` with version control.
 
 ### ruleset_versions

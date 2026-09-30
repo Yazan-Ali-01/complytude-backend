@@ -1,5 +1,21 @@
 export type RiskLevel = 'high' | 'medium' | 'low';
 
+/** The model's verdict on a supplied clause; `unassessed` when it gave none. */
+export type ClauseStatus =
+  | 'violated'
+  | 'compliant'
+  | 'not_applicable'
+  | 'unclear'
+  | 'unassessed';
+
+export interface ClauseVerdict {
+  clauseId: string;
+  chunkId: string;
+  citation: string;
+  status: ClauseStatus;
+  reason: string;
+}
+
 export interface AnalysisFinding {
   /** The supplied clause the finding rests on (C1, C2, … in the prompt); always one we gave it. */
   clauseId: string;
@@ -33,6 +49,8 @@ export interface AnalysisFinding {
  * - rulesets_without_context: a requested ruleset contributed no clauses
  * - ungrounded_findings_dropped: findings that cited no supplied clause were removed
  * - unverified_evidence_dropped: findings whose quote isn't in the document were removed
+ * - inconsistent_findings_dropped: findings on a clause the model itself called compliant or not applicable were removed
+ * - clauses_not_assessed: the model gave no verdict for some supplied clauses
  * - no_findings: nothing was reported; needs a human check, not "compliant"
  */
 export type AnalysisWarning =
@@ -41,6 +59,8 @@ export type AnalysisWarning =
   | 'rulesets_without_context'
   | 'ungrounded_findings_dropped'
   | 'unverified_evidence_dropped'
+  | 'inconsistent_findings_dropped'
+  | 'clauses_not_assessed'
   | 'no_findings';
 
 /** What produced a result, so runs can be reproduced and compared (evaluation, feedback). */
@@ -66,6 +86,10 @@ export interface AnalysisProvenance {
 
 export interface AnalysisResult {
   findings: AnalysisFinding[];
+  /** One per supplied clause: violated, compliant, not applicable, unclear or unassessed. */
+  clauseVerdicts: ClauseVerdict[];
+  /** What the user said the contract is; null when rulesets were picked without it. */
+  scope: { jurisdiction: string | null; documentType: string | null };
   summary: string;
   model: string;
   documentChunks: number;
@@ -83,6 +107,8 @@ export interface AnalysisResult {
   ungroundedFindingsDropped: number;
   /** Findings dropped because their quote couldn't be found in the document. */
   unverifiedFindingsDropped: number;
+  /** Findings dropped because the model's own verdict on their clause was compliant or not applicable. */
+  inconsistentFindingsDropped: number;
   warnings: AnalysisWarning[];
   provenance: AnalysisProvenance;
 }

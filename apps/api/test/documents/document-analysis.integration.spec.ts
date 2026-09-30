@@ -52,7 +52,11 @@ describe('Document analysis: injection, grounding and honest status', () => {
   let calls: ModelCall[];
   let rerankQueries: string[];
   let embeddedTexts: string[];
-  let modelAnswer: { findings: object[]; summary: string };
+  let modelAnswer: {
+    verdicts?: object[];
+    findings: object[];
+    summary: string;
+  };
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -218,7 +222,14 @@ describe('Document analysis: injection, grounding and honest status', () => {
 
   it('keeps injected instructions inside the untrusted document block', async () => {
     const data = await job(INJECTION);
-    modelAnswer = { findings: [], summary: 'The agreement is compliant.' };
+    // What a steered model would answer
+    modelAnswer = {
+      verdicts: [
+        { clauseId: 'C1', status: 'compliant', reason: 'Pre-cleared.' },
+      ],
+      findings: [],
+      summary: 'The agreement is compliant.',
+    };
 
     await worker({ chunks: [chunk(ruleset, 'Art. 17')] }).analyze(data);
 
@@ -359,6 +370,11 @@ describe('Document analysis: injection, grounding and honest status', () => {
     };
     modelAnswer = {
       summary: 'Checked.',
+      verdicts: ['C1', 'C2', 'C3'].map((clauseId) => ({
+        clauseId,
+        status: 'violated',
+        reason: '…',
+      })),
       findings: [
         // Verbatim
         {
@@ -530,6 +546,62 @@ describe('Document analysis: injection, grounding and honest status', () => {
         status: 'failed',
         error: expect.stringContaining('nothing was sent to an AI provider'),
       });
+    });
+  });
+
+  it("turns only violated or unclear clauses into findings, and stores every clause's verdict", async () => {
+    const data = {
+      ...(await job('The employee works 70 hours a week.')),
+      jurisdiction: 'DIFC',
+      documentType: 'employment',
+    } as DocumentAnalysisJobData;
+    const hours = chunk(ruleset, 'Art. 17');
+    const leave = chunk(ruleset, 'Art. 29', { clauseTitle: 'Annual leave' });
+    const gratuity = chunk(ruleset, 'Art. 51', { clauseTitle: 'Gratuity' });
+    const finding = {
+      riskLevel: 'high',
+      riskReason: '…',
+      description: '…',
+      suggestion: '…',
+      evidence: 'The employee works 70 hours a week.',
+    };
+    modelAnswer = {
+      summary: 'Checked.',
+      verdicts: [
+        { clauseId: 'C1', status: 'violated', reason: 'Over 48 hours.' },
+        { clauseId: 'C2', status: 'not_applicable', reason: 'Not mainland.' },
+      ],
+      findings: [
+        { ...finding, clauseId: 'C1', title: 'Hours' },
+        // Contradicts the model's own verdict on C2
+        { ...finding, clauseId: 'C2', title: 'Leave' },
+      ],
+    };
+
+    await worker({ chunks: [hours, leave, gratuity] }).analyze(data);
+
+    expect(calls[0].systemPrompt).toContain(
+      'The document is an employment contract governed in the Dubai International Financial Centre (DIFC).',
+    );
+    const { status, result } = await stored(data.analysisJobId);
+    expect(status).toBe('completed_with_warnings');
+    expect(result!.findings.map((f) => f.title)).toEqual(['Hours']);
+    expect(result).toMatchObject({
+      scope: { jurisdiction: 'DIFC', documentType: 'employment' },
+      inconsistentFindingsDropped: 1,
+      warnings: ['inconsistent_findings_dropped', 'clauses_not_assessed'],
+      clauseVerdicts: [
+        {
+          clauseId: 'C1',
+          chunkId: hours.id,
+          status: 'violated',
+          reason: 'Over 48 hours.',
+          citation:
+            'MOHRE — UAE Labour Law v1.0.0, Art. 17: Working time and wages',
+        },
+        { clauseId: 'C2', chunkId: leave.id, status: 'not_applicable' },
+        { clauseId: 'C3', chunkId: gratuity.id, status: 'unassessed' },
+      ],
     });
   });
 

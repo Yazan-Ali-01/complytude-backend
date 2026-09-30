@@ -2,6 +2,8 @@
   "id": "redaction-employment",
   "description": "Dubai mainland employment contract full of synthetic personal data (names in English and Arabic, Emirates ID, passport, address, P.O. box, email, phones, IBAN): none of it may reach a provider, and the planted breaches must still be found in the redacted text",
   "contract": "redaction-employment.md",
+  "jurisdiction": "MAINLAND",
+  "documentType": "employment",
   "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
   "expected": [
     {

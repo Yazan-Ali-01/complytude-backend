@@ -3,6 +3,7 @@
  */
 
 // Request DTOs
+export * from './analysis-scope.dto';
 export * from './analyze-document.dto';
 export * from './upload-url.dto';
 

@@ -2,6 +2,11 @@
   "id": "tech-services-staffing",
   "description": "Healthcare platform services and staff augmentation agreement (CloudBridge FZCO, Dubai Silicon Oasis) mixing patient data, provider employees and commercial terms",
   "contract": "tech-services-staffing.md",
+  "rulesetKeys": [
+    "uae_labour_law_employment_v1",
+    "uae_data_protection_pdpl_v1",
+    "uae_commercial_transactions_v1"
+  ],
   "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
   "expected": [
     {

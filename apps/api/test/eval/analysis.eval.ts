@@ -5,7 +5,11 @@ import {
   TextChunkerService,
   TokenCounterService,
 } from '@lib/embedding';
-import type { DocumentAnalysisJobData } from '@lib/queue';
+import type {
+  AnalysisDocumentType,
+  AnalysisJurisdiction,
+  DocumentAnalysisJobData,
+} from '@lib/queue';
 import { ConfigService } from '@nestjs/config';
 import { config as loadEnv } from 'dotenv';
 import { execSync } from 'node:child_process';
@@ -96,6 +100,8 @@ interface RulesetFixture {
   name: string;
   description: string;
   authority: { code: string; name: string };
+  jurisdictions: string[];
+  documentTypes: string[];
   clauses: unknown[];
 }
 
@@ -252,9 +258,16 @@ describeEval('AI evaluation', () => {
         [ruleset.authority.code, ruleset.authority.name],
       );
       const { rows } = await db.query<{ id: string }>(
-        `INSERT INTO public.rulesets (key, name, description, authority_id, current_version)
-         VALUES ($1, $2, $3, $4, '1.0.0') RETURNING id`,
-        [ruleset.key, ruleset.name, ruleset.description, authority[0].id],
+        `INSERT INTO public.rulesets (key, name, description, authority_id, current_version, jurisdictions, document_types)
+         VALUES ($1, $2, $3, $4, '1.0.0', $5, $6) RETURNING id`,
+        [
+          ruleset.key,
+          ruleset.name,
+          ruleset.description,
+          authority[0].id,
+          ruleset.jurisdictions,
+          ruleset.documentTypes,
+        ],
       );
       const { rows: version } = await db.query<{ id: string }>(
         `INSERT INTO public.ruleset_versions (ruleset_id, version, clauses)
@@ -283,6 +296,41 @@ describeEval('AI evaluation', () => {
     return new Map(rows.map((row) => [row.id, row.metadata]));
   }
 
+  /** The rulesets a case is checked against, resolved the way the API resolves a request. */
+  async function scopeOf(
+    evalCase: EvalCase,
+  ): Promise<
+    Pick<
+      DocumentAnalysisJobData,
+      'rulesetIds' | 'jurisdiction' | 'documentType'
+    >
+  > {
+    const context = {
+      ...(evalCase.jurisdiction && {
+        jurisdiction: evalCase.jurisdiction as AnalysisJurisdiction,
+      }),
+      ...(evalCase.documentType && {
+        documentType: evalCase.documentType as AnalysisDocumentType,
+      }),
+    };
+    const { rows } = evalCase.rulesetKeys?.length
+      ? await app.databaseService.query<{ id: string }>(
+          `SELECT id FROM public.rulesets WHERE key = ANY($1) AND status = 'active'`,
+          [evalCase.rulesetKeys],
+        )
+      : await app.databaseService.query<{ id: string }>(
+          `SELECT id FROM public.rulesets
+           WHERE status = 'active' AND $1 = ANY(jurisdictions) AND $2 = ANY(document_types)`,
+          [evalCase.jurisdiction, evalCase.documentType],
+        );
+    if (rows.length === 0) {
+      throw new Error(
+        `Case ${evalCase.id}: no ruleset applies (set jurisdiction and documentType, or rulesetKeys)`,
+      );
+    }
+    return { rulesetIds: rows.map((r) => r.id), ...context };
+  }
+
   async function runCase(
     evalCase: EvalCase,
     analysis: DocumentAnalysisService,
@@ -298,6 +346,7 @@ describeEval('AI evaluation', () => {
       [tenant.id, evalCase.id, content],
     );
 
+    const scope = await scopeOf(evalCase);
     const runs: EvalRun[] = [];
     for (let run = 0; run < RUNS; run++) {
       const { rows: jobs } = await app.databaseService.query<{ id: string }>(
@@ -308,6 +357,7 @@ describeEval('AI evaluation', () => {
         analysisJobId: jobs[0].id,
         documentId: documents[0].id,
         tenantId: tenant.id,
+        ...scope,
       };
       let thrown: string | undefined;
       sent.length = 0;

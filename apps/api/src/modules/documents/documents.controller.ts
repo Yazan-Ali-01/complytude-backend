@@ -49,6 +49,7 @@ import {
   PreviewDocumentResponseDto,
   UploadUrlDto,
   UploadUrlResponseDto,
+  TriggerAnalysisDto,
 } from './dto';
 import { DocumentPreviewService } from './services/document-preview.service';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
@@ -388,7 +389,8 @@ export class DocumentsController {
     description:
       'Creates an analysis job for a file-upload document whose text extraction has completed. ' +
       'Returns 202 Accepted with the analysis job ID to poll for results. ' +
-      'Requires extraction_status = completed — call after the ingestion pipeline finishes.',
+      'Requires extraction_status = completed — call after the ingestion pipeline finishes. ' +
+      'The body says which rules apply: jurisdiction and documentType, or explicit rulesetIds/rulesetKeys; without either the request is refused (400).',
   })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   @ApiResponse({
@@ -402,9 +404,10 @@ export class DocumentsController {
   @ApiForbiddenError('Insufficient permissions to trigger analysis')
   triggerAnalysis(
     @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Body() dto: TriggerAnalysisDto,
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<AnalyzeDocumentResponseDto> {
-    return this.documentsService.triggerAnalysis(documentId, user);
+    return this.documentsService.triggerAnalysis(documentId, dto, user);
   }
 
   @Post('analyze')
@@ -418,7 +421,8 @@ export class DocumentsController {
     description:
       'Creates a document record from plain text, queues a compliance analysis job, ' +
       'and immediately returns 202 Accepted with the document ID and analysis job ID. ' +
-      'Poll GET /analysis-jobs/:id for status and results.',
+      'Poll GET /analysis-jobs/:id for status and results. ' +
+      'Say which rules apply: jurisdiction and documentType (resolved to the rulesets tagged with both), or explicit rulesetIds/rulesetKeys; without either, or when nothing applies, the request is refused (400).',
   })
   @ApiResponse({
     status: 202,

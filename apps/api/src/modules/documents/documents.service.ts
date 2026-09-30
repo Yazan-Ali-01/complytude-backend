@@ -2,6 +2,8 @@ import { countPdfPages, UnreadablePdfError } from '@lib/pdf';
 import { DatabaseService } from '@lib/database';
 import {
   AI_JOB_NAMES,
+  type AnalysisDocumentType,
+  type AnalysisJurisdiction,
   INGESTION_JOB_NAMES,
   QUEUE_NAMES,
   QueueProducerService,
@@ -34,6 +36,7 @@ import { DocumentsI18n } from './constants/i18n.constants';
 import { UPLOAD_MAX_FILE_SIZE_BYTES } from './constants/upload.constants';
 import type {
   AnalysisJobResponseDto,
+  AnalysisScopeDto,
   AnalyzeDocumentDto,
   AnalyzeDocumentResponseDto,
   ConfirmUploadResponseDto,
@@ -152,10 +155,7 @@ export class DocumentsService {
     user: AuthenticatedTenantUser,
   ): Promise<AnalyzeDocumentResponseDto> {
     try {
-      const rulesetIds = await this.resolveRulesetIds(
-        dto.rulesetIds,
-        dto.rulesetKeys,
-      );
+      const scope = await this.resolveScope(dto);
 
       const { documentId, analysisJobId } =
         await this.databaseService.transactionWithTenantContext(
@@ -193,20 +193,12 @@ export class DocumentsService {
       await this.queueProducerService.enqueue(
         QUEUE_NAMES.AI_PROCESSING,
         AI_JOB_NAMES.DOCUMENT_ANALYSIS,
-        {
-          analysisJobId,
-          documentId,
-          tenantId: user.tenantId,
-          ...(rulesetIds.length > 0 && { rulesetIds }),
-        },
+        { analysisJobId, documentId, tenantId: user.tenantId, ...scope },
         { jobId: `doc-analysis-${analysisJobId}` },
       );
 
       this.logger.log(
-        `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJobId} tenantId=${user.tenantId}` +
-          (rulesetIds.length > 0
-            ? ` scoped to ${rulesetIds.length} rulesets`
-            : ' (global search)'),
+        `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJobId} tenantId=${user.tenantId} scoped to ${scope.rulesetIds.length} rulesets`,
       );
 
       return { documentId, analysisJobId };
@@ -422,9 +414,11 @@ export class DocumentsService {
 
   async triggerAnalysis(
     documentId: string,
+    dto: AnalysisScopeDto,
     user: AuthenticatedTenantUser,
   ): Promise<AnalyzeDocumentResponseDto> {
     try {
+      const scope = await this.resolveScope(dto);
       const tenantContext = {
         tenantId: user.tenantId,
         schema: 'public' as const,
@@ -463,12 +457,17 @@ export class DocumentsService {
       await this.queueProducerService.enqueue(
         QUEUE_NAMES.AI_PROCESSING,
         AI_JOB_NAMES.DOCUMENT_ANALYSIS,
-        { analysisJobId: analysisJob.id, documentId, tenantId: user.tenantId },
+        {
+          analysisJobId: analysisJob.id,
+          documentId,
+          tenantId: user.tenantId,
+          ...scope,
+        },
         { jobId: `doc-analysis-${analysisJob.id}` },
       );
 
       this.logger.log(
-        `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJob.id} tenantId=${user.tenantId}`,
+        `Enqueued document-analysis job: documentId=${documentId} analysisJobId=${analysisJob.id} tenantId=${user.tenantId} scoped to ${scope.rulesetIds.length} rulesets`,
       );
 
       return { documentId, analysisJobId: analysisJob.id };
@@ -810,6 +809,49 @@ export class DocumentsService {
    * inactive ruleset is a 400: ignoring it would quietly check the document against the wrong
    * rules (or, if none are left, against all of them).
    */
+  /**
+   * The rulesets a contract is checked against: the ones picked explicitly, or else the active
+   * rulesets tagged with its jurisdiction and document type. Never every ruleset: federal labour
+   * law checked against a DIFC contract is a confident, wrong finding.
+   */
+  private async resolveScope(scope: AnalysisScopeDto): Promise<{
+    rulesetIds: string[];
+    jurisdiction?: AnalysisJurisdiction;
+    documentType?: AnalysisDocumentType;
+  }> {
+    const context = {
+      ...(scope.jurisdiction && { jurisdiction: scope.jurisdiction }),
+      ...(scope.documentType && { documentType: scope.documentType }),
+    };
+    if (scope.rulesetIds?.length || scope.rulesetKeys?.length) {
+      const rulesetIds = await this.resolveRulesetIds(
+        scope.rulesetIds,
+        scope.rulesetKeys,
+      );
+      return { rulesetIds, ...context };
+    }
+    if (!scope.jurisdiction || !scope.documentType) {
+      throw new BadRequestException(
+        this.i18n.t(DocumentsI18n.errors.ANALYSIS_SCOPE_REQUIRED),
+      );
+    }
+    const applicable = await this.rulesetRepository.findApplicable(
+      scope.jurisdiction,
+      scope.documentType,
+    );
+    if (applicable.length === 0) {
+      throw new BadRequestException(
+        this.i18n.t(DocumentsI18n.errors.NO_APPLICABLE_RULESETS, {
+          args: {
+            jurisdiction: scope.jurisdiction,
+            documentType: scope.documentType,
+          },
+        }),
+      );
+    }
+    return { rulesetIds: applicable.map((r) => r.id), ...context };
+  }
+
   private async resolveRulesetIds(
     rulesetIds?: string[],
     rulesetKeys?: string[],

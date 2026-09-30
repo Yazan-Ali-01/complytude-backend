@@ -2,6 +2,8 @@
   "id": "dmcc-shareholders-agreement",
   "description": "Shareholders' agreement of a DMCC company with planted breaches of the DMCC Company Regulations 2024 and an unrelated office-policy section",
   "contract": "dmcc-shareholders-agreement.md",
+  "jurisdiction": "DMCC",
+  "documentType": "shareholders_agreement",
   "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
   "expected": [
     {

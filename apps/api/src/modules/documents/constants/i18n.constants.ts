@@ -27,6 +27,8 @@ export const DocumentsI18n = {
     DOCUMENT_NO_FILE: 'documents.errors.DOCUMENT_NO_FILE',
     DOWNLOAD_URL_FAILED: 'documents.errors.DOWNLOAD_URL_FAILED',
     RULESET_NOT_FOUND: 'documents.errors.RULESET_NOT_FOUND',
+    ANALYSIS_SCOPE_REQUIRED: 'documents.errors.ANALYSIS_SCOPE_REQUIRED',
+    NO_APPLICABLE_RULESETS: 'documents.errors.NO_APPLICABLE_RULESETS',
     TOO_MANY_PAGES: 'documents.errors.TOO_MANY_PAGES',
     INVALID_PDF: 'documents.errors.INVALID_PDF',
     DOCUMENT_NOT_READY: 'documents.errors.DOCUMENT_NOT_READY',

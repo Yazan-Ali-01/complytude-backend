@@ -6,6 +6,12 @@
     "code": "DMCC",
     "name": "Dubai Multi Commodities Centre"
   },
+  "jurisdictions": [
+    "DMCC"
+  ],
+  "documentTypes": [
+    "shareholders_agreement"
+  ],
   "source": "data/rulesets/dmcc_company_regulations.json, frozen for the evaluation (summarised, not verbatim regulation text)",
   "clauses": [
     {

@@ -2,6 +2,8 @@
   "id": "mainland-employment",
   "description": "Dubai mainland employment contract (Gulf Trading LLC) with planted UAE Labour Law breaches",
   "contract": "mainland-employment.md",
+  "jurisdiction": "MAINLAND",
+  "documentType": "employment",
   "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
   "expected": [
     {

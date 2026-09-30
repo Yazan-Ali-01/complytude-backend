@@ -2,6 +2,8 @@
   "id": "saas-data-processing",
   "description": "Cloud CRM and analytics services agreement where the provider processes the client's customer data",
   "contract": "saas-data-processing.md",
+  "jurisdiction": "MAINLAND",
+  "documentType": "services",
   "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
   "expected": [
     {

@@ -2,6 +2,8 @@
   "id": "dmcc-employment",
   "description": "DMCC free zone employment contract (Nexus Digital Solutions DMCC); federal labour law and DMCC rules both apply",
   "contract": "dmcc-employment.md",
+  "jurisdiction": "DMCC",
+  "documentType": "employment",
   "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
   "expected": [
     {

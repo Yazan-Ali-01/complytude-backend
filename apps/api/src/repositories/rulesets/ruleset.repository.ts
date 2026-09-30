@@ -16,6 +16,8 @@ export type CreateRulesetRow = {
   name: string;
   description?: string | null;
   authority_id?: string | null;
+  jurisdictions?: string[];
+  document_types?: string[];
   status?: RulesetStatus;
   created_by?: string | null;
 };
@@ -24,6 +26,8 @@ export type UpdateRulesetRow = {
   name?: string;
   description?: string | null;
   authority_id?: string | null;
+  jurisdictions?: string[];
+  document_types?: string[];
   status?: RulesetStatus;
 };
 
@@ -39,6 +43,8 @@ type RulesetRow = {
   name: string;
   description: string | null;
   authority_id: string | null;
+  jurisdictions: string[];
+  document_types: string[];
   current_version: string;
   status: RulesetStatus;
   created_by: string | null;
@@ -160,6 +166,22 @@ export class RulesetRepository extends BaseRepository<
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  /** Active rulesets tagged with both the jurisdiction and the document type. */
+  async findApplicable(
+    jurisdiction: string,
+    documentType: string,
+    options?: QueryOptions,
+  ): Promise<Ruleset[]> {
+    const result = await this.executeQuery<RulesetRow>(
+      `SELECT ${this.getSelectColumns()} FROM ${this.tableName}
+       WHERE status = 'active' AND $1 = ANY(jurisdictions) AND $2 = ANY(document_types)
+       ORDER BY name`,
+      [jurisdiction, documentType],
+      options,
+    );
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
   async setCurrentVersion(
     rulesetId: string,
     version: string,
@@ -229,7 +251,7 @@ export class RulesetRepository extends BaseRepository<
   }
 
   protected getSelectColumns(): string {
-    return 'id, key, name, description, authority_id, current_version, status, created_by, created_at, updated_at';
+    return 'id, key, name, description, authority_id, jurisdictions, document_types, current_version, status, created_by, created_at, updated_at';
   }
 
   protected mapRow(row: Record<string, unknown>): Ruleset {
@@ -240,6 +262,8 @@ export class RulesetRepository extends BaseRepository<
       name: data.name,
       description: data.description,
       authorityId: data.authority_id,
+      jurisdictions: data.jurisdictions,
+      documentTypes: data.document_types,
       currentVersion: data.current_version,
       status: data.status,
       createdBy: data.created_by,

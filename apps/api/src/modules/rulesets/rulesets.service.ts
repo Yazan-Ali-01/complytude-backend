@@ -72,6 +72,8 @@ export class RulesetsService {
             name: dto.name,
             description: dto.description ?? null,
             authority_id: dto.authority_id ?? null,
+            jurisdictions: dto.jurisdictions ?? [],
+            document_types: dto.document_types ?? [],
             created_by: createdBy,
           },
           { client },
@@ -173,6 +175,12 @@ export class RulesetsService {
         updateData.description = dto.description;
       if (dto.authority_id !== undefined)
         updateData.authority_id = dto.authority_id;
+      if (dto.jurisdictions !== undefined) {
+        updateData.jurisdictions = dto.jurisdictions;
+      }
+      if (dto.document_types !== undefined) {
+        updateData.document_types = dto.document_types;
+      }
       if (dto.status !== undefined) updateData.status = dto.status;
 
       const updated =

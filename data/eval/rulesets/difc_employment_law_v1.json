@@ -6,6 +6,12 @@
     "code": "DIFC",
     "name": "Dubai International Financial Centre"
   },
+  "jurisdictions": [
+    "DIFC"
+  ],
+  "documentTypes": [
+    "employment"
+  ],
   "source": "scripts/seeds/009_seed_rulesets.sql, frozen for the evaluation (paraphrased demo text, not legal text)",
   "clauses": [
     {

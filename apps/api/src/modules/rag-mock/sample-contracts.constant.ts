@@ -1,3 +1,5 @@
+import type { AnalysisScopeDto } from '../documents/dto/analysis-scope.dto';
+
 /**
  * 5 sample contracts for demo/testing the RAG compliance analysis pipeline.
  *
@@ -27,6 +29,8 @@
 export interface SampleContract {
   title: string;
   content: string;
+  /** Which rules the contract is checked against (see AnalysisScopeDto). */
+  scope: AnalysisScopeDto;
 }
 
 export const SAMPLE_CONTRACTS: readonly SampleContract[] = [
@@ -35,6 +39,7 @@ export const SAMPLE_CONTRACTS: readonly SampleContract[] = [
   // ───────────────────────────────────────────────────────
   {
     title: 'Employment Agreement – Gulf Trading LLC (Dubai Mainland)',
+    scope: { jurisdiction: 'MAINLAND', documentType: 'employment' },
     content: `EMPLOYMENT AGREEMENT
 
 This Employment Agreement ("Agreement") is entered into on January 15, 2026.
@@ -89,6 +94,7 @@ Gulf Trading LLC              Ahmad Al-Rashid
   // ───────────────────────────────────────────────────────
   {
     title: 'DMCC Employment Contract – Nexus Digital Solutions DMCC',
+    scope: { jurisdiction: 'DMCC', documentType: 'employment' },
     content: `EMPLOYMENT CONTRACT
 
 Contract Reference: DMCC-EMP-2026-0042
@@ -149,6 +155,7 @@ SIGNED by both parties on the date first written above.`,
   // ───────────────────────────────────────────────────────
   {
     title: 'SaaS Data Processing & Analytics Services Agreement',
+    scope: { jurisdiction: 'MAINLAND', documentType: 'services' },
     content: `SERVICES AGREEMENT
 
 Agreement No.: SVC-2026-1187
@@ -221,6 +228,7 @@ EXECUTED by the parties on the date first written above.`,
   // ───────────────────────────────────────────────────────
   {
     title: 'Employment Contract – Meridian Capital Advisors (DIFC)',
+    scope: { jurisdiction: 'DIFC', documentType: 'employment' },
     content: `EMPLOYMENT CONTRACT
 
 This Employment Contract is entered into on January 20, 2026.
@@ -289,6 +297,14 @@ Meridian Capital Advisors Ltd  James Chen
   {
     title:
       'Technology Services & Staff Augmentation Agreement – CloudBridge FZCO',
+    // Services and staff employment in one contract: the rulesets are picked explicitly
+    scope: {
+      rulesetKeys: [
+        'uae_labour_law_employment_v1',
+        'uae_data_protection_pdpl_v1',
+        'uae_commercial_transactions_v1',
+      ],
+    },
     content: `MASTER SERVICES AND STAFF AUGMENTATION AGREEMENT
 
 Reference: MSA-2026-0334

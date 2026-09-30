@@ -38,6 +38,11 @@ export interface EvalCase {
   description: string;
   /** File name under `data/eval/contracts/`. */
   contract: string;
+  /** What the contract is: the run is scoped to the rulesets tagged with both, like the API does. */
+  jurisdiction?: string;
+  documentType?: string;
+  /** Or the rulesets to check it against, picked explicitly. */
+  rulesetKeys?: string[];
   labelledBy: string;
   expected: ExpectedFinding[];
   acceptable?: AcceptableFinding[];

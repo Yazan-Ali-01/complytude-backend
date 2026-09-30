@@ -1,5 +1,9 @@
 import { EmbeddingService, TextChunkerService } from '@lib/embedding';
-import type { DocumentAnalysisJobData } from '@lib/queue';
+import {
+  ANALYSIS_DOCUMENT_TYPES,
+  ANALYSIS_JURISDICTIONS,
+  type DocumentAnalysisJobData,
+} from '@lib/queue';
 import { PermanentError, RetryableError } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -8,6 +12,8 @@ import {
   AnalysisFinding,
   AnalysisResult,
   AnalysisWarning,
+  ClauseStatus,
+  ClauseVerdict,
   RiskLevel,
 } from '../interfaces/analysis-result.interface';
 import { RedactionService } from '../redaction/redaction.service';
@@ -23,7 +29,11 @@ import {
 import { baselineRiskOf, citationOf, finalRisk } from './citation';
 import { createQuoteLocator } from './evidence';
 import { LlmService } from './llm.service';
-import { PROMPT_VERSION, PromptBuilderService } from './prompt-builder.service';
+import {
+  type AnalysisContext,
+  PROMPT_VERSION,
+  PromptBuilderService,
+} from './prompt-builder.service';
 import { RerankerService } from './reranker.service';
 
 /** The model's output; clauseId can only be one of the IDs we supplied (C1, C2, …). */
@@ -36,6 +46,22 @@ function analysisResultSchema(
     schema: {
       type: 'object',
       properties: {
+        verdicts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              clauseId: { type: 'string', enum: clauseIds },
+              status: {
+                type: 'string',
+                enum: ['violated', 'compliant', 'not_applicable', 'unclear'],
+              },
+              reason: { type: 'string' },
+            },
+            required: ['clauseId', 'status', 'reason'],
+            additionalProperties: false,
+          },
+        },
         findings: {
           type: 'array',
           items: {
@@ -63,10 +89,16 @@ function analysisResultSchema(
         },
         summary: { type: 'string' },
       },
-      required: ['findings', 'summary'],
+      required: ['verdicts', 'findings', 'summary'],
       additionalProperties: false,
     },
   };
+}
+
+interface ModelVerdict {
+  clauseId: string;
+  status: Exclude<ClauseStatus, 'unassessed'>;
+  reason: string;
 }
 
 interface ModelFinding {
@@ -180,6 +212,16 @@ export class DocumentAnalysisService {
         analysisJobId,
         job.document_id,
         rulesetIds,
+        {
+          ...(data.jurisdiction &&
+            data.jurisdiction in ANALYSIS_JURISDICTIONS && {
+              jurisdiction: data.jurisdiction,
+            }),
+          ...(data.documentType &&
+            data.documentType in ANALYSIS_DOCUMENT_TYPES && {
+              documentType: data.documentType,
+            }),
+        },
       );
       this.logger.log(
         `Pipeline completed in ${Date.now() - pipelineStart}ms for job=${analysisJobId}`,
@@ -210,7 +252,8 @@ export class DocumentAnalysisService {
     tenantId: string,
     analysisJobId: string,
     documentId: string,
-    rulesetIds?: string[],
+    rulesetIds: string[] | undefined,
+    context: AnalysisContext,
   ): Promise<void> {
     const document = await this.documentReadRepository
       .findContentById(tenantId, documentId)
@@ -333,6 +376,7 @@ export class DocumentAnalysisService {
         documentId,
         contentForAnalysis,
         rerankedChunks,
+        context,
       );
 
     if (wasDocumentTruncated) {
@@ -357,6 +401,7 @@ export class DocumentAnalysisService {
 
     // OpenAI structured outputs guarantee schema conformance; light sanity check
     const parsed = rawResponse as {
+      verdicts?: ModelVerdict[];
       findings: ModelFinding[];
       summary: string;
     };
@@ -370,13 +415,30 @@ export class DocumentAnalysisService {
     // and the baseline risk come from that clause's ruleset data
     const findInContent = createQuoteLocator(document.content);
     const findInRedacted = createQuoteLocator(contentForAnalysis);
+    // The model's verdict on each supplied clause (the first one if it gave several)
+    const verdicts = new Map<string, ModelVerdict>();
+    for (const verdict of Array.isArray(parsed.verdicts)
+      ? parsed.verdicts
+      : []) {
+      if (clauses.has(verdict.clauseId) && !verdicts.has(verdict.clauseId)) {
+        verdicts.set(verdict.clauseId, verdict);
+      }
+    }
+
     const findings: AnalysisFinding[] = [];
     let unverifiedFindingsDropped = 0;
+    let inconsistentFindingsDropped = 0;
     let groundedFindings = 0;
     for (const finding of parsed.findings) {
       const chunk = clauses.get(finding.clauseId);
       if (!chunk) continue;
       groundedFindings++;
+      // Only a violated or unclear clause may carry a finding
+      const status = verdicts.get(finding.clauseId)?.status;
+      if (status === 'compliant' || status === 'not_applicable') {
+        inconsistentFindingsDropped++;
+        continue;
+      }
       const quote =
         typeof finding.evidence === 'string' ? finding.evidence.trim() : '';
       let evidence: { text: string; offset: number | null } | null = null;
@@ -442,6 +504,29 @@ export class DocumentAnalysisService {
         `Dropped ${unverifiedFindingsDropped} findings whose quote isn't in the document for job=${analysisJobId}`,
       );
     }
+    if (inconsistentFindingsDropped > 0) {
+      this.logger.warn(
+        `Dropped ${inconsistentFindingsDropped} findings on clauses the model called compliant or not applicable for job=${analysisJobId}`,
+      );
+    }
+
+    // Every supplied clause's verdict: the model's, else violated when a finding survived, else unassessed
+    const withFindings = new Set(findings.map((f) => f.clauseId));
+    const clauseVerdicts: ClauseVerdict[] = [...clauses].map(
+      ([clauseId, chunk]) => {
+        const verdict = verdicts.get(clauseId);
+        const status: ClauseStatus =
+          verdict?.status ??
+          (withFindings.has(clauseId) ? 'violated' : 'unassessed');
+        return {
+          clauseId,
+          chunkId: chunk.id,
+          citation: citationOf(chunk.metadata),
+          status,
+          reason: verdict ? redaction.rehydrate(verdict.reason) : '',
+        };
+      },
+    );
 
     const rulesetIdsSearched = rulesetIds ?? [];
     const rulesetIdsWithContext = new Set(
@@ -463,10 +548,21 @@ export class DocumentAnalysisService {
     if (unverifiedFindingsDropped > 0) {
       warnings.push('unverified_evidence_dropped');
     }
+    if (inconsistentFindingsDropped > 0) {
+      warnings.push('inconsistent_findings_dropped');
+    }
+    if (clauseVerdicts.some((v) => v.status === 'unassessed')) {
+      warnings.push('clauses_not_assessed');
+    }
     if (findings.length === 0) warnings.push('no_findings');
 
     const result: AnalysisResult = {
       findings,
+      clauseVerdicts,
+      scope: {
+        jurisdiction: context.jurisdiction ?? null,
+        documentType: context.documentType ?? null,
+      },
       summary: redaction.rehydrate(parsed.summary),
       model: this.llmService.getModel(),
       documentChunks: documentChunks.length,
@@ -485,6 +581,7 @@ export class DocumentAnalysisService {
       truncated: wasDocumentTruncated,
       ungroundedFindingsDropped,
       unverifiedFindingsDropped,
+      inconsistentFindingsDropped,
       warnings,
       provenance: {
         promptVersion: PROMPT_VERSION,

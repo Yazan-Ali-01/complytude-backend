@@ -79,7 +79,7 @@ export class RagMockController {
     const contract = SAMPLE_CONTRACTS[contractNumber - 1];
 
     return this.documentsService.analyze(
-      { title: contract.title, content: contract.content },
+      { title: contract.title, content: contract.content, ...contract.scope },
       user,
     );
   }

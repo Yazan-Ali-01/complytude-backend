@@ -22,6 +22,8 @@
     "DOCUMENT_NO_FILE": "This document does not have a downloadable file.",
     "DOWNLOAD_URL_FAILED": "Failed to generate download URL. Please try again.",
     "RULESET_NOT_FOUND": "Unknown or inactive ruleset: {rulesets}",
+    "ANALYSIS_SCOPE_REQUIRED": "Say which rules to check the contract against: a jurisdiction and a document type, or the rulesets to use.",
+    "NO_APPLICABLE_RULESETS": "No active ruleset applies to a {documentType} contract in {jurisdiction}.",
     "TOO_MANY_PAGES": "The PDF has {pages} pages; the most we can analyse is {maxPages}.",
     "INVALID_PDF": "The uploaded file is not a readable PDF.",
     "DOCUMENT_NOT_READY": "The file can be downloaded once it has been checked and processed."

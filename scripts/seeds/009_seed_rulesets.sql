@@ -239,6 +239,22 @@ BEGIN
     RAISE NOTICE '=========================';
 END $$;
 
+-- =========================
+-- Applicability: which analyses use each ruleset (jurisdiction and document type)
+-- =========================
+-- Federal labour law, the PDPL and the Commercial Transactions Law apply onshore and in the
+-- non-financial free zones, not in the DIFC or ADGM (they have their own laws).
+UPDATE public.rulesets SET jurisdictions = ARRAY['MAINLAND','DMCC','IFZA','RAKEZ','SHAMS','DAFZA','JAFZA'], document_types = ARRAY['employment']
+ WHERE id = '20000000-0000-0000-0000-000000000001';
+UPDATE public.rulesets SET jurisdictions = ARRAY['DMCC'], document_types = ARRAY['employment']
+ WHERE id = '20000000-0000-0000-0000-000000000002';
+UPDATE public.rulesets SET jurisdictions = ARRAY['MAINLAND','DMCC','IFZA','RAKEZ','SHAMS','DAFZA','JAFZA'], document_types = ARRAY['services','data_processing']
+ WHERE id = '20000000-0000-0000-0000-000000000003';
+UPDATE public.rulesets SET jurisdictions = ARRAY['MAINLAND','DMCC','IFZA','RAKEZ','SHAMS','DAFZA','JAFZA'], document_types = ARRAY['services','data_processing','commercial']
+ WHERE id = '20000000-0000-0000-0000-000000000004';
+UPDATE public.rulesets SET jurisdictions = ARRAY['DIFC'], document_types = ARRAY['employment']
+ WHERE id = '20000000-0000-0000-0000-000000000005';
+
 SELECT r.key, r.name, r.current_version, r.status, a.code AS authority
 FROM public.rulesets r
 LEFT JOIN public.authorities a ON r.authority_id = a.id

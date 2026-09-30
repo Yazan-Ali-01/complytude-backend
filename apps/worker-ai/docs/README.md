@@ -156,15 +156,26 @@ The first step of every analysis (`src/redaction/`). Chunking, embeddings, the r
 | Status | When |
 |---|---|
 | `completed` | Full document, reranked context from every requested ruleset, at least one grounded finding. |
-| `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `not_reranked`, `rulesets_without_context`, `ungrounded_findings_dropped`, `unverified_evidence_dropped`, `no_findings` (nothing reported is not a compliance verdict). |
+| `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `not_reranked`, `rulesets_without_context`, `ungrounded_findings_dropped`, `unverified_evidence_dropped`, `inconsistent_findings_dropped`, `clauses_not_assessed`, `no_findings` (nothing reported is not a compliance verdict). |
 | `failed` | Including when retrieval returned no clauses at all. |
 
 The API refuses (400) unknown or inactive `rulesetKeys` / `rulesetIds` instead of widening the search.
+
+### Scope and verdicts
+
+Every job is scoped: the API resolves the contract's `jurisdiction` and `documentType` to the rulesets tagged with both, or takes explicitly picked rulesets, and queues their IDs (`rulesetIds`) with the jurisdiction and document type. There is no all-rulesets analysis (see `apps/api/docs/API_CONTRACTS.md` → Compliance Analysis Scope). The system prompt says what the contract is ("The document is an employment contract governed in the Dubai International Financial Centre (DIFC)") and that a clause which doesn't govern it is `not_applicable`.
+
+The model gives every supplied clause a verdict: `violated`, `compliant`, `not_applicable` or `unclear`. Only violated or unclear clauses may carry findings; a finding on a clause the model itself called compliant or not applicable is dropped (`inconsistentFindingsDropped`, warning `inconsistent_findings_dropped`). `result.clauseVerdicts` stores one entry per supplied clause with its citation and reason; a clause with no verdict is `unassessed` (warning `clauses_not_assessed`), or `violated` when a finding on it survived.
 
 ### Analysis Result Schema
 
 ```typescript
 interface AnalysisResult {
+  clauseVerdicts: Array<{  // One per supplied clause
+    clauseId: string; chunkId: string; citation: string; reason: string;
+    status: 'violated' | 'compliant' | 'not_applicable' | 'unclear' | 'unassessed';
+  }>;
+  scope: { jurisdiction: string | null; documentType: string | null };
   findings: Array<{
     clauseId: string;      // The supplied clause cited (C1, C2, …)
     citation: string;      // Built from the clause's ruleset data, never by the model:
@@ -192,6 +203,7 @@ interface AnalysisResult {
   truncated: boolean;      // Whether only part of the document fit
   ungroundedFindingsDropped: number;
   unverifiedFindingsDropped: number; // Findings whose quote isn't in the document
+  inconsistentFindingsDropped: number; // Findings on a clause the model called compliant or not applicable
   warnings: string[];      // See "Job status"
   provenance: {            // What produced this result, to reproduce and compare runs
     promptVersion: number;       // PROMPT_VERSION in prompt-builder.service.ts

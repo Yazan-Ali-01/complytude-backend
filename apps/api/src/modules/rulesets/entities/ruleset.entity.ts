@@ -4,6 +4,9 @@ export interface Ruleset {
   name: string;
   description: string | null;
   authorityId: string | null;
+  /** Jurisdiction codes (ANALYSIS_JURISDICTIONS) and document types it applies to. */
+  jurisdictions: string[];
+  documentTypes: string[];
   currentVersion: string;
   status: RulesetStatus;
   createdBy: string | null;

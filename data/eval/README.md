@@ -4,7 +4,7 @@ The labelled contracts `pnpm eval:ai` scores the analysis worker against. How to
 
 | Path | What |
 |---|---|
-| `rulesets/*.json` | The rulesets the contracts are checked against, frozen so the labels' clause IDs never move: the five demo rulesets from `scripts/seeds/009_seed_rulesets.sql` and the DMCC Company Regulations summary from `data/rulesets/`. **Paraphrased demo text, not legal text.** |
+| `rulesets/*.json` | The rulesets the contracts are checked against (with the jurisdictions and document types they apply to), frozen so the labels' clause IDs never move: the five demo rulesets from `scripts/seeds/009_seed_rulesets.sql` and the DMCC Company Regulations summary from `data/rulesets/`. **Paraphrased demo text, not legal text.** |
 | `contracts/*.md` | The contracts, frozen: the five sample contracts from the `rag-mock` module, the DMCC shareholders' agreement from `data/test-documents/`, and two prompt-injection contracts. |
 | `cases/*.json` | One label file per contract (below). |
 | `results/` | One report per real run (`.md` summary, `.json` with every finding). |
@@ -16,6 +16,8 @@ The labelled contracts `pnpm eval:ai` scores the analysis worker against. How to
 {
   "id": "mainland-employment",
   "contract": "mainland-employment.md",
+  "jurisdiction": "MAINLAND",           // with documentType: the run uses the rulesets tagged with both
+  "documentType": "employment",         // (or "rulesetKeys": [...] to pick them explicitly)
   "labelledBy": "who wrote the labels, and whether a lawyer reviewed them",
   "expected": [      // must be reported: counts for recall and precision
     { "rulesetKey": "uae_labour_law_employment_v1", "clauseId": "uae_lab_02", "severity": "high", "why": "…" }

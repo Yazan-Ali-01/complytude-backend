@@ -43,6 +43,20 @@ export class RulesetSummaryResponseDto {
   authorityId: string | null;
 
   @ApiProperty({
+    description: 'Jurisdiction codes the ruleset applies to',
+    example: ['MAINLAND', 'DMCC'],
+    type: [String],
+  })
+  jurisdictions: string[];
+
+  @ApiProperty({
+    description: 'Document types the ruleset applies to',
+    example: ['employment'],
+    type: [String],
+  })
+  documentTypes: string[];
+
+  @ApiProperty({
     description: 'Current version number',
     example: '1.0.0',
   })

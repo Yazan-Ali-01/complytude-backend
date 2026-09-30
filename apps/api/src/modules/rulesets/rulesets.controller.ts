@@ -394,6 +394,8 @@ export class RulesetsController {
       name: ruleset.name,
       description: ruleset.description,
       authorityId: ruleset.authorityId,
+      jurisdictions: ruleset.jurisdictions,
+      documentTypes: ruleset.documentTypes,
       currentVersion: ruleset.currentVersion,
       status: ruleset.status,
       createdBy: ruleset.createdBy,
