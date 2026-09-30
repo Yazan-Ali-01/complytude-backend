@@ -46,6 +46,8 @@ interface ModelCall {
 describe('Document analysis: injection, grounding and honest status', () => {
   let app: TestApp;
   let calls: ModelCall[];
+  let rerankQueries: string[];
+  let embeddedTexts: string[];
   let modelAnswer: { findings: object[]; summary: string };
 
   beforeAll(async () => {
@@ -55,6 +57,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
   beforeEach(async () => {
     await resetTestState(app.databaseService, app.redisClient);
     calls = [];
+    rerankQueries = [];
+    embeddedTexts = [];
   }, 15000);
 
   afterAll(async () => {
@@ -124,14 +128,21 @@ describe('Document analysis: injection, grounding and honest status', () => {
       } as unknown as RulesetChunkSearchRepository,
       new TextChunkerService(tokenCounter),
       {
-        generateEmbeddings: (texts: string[]) =>
-          Promise.resolve(texts.map(() => ({ embedding: [0] }))),
+        generateEmbeddings: (texts: string[]) => {
+          embeddedTexts.push(...texts);
+          return Promise.resolve(texts.map(() => ({ embedding: [0] })));
+        },
       } as unknown as EmbeddingService,
       new PromptBuilderService(tokenCounter, llm),
       llm,
       {
-        rerank: (_query: string, chunks: RulesetChunkMatch[]) =>
-          Promise.resolve({ chunks, reranked: options.reranked ?? true }),
+        rerank: (query: string, chunks: RulesetChunkMatch[]) => {
+          rerankQueries.push(query);
+          return Promise.resolve({
+            chunks,
+            reranked: options.reranked ?? true,
+          });
+        },
       } as unknown as RerankerService,
       { get: (_key: string, fallback: unknown) => fallback } as ConfigService,
     );
@@ -140,11 +151,12 @@ describe('Document analysis: injection, grounding and honest status', () => {
   async function job(
     content: string,
     rulesetIds?: string[],
+    title = 'Employment agreement',
   ): Promise<DocumentAnalysisJobData> {
     const tenant = await createTestTenant(app.module);
     const { rows: docs } = await app.databaseService.query<{ id: string }>(
       `INSERT INTO public.documents (tenant_id, title, content) VALUES ($1, $2, $3) RETURNING id`,
-      [tenant.id, 'Employment agreement', content],
+      [tenant.id, title, content],
     );
     const { rows: jobs } = await app.databaseService.query<{ id: string }>(
       `INSERT INTO public.analysis_jobs (tenant_id, document_id) VALUES ($1, $2) RETURNING id`,
@@ -204,6 +216,35 @@ describe('Document analysis: injection, grounding and honest status', () => {
       status: 'completed_with_warnings',
       result: { findings: [], warnings: ['no_findings'] },
     });
+  });
+
+  it('sends no provider the document title', async () => {
+    // Upload titles are filenames, and often name a party
+    const title = 'Omar Al Rashid employment contract (passport N1234567).pdf';
+    const data = await job(
+      'The employee works 70 hours a week.\n\n'.repeat(40),
+      undefined,
+      title,
+    );
+    modelAnswer = { findings: [], summary: 'Checked.' };
+
+    await worker({ chunks: [chunk(ruleset, 'Art. 17')] }).analyze(data);
+
+    const outbound = [
+      calls[0].systemPrompt,
+      calls[0].userMessage,
+      ...rerankQueries,
+      ...embeddedTexts,
+    ];
+    expect(calls).toHaveLength(1);
+    expect(rerankQueries).toHaveLength(1);
+    expect(embeddedTexts.length).toBeGreaterThan(0);
+    for (const part of ['Omar Al Rashid', 'N1234567', title]) {
+      expect(outbound.filter((payload) => payload.includes(part))).toEqual([]);
+    }
+    // The document text itself still goes to the model and the reranker
+    expect(calls[0].userMessage).toContain('70 hours a week');
+    expect(rerankQueries[0]).toContain('70 hours a week');
   });
 
   it('keeps only findings that cite a supplied clause', async () => {

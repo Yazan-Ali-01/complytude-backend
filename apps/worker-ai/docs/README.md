@@ -117,7 +117,14 @@ The worker uses a **hybrid retrieval** approach combining two complementary sear
 
 ### Prompt injection and grounding
 
-Contracts are untrusted: the counterparty drafts them. The system message holds our instructions and the retrieved clauses, each with an ID (`C1`, `C2`, …). The document and its title go in the user message between `<<<DOCUMENT-{nonce}>>>` and `<<<END-DOCUMENT-{nonce}>>>`, with a random nonce per call; anything in the document that looks like one of those markers is replaced, and the model is told to treat the block as data and to report text that tries to steer the review. Every finding must carry a `clauseId` from the supplied set (the JSON schema enumerates them); findings that don't are dropped and counted.
+Contracts are untrusted: the counterparty drafts them. The system message holds our instructions and the retrieved clauses, each with an ID (`C1`, `C2`, …). The document goes in the user message between `<<<DOCUMENT-{nonce}>>>` and `<<<END-DOCUMENT-{nonce}>>>`, with a random nonce per call; anything in the document that looks like one of those markers is replaced, and the model is told to treat the block as data and to report text that tries to steer the review. Every finding must carry a `clauseId` from the supplied set (the JSON schema enumerates them); findings that don't are dropped and counted.
+
+### What leaves the worker
+
+- **OpenAI embeddings:** the document's chunks. **Cohere rerank:** chunks sampled across the document. **OpenAI chat:** the document (up to the context budget) and the retrieved clauses.
+- **Never sent:** the document title. Upload titles are filenames and often name a party; they add nothing to the review. (The BM25 query that uses it runs in our own Postgres.)
+- **Logs** identify a document by its ID only. `libs/logger/src/no-secrets-in-logs.spec.ts` fails the build if a log call interpolates a title, content or generation variables.
+- Personal data inside the document text still reaches the providers: there is no redaction step yet.
 
 ### Job status
 

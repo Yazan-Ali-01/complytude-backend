@@ -30,10 +30,11 @@ export class PromptBuilderService {
    * The regulatory clauses (ours, trusted) go into the system message, each with an ID the
    * findings must cite. The document (the counterparty's, untrusted) goes into the user message
    * between delimiters with a random per-call nonce, so text inside it can neither guess the
-   * closing delimiter nor pass for our instructions.
+   * closing delimiter nor pass for our instructions. The title isn't sent: a filename adds
+   * nothing to the review and often names a party.
    */
   buildPrompt(
-    documentTitle: string,
+    documentId: string,
     documentContent: string,
     chunks: RulesetChunkMatch[],
   ): BuiltPrompt {
@@ -57,7 +58,7 @@ export class PromptBuilderService {
 
     if (availableContentTokens <= 0) {
       this.logger.warn(
-        `Regulatory clauses exhausted the entire content budget for "${documentTitle}". ` +
+        `Regulatory clauses exhausted the entire content budget for document=${documentId}. ` +
           `Document will be reduced to a minimal stub. Consider reducing retrieval limits.`,
       );
     }
@@ -71,7 +72,7 @@ export class PromptBuilderService {
     );
     if (documentTokens > availableContentTokens) {
       this.logger.warn(
-        `Document "${documentTitle}" exceeds token budget: ${documentTokens} tokens, budget is ${availableContentTokens}. Truncating.`,
+        `Document ${documentId} exceeds token budget: ${documentTokens} tokens, budget is ${availableContentTokens}. Truncating.`,
       );
       finalDocumentContent =
         this.tokenCounter.truncateToTokens(
@@ -87,8 +88,6 @@ export class PromptBuilderService {
       'Review the document between the markers below against the regulatory clauses in your instructions.',
       '',
       open,
-      `Title: ${neutralize(documentTitle)}`,
-      '',
       finalDocumentContent,
       close,
     ].join('\n');

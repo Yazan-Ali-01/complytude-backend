@@ -83,7 +83,7 @@ interface DocumentGenerationJobData {
   generationJobId: string;       // UUID of the generation_jobs record
   templateId: string;            // Template UUID
   templateVersionId: string;     // Specific version to render
-  variables: Record<string, unknown>; // Template variable values
+  templateVersion: string;       // Version label (the template DOCX's S3 path)
   tenantId: string;              // Tenant UUID: the RLS context every query runs in
   userId: string;                // User who triggered generation
   jobType: 'preview' | 'generate'; // preview = DOCX only, generate = PDF
@@ -100,7 +100,8 @@ interface DocumentGenerationJobData {
 The worker reads the `generation_jobs` row in the payload's tenant (a job of another tenant is
 not found) and refuses a payload whose `jobType`, `templateId` or `templateVersionId` differ from
 the row. The template version, variables and author it renders with come from the row, never from
-the payload.
+the payload. The payload carries IDs only: the variables (names, IDs, salaries) stay in Postgres
+and never sit in Redis, where a failed job's payload is kept for 7 days and Bull Board shows it.
 
 ---
 

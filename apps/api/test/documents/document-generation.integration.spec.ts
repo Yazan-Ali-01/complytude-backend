@@ -122,8 +122,10 @@ describe('Document generation end to end (app role)', () => {
     if (app) await app.cleanup();
   }, 30000);
 
-  /** A Navigator tenant asks the API to generate from an essential template. */
-  async function requestGeneration(): Promise<{
+  /** A Navigator tenant asks the API to generate (or preview) from an essential template. */
+  async function requestGeneration(
+    kind: 'generate' | 'preview' = 'generate',
+  ): Promise<{
     tenantId: string;
     data: DocumentGenerationJobData;
   }> {
@@ -158,7 +160,7 @@ describe('Document generation end to end (app role)', () => {
 
     const { generationJobId } = await app.module
       .get(DocumentPreviewService)
-      .generate(
+      [kind](
         { templateKey: key, variables: { party_name: 'Acme Trading LLC' } },
         {
           userId: user.id,
@@ -172,7 +174,7 @@ describe('Document generation end to end (app role)', () => {
     // What the worker receives: the job the API queued
     const job = await app.module
       .get<Queue>(getQueueToken(QUEUE_NAMES.DOCUMENT_GENERATION))
-      .getJob(`generate-${generationJobId}`);
+      .getJob(`${kind}-${generationJobId}`);
     return {
       tenantId: tenant.id,
       data: job!.data as DocumentGenerationJobData,
@@ -320,6 +322,16 @@ describe('Document generation end to end (app role)', () => {
     expect((await job(data.generationJobId)).status).toBe('queued');
   });
 
+  it('queues IDs only: neither a generate nor a preview payload carries the variables', async () => {
+    for (const kind of ['generate', 'preview'] as const) {
+      const { data } = await requestGeneration(kind);
+
+      expect(data).toMatchObject({ jobType: kind });
+      expect(data).not.toHaveProperty('variables');
+      expect(JSON.stringify(data)).not.toContain('Acme Trading LLC');
+    }
+  });
+
   it('renders the variables and author stored with the job, not those in the payload', async () => {
     const { tenantId, data } = await requestGeneration();
     const other = await createTestTenant(app.module);
@@ -327,16 +339,14 @@ describe('Document generation end to end (app role)', () => {
       app.module,
       other.id,
     );
+    // A payload queued before variables left it, or a forged one, may still carry some
+    const forged = {
+      ...data,
+      variables: { party_name: 'Forged Party' },
+      userId: stranger.id,
+    };
 
-    await worker.generate(
-      {
-        ...data,
-        variables: { party_name: 'Forged Party' },
-        userId: stranger.id,
-      },
-      1,
-      3,
-    );
+    await worker.generate(forged, 1, 3);
 
     const rendered = new PizZip(convertDocxToPdf.mock.calls[0][0] as Buffer)
       .file('word/document.xml')!

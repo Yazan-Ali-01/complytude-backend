@@ -45,12 +45,12 @@ describe('PromptBuilderService', () => {
     const model = { contextWindow: 5_000, maxOutputTokens: 1_000 };
 
     const o200k = builder({ ...model, encoding: 'o200k_base' }).buildPrompt(
-      'عقد عمل',
+      'doc-1',
       ARABIC,
       [CLAUSE],
     );
     const cl100k = builder({ ...model, encoding: 'cl100k_base' }).buildPrompt(
-      'عقد عمل',
+      'doc-1',
       ARABIC,
       [CLAUSE],
     );
@@ -65,7 +65,7 @@ describe('PromptBuilderService', () => {
       contextWindow: 5_000,
       maxOutputTokens: 3_000,
       encoding: 'o200k_base',
-    }).buildPrompt('عقد عمل', ARABIC, [CLAUSE]);
+    }).buildPrompt('doc-1', ARABIC, [CLAUSE]);
 
     expect(prompt.wasDocumentTruncated).toBe(true);
   });

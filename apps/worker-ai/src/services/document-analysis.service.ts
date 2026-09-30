@@ -224,7 +224,7 @@ export class DocumentAnalysisService {
       document.content_structured.length > 0;
 
     this.logger.log(
-      `Starting RAG pipeline for job=${analysisJobId} document="${document.title}"` +
+      `Starting RAG pipeline for job=${analysisJobId} document=${documentId}` +
         (scoped ? ` scoped to ${rulesetIds.length} rulesets` : ' (global)') +
         ` structured=${hasStructure}`,
     );
@@ -278,8 +278,8 @@ export class DocumentAnalysisService {
       `Retrieved ${topChunks.length} chunks via hybrid search (vector + BM25)`,
     );
 
-    // Re-rank via Cohere
-    const rerankQuery = this.buildRerankQuery(document.title, chunkTexts);
+    // Re-rank via Cohere; the query is document text only, never the title
+    const rerankQuery = this.buildRerankQuery(chunkTexts);
     const { chunks: rerankedChunks, reranked } =
       await this.rerankerService.rerank(rerankQuery, topChunks);
 
@@ -299,14 +299,14 @@ export class DocumentAnalysisService {
     // Build prompt — pass structured content so the LLM sees section headings
     const { systemPrompt, userMessage, wasDocumentTruncated, clauses } =
       this.promptBuilderService.buildPrompt(
-        document.title,
+        documentId,
         contentForAnalysis,
         rerankedChunks,
       );
 
     if (wasDocumentTruncated) {
       this.logger.warn(
-        `Document "${document.title}" was truncated to fit context window`,
+        `Document ${documentId} was truncated to fit context window`,
       );
     }
 
@@ -429,7 +429,7 @@ export class DocumentAnalysisService {
    * The rerank query: chunks sampled evenly across the whole document (not just its opening,
    * which is mostly preamble and party details), within the reranker's query budget.
    */
-  private buildRerankQuery(title: string, chunkTexts: string[]): string {
+  private buildRerankQuery(chunkTexts: string[]): string {
     const samples = Math.min(RERANK_QUERY_SAMPLES, chunkTexts.length);
     const step = chunkTexts.length / Math.max(samples, 1);
     const sampled = Array.from(
@@ -437,7 +437,8 @@ export class DocumentAnalysisService {
       (_, i) => chunkTexts[Math.floor(i * step)],
     );
     const perSample = Math.floor(RERANK_QUERY_MAX_CHARS / Math.max(samples, 1));
-    return [title, ...sampled.map((text) => text.slice(0, perSample))]
+    return sampled
+      .map((text) => text.slice(0, perSample))
       .join('\n')
       .slice(0, RERANK_QUERY_MAX_CHARS);
   }
