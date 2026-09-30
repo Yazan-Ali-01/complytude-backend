@@ -13,6 +13,7 @@ export const RLS_TABLES: ReadonlySet<string> = new Set([
   'entitlement_snapshots',
   'generation_jobs',
   'tenant_addons',
+  'tenant_ai_consents',
   'tenant_overrides',
   'tenant_subscriptions',
   'tenants',

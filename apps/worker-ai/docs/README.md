@@ -221,6 +221,12 @@ interface AnalysisResult {
   inconsistentFindingsDropped: number; // Findings on a clause the model called compliant or not applicable
   warnings: string[];      // See "Job status"
   provenance: {            // What produced this result, to reproduce and compare runs
+    // Every third party that received this document's data (docs/SUBPROCESSORS.md), in order:
+    // OCR at upload (its pages), OpenAI embeddings, Cohere rerank when called, OpenAI analysis.
+    // region: the OpenAI host's data-residency region or 'global'; null for OCR (set in Azure)
+    processors: Array<{ processor: 'openai' | 'cohere' | 'azure-document-intelligence';
+                        purpose: 'embeddings' | 'analysis' | 'rerank' | 'ocr';
+                        region: string | null; model?: string; pages?: number[] }>;
     promptVersion: number;       // PROMPT_VERSION in prompt-builder.service.ts
     redaction: { enabled: boolean; valuesMasked: number };
     embeddingModel: string;

@@ -38,6 +38,7 @@ interface TenantRows {
   overrideId: string;
   usageId: string;
   aggregatedUsageId: string;
+  aiConsentId: string;
 }
 
 interface World {
@@ -133,6 +134,11 @@ const INSERT_FOR: Record<string, (t: TenantRows, w: World) => Op> = {
       `INSERT INTO public.documents (tenant_id, title, created_by, content) VALUES ($1, 'rls insert', $2, 'text')`,
       [t.tenantId, t.userId],
     ),
+  tenant_ai_consents: (t) =>
+    inserts(
+      `INSERT INTO public.tenant_ai_consents (tenant_id, disclosure_version, accepted_by) VALUES ($1, '2026-10-01', $2)`,
+      [t.tenantId, t.userId],
+    ),
   domain_events: (t) =>
     inserts(
       `INSERT INTO public.domain_events (tenant_id, event_type, aggregate_type, aggregate_id) VALUES ($1, 'rls.insert', 'test', $2)`,
@@ -197,8 +203,21 @@ const membershipOf =
   async (c, w) =>
     (await rowCount(c, sql, [tenant(w).userId, tenant(w).tenantId])) === 1;
 
-/** One case per RLS policy (42): the operation the policy allows, in the context it allows it. */
+/** One case per RLS policy (44): the operation the policy allows, in the context it allows it. */
 const POLICY_CASES: PolicyCase[] = [
+  // tenant_ai_consents (append-only; a tenant admin accepts)
+  {
+    policy: 'tenant_ai_consents_select',
+    table: 'tenant_ai_consents',
+    context: TENANT,
+    run: selectsById('tenant_ai_consents', (w) => w.a.aiConsentId),
+  },
+  {
+    policy: 'tenant_ai_consents_insert',
+    table: 'tenant_ai_consents',
+    context: TENANT_ADMIN,
+    run: insertsForA('tenant_ai_consents'),
+  },
   // aggregated_usage
   {
     policy: 'aggregated_usage_select',
@@ -529,6 +548,7 @@ const TENANT_TABLES: Record<string, (t: TenantRows) => string> = {
   tenant_addons: (t) => t.tenantAddonId,
   tenant_overrides: (t) => t.overrideId,
   tenant_subscriptions: (t) => t.subscriptionId,
+  tenant_ai_consents: (t) => t.aiConsentId,
   usage_ledger: (t) => t.usageId,
 };
 
@@ -657,6 +677,10 @@ describe('Tenant isolation (RLS) as the app role', () => {
         aggregatedUsageId: await one(
           `INSERT INTO public.aggregated_usage (tenant_id, subscription_id, feature_id, billing_period) VALUES ($1, $2, $3, '2026-09') RETURNING id`,
           [tenantId, subscriptionId, seatsFeatureId],
+        ),
+        aiConsentId: await one(
+          `INSERT INTO public.tenant_ai_consents (tenant_id, disclosure_version, accepted_by) VALUES ($1, '2026-01-01', $2) RETURNING id`,
+          [tenantId, userId],
         ),
       };
     };

@@ -177,6 +177,23 @@ Table user_tenants {
   '''
 }
 
+Table tenant_ai_consents {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'ON DELETE CASCADE']
+  disclosure_version varchar(32) [not null, note: 'AI_DISCLOSURE_VERSION accepted']
+  accepted_by uuid [null, ref: > users.id, note: 'Tenant admin who accepted; ON DELETE SET NULL']
+  accepted_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (tenant_id, disclosure_version) [unique]
+  }
+
+  Note: '''
+    Consent to AI processing per organization (migration 037). Append-only (SELECT, INSERT), RLS.
+    Analysis and uploads are refused until the current disclosure version is accepted.
+  '''
+}
+
 // ============================================
 // AUTHENTICATION TABLES
 // (Refresh/session state lives in Redis; not in PostgreSQL.)

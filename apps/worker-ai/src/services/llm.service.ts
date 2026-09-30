@@ -26,6 +26,7 @@ export class LlmService {
   private readonly settings: ChatModelSettings;
   private readonly maxTokens: number;
   private readonly timeout: number;
+  private readonly baseUrl: string;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('workerAi.llmApiKey');
@@ -56,6 +57,7 @@ export class LlmService {
       'workerAi.llmBaseUrl',
       DEFAULT_OPENAI_BASE_URL,
     );
+    this.baseUrl = baseURL;
 
     this.client = new OpenAI({ apiKey, baseURL, timeout: this.timeout });
 
@@ -122,6 +124,11 @@ export class LlmService {
         completionTokens: response.usage?.completion_tokens ?? 0,
       },
     };
+  }
+
+  /** The OpenAI host chat requests are sent to (validated by OPENAI_BASE_URL_PATTERN). */
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   getModel(): string {

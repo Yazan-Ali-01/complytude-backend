@@ -63,8 +63,24 @@ export type AnalysisWarning =
   | 'clauses_not_assessed'
   | 'no_findings';
 
+/** A third-party processor an analysis sent document data to (listed in docs/SUBPROCESSORS.md). */
+export interface ProcessorUse {
+  processor: 'openai' | 'cohere' | 'azure-document-intelligence';
+  purpose: 'embeddings' | 'analysis' | 'rerank' | 'ocr';
+  /**
+   * Where the data was processed: the provider's data-residency region, `global`, or null when
+   * the code can't tell (the OCR resource's region is set in Azure; the register lists it).
+   */
+  region: string | null;
+  model?: string;
+  /** OCR only: the document's pages it read, at ingestion. */
+  pages?: number[];
+}
+
 /** What produced a result, so runs can be reproduced and compared (evaluation, feedback). */
 export interface AnalysisProvenance {
+  /** Every processor that received this document's data, in pipeline order. */
+  processors: ProcessorUse[];
   /** PROMPT_VERSION in prompt-builder.service.ts. */
   promptVersion: number;
   /** Whether personal data was masked before the provider calls, and how many distinct values. */

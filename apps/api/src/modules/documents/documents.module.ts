@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiConsentModule } from '../ai-consent/ai-consent.module';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
 import { GenerationJobRepository } from 'src/repositories/generation-jobs/generation-job.repository';
@@ -15,7 +16,7 @@ import { DocumentPreviewService } from './services/document-preview.service';
 import { VariableValidationService } from './services/variable-validation.service';
 
 @Module({
-  imports: [StorageModule, TemplatesModule],
+  imports: [StorageModule, TemplatesModule, AiConsentModule],
   controllers: [
     DocumentsController,
     AnalysisJobsController,

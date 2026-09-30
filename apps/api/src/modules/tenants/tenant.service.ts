@@ -26,6 +26,7 @@ import {
   QUEUE_NAMES,
   TENANT_JOB_NAMES,
 } from '@lib/queue';
+import { AiConsentService } from '../ai-consent/ai-consent.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { TenantsI18n } from './constants/i18n.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -83,6 +84,7 @@ export class TenantService {
     private readonly userTenantRepository: UserTenantRepository,
     private readonly i18n: I18nService,
     private readonly sessionInvalidation: SessionInvalidationService,
+    private readonly aiConsent: AiConsentService,
   ) {}
 
   // ============================================================================
@@ -339,6 +341,16 @@ export class TenantService {
           { client },
         );
 
+        // The AI processing checkbox of the setup form
+        if (createTenantDto.aiDisclosureVersion) {
+          await this.aiConsent.recordAtSetup(
+            created.id,
+            userId,
+            createTenantDto.aiDisclosureVersion,
+            client,
+          );
+        }
+
         this.logger.log(
           `Tenant creation complete: id=${created.id}, user=${userId}`,
         );
@@ -349,6 +361,15 @@ export class TenantService {
         allowCrossTenantRead: true,
       },
     );
+
+    if (createTenantDto.aiDisclosureVersion) {
+      await this.aiConsent.audit(
+        tenant.id,
+        userId,
+        createTenantDto.aiDisclosureVersion,
+        'organization_setup',
+      );
+    }
 
     // Best effort: checkout and the billing portal create the Stripe customer lazily if this is lost.
     // A Redis failure here must not fail the (committed) tenant creation or crash the process.

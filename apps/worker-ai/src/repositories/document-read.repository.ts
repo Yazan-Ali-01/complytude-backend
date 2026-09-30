@@ -14,6 +14,8 @@ export interface DocumentContent {
   content: string;
   content_structured: DocumentSection[] | null;
   tenant_id: string;
+  /** Pages whose text came from OCR at ingestion; null for pasted text or before migration 034. */
+  ocr_pages: number[] | null;
 }
 
 /**
@@ -32,7 +34,7 @@ export class DocumentReadRepository {
       { tenantId },
       async (client) => {
         const result = await client.query<DocumentContent>(
-          `SELECT id, title, content, content_structured, tenant_id
+          `SELECT id, title, content, content_structured, tenant_id, ocr_pages
            FROM public.documents WHERE id = $1 AND deleted_at IS NULL`,
           [id],
         );

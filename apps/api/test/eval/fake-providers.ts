@@ -32,6 +32,11 @@ function bagOfWords(text: string): number[] {
 }
 
 export class FakeEmbeddingService {
+  /** No OpenAI host: nothing leaves the process. */
+  getBaseUrl(): string {
+    return 'fake://local';
+  }
+
   getModel(): string {
     return 'fake-bag-of-words';
   }
@@ -65,7 +70,11 @@ export class FakeRerankerService {
   }
 
   rerank(_query: string, chunks: RulesetChunkMatch[]): Promise<RerankResult> {
-    return Promise.resolve({ chunks: chunks.slice(0, 25), reranked: true });
+    return Promise.resolve({
+      chunks: chunks.slice(0, 25),
+      reranked: true,
+      providerCalled: false,
+    });
   }
 }
 
@@ -90,6 +99,11 @@ function allowedClauseIds(options: ChatCompletionOptions): string[] {
 
 /** Reports the first clause it was given, whatever the contract says. */
 export class FakeLlmService {
+  /** No OpenAI host: nothing leaves the process. */
+  getBaseUrl(): string {
+    return 'fake://local';
+  }
+
   getModel(): string {
     return 'fake-first-clause';
   }

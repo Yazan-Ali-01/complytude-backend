@@ -31,6 +31,7 @@ import { UserRepository } from 'src/repositories/users/user.repository';
 import type { Tenant } from '../tenants/entities/tenant.entity';
 import type { User } from '../users/entities/user.entity';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
+import { AiConsentService } from '../ai-consent/ai-consent.service';
 import { EntitlementEnforcementService } from '../entitlements/services/entitlement-enforcement.service';
 import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
 import { usageRefusedException } from '../entitlements/utils/usage-refusal.util';
@@ -107,6 +108,7 @@ export class DocumentsService {
     private readonly rulesetRepository: RulesetRepository,
     private readonly entitlementEnforcement: EntitlementEnforcementService,
     private readonly entitlementResolver: EntitlementResolverService,
+    private readonly aiConsent: AiConsentService,
   ) {}
 
   /**
@@ -192,6 +194,8 @@ export class DocumentsService {
     user: AuthenticatedTenantUser,
   ): Promise<AnalyzeDocumentResponseDto> {
     try {
+      // The contract goes to the AI processors only once the organization has agreed to it
+      await this.aiConsent.assertAccepted(user.tenantId);
       const scope = await this.resolveScope(dto);
 
       const { documentId, analysisJobId } =
@@ -334,6 +338,8 @@ export class DocumentsService {
     user: AuthenticatedTenantUser,
   ): Promise<ConfirmUploadResponseDto> {
     try {
+      // Scanned pages go to OCR (a processor) as soon as the upload is confirmed
+      await this.aiConsent.assertAccepted(user.tenantId);
       const tenantContext = {
         tenantId: user.tenantId,
         schema: 'public' as const,
@@ -476,6 +482,7 @@ export class DocumentsService {
     user: AuthenticatedTenantUser,
   ): Promise<AnalyzeDocumentResponseDto> {
     try {
+      await this.aiConsent.assertAccepted(user.tenantId);
       const scope = await this.resolveScope(dto);
       const tenantContext = {
         tenantId: user.tenantId,

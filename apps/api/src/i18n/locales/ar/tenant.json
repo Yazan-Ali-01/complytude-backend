@@ -22,7 +22,9 @@
     "INVALID_FILE_TYPE_FOR_LOGO": "نوع الملف غير صالح. المسموح: PNG، JPG، SVG، WebP. المستلم: {mimeType}",
     "FILE_TOO_LARGE_FOR_LOGO": "الملف كبير جداً. الحد الأقصى: 2 ميجابايت. المستلم: {sizeMb} ميجابايت",
     "DEACTIVATION_REQUIRES_PLATFORM_ADMIN": "يمكن لمسؤولي المنصة فقط إلغاء تفعيل المؤسسات",
-    "REACTIVATION_REQUIRES_PLATFORM_ADMIN": "يمكن لمسؤولي المنصة فقط إعادة تفعيل المؤسسات"
+    "REACTIVATION_REQUIRES_PLATFORM_ADMIN": "يمكن لمسؤولي المنصة فقط إعادة تفعيل المؤسسات",
+    "AI_CONSENT_REQUIRED": "لم توافق مؤسستك بعد على المعالجة بالذكاء الاصطناعي. يمكن لمسؤول المؤسسة قبولها من إعدادات المؤسسة، وبعدها يمكن تحليل العقود.",
+    "AI_DISCLOSURE_OUTDATED": "هذا ليس الإصدار الحالي من إفصاح المعالجة بالذكاء الاصطناعي. راجع الإصدار {current} ثم اقبله."
   },
   "messages": {}
 }

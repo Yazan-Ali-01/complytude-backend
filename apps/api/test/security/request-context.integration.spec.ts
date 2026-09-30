@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import {
   createTestSubscription,
+  grantAiConsent,
   createTestTenant,
   createTestUserInTenant,
 } from '../factories';
@@ -97,6 +98,7 @@ describe('Request context propagation', () => {
     await createTestSubscription(app.module, own.tenantId, {
       planKey: 'navigator',
     });
+    await grantAiConsent(app.module, own.tenantId);
     const documentId = randomUUID();
     await app.databaseService.query(
       `INSERT INTO public.documents

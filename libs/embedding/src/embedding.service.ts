@@ -38,6 +38,11 @@ export class EmbeddingService {
     return this.model;
   }
 
+  /** The OpenAI host embeddings are sent to (validated by OPENAI_BASE_URL_PATTERN). */
+  getBaseUrl(): string {
+    return this.config.baseURL ?? DEFAULT_OPENAI_BASE_URL;
+  }
+
   async generateEmbedding(text: string): Promise<EmbeddingResult> {
     const tokenCount = this.tokenCounter.countTokens(text);
 

@@ -116,6 +116,7 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 - **tiktoken** - Token counting for chunking
 - **pgvector** - Vector similarity search for semantic retrieval
 - **Redaction** (`apps/worker-ai/src/redaction/`) - Personal data in a contract (names, Emirates IDs, passports, IBANs, phones, emails, addresses) is replaced with placeholders before any text goes to OpenAI or Cohere, and put back in the stored result; a failure stops the job before any provider call. Names outside the preamble come from an optional self-hosted name-recognition service (Presidio analyzer API, `REDACTION_NER_URL`). See `apps/worker-ai/docs/README.md` → Redaction.
+- **Sub-processors and consent** - Every third party that receives customer data, what it gets, where and on what terms, is listed in [`docs/SUBPROCESSORS.md`](./SUBPROCESSORS.md) (a unit test fails when the code constructs an AI client it doesn't list). An organization accepts a numbered version of the AI processing disclosure once (`AI_DISCLOSURE_VERSION`: a checkbox at setup, or a tenant admin later; `tenant_ai_consents`); until it has accepted the current version, analysis and uploads answer 403 `ai_consent_required`. Each analysis records the processors and regions it used in `result.provenance.processors`.
 
 ### Authentication & Security
 

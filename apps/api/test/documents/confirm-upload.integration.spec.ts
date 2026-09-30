@@ -11,6 +11,7 @@ import { StorageService } from 'src/modules/storage/storage.service';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
 import {
   createTestSubscription,
+  grantAiConsent,
   createTestTenant,
   createTestUser,
 } from '../factories';
@@ -40,6 +41,7 @@ describe('DocumentsService.confirmUpload', () => {
     const tenant = await createTestTenant(app.module);
     // Confirming an upload uses one of the plan's document scans
     await createTestSubscription(app.module, tenant.id, { planKey: 'shield' });
+    await grantAiConsent(app.module, tenant.id);
     const testUser = await createTestUser(app.module);
     tenantId = tenant.id;
     userId = testUser.id;

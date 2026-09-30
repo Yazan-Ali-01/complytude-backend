@@ -283,6 +283,18 @@ Organizations using the platform. Plan assignment is managed via `tenant_subscri
 
 **Tenant creation flow:** When a tenant is created via `POST /tenants` (or `TenantService.createTenantForUser()`), a `tenant_subscriptions` row is created atomically within the same transaction. This ensures `getCurrentSubscription(tenantId)` works immediately and entitlement resolution does not throw `NotFoundException`. New tenants always start on a **14-day trial** of General Counsel (`status='trialing'`, `trial_ends_at = NOW() + 14 days`). Paid plans are granted only via Stripe Checkout + the `checkout.session.completed` webhook. The `trial_reminder_sent_at` column tracks one-shot delivery of the "trial ending soon" reminder email.
 
+### tenant_ai_consents
+
+Which version of the AI processing disclosure each organization accepted, who accepted it and when (migration 037). Analysis and uploads are refused until the current version (`AI_DISCLOSURE_VERSION`) is accepted; see `docs/SUBPROCESSORS.md`. Append-only: the app role may `SELECT` and `INSERT`, never update or delete. RLS: read in the tenant's context; insert by a tenant admin in it, or in platform context (organization setup).
+
+| Column               | Type        | Description                                                        |
+| -------------------- | ----------- | ------------------------------------------------------------------ |
+| `id`                 | UUID        | Primary key                                                        |
+| `tenant_id`          | UUID        | Organization (FK `tenants`, cascade delete)                        |
+| `disclosure_version` | VARCHAR(32) | The version accepted; unique per tenant                            |
+| `accepted_by`        | UUID        | The tenant admin who accepted (FK `users`, set NULL when deleted)  |
+| `accepted_at`        | TIMESTAMPTZ | When                                                               |
+
 ### users
 
 User accounts that can access multiple tenants.

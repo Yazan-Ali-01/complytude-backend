@@ -26,6 +26,7 @@ import {
 import type { RerankerService } from '../../../worker-ai/src/services/reranker.service';
 import {
   createTestSubscription,
+  grantAiConsent,
   createTestTenant,
   createTestUserInTenant,
 } from '../factories';
@@ -126,6 +127,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
     config?: Record<string, unknown>;
     /** The model's answer for one call, from the clause IDs it was allowed; else modelAnswer. */
     answer?: (allowedClauseIds: string[]) => object;
+    /** OPENAI_BASE_URL of the chat client. */
+    llmBaseUrl?: string;
   }): DocumentAnalysisService {
     let failuresLeft = options.modelFailures ?? 0;
     const llm = {
@@ -133,6 +136,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
       getMaxOutputTokens: () => 4_096,
       getTokenEncoding: () => 'o200k_base',
       getModel: () => 'test-model',
+      getBaseUrl: () => options.llmBaseUrl ?? 'https://api.openai.com/v1',
       chatCompletion: (request: {
         systemPrompt: string;
         userMessage: string;
@@ -177,6 +181,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
       new TextChunkerService(tokenCounter),
       {
         getModel: () => 'text-embedding-3-small',
+        getBaseUrl: () => 'https://api.openai.com/v1',
         generateEmbeddings: (texts: string[]) => {
           embeddedTexts.push(...texts);
           return Promise.resolve(texts.map(() => ({ embedding: [0] })));
@@ -192,6 +197,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
           return Promise.resolve({
             chunks,
             reranked: options.reranked ?? true,
+            providerCalled: chunks.length > 1,
           });
         },
       } as unknown as RerankerService,
@@ -293,6 +299,52 @@ describe('Document analysis: injection, grounding and honest status', () => {
       status: 'completed_with_warnings',
       result: { findings: [], warnings: ['no_findings'] },
     });
+  });
+
+  it('records which processors received the document, and where', async () => {
+    const data = await job(
+      'The employee works 70 hours a week.\n\n'.repeat(10),
+    );
+    // Its second page was a scan, read by OCR at ingestion
+    await app.databaseService.query(
+      `UPDATE public.documents SET ocr_pages = '{2}' WHERE id = $1`,
+      [data.documentId],
+    );
+    modelAnswer = { findings: [], summary: 'Checked.' };
+
+    await worker({
+      chunks: [chunk(ruleset, 'Art. 17'), chunk(ruleset, 'Art. 18')],
+      llmBaseUrl: 'https://ae.api.openai.com/v1',
+    }).analyze(data);
+
+    expect(
+      (await stored(data.analysisJobId)).result?.provenance.processors,
+    ).toEqual([
+      {
+        processor: 'azure-document-intelligence',
+        purpose: 'ocr',
+        region: null,
+        pages: [2],
+      },
+      {
+        processor: 'openai',
+        purpose: 'embeddings',
+        region: 'global',
+        model: 'text-embedding-3-small',
+      },
+      {
+        processor: 'cohere',
+        purpose: 'rerank',
+        region: 'global',
+        model: 'rerank-v3.5',
+      },
+      {
+        processor: 'openai',
+        purpose: 'analysis',
+        region: 'ae',
+        model: 'test-model',
+      },
+    ]);
   });
 
   it('sends no provider the document title', async () => {
@@ -908,6 +960,11 @@ describe('Document analysis: injection, grounding and honest status', () => {
 
     const { result } = await stored(data.analysisJobId);
     expect(result?.provenance).toEqual({
+      processors: [
+        expect.objectContaining({ processor: 'openai', purpose: 'embeddings' }),
+        expect.objectContaining({ processor: 'cohere', purpose: 'rerank' }),
+        expect.objectContaining({ processor: 'openai', purpose: 'analysis' }),
+      ],
       promptVersion: PROMPT_VERSION,
       redaction: { enabled: true, valuesMasked: 0 },
       embeddingModel: 'text-embedding-3-small',
@@ -987,6 +1044,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
   it('the API refuses unknown rulesets instead of widening the search', async () => {
     const tenant = await createTestTenant(app.module);
     await createTestSubscription(app.module, tenant.id, { planKey: 'shield' });
+    await grantAiConsent(app.module, tenant.id);
     const { user } = await createTestUserInTenant(app.module, tenant.id, {
       role: SystemTenantRole.TENANT_ADMIN,
     });

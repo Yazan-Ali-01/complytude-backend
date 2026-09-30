@@ -7,6 +7,7 @@ import {
 } from 'src/repositories/tenants/tenant.repository';
 import { Tenant } from 'src/modules/tenants/entities/tenant.entity';
 import { TEST_ADMIN_DATABASE } from '../setup/admin-database';
+import { AI_DISCLOSURE_VERSION } from 'src/common/constants/ai-disclosure.constant';
 
 export async function createTestTenant(
   module: TestingModule,
@@ -27,5 +28,22 @@ export async function createTestTenant(
         },
         { client },
       ),
+    );
+}
+
+/**
+ * The organization's consent to AI processing, as the setup checkbox records it: contract analysis
+ * and uploads are refused without it.
+ */
+export async function grantAiConsent(
+  module: TestingModule,
+  tenantId: string,
+  version: string = AI_DISCLOSURE_VERSION,
+): Promise<void> {
+  await module
+    .get<DatabaseService>(TEST_ADMIN_DATABASE)
+    .query(
+      `INSERT INTO public.tenant_ai_consents (tenant_id, disclosure_version) VALUES ($1, $2)`,
+      [tenantId, version],
     );
 }

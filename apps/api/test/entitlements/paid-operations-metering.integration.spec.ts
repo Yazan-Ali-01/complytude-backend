@@ -15,6 +15,7 @@ import { EntitlementEnforcementService } from 'src/modules/entitlements/services
 import { DocumentPreviewService } from 'src/modules/documents/services/document-preview.service';
 import {
   createTestSubscription,
+  grantAiConsent,
   createTestTenant,
   createTestUserInTenant,
 } from '../factories';
@@ -85,6 +86,7 @@ describe('Paid operations are metered and gated', () => {
   }> {
     const tenant = await createTestTenant(app.module);
     await createTestSubscription(app.module, tenant.id, { planKey: plan });
+    await grantAiConsent(app.module, tenant.id);
     const { user } = await createTestUserInTenant(app.module, tenant.id, {
       role: SystemTenantRole.TENANT_ADMIN,
     });
@@ -253,6 +255,7 @@ describe('Paid operations are metered and gated', () => {
   it('a burst of concurrent requests never gets past the limit', async () => {
     const tenantId = (await createTestTenant(app.module)).id;
     await createTestSubscription(app.module, tenantId, { planKey: 'shield' });
+    await grantAiConsent(app.module, tenantId);
     const enforcement = app.module.get(EntitlementEnforcementService);
 
     const results = await Promise.all(

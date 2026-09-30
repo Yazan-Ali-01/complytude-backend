@@ -4,6 +4,7 @@ import { TenantAdminController } from 'src/modules/tenants/admin.controller';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { UserTenantRepository } from '../../repositories/users/user-tenant.repository';
 import { UserRepository } from '../../repositories/users/user.repository';
+import { AiConsentModule } from '../ai-consent/ai-consent.module';
 import { InvitationsModule } from '../invitations/invitations.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { TenantInvitationsController } from './invitations.controller';
@@ -11,7 +12,12 @@ import { TenantController } from './tenant.controller';
 import { TenantService } from './tenant.service';
 
 @Module({
-  imports: [InvitationsModule, SubscriptionsModule, SessionsModule],
+  imports: [
+    InvitationsModule,
+    SubscriptionsModule,
+    SessionsModule,
+    AiConsentModule,
+  ],
   controllers: [
     TenantController,
     TenantAdminController,

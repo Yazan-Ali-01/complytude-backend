@@ -650,15 +650,17 @@ SSO-only users cannot use `POST /auth/login` with a password until a password ex
 
 ```json
 {
-  "name": "Acme Legal LLC"
+  "name": "Acme Legal LLC",
+  "aiDisclosureVersion": "2026-10-01"
 }
 ```
 
 **Request Schema:**
 
-| Field  | Type   | Required | Validation           | Description       |
-| ------ | ------ | -------- | -------------------- | ----------------- |
-| `name` | string | Yes      | Min 1, max 255 chars | Organization name |
+| Field                 | Type   | Required | Validation           | Description       |
+| --------------------- | ------ | -------- | -------------------- | ----------------- |
+| `name`                | string | Yes      | Min 1, max 255 chars | Organization name |
+| `aiDisclosureVersion` | string | No       | The current version  | The AI processing checkbox: the disclosure version the user accepted (see [AI Processing Consent](#ai-processing-consent)). Omit when unchecked. Any other version is refused with 400 and nothing is created |
 
 > Plan selection is intentionally **not** exposed on this endpoint. New tenants always start on a **14-day trial of General Counsel** (see `TRIAL_CONFIG`). Paid plans are granted only via Stripe Checkout (`POST /api/v1/billing/checkout/subscription`) and the `checkout.session.completed` webhook — this keeps "only Stripe can grant paid plans" as a hard invariant and prevents a billing bypass at signup.
 
@@ -725,6 +727,7 @@ SSO-only users cannot use `POST /auth/login` with a password until a password ex
 - Entitlements resolved lazily on first access (from subscription)
 - Default preferences applied (locale: `en`, timezone: `Asia/Dubai`)
 - Tenant slug is `null` on creation; user can set via `PATCH /tenants/me/slug` later
+- With `aiDisclosureVersion`, the organization's consent to AI processing is recorded in the same transaction (by the creating user) and audited as `AI_PROCESSING_ACCEPTED`
 - **Stripe:** Fire-and-forget customer creation via `StripeCustomerService.createCustomerForTenant()`. Creates Stripe customer with creator email and `metadata.creator_user_id` for traceability. Skips when `STRIPE_SECRET_KEY` is empty. Never blocks tenant creation. **No Stripe Subscription is created here** — paid plans require an explicit Checkout flow.
 - **Trial-ending reminder:** The `TRIAL_REMINDER_CHECK` cron (hourly) sends a one-shot "trial ending soon" email ~3 days before `trial_ends_at`. Idempotent via `tenant_subscriptions.trial_reminder_sent_at`.
 - **Trial expiry:** The `TRIAL_EXPIRY_CHECK` cron (hourly) downgrades expired trials to Navigator (free) automatically.
@@ -1264,15 +1267,35 @@ Write routes additionally require the platform permission **`templates:manage`**
 
 ---
 
+## AI Processing Consent
+
+Contract analysis sends the contract's text, with personal data masked, to the AI processors in `docs/SUBPROCESSORS.md`, and scanned pages to OCR. An organization agrees to that once, for a numbered version of the disclosure (the text is the frontend's; the API knows the version). Until the current version is accepted, `POST /documents/analyze`, `POST /documents/:documentId/trigger-analysis` and `POST /documents/:documentId/confirm-upload` answer 403 and create nothing:
+
+```json
+{
+  "statusCode": 403,
+  "message": "Your organization hasn't agreed to AI processing yet. A tenant admin can accept it in the organization's settings, then contracts can be analyzed.",
+  "reason": "ai_consent_required",
+  "disclosureVersion": "2026-10-01"
+}
+```
+
+Show the disclosure on `reason: 'ai_consent_required'`: with an accept button for a tenant admin, "ask your admin" for anyone else.
+
+- **At setup:** the checkbox on the organization form sends `aiDisclosureVersion` with `POST /tenants`.
+- `GET /tenants/me/ai-consent` (any member) → `{ currentVersion, accepted, acceptedVersion, acceptedAt, acceptedBy }`. `accepted` is for the current version; the others describe the latest acceptance.
+- `POST /tenants/me/ai-consent` with `{ version }` (`settings:manage`) → the same shape, 200. The version must be the current one (400 otherwise); accepting it again changes nothing. Recorded with who and when (`tenant_ai_consents`), audited as `AI_PROCESSING_ACCEPTED`.
+- When the disclosure changes materially (a new processor, region or kind of data), `currentVersion` moves on and every organization is asked again.
+
 ## Document Flows
 
-What a frontend calls to upload, analyse and generate documents. Every route needs the tenant token; long-running work is a job the client polls (there is no push channel): poll every 2-3 seconds, backing off to ~10 seconds. Job statuses are `queued`, `processing`, `completed`, `completed_with_warnings` (analysis only) and `failed`.
+What a frontend calls to upload, analyse and generate documents. Uploads and analyses need the organization's [AI processing consent](#ai-processing-consent). Every route needs the tenant token; long-running work is a job the client polls (there is no push channel): poll every 2-3 seconds, backing off to ~10 seconds. Job statuses are `queued`, `processing`, `completed`, `completed_with_warnings` (analysis only) and `failed`.
 
 ### Upload a PDF, then analyse it
 
 1. `POST /documents/upload-url` with `{ filename, contentType: 'application/pdf', fileSizeBytes }` → `{ documentId, uploadUrl, expiresIn, s3Key }`. Needs the plan's `document_scans` allowance (402/403 otherwise). Only PDFs are accepted.
 2. `PUT` the file to `uploadUrl` directly (not through the API, no cookies), with `Content-Type: application/pdf`, before `expiresIn` seconds pass.
-3. `POST /documents/:documentId/confirm-upload` → `{ documentId, status: 'processing' }`. This uses one of the billing period's `document_scans` (given back if the document can't be read). A file that isn't a PDF, or has more pages than the limit, is refused with 400; a used-up allowance with 402 (see Metered operations). Either way the document stays pending and can be confirmed again.
+3. `POST /documents/:documentId/confirm-upload` → `{ documentId, status: 'processing' }`. Needs the organization's AI processing consent (403 `ai_consent_required` otherwise, see [AI Processing Consent](#ai-processing-consent)). This uses one of the billing period's `document_scans` (given back if the document can't be read). A file that isn't a PDF, or has more pages than the limit, is refused with 400; a used-up allowance with 402 (see Metered operations). Either way the document stays pending and can be confirmed again.
 4. Poll `GET /documents/:documentId` until `extractionStatus` is `completed` (text extracted; `failed` with `extractionError` otherwise). Text PDFs are read in seconds; scanned pages go through OCR and take longer.
 5. `POST /documents/:documentId/trigger-analysis` with the scope (see Compliance Analysis Scope: `{ jurisdiction, documentType }`, or `{ rulesetKeys }`) → `{ documentId, analysisJobId }`. This uses one of the billing period's `contract_reviews_per_month` (given back if the review fails).
 6. Poll `GET /analysis-jobs/:analysisJobId` (or `GET /documents/:documentId/analysis`) until the status is final.
@@ -1287,6 +1310,7 @@ What a frontend calls to upload, analyse and generate documents. Every route nee
 - `clauseVerdicts[]`: one per clause checked, `status` `violated` / `compliant` / `not_applicable` / `unclear` / `unassessed`, with a one-line `reason`.
 - `summary`, `scope` (`jurisdiction`, `documentType`), `requiredClausesChecked`, `documentExcerpted`.
 - `warnings[]`: show them. `completed_with_warnings` means the result is partial or uncertain (`document_truncated`, `not_reranked`, `rulesets_without_context`, `unverified_evidence_dropped`, `clauses_not_assessed`, …); `no_findings` means nothing was reported, which is **not** a statement that the contract complies.
+- `provenance.processors`: every third party that received this document's data, in pipeline order: `{ processor, purpose, region, model? }` (`openai` embeddings and analysis with the region of its host, `cohere` rerank when it was called, `azure-document-intelligence` OCR with the `pages` it read at upload). `region` is null when the code can't tell (the OCR resource's region; see `docs/SUBPROCESSORS.md`).
 - `riskAnalysisLevel` and `hiddenFindings`: present when the plan shows only part of a review. `critical_only` (Navigator, Shield) returns the high-risk findings; `none` returns no findings. `hiddenFindings` counts the rest, and the `reason` of a clause whose findings are all hidden is empty (its `status` stays). Show the count with an upgrade prompt, not "no issues". An upgrade shows past reviews in full.
 
 ### Generate a document from a template

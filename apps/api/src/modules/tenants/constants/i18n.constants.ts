@@ -29,6 +29,8 @@ export const TenantsI18n = {
       'tenant.errors.DEACTIVATION_REQUIRES_PLATFORM_ADMIN',
     REACTIVATION_REQUIRES_PLATFORM_ADMIN:
       'tenant.errors.REACTIVATION_REQUIRES_PLATFORM_ADMIN',
+    AI_CONSENT_REQUIRED: 'tenant.errors.AI_CONSENT_REQUIRED',
+    AI_DISCLOSURE_OUTDATED: 'tenant.errors.AI_DISCLOSURE_OUTDATED',
   },
   messages: {},
 } as const;

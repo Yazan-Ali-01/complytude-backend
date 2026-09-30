@@ -22,7 +22,9 @@
     "INVALID_FILE_TYPE_FOR_LOGO": "Invalid file type. Allowed: PNG, JPG, SVG, WebP. Received: {mimeType}",
     "FILE_TOO_LARGE_FOR_LOGO": "File too large. Maximum: 2MB. Received: {sizeMb}MB",
     "DEACTIVATION_REQUIRES_PLATFORM_ADMIN": "Only platform administrators can deactivate tenants",
-    "REACTIVATION_REQUIRES_PLATFORM_ADMIN": "Only platform administrators can reactivate tenants"
+    "REACTIVATION_REQUIRES_PLATFORM_ADMIN": "Only platform administrators can reactivate tenants",
+    "AI_CONSENT_REQUIRED": "Your organization hasn't agreed to AI processing yet. A tenant admin can accept it in the organization's settings, then contracts can be analyzed.",
+    "AI_DISCLOSURE_OUTDATED": "That isn't the current AI processing disclosure. Review version {current} and accept it."
   },
   "messages": {}
 }

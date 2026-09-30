@@ -358,6 +358,7 @@ The pre-commit hook also runs `pnpm type-check` and `lint-staged` before every c
 | Entitlement system | `docs/ENTITLEMENTS.md` |
 | Billing + Stripe | `docs/BILLING.md`, `docs/STRIPE_DEVELOPMENT.md` |
 | API contracts (auth flows) | `apps/api/docs/API_CONTRACTS.md` |
+| Sub-processors (third parties receiving customer data) | `docs/SUBPROCESSORS.md` |
 | Test infrastructure | `apps/api/test/README.md` |
 
 ---

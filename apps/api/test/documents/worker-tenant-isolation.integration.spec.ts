@@ -109,6 +109,7 @@ describe('Workers act only inside the job payload tenant', () => {
         getMaxOutputTokens: () => 4_096,
         getTokenEncoding: () => 'o200k_base',
         getModel: () => 'test-model',
+        getBaseUrl: () => 'https://api.openai.com/v1',
         chatCompletion: () => {
           modelCalls++;
           return Promise.resolve({

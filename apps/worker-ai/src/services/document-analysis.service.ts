@@ -1,4 +1,8 @@
-import { EmbeddingService, TextChunkerService } from '@lib/embedding';
+import {
+  EmbeddingService,
+  openAiRegion,
+  TextChunkerService,
+} from '@lib/embedding';
 import {
   ANALYSIS_DOCUMENT_TYPES,
   ANALYSIS_JURISDICTIONS,
@@ -20,6 +24,7 @@ import {
   AnalysisWarning,
   ClauseStatus,
   ClauseVerdict,
+  ProcessorUse,
   RiskLevel,
 } from '../interfaces/analysis-result.interface';
 import { RedactionService } from '../redaction/redaction.service';
@@ -281,6 +286,50 @@ export class DocumentAnalysisService {
    * The review was paid for when it was queued (`contract_reviews_per_month`): one that failed for
    * good after this worker claimed it is given back.
    */
+  /**
+   * The processors this document's data went to, and where: OCR at ingestion for its
+   * scanned pages, OpenAI for embeddings and the analysis, Cohere when it reranked.
+   */
+  private processorsUsed(
+    ocrPages: number[] | null,
+    rerankCalled: boolean,
+  ): ProcessorUse[] {
+    return [
+      ...(ocrPages && ocrPages.length > 0
+        ? [
+            {
+              processor: 'azure-document-intelligence' as const,
+              purpose: 'ocr' as const,
+              region: null,
+              pages: ocrPages,
+            },
+          ]
+        : []),
+      {
+        processor: 'openai',
+        purpose: 'embeddings',
+        region: openAiRegion(this.embeddingService.getBaseUrl()),
+        model: this.embeddingService.getModel(),
+      },
+      ...(rerankCalled
+        ? [
+            {
+              processor: 'cohere' as const,
+              purpose: 'rerank' as const,
+              region: 'global',
+              model: this.rerankerService.getModel(),
+            },
+          ]
+        : []),
+      {
+        processor: 'openai',
+        purpose: 'analysis',
+        region: openAiRegion(this.llmService.getBaseUrl()),
+        model: this.llmService.getModel(),
+      },
+    ];
+  }
+
   private async refundReview(
     tenantId: string,
     analysisJobId: string,
@@ -420,13 +469,16 @@ export class DocumentAnalysisService {
     const optional = topChunks.filter((c) => !requiredIds.has(c.id));
 
     // Re-rank via Cohere; the query is document text only, never the title
-    const { chunks: rerankedOptional, reranked } =
-      optional.length > 0
-        ? await this.rerankerService.rerank(
-            this.buildRerankQuery(chunkTexts),
-            optional,
-          )
-        : { chunks: [], reranked: true };
+    const {
+      chunks: rerankedOptional,
+      reranked,
+      providerCalled: rerankCalled,
+    } = optional.length > 0
+      ? await this.rerankerService.rerank(
+          this.buildRerankQuery(chunkTexts),
+          optional,
+        )
+      : { chunks: [], reranked: true, providerCalled: false };
 
     const supplied = [...required, ...rerankedOptional];
     this.logger.log(
@@ -714,6 +766,7 @@ export class DocumentAnalysisService {
       inconsistentFindingsDropped,
       warnings,
       provenance: {
+        processors: this.processorsUsed(document.ocr_pages, rerankCalled),
         promptVersion: PROMPT_VERSION,
         redaction: {
           enabled: this.redactionService.isEnabled(),

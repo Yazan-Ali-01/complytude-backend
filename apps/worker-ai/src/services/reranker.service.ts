@@ -6,6 +6,8 @@ import type { RulesetChunkMatch } from '../repositories/ruleset-chunk-search.rep
 export interface RerankResult {
   chunks: RulesetChunkMatch[];
   reranked: boolean;
+  /** Whether the query and candidates were sent to Cohere (even if its answer then failed). */
+  providerCalled: boolean;
 }
 
 @Injectable()
@@ -53,13 +55,13 @@ export class RerankerService {
     chunks: RulesetChunkMatch[],
   ): Promise<RerankResult> {
     if (chunks.length === 0) {
-      return { chunks: [], reranked: false };
+      return { chunks: [], reranked: false, providerCalled: false };
     }
 
     // A single candidate has nothing to reorder; any more are reranked even when all of them fit
     // in topN, so the model gets the most relevant clauses first
     if (chunks.length === 1) {
-      return { chunks, reranked: true };
+      return { chunks, reranked: true, providerCalled: false };
     }
 
     try {
@@ -79,12 +81,16 @@ export class RerankerService {
         `Cohere rerank: ${chunks.length} → ${reranked.length} chunks (model=${this.model})`,
       );
 
-      return { chunks: reranked, reranked: true };
+      return { chunks: reranked, reranked: true, providerCalled: true };
     } catch (error) {
       this.logger.warn(
         `Cohere rerank failed, falling back to original ranking: ${error instanceof Error ? error.message : String(error)}`,
       );
-      return { chunks: chunks.slice(0, this.topN), reranked: false };
+      return {
+        chunks: chunks.slice(0, this.topN),
+        reranked: false,
+        providerCalled: true,
+      };
     }
   }
 }

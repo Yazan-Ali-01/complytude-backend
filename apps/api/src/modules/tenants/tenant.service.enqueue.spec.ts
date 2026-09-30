@@ -47,6 +47,7 @@ describe('TenantService.createTenantForUser when the queue rejects', () => {
       {} as never, // userTenantRepository
       { t: (key: string) => key } as unknown as I18nService,
       {} as never, // sessionInvalidation
+      {} as never, // aiConsent
     );
     // The transactional part is covered elsewhere; this test is about what happens after it.
     jest

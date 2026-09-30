@@ -11,6 +11,7 @@ import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { RulesetChunkSearchRepository } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
 import {
   createTestSubscription,
+  grantAiConsent,
   createTestTenant,
   createTestUser,
   createTestUserInTenant,
@@ -120,6 +121,7 @@ describe('Analysis scope: jurisdiction and document type', () => {
   async function tenantAdmin(): Promise<{ tenantId: string; cookie: string }> {
     const tenant = await createTestTenant(app.module);
     await createTestSubscription(app.module, tenant.id, { planKey: 'shield' });
+    await grantAiConsent(app.module, tenant.id);
     const { user } = await createTestUserInTenant(app.module, tenant.id, {
       role: SystemTenantRole.TENANT_ADMIN,
     });

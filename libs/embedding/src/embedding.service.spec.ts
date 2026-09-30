@@ -1,5 +1,6 @@
 import * as Joi from 'joi';
 import { TokenCounterService } from './chunking/token-counter.service';
+import { openAiRegion } from './embedding.constants';
 import { embeddingEnvSchema } from './embedding.schema';
 import { EmbeddingService } from './embedding.service';
 
@@ -115,5 +116,14 @@ describe('OPENAI_BASE_URL validation', () => {
     'https://api.openai.com/v1/../proxy',
   ])('refuses %s', (url) => {
     expect(validate(url).error?.message).toContain('OPENAI_BASE_URL');
+  });
+});
+
+describe('openAiRegion', () => {
+  it('names the data-residency region of an OpenAI host, global otherwise', () => {
+    expect(openAiRegion('https://api.openai.com/v1')).toBe('global');
+    expect(openAiRegion('https://ae.api.openai.com/v1')).toBe('ae');
+    expect(openAiRegion('https://eu.api.openai.com/v1')).toBe('eu');
+    expect(openAiRegion('https://us.api.openai.com/v1')).toBe('us');
   });
 });

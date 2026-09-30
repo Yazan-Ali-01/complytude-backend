@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 /**
  * Self-service tenant creation payload.
@@ -23,4 +23,16 @@ export class CreateTenantDto {
   @MaxLength(255)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   name: string;
+
+  @ApiProperty({
+    description:
+      'The AI processing checkbox: the disclosure version the user accepted for the organization (must be the current one, see GET /tenants/me/ai-consent). Omit when unchecked; contract analysis is then refused until a tenant admin accepts it later.',
+    example: '2026-10-01',
+    required: false,
+    maxLength: 32,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  aiDisclosureVersion?: string;
 }
