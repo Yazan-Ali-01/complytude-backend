@@ -9,7 +9,11 @@ import type { AuthenticatedTenantUser } from 'src/modules/auth/strategies';
 import { DocumentsService } from 'src/modules/documents/documents.service';
 import { StorageService } from 'src/modules/storage/storage.service';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
-import { createTestTenant, createTestUser } from '../factories';
+import {
+  createTestSubscription,
+  createTestTenant,
+  createTestUser,
+} from '../factories';
 import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp } from '../setup/test-app.factory';
 
@@ -34,6 +38,8 @@ describe('DocumentsService.confirmUpload', () => {
     await resetTestState(app.databaseService, app.redisClient);
 
     const tenant = await createTestTenant(app.module);
+    // Confirming an upload uses one of the plan's document scans
+    await createTestSubscription(app.module, tenant.id, { planKey: 'shield' });
     const testUser = await createTestUser(app.module);
     tenantId = tenant.id;
     userId = testUser.id;

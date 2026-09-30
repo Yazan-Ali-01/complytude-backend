@@ -23,7 +23,8 @@
     "ENTITLEMENT_ACCESS_DENIED": "Your plan does not include this feature",
     "ENTITLEMENT_REQUIREMENT_NOT_MET": "Your plan does not include this feature",
     "ADDON_QUANTITY_REQUIRED": "Quantity is required to update this add-on",
-    "PLAN_DATA_MISSING": "The plan of the active subscription could not be loaded for tenant {tenantId}"
+    "PLAN_DATA_MISSING": "The plan of the active subscription could not be loaded for tenant {tenantId}",
+    "ALLOWANCE_USED": "This billing period's {feature} are used up, and your credits don't cover more. Buy credits or upgrade your plan to continue."
   },
   "messages": {
     "ADDON_ADD_SUCCESS": "Add-on activated successfully",

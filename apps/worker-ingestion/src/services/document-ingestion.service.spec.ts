@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { countPdfPages, pagesWithImages } from '@lib/pdf';
 import { pdfWith } from '@lib/pdf/testing/pdf-fixtures';
-import { PermanentError, RetryableError } from '@lib/queue';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  PermanentError,
+  QUEUE_NAMES,
+  RetryableError,
+  type QueueProducerService,
+} from '@lib/queue';
 import type { DocumentIngestionJobData } from '@lib/queue';
 import type { S3Service } from '@lib/storage';
 import { ConfigService } from '@nestjs/config';
@@ -78,6 +84,7 @@ describe('DocumentIngestionService', () => {
   let textract: jest.Mocked<ITextractService>;
   let promotion: jest.Mocked<IS3PromotionService>;
   let s3: jest.Mocked<S3Service>;
+  let producer: jest.Mocked<QueueProducerService>;
 
   /** What was stored: flat text, sections, OCR pages. */
   function stored(): {
@@ -116,6 +123,10 @@ describe('DocumentIngestionService', () => {
       deleteObject: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<S3Service>;
 
+    producer = {
+      enqueue: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<QueueProducerService>;
+
     service = withPageLimit(50);
   });
 
@@ -126,6 +137,7 @@ describe('DocumentIngestionService', () => {
       promotion,
       s3,
       new ConfigService({ textract: { maxPages, minTextCharsPerPage: 50 } }),
+      producer,
     );
   }
 
@@ -484,8 +496,8 @@ describe('DocumentIngestionService', () => {
   });
 
   describe('markFailed', () => {
-    it('should delegate to repository', async () => {
-      repo.markFailed.mockResolvedValue(undefined);
+    it('fails the document and gives back the scan its upload used', async () => {
+      repo.markFailed.mockResolvedValue(true);
 
       await service.markFailed('tenant-456', 'doc-123', 'Something went wrong');
 
@@ -494,6 +506,26 @@ describe('DocumentIngestionService', () => {
         'doc-123',
         'Something went wrong',
       );
+      expect(producer.enqueue).toHaveBeenCalledWith(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.USAGE_REFUND,
+        {
+          tenantId: 'tenant-456',
+          resourceId: 'doc-123',
+          resourceType: 'document_scan',
+          featureKey: 'document_scans',
+          units: 1,
+        },
+        { jobId: 'usage-refund-scan-doc-123' },
+      );
+    });
+
+    it('leaves a completed document (a duplicate job) alone, and refunds nothing', async () => {
+      repo.markFailed.mockResolvedValue(false);
+
+      await service.markFailed('tenant-456', 'doc-123', 'already completed');
+
+      expect(producer.enqueue).not.toHaveBeenCalled();
     });
 
     it('should not throw when repository fails', async () => {

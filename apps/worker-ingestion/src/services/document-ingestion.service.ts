@@ -5,7 +5,13 @@ import {
   UnreadablePdfError,
 } from '@lib/pdf';
 import type { DocumentIngestionJobData } from '@lib/queue';
-import { PermanentError, RetryableError } from '@lib/queue';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  PermanentError,
+  QUEUE_NAMES,
+  QueueProducerService,
+  RetryableError,
+} from '@lib/queue';
 import { S3Service } from '@lib/storage';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -71,6 +77,7 @@ export class DocumentIngestionService implements OnModuleInit {
     private readonly s3PromotionService: IS3PromotionService,
     private readonly s3: S3Service,
     configService: ConfigService,
+    private readonly queueProducer: QueueProducerService,
   ) {
     this.maxPages = configService.get<number>('textract.maxPages', 50);
     this.minTextCharsPerPage = configService.get<number>(
@@ -141,19 +148,55 @@ export class DocumentIngestionService implements OnModuleInit {
     error: string,
   ): Promise<void> {
     try {
-      await this.documentWriteRepository.markFailed(
+      const failed = await this.documentWriteRepository.markFailed(
         tenantId,
         documentId,
         error,
       );
+      if (!failed) {
+        this.logger.warn(
+          `Document ${documentId} not marked failed: it already completed`,
+        );
+        return;
+      }
       this.logger.log(
         `Document marked as failed: documentId=${documentId} error="${error}"`,
       );
+      await this.refundScan(tenantId, documentId);
     } catch (dbError: unknown) {
       this.logger.error(
         `Failed to mark document ${documentId} as failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`,
       );
     }
+  }
+
+  /**
+   * The upload used one of the plan's scans when it was confirmed: a document that fails for good
+   * gets it back (the API's USAGE_REFUND handler finds the usage by the document ID; none found,
+   * e.g. for a job naming another tenant, is a no-op).
+   */
+  private async refundScan(
+    tenantId: string,
+    documentId: string,
+  ): Promise<void> {
+    await this.queueProducer
+      .enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.USAGE_REFUND,
+        {
+          tenantId,
+          resourceId: documentId,
+          resourceType: 'document_scan',
+          featureKey: 'document_scans',
+          units: 1,
+        },
+        { jobId: `usage-refund-scan-${documentId}` },
+      )
+      .catch((err: unknown) => {
+        this.logger.error(
+          `Could not enqueue the scan refund for document ${documentId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 
   private async fetchAndValidate(

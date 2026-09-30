@@ -144,11 +144,13 @@ describe('Projection Pipeline', () => {
   // Async path
   // -------------------------------------------------------------------------
 
+  // Limited features are always checked synchronously (strict CAS); the async projection path
+  // runs for unlimited ones, so these tests use the unlimited Infrastructure plan
   describe('Async path', () => {
     it('Test 1: single request — ledger sync, projection async', async () => {
       const tenant = await createTestTenant(app.module);
       const subscription = await createTestSubscription(app.module, tenant.id, {
-        planKey: 'shield',
+        planKey: 'infrastructure',
       });
       const feature = await featuresRepo.findByKey('documents_per_month');
       expect(feature).not.toBeNull();
@@ -219,7 +221,7 @@ describe('Projection Pipeline', () => {
       // general_counsel: 100 doc quota — well above threshold so async path is used
       const tenant = await createTestTenant(app.module);
       await createTestSubscription(app.module, tenant.id, {
-        planKey: 'general_counsel',
+        planKey: 'infrastructure',
       });
       const feature = await featuresRepo.findByKey('documents_per_month');
 
@@ -447,7 +449,7 @@ describe('Projection Pipeline', () => {
     it('Test 5: processor failure — retry and eventual consistency', async () => {
       const tenant = await createTestTenant(app.module);
       const subscription = await createTestSubscription(app.module, tenant.id, {
-        planKey: 'shield',
+        planKey: 'infrastructure',
       });
       const feature = await featuresRepo.findByKey('documents_per_month');
       expect(feature).not.toBeNull();
@@ -491,7 +493,7 @@ describe('Projection Pipeline', () => {
     it('Test 6: BullMQ unavailable — sync fallback', async () => {
       const tenant = await createTestTenant(app.module);
       const subscription = await createTestSubscription(app.module, tenant.id, {
-        planKey: 'shield',
+        planKey: 'infrastructure',
       });
       const feature = await featuresRepo.findByKey('documents_per_month');
       expect(feature).not.toBeNull();
@@ -575,7 +577,7 @@ describe('Projection Pipeline', () => {
       // shield: 25 quota, used=0, threshold=3, remaining=25 → async path
       const tenant = await createTestTenant(app.module);
       await createTestSubscription(app.module, tenant.id, {
-        planKey: 'shield',
+        planKey: 'infrastructure',
       });
 
       const enqueueSpy = jest.spyOn(app.queueProducerService, 'enqueue');

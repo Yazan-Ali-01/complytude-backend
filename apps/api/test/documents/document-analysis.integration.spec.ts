@@ -1,6 +1,10 @@
 import { TextChunkerService, TokenCounterService } from '@lib/embedding';
 import type { EmbeddingService } from '@lib/embedding';
-import type { DocumentAnalysisJobData } from '@lib/queue';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  type DocumentAnalysisJobData,
+  type QueueProducerService,
+} from '@lib/queue';
 import type { ConfigService } from '@nestjs/config';
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
@@ -50,6 +54,8 @@ interface ModelCall {
 describe('Document analysis: injection, grounding and honest status', () => {
   let app: TestApp;
   let calls: ModelCall[];
+  /** USAGE_REFUND jobs the worker enqueued. */
+  let refunds: Array<{ name: string; data: Record<string, unknown> }>;
   let rerankQueries: string[];
   let embeddedTexts: string[];
   let modelAnswer: {
@@ -65,6 +71,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
   beforeEach(async () => {
     await resetTestState(app.databaseService, app.redisClient);
     calls = [];
+    refunds = [];
     rerankQueries = [];
     embeddedTexts = [];
   }, 15000);
@@ -196,6 +203,16 @@ describe('Document analysis: injection, grounding and honest status', () => {
         get: (key: string, fallback: unknown) =>
           options.config?.[key] ?? fallback,
       } as ConfigService,
+      {
+        enqueue: (
+          _queue: string,
+          name: string,
+          data: Record<string, unknown>,
+        ) => {
+          refunds.push({ name, data });
+          return Promise.resolve();
+        },
+      } as unknown as QueueProducerService,
     );
   }
 
@@ -564,6 +581,19 @@ describe('Document analysis: injection, grounding and honest status', () => {
         status: 'failed',
         error: expect.stringContaining('nothing was sent to an AI provider'),
       });
+      // The review it was charged for is given back
+      expect(refunds).toEqual([
+        {
+          name: ENTITLEMENT_JOB_NAMES.USAGE_REFUND,
+          data: {
+            tenantId: data.tenantId,
+            resourceId: data.analysisJobId,
+            resourceType: 'analysis_job',
+            featureKey: 'contract_reviews_per_month',
+            units: 1,
+          },
+        },
+      ]);
     });
   });
 

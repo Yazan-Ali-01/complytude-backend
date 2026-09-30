@@ -9,6 +9,7 @@ import type {
   AnalysisDocumentType,
   AnalysisJurisdiction,
   DocumentAnalysisJobData,
+  QueueProducerService,
 } from '@lib/queue';
 import { ConfigService } from '@nestjs/config';
 import { config as loadEnv } from 'dotenv';
@@ -442,6 +443,8 @@ describeEval('AI evaluation', () => {
           }),
         ),
         new ConfigService({ workerAi: workerAiConfig() }),
+        // The eval runs no quota, so there's nothing to refund
+        { enqueue: () => Promise.resolve() } as unknown as QueueProducerService,
       );
 
       const cases = loadCases();

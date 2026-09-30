@@ -131,6 +131,7 @@ DataIngestionProcessor.handle(job) routes by job.name:
 | Empty clauses (ruleset)    | Logs warning, returns early (no error)                                                             |
 | Document permanent failure | `onPermanentFailure` hook marks document as `failed` in DB                                         |
 | Document dead letter       | `onDeadLetter` hook marks document as `failed` (retries exhausted)                                 |
+| Scan refund                | Marking a document `failed` gives the tenant its document scan back: a `USAGE_REFUND` job on `entitlement-processing` (job id `usage-refund-scan-<documentId>`). A document already `completed` is never marked failed, so a late failure of a retried job refunds nothing |
 
 ### Chunk Metadata Schema
 

@@ -75,7 +75,8 @@ export const FEATURE_CATALOG = {
     feature_type: 'quota',
     storage_type: 'int',
     unit: 'reviews',
-    creditable: false,
+    creditable: true,
+    credit_cost: 10, // 10 credits per review past the allowance (D-4)
     description: 'Number of AI contract reviews per billing period',
     availability: 'available',
   },
@@ -169,8 +170,7 @@ export const FEATURE_CATALOG = {
     unit: 'scans',
     creditable: true,
     credit_cost: 5,
-    description:
-      'Number of document file scans (Textract extraction) per billing period',
+    description: 'Uploaded documents read for review per billing period',
     availability: 'available',
   },
 } as const satisfies Record<string, FeatureCatalogEntry>;
@@ -202,7 +202,8 @@ export interface PlanCatalogEntry {
 export const PLAN_CATALOG = {
   navigator: {
     name: 'Navigator',
-    description: 'Free — essential templates and document generation',
+    description:
+      'Free — essential templates, 3 documents and 1 AI contract review a month',
     price_monthly: 0,
     price_currency: DEFAULT_CURRENCY,
     billing_period: 'monthly',
@@ -281,8 +282,8 @@ export const PLAN_ENTITLEMENTS: Record<
     documents_per_month: { value_int: 3 },
     template_library: { value_text: 'essential' },
     bilingual_quality: { value_text: 'standard' },
-    contract_reviews_per_month: { value_int: 0 },
-    risk_analysis_level: { value_text: 'none' },
+    contract_reviews_per_month: { value_int: 1 },
+    risk_analysis_level: { value_text: 'critical_only' },
     redlining_enabled: { value_bool: false },
     localizer_check: { value_bool: false },
     regulatory_hub_access: { value_bool: true },
@@ -293,7 +294,7 @@ export const PLAN_ENTITLEMENTS: Record<
     data_isolation: { value_text: 'shared' },
     custom_playbooks: { value_bool: false },
     white_label_exports: { value_bool: false },
-    document_scans: { value_int: 0 },
+    document_scans: { value_int: 1 },
   },
   shield: {
     documents_per_month: { value_int: 25 },

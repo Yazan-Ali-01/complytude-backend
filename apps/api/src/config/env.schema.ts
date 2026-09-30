@@ -99,11 +99,6 @@ export const validationSchema = Joi.object({
       }
       return value;
     }),
-  ENTITLEMENT_STRICT_THRESHOLD_PERCENT: Joi.number()
-    .integer()
-    .min(1)
-    .max(50)
-    .default(5),
 
   // Database
   ...databaseEnvSchema,
@@ -167,6 +162,8 @@ export const validationSchema = Joi.object({
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
   // Most PDF pages an upload may have (Textract bills per page); keep equal to worker-ingestion's
   TEXTRACT_MAX_PAGES: Joi.number().integer().min(1).default(50),
+  // Previews a tenant may request per day (UTC); each is a document conversion
+  PREVIEW_DAILY_LIMIT: Joi.number().integer().min(1).default(50),
 
   // Logging
   ...loggerEnvSchema,

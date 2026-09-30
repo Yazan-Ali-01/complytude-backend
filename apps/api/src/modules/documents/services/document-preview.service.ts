@@ -1,4 +1,5 @@
 import { DatabaseService } from '@lib/database';
+import { RedisService } from '@lib/redis';
 import {
   ENTITLEMENT_JOB_NAMES,
   GENERATION_JOB_NAMES,
@@ -14,11 +15,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import { EntitlementEnforcementService } from 'src/modules/entitlements/services/entitlement-enforcement.service';
 import { EntitlementResolverService } from 'src/modules/entitlements/services/entitlement-resolver.service';
-import { EntitlementsI18n } from 'src/modules/entitlements/constants/i18n.constants';
-import { paymentOverdueException } from 'src/modules/entitlements/utils/past-due-access.util';
+import { usageRefusedException } from 'src/modules/entitlements/utils/usage-refusal.util';
 import type { GenerationJob } from 'src/repositories/generation-jobs/generation-job.repository';
 import { GenerationJobRepository } from 'src/repositories/generation-jobs/generation-job.repository';
 import type { AuthenticatedTenantUser } from '../../auth/strategies';
@@ -54,6 +55,8 @@ export class DocumentPreviewService {
     private readonly documentsService: DocumentsService,
     private readonly databaseService: DatabaseService,
     private readonly i18n: I18nService,
+    private readonly redis: RedisService,
+    private readonly configService: ConfigService,
   ) {}
 
   async preview(
@@ -84,6 +87,7 @@ export class DocumentPreviewService {
       dto.variables,
       systemVariables,
     );
+    await this.enforcePreviewCap(user.tenantId);
 
     try {
       const generationJob =
@@ -210,24 +214,11 @@ export class DocumentPreviewService {
                 { client },
               );
 
-            if (checkResult.reason === 'payment_required') {
-              throw paymentOverdueException(
-                'documents_per_month',
-                this.i18n.t(EntitlementsI18n.errors.PAYMENT_OVERDUE),
-              );
-            }
             if (!checkResult.allowed) {
-              throw new HttpException(
-                {
-                  statusCode: HttpStatus.PAYMENT_REQUIRED,
-                  message: `Quota exceeded for documents_per_month`,
-                  feature: 'documents_per_month',
-                  limit: checkResult.limit,
-                  used: checkResult.used,
-                  creditsAvailable: checkResult.creditsRemaining ?? 0,
-                  upgradeUrl: '/plans',
-                },
-                HttpStatus.PAYMENT_REQUIRED,
+              throw usageRefusedException(
+                'documents_per_month',
+                checkResult,
+                this.i18n,
               );
             }
 
@@ -374,6 +365,44 @@ export class DocumentPreviewService {
       );
       throw new ForbiddenException(
         this.i18n.t(DocumentsI18n.errors.TEMPLATE_TIER_FORBIDDEN),
+      );
+    }
+  }
+
+  /**
+   * Previews cost nothing but each is a document conversion on the shared generation worker, so a
+   * tenant gets at most PREVIEW_DAILY_LIMIT a day (UTC). If Redis can't count, the preview goes
+   * ahead: the per-minute rate limit still applies.
+   */
+  private async enforcePreviewCap(tenantId: string): Promise<void> {
+    const limit = this.configService.get<number>('PREVIEW_DAILY_LIMIT') ?? 50;
+    const now = new Date();
+    const key = `preview-cap:${tenantId}:${now.toISOString().slice(0, 10)}`;
+    let count: number;
+    try {
+      count = await this.redis.incr(key);
+      if (count === 1) await this.redis.expire(key, 2 * 24 * 60 * 60);
+    } catch (error) {
+      this.logger.warn(
+        `Preview cap not checked for tenant=${tenantId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
+    }
+    if (count > limit) {
+      const nextDay = Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+      );
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: this.i18n.t(DocumentsI18n.errors.PREVIEW_DAILY_LIMIT, {
+            args: { limit },
+          }),
+          retryAfterSeconds: Math.ceil((nextDay - now.getTime()) / 1000),
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
   }

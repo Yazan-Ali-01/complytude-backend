@@ -51,7 +51,10 @@ import { WorkerIngestionService } from './worker-ingestion.service';
     EmbeddingModule.forRoot(),
     DatabaseModule.forRoot(),
     StorageModule.forRoot(),
-    QueueModule.forRoot([QUEUE_NAMES.DATA_INGESTION]),
+    QueueModule.forRoot([
+      QUEUE_NAMES.DATA_INGESTION,
+      QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+    ]),
   ],
   controllers: [WorkerIngestionController],
   providers: [

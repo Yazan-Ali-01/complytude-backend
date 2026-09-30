@@ -309,13 +309,9 @@ export class EntitlementEnforcementService {
   }
 
   /**
-   * Router for usage-based enforcement modes.
-   *
-   * Pre-resolves subscription, usage, limit, and used so both async and strict
-   * paths (COM-134) receive shared data without duplicate DB round-trips.
-   *
-   * COM-133 uses async projection updates for all usage checks.
-   * COM-134 will add strict-mode routing for near-limit requests.
+   * Usage-based enforcement: resolves the subscription, its current period and usage, then
+   * checks and counts a limited feature synchronously (CAS), or an unlimited one with an async
+   * projection update.
    */
   private async enforceUsageBasedFeature(
     input: EnforceUsageBasedInput,
@@ -427,32 +423,9 @@ export class EntitlementEnforcementService {
       );
     }
 
-    const remaining = limit - used;
-    const thresholdPercent = this.configService.get<number>(
-      'app.entitlement.strictThresholdPercent',
-      5,
-    );
-    const threshold = Math.max(Math.ceil((limit * thresholdPercent) / 100), 3);
-
-    if (remaining <= threshold) {
-      return this.enforceUsageStrict(
-        {
-          tenantId,
-          featureKey,
-          userId,
-          units,
-          metadata,
-          subscription,
-          feature,
-          billingPeriod,
-          limit,
-          used,
-        },
-        client,
-      );
-    }
-
-    return this.enforceUsageAsync(
+    // Every limited request is checked and counted in one CAS on its period's row: a lagging
+    // projection would let a burst of requests past the limit (BILL-013)
+    return this.enforceUsageStrict(
       {
         tenantId,
         featureKey,
@@ -467,131 +440,6 @@ export class EntitlementEnforcementService {
       },
       client,
     );
-  }
-
-  private async enforceUsageAsync(
-    input: EnforceUsageLimitedInput,
-    client: PoolClient,
-  ): Promise<EnforceResult> {
-    const {
-      tenantId,
-      featureKey,
-      userId,
-      units,
-      metadata,
-      subscription,
-      feature,
-      billingPeriod,
-      limit,
-      used,
-    } = input;
-
-    let allocationResolution: AllocationResolution;
-    try {
-      allocationResolution = await this.resolveAllocationsWithCreditFallback(
-        {
-          tenantId,
-          featureKey,
-          userId,
-          units,
-          limit,
-          used,
-          featureCreditCost: feature.credit_cost,
-        },
-        client,
-      );
-    } catch (error) {
-      if (error instanceof EntitlementDeniedException) {
-        return error.enforceResult;
-      }
-      throw error;
-    }
-
-    const { usageEvent, planUnits } = await this.writeUsageAndCredits(
-      {
-        tenantId,
-        featureKey,
-        userId,
-        units,
-        metadata,
-        feature,
-        billingPeriod,
-        allocationResolution,
-      },
-      client,
-    );
-
-    const {
-      allocations,
-      creditUnits,
-      creditCost,
-      creditCostPerUnit,
-      creditBalance,
-      mode,
-    } = allocationResolution;
-    const responseSource =
-      allocations.length === 1 ? allocations[0].source : 'mixed';
-
-    if (mode === 'credit_fallback') {
-      this.logger.log(
-        `Partial credit fallback: tenant=${tenantId}, feature=${featureKey}, plan=${planUnits}, credits=${creditUnits}, cost=${creditCost}, remaining_credits=${(creditBalance ?? 0) - creditCost}`,
-      );
-    }
-
-    if (mode === 'within_quota') {
-      return {
-        result: {
-          allowed: true,
-          source: 'plan',
-          allocations,
-          remaining: limit - used - units,
-          limit,
-          used: used + units,
-        },
-        projectionJob: this.buildProjectionJob({
-          tenantId,
-          featureKey,
-          usageEvent,
-          feature,
-          subscription,
-          billingPeriod,
-          allocations: allocations.map((a) => ({
-            source: a.source,
-            units: a.units,
-          })),
-          userId,
-        }),
-      };
-    }
-
-    return {
-      result: {
-        allowed: true,
-        source: responseSource,
-        allocations,
-        remaining: 0,
-        creditsRemaining: (creditBalance ?? 0) - creditCost,
-        creditsDeducted: creditUnits > 0 ? creditCost : undefined,
-        creditCostPerUnit: creditUnits > 0 ? creditCostPerUnit : undefined,
-        limit,
-        used: used + units,
-      },
-      projectionJob: this.buildProjectionJob({
-        tenantId,
-        featureKey,
-        usageEvent,
-        feature,
-        subscription,
-        billingPeriod,
-        allocations: allocations.map((a) => ({
-          source: a.source,
-          units: a.units,
-        })),
-        userId,
-        creditDeducted: creditUnits > 0,
-        creditAmount: creditUnits > 0 ? creditCost : undefined,
-      }),
-    };
   }
 
   private async enforceUsageStrict(

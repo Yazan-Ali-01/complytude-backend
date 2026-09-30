@@ -40,7 +40,8 @@
     "VARIABLE_NOT_BOOLEAN": "Must be true or false",
     "VARIABLE_NOT_AN_OPTION": "Must be one of: {options}",
     "VARIABLE_INVALID_EMAIL": "Invalid email format",
-    "VARIABLE_INVALID_PHONE": "Invalid phone number format"
+    "VARIABLE_INVALID_PHONE": "Invalid phone number format",
+    "PREVIEW_DAILY_LIMIT": "Your organization has reached today's limit of {limit} previews. Try again tomorrow."
   },
   "messages": {
     "UPLOAD_CONFIRMED": "Upload confirmed. Text extraction has been queued.",

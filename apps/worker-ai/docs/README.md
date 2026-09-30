@@ -129,7 +129,7 @@ Similarity decides which optional clauses the model sees, but it can't be truste
 | `RetryableError` | DB timeouts, embedding API failures, LLM API errors, Cohere API errors → BullMQ retries with exponential backoff |
 | `PermanentError` | Job/document not found, terminal job state → moves to failed, no retries |
 | Cohere failure | Graceful degradation: falls back to original hybrid ranking, logs warning, pipeline continues |
-| Pipeline failure | `markFailed(jobId, errorMessage)` only for a `PermanentError` or the last attempt; otherwise the job stays `processing` for BullMQ's next attempt |
+| Pipeline failure | `markFailed(jobId, errorMessage)` only for a `PermanentError` or the last attempt; otherwise the job stays `processing` for BullMQ's next attempt. A job marked failed gives the tenant its contract review back: a `USAGE_REFUND` job on `entitlement-processing` (job id `usage-refund-review-<analysisJobId>`, so a repeated failure refunds once) |
 
 ### Prompt injection and grounding
 

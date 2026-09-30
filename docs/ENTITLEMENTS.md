@@ -154,28 +154,25 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                   Request Flow (Dual-Mode)                    │
+│                   Request Flow                                │
 ├──────────────────────────────────────────────────────────────┤
 │  1. HTTP Request → EntitlementGuard (check access)           │
 │  2. Controller → Service → EntitlementEnforcementService     │
 │  3. Resolve effective entitlement (snapshot or fresh)         │
 │  4. Get current usage from aggregated_usage projection       │
-│  5. Route to enforcement mode based on remaining quota:      │
+│  5. Route by limit:                                          │
 │     ┌─────────────────────────────────────────────────┐      │
-│     │ ASYNC MODE (far from limit)                     │      │
-│     │  • Record usage to ledger (in transaction)      │      │
-│     │  • Enqueue PROJECTION_UPDATE job (BullMQ)       │      │
-│     │  • Projection updated async by worker           │      │
-│     │  • Sync fallback if BullMQ unavailable          │      │
-│     ├─────────────────────────────────────────────────┤      │
-│     │ STRICT MODE (near limit, ≤5% or 3 units)       │      │
+│     │ STRICT MODE (every limited feature)             │      │
 │     │  • Record usage to ledger (in savepoint)        │      │
 │     │  • CAS on aggregated_usage (conditionalIncr.)   │      │
 │     │  • If CAS fails → rollback + deny (race)        │      │
 │     │  • If CAS succeeds → commit + emit event        │      │
 │     ├─────────────────────────────────────────────────┤      │
-│     │ UNLIMITED MODE (limit = -1)                     │      │
-│     │  • Always async path (no quota to enforce)      │      │
+│     │ ASYNC MODE (unlimited, limit = -1)              │      │
+│     │  • Record usage to ledger (in transaction)      │      │
+│     │  • Enqueue PROJECTION_UPDATE job (BullMQ)       │      │
+│     │  • Projection updated async by worker           │      │
+│     │  • Sync fallback if BullMQ unavailable          │      │
 │     └─────────────────────────────────────────────────┘      │
 │  6. If quota exceeded → check credits → deduct if available  │
 │  7. Return result to client                                  │
@@ -184,15 +181,14 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 
 ### Enforcement Modes
 
-The system uses a **dual-mode enforcement strategy** that balances performance (async projection updates) with correctness (strict mode near limits):
+A request for a limited feature is always checked and counted in one step, so no burst of concurrent requests gets past the limit. Only unlimited features take the faster async path:
 
-| Mode          | Condition               | Projection Update                           | Concurrency Safety                          |
-| ------------- | ----------------------- | ------------------------------------------- | ------------------------------------------- |
-| **Async**     | `remaining > threshold` | BullMQ job (async) with sync fallback       | Eventual consistency (safe: far from limit) |
-| **Strict**    | `remaining ≤ threshold` | CAS (`conditionalIncrement`) in-transaction | Strong consistency (prevents over-quota)    |
-| **Unlimited** | `limit = -1`            | BullMQ job (async)                          | N/A (no quota)                              |
+| Mode       | Condition    | Projection Update                           | Concurrency Safety                       |
+| ---------- | ------------ | ------------------------------------------- | ---------------------------------------- |
+| **Strict** | `limit ≥ 0`  | CAS (`conditionalIncrement`) in-transaction | Strong consistency (prevents over-quota) |
+| **Async**  | `limit = -1` | BullMQ job (async) with sync fallback       | N/A (no quota)                           |
 
-**Threshold:** Configurable via `app.entitlement.strictThresholdPercent` (default: 5% of limit, minimum 3 units).
+An earlier design sent limited requests far from their limit down the async path too, switching to strict only near the limit. The projection lags the ledger on that path, so a burst of requests could all read the same stale total and pass together; with small allowances (1 review a month on Navigator) "near the limit" was every request anyway.
 
 **Async Path Details:**
 
@@ -212,7 +208,7 @@ The system uses a **dual-mode enforcement strategy** that balances performance (
 
 ### Latency Benchmark (COM-136)
 
-A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRecord()` calls.
+A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRecord()` calls: a limited feature on General Counsel (strict) against an unlimited one on Infrastructure (async).
 
 **Run:** `pnpm test:benchmark` (requires Docker for testcontainers)
 
@@ -224,7 +220,7 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 | p95    | ~440ms        | ~230ms | ~48%        |
 | p99    | ~450ms        | ~240ms | ~48%        |
 
-**Rationale:** Sync path updates `aggregated_usage` in the same transaction as the ledger write, causing row lock contention under concurrency. Async path only writes to the ledger and enqueues a job, reducing request-path latency.
+**Rationale:** Sync path updates `aggregated_usage` in the same transaction as the ledger write, causing row lock contention under concurrency. Async path only writes to the ledger and enqueues a job, reducing request-path latency. The lock contention is per tenant and feature, so it costs a tenant's own burst, not other tenants.
 
 ### Data Layer
 
@@ -283,8 +279,8 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 | `documents_per_month`          | quota    | documents | ✅ Yes     | 5 credits   | Documents that can be generated per billing period                                                                                                                                           |
 | `template_library`             | boolean  | -         | ❌ No      | -           | Access to template library (essential/full)                                                                                                                                                  |
 | `bilingual_quality`            | boolean  | -         | ❌ No      | -           | Bilingual quality (standard/jais_native)                                                                                                                                                     |
-| `contract_reviews_per_month`   | quota    | reviews   | ❌ No      | -           | AI contract reviews per billing period                                                                                                                                                       |
-| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | Risk analysis level (none/critical_only/full)                                                                                                                                                |
+| `contract_reviews_per_month`   | quota    | reviews   | ✅ Yes     | 10 credits  | AI contract reviews per billing period. Counted by `POST /documents/:id/analyze` and `POST /documents/:id/trigger-analysis`, refunded when the review fails for good                          |
+| `risk_analysis_level`          | boolean  | -         | ❌ No      | -           | How much of a review the plan shows: `full` everything, `critical_only` high-risk findings only, `none` only the count. Applied when a review is read, so an upgrade shows past reviews in full |
 | `redlining_enabled`            | boolean  | -         | ❌ No      | -           | AI suggests alternative compliant wording                                                                                                                                                    |
 | `localizer_check`              | boolean  | -         | ❌ No      | -           | Flags governing law/jurisdiction mismatches                                                                                                                                                  |
 | `regulatory_hub_access`        | boolean  | -         | ❌ No      | -           | Access to compliance dashboard                                                                                                                                                               |
@@ -295,6 +291,7 @@ A benchmark compares sync (strict) vs async path under 50 concurrent `checkAndRe
 | `data_isolation`               | boolean  | -         | ❌ No      | -           | Data isolation level (shared/row_level/silo)                                                                                                                                                 |
 | `custom_playbooks`             | boolean  | -         | ❌ No      | -           | Upload company-specific negotiating positions                                                                                                                                                |
 | `white_label_exports`          | boolean  | -         | ❌ No      | -           | Export reports with tenant branding                                                                                                                                                          |
+| `document_scans`               | quota    | scans     | ✅ Yes     | 5 credits   | Uploaded documents read for review per billing period. Counted by `POST /documents/:id/confirm-upload`, refunded when the document can't be read                                            |
 
 ### Availability: coming soon
 
@@ -472,17 +469,14 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 
 ### 2. Usage Enforcement
 
-**Example: Document Generation (Async Mode — far from limit)**
+**Example: Unlimited Feature (Async Mode)**
 
 ```typescript
 // EntitlementEnforcementService.checkAndRecord()
-1. Resolve entitlement for 'documents_per_month'
-   → Result: { value_int: 25, source: 'plan', creditable: true }
+1. Resolve entitlement for 'documents_per_month' on Infrastructure
+   → Result: { value_int: -1, source: 'plan' }
 
-2. Get current usage for billing period
-   → Query aggregated_usage: total_units = 10
-
-3. Check: remaining = 25 - 10 = 15 units left (> threshold of 3)
+2. Unlimited: nothing to check
    → Route to ASYNC enforcement
 
 4. Record usage event to ledger (in transaction):
@@ -498,10 +492,10 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
      b. Increment aggregated_usage: total_units 10 → 11
      c. Emit domain event: 'usage.recorded' (enforcement_mode: 'async')
 
-7. Return: { allowed: true, source: 'plan', remaining: 14 }
+7. Return: { allowed: true, source: 'plan', remaining: -1 }
 ```
 
-**Example: Document Generation (Strict Mode — near limit)**
+**Example: Document Generation (Strict Mode)**
 
 ```typescript
 // EntitlementEnforcementService.checkAndRecord()
@@ -511,8 +505,8 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 2. Get current usage for billing period
    → Query aggregated_usage: total_units = 24
 
-3. Check: remaining = 25 - 24 = 1 unit left (≤ threshold of 3)
-   → Route to STRICT enforcement
+3. Check: remaining = 25 - 24 = 1 unit left
+   → Limited feature: route to STRICT enforcement
 
 4. Create savepoint
 
@@ -748,17 +742,25 @@ A Stripe-backed subscription's plan, status and period change only through Strip
    - Remaining: 0 → EXCEEDED
    - Check credits: 0 available
    - Emit 'entitlement.denied' event
-4. Throw ForbiddenException
+4. Throw usageRefusedException (entitlements/utils/usage-refusal.util.ts)
 5. Response: 402 Payment Required
    {
      statusCode: 402,
-     message: "Document quota exceeded",
+     message: "This billing period's documents are used up, and your credits don't cover more. ...",
+     reason: "quota_exceeded",
+     feature: "documents_per_month",
      limit: 25,
      used: 25,
-     creditsRemaining: 0,
-     upgradeUrl: "/billing/upgrade"
+     creditsAvailable: 0,
+     upgradeUrl: "/plans"
    }
 ```
+
+Every metered operation answers this shape when it is refused: document generation, contract reviews (`analyze`, `trigger-analysis`) and document scans (`confirm-upload`). A refused operation creates nothing: no job, and a confirmed upload stays `pending` so it can be confirmed again after buying credits. Past the past-due grace period the 402 is `paymentOverdueException`'s instead (`reason: 'payment_required'`).
+
+**Previews** are free but capped: a tenant gets `PREVIEW_DAILY_LIMIT` (default 50) a day, counted in Redis per UTC day. Past it `POST /documents/preview` answers 429 with `retryAfterSeconds` until midnight UTC. If Redis can't count, the preview goes ahead (the per-minute rate limit still applies).
+
+**Refunds:** a review that fails for good (`worker-ai`) or a document that can't be read (`worker-ingestion`) enqueues a `USAGE_REFUND` job, which voids the usage row and gives back its credits. The job id is derived from the resource, so a retried failure refunds once.
 
 ### Flow 6: Boolean Feature Access Denied
 
@@ -1613,12 +1615,11 @@ console.log(events.length);
 
 **Symptom:** Two requests at the same time, both succeed, but quota is exceeded.
 
-**Cause:** Both requests read the same usage count in async mode before either updates the projection.
+**Cause:** Usage was recorded outside `EntitlementEnforcementService`, or a limited feature took the async path.
 
 **Solution:**
 
-- The system automatically routes to **strict mode** when remaining quota is within the threshold (≤5% of limit or 3 units). Strict mode uses CAS (`conditionalIncrement`) on `aggregated_usage` — the second concurrent request will fail the CAS and be denied.
-- If the threshold is too low for your use case, increase `app.entitlement.strictThresholdPercent` in config.
+- Every limited feature goes through **strict mode**: a CAS (`conditionalIncrement`) on `aggregated_usage`, so the second concurrent request for the last unit fails the CAS and is denied. `paid-operations-metering.integration.spec.ts` sends a burst of 30 reviews at a 25-review allowance and expects exactly 25 through.
 - Never bypass the enforcement service and record usage directly.
 
 ---

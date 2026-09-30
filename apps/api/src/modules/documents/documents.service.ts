@@ -11,6 +11,7 @@ import {
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -18,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
+import type { PoolClient } from 'pg';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import {
   Document,
@@ -29,10 +31,17 @@ import { UserRepository } from 'src/repositories/users/user.repository';
 import type { Tenant } from '../tenants/entities/tenant.entity';
 import type { User } from '../users/entities/user.entity';
 import type { AuthenticatedTenantUser } from '../auth/strategies';
+import { EntitlementEnforcementService } from '../entitlements/services/entitlement-enforcement.service';
+import { EntitlementResolverService } from '../entitlements/services/entitlement-resolver.service';
+import { usageRefusedException } from '../entitlements/utils/usage-refusal.util';
 import { StorageService } from '../storage/storage.service';
 import { TenantsI18n } from '../tenants/constants/i18n.constants';
 import { UsersI18n } from '../users/constants/i18n.constants';
 import { DocumentsI18n } from './constants/i18n.constants';
+import {
+  resultForRiskLevel,
+  type RiskAnalysisLevel,
+} from './services/analysis-risk-level';
 import { UPLOAD_MAX_FILE_SIZE_BYTES } from './constants/upload.constants';
 import type {
   AnalysisJobResponseDto,
@@ -96,7 +105,35 @@ export class DocumentsService {
     private readonly tenantRepository: TenantRepository,
     private readonly userRepository: UserRepository,
     private readonly rulesetRepository: RulesetRepository,
+    private readonly entitlementEnforcement: EntitlementEnforcementService,
+    private readonly entitlementResolver: EntitlementResolverService,
   ) {}
+
+  /**
+   * Counts one use of a paid feature against the tenant's allowance (or credits), linked to the
+   * resource it pays for so a permanent failure can refund it. Refused: 402, and the caller's
+   * transaction rolls back, so nothing is created.
+   */
+  private async consume(
+    user: AuthenticatedTenantUser,
+    featureKey: 'contract_reviews_per_month' | 'document_scans',
+    resource: { id: string; type: 'analysis_job' | 'document_scan' },
+    client: PoolClient,
+  ): Promise<void> {
+    const result = await this.entitlementEnforcement.checkAndRecord(
+      {
+        tenantId: user.tenantId,
+        featureKey,
+        userId: user.userId,
+        units: 1,
+        metadata: { resource_id: resource.id, resource_type: resource.type },
+      },
+      { client },
+    );
+    if (!result.allowed) {
+      throw usageRefusedException(featureKey, result, this.i18n);
+    }
+  }
 
   async getGenerationContext(
     user: AuthenticatedTenantUser,
@@ -184,6 +221,12 @@ export class DocumentsService {
                 status: 'queued',
               },
               { client },
+            );
+            await this.consume(
+              user,
+              'contract_reviews_per_month',
+              { id: analysisJob.id, type: 'analysis_job' },
+              client,
             );
 
             return { documentId: document.id, analysisJobId: analysisJob.id };
@@ -371,6 +414,27 @@ export class DocumentsService {
         }
       }
 
+      // Reading the upload (locally, or OCR for scanned pages) uses one of the plan's scans
+      try {
+        await this.databaseService.transactionWithTenantContext(
+          { tenantId: user.tenantId },
+          (client) =>
+            this.consume(
+              user,
+              'document_scans',
+              { id: document.id, type: 'document_scan' },
+              client,
+            ),
+        );
+      } catch (error) {
+        await this.documentRepository.update(
+          documentId,
+          { extraction_status: 'pending' },
+          { tenant: tenantContext },
+        );
+        throw error;
+      }
+
       await this.queueProducerService.enqueue(
         QUEUE_NAMES.DATA_INGESTION,
         INGESTION_JOB_NAMES.DOCUMENT_INGESTION,
@@ -395,13 +459,7 @@ export class DocumentsService {
         message: this.i18n.t(DocumentsI18n.messages.UPLOAD_CONFIRMED),
       };
     } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException ||
-        error instanceof ConflictException
-      ) {
-        throw error;
-      }
+      if (error instanceof HttpException) throw error;
       this.logger.error(
         `confirmUpload failed: documentId=${documentId} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
@@ -444,15 +502,28 @@ export class DocumentsService {
         );
       }
 
-      const analysisJob = await this.analysisJobRepository.create(
-        {
-          tenant_id: user.tenantId,
-          document_id: documentId,
-          created_by: user.userId,
-          status: 'queued',
-        },
-        { tenant: tenantContext },
-      );
+      const analysisJob =
+        await this.databaseService.transactionWithTenantContext(
+          { tenantId: user.tenantId },
+          async (client) => {
+            const job = await this.analysisJobRepository.create(
+              {
+                tenant_id: user.tenantId,
+                document_id: documentId,
+                created_by: user.userId,
+                status: 'queued',
+              },
+              { client },
+            );
+            await this.consume(
+              user,
+              'contract_reviews_per_month',
+              { id: job.id, type: 'analysis_job' },
+              client,
+            );
+            return job;
+          },
+        );
 
       await this.queueProducerService.enqueue(
         QUEUE_NAMES.AI_PROCESSING,
@@ -472,12 +543,7 @@ export class DocumentsService {
 
       return { documentId, analysisJobId: analysisJob.id };
     } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
+      if (error instanceof HttpException) throw error;
       this.logger.error(
         `triggerAnalysis failed: documentId=${documentId} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
@@ -522,7 +588,7 @@ export class DocumentsService {
         );
       }
 
-      return this.mapAnalysisJobToDto(job);
+      return this.mapAnalysisJobToDto(job, user.tenantId);
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       this.logger.error(
@@ -562,7 +628,7 @@ export class DocumentsService {
         );
       }
 
-      return this.mapAnalysisJobToDto(job);
+      return this.mapAnalysisJobToDto(job, user.tenantId);
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       this.logger.error(
@@ -573,22 +639,32 @@ export class DocumentsService {
     }
   }
 
-  private mapAnalysisJobToDto(job: {
-    id: string;
-    document_id: string;
-    status: string;
-    result: Record<string, unknown> | null;
-    error: string | null;
-    started_at: Date | null;
-    completed_at: Date | null;
-  }): AnalysisJobResponseDto {
+  /** The job as the tenant sees it: the result filtered by its plan's risk analysis level. */
+  private async mapAnalysisJobToDto(
+    job: {
+      id: string;
+      document_id: string;
+      status: string;
+      result: Record<string, unknown> | null;
+      error: string | null;
+      started_at: Date | null;
+      completed_at: Date | null;
+    },
+    tenantId: string,
+  ): Promise<AnalysisJobResponseDto> {
+    const level = (
+      await this.entitlementResolver.resolveForTenant(
+        tenantId,
+        'risk_analysis_level',
+      )
+    )?.value_text as RiskAnalysisLevel | undefined;
     return {
       id: job.id,
       status: job.status as AnalysisJobResponseDto['status'],
       documentId: job.document_id,
       startedAt: job.started_at?.toISOString() ?? null,
       completedAt: job.completed_at?.toISOString() ?? null,
-      result: job.result ?? null,
+      result: resultForRiskLevel(job.result ?? null, level),
       error: job.error ?? null,
     };
   }

@@ -23,7 +23,8 @@
     "ENTITLEMENT_ACCESS_DENIED": "خطتك لا تتضمن هذه الميزة",
     "ENTITLEMENT_REQUIREMENT_NOT_MET": "خطتك لا تتضمن هذه الميزة",
     "ADDON_QUANTITY_REQUIRED": "الكمية مطلوبة لتحديث هذه الإضافة",
-    "PLAN_DATA_MISSING": "تعذر تحميل خطة الاشتراك النشط للمؤسسة: {tenantId}"
+    "PLAN_DATA_MISSING": "تعذر تحميل خطة الاشتراك النشط للمؤسسة: {tenantId}",
+    "ALLOWANCE_USED": "استُنفدت {feature} المتاحة في فترة الفوترة هذه، ورصيدك لا يكفي للمزيد. اشترِ رصيدًا أو رقِّ خطتك للمتابعة."
   },
   "messages": {
     "ADDON_ADD_SUCCESS": "تم تفعيل الإضافة بنجاح",

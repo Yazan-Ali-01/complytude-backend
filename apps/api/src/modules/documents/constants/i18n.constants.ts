@@ -32,6 +32,7 @@ export const DocumentsI18n = {
     TOO_MANY_PAGES: 'documents.errors.TOO_MANY_PAGES',
     INVALID_PDF: 'documents.errors.INVALID_PDF',
     DOCUMENT_NOT_READY: 'documents.errors.DOCUMENT_NOT_READY',
+    PREVIEW_DAILY_LIMIT: 'documents.errors.PREVIEW_DAILY_LIMIT',
     VARIABLES_INVALID: 'documents.errors.VARIABLES_INVALID',
     VARIABLE_UNKNOWN_FIELD: 'documents.errors.VARIABLE_UNKNOWN_FIELD',
     VARIABLE_REQUIRED: 'documents.errors.VARIABLE_REQUIRED',

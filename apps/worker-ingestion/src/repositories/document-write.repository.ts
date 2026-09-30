@@ -118,22 +118,27 @@ export class DocumentWriteRepository {
     );
   }
 
+  /**
+   * Marks the extraction failed, unless it already completed (a duplicate job for a finished
+   * document must not undo it). Returns whether this call failed the document.
+   */
   async markFailed(
     tenantId: string,
     documentId: string,
     error: string,
-  ): Promise<void> {
-    await this.databaseService.transactionWithTenantContext(
+  ): Promise<boolean> {
+    return this.databaseService.transactionWithTenantContext(
       { tenantId },
       async (client) => {
-        await client.query(
+        const result = await client.query(
           `UPDATE public.documents
            SET extraction_status = 'failed',
                extraction_error = $1,
                updated_at = NOW()
-           WHERE id = $2`,
+           WHERE id = $2 AND extraction_status IS DISTINCT FROM 'completed'`,
           [error, documentId],
         );
+        return (result.rowCount ?? 0) > 0;
       },
     );
   }

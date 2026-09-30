@@ -2,8 +2,9 @@
  * COM-136: Latency benchmark — sync vs async projection path under concurrent load.
  *
  * Measures p50/p95/p99 for 50 concurrent checkAndRecord() calls:
- * - Sync (strict mode): ledger + projection update in same transaction → row lock contention
- * - Async: ledger + enqueue only → projection via BullMQ worker → less contention
+ * - Sync (strict mode, every limited feature since T-14): ledger + projection update in one
+ *   transaction → row lock contention
+ * - Async (unlimited features): ledger + enqueue only → projection via BullMQ worker
  *
  * Run: pnpm test:benchmark
  * Expected: ~30–50% improvement in p95/p99 for async path.
@@ -17,7 +18,6 @@ import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
 
 const CONCURRENT_CALLS = 50;
-const ENTITLEMENT_STRICT_KEY = 'ENTITLEMENT_STRICT_THRESHOLD_PERCENT';
 
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
@@ -28,12 +28,12 @@ function percentile(sorted: number[], p: number): number {
 async function runBenchmark(
   app: TestApp,
   label: string,
+  planKey: 'general_counsel' | 'infrastructure',
 ): Promise<{ p50: number; p95: number; p99: number; latencies: number[] }> {
   const enforcementService = app.module.get(EntitlementEnforcementService);
   const tenant = await createTestTenant(app.module);
-  await createTestSubscription(app.module, tenant.id, {
-    planKey: 'general_counsel', // 100 doc quota — enough for 50 calls
-  });
+  // General Counsel: 100 documents (limited, strict); Infrastructure: unlimited (async)
+  await createTestSubscription(app.module, tenant.id, { planKey });
 
   const latencies: number[] = [];
   const startAll = performance.now();
@@ -87,43 +87,20 @@ describe('Projection Pipeline Benchmark', () => {
   }, 30000);
 
   it('p50/p95/p99 latency: sync (strict) vs async under 50 concurrent calls', async () => {
-    const origStrict = process.env[ENTITLEMENT_STRICT_KEY];
-
-    // --- Sync baseline: force strict mode (ENTITLEMENT_STRICT_THRESHOLD_PERCENT=100) ---
-    process.env[ENTITLEMENT_STRICT_KEY] = '100';
-    const appSync = await createTestApp();
-    let syncResult: {
-      p50: number;
-      p95: number;
-      p99: number;
-      latencies: number[];
-    };
-    try {
-      await resetTestState(appSync.databaseService, appSync.redisClient);
-      syncResult = await runBenchmark(appSync, 'sync (strict)');
-      expect(syncResult.latencies).toHaveLength(CONCURRENT_CALLS);
-      expect(syncResult.p50).toBeGreaterThan(0);
-    } finally {
-      await appSync.cleanup();
-    }
-
-    // --- Async: main app (beforeAll) uses default config → async path ---
-    delete process.env[ENTITLEMENT_STRICT_KEY];
-    if (origStrict !== undefined)
-      process.env[ENTITLEMENT_STRICT_KEY] = origStrict;
+    const syncResult = await runBenchmark(
+      app,
+      'sync (strict)',
+      'general_counsel',
+    );
+    expect(syncResult.latencies).toHaveLength(CONCURRENT_CALLS);
+    expect(syncResult.p50).toBeGreaterThan(0);
 
     await resetTestState(app.databaseService, app.redisClient);
-    const asyncResult = await runBenchmark(app, 'async');
+    const asyncResult = await runBenchmark(app, 'async', 'infrastructure');
     expect(asyncResult.latencies).toHaveLength(CONCURRENT_CALLS);
     expect(asyncResult.p50).toBeGreaterThan(0);
 
     await waitForQueueIdle(queue, 30000);
-
-    if (origStrict !== undefined) {
-      process.env[ENTITLEMENT_STRICT_KEY] = origStrict;
-    } else {
-      delete process.env[ENTITLEMENT_STRICT_KEY];
-    }
 
     const p95Improvement =
       ((syncResult.p95 - asyncResult.p95) / syncResult.p95) * 100;

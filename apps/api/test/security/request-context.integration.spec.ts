@@ -4,7 +4,11 @@ import { getQueueToken, QUEUE_NAMES } from '@lib/queue';
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
-import { createTestTenant, createTestUserInTenant } from '../factories';
+import {
+  createTestSubscription,
+  createTestTenant,
+  createTestUserInTenant,
+} from '../factories';
 import { cookieHeaderFromSetCookie } from '../helpers/http-cookie.helper';
 import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
@@ -89,6 +93,10 @@ describe('Request context propagation', () => {
 
   it('a job queued by a tenant request carries the trace id and the tenant', async () => {
     const own = await tenantAdmin();
+    // Confirming an upload uses one of the plan's document scans
+    await createTestSubscription(app.module, own.tenantId, {
+      planKey: 'navigator',
+    });
     const documentId = randomUUID();
     await app.databaseService.query(
       `INSERT INTO public.documents

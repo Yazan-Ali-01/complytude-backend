@@ -35,7 +35,10 @@ import { WorkerAiController } from './worker-ai.controller';
     LoggerModule.forRoot({ serviceName: 'worker-ai' }),
     EmbeddingModule.forRoot(),
     DatabaseModule.forRoot(),
-    QueueModule.forRoot([QUEUE_NAMES.AI_PROCESSING]),
+    QueueModule.forRoot([
+      QUEUE_NAMES.AI_PROCESSING,
+      QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+    ]),
   ],
   controllers: [WorkerAiController],
   providers: [

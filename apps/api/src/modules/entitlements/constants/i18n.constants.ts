@@ -31,6 +31,7 @@ export const EntitlementsI18n = {
     INSUFFICIENT_CREDITS: 'entitlements.errors.INSUFFICIENT_CREDITS',
     QUOTA_EXCEEDED: 'entitlements.errors.QUOTA_EXCEEDED',
     PAYMENT_OVERDUE: 'entitlements.errors.PAYMENT_OVERDUE',
+    ALLOWANCE_USED: 'entitlements.errors.ALLOWANCE_USED',
     ENTITLEMENT_FEATURE_NOT_FOUND:
       'entitlements.errors.ENTITLEMENT_FEATURE_NOT_FOUND',
     ENTITLEMENT_ACCESS_DENIED: 'entitlements.errors.ENTITLEMENT_ACCESS_DENIED',

@@ -209,7 +209,7 @@ describe('Document endpoints: ownership and permissions over HTTP', () => {
     expect(list.body).not.toContain(other.documentId);
   });
 
-  it('upload-url creates a pending document under the caller tenant; viewers and plans without scans may not upload', async () => {
+  it('upload-url creates a pending document under the caller tenant; viewers may not upload', async () => {
     const own = await tenantWithWork('shield');
 
     const response = await call('POST', '/documents/upload-url', own.admin, {
@@ -245,7 +245,7 @@ describe('Document endpoints: ownership and permissions over HTTP', () => {
       ).statusCode,
     ).toBe(403);
 
-    // Navigator includes no document scans
+    // The free plan includes one upload a month (counted when the upload is confirmed)
     const free = await tenantWithWork('navigator');
     expect(
       (
@@ -255,7 +255,7 @@ describe('Document endpoints: ownership and permissions over HTTP', () => {
           fileSizeBytes: 10,
         })
       ).statusCode,
-    ).toBe(403);
+    ).toBe(201);
   });
 
   it('upload-url keeps an Arabic filename as given, under a fixed ASCII key; a name over 255 characters is a 400', async () => {

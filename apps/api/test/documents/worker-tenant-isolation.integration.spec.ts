@@ -1,7 +1,7 @@
 import { TextChunkerService, TokenCounterService } from '@lib/embedding';
 import type { EmbeddingService } from '@lib/embedding';
 import { pdfWith } from '@lib/pdf/testing/pdf-fixtures';
-import { PermanentError } from '@lib/queue';
+import { PermanentError, type QueueProducerService } from '@lib/queue';
 import type { S3Service } from '@lib/storage';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
@@ -32,6 +32,14 @@ describe('Workers act only inside the job payload tenant', () => {
   let app: TestApp;
   let victim: string;
   let attacker: string;
+  /** Refund jobs the workers enqueued (USAGE_REFUND). */
+  let refundsEnqueued: unknown[];
+  const refundProducer = {
+    enqueue: (_queue: string, _name: string, data: unknown) => {
+      refundsEnqueued.push(data);
+      return Promise.resolve();
+    },
+  } as unknown as QueueProducerService;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -39,6 +47,7 @@ describe('Workers act only inside the job payload tenant', () => {
 
   beforeEach(async () => {
     await resetTestState(app.databaseService, app.redisClient);
+    refundsEnqueued = [];
     victim = (await createTestTenant(app.module)).id;
     attacker = (await createTestTenant(app.module)).id;
   }, 15000);
@@ -129,6 +138,7 @@ describe('Workers act only inside the job payload tenant', () => {
           get: (_key: string, fallback: unknown) => fallback,
         } as ConfigService),
         { get: (_key: string, fallback: unknown) => fallback } as ConfigService,
+        refundProducer,
       );
     }
 
@@ -145,6 +155,8 @@ describe('Workers act only inside the job payload tenant', () => {
       ).rejects.toThrow(PermanentError);
 
       expect(modelCalls).toBe(0);
+      // Refused before the worker claimed it: nothing to refund
+      expect(refundsEnqueued).toEqual([]);
       expect(await row('analysis_jobs', jobId)).toMatchObject({
         status: 'queued',
         result: null,
@@ -217,6 +229,7 @@ describe('Workers act only inside the job payload tenant', () => {
         new ConfigService({
           textract: { maxPages: 50, minTextCharsPerPage: 50 },
         }),
+        refundProducer,
       );
     });
 
@@ -234,6 +247,7 @@ describe('Workers act only inside the job payload tenant', () => {
       await expect(ingestion.process(payload)).rejects.toThrow(/not found/);
       // What the processor does after a permanent failure: it can't touch the victim's row either
       await ingestion.markFailed(attacker, doc.id, 'forged');
+      expect(refundsEnqueued).toEqual([]);
 
       expect(getObjectBuffer).not.toHaveBeenCalled();
       expect(startAnalysis).not.toHaveBeenCalled();

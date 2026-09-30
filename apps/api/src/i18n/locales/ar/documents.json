@@ -40,7 +40,8 @@
     "VARIABLE_NOT_BOOLEAN": "يجب أن تكون القيمة صحيح أو خطأ",
     "VARIABLE_NOT_AN_OPTION": "يجب أن تكون القيمة إحدى الخيارات: {options}",
     "VARIABLE_INVALID_EMAIL": "تنسيق البريد الإلكتروني غير صالح",
-    "VARIABLE_INVALID_PHONE": "تنسيق رقم الهاتف غير صالح"
+    "VARIABLE_INVALID_PHONE": "تنسيق رقم الهاتف غير صالح",
+    "PREVIEW_DAILY_LIMIT": "بلغت مؤسستك الحد اليومي للمعاينات ({limit}). حاول مرة أخرى غدًا."
   },
   "messages": {
     "UPLOAD_CONFIRMED": "تم تأكيد الرفع. تم وضع استخراج النص في قائمة الانتظار.",

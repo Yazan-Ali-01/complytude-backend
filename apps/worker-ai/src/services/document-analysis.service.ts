@@ -4,7 +4,13 @@ import {
   ANALYSIS_JURISDICTIONS,
   type DocumentAnalysisJobData,
 } from '@lib/queue';
-import { PermanentError, RetryableError } from '@lib/queue';
+import {
+  ENTITLEMENT_JOB_NAMES,
+  PermanentError,
+  QUEUE_NAMES,
+  QueueProducerService,
+  RetryableError,
+} from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ResponseFormatJSONSchema } from 'openai/resources/shared';
@@ -140,6 +146,7 @@ export class DocumentAnalysisService {
     private readonly rerankerService: RerankerService,
     private readonly redactionService: RedactionService,
     configService: ConfigService,
+    private readonly queueProducer: QueueProducerService,
   ) {
     this.topKPerQuery = configService.get<number>(
       'workerAi.ragTopKPerQuery',
@@ -259,6 +266,7 @@ export class DocumentAnalysisService {
               `Failed to mark job ${analysisJobId} as failed after pipeline error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
             );
           });
+        await this.refundReview(tenantId, analysisJobId);
       } else {
         this.logger.warn(
           `Attempt ${attempt}/${maxAttempts} of job ${analysisJobId} failed (will retry): ${message}`,
@@ -267,6 +275,34 @@ export class DocumentAnalysisService {
 
       throw error;
     }
+  }
+
+  /**
+   * The review was paid for when it was queued (`contract_reviews_per_month`): one that failed for
+   * good after this worker claimed it is given back.
+   */
+  private async refundReview(
+    tenantId: string,
+    analysisJobId: string,
+  ): Promise<void> {
+    await this.queueProducer
+      .enqueue(
+        QUEUE_NAMES.ENTITLEMENT_PROCESSING,
+        ENTITLEMENT_JOB_NAMES.USAGE_REFUND,
+        {
+          tenantId,
+          resourceId: analysisJobId,
+          resourceType: 'analysis_job',
+          featureKey: 'contract_reviews_per_month',
+          units: 1,
+        },
+        { jobId: `usage-refund-review-${analysisJobId}` },
+      )
+      .catch((err: unknown) => {
+        this.logger.error(
+          `Could not enqueue the review refund for job ${analysisJobId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 
   private async runPipeline(

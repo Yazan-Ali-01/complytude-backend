@@ -1272,12 +1272,12 @@ What a frontend calls to upload, analyse and generate documents. Every route nee
 
 1. `POST /documents/upload-url` with `{ filename, contentType: 'application/pdf', fileSizeBytes }` → `{ documentId, uploadUrl, expiresIn, s3Key }`. Needs the plan's `document_scans` allowance (402/403 otherwise). Only PDFs are accepted.
 2. `PUT` the file to `uploadUrl` directly (not through the API, no cookies), with `Content-Type: application/pdf`, before `expiresIn` seconds pass.
-3. `POST /documents/:documentId/confirm-upload` → `{ documentId, status: 'processing' }`. A file that isn't a PDF, or has more pages than the limit, is refused with 400 and the document stays pending.
+3. `POST /documents/:documentId/confirm-upload` → `{ documentId, status: 'processing' }`. This uses one of the billing period's `document_scans` (given back if the document can't be read). A file that isn't a PDF, or has more pages than the limit, is refused with 400; a used-up allowance with 402 (see Metered operations). Either way the document stays pending and can be confirmed again.
 4. Poll `GET /documents/:documentId` until `extractionStatus` is `completed` (text extracted; `failed` with `extractionError` otherwise). Text PDFs are read in seconds; scanned pages go through OCR and take longer.
-5. `POST /documents/:documentId/trigger-analysis` with the scope (see Compliance Analysis Scope: `{ jurisdiction, documentType }`, or `{ rulesetKeys }`) → `{ documentId, analysisJobId }`.
+5. `POST /documents/:documentId/trigger-analysis` with the scope (see Compliance Analysis Scope: `{ jurisdiction, documentType }`, or `{ rulesetKeys }`) → `{ documentId, analysisJobId }`. This uses one of the billing period's `contract_reviews_per_month` (given back if the review fails).
 6. Poll `GET /analysis-jobs/:analysisJobId` (or `GET /documents/:documentId/analysis`) until the status is final.
 
-**Pasted text** skips steps 1-5: `POST /documents/analyze` with `{ title, content, jurisdiction, documentType }` → `{ documentId, analysisJobId }`, then step 6.
+**Pasted text** skips steps 1-5: `POST /documents/analyze` with `{ title, content, jurisdiction, documentType }` → `{ documentId, analysisJobId }`, then step 6. It uses a contract review, like `trigger-analysis`.
 
 ### Reading an analysis result
 
@@ -1287,15 +1287,35 @@ What a frontend calls to upload, analyse and generate documents. Every route nee
 - `clauseVerdicts[]`: one per clause checked, `status` `violated` / `compliant` / `not_applicable` / `unclear` / `unassessed`, with a one-line `reason`.
 - `summary`, `scope` (`jurisdiction`, `documentType`), `requiredClausesChecked`, `documentExcerpted`.
 - `warnings[]`: show them. `completed_with_warnings` means the result is partial or uncertain (`document_truncated`, `not_reranked`, `rulesets_without_context`, `unverified_evidence_dropped`, `clauses_not_assessed`, …); `no_findings` means nothing was reported, which is **not** a statement that the contract complies.
+- `riskAnalysisLevel` and `hiddenFindings`: present when the plan shows only part of a review. `critical_only` (Navigator, Shield) returns the high-risk findings; `none` returns no findings. `hiddenFindings` counts the rest, and the `reason` of a clause whose findings are all hidden is empty (its `status` stays). Show the count with an upgrade prompt, not "no issues". An upgrade shows past reviews in full.
 
 ### Generate a document from a template
 
 1. `GET /templates` lists the templates; `GET /templates/:key` gives the active version's fields.
 2. `GET /documents/generation-context` returns values from the current user and tenant; prefill the fields whose `system_variable_key` matches.
-3. `POST /documents/preview` with `{ templateKey, templateVersion?, variables }` → `{ generationJobId }`. Poll `GET /generation-jobs/:generationJobId`; a completed preview has `result.previewUrl` (a watermarked PDF, short-lived).
-4. `POST /documents/generate` with the same body → `{ generationJobId }`. Poll; a completed job has `result.documentId`. Download with `GET /documents/:documentId/download-url` → `{ url, expiresAt }`.
+3. `POST /documents/preview` with `{ templateKey, templateVersion?, variables }` → `{ generationJobId }`. Poll `GET /generation-jobs/:generationJobId`; a completed preview has `result.previewUrl` (a watermarked PDF, short-lived). Previews are free, up to `PREVIEW_DAILY_LIMIT` (default 50) per tenant a day; past it, 429 with `retryAfterSeconds` (until midnight UTC).
+4. `POST /documents/generate` with the same body → `{ generationJobId }`. Poll; a completed job has `result.documentId`. Download with `GET /documents/:documentId/download-url` → `{ url, expiresAt }`. This uses one of the billing period's `documents_per_month` (given back if generation fails).
 
 Invalid variables answer 400 with `errors[]`, one per field: `{ field, code, params?, message }`. `message` is in the request's language; `code` is stable (`unknown_field`, `required`, `pattern`, `min_length`, `max_length`, `not_a_number`, `min_value`, `max_value`, `invalid_date`, `not_boolean`, `not_an_option`, `invalid_email`, `invalid_phone`) and `params` carries the values it refers to (`min`, `max`, `options`, `value`, `field`), for clients that render their own text.
+
+### Metered operations
+
+Generating a document, a contract review (`analyze`, `trigger-analysis`) and a document scan (`confirm-upload`) each count against the plan's allowance for the billing period; past it, each unit is paid from credits (5 per document, 10 per review, 5 per scan). When neither covers it the request creates nothing and answers 402:
+
+```json
+{
+  "statusCode": 402,
+  "message": "This billing period's contract reviews are used up, and your credits don't cover more. Buy credits or upgrade your plan to continue.",
+  "reason": "quota_exceeded",
+  "feature": "contract_reviews_per_month",
+  "limit": 1,
+  "used": 1,
+  "creditsAvailable": 0,
+  "upgradeUrl": "/plans"
+}
+```
+
+`message` is in the request's language. A subscription past its payment grace period answers 402 with `reason: 'payment_required'` instead (see Billing). Allowances start again at each billing period; `GET /entitlements/current` shows each allowance.
 
 ### Listing and deleting
 
