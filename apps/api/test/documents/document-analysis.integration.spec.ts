@@ -85,6 +85,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
     let failuresLeft = options.modelFailures ?? 0;
     const llm = {
       getContextWindowTokens: () => options.contextWindow ?? 128_000,
+      getMaxOutputTokens: () => 4_096,
+      getTokenEncoding: () => 'o200k_base',
       getModel: () => 'test-model',
       chatCompletion: (request: {
         systemPrompt: string;

@@ -165,7 +165,9 @@ Tracks the lifecycle of each analysis request.
 |----------|----------|---------|---------|
 | `OPENAI_API_KEY` | Yes | — | Embeddings + LLM |
 | `COHERE_API_KEY` | Yes | — | Re-ranking |
+| `OPENAI_BASE_URL` | No | `https://api.openai.com/v1` | OpenAI host for embeddings and chat; only the global API or a data-residency host (`us`/`eu`/`ae`) |
 | `OPENAI_CHAT_MODEL` | No | `gpt-4o-mini` | LLM model (must support structured outputs) |
+| `OPENAI_CHAT_CONTEXT_WINDOW` | For a model outside the known table | — | Context window in tokens (`apps/worker-ai/src/config/chat-model.ts`) |
 | `COHERE_RERANK_MODEL` | No | `rerank-v3.5` | Cohere model |
 | `RERANK_TOP_N` | No | `10` | Chunks to keep after re-ranking |
 

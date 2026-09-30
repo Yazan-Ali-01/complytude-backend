@@ -8,3 +8,8 @@ export const DEFAULT_CHUNK_OVERLAP = 50;
 
 export const MAX_INPUT_TOKENS = 8191;
 export const MAX_BATCH_SIZE = 2048;
+
+export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
+/** OpenAI's global API or one of its data-residency hosts: no other endpoint may receive document text. */
+export const OPENAI_BASE_URL_PATTERN =
+  /^https:\/\/(?:(?:us|eu|ae)\.)?api\.openai\.com\/v1$/;

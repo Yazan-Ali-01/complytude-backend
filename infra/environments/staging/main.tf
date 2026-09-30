@@ -245,7 +245,7 @@ module "ecs" {
     SSO_FRONTEND_ERROR_PATH   = var.sso_frontend_error_path
   }
   bull_board_port = local.bull_board_port
-  worker_ai_environment = {
+  worker_ai_environment = merge({
     NODE_ENV     = "production"
     LOG_LEVEL    = "info"
     SERVICE_NAME = "worker-ai"
@@ -255,10 +255,10 @@ module "ecs" {
     WORKER_AI_RETRY_DELAY         = tostring(var.worker_ai_retry_delay)
     WORKER_AI_MAX_PROCESSING_TIME = tostring(var.worker_ai_max_processing_time)
 
-    OPENAI_CHAT_MODEL       = var.openai_chat_model
-    OPENAI_CHAT_MAX_TOKENS  = tostring(var.openai_chat_max_tokens)
-    OPENAI_CHAT_TEMPERATURE = tostring(var.openai_chat_temperature)
-    OPENAI_CHAT_TIMEOUT     = tostring(var.openai_chat_timeout)
+    OPENAI_BASE_URL        = var.openai_base_url
+    OPENAI_CHAT_MODEL      = var.openai_chat_model
+    OPENAI_CHAT_MAX_TOKENS = tostring(var.openai_chat_max_tokens)
+    OPENAI_CHAT_TIMEOUT    = tostring(var.openai_chat_timeout)
 
     OPENAI_EMBEDDING_MODEL      = var.openai_embedding_model
     OPENAI_EMBEDDING_DIMENSIONS = tostring(var.openai_embedding_dimensions)
@@ -273,11 +273,17 @@ module "ecs" {
     RAG_VECTOR_LIMIT       = tostring(var.rag_vector_limit)
     RAG_BM25_LIMIT         = tostring(var.rag_bm25_limit)
     RAG_MAX_HYBRID_RESULTS = tostring(var.rag_max_hybrid_results)
-  }
+    },
+    # Set only when given: an unknown model needs a context window, and reasoning models reject a temperature
+    var.openai_chat_context_window == null ? {} : { OPENAI_CHAT_CONTEXT_WINDOW = tostring(var.openai_chat_context_window) },
+    var.openai_chat_temperature == null ? {} : { OPENAI_CHAT_TEMPERATURE = tostring(var.openai_chat_temperature) },
+  )
   worker_ingestion_environment = {
-    NODE_ENV      = "production"
-    LOG_LEVEL     = "info"
-    SERVICE_NAME  = "worker-ingestion"
+    NODE_ENV     = "production"
+    LOG_LEVEL    = "info"
+    SERVICE_NAME = "worker-ingestion"
+    # Must match worker-ai's: rulesets and documents are embedded by the same provider route
+    OPENAI_BASE_URL = var.openai_base_url
     # Promote an upload to the clean bucket only once GuardDuty has tagged it clean
     MALWARE_SCAN_REQUIRED = tostring(module.s3.malware_protection_enabled)
   }

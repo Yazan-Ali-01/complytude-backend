@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { TokenCounterService } from './chunking/token-counter.service';
 import {
   DEFAULT_DIMENSIONS,
+  DEFAULT_OPENAI_BASE_URL,
   DEFAULT_MAX_RETRIES,
   DEFAULT_MODEL,
   EMBEDDING_MODULE_OPTIONS,
@@ -26,6 +27,7 @@ export class EmbeddingService {
   ) {
     this.client = new OpenAI({
       apiKey: config.apiKey,
+      baseURL: config.baseURL ?? DEFAULT_OPENAI_BASE_URL,
       maxRetries: config.maxRetries ?? DEFAULT_MAX_RETRIES,
     });
     this.model = config.model ?? DEFAULT_MODEL;

@@ -195,9 +195,11 @@ cp apps/worker-ai/.env.example apps/worker-ai/.env
 |----------|---------|-------------|
 | `WORKER_AI_PORT` | `3001` | HTTP port for health checks |
 | `OPENAI_API_KEY` | (required) | OpenAI API key (shared for embeddings + LLM) |
-| `OPENAI_CHAT_MODEL` | `gpt-4o-mini` | LLM model for analysis (must support structured outputs) |
-| `OPENAI_CHAT_MAX_TOKENS` | `4096` | Max output tokens |
-| `OPENAI_CHAT_TEMPERATURE` | `0.1` | LLM temperature (low for deterministic analysis) |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI host for embeddings and chat. Only the global API or a data-residency host (`https://us.api.openai.com/v1`, `https://eu.api.openai.com/v1`, `https://ae.api.openai.com/v1`) is accepted, so document text can't be sent anywhere else. Must match worker-ingestion's. |
+| `OPENAI_CHAT_MODEL` | `gpt-4o-mini` | LLM model for analysis (must support structured outputs). Known models (and their dated snapshots) are listed in `src/config/chat-model.ts`. |
+| `OPENAI_CHAT_CONTEXT_WINDOW` | known models: from the table | Context window in tokens. **Required** for a model outside the table: the worker refuses to start without it rather than guess. |
+| `OPENAI_CHAT_MAX_TOKENS` | `4096` | Max output tokens, sent as `max_completion_tokens`. Reasoning models count their reasoning tokens against it. The prompt budget reserves this many tokens. |
+| `OPENAI_CHAT_TEMPERATURE` | known models: `0.1`; others: not sent | LLM temperature. Leave it unset for reasoning models, which reject one. |
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
 | `OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Embedding vector dimensions |
 | `COHERE_API_KEY` | (required) | Cohere API key for re-ranking |

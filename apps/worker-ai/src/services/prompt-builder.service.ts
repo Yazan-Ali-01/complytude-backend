@@ -12,7 +12,6 @@ export interface BuiltPrompt {
   clauses: Map<string, RulesetChunkMatch>;
 }
 
-const OUTPUT_RESERVE_TOKENS = 4_096;
 const SYSTEM_PROMPT_ESTIMATE_TOKENS = 600;
 
 /** Anything in the document that looks like one of our delimiters. */
@@ -48,11 +47,13 @@ export class PromptBuilderService {
     const clauseText = this.formatClauses(clauses);
     const systemPrompt = this.formatSystemPrompt(clauseText, open, close);
 
+    // Counted with the chat model's own tokenizer: cl100k_base over-counts Arabic about 2.6x
+    const encoding = this.llmService.getTokenEncoding();
     const availableContentTokens =
       this.llmService.getContextWindowTokens() -
-      OUTPUT_RESERVE_TOKENS -
+      this.llmService.getMaxOutputTokens() -
       SYSTEM_PROMPT_ESTIMATE_TOKENS -
-      this.tokenCounter.countTokens(clauseText);
+      this.tokenCounter.countTokens(clauseText, encoding);
 
     if (availableContentTokens <= 0) {
       this.logger.warn(
@@ -64,7 +65,10 @@ export class PromptBuilderService {
     let finalDocumentContent = neutralize(documentContent);
     let wasDocumentTruncated = false;
 
-    const documentTokens = this.tokenCounter.countTokens(finalDocumentContent);
+    const documentTokens = this.tokenCounter.countTokens(
+      finalDocumentContent,
+      encoding,
+    );
     if (documentTokens > availableContentTokens) {
       this.logger.warn(
         `Document "${documentTitle}" exceeds token budget: ${documentTokens} tokens, budget is ${availableContentTokens}. Truncating.`,
@@ -73,6 +77,7 @@ export class PromptBuilderService {
         this.tokenCounter.truncateToTokens(
           finalDocumentContent,
           Math.max(availableContentTokens - 50, 100),
+          encoding,
         ) +
         '\n\n[Document truncated due to length. Remaining content not analyzed.]';
       wasDocumentTruncated = true;

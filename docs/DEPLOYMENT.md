@@ -194,9 +194,11 @@ Leave `ENABLE_MOCK_ROUTES` unset. It defaults to `false`, and the API refuses to
 | `WORKER_AI_MAX_RETRIES` | `worker_ai_max_retries` tfvar (default: 3) |
 | `WORKER_AI_RETRY_DELAY` | `worker_ai_retry_delay` tfvar (default: 5000 ms) |
 | `WORKER_AI_MAX_PROCESSING_TIME` | `worker_ai_max_processing_time` tfvar (default: 300000 ms) |
+| `OPENAI_BASE_URL` | `openai_base_url` tfvar (default: `https://api.openai.com/v1`; only the global API or `https://{us,eu,ae}.api.openai.com/v1`), shared with worker-ingestion |
 | `OPENAI_CHAT_MODEL` | `openai_chat_model` tfvar (default: `gpt-4o-mini`) |
+| `OPENAI_CHAT_CONTEXT_WINDOW` | `openai_chat_context_window` tfvar, set only when given; required for a model outside the worker's known table |
 | `OPENAI_CHAT_MAX_TOKENS` | `openai_chat_max_tokens` tfvar (default: 4096) |
-| `OPENAI_CHAT_TEMPERATURE` | `openai_chat_temperature` tfvar (default: 0.1) |
+| `OPENAI_CHAT_TEMPERATURE` | `openai_chat_temperature` tfvar, set only when given (unset: 0.1 for a known model, none for others) |
 | `OPENAI_CHAT_TIMEOUT` | `openai_chat_timeout` tfvar (default: 120000 ms) |
 | `OPENAI_EMBEDDING_MODEL` | `openai_embedding_model` tfvar (default: `text-embedding-3-small`) |
 | `OPENAI_EMBEDDING_DIMENSIONS` | `openai_embedding_dimensions` tfvar (default: 1536) |
@@ -217,6 +219,7 @@ Leave `ENABLE_MOCK_ROUTES` unset. It defaults to `false`, and the API refuses to
 | `NODE_ENV` | `production` |
 | `LOG_LEVEL` | `info` |
 | `SERVICE_NAME` | `worker-ingestion` |
+| `OPENAI_BASE_URL` | `openai_base_url` tfvar, the same as worker-ai's |
 
 **Worker Generation task:**
 

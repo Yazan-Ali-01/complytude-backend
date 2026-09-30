@@ -1,45 +1,62 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { type Tiktoken, get_encoding } from 'tiktoken';
 
+/** `cl100k_base` is what the text-embedding-3 models use; chat models since gpt-4o use `o200k_base`. */
+export type TokenEncoding = 'cl100k_base' | 'o200k_base';
+
+const DEFAULT_ENCODING: TokenEncoding = 'cl100k_base';
+
 @Injectable()
 export class TokenCounterService implements OnModuleDestroy {
   private readonly logger = new Logger(TokenCounterService.name);
-  private encoder: Tiktoken | null = null;
+  private readonly encoders = new Map<TokenEncoding, Tiktoken>();
 
-  private getEncoder(): Tiktoken {
-    if (!this.encoder) {
-      this.encoder = get_encoding('cl100k_base');
-      this.logger.log('tiktoken cl100k_base encoder initialized');
+  private getEncoder(encoding: TokenEncoding): Tiktoken {
+    let encoder = this.encoders.get(encoding);
+    if (!encoder) {
+      encoder = get_encoding(encoding);
+      this.encoders.set(encoding, encoder);
+      this.logger.log(`tiktoken ${encoding} encoder initialized`);
     }
-    return this.encoder;
+    return encoder;
   }
 
-  countTokens(text: string): number {
-    return this.getEncoder().encode(text).length;
+  countTokens(
+    text: string,
+    encoding: TokenEncoding = DEFAULT_ENCODING,
+  ): number {
+    return this.getEncoder(encoding).encode(text).length;
   }
 
-  encode(text: string): number[] {
-    return Array.from(this.getEncoder().encode(text));
+  encode(text: string, encoding: TokenEncoding = DEFAULT_ENCODING): number[] {
+    return Array.from(this.getEncoder(encoding).encode(text));
   }
 
-  decodeTokenIds(tokenIds: number[]): string {
-    const bytes = this.getEncoder().decode(new Uint32Array(tokenIds));
+  decodeTokenIds(
+    tokenIds: number[],
+    encoding: TokenEncoding = DEFAULT_ENCODING,
+  ): string {
+    const bytes = this.getEncoder(encoding).decode(new Uint32Array(tokenIds));
     return new TextDecoder().decode(bytes);
   }
 
-  truncateToTokens(text: string, maxTokens: number): string {
-    const tokenIds = this.encode(text);
+  truncateToTokens(
+    text: string,
+    maxTokens: number,
+    encoding: TokenEncoding = DEFAULT_ENCODING,
+  ): string {
+    const tokenIds = this.encode(text, encoding);
     if (tokenIds.length <= maxTokens) {
       return text;
     }
-    return this.decodeTokenIds(tokenIds.slice(0, maxTokens));
+    return this.decodeTokenIds(tokenIds.slice(0, maxTokens), encoding);
   }
 
   onModuleDestroy(): void {
-    if (this.encoder) {
-      this.encoder.free();
-      this.encoder = null;
-      this.logger.log('tiktoken encoder freed');
+    for (const [encoding, encoder] of this.encoders) {
+      encoder.free();
+      this.logger.log(`tiktoken ${encoding} encoder freed`);
     }
+    this.encoders.clear();
   }
 }

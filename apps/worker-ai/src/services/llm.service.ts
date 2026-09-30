@@ -1,7 +1,9 @@
+import { DEFAULT_OPENAI_BASE_URL, type TokenEncoding } from '@lib/embedding';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type { ResponseFormatJSONSchema } from 'openai/resources/shared';
+import { ChatModelSettings, resolveChatModel } from '../config/chat-model';
 
 export interface ChatCompletionOptions {
   systemPrompt: string;
@@ -9,24 +11,13 @@ export interface ChatCompletionOptions {
   responseSchema: ResponseFormatJSONSchema.JSONSchema;
 }
 
-/** Context window sizes (in tokens) for supported OpenAI models. */
-const CONTEXT_WINDOWS: Record<string, number> = {
-  'gpt-4o': 128_000,
-  'gpt-4o-mini': 128_000,
-  'gpt-4-turbo': 128_000,
-  'gpt-4': 8_192,
-  'gpt-3.5-turbo': 16_385,
-};
-
-const DEFAULT_CONTEXT_WINDOW = 16_000;
-
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
   private readonly client: OpenAI;
   private readonly model: string;
+  private readonly settings: ChatModelSettings;
   private readonly maxTokens: number;
-  private readonly temperature: number;
   private readonly timeout: number;
 
   constructor(private readonly configService: ConfigService) {
@@ -40,22 +31,30 @@ export class LlmService {
       'workerAi.llmModel',
       'gpt-4o-mini',
     );
+    this.settings = resolveChatModel(this.model, {
+      contextWindow: this.configService.get<number>(
+        'workerAi.llmContextWindow',
+      ),
+      temperature: this.configService.get<number>('workerAi.llmTemperature'),
+    });
     this.maxTokens = this.configService.get<number>(
       'workerAi.llmMaxTokens',
       4096,
-    );
-    this.temperature = this.configService.get<number>(
-      'workerAi.llmTemperature',
-      0.1,
     );
     this.timeout = this.configService.get<number>(
       'workerAi.llmTimeout',
       120000,
     );
+    const baseURL = this.configService.get<string>(
+      'workerAi.llmBaseUrl',
+      DEFAULT_OPENAI_BASE_URL,
+    );
 
-    this.client = new OpenAI({ apiKey, timeout: this.timeout });
+    this.client = new OpenAI({ apiKey, baseURL, timeout: this.timeout });
 
-    this.logger.log(`LlmService initialized with model=${this.model}`);
+    this.logger.log(
+      `LlmService initialized with model=${this.model} contextWindow=${this.settings.contextWindow} baseURL=${baseURL}`,
+    );
   }
 
   /**
@@ -71,8 +70,11 @@ export class LlmService {
 
     const response = await this.client.chat.completions.create({
       model: this.model,
-      temperature: this.temperature,
-      max_tokens: this.maxTokens,
+      // max_tokens is deprecated, and reasoning models accept only max_completion_tokens
+      max_completion_tokens: this.maxTokens,
+      ...(this.settings.temperature !== undefined && {
+        temperature: this.settings.temperature,
+      }),
       response_format: {
         type: 'json_schema',
         json_schema: responseSchema,
@@ -96,7 +98,7 @@ export class LlmService {
 
     if (choice.finish_reason === 'length') {
       throw new Error(
-        'LLM response truncated (finish_reason=length). Increase OPENAI_CHAT_MAX_TOKENS or reduce input size.',
+        'LLM response truncated (finish_reason=length). Increase OPENAI_CHAT_MAX_TOKENS (reasoning models count their reasoning tokens against it) or reduce input size.',
       );
     }
 
@@ -112,6 +114,15 @@ export class LlmService {
   }
 
   getContextWindowTokens(): number {
-    return CONTEXT_WINDOWS[this.model] ?? DEFAULT_CONTEXT_WINDOW;
+    return this.settings.contextWindow;
+  }
+
+  getMaxOutputTokens(): number {
+    return this.maxTokens;
+  }
+
+  /** The tokenizer of the chat model, for counting prompt tokens. */
+  getTokenEncoding(): TokenEncoding {
+    return this.settings.encoding;
   }
 }

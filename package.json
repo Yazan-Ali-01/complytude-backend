@@ -57,7 +57,7 @@
     "type-check": "tsc --noEmit",
     "// === 🧪 Tests ===": "",
     "test": "jest",
-    "test:unit": "jest --selectProjects unit worker-ingestion-unit",
+    "test:unit": "jest --selectProjects unit worker-ingestion-unit worker-ai-unit",
     "test:integration": "jest --selectProjects integration",
     "test:integration:watch": "jest --selectProjects integration --watch",
     "test:benchmark": "jest --selectProjects integration --testPathPattern=benchmark --runInBand --testTimeout=180000",

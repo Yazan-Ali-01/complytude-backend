@@ -184,6 +184,7 @@ cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
 | ------------------------------ | ------------------------ | ---------------------------------------------- |
 | `WORKER_INGESTION_PORT`        | `3002`                   | HTTP port for health checks                    |
 | `OPENAI_API_KEY`               | (required)               | OpenAI API key for embeddings                  |
+| `OPENAI_BASE_URL`              | `https://api.openai.com/v1` | OpenAI host: the global API or a data-residency host (`us`/`eu`/`ae`); must match worker-ai's |
 | `OPENAI_EMBEDDING_MODEL`       | `text-embedding-3-small` | Embedding model                                |
 | `OPENAI_EMBEDDING_DIMENSIONS`  | `1536`                   | Vector dimensions (must match pgvector column) |
 | `EMBEDDING_CHUNK_SIZE`         | `512`                    | Max tokens per chunk                           |

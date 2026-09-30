@@ -94,6 +94,8 @@ describe('Workers act only inside the job payload tenant', () => {
       modelCalls = 0;
       const llm = {
         getContextWindowTokens: () => 128_000,
+        getMaxOutputTokens: () => 4_096,
+        getTokenEncoding: () => 'o200k_base',
         getModel: () => 'test-model',
         chatCompletion: () => {
           modelCalls++;

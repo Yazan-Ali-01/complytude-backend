@@ -3,6 +3,7 @@ import { embeddingEnvSchema } from '@lib/embedding';
 import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
+import { KNOWN_CHAT_MODEL_PATTERN } from './chat-model';
 
 export const validationSchema = Joi.object({
   // Environment
@@ -23,8 +24,23 @@ export const validationSchema = Joi.object({
 
   // LLM (OpenAI Chat)
   OPENAI_CHAT_MODEL: Joi.string().default('gpt-4o-mini'),
-  OPENAI_CHAT_MAX_TOKENS: Joi.number().default(4096),
-  OPENAI_CHAT_TEMPERATURE: Joi.number().default(0.1),
+  // Required for a model outside the known table in chat-model.ts
+  OPENAI_CHAT_CONTEXT_WINDOW: Joi.number()
+    .integer()
+    .min(8192)
+    .when('OPENAI_CHAT_MODEL', {
+      is: Joi.string().pattern(KNOWN_CHAT_MODEL_PATTERN),
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    })
+    .messages({
+      'any.required':
+        '"OPENAI_CHAT_CONTEXT_WINDOW" is required when OPENAI_CHAT_MODEL is not a known model (apps/worker-ai/src/config/chat-model.ts)',
+    }),
+  // Output tokens, reasoning tokens included for reasoning models
+  OPENAI_CHAT_MAX_TOKENS: Joi.number().integer().min(1).default(4096),
+  // Unset: 0.1 for a known model, none sent for any other (reasoning models reject it)
+  OPENAI_CHAT_TEMPERATURE: Joi.number().min(0).max(2),
   OPENAI_CHAT_TIMEOUT: Joi.number().default(120000),
 
   // Cohere Re-ranking

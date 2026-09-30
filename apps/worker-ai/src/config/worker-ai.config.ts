@@ -1,3 +1,4 @@
+import { DEFAULT_OPENAI_BASE_URL } from '@lib/embedding';
 import { registerAs } from '@nestjs/config';
 
 export default registerAs('workerAi', () => ({
@@ -18,9 +19,15 @@ export default registerAs('workerAi', () => ({
 
   // LLM (OpenAI Chat) configuration
   llmApiKey: process.env.OPENAI_API_KEY!,
+  llmBaseUrl: process.env.OPENAI_BASE_URL || DEFAULT_OPENAI_BASE_URL,
   llmModel: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+  llmContextWindow: process.env.OPENAI_CHAT_CONTEXT_WINDOW
+    ? parseInt(process.env.OPENAI_CHAT_CONTEXT_WINDOW, 10)
+    : undefined,
   llmMaxTokens: parseInt(process.env.OPENAI_CHAT_MAX_TOKENS || '4096', 10),
-  llmTemperature: parseFloat(process.env.OPENAI_CHAT_TEMPERATURE || '0.1'),
+  llmTemperature: process.env.OPENAI_CHAT_TEMPERATURE
+    ? parseFloat(process.env.OPENAI_CHAT_TEMPERATURE)
+    : undefined,
   llmTimeout: parseInt(process.env.OPENAI_CHAT_TIMEOUT || '120000', 10),
 
   // Cohere re-ranking configuration

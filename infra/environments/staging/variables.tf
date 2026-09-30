@@ -154,10 +154,27 @@ variable "worker_ai_max_processing_time" {
   default     = 300000
 }
 
+variable "openai_base_url" {
+  description = "OpenAI host for embeddings and chat, shared by worker-ai and worker-ingestion: the global API or a data-residency host (TASKS D-8)"
+  type        = string
+  default     = "https://api.openai.com/v1"
+
+  validation {
+    condition     = can(regex("^https://((us|eu|ae)\\.)?api\\.openai\\.com/v1$", var.openai_base_url))
+    error_message = "openai_base_url must be https://api.openai.com/v1 or https://us|eu|ae.api.openai.com/v1."
+  }
+}
+
 variable "openai_chat_model" {
   description = "OpenAI chat model for compliance analysis"
   type        = string
   default     = "gpt-4o-mini"
+}
+
+variable "openai_chat_context_window" {
+  description = "Context window of the chat model in tokens; required when openai_chat_model isn't in the worker's known-model table (apps/worker-ai/src/config/chat-model.ts)"
+  type        = number
+  default     = null
 }
 
 variable "openai_chat_max_tokens" {
@@ -167,9 +184,9 @@ variable "openai_chat_max_tokens" {
 }
 
 variable "openai_chat_temperature" {
-  description = "Temperature for OpenAI chat completion (0.0-2.0)"
+  description = "Temperature for OpenAI chat completion (0.0-2.0). null: the worker's default, 0.1 for a known model and none for any other (reasoning models reject one)"
   type        = number
-  default     = 0.1
+  default     = null
 }
 
 variable "openai_chat_timeout" {
