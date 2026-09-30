@@ -133,6 +133,8 @@ Tracks the lifecycle of each analysis request.
       "citation": "Dubai Multi Commodities Centre — DMCC Employment Regulations v1.0.0, Art. 4: DMCC Working Hours",
       "riskLevel": "high",
       "baselineRiskLevel": "high",
+      "evidence": "The Employee shall work from 8:00 AM to 6:00 PM, Sunday through Thursday, totaling fifty (50) hours per week.",
+      "evidenceOffset": 812,
       "title": "Probation exceeds maximum",
       "description": "The contract specifies a 12-month probation...",
       "suggestion": "Reduce probation period to 6 months..."

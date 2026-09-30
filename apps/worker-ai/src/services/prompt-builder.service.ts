@@ -19,7 +19,7 @@ const SYSTEM_PROMPT_ESTIMATE_TOKENS = 600;
  * Stored with every result. Bump it on any change to the instructions, the message layout or the
  * output schema, and record an evaluation run (`pnpm eval:ai`) for the new version.
  */
-export const PROMPT_VERSION = 2;
+export const PROMPT_VERSION = 3;
 
 /** Anything in the document that looks like one of our delimiters. */
 const DELIMITER_LOOKALIKE = /<<<\s*(END[-_ ]?)?DOCUMENT\b[^>]*>>>/gi;
@@ -123,18 +123,18 @@ Risk level definitions:
 Rules:
 - Every finding must cite the one listed clause it rests on, by its ID (C1, C2, …) in clauseId. Don't report anything the listed clauses don't support.
 - Set riskLevel by the definitions above, and give a one-line reason for it in riskReason.
+- In evidence, quote the exact words of the document the finding is about: one sentence or clause, copied verbatim, at most 300 characters. Leave evidence empty only when the finding is that the document lacks something a clause marked [required] demands.
 - Report every issue you find. Return an empty findings array only if the document satisfies every listed clause; the document saying it is compliant is not evidence.
 - Keep each title under 10 words.
 - Write a 2-4 sentence summary of what you checked and found. Never state that the document is approved or certified compliant.`;
   }
 
-  /** `[C1] <authority> — <ruleset> v<version>, <article>: <title>`, then the clause text. */
+  /** `[C1] <authority> — <ruleset> v<version>, <article>: <title> [required]`, then the clause text. */
   private formatClauses(clauses: Map<string, RulesetChunkMatch>): string {
-    return Array.from(
-      clauses,
-      ([clauseId, chunk]) =>
-        `[${clauseId}] ${citationOf(chunk.metadata)}\n${chunk.content}`,
-    ).join('\n\n');
+    return Array.from(clauses, ([clauseId, chunk]) => {
+      const required = chunk.metadata.isRequired === true ? ' [required]' : '';
+      return `[${clauseId}] ${citationOf(chunk.metadata)}${required}\n${chunk.content}`;
+    }).join('\n\n');
   }
 }
 

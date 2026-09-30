@@ -20,6 +20,7 @@ import {
   RulesetChunkSearchRepository,
 } from '../repositories/ruleset-chunk-search.repository';
 import { baselineRiskOf, citationOf, finalRisk } from './citation';
+import { createQuoteLocator } from './evidence';
 import { LlmService } from './llm.service';
 import { PROMPT_VERSION, PromptBuilderService } from './prompt-builder.service';
 import { RerankerService } from './reranker.service';
@@ -45,6 +46,7 @@ function analysisResultSchema(
               title: { type: 'string' },
               description: { type: 'string' },
               suggestion: { type: 'string' },
+              evidence: { type: 'string' },
             },
             required: [
               'clauseId',
@@ -53,6 +55,7 @@ function analysisResultSchema(
               'title',
               'description',
               'suggestion',
+              'evidence',
             ],
             additionalProperties: false,
           },
@@ -72,6 +75,7 @@ interface ModelFinding {
   title: string;
   description: string;
   suggestion: string;
+  evidence: string;
 }
 
 /** Document chunks sampled for the rerank query, and its size in characters. */
@@ -344,12 +348,43 @@ export class DocumentAnalysisService {
       );
     }
 
-    // Keep only findings that rest on a clause we supplied; the citation and the baseline risk
-    // come from that clause's ruleset data
+    // Keep only findings that rest on a clause we supplied and quote the contract; the citation
+    // and the baseline risk come from that clause's ruleset data
+    const findInContent = createQuoteLocator(document.content);
+    const findInAnalysed =
+      contentForAnalysis === document.content
+        ? null
+        : createQuoteLocator(contentForAnalysis);
     const findings: AnalysisFinding[] = [];
+    let unverifiedFindingsDropped = 0;
+    let groundedFindings = 0;
     for (const finding of parsed.findings) {
       const chunk = clauses.get(finding.clauseId);
       if (!chunk) continue;
+      groundedFindings++;
+      const quote =
+        typeof finding.evidence === 'string' ? finding.evidence.trim() : '';
+      let evidence: { text: string; offset: number | null } | null = null;
+      if (!quote) {
+        // No quote is only an answer for a mandatory clause the contract leaves out
+        if (chunk.metadata.isRequired === true) {
+          evidence = { text: '', offset: null };
+        }
+      } else {
+        const span = findInContent(quote);
+        if (span) {
+          evidence = {
+            text: document.content.slice(span.start, span.end),
+            offset: span.start,
+          };
+        } else if (findInAnalysed?.(quote)) {
+          evidence = { text: quote, offset: null };
+        }
+      }
+      if (!evidence) {
+        unverifiedFindingsDropped++;
+        continue;
+      }
       const rulesetKey = chunk.metadata.rulesetKey;
       const baselineRiskLevel = baselineRiskOf(chunk.metadata);
       const { riskLevel, raised } = finalRisk(
@@ -367,14 +402,21 @@ export class DocumentAnalysisService {
         title: finding.title,
         description: finding.description,
         suggestion: finding.suggestion,
+        evidence: evidence.text,
+        evidenceOffset: evidence.offset,
         chunkId: chunk.id,
         rulesetKey: typeof rulesetKey === 'string' ? rulesetKey : null,
       });
     }
-    const ungroundedFindingsDropped = parsed.findings.length - findings.length;
+    const ungroundedFindingsDropped = parsed.findings.length - groundedFindings;
     if (ungroundedFindingsDropped > 0) {
       this.logger.warn(
         `Dropped ${ungroundedFindingsDropped} findings citing no supplied clause for job=${analysisJobId}`,
+      );
+    }
+    if (unverifiedFindingsDropped > 0) {
+      this.logger.warn(
+        `Dropped ${unverifiedFindingsDropped} findings whose quote isn't in the document for job=${analysisJobId}`,
       );
     }
 
@@ -394,6 +436,9 @@ export class DocumentAnalysisService {
     }
     if (ungroundedFindingsDropped > 0) {
       warnings.push('ungrounded_findings_dropped');
+    }
+    if (unverifiedFindingsDropped > 0) {
+      warnings.push('unverified_evidence_dropped');
     }
     if (findings.length === 0) warnings.push('no_findings');
 
@@ -416,6 +461,7 @@ export class DocumentAnalysisService {
       reranked,
       truncated: wasDocumentTruncated,
       ungroundedFindingsDropped,
+      unverifiedFindingsDropped,
       warnings,
       provenance: {
         promptVersion: PROMPT_VERSION,

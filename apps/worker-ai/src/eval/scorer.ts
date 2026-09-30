@@ -40,6 +40,7 @@ export interface Scores {
   mentionRate: number | null;
   /** null until findings carry something checkable. */
   citationValidity: number | null;
+  /** The model's findings whose quote holds up: stored ones re-checked, dropped ones counted as invalid. */
   evidenceValidity: number | null;
   /** Mean pairwise Jaccard similarity of the clauses flagged by the completed runs. */
   agreement: number | null;
@@ -190,7 +191,10 @@ export function scoreCase(evalCase: EvalCase, runs: EvalRun[]): CaseScore {
 
     const completed = isCompleted(run);
     const findings = completed ? run.findings : [];
-    if (completed) counts.completedRuns++;
+    if (completed) {
+      counts.completedRuns++;
+      counts.evidenceChecked += run.unverifiedFindingsDropped ?? 0;
+    }
 
     // The highest risk level reported for each clause in this run
     const highest = new Map<string, Severity>();

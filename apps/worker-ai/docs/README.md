@@ -129,6 +129,10 @@ The model never writes a citation. Each clause in the prompt is headed with the 
 
 This needs the clause facts on every chunk (`isRequired`, `severity`, `article`, `section`, `source`, `rulesetName`, written by worker-ingestion). Chunks ingested before those fields existed cite only the ruleset and title: re-ingest them with `pnpm rulesets:reingest` (see `docs/DEPLOYMENT.md`).
 
+### Evidence
+
+Every finding quotes the contract passage it is about (`evidence`, at most about 300 characters). `evidence.ts` looks the quote up in the document's text, ignoring what a model changes when it copies text (spacing and line breaks, case, typographic quotes and dashes, Arabic diacritics and tatweel), and stores the passage exactly as it appears with its offset, so the UI can highlight it. A quote that isn't in the document (or is shorter than 8 or longer than 600 characters once normalised) drops the finding, counted in `unverifiedFindingsDropped` with the warning `unverified_evidence_dropped`. An empty quote is accepted only for a clause marked `[required]` in the prompt: the finding is then that the contract leaves it out.
+
 ### What leaves the worker
 
 - **OpenAI embeddings:** the document's chunks. **Cohere rerank:** chunks sampled across the document. **OpenAI chat:** the document (up to the context budget) and the retrieved clauses.
@@ -141,7 +145,7 @@ This needs the clause facts on every chunk (`isRequired`, `severity`, `article`,
 | Status | When |
 |---|---|
 | `completed` | Full document, reranked context from every requested ruleset, at least one grounded finding. |
-| `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `not_reranked`, `rulesets_without_context`, `ungrounded_findings_dropped`, `no_findings` (nothing reported is not a compliance verdict). |
+| `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `not_reranked`, `rulesets_without_context`, `ungrounded_findings_dropped`, `unverified_evidence_dropped`, `no_findings` (nothing reported is not a compliance verdict). |
 | `failed` | Including when retrieval returned no clauses at all. |
 
 The API refuses (400) unknown or inactive `rulesetKeys` / `rulesetIds` instead of widening the search.
@@ -157,6 +161,8 @@ interface AnalysisResult {
     riskLevel: 'high' | 'medium' | 'low';          // The clause's own severity, or higher if the model raised it
     baselineRiskLevel: 'high' | 'medium' | 'low' | null; // From the clause's severity (critical/high → high)
     riskReason?: string;   // The model's one-line reason, kept only when it raised the level
+    evidence: string;      // The contract passage, exactly as in the document; "" only for a required clause left out
+    evidenceOffset: number | null; // Where evidence starts in the document text (null: omission, or found only in the sectioned text)
     title: string;         // Short issue title
     description: string;   // Detailed compliance gap description
     suggestion: string;    // Concrete recommendation
@@ -174,6 +180,7 @@ interface AnalysisResult {
   reranked: boolean;       // Whether Cohere re-ranking was applied
   truncated: boolean;      // Whether only part of the document fit
   ungroundedFindingsDropped: number;
+  unverifiedFindingsDropped: number; // Findings whose quote isn't in the document
   warnings: string[];      // See "Job status"
   provenance: {            // What produced this result, to reproduce and compare runs
     promptVersion: number;       // PROMPT_VERSION in prompt-builder.service.ts
@@ -211,7 +218,7 @@ Each run writes `data/eval/results/<timestamp>-<commit>.md` and `.json` (per-run
 | Severity | Matched findings whose highest risk level equals the label. |
 | Mentions | Required mentions found in titles, descriptions or the summary (e.g. the injection attempt is reported). |
 | Citations | Findings whose stored citation is the one their clause's ruleset data gives. |
-| Evidence | n/a until findings carry a quote from the contract. |
+| Evidence | The model's findings whose quote holds up: stored quotes re-checked against the contract, findings the worker dropped for a quote not in it counted as failures. |
 | Agreement | Mean pairwise overlap (Jaccard) of the clauses flagged by repeated runs of the same contract. |
 
 The report also lists, per contract, the expected clauses missed, the must-not-flag hits, and the unlabelled findings (candidates for new labels).

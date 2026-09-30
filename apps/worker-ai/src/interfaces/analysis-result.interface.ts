@@ -14,6 +14,13 @@ export interface AnalysisFinding {
   title: string;
   description: string;
   suggestion: string;
+  /**
+   * The contract passage the finding is about, as it appears in the document; empty only for a
+   * required clause the contract omits.
+   */
+  evidence: string;
+  /** Where `evidence` starts in the document's text, or null (an omission, or a quote found only in the sectioned text). */
+  evidenceOffset: number | null;
   /** The retrieved ruleset chunk behind clauseId. */
   chunkId: string;
   rulesetKey: string | null;
@@ -25,6 +32,7 @@ export interface AnalysisFinding {
  * - not_reranked: reranking failed, so the clauses used may not be the most relevant
  * - rulesets_without_context: a requested ruleset contributed no clauses
  * - ungrounded_findings_dropped: findings that cited no supplied clause were removed
+ * - unverified_evidence_dropped: findings whose quote isn't in the document were removed
  * - no_findings: nothing was reported; needs a human check, not "compliant"
  */
 export type AnalysisWarning =
@@ -32,6 +40,7 @@ export type AnalysisWarning =
   | 'not_reranked'
   | 'rulesets_without_context'
   | 'ungrounded_findings_dropped'
+  | 'unverified_evidence_dropped'
   | 'no_findings';
 
 /** What produced a result, so runs can be reproduced and compared (evaluation, feedback). */
@@ -70,6 +79,8 @@ export interface AnalysisResult {
   reranked: boolean;
   truncated: boolean;
   ungroundedFindingsDropped: number;
+  /** Findings dropped because their quote couldn't be found in the document. */
+  unverifiedFindingsDropped: number;
   warnings: AnalysisWarning[];
   provenance: AnalysisProvenance;
 }

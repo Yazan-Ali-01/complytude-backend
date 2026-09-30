@@ -284,6 +284,7 @@ describeEval('AI evaluation', () => {
         status: thrown && status !== 'failed' ? 'error' : status,
         warnings: result?.warnings ?? [],
         summary: result?.summary ?? '',
+        unverifiedFindingsDropped: result?.unverifiedFindingsDropped ?? 0,
         findings: (result?.findings ?? []).map((f): RunFinding => {
           const metadata = chunks.get(f.chunkId) ?? {};
           return {
@@ -297,6 +298,13 @@ describeEval('AI evaluation', () => {
             description: f.description,
             // The stored citation must be the one its clause's ruleset data gives
             citationValid: f.citation === citationOf(metadata),
+            // A stored quote must be exactly the contract text at its offset
+            evidenceValid:
+              f.evidenceOffset === null ||
+              content.slice(
+                f.evidenceOffset,
+                f.evidenceOffset + f.evidence.length,
+              ) === f.evidence,
           };
         }),
         ...((error ?? thrown) && { error: (error ?? thrown)! }),

@@ -115,6 +115,7 @@ export class FakeLlmService {
           title: 'Fake finding',
           description: 'Fake finding on the first supplied clause.',
           suggestion: 'None.',
+          evidence: '',
         })),
     });
   }

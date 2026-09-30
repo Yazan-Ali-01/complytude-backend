@@ -62,5 +62,7 @@ export interface EvalRun {
   warnings: string[];
   summary: string;
   findings: RunFinding[];
+  /** Findings the worker dropped because their quote wasn't in the contract. */
+  unverifiedFindingsDropped?: number;
   error?: string;
 }

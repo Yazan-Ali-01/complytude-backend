@@ -169,6 +169,20 @@ describe('AI evaluation scorer', () => {
     expect(withChecks.evidenceValidity).toBe(0.5);
   });
 
+  it('counts findings dropped for an unverifiable quote against evidence validity', () => {
+    const scored = scoreCase(CASE, [
+      {
+        ...run([
+          finding('probation', 'high', 'labour', { evidenceValid: true }),
+          finding('hours', 'high', 'labour', { evidenceValid: true }),
+        ]),
+        unverifiedFindingsDropped: 2,
+      },
+    ]);
+
+    expect(scored.evidenceValidity).toBe(0.5);
+  });
+
   it('sums the cases into an overall score', () => {
     const score = scoreEvaluation([
       { evalCase: CASE, runs: [run([finding('probation')])] },

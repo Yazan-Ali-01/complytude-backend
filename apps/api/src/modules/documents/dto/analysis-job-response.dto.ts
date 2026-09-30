@@ -20,7 +20,7 @@ export class AnalysisJobResponseDto {
 
   @ApiProperty({
     description:
-      "Job status. 'completed_with_warnings' means the analysis ran but result.warnings lists why it is not a clean result: document_truncated, not_reranked, rulesets_without_context, ungrounded_findings_dropped, no_findings (nothing reported is not a compliance verdict). A job with no regulatory context to check against fails.",
+      "Job status. 'completed_with_warnings' means the analysis ran but result.warnings lists why it is not a clean result: document_truncated, not_reranked, rulesets_without_context, ungrounded_findings_dropped, unverified_evidence_dropped, no_findings (nothing reported is not a compliance verdict). A job with no regulatory context to check against fails.",
     enum: [
       'queued',
       'processing',
@@ -48,7 +48,7 @@ export class AnalysisJobResponseDto {
 
   @ApiPropertyOptional({
     description:
-      'Full analysis result when status is completed: findings (each with a citation built from the ruleset clause, never by the model, and a risk level that starts from the clause severity), summary, warnings, and provenance (prompt version, embedding model, ruleset versions and chunks given to the model, retrieval settings)',
+      'Full analysis result when status is completed: findings (each with a citation built from the ruleset clause, never by the model, a risk level that starts from the clause severity, and the contract passage it is about with its offset), summary, warnings, and provenance (prompt version, embedding model, ruleset versions and chunks given to the model, retrieval settings)',
   })
   result?: Record<string, unknown> | null;
 

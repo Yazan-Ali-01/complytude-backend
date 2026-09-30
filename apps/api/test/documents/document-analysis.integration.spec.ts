@@ -288,6 +288,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
           title: 'Hours over the limit',
           description: '70 hours a week',
           suggestion: 'Cap at 48 hours',
+          evidence: 'The employee works 70 hours a week.',
         },
         {
           clauseId: 'C2',
@@ -318,6 +319,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
       title: 'Hours over the limit',
       description: '70 hours a week',
       suggestion: 'Cap at 48 hours',
+      evidence: 'The employee works 70 hours a week.',
+      evidenceOffset: 0,
       chunkId: hours.id,
       rulesetKey: 'uae_labour_law',
     });
@@ -328,6 +331,83 @@ describe('Document analysis: injection, grounding and honest status', () => {
       baselineRiskLevel: 'medium',
       riskReason: 'Leave is removed for every employee.',
     });
+  });
+
+  it('keeps a finding only when its quote is in the contract, or it names a required clause left out', async () => {
+    const contract = [
+      '1. The employee works 70 hours a week.',
+      '2. Annual   leave:',
+      '   twenty days after the first year.',
+      '3. Salary is paid when the company can afford it.',
+    ].join('\n');
+    const data = await job(contract);
+    const hours = chunk(ruleset, 'Art. 17');
+    const leave = chunk(ruleset, 'Art. 29', { isRequired: false });
+    const overtime = chunk(ruleset, 'Art. 19', { isRequired: false });
+    const base = {
+      riskLevel: 'high',
+      riskReason: '…',
+      description: '…',
+      suggestion: '…',
+    };
+    modelAnswer = {
+      summary: 'Checked.',
+      findings: [
+        // Verbatim
+        {
+          ...base,
+          clauseId: 'C1',
+          title: 'Hours',
+          evidence: 'The employee works 70 hours a week.',
+        },
+        // Differs from the contract only in spacing and line breaks
+        {
+          ...base,
+          clauseId: 'C2',
+          title: 'Leave',
+          evidence: 'Annual leave: twenty days after the first year.',
+        },
+        // Not in the contract
+        {
+          ...base,
+          clauseId: 'C3',
+          title: 'Overtime',
+          evidence: 'Overtime is paid at 125 percent.',
+        },
+        // No quote: only for a required clause the contract leaves out
+        { ...base, clauseId: 'C2', title: 'Leave missing', evidence: '' },
+        { ...base, clauseId: 'C1', title: 'Rest day missing', evidence: '' },
+      ],
+    };
+
+    await worker({ chunks: [hours, leave, overtime] }).analyze(data);
+
+    const { status, result } = await stored(data.analysisJobId);
+    expect(status).toBe('completed_with_warnings');
+    expect(result).toMatchObject({
+      unverifiedFindingsDropped: 2,
+      warnings: ['unverified_evidence_dropped'],
+    });
+    expect(
+      result!.findings.map((f) => ({
+        title: f.title,
+        evidence: f.evidence,
+        evidenceOffset: f.evidenceOffset,
+      })),
+    ).toEqual([
+      {
+        title: 'Hours',
+        evidence: 'The employee works 70 hours a week.',
+        evidenceOffset: contract.indexOf('The employee'),
+      },
+      {
+        // Stored as it appears in the contract, so the UI can highlight it
+        title: 'Leave',
+        evidence: 'Annual   leave:\n   twenty days after the first year.',
+        evidenceOffset: contract.indexOf('Annual'),
+      },
+      { title: 'Rest day missing', evidence: '', evidenceOffset: null },
+    ]);
   });
 
   it('keeps only findings that cite a supplied clause', async () => {
