@@ -11,6 +11,13 @@ export interface ChatCompletionOptions {
   responseSchema: ResponseFormatJSONSchema.JSONSchema;
 }
 
+export interface ChatCompletionResult {
+  /** The parsed JSON answer (matching the response schema). */
+  data: unknown;
+  /** Tokens billed for the call, for metering. */
+  usage: { promptTokens: number; completionTokens: number };
+}
+
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
@@ -61,7 +68,9 @@ export class LlmService {
    * Call the chat completions API with structured output enforcement.
    * The response is guaranteed by OpenAI to match the provided JSON Schema.
    */
-  async chatCompletion(options: ChatCompletionOptions): Promise<unknown> {
+  async chatCompletion(
+    options: ChatCompletionOptions,
+  ): Promise<ChatCompletionResult> {
     const { systemPrompt, userMessage, responseSchema } = options;
 
     this.logger.debug(
@@ -106,7 +115,13 @@ export class LlmService {
       `LLM response: finish_reason=${choice.finish_reason} usage=${JSON.stringify(response.usage)}`,
     );
 
-    return JSON.parse(content) as unknown;
+    return {
+      data: JSON.parse(content) as unknown,
+      usage: {
+        promptTokens: response.usage?.prompt_tokens ?? 0,
+        completionTokens: response.usage?.completion_tokens ?? 0,
+      },
+    };
   }
 
   getModel(): string {

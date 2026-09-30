@@ -9,8 +9,8 @@ import type { AnalysisResult } from '../../../worker-ai/src/interfaces/analysis-
 import { RedactionService } from '../../../worker-ai/src/redaction/redaction.service';
 import { AnalysisJobWriteRepository } from '../../../worker-ai/src/repositories/analysis-job-write.repository';
 import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
-import type {
-  RulesetChunkMatch,
+import {
+  type RulesetChunkMatch,
   RulesetChunkSearchRepository,
 } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
 import { DocumentAnalysisService } from '../../../worker-ai/src/services/document-analysis.service';
@@ -111,6 +111,14 @@ describe('Document analysis: injection, grounding and honest status', () => {
     modelFailures?: number;
     /** Defaults to the real one with its deterministic detectors (no name service). */
     redaction?: RedactionService;
+    /** The required clauses of the scoped rulesets (the checklist); none by default. */
+    required?: RulesetChunkMatch[];
+    /** A real (or partly real) search repository instead of the stub. */
+    search?: RulesetChunkSearchRepository;
+    /** Worker settings, e.g. 'workerAi.ragJudgeBatchSize'. */
+    config?: Record<string, unknown>;
+    /** The model's answer for one call, from the clause IDs it was allowed; else modelAnswer. */
+    answer?: (allowedClauseIds: string[]) => object;
   }): DocumentAnalysisService {
     let failuresLeft = options.modelFailures ?? 0;
     const llm = {
@@ -135,23 +143,30 @@ describe('Document analysis: injection, grounding and honest status', () => {
           failuresLeft--;
           return Promise.reject(new Error('429 Rate limit reached'));
         }
+        const allowedClauseIds =
+          request.responseSchema.schema.properties.findings.items.properties
+            .clauseId.enum;
         calls.push({
           systemPrompt: request.systemPrompt,
           userMessage: request.userMessage,
-          allowedClauseIds:
-            request.responseSchema.schema.properties.findings.items.properties
-              .clauseId.enum,
+          allowedClauseIds,
         });
-        return Promise.resolve(modelAnswer);
+        return Promise.resolve({
+          data: options.answer?.(allowedClauseIds) ?? modelAnswer,
+          usage: { promptTokens: 1_000, completionTokens: 100 },
+        });
       },
     } as unknown as LlmService;
     const tokenCounter = new TokenCounterService();
     return new DocumentAnalysisService(
       new AnalysisJobWriteRepository(app.appDatabaseService),
       new DocumentReadRepository(app.appDatabaseService),
-      {
-        hybridSearchBatch: () => Promise.resolve(options.chunks),
-      } as unknown as RulesetChunkSearchRepository,
+      options.search ??
+        ({
+          hybridSearchBatch: () => Promise.resolve(options.chunks),
+          findRequiredClauses: () => Promise.resolve(options.required ?? []),
+          findEmbeddings: () => Promise.resolve(new Map()),
+        } as unknown as RulesetChunkSearchRepository),
       new TextChunkerService(tokenCounter),
       {
         getModel: () => 'text-embedding-3-small',
@@ -177,7 +192,10 @@ describe('Document analysis: injection, grounding and honest status', () => {
         new RedactionService({
           get: (_key: string, fallback: unknown) => fallback,
         } as ConfigService),
-      { get: (_key: string, fallback: unknown) => fallback } as ConfigService,
+      {
+        get: (key: string, fallback: unknown) =>
+          options.config?.[key] ?? fallback,
+      } as ConfigService,
     );
   }
 
@@ -605,6 +623,183 @@ describe('Document analysis: injection, grounding and honest status', () => {
     });
   });
 
+  describe('clause by clause', () => {
+    /** An active ruleset in the real database: one required clause and one optional one. */
+    async function seededRuleset(): Promise<{
+      rulesetId: string;
+      required: string;
+      optional: RulesetChunkMatch;
+    }> {
+      const { rows } = await app.databaseService.query<{ id: string }>(
+        `INSERT INTO public.rulesets (key, name) VALUES ($1, 'UAE Labour Law') RETURNING id`,
+        [`labour_${randomUUID().slice(0, 8)}`],
+      );
+      const { rows: version } = await app.databaseService.query<{ id: string }>(
+        `INSERT INTO public.ruleset_versions (ruleset_id, version) VALUES ($1, '1.0.0') RETURNING id`,
+        [rows[0].id],
+      );
+      const vector = `[${new Array<number>(1536).fill(0.01).join(',')}]`;
+      const insert = async (
+        index: number,
+        content: string,
+        metadata: object,
+      ): Promise<string> => {
+        const { rows: chunk } = await app.databaseService.query<{ id: string }>(
+          `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding, metadata)
+           VALUES ($1, $2, $3, $4, $5::vector, $6) RETURNING id`,
+          [
+            rows[0].id,
+            version[0].id,
+            index,
+            content,
+            vector,
+            JSON.stringify(metadata),
+          ],
+        );
+        return chunk[0].id;
+      };
+      const base = {
+        rulesetKey: 'uae_labour',
+        rulesetName: 'UAE Labour Law',
+        version: '1.0.0',
+      };
+      const required = await insert(
+        0,
+        'Every contract must state the notice period for termination.',
+        {
+          ...base,
+          clauseId: 'lab_08',
+          article: 'Art. 43',
+          isRequired: true,
+          severity: 'critical',
+        },
+      );
+      const optionalId = await insert(
+        1,
+        'Employers are encouraged to state any housing allowance.',
+        { ...base, clauseId: 'lab_65', article: 'Art. 65', isRequired: false },
+      );
+      return {
+        rulesetId: rows[0].id,
+        required,
+        optional: {
+          id: optionalId,
+          rulesetId: rows[0].id,
+          rulesetVersionId: version[0].id,
+          content: 'Employers are encouraged to state any housing allowance.',
+          metadata: { ...base, clauseId: 'lab_65', isRequired: false },
+          score: 1,
+        },
+      };
+    }
+
+    it('gives every required clause a verdict even when retrieval never returns it', async () => {
+      const seeded = await seededRuleset();
+      // Retrieval finds only the optional clause; the required one comes from the checklist
+      class OnlyOptional extends RulesetChunkSearchRepository {
+        hybridSearchBatch(): Promise<RulesetChunkMatch[]> {
+          return Promise.resolve([seeded.optional]);
+        }
+      }
+      const data = await job(
+        'The employee earns AED 20,000 a month. No notice period is stated.',
+        [seeded.rulesetId],
+      );
+
+      await worker({
+        chunks: [],
+        search: new OnlyOptional(app.appDatabaseService),
+        answer: (ids) => ({
+          summary: 'Checked.',
+          verdicts: ids.map((clauseId) => ({
+            clauseId,
+            status: 'violated',
+            reason: 'Not stated.',
+          })),
+          findings: [],
+        }),
+      }).analyze(data);
+
+      expect(calls[0].systemPrompt).toContain(
+        'Every contract must state the notice period for termination.',
+      );
+      expect(calls[0].systemPrompt).toMatch(/Art\. 43[^\n]*\[required\]/);
+      const { result } = await stored(data.analysisJobId);
+      expect(result).toMatchObject({ requiredClausesChecked: 1 });
+      expect(result!.clauseVerdicts.map((v) => [v.chunkId, v.status])).toEqual([
+        [seeded.required, 'violated'],
+        [seeded.optional.id, 'violated'],
+      ]);
+    });
+
+    it('judges in bounded batches and records the usage', async () => {
+      const data = await job('The employee works 70 hours a week.');
+      const clauses = ['Art. 1', 'Art. 2', 'Art. 3', 'Art. 4', 'Art. 5'].map(
+        (article) => chunk(ruleset, article),
+      );
+
+      await worker({
+        chunks: clauses,
+        config: {
+          'workerAi.ragJudgeBatchSize': 2,
+          'workerAi.ragMaxJudgeCalls': 2,
+        },
+        answer: (ids) => ({
+          summary: `Checked ${ids.join(' and ')}.`,
+          verdicts: ids.map((clauseId) => ({
+            clauseId,
+            status: 'compliant',
+            reason: 'Met.',
+          })),
+          findings: [],
+        }),
+      }).analyze(data);
+
+      expect(calls.map((c) => c.allowedClauseIds)).toEqual([
+        ['C1', 'C2'],
+        ['C3', 'C4'],
+      ]);
+      const { result } = await stored(data.analysisJobId);
+      expect(result).toMatchObject({
+        summary: 'Checked C1 and C2. Checked C3 and C4.',
+        usage: {
+          modelCalls: 2,
+          promptTokens: 2_000,
+          completionTokens: 200,
+        },
+        warnings: ['clauses_not_assessed', 'no_findings'],
+      });
+      expect(result!.clauseVerdicts.map((v) => v.status)).toEqual([
+        'compliant',
+        'compliant',
+        'compliant',
+        'compliant',
+        'unassessed',
+      ]);
+    });
+
+    it('judges a long document on its parts instead of cutting it off', async () => {
+      const data = await job('The employee works long hours. '.repeat(5_000));
+      modelAnswer = { summary: 'Checked.', verdicts: [], findings: [] };
+
+      await worker({
+        chunks: [chunk(ruleset, 'Art. 17')],
+        contextWindow: 8_000,
+      }).analyze(data);
+
+      expect(calls[0].userMessage).toContain(
+        'The document is too long to show whole',
+      );
+      expect(calls[0].userMessage).toContain('[Part 1 of');
+      const { result } = await stored(data.analysisJobId);
+      expect(result).toMatchObject({
+        truncated: false,
+        documentExcerpted: true,
+      });
+      expect(result!.warnings).not.toContain('document_truncated');
+    });
+  });
+
   it('keeps only findings that cite a supplied clause', async () => {
     const data = await job('The employee works 70 hours a week.');
     const cited = chunk(ruleset, 'Art. 17');
@@ -696,6 +891,12 @@ describe('Document analysis: injection, grounding and honest status', () => {
         rerankModel: 'rerank-v3.5',
         rerankTopN: 25,
       },
+      judging: {
+        batchSize: 8,
+        concurrency: 3,
+        maxCalls: 10,
+        sectionsPerClause: 4,
+      },
     });
   });
 
@@ -733,7 +934,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
     await worker({
       chunks: [chunk(ruleset, 'Art. 17')],
       reranked: false,
-      contextWindow: 8_000,
+      // Too small for even one 512-token part: the only case where text is cut
+      contextWindow: 5_000,
     }).analyze(data);
 
     expect(await stored(data.analysisJobId)).toMatchObject({

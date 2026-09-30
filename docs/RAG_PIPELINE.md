@@ -35,9 +35,10 @@ Consumes `DOCUMENT_ANALYSIS` jobs. Runs the full RAG pipeline:
 2. **Embed** chunks via OpenAI (`text-embedding-3-small`, 1536 dimensions)
 3. **Hybrid search** against `ruleset_chunks` — vector similarity + BM25 full-text, merged via Reciprocal Rank Fusion
 4. **Re-rank** candidates using Cohere (`rerank-v3.5`) — falls back gracefully if unavailable
-5. **Build prompt** with top regulatory clauses + document content (context-window aware, truncates if needed)
-6. **LLM call** with structured output enforcement (OpenAI `json_schema`, not `json_object`)
-7. **Store result** in `analysis_jobs.result` (JSONB)
+5. **Add the checklist:** every required clause of the job's rulesets, whatever the search found
+6. **Judge in batches:** the clauses (required first) go to the model a batch per call, a few calls at a time, up to a call budget; each call sees the whole document, or the sections most relevant to its clauses when the document doesn't fit
+7. **LLM call** per batch with structured output enforcement (OpenAI `json_schema`, not `json_object`), restricted to that batch's clause IDs
+8. **Store result** in `analysis_jobs.result` (JSONB), with the model calls and tokens used
 
 ### Worker-Ingestion (indexing)
 
@@ -79,9 +80,13 @@ The merged candidates are re-ranked by **Cohere's cross-encoder model** (`rerank
 
 If Cohere is unavailable, the pipeline continues with the hybrid search ordering. The `reranked` field in results indicates whether re-ranking was applied.
 
-### Stage 3: Context-Window Packing
+### Stage 3: Required clauses
 
-The prompt builder fits as many top clauses as possible into the LLM's context window (128k tokens for `gpt-4o-mini`), reserving space for the system prompt and output tokens. If the document is too large, it's truncated with a notice.
+Search finds clauses that resemble the contract, so it misses the ones a contract leaves out. Every chunk marked `isRequired` in the job's rulesets is added to the reranked clauses, so each required clause gets a verdict (`result.requiredClausesChecked`).
+
+### Stage 4: Clause-by-clause judging
+
+The clauses are judged in batches of `RAG_JUDGE_BATCH_SIZE`, `RAG_JUDGE_CONCURRENCY` calls at a time, at most `RAG_MAX_JUDGE_CALLS` calls; clauses beyond that are recorded `unassessed`. Each call's budget is the model's context window minus its output tokens, the instructions and the batch's clauses. A document that fits is sent whole. One that doesn't is sent as its sections most similar to the batch's clauses (cosine between the stored clause embeddings and the document chunk embeddings, `RAG_SECTIONS_PER_CLAUSE` per clause), in document order and labelled `[Part i of n]`, and the model is told that a requirement it can't see met is `unclear`. A section is cut only when a single one doesn't fit. See `apps/worker-ai/docs/README.md` → Clause by clause.
 
 ---
 
@@ -174,6 +179,10 @@ Tracks the lifecycle of each analysis request.
 | `OPENAI_CHAT_CONTEXT_WINDOW` | For a model outside the known table | — | Context window in tokens (`apps/worker-ai/src/config/chat-model.ts`) |
 | `COHERE_RERANK_MODEL` | No | `rerank-v3.5` | Cohere model |
 | `RERANK_TOP_N` | No | `10` | Chunks to keep after re-ranking |
+| `RAG_JUDGE_BATCH_SIZE` | No | `8` | Clauses judged per model call |
+| `RAG_JUDGE_CONCURRENCY` | No | `3` | Model calls in flight per analysis |
+| `RAG_MAX_JUDGE_CALLS` | No | `10` | Model calls per analysis at most |
+| `RAG_SECTIONS_PER_CLAUSE` | No | `4` | Nearest document sections per clause, for a document too long to send whole |
 
 See `apps/worker-ai/.env.example` for the full list.
 

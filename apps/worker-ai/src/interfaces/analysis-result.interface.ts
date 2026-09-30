@@ -82,6 +82,12 @@ export interface AnalysisProvenance {
     rerankModel: string;
     rerankTopN: number;
   };
+  judging: {
+    batchSize: number;
+    concurrency: number;
+    maxCalls: number;
+    sectionsPerClause: number;
+  };
 }
 
 export interface AnalysisResult {
@@ -93,7 +99,9 @@ export interface AnalysisResult {
   summary: string;
   model: string;
   documentChunks: number;
+  /** Clauses the model was given: every required clause of the rulesets, then the retrieved ones. */
   rulesetChunksMatched: number;
+  requiredClausesChecked: number;
   /** Rulesets the retrieved clauses came from. */
   rulesetsConsulted: string[];
   /** Rulesets at least one finding cites. */
@@ -103,7 +111,17 @@ export interface AnalysisResult {
   /** Requested ruleset IDs that contributed no clause. */
   rulesetIdsWithoutContext: string[];
   reranked: boolean;
+  /** A single document section didn't fit the budget and was cut. */
   truncated: boolean;
+  /** Some clauses were judged against the document's most relevant sections, not all of it. */
+  documentExcerpted: boolean;
+  /** For metering: model calls and tokens, embedding tokens. */
+  usage: {
+    modelCalls: number;
+    promptTokens: number;
+    completionTokens: number;
+    embeddingTokens: number;
+  };
   ungroundedFindingsDropped: number;
   /** Findings dropped because their quote couldn't be found in the document. */
   unverifiedFindingsDropped: number;

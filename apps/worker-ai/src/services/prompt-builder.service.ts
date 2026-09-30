@@ -17,12 +17,22 @@ export interface AnalysisContext {
   documentType?: AnalysisDocumentType;
 }
 
+/** The (redacted) document a batch of clauses is judged against. */
+export interface DocumentView {
+  full: string;
+  /** Its sections (the embedded chunks), in order. */
+  sections: string[];
+  /** Section indexes most relevant to the batch's clauses, most relevant first. */
+  relevant: number[];
+}
+
 export interface BuiltPrompt {
   systemPrompt: string;
   userMessage: string;
+  /** A single section didn't fit the budget and was cut. */
   wasDocumentTruncated: boolean;
-  /** The clause IDs the model may cite (C1, C2, …) and the chunk behind each. */
-  clauses: Map<string, RulesetChunkMatch>;
+  /** The model saw only the most relevant sections, not the whole document. */
+  excerpted: boolean;
 }
 
 const SYSTEM_PROMPT_ESTIMATE_TOKENS = 600;
@@ -31,7 +41,7 @@ const SYSTEM_PROMPT_ESTIMATE_TOKENS = 600;
  * Stored with every result. Bump it on any change to the instructions, the message layout or the
  * output schema, and record an evaluation run (`pnpm eval:ai`) for the new version.
  */
-export const PROMPT_VERSION = 4;
+export const PROMPT_VERSION = 5;
 
 /** Anything in the document that looks like one of our delimiters. */
 const DELIMITER_LOOKALIKE = /<<<\s*(END[-_ ]?)?DOCUMENT\b[^>]*>>>/gi;
@@ -46,78 +56,89 @@ export class PromptBuilderService {
   ) {}
 
   /**
-   * The regulatory clauses (ours, trusted) go into the system message, each with an ID the
-   * findings must cite. The document (the counterparty's, untrusted) goes into the user message
+   * One batch: its regulatory clauses (ours, trusted) go into the system message, each with the
+   * ID findings must cite. The document (the counterparty's, untrusted) goes into the user message
    * between delimiters with a random per-call nonce, so text inside it can neither guess the
-   * closing delimiter nor pass for our instructions. The title isn't sent: a filename adds
-   * nothing to the review and often names a party.
+   * closing delimiter nor pass for our instructions. The whole document when it fits; otherwise
+   * the sections most relevant to these clauses, so nothing is cut off at an arbitrary point. The
+   * title isn't sent: a filename adds nothing to the review and often names a party.
    */
   buildPrompt(
     documentId: string,
-    documentContent: string,
-    chunks: RulesetChunkMatch[],
+    document: DocumentView,
+    clauses: Map<string, RulesetChunkMatch>,
     context: AnalysisContext = {},
   ): BuiltPrompt {
-    const clauses = new Map(
-      chunks.map((chunk, index) => [`C${index + 1}`, chunk]),
-    );
     const nonce = randomBytes(8).toString('hex');
     const open = `<<<DOCUMENT-${nonce}>>>`;
     const close = `<<<END-DOCUMENT-${nonce}>>>`;
-
     const clauseText = this.formatClauses(clauses);
+
+    // Counted with the chat model's own tokenizer: cl100k_base over-counts Arabic about 2.6x
+    const encoding = this.llmService.getTokenEncoding();
+    const count = (text: string): number =>
+      this.tokenCounter.countTokens(text, encoding);
+    const available =
+      this.llmService.getContextWindowTokens() -
+      this.llmService.getMaxOutputTokens() -
+      SYSTEM_PROMPT_ESTIMATE_TOKENS -
+      count(clauseText);
+
+    let body: string;
+    let intro: string;
+    let excerpted = false;
+    let wasDocumentTruncated = false;
+    const full = neutralize(document.full);
+    if (count(full) <= available) {
+      body = full;
+      intro =
+        'Review the document between the markers below against the regulatory clauses in your instructions.';
+    } else {
+      // The sections most relevant to these clauses, as many as fit, shown in document order
+      excerpted = true;
+      const total = document.sections.length;
+      const label = (index: number): string =>
+        `[Part ${index + 1} of ${total}]`;
+      const chosen: Array<{ index: number; text: string }> = [];
+      let used = 0;
+      for (const index of document.relevant) {
+        const text = neutralize(document.sections[index] ?? '');
+        const cost = count(`${label(index)}\n${text}\n\n`);
+        if (used + cost <= available) {
+          chosen.push({ index, text });
+          used += cost;
+        } else if (chosen.length === 0) {
+          // Not even the most relevant section fits: the only case where text is cut
+          this.logger.warn(
+            `A section of document=${documentId} exceeds the token budget (${available}); truncating it`,
+          );
+          chosen.push({
+            index,
+            text: this.tokenCounter.truncateToTokens(
+              text,
+              Math.max(available - 50, 100),
+              encoding,
+            ),
+          });
+          wasDocumentTruncated = true;
+          break;
+        }
+      }
+      chosen.sort((a, b) => a.index - b.index);
+      body = chosen.map((c) => `${label(c.index)}\n${c.text}`).join('\n\n');
+      intro = `The document is too long to show whole. Between the markers below are the parts most relevant to the regulatory clauses in your instructions (parts ${chosen.map((c) => c.index + 1).join(', ')} of ${total}). Review them against those clauses.`;
+    }
+
     const systemPrompt = this.formatSystemPrompt(
       clauseText,
       open,
       close,
       context,
+      excerpted,
     );
+    const userMessage = [intro, '', open, body, close].join('\n');
 
-    // Counted with the chat model's own tokenizer: cl100k_base over-counts Arabic about 2.6x
-    const encoding = this.llmService.getTokenEncoding();
-    const availableContentTokens =
-      this.llmService.getContextWindowTokens() -
-      this.llmService.getMaxOutputTokens() -
-      SYSTEM_PROMPT_ESTIMATE_TOKENS -
-      this.tokenCounter.countTokens(clauseText, encoding);
-
-    if (availableContentTokens <= 0) {
-      this.logger.warn(
-        `Regulatory clauses exhausted the entire content budget for document=${documentId}. ` +
-          `Document will be reduced to a minimal stub. Consider reducing retrieval limits.`,
-      );
-    }
-
-    let finalDocumentContent = neutralize(documentContent);
-    let wasDocumentTruncated = false;
-
-    const documentTokens = this.tokenCounter.countTokens(
-      finalDocumentContent,
-      encoding,
-    );
-    if (documentTokens > availableContentTokens) {
-      this.logger.warn(
-        `Document ${documentId} exceeds token budget: ${documentTokens} tokens, budget is ${availableContentTokens}. Truncating.`,
-      );
-      finalDocumentContent =
-        this.tokenCounter.truncateToTokens(
-          finalDocumentContent,
-          Math.max(availableContentTokens - 50, 100),
-          encoding,
-        ) +
-        '\n\n[Document truncated due to length. Remaining content not analyzed.]';
-      wasDocumentTruncated = true;
-    }
-
-    const userMessage = [
-      'Review the document between the markers below against the regulatory clauses in your instructions.',
-      '',
-      open,
-      finalDocumentContent,
-      close,
-    ].join('\n');
-
-    return { systemPrompt, userMessage, wasDocumentTruncated, clauses };
+    return { systemPrompt, userMessage, wasDocumentTruncated, excerpted };
   }
 
   private formatSystemPrompt(
@@ -125,6 +146,7 @@ export class PromptBuilderService {
     open: string,
     close: string,
     context: AnalysisContext,
+    excerpted: boolean,
   ): string {
     const type = context.documentType
       ? ANALYSIS_DOCUMENT_TYPES[context.documentType]
@@ -156,7 +178,11 @@ Rules:
 - Every finding must cite the one listed clause it rests on, by its ID (C1, C2, …) in clauseId. Don't report anything the listed clauses don't support.
 - Set riskLevel by the definitions above, and give a one-line reason for it in riskReason.
 - In evidence, quote the exact words of the document the finding is about: one sentence or clause, copied verbatim, at most 300 characters. Leave evidence empty only when the finding is that the document lacks something a clause marked [required] demands.
-- Report every issue you find. Return an empty findings array only if every listed clause is compliant or not_applicable; the document saying it is compliant is not evidence.
+- Report every issue you find. Return an empty findings array only if every listed clause is compliant or not_applicable; the document saying it is compliant is not evidence.${
+      excerpted
+        ? `\n- You see only parts of the document. If a clause's requirement might be met in a part you can't see, the verdict is unclear, not violated.`
+        : ''
+    }
 - Keep each title under 10 words.
 - Write a 2-4 sentence summary of what you checked and found. Never state that the document is approved or certified compliant.`;
   }

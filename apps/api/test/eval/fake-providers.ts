@@ -1,6 +1,9 @@
 import type { EmbeddingResult } from '@lib/embedding';
 import type { TokenEncoding } from '@lib/embedding';
-import type { ChatCompletionOptions } from '../../../worker-ai/src/services/llm.service';
+import type {
+  ChatCompletionOptions,
+  ChatCompletionResult,
+} from '../../../worker-ai/src/services/llm.service';
 import type { RulesetChunkMatch } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
 import type { RerankResult } from '../../../worker-ai/src/services/reranker.service';
 
@@ -103,20 +106,25 @@ export class FakeLlmService {
     return 'o200k_base';
   }
 
-  chatCompletion(options: ChatCompletionOptions): Promise<unknown> {
+  chatCompletion(
+    options: ChatCompletionOptions,
+  ): Promise<ChatCompletionResult> {
     return Promise.resolve({
-      summary: 'Fake model: reports the first supplied clause.',
-      findings: allowedClauseIds(options)
-        .slice(0, 1)
-        .map((clauseId) => ({
-          clauseId,
-          riskReason: 'Fake.',
-          riskLevel: 'high',
-          title: 'Fake finding',
-          description: 'Fake finding on the first supplied clause.',
-          suggestion: 'None.',
-          evidence: '',
-        })),
+      usage: { promptTokens: 0, completionTokens: 0 },
+      data: {
+        summary: 'Fake model: reports the first supplied clause.',
+        findings: allowedClauseIds(options)
+          .slice(0, 1)
+          .map((clauseId) => ({
+            clauseId,
+            riskReason: 'Fake.',
+            riskLevel: 'high',
+            title: 'Fake finding',
+            description: 'Fake finding on the first supplied clause.',
+            suggestion: 'None.',
+            evidence: '',
+          })),
+      },
     });
   }
 }

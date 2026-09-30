@@ -88,7 +88,10 @@ describe('LlmService', () => {
         'workerAi.llmContextWindow': 400_000,
         'workerAi.llmMaxTokens': 16_000,
       }),
-    ).resolves.toEqual({ summary: 'ok' });
+    ).resolves.toEqual({
+      data: { summary: 'ok' },
+      usage: { promptTokens: 0, completionTokens: 0 },
+    });
 
     expect(requests).toHaveLength(1);
     expect(requests[0].url).toBe(

@@ -28,6 +28,7 @@ import {
 } from '../repositories/ruleset-chunk-search.repository';
 import { baselineRiskOf, citationOf, finalRisk } from './citation';
 import { createQuoteLocator } from './evidence';
+import { batches, relevantSections, runLimited } from './judging';
 import { LlmService } from './llm.service';
 import {
   type AnalysisContext,
@@ -123,6 +124,10 @@ export class DocumentAnalysisService {
   private readonly vectorLimit: number;
   private readonly bm25Limit: number;
   private readonly maxHybridResults: number;
+  private readonly judgeBatchSize: number;
+  private readonly judgeConcurrency: number;
+  private readonly maxJudgeCalls: number;
+  private readonly sectionsPerClause: number;
 
   constructor(
     private readonly analysisJobWriteRepository: AnalysisJobWriteRepository,
@@ -145,6 +150,22 @@ export class DocumentAnalysisService {
     this.maxHybridResults = configService.get<number>(
       'workerAi.ragMaxHybridResults',
       40,
+    );
+    this.judgeBatchSize = configService.get<number>(
+      'workerAi.ragJudgeBatchSize',
+      8,
+    );
+    this.judgeConcurrency = configService.get<number>(
+      'workerAi.ragJudgeConcurrency',
+      3,
+    );
+    this.maxJudgeCalls = configService.get<number>(
+      'workerAi.ragMaxJudgeCalls',
+      10,
+    );
+    this.sectionsPerClause = configService.get<number>(
+      'workerAi.ragSectionsPerClause',
+      4,
     );
   }
 
@@ -328,7 +349,19 @@ export class DocumentAnalysisService {
         );
       });
 
-    // Hybrid search: vector similarity + BM25 full-text, merged via RRF
+    // The checklist: every required clause of the applicable rulesets, whatever the search finds
+    const required = scoped
+      ? await this.rulesetChunkSearchRepository
+          .findRequiredClauses(rulesetIds)
+          .catch((err: unknown) => {
+            throw new RetryableError(
+              'DB error loading the required clauses',
+              err instanceof Error ? err : undefined,
+            );
+          })
+      : [];
+
+    // The rest by similarity: hybrid search (vector + BM25, merged via RRF), then rerank.
     // The whole document: the search ORs its most frequent terms (see hybridSearchBatch)
     const bm25Query = `${document.title}\n${contentForAnalysis}`;
     const topChunks = await this.rulesetChunkSearchRepository
@@ -347,22 +380,25 @@ export class DocumentAnalysisService {
           err instanceof Error ? err : undefined,
         );
       });
-
-    this.logger.log(
-      `Retrieved ${topChunks.length} chunks via hybrid search (vector + BM25)`,
-    );
+    const requiredIds = new Set(required.map((c) => c.id));
+    const optional = topChunks.filter((c) => !requiredIds.has(c.id));
 
     // Re-rank via Cohere; the query is document text only, never the title
-    const rerankQuery = this.buildRerankQuery(chunkTexts);
-    const { chunks: rerankedChunks, reranked } =
-      await this.rerankerService.rerank(rerankQuery, topChunks);
+    const { chunks: rerankedOptional, reranked } =
+      optional.length > 0
+        ? await this.rerankerService.rerank(
+            this.buildRerankQuery(chunkTexts),
+            optional,
+          )
+        : { chunks: [], reranked: true };
 
+    const supplied = [...required, ...rerankedOptional];
     this.logger.log(
-      `After rerank: ${rerankedChunks.length} chunks (reranked=${reranked})`,
+      `Clauses for job=${analysisJobId}: ${required.length} required, ${rerankedOptional.length} by similarity (reranked=${reranked})`,
     );
 
     // With nothing to check against, any answer would be an unfounded "compliant"
-    if (rerankedChunks.length === 0) {
+    if (supplied.length === 0) {
       throw new PermanentError(
         scoped
           ? 'No regulatory clauses were found in the selected rulesets for this document, so nothing was checked'
@@ -370,130 +406,172 @@ export class DocumentAnalysisService {
       );
     }
 
-    // Build prompt — pass structured content so the LLM sees section headings
-    const { systemPrompt, userMessage, wasDocumentTruncated, clauses } =
-      this.promptBuilderService.buildPrompt(
-        documentId,
-        contentForAnalysis,
-        rerankedChunks,
-        context,
-      );
-
-    if (wasDocumentTruncated) {
-      this.logger.warn(
-        `Document ${documentId} was truncated to fit context window`,
-      );
-    }
-
-    // Call LLM with structured output enforcement
-    const rawResponse = await this.llmService
-      .chatCompletion({
-        systemPrompt,
-        userMessage,
-        responseSchema: analysisResultSchema([...clauses.keys()]),
-      })
+    // Judge clause by clause, in bounded batches; clauses beyond the call budget stay unassessed
+    const clauses = new Map(
+      supplied.map((chunk, index) => [`C${index + 1}`, chunk]),
+    );
+    const judged = [...clauses].slice(
+      0,
+      this.judgeBatchSize * this.maxJudgeCalls,
+    );
+    const clauseEmbeddings = await this.rulesetChunkSearchRepository
+      .findEmbeddings(judged.map(([, chunk]) => chunk.id))
       .catch((err: unknown) => {
         throw new RetryableError(
-          `LLM API error for job ${analysisJobId}`,
+          'DB error loading clause embeddings',
           err instanceof Error ? err : undefined,
         );
       });
+    const sectionEmbeddings = embeddings.map((e) => e.embedding);
 
-    // OpenAI structured outputs guarantee schema conformance; light sanity check
-    const parsed = rawResponse as {
-      verdicts?: ModelVerdict[];
-      findings: ModelFinding[];
-      summary: string;
-    };
-    if (!Array.isArray(parsed.findings) || typeof parsed.summary !== 'string') {
-      throw new PermanentError(
-        `LLM structured output for job ${analysisJobId} did not match expected shape`,
+    const answers = await runLimited(
+      batches(judged, this.judgeBatchSize),
+      this.judgeConcurrency,
+      async (batch) => {
+        const batchClauses = new Map(batch);
+        const prompt = this.promptBuilderService.buildPrompt(
+          documentId,
+          {
+            full: contentForAnalysis,
+            sections: chunkTexts,
+            relevant: relevantSections(
+              batch.map(([, chunk]) => clauseEmbeddings.get(chunk.id)),
+              sectionEmbeddings,
+              this.sectionsPerClause,
+            ),
+          },
+          batchClauses,
+          context,
+        );
+        const { data, usage } = await this.llmService
+          .chatCompletion({
+            systemPrompt: prompt.systemPrompt,
+            userMessage: prompt.userMessage,
+            responseSchema: analysisResultSchema([...batchClauses.keys()]),
+          })
+          .catch((err: unknown) => {
+            throw new RetryableError(
+              `LLM API error for job ${analysisJobId}`,
+              err instanceof Error ? err : undefined,
+            );
+          });
+        // OpenAI structured outputs guarantee schema conformance; light sanity check
+        const parsed = data as {
+          verdicts?: ModelVerdict[];
+          findings: ModelFinding[];
+          summary: string;
+        };
+        if (
+          !Array.isArray(parsed.findings) ||
+          typeof parsed.summary !== 'string'
+        ) {
+          throw new PermanentError(
+            `LLM structured output for job ${analysisJobId} did not match expected shape`,
+          );
+        }
+        return { batchClauses, parsed, usage, prompt };
+      },
+    );
+    const wasDocumentTruncated = answers.some(
+      (a) => a.prompt.wasDocumentTruncated,
+    );
+    const documentExcerpted = answers.some((a) => a.prompt.excerpted);
+    if (wasDocumentTruncated) {
+      this.logger.warn(
+        `A section of document ${documentId} was truncated to fit the context window`,
       );
     }
 
-    // Keep only findings that rest on a clause we supplied and quote the contract; the citation
-    // and the baseline risk come from that clause's ruleset data
+    // Keep only findings that rest on a clause of their own batch and quote the contract; the
+    // citation and the baseline risk come from that clause's ruleset data
     const findInContent = createQuoteLocator(document.content);
     const findInRedacted = createQuoteLocator(contentForAnalysis);
-    // The model's verdict on each supplied clause (the first one if it gave several)
     const verdicts = new Map<string, ModelVerdict>();
-    for (const verdict of Array.isArray(parsed.verdicts)
-      ? parsed.verdicts
-      : []) {
-      if (clauses.has(verdict.clauseId) && !verdicts.has(verdict.clauseId)) {
-        verdicts.set(verdict.clauseId, verdict);
-      }
-    }
-
     const findings: AnalysisFinding[] = [];
     let unverifiedFindingsDropped = 0;
     let inconsistentFindingsDropped = 0;
-    let groundedFindings = 0;
-    for (const finding of parsed.findings) {
-      const chunk = clauses.get(finding.clauseId);
-      if (!chunk) continue;
-      groundedFindings++;
-      // Only a violated or unclear clause may carry a finding
-      const status = verdicts.get(finding.clauseId)?.status;
-      if (status === 'compliant' || status === 'not_applicable') {
-        inconsistentFindingsDropped++;
-        continue;
-      }
-      const quote =
-        typeof finding.evidence === 'string' ? finding.evidence.trim() : '';
-      let evidence: { text: string; offset: number | null } | null = null;
-      if (!quote) {
-        // No quote is only an answer for a mandatory clause the contract leaves out
-        if (chunk.metadata.isRequired === true) {
-          evidence = { text: '', offset: null };
-        }
-      } else {
-        // Found in the redacted text the model saw, then mapped back to the original passage
-        const span = findInRedacted(quote);
-        if (span) {
-          const at = redaction.toOriginal(span.start, span.end);
-          const passage = analysedOriginal.slice(at.start, at.end);
-          const inContent =
-            analysedOriginal === document.content
-              ? { start: at.start, end: at.end }
-              : findInContent(passage);
-          evidence = inContent
-            ? {
-                text: document.content.slice(inContent.start, inContent.end),
-                offset: inContent.start,
-              }
-            : { text: passage, offset: null };
+    let ungroundedFindingsDropped = 0;
+    for (const { batchClauses, parsed } of answers) {
+      // The model's verdict on each of the batch's clauses (the first one if it gave several)
+      for (const verdict of Array.isArray(parsed.verdicts)
+        ? parsed.verdicts
+        : []) {
+        if (
+          batchClauses.has(verdict.clauseId) &&
+          !verdicts.has(verdict.clauseId)
+        ) {
+          verdicts.set(verdict.clauseId, verdict);
         }
       }
-      if (!evidence) {
-        unverifiedFindingsDropped++;
-        continue;
+      for (const finding of parsed.findings) {
+        const chunk = batchClauses.get(finding.clauseId);
+        if (!chunk) {
+          ungroundedFindingsDropped++;
+          continue;
+        }
+        // Only a violated or unclear clause may carry a finding
+        const status = verdicts.get(finding.clauseId)?.status;
+        if (status === 'compliant' || status === 'not_applicable') {
+          inconsistentFindingsDropped++;
+          continue;
+        }
+        const quote =
+          typeof finding.evidence === 'string' ? finding.evidence.trim() : '';
+        let evidence: { text: string; offset: number | null } | null = null;
+        if (!quote) {
+          // No quote is only an answer for a mandatory clause the contract leaves out
+          if (chunk.metadata.isRequired === true) {
+            evidence = { text: '', offset: null };
+          }
+        } else {
+          // Found in the redacted text the model saw, then mapped back to the original passage
+          const span = findInRedacted(quote);
+          if (span) {
+            const at = redaction.toOriginal(span.start, span.end);
+            const passage = analysedOriginal.slice(at.start, at.end);
+            const inContent =
+              analysedOriginal === document.content
+                ? { start: at.start, end: at.end }
+                : findInContent(passage);
+            evidence = inContent
+              ? {
+                  text: document.content.slice(inContent.start, inContent.end),
+                  offset: inContent.start,
+                }
+              : { text: passage, offset: null };
+          }
+        }
+        if (!evidence) {
+          unverifiedFindingsDropped++;
+          continue;
+        }
+        const rulesetKey = chunk.metadata.rulesetKey;
+        const baselineRiskLevel = baselineRiskOf(chunk.metadata);
+        const { riskLevel, raised } = finalRisk(
+          baselineRiskLevel,
+          finding.riskLevel,
+        );
+        const riskReason =
+          typeof finding.riskReason === 'string'
+            ? finding.riskReason.trim()
+            : '';
+        findings.push({
+          clauseId: finding.clauseId,
+          citation: citationOf(chunk.metadata),
+          riskLevel,
+          baselineRiskLevel,
+          ...(raised &&
+            riskReason && { riskReason: redaction.rehydrate(riskReason) }),
+          title: redaction.rehydrate(finding.title),
+          description: redaction.rehydrate(finding.description),
+          suggestion: redaction.rehydrate(finding.suggestion),
+          evidence: evidence.text,
+          evidenceOffset: evidence.offset,
+          chunkId: chunk.id,
+          rulesetKey: typeof rulesetKey === 'string' ? rulesetKey : null,
+        });
       }
-      const rulesetKey = chunk.metadata.rulesetKey;
-      const baselineRiskLevel = baselineRiskOf(chunk.metadata);
-      const { riskLevel, raised } = finalRisk(
-        baselineRiskLevel,
-        finding.riskLevel,
-      );
-      const riskReason =
-        typeof finding.riskReason === 'string' ? finding.riskReason.trim() : '';
-      findings.push({
-        clauseId: finding.clauseId,
-        citation: citationOf(chunk.metadata),
-        riskLevel,
-        baselineRiskLevel,
-        ...(raised &&
-          riskReason && { riskReason: redaction.rehydrate(riskReason) }),
-        title: redaction.rehydrate(finding.title),
-        description: redaction.rehydrate(finding.description),
-        suggestion: redaction.rehydrate(finding.suggestion),
-        evidence: evidence.text,
-        evidenceOffset: evidence.offset,
-        chunkId: chunk.id,
-        rulesetKey: typeof rulesetKey === 'string' ? rulesetKey : null,
-      });
     }
-    const ungroundedFindingsDropped = parsed.findings.length - groundedFindings;
     if (ungroundedFindingsDropped > 0) {
       this.logger.warn(
         `Dropped ${ungroundedFindingsDropped} findings citing no supplied clause for job=${analysisJobId}`,
@@ -527,11 +605,24 @@ export class DocumentAnalysisService {
         };
       },
     );
+    const summary = redaction.rehydrate(
+      answers
+        .map((a) => a.parsed.summary.trim())
+        .filter(Boolean)
+        .join(' '),
+    );
+    const usage = {
+      modelCalls: answers.length,
+      promptTokens: answers.reduce((sum, a) => sum + a.usage.promptTokens, 0),
+      completionTokens: answers.reduce(
+        (sum, a) => sum + a.usage.completionTokens,
+        0,
+      ),
+      embeddingTokens: embeddings.reduce((sum, e) => sum + e.tokenCount, 0),
+    };
 
     const rulesetIdsSearched = rulesetIds ?? [];
-    const rulesetIdsWithContext = new Set(
-      rerankedChunks.map((c) => c.rulesetId),
-    );
+    const rulesetIdsWithContext = new Set(supplied.map((c) => c.rulesetId));
     const rulesetIdsWithoutContext = rulesetIdsSearched.filter(
       (id) => !rulesetIdsWithContext.has(id),
     );
@@ -563,11 +654,12 @@ export class DocumentAnalysisService {
         jurisdiction: context.jurisdiction ?? null,
         documentType: context.documentType ?? null,
       },
-      summary: redaction.rehydrate(parsed.summary),
+      summary,
       model: this.llmService.getModel(),
       documentChunks: documentChunks.length,
-      rulesetChunksMatched: rerankedChunks.length,
-      rulesetsConsulted: this.extractRulesetsConsulted(rerankedChunks),
+      rulesetChunksMatched: supplied.length,
+      requiredClausesChecked: required.length,
+      rulesetsConsulted: this.extractRulesetsConsulted(supplied),
       rulesetsCited: [
         ...new Set(
           findings
@@ -579,6 +671,8 @@ export class DocumentAnalysisService {
       rulesetIdsWithoutContext,
       reranked,
       truncated: wasDocumentTruncated,
+      documentExcerpted,
+      usage,
       ungroundedFindingsDropped,
       unverifiedFindingsDropped,
       inconsistentFindingsDropped,
@@ -591,9 +685,15 @@ export class DocumentAnalysisService {
         },
         embeddingModel: this.embeddingService.getModel(),
         rulesetVersionIds: [
-          ...new Set(rerankedChunks.map((c) => c.rulesetVersionId)),
+          ...new Set(supplied.map((c) => c.rulesetVersionId)),
         ],
-        suppliedChunkIds: [...clauses.values()].map((c) => c.id),
+        suppliedChunkIds: supplied.map((c) => c.id),
+        judging: {
+          batchSize: this.judgeBatchSize,
+          concurrency: this.judgeConcurrency,
+          maxCalls: this.maxJudgeCalls,
+          sectionsPerClause: this.sectionsPerClause,
+        },
         retrieval: {
           topKPerQuery: this.topKPerQuery,
           vectorLimit: this.vectorLimit,

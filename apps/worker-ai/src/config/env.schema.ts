@@ -66,6 +66,12 @@ export const validationSchema = Joi.object({
   RAG_VECTOR_LIMIT: Joi.number().default(30),
   RAG_BM25_LIMIT: Joi.number().default(30),
   RAG_MAX_HYBRID_RESULTS: Joi.number().default(40),
+  // Clause-by-clause judging: clauses per model call, calls at once, calls per analysis, and
+  // document sections per clause when the whole document doesn't fit
+  RAG_JUDGE_BATCH_SIZE: Joi.number().integer().min(1).max(40).default(8),
+  RAG_JUDGE_CONCURRENCY: Joi.number().integer().min(1).max(10).default(3),
+  RAG_MAX_JUDGE_CALLS: Joi.number().integer().min(1).max(50).default(10),
+  RAG_SECTIONS_PER_CLAUSE: Joi.number().integer().min(1).max(20).default(4),
 
   // Resource Limits
   WORKER_AI_MEMORY_LIMIT: Joi.string().default('2GB'),

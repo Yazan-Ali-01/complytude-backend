@@ -1,7 +1,10 @@
 import { TokenCounterService, type TokenEncoding } from '@lib/embedding';
 import type { RulesetChunkMatch } from '../repositories/ruleset-chunk-search.repository';
 import { LlmService } from './llm.service';
-import { PromptBuilderService } from './prompt-builder.service';
+import {
+  type DocumentView,
+  PromptBuilderService,
+} from './prompt-builder.service';
 
 /** The Arabic contract passage measured in AI-008 (6,160 characters). */
 const ARABIC =
@@ -17,6 +20,13 @@ const CLAUSE: RulesetChunkMatch = {
   metadata: { authorityName: 'MOHRE', rulesetKey: 'uae_labour' },
   score: 1,
 };
+
+/** A document of one section. */
+function whole(text: string): DocumentView {
+  return { full: text, sections: [text], relevant: [0] };
+}
+
+const clauses = new Map([['C1', CLAUSE]]);
 
 describe('PromptBuilderService', () => {
   const tokenCounter = new TokenCounterService();
@@ -47,13 +57,13 @@ describe('PromptBuilderService', () => {
 
     const o200k = builder({ ...model, encoding: 'o200k_base' }).buildPrompt(
       'doc-1',
-      ARABIC,
-      [CLAUSE],
+      whole(ARABIC),
+      clauses,
     );
     const cl100k = builder({ ...model, encoding: 'cl100k_base' }).buildPrompt(
       'doc-1',
-      ARABIC,
-      [CLAUSE],
+      whole(ARABIC),
+      clauses,
     );
 
     expect(o200k.wasDocumentTruncated).toBe(false);
@@ -66,8 +76,35 @@ describe('PromptBuilderService', () => {
       contextWindow: 5_000,
       maxOutputTokens: 3_000,
       encoding: 'o200k_base',
-    }).buildPrompt('doc-1', ARABIC, [CLAUSE]);
+    }).buildPrompt('doc-1', whole(ARABIC), clauses);
 
     expect(prompt.wasDocumentTruncated).toBe(true);
+  });
+
+  it('shows the most relevant sections in document order when the whole document is too long, without cutting any', () => {
+    const sections = Array.from(
+      { length: 5 },
+      (_, i) => `Section ${i + 1}: ${'the employee works hours '.repeat(60)}`,
+    );
+    const prompt = builder({
+      // Room for two ~253-token parts, not the whole ~1,265-token document
+      contextWindow: 5_350,
+      maxOutputTokens: 4_096,
+      encoding: 'o200k_base',
+    }).buildPrompt(
+      'doc-1',
+      { full: sections.join('\n\n'), sections, relevant: [3, 0, 4, 1, 2] },
+      clauses,
+    );
+
+    expect(prompt.excerpted).toBe(true);
+    expect(prompt.wasDocumentTruncated).toBe(false);
+    // Parts 4 then 1 fit; shown in document order, and the model is told
+    expect(prompt.userMessage).toContain('(parts 1, 4 of 5)');
+    expect(prompt.userMessage.indexOf('[Part 1 of 5]')).toBeLessThan(
+      prompt.userMessage.indexOf('[Part 4 of 5]'),
+    );
+    expect(prompt.userMessage).not.toContain('Section 2:');
+    expect(prompt.systemPrompt).toContain('You see only parts of the document');
   });
 });

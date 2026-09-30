@@ -20,6 +20,57 @@ export class RulesetChunkSearchRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
   /**
+   * Every required clause (`isRequired` in the chunk metadata) of the given rulesets' active
+   * versions: the checklist every analysis checks, whatever the similarity search finds.
+   */
+  async findRequiredClauses(
+    rulesetIds: string[],
+  ): Promise<RulesetChunkMatch[]> {
+    if (rulesetIds.length === 0) return [];
+    const { rows } = await this.databaseService.query<{
+      id: string;
+      ruleset_id: string;
+      ruleset_version_id: string;
+      content: string;
+      metadata: Record<string, unknown>;
+    }>(
+      `SELECT c.id, c.ruleset_id, c.ruleset_version_id, c.content, c.metadata
+       FROM public.ruleset_chunks c
+       JOIN public.ruleset_versions v ON v.id = c.ruleset_version_id AND v.is_active
+       JOIN public.rulesets r ON r.id = c.ruleset_id AND r.status = 'active'
+       WHERE c.ruleset_id = ANY($1::uuid[]) AND c.metadata->>'isRequired' = 'true'
+       ORDER BY c.ruleset_id, c.chunk_index`,
+      [rulesetIds],
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      rulesetId: row.ruleset_id,
+      rulesetVersionId: row.ruleset_version_id,
+      content: row.content,
+      metadata:
+        typeof row.metadata === 'string'
+          ? (JSON.parse(row.metadata) as Record<string, unknown>)
+          : row.metadata,
+      score: 0,
+    }));
+  }
+
+  /** The stored embeddings of the given chunks, to find the document sections each is about. */
+  async findEmbeddings(chunkIds: string[]): Promise<Map<string, number[]>> {
+    if (chunkIds.length === 0) return new Map();
+    const { rows } = await this.databaseService.query<{
+      id: string;
+      embedding: string;
+    }>(
+      `SELECT id, embedding::text AS embedding FROM public.ruleset_chunks WHERE id = ANY($1::uuid[])`,
+      [chunkIds],
+    );
+    return new Map(
+      rows.map((row) => [row.id, JSON.parse(row.embedding) as number[]]),
+    );
+  }
+
+  /**
    * Hybrid search combining pgvector cosine similarity and BM25 full-text search
    * via Reciprocal Rank Fusion (RRF).
    *

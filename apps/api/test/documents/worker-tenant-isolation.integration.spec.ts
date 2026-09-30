@@ -100,7 +100,10 @@ describe('Workers act only inside the job payload tenant', () => {
         getModel: () => 'test-model',
         chatCompletion: () => {
           modelCalls++;
-          return Promise.resolve({ findings: [], summary: 'ok' });
+          return Promise.resolve({
+            data: { findings: [], summary: 'ok' },
+            usage: { promptTokens: 0, completionTokens: 0 },
+          });
         },
       } as unknown as LlmService;
       const tokenCounter = new TokenCounterService();
@@ -109,6 +112,8 @@ describe('Workers act only inside the job payload tenant', () => {
         new DocumentReadRepository(app.appDatabaseService),
         {
           hybridSearchBatch: () => Promise.resolve([]),
+          findRequiredClauses: () => Promise.resolve([]),
+          findEmbeddings: () => Promise.resolve(new Map()),
         } as unknown as RulesetChunkSearchRepository,
         new TextChunkerService(tokenCounter),
         {

@@ -17,14 +17,16 @@ The AI Worker is a standalone NestJS application that consumes jobs from the `ai
 3. Chunks the document text and generates embeddings (OpenAI)
 4. Performs **hybrid search** — vector similarity (pgvector HNSW) + BM25 full-text search (tsvector GIN) merged via Reciprocal Rank Fusion (RRF)
 5. **Re-ranks** retrieved chunks using Cohere's rerank model (graceful fallback if unavailable)
-6. Builds a context-enriched prompt with the top regulatory clauses
-7. Calls the LLM (OpenAI GPT) with **structured output** enforcement (JSON Schema)
-8. Stores the typed analysis result and marks the job complete
+6. Adds **every required clause** of the applicable rulesets, whatever the search found
+7. **Judges the clauses in batches** (a few calls at a time), each call with the whole document or, when it doesn't fit, the sections most relevant to its clauses
+8. Calls the LLM (OpenAI GPT) with **structured output** enforcement (JSON Schema)
+9. Stores the typed analysis result and marks the job complete
 
 ### RAG Pipeline
 
 ```
-Document → Chunk → Embed → Hybrid Search (Vector + BM25 / RRF) → Cohere Re-rank → Prompt Build → LLM (Structured Output) → Store Result
+Document → Redact → Chunk → Embed → Required clauses + Hybrid Search (Vector + BM25 / RRF) → Cohere Re-rank
+         → Batches of clauses → Prompt per batch → LLM (Structured Output), a few at a time → Merge → Store Result
 ```
 
 ---
@@ -110,6 +112,16 @@ The worker uses a **hybrid retrieval** approach combining two complementary sear
 - **Cohere re-ranking:** The merged candidates are re-ranked by a dedicated cross-encoder model for final relevance ordering, against a query sampled across the whole document.
 - **Scope:** only active rulesets and their active version are searched; a scoped search uses pgvector iterative scan so it still returns K rows; BM25 covers English and Arabic stems. See `docs/RAG_PIPELINE.md`.
 
+### Clause by clause
+
+Similarity decides which optional clauses the model sees, but it can't be trusted to surface an omission: a contract that leaves out a required clause has no text similar to it. So the checklist comes first:
+
+- **Required clauses:** every chunk marked `isRequired` of the job's rulesets (active rulesets, active version) is supplied, whatever the search returned. `result.requiredClausesChecked` counts them.
+- **Optional clauses:** the hybrid search and rerank results, minus the required ones.
+- **Batches:** the supplied clauses (required first) are judged `RAG_JUDGE_BATCH_SIZE` per call, `RAG_JUDGE_CONCURRENCY` calls at a time, at most `RAG_MAX_JUDGE_CALLS` calls. Each call's schema allows only its own clause IDs, and a finding that cites another batch's clause is dropped as ungrounded. Clauses beyond the call budget are `unassessed` (warning `clauses_not_assessed`), never silently compliant.
+- **Long documents:** a call gets the whole document when it fits the context budget. Otherwise it gets the sections (the embedded chunks) most similar to its clauses, each clause's `RAG_SECTIONS_PER_CLAUSE` nearest pooled, as many as fit, in document order and labelled `[Part i of n]`; the model is told that a requirement it can't see met is `unclear`, not `violated`. `result.documentExcerpted` says whether any call saw excerpts. Text is cut only when a single section doesn't fit (`truncated`, warning `document_truncated`).
+- **Cost:** `result.usage` records the model calls and the prompt, completion and embedding tokens of the analysis; the judging settings are in `provenance.judging`.
+
 ### Error Handling
 
 | Error Type | Behavior |
@@ -146,7 +158,7 @@ The first step of every analysis (`src/redaction/`). Chunking, embeddings, the r
 
 ### What leaves the worker
 
-- **OpenAI embeddings:** the document's chunks. **Cohere rerank:** chunks sampled across the document. **OpenAI chat:** the document (up to the context budget) and the retrieved clauses.
+- **OpenAI embeddings:** the document's chunks. **Cohere rerank:** chunks sampled across the document. **OpenAI chat:** per batch of clauses, the document (or its sections most relevant to the batch) and the batch's clauses.
 - **Never sent:** the document title. Upload titles are filenames and often name a party; they add nothing to the review. (The BM25 query that uses it runs in our own Postgres.)
 - **Logs** identify a document by its ID only. `libs/logger/src/no-secrets-in-logs.spec.ts` fails the build if a log call interpolates a title, content or generation variables.
 - **Personal data** in the text is replaced with placeholders first (below): the providers see `[EMPLOYEE]`, `[EMIRATES_ID_1]`, never the values.
@@ -155,7 +167,7 @@ The first step of every analysis (`src/redaction/`). Chunking, embeddings, the r
 
 | Status | When |
 |---|---|
-| `completed` | Full document, reranked context from every requested ruleset, at least one grounded finding. |
+| `completed` | No section cut, reranked context from every requested ruleset, every supplied clause judged, at least one grounded finding. |
 | `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `not_reranked`, `rulesets_without_context`, `ungrounded_findings_dropped`, `unverified_evidence_dropped`, `inconsistent_findings_dropped`, `clauses_not_assessed`, `no_findings` (nothing reported is not a compliance verdict). |
 | `failed` | Including when retrieval returned no clauses at all. |
 
@@ -194,13 +206,16 @@ interface AnalysisResult {
   summary: string;         // What was checked and found (2-4 sentences)
   model: string;           // LLM model used (e.g., "gpt-4o-mini")
   documentChunks: number;  // Number of document chunks processed
-  rulesetChunksMatched: number; // Unique regulatory chunks after re-ranking
+  rulesetChunksMatched: number; // Clauses supplied: required + reranked optional
+  requiredClausesChecked: number; // Required clauses of the rulesets, supplied whatever the search found
   rulesetsConsulted: string[];  // Ruleset keys of the clauses supplied
   rulesetsCited: string[];      // Ruleset keys at least one finding cites
   rulesetIdsSearched: string[]; // Requested scope; empty = all rulesets
   rulesetIdsWithoutContext: string[]; // Requested rulesets that contributed no clause
   reranked: boolean;       // Whether Cohere re-ranking was applied
-  truncated: boolean;      // Whether only part of the document fit
+  truncated: boolean;      // A single section didn't fit a call and was cut
+  documentExcerpted: boolean; // Some call saw the most relevant sections, not the whole document
+  usage: { modelCalls: number; promptTokens: number; completionTokens: number; embeddingTokens: number };
   ungroundedFindingsDropped: number;
   unverifiedFindingsDropped: number; // Findings whose quote isn't in the document
   inconsistentFindingsDropped: number; // Findings on a clause the model called compliant or not applicable
@@ -211,6 +226,7 @@ interface AnalysisResult {
     embeddingModel: string;
     rulesetVersionIds: string[]; // Versions of the rulesets whose clauses the model saw
     suppliedChunkIds: string[];  // The chunks behind C1, C2, … in order
+    judging: { batchSize: number; concurrency: number; maxCalls: number; sectionsPerClause: number };
     retrieval: { topKPerQuery: number; vectorLimit: number; bm25Limit: number;
                  maxHybridResults: number; rerankModel: string; rerankTopN: number };
   };
@@ -301,6 +317,10 @@ cp apps/worker-ai/.env.example apps/worker-ai/.env
 | `REDACTION_NER_TIMEOUT_MS` | `10000` | Per-request timeout; a timeout fails the attempt |
 | `COHERE_RERANK_MODEL` | `rerank-v3.5` | Cohere rerank model |
 | `RERANK_TOP_N` | `10` | Number of chunks to keep after re-ranking |
+| `RAG_JUDGE_BATCH_SIZE` | `8` | Clauses judged per model call (1–40) |
+| `RAG_JUDGE_CONCURRENCY` | `3` | Model calls in flight per analysis (1–10) |
+| `RAG_MAX_JUDGE_CALLS` | `10` | Model calls per analysis at most (1–50); clauses beyond `batch size × calls` are `unassessed` |
+| `RAG_SECTIONS_PER_CLAUSE` | `4` | For a document too long to send whole: nearest sections taken per clause (1–20) |
 | `WORKER_AI_CONCURRENCY` | `5` | Max concurrent jobs |
 | `REDIS_HOST` | `localhost` | Redis host for BullMQ |
 | `DB_HOST` | `localhost` | PostgreSQL host |

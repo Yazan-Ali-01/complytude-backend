@@ -51,6 +51,13 @@ export default registerAs('workerAi', () => ({
   ragVectorLimit: parseInt(process.env.RAG_VECTOR_LIMIT || '30', 10),
   ragBm25Limit: parseInt(process.env.RAG_BM25_LIMIT || '30', 10),
   ragMaxHybridResults: parseInt(process.env.RAG_MAX_HYBRID_RESULTS || '40', 10),
+  ragJudgeBatchSize: parseInt(process.env.RAG_JUDGE_BATCH_SIZE || '8', 10),
+  ragJudgeConcurrency: parseInt(process.env.RAG_JUDGE_CONCURRENCY || '3', 10),
+  ragMaxJudgeCalls: parseInt(process.env.RAG_MAX_JUDGE_CALLS || '10', 10),
+  ragSectionsPerClause: parseInt(
+    process.env.RAG_SECTIONS_PER_CLAUSE || '4',
+    10,
+  ),
 
   // Resource limits
   memoryLimit: process.env.WORKER_AI_MEMORY_LIMIT || '2GB',
