@@ -35,6 +35,14 @@ export class RerankerService {
     );
   }
 
+  getModel(): string {
+    return this.model;
+  }
+
+  getTopN(): number {
+    return this.topN;
+  }
+
   /**
    * Re-rank retrieved chunks using Cohere's rerank model.
    * Falls back to the original ranking (truncated to topN) if the API call fails,

@@ -50,6 +50,7 @@ pnpm test:coverage
 | `pnpm test:integration:watch` | `jest --selectProjects integration --watch` | Integration tests in watch mode |
 | `pnpm test:benchmark` | `jest --selectProjects integration --testPathPattern=benchmark ...` | Projection pipeline latency benchmark (sync vs async) |
 | `pnpm test:coverage` | `jest --coverage` | All tests with V8 coverage report |
+| `pnpm eval:ai` | `EVAL_AI=1 jest --selectProjects eval --runInBand` | AI evaluation: the real analysis worker and providers over the labelled contracts in `data/eval/` (see `apps/worker-ai/docs/README.md` → Evaluation). Not part of any other run. `EVAL_PROVIDERS=fake` checks the harness without keys |
 
 ---
 
@@ -130,6 +131,7 @@ If app code returns 0 rows, throws `… has row-level security, so a query witho
 | --- | --- | --- | --- |
 | `*.spec.ts` | `apps/api/src/**/*.spec.ts` | `unit` | Unit tests, co-located with source code |
 | `*.integration.spec.ts` | `apps/api/test/**/*.integration.spec.ts` | `integration` | Integration tests, in the test directory |
+| `*.eval.ts` | `apps/api/test/eval/*.eval.ts` | `eval` (only with `EVAL_AI=1`) | The AI evaluation, on the integration infrastructure |
 
 The `unit` project explicitly excludes `*.integration.spec.ts` files to prevent overlap.
 
@@ -150,6 +152,7 @@ The `unit` project explicitly excludes `*.integration.spec.ts` files to prevent 
 
 ```
 apps/api/test/
+├── eval/                           # pnpm eval:ai: analysis.eval.ts (runner), fake-providers.ts
 ├── setup/                          # Test infrastructure (runs before/after tests)
 │   ├── global-setup.ts             # Starts Postgres + Redis testcontainers
 │   ├── global-teardown.ts          # Stops containers, removes temp config

@@ -1,0 +1,123 @@
+{
+  "id": "dmcc-employment",
+  "description": "DMCC free zone employment contract (Nexus Digital Solutions DMCC); federal labour law and DMCC rules both apply",
+  "contract": "dmcc-employment.md",
+  "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
+  "expected": [
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_02",
+      "severity": "high",
+      "why": "Probation of 12 months exceeds 6; termination without notice"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "clauseId": "dmcc_emp_04",
+      "severity": "high",
+      "why": "50 hours a week exceeds 40 (48 with a written flexible arrangement)"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_03",
+      "severity": "high",
+      "why": "50 hours a week exceeds 48"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_04",
+      "severity": "high",
+      "why": "Overtime unpaid"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "clauseId": "dmcc_emp_02",
+      "severity": "high",
+      "why": "Medical insurance only at the company's discretion; required from day one"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "clauseId": "dmcc_emp_03",
+      "severity": "high",
+      "why": "Visa costs deducted from salary; the employer bears them"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_05",
+      "severity": "high",
+      "why": "15 working days of annual leave; 30 calendar days required"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "clauseId": "dmcc_emp_05",
+      "severity": "high",
+      "why": "14 days notice; 30 days minimum"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "clauseId": "dmcc_emp_06",
+      "severity": "high",
+      "why": "Employee bears repatriation costs"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "clauseId": "dmcc_emp_08",
+      "severity": "high",
+      "why": "Gratuity of 14 days a year and none on resignation before 3 years"
+    }
+  ],
+  "acceptable": [
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_06",
+      "why": "Sick leave 15 days at discretion"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_07",
+      "why": "Gratuity below the federal rate"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_08",
+      "why": "14 days notice"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_10",
+      "why": "Visa costs deducted from salary"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_01",
+      "why": "English only"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "clauseId": "dmcc_emp_01",
+      "why": "Registration with the DMCC Authority not mentioned"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_09",
+      "why": "24-month UAE-wide non-compete: at the 2-year limit"
+    }
+  ],
+  "mustNotFlag": [
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "why": "DMCC employer: DIFC employment law does not apply"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "why": "An employment contract with no data-processing terms"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "why": "Not a commercial supply contract"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "why": "Company regulations govern the company, not this contract"
+    }
+  ]
+}

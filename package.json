@@ -60,6 +60,7 @@
     "test:unit": "jest --selectProjects unit worker-ingestion-unit worker-ai-unit",
     "test:integration": "jest --selectProjects integration",
     "test:integration:watch": "jest --selectProjects integration --watch",
+    "eval:ai": "EVAL_AI=1 jest --selectProjects eval --runInBand",
     "test:benchmark": "jest --selectProjects integration --testPathPattern=benchmark --runInBand --testTimeout=180000",
     "test:coverage": "jest --coverage"
   },

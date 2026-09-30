@@ -1,0 +1,123 @@
+{
+  "id": "tech-services-staffing",
+  "description": "Healthcare platform services and staff augmentation agreement (CloudBridge FZCO, Dubai Silicon Oasis) mixing patient data, provider employees and commercial terms",
+  "contract": "tech-services-staffing.md",
+  "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
+  "expected": [
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_04",
+      "severity": "high",
+      "why": "Patient data stored in any region"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_05",
+      "severity": "high",
+      "why": "No breach notification to client, patients or regulators"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_07",
+      "severity": "high",
+      "why": "Patient data retained indefinitely"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_03",
+      "severity": "high",
+      "why": "60 hours a week for augmented staff"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_04",
+      "severity": "high",
+      "why": "No overtime pay"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_05",
+      "severity": "high",
+      "why": "12 days of leave after the first year"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_07",
+      "severity": "high",
+      "why": "No end-of-service gratuity"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_02",
+      "severity": "high",
+      "why": "Liability capped at 10% of fees paid, excluding data loss; client indemnifies regulatory penalties"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_03",
+      "severity": "high",
+      "why": "Dispute resolution left \"to be agreed\""
+    }
+  ],
+  "acceptable": [
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_01",
+      "why": "Patient data used for marketing and research"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_02",
+      "why": "No consent for secondary use"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_06",
+      "why": "Sensitive health data at scale without a DPO"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_08",
+      "why": "7 days to end an assignment"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_01",
+      "why": "Non-refundable payments, 2.5% a month interest"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_06",
+      "why": "Client indemnifies patient claims"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_07",
+      "why": "Warranties disclaimed"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_08",
+      "why": "Provider owns all IP; client gets a non-exclusive licence"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_04",
+      "why": "\"Laws of the Emirate of Dubai\" only"
+    }
+  ],
+  "mustNotFlag": [
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "why": "Dubai Silicon Oasis employer: DIFC law does not apply"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "why": "Not a DMCC employer"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "why": "Not a DMCC company"
+    }
+  ]
+}

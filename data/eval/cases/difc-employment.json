@@ -1,0 +1,78 @@
+{
+  "id": "difc-employment",
+  "description": "DIFC employment contract (Meridian Capital Advisors). The demo coverage matrix also claimed UAE Labour Law breaches; federal labour law and the federal PDPL do not apply in the DIFC, so those are labelled must-not-flag here",
+  "contract": "difc-employment.md",
+  "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
+  "expected": [
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "clauseId": "difc_emp_02",
+      "severity": "high",
+      "why": "Probation of 9 months exceeds 6; 3 days notice below 7"
+    },
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "clauseId": "difc_emp_05",
+      "severity": "high",
+      "why": "50 hours a week exceeds 40; unpaid additional hours"
+    },
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "clauseId": "difc_emp_03",
+      "severity": "high",
+      "why": "End-of-service lump sum instead of DEWS contributions"
+    },
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "clauseId": "difc_emp_07",
+      "severity": "high",
+      "why": "15 working days of leave (20 required); forfeited at year end"
+    },
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "clauseId": "difc_emp_04",
+      "severity": "high",
+      "why": "14 days notice regardless of service; 30 or 90 required"
+    },
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "clauseId": "difc_emp_08",
+      "severity": "high",
+      "why": "Unrestricted worldwide transfer of employee data, no rights or safeguards"
+    }
+  ],
+  "acceptable": [
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "clauseId": "difc_emp_06",
+      "why": "Equal opportunity clause without a non-discrimination commitment"
+    },
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "clauseId": "difc_emp_01",
+      "why": "Written statement lacks sick leave provisions"
+    }
+  ],
+  "mustNotFlag": [
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "why": "DIFC employer: federal labour law does not apply in the DIFC"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "why": "DIFC employer: DMCC rules do not apply"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "why": "DIFC has its own data protection law; the federal PDPL does not apply"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "why": "Not a commercial supply contract"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "why": "Not a DMCC company"
+    }
+  ]
+}

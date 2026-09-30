@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 export interface RulesetChunkMatch {
   id: string;
   rulesetId: string;
+  rulesetVersionId: string;
   content: string;
   metadata: Record<string, unknown>;
   score: number;
@@ -66,6 +67,7 @@ export class RulesetChunkSearchRepository {
       const result = await client.query<{
         id: string;
         ruleset_id: string;
+        ruleset_version_id: string;
         content: string;
         metadata: Record<string, unknown>;
         rrf_score: number;
@@ -87,26 +89,26 @@ export class RulesetChunkSearchRepository {
           ) top_terms
         ),
         vector_results AS (
-          SELECT id, ruleset_id, content, metadata,
+          SELECT id, ruleset_id, ruleset_version_id, content, metadata,
                  ROW_NUMBER() OVER (ORDER BY distance) AS vrank
           FROM (
-            SELECT rc.id, rc.ruleset_id, rc.content, rc.metadata,
+            SELECT rc.id, rc.ruleset_id, rc.ruleset_version_id, rc.content, rc.metadata,
                    MIN(rc.embedding <=> q.vec::vector) AS distance
             FROM unnest($1::text[]) AS q(vec)
             CROSS JOIN LATERAL (
-              SELECT id, ruleset_id, content, metadata, embedding
+              SELECT id, ruleset_id, ruleset_version_id, content, metadata, embedding
               FROM public.ruleset_chunks
               WHERE ruleset_version_id = ANY($7::uuid[])
               ORDER BY embedding <=> q.vec::vector
               LIMIT $2
             ) rc
-            GROUP BY rc.id, rc.ruleset_id, rc.content, rc.metadata
+            GROUP BY rc.id, rc.ruleset_id, rc.ruleset_version_id, rc.content, rc.metadata
           ) deduped
           ORDER BY distance
           LIMIT $3
         ),
         bm25_results AS (
-          SELECT c.id, c.ruleset_id, c.content, c.metadata,
+          SELECT c.id, c.ruleset_id, c.ruleset_version_id, c.content, c.metadata,
                  ROW_NUMBER() OVER (ORDER BY ts_rank_cd(c.content_tsv, b.query) DESC) AS brank
           FROM public.ruleset_chunks c, bm25_query b
           WHERE c.content_tsv @@ b.query
@@ -118,6 +120,7 @@ export class RulesetChunkSearchRepository {
           SELECT
             COALESCE(v.id, b.id) AS id,
             COALESCE(v.ruleset_id, b.ruleset_id) AS ruleset_id,
+            COALESCE(v.ruleset_version_id, b.ruleset_version_id) AS ruleset_version_id,
             COALESCE(v.content, b.content) AS content,
             COALESCE(v.metadata, b.metadata) AS metadata,
             COALESCE(1.0 / (${RRF_K} + v.vrank), 0)
@@ -125,7 +128,7 @@ export class RulesetChunkSearchRepository {
           FROM vector_results v
           FULL OUTER JOIN bm25_results b ON v.id = b.id
         )
-        SELECT id, ruleset_id, content, metadata, rrf_score
+        SELECT id, ruleset_id, ruleset_version_id, content, metadata, rrf_score
         FROM combined
         ORDER BY rrf_score DESC
         LIMIT $6`,
@@ -143,6 +146,7 @@ export class RulesetChunkSearchRepository {
       return result.rows.map((row) => ({
         id: row.id,
         rulesetId: row.ruleset_id,
+        rulesetVersionId: row.ruleset_version_id,
         content: row.content,
         metadata:
           typeof row.metadata === 'string'

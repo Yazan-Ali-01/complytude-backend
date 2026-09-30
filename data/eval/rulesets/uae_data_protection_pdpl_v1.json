@@ -1,0 +1,100 @@
+{
+  "key": "uae_data_protection_pdpl_v1",
+  "name": "UAE Personal Data Protection Law (PDPL)",
+  "description": "Requirements under UAE Federal Decree-Law No. 45 of 2021 on the Protection of Personal Data. Covers lawful processing, consent, data subject rights, cross-border transfers, breach notification, and data protection officer requirements.",
+  "authority": {
+    "code": "DED",
+    "name": "Department of Economic Development"
+  },
+  "source": "scripts/seeds/009_seed_rulesets.sql, frozen for the evaluation (paraphrased demo text, not legal text)",
+  "clauses": [
+    {
+      "id": "pdpl_01",
+      "title": "Lawful Basis for Processing",
+      "content": "Personal data may only be processed when there is a lawful basis, including: (a) explicit consent of the data subject, (b) performance of a contract to which the data subject is a party, (c) compliance with a legal obligation, (d) protection of the vital interests of the data subject, (e) performance of a task in the public interest, or (f) legitimate interests of the controller provided they do not override the fundamental rights of the data subject. The controller must document and be able to demonstrate the lawful basis relied upon for each processing activity.",
+      "order": 1,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 4-5",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "pdpl_02",
+      "title": "Consent Requirements",
+      "content": "Where consent is the lawful basis for processing, it must be: (a) freely given without coercion or undue influence, (b) specific to the stated purpose, (c) informed – the data subject must be told the identity of the controller, the purpose of processing, the types of data collected, and the right to withdraw consent, and (d) unambiguous – demonstrated by a clear affirmative action. Consent for processing sensitive personal data must be explicit and in writing. The controller must maintain records of consent and provide a mechanism for easy withdrawal of consent.",
+      "order": 2,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 6",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "pdpl_03",
+      "title": "Data Subject Rights",
+      "content": "Data subjects have the following rights: (a) right of access to their personal data, (b) right to rectification of inaccurate data, (c) right to erasure (right to be forgotten) when data is no longer necessary, (d) right to restrict processing, (e) right to data portability in a structured, commonly used format, (f) right to object to processing based on legitimate interests or direct marketing, and (g) right not to be subject to automated decision-making including profiling that produces legal effects. The controller must respond to data subject requests within fourteen (14) days.",
+      "order": 3,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 14-19",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "pdpl_04",
+      "title": "Cross-Border Data Transfer",
+      "content": "Personal data may only be transferred outside the UAE if the receiving country or territory provides an adequate level of data protection as determined by the UAE Data Office, or if appropriate safeguards are in place such as: (a) binding corporate rules approved by the Data Office, (b) standard contractual clauses issued by the Data Office, (c) explicit consent of the data subject after being informed of the risks, or (d) the transfer is necessary for the performance of a contract. The controller must document all cross-border transfers and the safeguards applied.",
+      "order": 4,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 22",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "pdpl_05",
+      "title": "Data Breach Notification",
+      "content": "In the event of a personal data breach that is likely to result in a risk to the rights and freedoms of data subjects, the controller must: (a) notify the UAE Data Office within seventy-two (72) hours of becoming aware of the breach, (b) notify affected data subjects without undue delay if the breach is likely to result in a high risk to their rights and freedoms, and (c) document all breaches including the facts, effects, and remedial actions taken. The notification must include the nature of the breach, categories of data affected, approximate number of data subjects, likely consequences, and measures taken to mitigate.",
+      "order": 5,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 23",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "pdpl_06",
+      "title": "Data Protection Officer",
+      "content": "A Data Protection Officer (DPO) must be appointed by: (a) public authorities and bodies, (b) controllers whose core activities consist of processing operations that require regular and systematic monitoring of data subjects on a large scale, or (c) controllers whose core activities consist of processing sensitive personal data on a large scale. The DPO must have expert knowledge of data protection law and practices, must report directly to senior management, and must not be penalized for performing DPO duties.",
+      "order": 6,
+      "is_required": false,
+      "metadata": {
+        "article": "Art. 10",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "pdpl_07",
+      "title": "Data Retention Limits",
+      "content": "Personal data must not be retained for longer than necessary for the purpose for which it was collected. The controller must establish and document a data retention policy specifying retention periods for each category of personal data. When the retention period expires, the data must be securely deleted or anonymized. If retention is required by law, the controller must document the legal basis for extended retention. Data subjects must be informed of the applicable retention period or the criteria used to determine it.",
+      "order": 7,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 8",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "pdpl_08",
+      "title": "Privacy Notice",
+      "content": "The controller must provide data subjects with a clear and accessible privacy notice at the time of data collection. The notice must include: (a) identity and contact details of the controller, (b) contact details of the DPO if appointed, (c) purposes of processing and lawful basis, (d) categories of personal data collected, (e) recipients or categories of recipients, (f) details of cross-border transfers, (g) retention period, (h) data subject rights, and (i) right to lodge a complaint with the Data Office. The notice must be provided in Arabic and may also be provided in English.",
+      "order": 8,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 12",
+        "severity": "high"
+      }
+    }
+  ]
+}

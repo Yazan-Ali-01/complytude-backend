@@ -12,6 +12,7 @@ const ARABIC =
 const CLAUSE: RulesetChunkMatch = {
   id: 'chunk-1',
   rulesetId: 'ruleset-1',
+  rulesetVersionId: 'ruleset-1-v1',
   content: 'Every employment contract must be written in Arabic.',
   metadata: { authorityName: 'MOHRE', rulesetKey: 'uae_labour' },
   score: 1,

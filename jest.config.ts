@@ -84,6 +84,35 @@ const libsUnitProjectConfig = {
   testPathIgnorePatterns: ['/node_modules/', '\\.integration\\.spec\\.ts$'],
 };
 
+/**
+ * `pnpm eval:ai` (EVAL_AI=1): the AI evaluation on the integration infrastructure. It calls the
+ * real providers, so it is left out of every other run, `jest` with no project included.
+ */
+const evalProjectConfig = {
+  ...sharedProjectConfig,
+  displayName: 'eval',
+  rootDir: '<rootDir>/apps/api',
+  roots: ['<rootDir>', '<rootDir>/../../libs'],
+  moduleDirectories: ['node_modules', '<rootDir>', '<rootDir>/../../libs'],
+  moduleNameMapper: {
+    ...sharedProjectConfig.moduleNameMapper,
+    '^uuid$': '<rootDir>/test/mocks/uuid.mock.ts',
+  },
+  transform: {
+    '^.+\\.(t|j)s$': [
+      'ts-jest',
+      {
+        tsconfig: '<rootDir>/../../tsconfig.json',
+      },
+    ],
+  },
+  testMatch: ['<rootDir>/test/eval/**/*.eval.ts'],
+  globalSetup: '<rootDir>/test/setup/global-setup.ts',
+  globalTeardown: '<rootDir>/test/setup/global-teardown.ts',
+  setupFiles: ['<rootDir>/test/setup/jest.setup.ts'],
+  maxWorkers: 1,
+};
+
 const config = {
   watchman: false,
   projects: [
@@ -182,6 +211,7 @@ const config = {
       // Integration tests hit real DBs and include resetTestState; 30s is a realistic per-test budget
       slowTestThreshold: 30000,
     },
+    ...(process.env.EVAL_AI === '1' ? [evalProjectConfig] : []),
   ],
   coverageDirectory: 'coverage',
   // Paths relative to repo root (jest.config.ts location)

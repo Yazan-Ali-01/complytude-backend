@@ -458,6 +458,7 @@ No manual `docker-compose up` is needed — testcontainers manages container lif
 | --- | --- | --- |
 | `*.spec.ts` | `apps/api/src/**/*.spec.ts` | Unit tests, co-located with source |
 | `*.integration.spec.ts` | `apps/api/test/**/*.integration.spec.ts` | Integration tests, in test directory |
+| `*.eval.ts` | `apps/api/test/eval/*.eval.ts` | The AI evaluation (`pnpm eval:ai`), not part of the test runs |
 
 Jest uses two project configurations to separate them:
 
@@ -468,6 +469,7 @@ Jest uses two project configurations to separate them:
 
 ```
 apps/api/test/
+├── eval/                           # pnpm eval:ai: the AI evaluation runner and fake providers
 ├── setup/                          # Test infrastructure
 │   ├── global-setup.ts             # Starts Postgres + Redis testcontainers (runs once)
 │   ├── global-teardown.ts          # Stops containers, cleans temp files (runs once)

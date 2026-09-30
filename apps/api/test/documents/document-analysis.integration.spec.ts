@@ -14,7 +14,10 @@ import type {
 } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
 import { DocumentAnalysisService } from '../../../worker-ai/src/services/document-analysis.service';
 import type { LlmService } from '../../../worker-ai/src/services/llm.service';
-import { PromptBuilderService } from '../../../worker-ai/src/services/prompt-builder.service';
+import {
+  PROMPT_VERSION,
+  PromptBuilderService,
+} from '../../../worker-ai/src/services/prompt-builder.service';
 import type { RerankerService } from '../../../worker-ai/src/services/reranker.service';
 import {
   createTestSubscription,
@@ -65,10 +68,14 @@ describe('Document analysis: injection, grounding and honest status', () => {
     if (app) await app.cleanup();
   }, 30000);
 
+  /** Every faked clause comes from version 1 of its ruleset. */
+  const versionOf = (rulesetId: string): string => `${rulesetId}:v1`;
+
   function chunk(rulesetId: string, clause: string): RulesetChunkMatch {
     return {
       id: randomUUID(),
       rulesetId,
+      rulesetVersionId: versionOf(rulesetId),
       content: `${clause}: working time and wages must follow the law.`,
       metadata: {
         authorityName: 'UAE Labour Law',
@@ -128,6 +135,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
       } as unknown as RulesetChunkSearchRepository,
       new TextChunkerService(tokenCounter),
       {
+        getModel: () => 'text-embedding-3-small',
         generateEmbeddings: (texts: string[]) => {
           embeddedTexts.push(...texts);
           return Promise.resolve(texts.map(() => ({ embedding: [0] })));
@@ -136,6 +144,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
       new PromptBuilderService(tokenCounter, llm),
       llm,
       {
+        getModel: () => 'rerank-v3.5',
+        getTopN: () => 25,
         rerank: (query: string, chunks: RulesetChunkMatch[]) => {
           rerankQueries.push(query);
           return Promise.resolve({
@@ -312,6 +322,31 @@ describe('Document analysis: injection, grounding and honest status', () => {
     expect(await stored(data.analysisJobId)).toMatchObject({
       status: 'completed',
       result: { warnings: [], truncated: false, reranked: true },
+    });
+  });
+
+  it('stores what produced the result: prompt version, clauses, ruleset versions, retrieval', async () => {
+    const data = await job('The employee works 70 hours a week.', [ruleset]);
+    const other = randomUUID();
+    const clauses = [chunk(ruleset, 'Art. 17'), chunk(other, 'Art. 65')];
+    modelAnswer = { summary: 'Checked.', findings: [] };
+
+    await worker({ chunks: clauses }).analyze(data);
+
+    const { result } = await stored(data.analysisJobId);
+    expect(result?.provenance).toEqual({
+      promptVersion: PROMPT_VERSION,
+      embeddingModel: 'text-embedding-3-small',
+      rulesetVersionIds: [versionOf(ruleset), versionOf(other)],
+      suppliedChunkIds: clauses.map((c) => c.id),
+      retrieval: {
+        topKPerQuery: 5,
+        vectorLimit: 30,
+        bm25Limit: 30,
+        maxHybridResults: 40,
+        rerankModel: 'rerank-v3.5',
+        rerankTopN: 25,
+      },
     });
   });
 

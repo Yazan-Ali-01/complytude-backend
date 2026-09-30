@@ -1,0 +1,90 @@
+{
+  "id": "mainland-employment",
+  "description": "Dubai mainland employment contract (Gulf Trading LLC) with planted UAE Labour Law breaches",
+  "contract": "mainland-employment.md",
+  "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
+  "expected": [
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_02",
+      "severity": "high",
+      "why": "Probation of 9 months exceeds 6; termination in probation without the 14 days notice"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_03",
+      "severity": "high",
+      "why": "10 hours a day, 6 days a week (60 h) exceeds 8 h/day and 48 h/week"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_04",
+      "severity": "high",
+      "why": "Overtime pay waived"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_05",
+      "severity": "high",
+      "why": "20 days after the first year, none accruing in the first year (30 days required)"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_07",
+      "severity": "high",
+      "why": "No end-of-service gratuity regardless of service"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_08",
+      "severity": "high",
+      "why": "14 days notice is below the 30-day minimum"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_09",
+      "severity": "medium",
+      "why": "Non-compete of 3 years across MENA exceeds 2 years and a reasonable area"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_06",
+      "severity": "medium",
+      "why": "Sick leave only at the employer's discretion"
+    }
+  ],
+  "acceptable": [
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_01",
+      "why": "English only, though the contract must be in Arabic or bilingual"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "clauseId": "uae_lab_10",
+      "why": "Paid by bank transfer; WPS not mentioned"
+    }
+  ],
+  "mustNotFlag": [
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "why": "Dubai mainland employer: DIFC employment law does not apply"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "why": "Dubai mainland employer: DMCC rules do not apply"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "why": "An employment contract with no data-processing terms"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "why": "Not a commercial supply contract"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "why": "Company regulations govern the company, not this contract"
+    }
+  ]
+}

@@ -64,6 +64,10 @@ apps/worker-ai/src/
 │   ├── llm.service.ts               # OpenAI chat completions (structured output, json_schema)
 │   ├── prompt-builder.service.ts    # System prompt + context window management
 │   └── reranker.service.ts          # Cohere rerank integration (graceful fallback)
+├── eval/
+│   ├── eval-case.ts                 # Evaluation case and run types (data/eval/cases)
+│   ├── scorer.ts                    # Scores runs against the labels (pure, unit-tested)
+│   └── report.ts                    # Markdown report + HISTORY.md row
 ├── repositories/
 │   ├── document-read.repository.ts       # Read document content (job's tenant context)
 │   ├── analysis-job-write.repository.ts  # Claim, mark processing/completed/failed
@@ -162,8 +166,47 @@ interface AnalysisResult {
   truncated: boolean;      // Whether only part of the document fit
   ungroundedFindingsDropped: number;
   warnings: string[];      // See "Job status"
+  provenance: {            // What produced this result, to reproduce and compare runs
+    promptVersion: number;       // PROMPT_VERSION in prompt-builder.service.ts
+    embeddingModel: string;
+    rulesetVersionIds: string[]; // Versions of the rulesets whose clauses the model saw
+    suppliedChunkIds: string[];  // The chunks behind C1, C2, … in order
+    retrieval: { topKPerQuery: number; vectorLimit: number; bm25Limit: number;
+                 maxHybridResults: number; rerankModel: string; rerankTopN: number };
+  };
 }
 ```
+
+---
+
+## Evaluation
+
+`pnpm eval:ai` measures whether the analysis is **right**, which the unit and integration tests (fake model) can't. It runs this worker's real pipeline (retrieval, rerank, prompt, model, grounding) with the real providers over the labelled contracts in `data/eval/`, on a fresh migrated database (testcontainers, Docker required), and scores every finding against the labels.
+
+```bash
+pnpm eval:ai                                  # 3 runs per contract; needs OPENAI_API_KEY and COHERE_API_KEY
+EVAL_RUNS=5 EVAL_CASES=mainland-employment pnpm eval:ai
+EVAL_PROVIDERS=fake pnpm eval:ai              # no keys, no cost: checks the harness only
+```
+
+Keys and model settings come from the shell or `apps/worker-ai/.env`, and are checked with this worker's env rules (the OpenAI host allowlist included). The rulesets in `data/eval/rulesets/` are ingested with the real ingestion code, so their embeddings match the configured model. A real run costs roughly (contracts × runs) analyses, plus embedding about 80 clauses once.
+
+Each run writes `data/eval/results/<timestamp>-<commit>.md` and `.json` (per-run findings), and appends one row to `data/eval/HISTORY.md`. Fake runs write to a temp directory and never touch the history.
+
+| Score | Meaning |
+|---|---|
+| Recall | Expected findings reported / expected findings. A failed run reports nothing. |
+| Precision | (expected + acceptable) / (expected + acceptable + must-not-flag) findings: labelled findings only. |
+| Strict precision | The same over **all** findings: unlabelled findings count as wrong (a lower bound). |
+| Must-not-flag hits | Findings on a clause or ruleset the label says doesn't apply (e.g. federal labour law on a DIFC contract). |
+| Severity | Matched findings whose highest risk level equals the label. |
+| Mentions | Required mentions found in titles, descriptions or the summary (e.g. the injection attempt is reported). |
+| Citations / Evidence | n/a until findings carry a checkable citation and a quote from the contract. |
+| Agreement | Mean pairwise overlap (Jaccard) of the clauses flagged by repeated runs of the same contract. |
+
+The report also lists, per contract, the expected clauses missed, the must-not-flag hits, and the unlabelled findings (candidates for new labels).
+
+**Rule:** any change to the prompt, the model, the embedding model or retrieval records a run in `HISTORY.md` before and after, and bumps `PROMPT_VERSION` when the prompt or output schema changes. The eval isn't in CI (it costs money and isn't deterministic); `apps/worker-ai/src/eval/scorer.spec.ts` covers the scorer in CI. How the labels are written: `data/eval/README.md`.
 
 ---
 

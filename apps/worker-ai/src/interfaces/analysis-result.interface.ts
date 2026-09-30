@@ -28,6 +28,25 @@ export type AnalysisWarning =
   | 'ungrounded_findings_dropped'
   | 'no_findings';
 
+/** What produced a result, so runs can be reproduced and compared (evaluation, feedback). */
+export interface AnalysisProvenance {
+  /** PROMPT_VERSION in prompt-builder.service.ts. */
+  promptVersion: number;
+  embeddingModel: string;
+  /** Versions of the rulesets whose clauses the model was given. */
+  rulesetVersionIds: string[];
+  /** The ruleset chunks behind C1, C2, … in the prompt, in that order. */
+  suppliedChunkIds: string[];
+  retrieval: {
+    topKPerQuery: number;
+    vectorLimit: number;
+    bm25Limit: number;
+    maxHybridResults: number;
+    rerankModel: string;
+    rerankTopN: number;
+  };
+}
+
 export interface AnalysisResult {
   findings: AnalysisFinding[];
   summary: string;
@@ -46,4 +65,5 @@ export interface AnalysisResult {
   truncated: boolean;
   ungroundedFindingsDropped: number;
   warnings: AnalysisWarning[];
+  provenance: AnalysisProvenance;
 }

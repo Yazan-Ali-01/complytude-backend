@@ -47,7 +47,8 @@ export class AnalysisJobResponseDto {
   completedAt?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Full analysis result when status is completed',
+    description:
+      'Full analysis result when status is completed: findings, summary, warnings, and provenance (prompt version, embedding model, ruleset versions and chunks given to the model, retrieval settings)',
   })
   result?: Record<string, unknown> | null;
 

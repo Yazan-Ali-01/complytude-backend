@@ -1,0 +1,105 @@
+{
+  "id": "saas-data-processing",
+  "description": "Cloud CRM and analytics services agreement where the provider processes the client's customer data",
+  "contract": "saas-data-processing.md",
+  "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
+  "expected": [
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_04",
+      "severity": "high",
+      "why": "Customer data may be stored in any jurisdiction without safeguards"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_05",
+      "severity": "high",
+      "why": "No obligation to notify the client or the regulator of a breach"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_07",
+      "severity": "high",
+      "why": "Deletion only within 180 days, and a perpetual licence over derived data"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_02",
+      "severity": "high",
+      "why": "Liability capped at one month's fees, excluding loss of data whatever the cause"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_03",
+      "severity": "high",
+      "why": "No dispute resolution mechanism"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_04",
+      "severity": "high",
+      "why": "No governing law"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_07",
+      "severity": "medium",
+      "why": "All warranties disclaimed (\"as is\")"
+    }
+  ],
+  "acceptable": [
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_01",
+      "why": "Provider reuses client data for its own purposes"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_02",
+      "why": "Reuse without consent"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "clauseId": "pdpl_03",
+      "why": "Data export only for a fee"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_01",
+      "why": "36% a year late interest; 5-day payment term"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_05",
+      "why": "No force majeure clause"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_06",
+      "why": "One-sided indemnity"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_08",
+      "why": "Perpetual licence over data insights"
+    }
+  ],
+  "mustNotFlag": [
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "why": "Not an employment contract"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "why": "Not an employment contract"
+    },
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "why": "Not an employment contract"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "why": "Neither party is a DMCC company"
+    }
+  ]
+}

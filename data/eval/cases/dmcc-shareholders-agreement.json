@@ -1,0 +1,123 @@
+{
+  "id": "dmcc-shareholders-agreement",
+  "description": "Shareholders' agreement of a DMCC company with planted breaches of the DMCC Company Regulations 2024 and an unrelated office-policy section",
+  "contract": "dmcc-shareholders-agreement.md",
+  "labelledBy": "engineering, provisional: not legally reviewed (D-9)",
+  "expected": [
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_11",
+      "severity": "high",
+      "why": "§1.4 bearer share certificates"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_09",
+      "severity": "high",
+      "why": "§1.5 shares in any currency, including crypto tokens, without the Registrar"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_16",
+      "severity": "high",
+      "why": "§2.2 directors from 16 (18 required), 5-year dishonesty bar (10); §2.6 alternates exempt from the criteria"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_17",
+      "severity": "high",
+      "why": "§2.5 loans and financial assistance to directors"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_18",
+      "severity": "high",
+      "why": "§3.1 no company secretary"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_21",
+      "severity": "high",
+      "why": "§4.1 first AGM within 36 months, then every 18 (18 and 12 required); §4.2 8 business days notice (10)"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_22",
+      "severity": "high",
+      "why": "§5.1 US GAAP instead of IFRS; §5.2 24-month first financial year (max 18); §5.4 3-year record retention (5)"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_14",
+      "severity": "high",
+      "why": "§7.2 transfer effective without the transferee's signature"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_10",
+      "severity": "high",
+      "why": "§8.1 capital reduction without notice, publication or solvency certificate"
+    }
+  ],
+  "acceptable": [
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_15",
+      "why": "§6.3 dividends in cryptocurrency"
+    },
+    {
+      "rulesetKey": "dmcc_employment_regulations_v1",
+      "clauseId": "dmcc_emp_04",
+      "why": "§10.1 employees online on Fridays, the standard weekend"
+    }
+  ],
+  "mustNotFlag": [
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_01",
+      "why": "§1.1 matches the regulation"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_04",
+      "why": "§9 commits to licensing"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_27",
+      "why": "§11.1 matches the solvency declaration timing"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_29",
+      "why": "§11.2 copies the priority order"
+    },
+    {
+      "rulesetKey": "dmcc_company_regulations_2024",
+      "clauseId": "dmcc_comp_34",
+      "why": "§12 matches the disclosure obligation"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_03",
+      "why": "§13.2 names DMCC arbitration"
+    },
+    {
+      "rulesetKey": "uae_commercial_transactions_v1",
+      "clauseId": "comm_04",
+      "why": "§13.1 names the governing law"
+    },
+    {
+      "rulesetKey": "uae_labour_law_employment_v1",
+      "why": "Not an employment contract"
+    },
+    {
+      "rulesetKey": "difc_employment_law_v1",
+      "why": "Not an employment contract; not a DIFC company"
+    },
+    {
+      "rulesetKey": "uae_data_protection_pdpl_v1",
+      "why": "No data-processing terms"
+    }
+  ]
+}

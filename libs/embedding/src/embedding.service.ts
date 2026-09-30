@@ -34,6 +34,10 @@ export class EmbeddingService {
     this.dimensions = config.dimensions ?? DEFAULT_DIMENSIONS;
   }
 
+  getModel(): string {
+    return this.model;
+  }
+
   async generateEmbedding(text: string): Promise<EmbeddingResult> {
     const tokenCount = this.tokenCounter.countTokens(text);
 

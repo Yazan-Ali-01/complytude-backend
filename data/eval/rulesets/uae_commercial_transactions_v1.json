@@ -1,0 +1,100 @@
+{
+  "key": "uae_commercial_transactions_v1",
+  "name": "UAE Commercial Transactions Law",
+  "description": "Key requirements for commercial contracts under UAE Federal Law No. 18 of 1993 (Commercial Transactions Law) and related commercial code provisions. Covers payment terms, limitation of liability, dispute resolution, warranties, and intellectual property.",
+  "authority": {
+    "code": "DED",
+    "name": "Department of Economic Development"
+  },
+  "source": "scripts/seeds/009_seed_rulesets.sql, frozen for the evaluation (paraphrased demo text, not legal text)",
+  "clauses": [
+    {
+      "id": "comm_01",
+      "title": "Payment Terms",
+      "content": "Commercial contracts must specify clear payment terms including: (a) the total contract value or method of calculation, (b) currency of payment (AED is standard for UAE-domiciled contracts), (c) payment schedule and due dates, (d) acceptable methods of payment, and (e) late payment penalties. Under UAE Commercial Transactions Law, late payment interest may be charged at the rate agreed upon, provided it does not exceed twelve percent (12%) per annum. If no rate is specified, the court may apply the prevailing commercial interest rate.",
+      "order": 1,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 76-88",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "comm_02",
+      "title": "Limitation of Liability",
+      "content": "Limitation of liability clauses must be reasonable and clearly stated. A party may not exclude liability for: (a) death or personal injury caused by negligence, (b) fraud or willful misconduct, or (c) obligations that cannot be excluded by law. The limitation cap should bear a reasonable relationship to the contract value. One-sided exclusion of all liability is generally unenforceable under UAE law. Consequential damages may be limited but the limitation must be expressly stated and brought to the attention of the other party before contract execution.",
+      "order": 2,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 292-293 Civil Code",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "comm_03",
+      "title": "Dispute Resolution",
+      "content": "Every commercial contract must include a dispute resolution mechanism. Options include: (a) negotiation or mediation as a first step, (b) arbitration under specified rules (DIAC, DIFC-LCIA, ICC, or ad hoc), or (c) litigation before the competent UAE courts. The clause must specify the seat of arbitration, language of proceedings, and number of arbitrators. If no dispute resolution clause is included, the UAE courts have default jurisdiction. Arbitration clauses must be in writing and clearly express the parties intent to arbitrate.",
+      "order": 3,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 203-218",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "comm_04",
+      "title": "Governing Law",
+      "content": "Commercial contracts must specify the governing law. For contracts between UAE entities, UAE law typically governs. For international contracts, the parties may choose a foreign governing law, but UAE mandatory provisions (consumer protection, labour law, real estate law) cannot be overridden by choice of law. The governing law clause should be clear, unambiguous, and specify which jurisdiction law applies to interpretation and enforcement.",
+      "order": 4,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 19 Civil Code",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "comm_05",
+      "title": "Force Majeure",
+      "content": "Commercial contracts should include a force majeure clause defining events beyond the reasonable control of the parties. Under UAE Civil Code (Art. 273), if a contractual obligation becomes impossible due to a cause beyond the debtor control, the obligation is extinguished. The force majeure clause should specify: (a) qualifying events (natural disasters, war, epidemics, government actions), (b) notification requirements, (c) mitigation obligations, (d) consequences (suspension or termination), and (e) the time period after which either party may terminate.",
+      "order": 5,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 273 Civil Code",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "comm_06",
+      "title": "Indemnification",
+      "content": "Indemnification clauses must clearly define: (a) the indemnifying party, (b) the scope of indemnification (third-party claims, losses, damages), (c) exclusions from indemnification, (d) the process for claiming indemnification (notice requirements, cooperation obligations), and (e) any caps on indemnification. Under UAE law, indemnification provisions are generally enforceable but may be reduced by the court if found to be excessive or unconscionable (Art. 390 Civil Code).",
+      "order": 6,
+      "is_required": false,
+      "metadata": {
+        "article": "Art. 390 Civil Code",
+        "severity": "medium"
+      }
+    },
+    {
+      "id": "comm_07",
+      "title": "Warranties and Representations",
+      "content": "Commercial contracts should contain warranties and representations covering: (a) authority and capacity to enter into the contract, (b) compliance with applicable laws, (c) non-infringement of third-party rights, (d) accuracy of information provided, and (e) fitness for purpose of goods or services. Warranties should specify whether they are conditions or warranties (affecting remedy), their duration, and the remedies for breach (repair, replacement, refund, or damages).",
+      "order": 7,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 544-568",
+        "severity": "medium"
+      }
+    },
+    {
+      "id": "comm_08",
+      "title": "Intellectual Property Rights",
+      "content": "Contracts involving creation or transfer of intellectual property must address: (a) ownership of pre-existing IP, (b) ownership of newly created IP (work product), (c) licensing terms and scope, (d) moral rights where applicable, and (e) IP infringement indemnification. Under UAE Federal Law No. 38 of 2021 on Copyrights and Neighbouring Rights, the creator retains moral rights even if economic rights are transferred. IP assignment must be in writing and clearly specify the rights transferred.",
+      "order": 8,
+      "is_required": true,
+      "metadata": {
+        "article": "Fed. Law 38/2021",
+        "severity": "high"
+      }
+    }
+  ]
+}

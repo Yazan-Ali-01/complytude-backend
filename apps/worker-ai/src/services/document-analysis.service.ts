@@ -19,7 +19,7 @@ import {
   RulesetChunkSearchRepository,
 } from '../repositories/ruleset-chunk-search.repository';
 import { LlmService } from './llm.service';
-import { PromptBuilderService } from './prompt-builder.service';
+import { PROMPT_VERSION, PromptBuilderService } from './prompt-builder.service';
 import { RerankerService } from './reranker.service';
 
 /** The model's output; clauseId can only be one of the IDs we supplied (C1, C2, …). */
@@ -393,6 +393,22 @@ export class DocumentAnalysisService {
       truncated: wasDocumentTruncated,
       ungroundedFindingsDropped,
       warnings,
+      provenance: {
+        promptVersion: PROMPT_VERSION,
+        embeddingModel: this.embeddingService.getModel(),
+        rulesetVersionIds: [
+          ...new Set(rerankedChunks.map((c) => c.rulesetVersionId)),
+        ],
+        suppliedChunkIds: [...clauses.values()].map((c) => c.id),
+        retrieval: {
+          topKPerQuery: this.topKPerQuery,
+          vectorLimit: this.vectorLimit,
+          bm25Limit: this.bm25Limit,
+          maxHybridResults: this.maxHybridResults,
+          rerankModel: this.rerankerService.getModel(),
+          rerankTopN: this.rerankerService.getTopN(),
+        },
+      },
     };
     const status =
       warnings.length > 0 ? 'completed_with_warnings' : 'completed';

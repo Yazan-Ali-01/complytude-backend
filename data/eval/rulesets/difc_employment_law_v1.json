@@ -1,0 +1,100 @@
+{
+  "key": "difc_employment_law_v1",
+  "name": "DIFC Employment Law No. 2 of 2019",
+  "description": "Employment law applicable within the DIFC free zone. Distinct from UAE mainland labour law – covers DIFC-specific requirements for employment contracts, gratuity (DEWS), probation, notice, discrimination, and data protection in employment.",
+  "authority": {
+    "code": "DIFC",
+    "name": "Dubai International Financial Centre"
+  },
+  "source": "scripts/seeds/009_seed_rulesets.sql, frozen for the evaluation (paraphrased demo text, not legal text)",
+  "clauses": [
+    {
+      "id": "difc_emp_01",
+      "title": "DIFC Written Employment Contract",
+      "content": "Every DIFC employer must provide a written statement of employment within thirty (30) days of commencement. The statement must include: (a) names of the employer and employee, (b) date of commencement, (c) job title and description, (d) remuneration and method of calculation, (e) hours of work, (f) holiday entitlement, (g) sick leave provisions, (h) notice period, and (i) reference to any applicable policies. The contract is governed by DIFC law (common law principles), not UAE mainland labour law.",
+      "order": 1,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 14-15",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "difc_emp_02",
+      "title": "DIFC Probation Period",
+      "content": "The probation period in DIFC shall not exceed six (6) months. During probation, either party may terminate the employment by giving at least seven (7) days written notice or payment in lieu. An employer may extend probation once for a further period not exceeding six (6) months with written agreement. After successful completion, the probation period counts towards continuous service.",
+      "order": 2,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 17",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "difc_emp_03",
+      "title": "DIFC End-of-Service Gratuity / DEWS",
+      "content": "DIFC employers must enroll all eligible employees in the DIFC Employee Workplace Savings Scheme (DEWS) or an approved Qualifying Scheme. Contribution rates: (a) employees with less than five (5) years of service – 5.83% of basic salary per month (equivalent to 21 days per year), (b) employees with five (5) or more years of service – 8.33% of basic salary per month (equivalent to 30 days per year). Contributions must be made monthly. This replaces the traditional gratuity liability model. Employers who fail to enroll employees face penalties from the DIFC Authority.",
+      "order": 3,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 19 + DEWS Regulations",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "difc_emp_04",
+      "title": "DIFC Notice Period for Termination",
+      "content": "Employment may be terminated by either party with written notice. Minimum notice periods: (a) not less than seven (7) days during probation, (b) not less than thirty (30) days for employees with less than five (5) years of service, and (c) not less than ninety (90) days for employees with five (5) or more years of service. Payment in lieu of notice is permitted. The notice must be in writing and the employee must be given reasons for termination.",
+      "order": 4,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 59-62",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "difc_emp_05",
+      "title": "DIFC Working Hours",
+      "content": "Normal working hours for DIFC employees shall not exceed eight (8) hours per day or forty (40) hours per week, exclusive of breaks. An employee is entitled to at least one (1) rest day per week (typically Friday or Saturday). During the Holy Month of Ramadan, working hours are reduced by two (2) hours per day for Muslim employees. Overtime work requires the employee written consent unless there is a contractual obligation.",
+      "order": 5,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 22",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "difc_emp_06",
+      "title": "Anti-Discrimination and Equal Treatment",
+      "content": "DIFC employers must not discriminate against employees or applicants on the grounds of: (a) sex, gender, or gender identity, (b) marital status, (c) race, nationality, or ethnic origin, (d) religion or belief, (e) disability, (f) age, or (g) pregnancy or maternity. This applies to recruitment, terms of employment, promotion, training, and termination. Employers must have a written equal opportunity and anti-discrimination policy accessible to all employees. Harassment including sexual harassment is prohibited and must be addressed through a formal complaints procedure.",
+      "order": 6,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 58",
+        "severity": "critical"
+      }
+    },
+    {
+      "id": "difc_emp_07",
+      "title": "DIFC Annual Leave",
+      "content": "DIFC employees are entitled to a minimum of twenty (20) working days of paid annual leave per year after completing ninety (90) days of service. Leave accrues proportionally from the commencement date. The employer may require the employee to take leave at specified times with at least fourteen (14) days notice. Unused leave may be carried forward subject to employer policy, but must be used within twelve (12) months.",
+      "order": 7,
+      "is_required": true,
+      "metadata": {
+        "article": "Art. 28",
+        "severity": "high"
+      }
+    },
+    {
+      "id": "difc_emp_08",
+      "title": "Employee Data Protection in DIFC",
+      "content": "DIFC employers must comply with DIFC Data Protection Law No. 5 of 2020 in respect of employee personal data. The employer must: (a) have a lawful basis for processing employee data, (b) provide a privacy notice to employees, (c) limit data collection to what is necessary, (d) maintain appropriate security measures, (e) not transfer data outside DIFC without adequate safeguards, and (f) appoint a Data Protection Officer if processing on a large scale. Employee monitoring (email, CCTV, internet) requires prior notice and must be proportionate.",
+      "order": 8,
+      "is_required": true,
+      "metadata": {
+        "article": "DIFC DP Law No. 5/2020",
+        "severity": "high"
+      }
+    }
+  ]
+}

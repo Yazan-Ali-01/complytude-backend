@@ -14,6 +14,12 @@ export interface BuiltPrompt {
 
 const SYSTEM_PROMPT_ESTIMATE_TOKENS = 600;
 
+/**
+ * Stored with every result. Bump it on any change to the instructions, the message layout or the
+ * output schema, and record an evaluation run (`pnpm eval:ai`) for the new version.
+ */
+export const PROMPT_VERSION = 1;
+
 /** Anything in the document that looks like one of our delimiters. */
 const DELIMITER_LOOKALIKE = /<<<\s*(END[-_ ]?)?DOCUMENT\b[^>]*>>>/gi;
 
