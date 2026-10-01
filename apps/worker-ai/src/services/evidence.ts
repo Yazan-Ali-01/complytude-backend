@@ -8,8 +8,18 @@
 export const MIN_QUOTE_CHARS = 8;
 export const MAX_QUOTE_CHARS = 600;
 
+/**
+ * What a model puts around a quote it shortens: its own closing full stop or comma, an ellipsis
+ * marking the cut, quotation marks (on normalised text: `…` is `...`, quotes and dashes are plain).
+ */
+const LEADING_EDGE = /^[\s"'.-]+/;
+const TRAILING_QUOTES = /[\s"']+$/;
+const TRAILING_EDGE = /[\s"'.,;:!?\u060C\u061B\u061F-]+$/;
+
 /** Arabic harakat, superscript alef, tatweel, and zero-width characters. */
 const IGNORED = /[\u064B-\u065F\u0670\u0640\u200B-\u200D\uFEFF]/;
+/** Marks that belong to the letter before them: a match takes those after its last letter too. */
+const COMBINING = /[\u064B-\u065F\u0670]/;
 const DASH = /[\u2010-\u2015\u2212]/;
 const QUOTES: Record<string, string> = {
   '\u2018': "'",
@@ -71,14 +81,24 @@ export function createQuoteLocator(
   const haystack = normalizeWithMap(original);
   return (quote) => {
     const needle = normalizeWithMap(quote).text;
-    if (needle.length < MIN_QUOTE_CHARS || needle.length > MAX_QUOTE_CHARS) {
-      return null;
+    if (needle.length > MAX_QUOTE_CHARS) return null;
+    // As given, then without what the model added at the edges (quotation marks and an ellipsis,
+    // then its own closing punctuation): the words stay verbatim, the longest match wins
+    const unquoted = needle
+      .replace(LEADING_EDGE, '')
+      .replace(TRAILING_QUOTES, '');
+    const trimmed = unquoted.replace(TRAILING_EDGE, '');
+    for (const candidate of [needle, unquoted, trimmed]) {
+      if (candidate.length < MIN_QUOTE_CHARS) continue;
+      const at = haystack.text.indexOf(candidate);
+      if (at < 0) continue;
+      const start = haystack.map[at];
+      const last = haystack.map[at + candidate.length - 1];
+      const lastCodePoint = original.codePointAt(last) ?? 0;
+      let end = last + (lastCodePoint > 0xffff ? 2 : 1);
+      while (end < original.length && COMBINING.test(original[end])) end++;
+      return { start, end };
     }
-    const at = haystack.text.indexOf(needle);
-    if (at < 0) return null;
-    const start = haystack.map[at];
-    const last = haystack.map[at + needle.length - 1];
-    const lastCodePoint = original.codePointAt(last) ?? 0;
-    return { start, end: last + (lastCodePoint > 0xffff ? 2 : 1) };
+    return null;
   };
 }

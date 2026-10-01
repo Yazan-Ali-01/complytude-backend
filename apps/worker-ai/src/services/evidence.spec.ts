@@ -58,6 +58,26 @@ describe('evidence quotes', () => {
     expect(locate(CONTRACT.repeat(2).slice(0, MAX_QUOTE_CHARS + 1))).toBeNull();
   });
 
+  it('accepts a shortened sentence the model closed with its own full stop', () => {
+    // The contract goes on ("…per day, six (6) days per week."): the words are still verbatim
+    expect(quoted('The Employee shall work ten (10) hours per day.')).toBe(
+      'The Employee shall work ten (10) hours per day',
+    );
+    expect(quoted('…six (6) days per week')).toBe('six (6) days per week');
+    expect(quoted('"six (6) days per week."')).toBe('six (6) days per week.');
+    expect(quoted('يلتزم صاحب العمل بدفع الأجر،')).toBe(
+      'يلتزم صاحبُ العملِ بدفعِ الأجرِ',
+    );
+  });
+
+  it('still refuses changed words, and what is left too short to mean anything', () => {
+    expect(
+      locate('The Employee shall work eight (8) hours per day.'),
+    ).toBeNull();
+    expect(locate('"hours."')).toBeNull();
+    expect(locate('… per …')).toBeNull();
+  });
+
   it('maps every normalised character back to the original text', () => {
     const { text, map } = normalizeWithMap('  A\u00A0 B\nc  ');
     expect(text).toBe('a b c');
