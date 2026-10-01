@@ -13,10 +13,13 @@
     "ROLE_NOT_FOUND": "Role not found in this tenant",
     "ONLY_ADMIN_CAN_GRANT_ADMIN": "Only a tenant admin can change a tenant admin's role or access, or grant the tenant admin role",
     "LAST_ACTIVE_ADMIN": "The tenant must keep at least one active tenant admin",
-    "SEAT_LIMIT_REACHED": "The workspace has no free seat: upgrade the plan or deactivate someone before reactivating this member."
+    "SEAT_LIMIT_REACHED": "The workspace has no free seat: upgrade the plan or deactivate someone before reactivating this member.",
+    "SOLE_ADMIN_OF_ORGANIZATIONS": "You are the only admin of {organizations}. Make another member an admin before deleting your account.",
+    "PLATFORM_ACCOUNT_NOT_DELETABLE": "A platform staff account can't be deleted here. Ask a system admin to remove your platform role first."
   },
   "messages": {
     "PASSWORD_CHANGED": "Password changed. You were signed out on every other device.",
-    "MEMBER_REMOVED": "Member removed from the tenant"
+    "MEMBER_REMOVED": "Member removed from the tenant",
+    "ACCOUNT_DELETED": "Your account is deleted and you are signed out. Your name and email will be erased after {days} days."
   }
 }

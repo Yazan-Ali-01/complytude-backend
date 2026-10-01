@@ -587,6 +587,41 @@ export class UserTenantRepository extends BaseRepository<
     return result.rows.length;
   }
 
+  /** Organizations where the user is an active admin. */
+  async findTenantsAdministeredBy(
+    userId: string,
+    options?: QueryOptions,
+  ): Promise<Array<{ tenantId: string; tenantName: string }>> {
+    const result = await this.executeQuery<{
+      tenant_id: string;
+      tenant_name: string;
+    }>(
+      `SELECT ut.tenant_id, t.name AS tenant_name
+       FROM ${this.tableName} ut
+       JOIN public.tenants t ON t.id = ut.tenant_id
+       WHERE ut.user_id = $1 AND ut.role_key = $2 AND ut.is_active = true
+       ORDER BY t.name`,
+      [userId, SystemTenantRole.TENANT_ADMIN],
+      options,
+    );
+    return result.rows.map((row) => ({
+      tenantId: row.tenant_id,
+      tenantName: row.tenant_name,
+    }));
+  }
+
+  /** Removes every membership of the user (their account is being deleted). */
+  async deleteAllForUser(
+    userId: string,
+    options?: QueryOptions,
+  ): Promise<void> {
+    await this.executeQuery(
+      `DELETE FROM ${this.tableName} WHERE user_id = $1`,
+      [userId],
+      options,
+    );
+  }
+
   /** Whether a role key can be assigned in the tenant: a system role or one of its own roles. */
   async roleExistsForTenant(
     tenantId: string,

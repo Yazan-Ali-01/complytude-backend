@@ -317,6 +317,9 @@ User accounts that can access multiple tenants.
 | `google_id`         | VARCHAR(255) | Google OAuth subject (`sub`); NULL if not linked                                           |
 | `microsoft_id`      | VARCHAR(255) | Microsoft OAuth subject (`id`); NULL if not linked                                         |
 | `auth_provider`     | VARCHAR(20)  | Primary signup method: `email`, `google`, or `microsoft`                                   |
+| `deleted_at`        | TIMESTAMPTZ  | When the user deleted their account (NULL = active); `email` then holds a tombstone (`deleted-<id>@deleted.invalid`) |
+| `deleted_email`     | VARCHAR(255) | The deleted account's email, kept until anonymization                                      |
+| `anonymized_at`     | TIMESTAMPTZ  | When its names and `deleted_email` were erased, 30 days after deletion (migration 047)    |
 | `created_at`        | TIMESTAMPTZ  | Creation timestamp                                                                         |
 | `updated_at`        | TIMESTAMPTZ  | Last update timestamp                                                                      |
 
@@ -995,13 +998,18 @@ pnpm db:migrate
   `generation_jobs.variables`; `erased_at` is set and the file is deleted from S3. The row stays as
   the record of who deleted what and when. Uploads never confirmed are erased at once (nothing to
   restore).
+- **Deleting an account** (`DELETE /users/me`, D-7) closes it at once: the login email becomes a
+  tombstone (the address is kept in `deleted_email`), the password hash and SSO ids are cleared,
+  memberships, verification and reset tokens are removed and every session ends. 30 days later the
+  sweep anonymizes it (names and `deleted_email` erased, `anonymized_at` set). The row and its id
+  stay, so documents and audit rows keep an anonymous id.
 - **Daily retention sweep** (`data-retention-sweep` job, 03:15 UTC): deletes email-verification and
   password-reset tokens expired over 7 days (`cleanup_expired_tokens()`), marks expired invitations
-  (`mark_expired_invitations()`), removes uploads never confirmed within 2 days, and erases
-  documents deleted 30 or more days ago (above).
+  (`mark_expired_invitations()`), removes uploads never confirmed within 2 days, erases documents
+  deleted 30 or more days ago, and anonymizes accounts deleted 30 or more days ago (above).
 - **S3:** quarantine objects expire after 2 days, `previews/` after 1 day, previous versions after 30.
-- **Decided, not built yet (D-7):** tenant closure (export, then erasure 30 days after), anonymizing
-  removed users and deleted accounts after 30 days, the audit log's 2-year retention with IP address
+- **Decided, not built yet (D-7):** tenant closure (export, then erasure 30 days after), what
+  happens to a user removed from an organization, the audit log's 2-year retention with IP address
   and user agent blanked after 90 days, Stripe event payloads kept 1 year.
 
 ### Migration Tracking

@@ -148,8 +148,15 @@ Table users {
   google_id varchar(255) [null, note: 'Google OAuth sub; unique when set']
   microsoft_id varchar(255) [null, note: 'Microsoft OAuth id; unique when set']
   auth_provider varchar(20) [not null, default: 'email', note: 'email | google | microsoft']
+  deleted_at timestamptz [null, note: 'When the user deleted the account; email then holds a tombstone']
+  deleted_email varchar(255) [null, note: 'Deleted account email, kept until anonymization']
+  anonymized_at timestamptz [null, note: 'Names and deleted_email erased (30 days after deletion)']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    deleted_at [where: 'deleted_at IS NOT NULL AND anonymized_at IS NULL', note: 'Accounts awaiting anonymization']
+  }
 
   Note: '''
     User accounts that can access multiple tenants.

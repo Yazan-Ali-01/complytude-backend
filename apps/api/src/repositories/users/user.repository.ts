@@ -242,6 +242,34 @@ export class UserRepository extends BaseRepository<
   }
 
   /**
+   * Closes a deleted account: the login email becomes a tombstone (the address is kept in
+   * deleted_email until anonymization), the password hash and SSO ids are cleared and pending
+   * verification and reset tokens deleted, so no sign-in path reaches it and the address is free
+   * to sign up again. False when there was no such open account.
+   */
+  async closeAccount(userId: string, options?: QueryOptions): Promise<boolean> {
+    const result = await this.executeQuery<{ id: string }>(
+      `WITH closed AS (
+         UPDATE ${this.tableName}
+         SET deleted_at = now(), deleted_email = email,
+             email = 'deleted-' || id || '@deleted.invalid',
+             password_hash = NULL, google_id = NULL, microsoft_id = NULL,
+             is_verified = false, updated_at = now()
+         WHERE id = $1 AND deleted_at IS NULL
+         RETURNING id
+       ), verifications AS (
+         DELETE FROM public.email_verifications WHERE user_id IN (SELECT id FROM closed)
+       ), resets AS (
+         DELETE FROM public.password_resets WHERE user_id IN (SELECT id FROM closed)
+       )
+       SELECT id FROM closed`,
+      [userId],
+      options,
+    );
+    return result.rows.length === 1;
+  }
+
+  /**
    * Create a password reset record.
    *
    * @param input - Password reset data

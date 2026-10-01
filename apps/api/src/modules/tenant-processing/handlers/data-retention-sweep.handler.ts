@@ -1,6 +1,9 @@
 import type { Job, TenantDataRetentionSweepJobData } from '@lib/queue';
 import { Injectable, Logger } from '@nestjs/common';
-import { DOCUMENT_TRASH_DAYS } from 'src/common/constants/retention.constant';
+import {
+  ACCOUNT_ANONYMIZATION_DAYS,
+  DOCUMENT_TRASH_DAYS,
+} from 'src/common/constants/retention.constant';
 import { RetentionRepository } from '../../../repositories/maintenance/retention.repository';
 import { StorageService } from '../../storage/storage.service';
 
@@ -9,8 +12,8 @@ export const ABANDONED_UPLOAD_DAYS = 2;
 
 /**
  * Daily housekeeping: expired auth tokens are deleted, expired invitations marked, abandoned
- * uploads removed, and documents in the trash for 30 days erased with their files, so none of them
- * is kept indefinitely.
+ * uploads removed, documents in the trash for 30 days erased with their files, and accounts
+ * deleted 30 days ago anonymized, so none of them is kept indefinitely.
  */
 @Injectable()
 export class DataRetentionSweepHandler {
@@ -46,8 +49,11 @@ export class DataRetentionSweepHandler {
         );
       }
     }
+    const accounts = await this.retention.anonymizeDeletedAccounts(
+      ACCOUNT_ANONYMIZATION_DAYS,
+    );
     this.logger.log(
-      `Retention sweep: ${invitations} invitations expired, ${uploads.length} abandoned uploads removed, ${erased.length} trashed documents erased (${filesRemoved} files removed)`,
+      `Retention sweep: ${invitations} invitations expired, ${uploads.length} abandoned uploads removed, ${erased.length} trashed documents erased (${filesRemoved} files removed), ${accounts} deleted accounts anonymized`,
     );
   }
 }

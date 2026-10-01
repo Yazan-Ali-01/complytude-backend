@@ -71,6 +71,28 @@ export class RetentionRepository {
   }
 
   /**
+   * Accounts their users deleted more than `days` ago are anonymized: names and the kept email are
+   * erased (the login email is already a tombstone). The row and id stay, so past actions remain
+   * attributed to an anonymous id. Returns how many.
+   */
+  async anonymizeDeletedAccounts(days: number): Promise<number> {
+    return this.databaseService.transactionWithPlatformAdminContext(
+      async (client) =>
+        (
+          await client.query(
+            `UPDATE public.users
+             SET first_name = NULL, last_name = NULL, deleted_email = NULL,
+                 anonymized_at = now(), updated_at = now()
+             WHERE deleted_at IS NOT NULL
+               AND anonymized_at IS NULL
+               AND deleted_at <= now() - make_interval(days => $1)`,
+            [days],
+          )
+        ).rowCount ?? 0,
+    );
+  }
+
+  /**
    * Uploads whose file was never confirmed within `days`: deleted and erased at once, with nothing
    * to restore (their quarantine objects expire by the S3 lifecycle rule). Returns their ids.
    */

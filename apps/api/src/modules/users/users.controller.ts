@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Res } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { FastifyReply } from 'fastify';
 import { I18nService } from 'nestjs-i18n';
 import { MessageResponseDto } from 'src/common/dto/message-response.dto';
 import {
@@ -11,6 +12,7 @@ import {
   SwaggerCookieAuth,
 } from 'src/common/swagger';
 import { Audit } from '../../common/decorators/audit.decorator';
+import { AuthService } from '../auth/auth.service';
 import { AuthOptions } from '../auth/decorators/auth-options.decorator';
 import {
   CurrentUserIdentity,
@@ -22,6 +24,7 @@ import type {
 } from '../auth/strategies';
 import { UsersI18n } from './constants/i18n.constants';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import {
   TenantInfoResponseDto,
@@ -37,6 +40,7 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
+    private readonly authService: AuthService,
     private readonly i18n: I18nService,
   ) {}
 
@@ -103,6 +107,48 @@ export class UsersController {
       dto,
     );
     return { message: this.i18n.t(UsersI18n.messages.PASSWORD_CHANGED) };
+  }
+
+  @Delete('me')
+  @AuthOptions({ identity: true })
+  @SwaggerCookieAuth.identityAccessToken()
+  @Audit('USER_ACCOUNT_DELETED', { resourceType: 'users' })
+  @ApiOperation({
+    summary: 'Delete my account',
+    description:
+      'Deletes the signed-in user account. It is closed at once: every session ends (the auth cookies are cleared), ' +
+      'memberships are removed, and no sign-in reaches it; the email address can sign up again. After 30 days its ' +
+      'name and email are erased; past actions in organizations stay under an anonymous id. Requires the current ' +
+      'password when the account has one. Refused (409) for platform staff, and while the user is the only active ' +
+      'admin of an organization.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Account deleted',
+    type: MessageResponseDto,
+  })
+  @ApiValidationError()
+  @ApiResponse({
+    status: 400,
+    description: 'Current password missing or incorrect',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Only active admin of an organization (the message names them), or a platform staff account',
+  })
+  @ApiAuthenticatedResponses()
+  async deleteAccount(
+    @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
+    @Body() dto: DeleteAccountDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MessageResponseDto> {
+    const message = await this.usersService.deleteAccount(
+      identity.userId,
+      dto.password,
+    );
+    this.authService.clearAllAuthCookies(reply);
+    return { message };
   }
 
   @Get('me/tenants')

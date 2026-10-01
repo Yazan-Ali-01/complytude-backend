@@ -1,6 +1,7 @@
 import { DatabaseService } from '@lib/database';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -9,6 +10,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { I18nService } from 'nestjs-i18n';
 import { PoolClient } from 'pg';
+import { ACCOUNT_ANONYMIZATION_DAYS } from 'src/common/constants/retention.constant';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { UserTenantWithUserRow } from 'src/repositories/users/interfaces/user-tenant.intefaces';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
@@ -155,6 +157,70 @@ export class UsersService {
     });
 
     this.logger.log(`Password changed for user ${userId}`);
+  }
+
+  /**
+   * Deletes the user's own account (D-7): closed at once (no sign-in path reaches it, memberships
+   * removed, every session ended); its names and email are erased by the retention sweep after
+   * ACCOUNT_ANONYMIZATION_DAYS. Refused for platform staff, and while the user is the only active
+   * admin of an organization.
+   */
+  async deleteAccount(userId: string, password?: string): Promise<string> {
+    const user = await this.findById(userId);
+
+    if (user.platform_role_key) {
+      throw new ConflictException(
+        this.i18n.t(UsersI18n.errors.PLATFORM_ACCOUNT_NOT_DELETABLE),
+      );
+    }
+    if (
+      user.password_hash !== null &&
+      !(password && (await bcrypt.compare(password, user.password_hash)))
+    ) {
+      throw new BadRequestException(
+        this.i18n.t(UsersI18n.errors.CURRENT_PASSWORD_INCORRECT),
+      );
+    }
+
+    // Platform context: the account spans every organization it belongs to
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const soleAdminOf: string[] = [];
+        for (const tenant of await this.userTenantRepository.findTenantsAdministeredBy(
+          userId,
+          { client },
+        )) {
+          const admins =
+            await this.userTenantRepository.countActiveAdminsForUpdate(
+              tenant.tenantId,
+              { client },
+            );
+          if (admins <= 1) soleAdminOf.push(tenant.tenantName);
+        }
+        if (soleAdminOf.length > 0) {
+          throw new ConflictException(
+            this.i18n.t(UsersI18n.errors.SOLE_ADMIN_OF_ORGANIZATIONS, {
+              args: { organizations: soleAdminOf.join(', ') },
+            }),
+          );
+        }
+
+        await this.userTenantRepository.deleteAllForUser(userId, { client });
+        if (!(await this.userRepository.closeAccount(userId, { client }))) {
+          throw new NotFoundException(
+            this.i18n.t(UsersI18n.errors.USER_NOT_FOUND_BY_ID, {
+              args: { userId },
+            }),
+          );
+        }
+      },
+    );
+
+    await this.sessionInvalidationService.invalidateAllUserSessions(userId);
+    this.logger.log(`Account ${userId} deleted by its user`);
+    return this.i18n.t(UsersI18n.messages.ACCOUNT_DELETED, {
+      args: { days: ACCOUNT_ANONYMIZATION_DAYS },
+    });
   }
 
   // ─── Tenant members (tenant admin) ────────────────────────────

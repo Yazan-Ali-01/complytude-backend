@@ -3,3 +3,6 @@
  * it (decision D-7).
  */
 export const DOCUMENT_TRASH_DAYS = 30;
+
+/** Days after a user deletes their account before its names and email are erased (D-7). */
+export const ACCOUNT_ANONYMIZATION_DAYS = 30;

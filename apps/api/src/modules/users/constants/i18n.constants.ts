@@ -17,9 +17,13 @@ export const UsersI18n = {
     ONLY_ADMIN_CAN_GRANT_ADMIN: 'users.errors.ONLY_ADMIN_CAN_GRANT_ADMIN',
     LAST_ACTIVE_ADMIN: 'users.errors.LAST_ACTIVE_ADMIN',
     SEAT_LIMIT_REACHED: 'users.errors.SEAT_LIMIT_REACHED',
+    SOLE_ADMIN_OF_ORGANIZATIONS: 'users.errors.SOLE_ADMIN_OF_ORGANIZATIONS',
+    PLATFORM_ACCOUNT_NOT_DELETABLE:
+      'users.errors.PLATFORM_ACCOUNT_NOT_DELETABLE',
   },
   messages: {
     PASSWORD_CHANGED: 'users.messages.PASSWORD_CHANGED',
     MEMBER_REMOVED: 'users.messages.MEMBER_REMOVED',
+    ACCOUNT_DELETED: 'users.messages.ACCOUNT_DELETED',
   },
 } as const;

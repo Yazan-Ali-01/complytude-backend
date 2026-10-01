@@ -1222,6 +1222,7 @@ The `user_seats` entitlement (capacity feature) is enforced at three points:
 | `GET /users/me` | Profile (`UserProfileResponseDto`). |
 | `PATCH /users/me` | `{ firstName?, lastName? }`. |
 | `PATCH /users/me/password` | `{ currentPassword, newPassword }`. 400 if the current password is wrong or the account has no local password (SSO). On success every **other** session of the user (all devices, all tenants) is signed out; the session that made the change stays signed in. |
+| `DELETE /users/me` | Deletes the account. Body `{ password }`, required when the account has a password (400 if missing or wrong); an SSO-only account confirms with its session. Closed at once: every session ends and the auth cookies are cleared, memberships are removed, no sign-in reaches it, and the email can sign up again as a new account. 30 days later its name and email are erased; past actions in organizations keep an anonymous id. 409 for the only active admin of an organization (the message names it: make someone else admin first) and for platform staff. |
 | `GET /users/me/tenants` | Tenants the user can switch into, with `tenantName`, role and join date. |
 | `GET /users/me/current-tenant` | The tenant of the tenant token (`id`, `name`, `isActive`, timestamps). |
 
