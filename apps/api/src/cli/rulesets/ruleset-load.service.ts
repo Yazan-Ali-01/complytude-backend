@@ -121,26 +121,27 @@ export class RulesetLoadService {
 
     const existing = await this.rulesetRepository.findByKey(dto.key);
     if (!existing) {
-      const { rulesetId, versionId } = await this.databaseService.transaction(
-        async (client) => {
-          const ruleset = await this.rulesetRepository.create(
-            { key: dto.key, ...fields, created_by: null },
-            { client },
-          );
-          const version = await this.rulesetVersionRepository.create(
-            {
-              ruleset_id: ruleset.id,
-              version: '1.0.0',
-              clauses: JSON.stringify(clauses),
-              changelog: `Loaded from ${file}`,
-              is_active: false,
-              created_by: null,
-            },
-            { client },
-          );
-          return { rulesetId: ruleset.id, versionId: version.id };
-        },
-      );
+      const { rulesetId, versionId } =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            const ruleset = await this.rulesetRepository.create(
+              { key: dto.key, ...fields, created_by: null },
+              { client },
+            );
+            const version = await this.rulesetVersionRepository.create(
+              {
+                ruleset_id: ruleset.id,
+                version: '1.0.0',
+                clauses: JSON.stringify(clauses),
+                changelog: `Loaded from ${file}`,
+                is_active: false,
+                created_by: null,
+              },
+              { client },
+            );
+            return { rulesetId: ruleset.id, versionId: version.id };
+          },
+        );
       return {
         file,
         key: dto.key,
@@ -151,7 +152,9 @@ export class RulesetLoadService {
       };
     }
 
-    await this.rulesetRepository.update(existing.id, fields);
+    await this.databaseService.transactionWithPlatformAdminContext((client) =>
+      this.rulesetRepository.update(existing.id, fields, { client }),
+    );
     const versions = (
       await this.rulesetVersionRepository.findByRulesetId(existing.id, {
         page: 1,
@@ -170,14 +173,20 @@ export class RulesetLoadService {
     }
 
     const version = latest ? nextMinor(latest.version) : '1.0.0';
-    const created = await this.rulesetVersionRepository.create({
-      ruleset_id: existing.id,
-      version,
-      clauses: JSON.stringify(clauses),
-      changelog: `Loaded from ${file}`,
-      is_active: false,
-      created_by: null,
-    });
+    const created =
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.rulesetVersionRepository.create(
+          {
+            ruleset_id: existing.id,
+            version,
+            clauses: JSON.stringify(clauses),
+            changelog: `Loaded from ${file}`,
+            is_active: false,
+            created_by: null,
+          },
+          { client },
+        ),
+      );
     return {
       file,
       key: dto.key,
@@ -200,10 +209,16 @@ export class RulesetLoadService {
     if (existing) {
       return existing.id;
     }
-    const created = await this.authorityRepository.create({
-      code,
-      name: authority.name,
-    });
+    const created =
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.authorityRepository.create(
+          {
+            code,
+            name: authority.name,
+          },
+          { client },
+        ),
+      );
     this.logger.log(`Created authority ${code} (${authority.name})`);
     return created.id;
   }

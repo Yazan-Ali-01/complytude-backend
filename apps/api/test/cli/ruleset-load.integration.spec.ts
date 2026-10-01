@@ -39,7 +39,8 @@ describe('Loading ruleset files (rulesets:load)', () => {
 
   beforeAll(async () => {
     app = await createTestApp();
-    const db = app.databaseService;
+    // As the CLI runs: the app login, and its platform login for the writes
+    const db = app.appDatabaseService;
     loader = new RulesetLoadService(
       db,
       new RulesetRepository(db),

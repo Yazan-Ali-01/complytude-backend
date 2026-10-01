@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import { OffsetPaginationOptions, OffsetPaginationResult } from '@lib/database';
 import {
   ConflictException,
@@ -21,6 +22,7 @@ export class TemplateVersionsService {
   private readonly logger = new Logger(TemplateVersionsService.name);
 
   constructor(
+    private readonly databaseService: DatabaseService,
     private readonly templateVersionRepository: TemplateVersionRepository,
     private readonly templateRepository: TemplateRepository,
     private readonly i18n: I18nService,
@@ -199,19 +201,34 @@ export class TemplateVersionsService {
         );
       }
 
-      await this.templateVersionRepository.deactivateAllVersions(templateId);
-
-      const activatedVersion = await this.templateVersionRepository.update(
-        versionToActivate.id,
-        {
-          is_active: true,
-        },
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.templateVersionRepository.deactivateAllVersions(templateId, {
+          client,
+        }),
       );
 
-      await this.templateRepository.update(templateId, {
-        current_version: version,
-        file_url: versionToActivate.file_url,
-      });
+      const activatedVersion =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.templateVersionRepository.update(
+              versionToActivate.id,
+              {
+                is_active: true,
+              },
+              { client },
+            ),
+        );
+
+      await this.databaseService.transactionWithPlatformAdminContext((client) =>
+        this.templateRepository.update(
+          templateId,
+          {
+            current_version: version,
+            file_url: versionToActivate.file_url,
+          },
+          { client },
+        ),
+      );
 
       this.logger.log(
         `Rolled back template ${templateId} to version ${version}`,

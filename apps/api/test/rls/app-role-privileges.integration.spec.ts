@@ -15,8 +15,8 @@ const PRIVILEGES: Record<string, string> = {
   analysis_finding_feedback: 'INSERT,SELECT,UPDATE',
   analysis_jobs: 'INSERT,SELECT,UPDATE',
   audit_logs: 'INSERT,SELECT',
-  authorities: 'DELETE,INSERT,SELECT,UPDATE',
-  categories: 'INSERT,SELECT,UPDATE',
+  authorities: 'SELECT',
+  categories: 'SELECT',
   credit_ledger: 'INSERT,SELECT',
   credit_packages: 'SELECT',
   documents: 'INSERT,SELECT,UPDATE',
@@ -33,14 +33,14 @@ const PRIVILEGES: Record<string, string> = {
   platform_role_permissions: 'SELECT',
   platform_roles: 'SELECT',
   ruleset_chunks: 'DELETE,INSERT,SELECT',
-  ruleset_versions: 'INSERT,SELECT,UPDATE',
-  rulesets: 'INSERT,SELECT,UPDATE',
+  ruleset_versions: 'SELECT',
+  rulesets: 'SELECT',
   schema_migrations: '',
   stripe_webhook_events: 'INSERT,SELECT,UPDATE',
-  template_rulesets: 'DELETE,INSERT,SELECT',
+  template_rulesets: 'SELECT',
   template_version_ruleset_versions: 'SELECT',
-  template_versions: 'INSERT,SELECT,UPDATE',
-  templates: 'DELETE,INSERT,SELECT,UPDATE',
+  template_versions: 'SELECT',
+  templates: 'SELECT',
   tenant_addons: 'INSERT,SELECT,UPDATE',
   tenant_ai_consents: 'INSERT,SELECT',
   tenant_overrides: 'INSERT,SELECT,UPDATE',
@@ -119,10 +119,17 @@ describe('The runtime database role has only the privileges the code uses', () =
            WHERE grantee = 'app_user' AND table_schema = 'public')
        ORDER BY 1`,
     );
-    expect(columns.map((c) => c.grant)).toEqual([
-      'usage_ledger.projected_at:UPDATE',
-      'usage_ledger.voided_at:UPDATE',
-    ]);
+    expect(columns.map((c) => c.grant).sort()).toEqual(
+      [
+        // worker-ingestion records each ruleset version's ingestion (migration 052)
+        'ruleset_versions.chunk_count:UPDATE',
+        'ruleset_versions.ingested_at:UPDATE',
+        'ruleset_versions.ingestion_error:UPDATE',
+        'ruleset_versions.ingestion_status:UPDATE',
+        'usage_ledger.projected_at:UPDATE',
+        'usage_ledger.voided_at:UPDATE',
+      ].sort(),
+    );
   });
 
   it('app_platform holds only the platform-only writes, beyond what it inherits from app_user', async () => {
@@ -139,7 +146,7 @@ describe('The runtime database role has only the privileges the code uses', () =
            WHERE grantee = 'app_platform' AND table_schema = 'public')
        ORDER BY 1`,
     );
-    // Audit retention (migration 049) and the pricing and RBAC catalogs (migration 051)
+    // Audit retention (049), the pricing and RBAC catalogs (051) and the content catalogs (052)
     expect(rows.map((r) => r.grant).sort()).toEqual(
       [
         'addons:UPDATE',
@@ -167,6 +174,22 @@ describe('The runtime database role has only the privileges the code uses', () =
         'tenant_permissions:UPDATE',
         'tenant_role_permissions:DELETE',
         'tenant_role_permissions:INSERT',
+        'authorities:DELETE',
+        'authorities:INSERT',
+        'authorities:UPDATE',
+        'categories:INSERT',
+        'categories:UPDATE',
+        'ruleset_versions:INSERT',
+        'ruleset_versions:UPDATE',
+        'rulesets:INSERT',
+        'rulesets:UPDATE',
+        'template_rulesets:DELETE',
+        'template_rulesets:INSERT',
+        'template_versions:INSERT',
+        'template_versions:UPDATE',
+        'templates:DELETE',
+        'templates:INSERT',
+        'templates:UPDATE',
       ].sort(),
     );
   });
@@ -187,12 +210,12 @@ describe('The runtime database role has only the privileges the code uses', () =
     // …while the writes the app makes still work
     expect(
       await asApp(
-        'UPDATE public.ruleset_versions SET is_active = is_active WHERE false',
+        'UPDATE public.ruleset_versions SET chunk_count = chunk_count WHERE false',
       ),
     ).toBeNull();
   });
 
-  it('writes the pricing and RBAC catalogs only as the platform login', async () => {
+  it('writes the pricing, RBAC and content catalogs only as the platform login', async () => {
     // The login serving tenant requests may read them, never change them
     expect(await asApp('SELECT 1 FROM public.plans LIMIT 1')).toBeNull();
     for (const write of [
@@ -202,6 +225,11 @@ describe('The runtime database role has only the privileges the code uses', () =
       'UPDATE public.credit_packages SET name = name WHERE false',
       'DELETE FROM public.tenant_permissions WHERE false',
       'DELETE FROM public.platform_role_permissions WHERE false',
+      'UPDATE public.templates SET name = name WHERE false',
+      'UPDATE public.rulesets SET name = name WHERE false',
+      'UPDATE public.ruleset_versions SET is_active = is_active WHERE false',
+      'DELETE FROM public.authorities WHERE false',
+      'UPDATE public.categories SET name = name WHERE false',
     ]) {
       expect(await asApp(write)).toBe('42501');
     }

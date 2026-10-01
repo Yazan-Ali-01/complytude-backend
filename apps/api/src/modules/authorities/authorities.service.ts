@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import { OffsetPaginationOptions, OffsetPaginationResult } from '@lib/database';
 import {
   ConflictException,
@@ -23,6 +24,7 @@ export class AuthoritiesService {
   private readonly logger = new Logger(AuthoritiesService.name);
 
   constructor(
+    private readonly databaseService: DatabaseService,
     private readonly authorityRepository: AuthorityRepository,
     private readonly i18n: I18nService,
   ) {}
@@ -42,13 +44,20 @@ export class AuthoritiesService {
         );
       }
 
-      const authority = await this.authorityRepository.create({
-        code: createAuthorityDto.code,
-        name: createAuthorityDto.name,
-        description: createAuthorityDto.description ?? null,
-        country: createAuthorityDto.country,
-        is_active: createAuthorityDto.isActive,
-      });
+      const authority =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.authorityRepository.create(
+              {
+                code: createAuthorityDto.code,
+                name: createAuthorityDto.name,
+                description: createAuthorityDto.description ?? null,
+                country: createAuthorityDto.country,
+                is_active: createAuthorityDto.isActive,
+              },
+              { client },
+            ),
+        );
 
       this.logger.log(`Created authority: ${authority.code}`);
       return authority;
@@ -135,13 +144,21 @@ export class AuthoritiesService {
     try {
       await this.findById(id);
       // Unset fields stay undefined, and the repository leaves those columns alone
-      const authority = await this.authorityRepository.update(id, {
-        name: updateAuthorityDto.name,
-        description: updateAuthorityDto.description,
-        country: updateAuthorityDto.country,
-        is_active: updateAuthorityDto.isActive,
-        updated_at: new Date(),
-      });
+      const authority =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.authorityRepository.update(
+              id,
+              {
+                name: updateAuthorityDto.name,
+                description: updateAuthorityDto.description,
+                country: updateAuthorityDto.country,
+                is_active: updateAuthorityDto.isActive,
+                updated_at: new Date(),
+              },
+              { client },
+            ),
+        );
 
       this.logger.log(`Updated authority: ${id}`);
       return authority;
@@ -160,7 +177,10 @@ export class AuthoritiesService {
     try {
       await this.findById(id);
 
-      const deleted = await this.authorityRepository.delete(id);
+      const deleted =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) => this.authorityRepository.delete(id, { client }),
+        );
       if (deleted === 0) {
         throw new NotFoundException(
           this.i18n.t(AuthoritiesI18n.errors.AUTHORITY_NOT_FOUND_BY_ID, {

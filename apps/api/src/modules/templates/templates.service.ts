@@ -156,65 +156,67 @@ export class TemplatesService {
       // Create template and first version in a transaction
       let templateId: string | null = null;
       try {
-        await this.databaseService.transaction(async (client) => {
-          const template = await this.templateRepository.create(
-            {
-              key: createTemplateDto.key,
-              name: createTemplateDto.name,
-              description: createTemplateDto.description ?? null,
-              category_id: createTemplateDto.category_id ?? null,
-              authority_id: createTemplateDto.authority_id ?? null,
-              languages: createTemplateDto.languages,
-              current_version: version,
-              status: createTemplateDto.status || 'active',
-              tier: createTemplateDto.tier ?? 'essential',
-              file_url: null,
-              created_by: createdBy,
-            },
-            { client },
-          );
+        await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            const template = await this.templateRepository.create(
+              {
+                key: createTemplateDto.key,
+                name: createTemplateDto.name,
+                description: createTemplateDto.description ?? null,
+                category_id: createTemplateDto.category_id ?? null,
+                authority_id: createTemplateDto.authority_id ?? null,
+                languages: createTemplateDto.languages,
+                current_version: version,
+                status: createTemplateDto.status || 'active',
+                tier: createTemplateDto.tier ?? 'essential',
+                file_url: null,
+                created_by: createdBy,
+              },
+              { client },
+            );
 
-          templateId = template.id;
+            templateId = template.id;
 
-          // 2. Upload file to S3 using template ID
-          const fileBuffer = createTemplateDto.file.buffer;
-          const fileName =
-            createTemplateDto.file.originalname || 'template.docx';
-          const mimeType =
-            createTemplateDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0];
+            // 2. Upload file to S3 using template ID
+            const fileBuffer = createTemplateDto.file.buffer;
+            const fileName =
+              createTemplateDto.file.originalname || 'template.docx';
+            const mimeType =
+              createTemplateDto.file.mimetype || TEMPLATE_ALLOWED_MIME_TYPES[0];
 
-          const uploadResult = await this.storageService.uploadTemplateFile(
-            template.id, // Use template ID instead of key
-            version,
-            fileBuffer,
-            fileName,
-            mimeType,
-            createdBy,
-          );
+            const uploadResult = await this.storageService.uploadTemplateFile(
+              template.id, // Use template ID instead of key
+              version,
+              fileBuffer,
+              fileName,
+              mimeType,
+              createdBy,
+            );
 
-          // 3. Create first version with file URL
-          await this.templateVersionsService.createVersion(
-            template.id,
-            version,
-            createTemplateDto.fields,
-            uploadResult.url, // Use URL from upload
-            'Initial version',
-            createdBy,
-            client,
-          );
-
-          // Associate rulesets if provided
-          if (
-            createTemplateDto.ruleset_keys &&
-            createTemplateDto.ruleset_keys.length > 0
-          ) {
-            await this.associateRulesets(
+            // 3. Create first version with file URL
+            await this.templateVersionsService.createVersion(
               template.id,
-              createTemplateDto.ruleset_keys,
+              version,
+              createTemplateDto.fields,
+              uploadResult.url, // Use URL from upload
+              'Initial version',
+              createdBy,
               client,
             );
-          }
-        });
+
+            // Associate rulesets if provided
+            if (
+              createTemplateDto.ruleset_keys &&
+              createTemplateDto.ruleset_keys.length > 0
+            ) {
+              await this.associateRulesets(
+                template.id,
+                createTemplateDto.ruleset_keys,
+                client,
+              );
+            }
+          },
+        );
       } catch (transactionError) {
         // If transaction fails and we have a template ID, clean up uploaded file
         if (templateId) {
@@ -453,40 +455,45 @@ export class TemplatesService {
         }
       }
 
-      return await this.databaseService.transaction(async (client) => {
-        if (Object.keys(updateTemplateDto).length > 0) {
-          await this.templateRepository.update(
-            existing.id,
-            {
-              ...updateTemplateDto,
-              updated_at: new Date(),
-            },
-            { client },
-          );
-        }
-
-        // Update rulesets if provided
-        if (updateTemplateDto.ruleset_keys !== undefined) {
-          // Remove existing associations
-          await this.rulesetRepository.removeTemplateAssociations(existing.id, {
-            client,
-          });
-
-          // Add new associations
-          if (updateTemplateDto.ruleset_keys.length > 0) {
-            await this.associateRulesets(
+      return await this.databaseService.transactionWithPlatformAdminContext(
+        async (client) => {
+          if (Object.keys(updateTemplateDto).length > 0) {
+            await this.templateRepository.update(
               existing.id,
-              updateTemplateDto.ruleset_keys,
-              client,
+              {
+                ...updateTemplateDto,
+                updated_at: new Date(),
+              },
+              { client },
             );
           }
-        }
 
-        this.logger.log(`Updated template: ${key}`);
+          // Update rulesets if provided
+          if (updateTemplateDto.ruleset_keys !== undefined) {
+            // Remove existing associations
+            await this.rulesetRepository.removeTemplateAssociations(
+              existing.id,
+              {
+                client,
+              },
+            );
 
-        // Return updated template with details
-        return this.findByKeyWithDetails(key, client);
-      });
+            // Add new associations
+            if (updateTemplateDto.ruleset_keys.length > 0) {
+              await this.associateRulesets(
+                existing.id,
+                updateTemplateDto.ruleset_keys,
+                client,
+              );
+            }
+          }
+
+          this.logger.log(`Updated template: ${key}`);
+
+          // Return updated template with details
+          return this.findByKeyWithDetails(key, client);
+        },
+      );
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -514,10 +521,11 @@ export class TemplatesService {
     status: Template['status'],
   ): Promise<Template> {
     try {
-      const template = await this.templateRepository.updateStatusByKey(
-        key,
-        status,
-      );
+      const template =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.templateRepository.updateStatusByKey(key, status, { client }),
+        );
 
       if (!template) {
         throw new NotFoundException(
@@ -542,7 +550,10 @@ export class TemplatesService {
 
   async delete(key: string): Promise<void> {
     try {
-      const deleted = await this.templateRepository.deleteByKey(key);
+      const deleted =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) => this.templateRepository.deleteByKey(key, { client }),
+        );
 
       if (deleted === 0) {
         throw new NotFoundException(
@@ -687,9 +698,12 @@ export class TemplatesService {
         this.i18n.t(TemplatesI18n.errors.RULESET_NOT_FOUND),
       );
     }
-    await this.rulesetRepository.associateWithTemplate(
-      template.id,
-      rulesets.map((ruleset) => ruleset.id),
+    await this.databaseService.transactionWithPlatformAdminContext((client) =>
+      this.rulesetRepository.associateWithTemplate(
+        template.id,
+        rulesets.map((ruleset) => ruleset.id),
+        { client },
+      ),
     );
     return uniqueKeys;
   }
@@ -728,33 +742,35 @@ export class TemplatesService {
   ): Promise<TemplateVersion> {
     let uploaded = false;
     try {
-      return await this.databaseService.transaction(async (client) => {
-        const uploadResult = await this.storageService.uploadTemplateFile(
-          templateId,
-          version.version,
-          version.file,
-          version.fileName,
-          version.mimeType,
-          version.createdBy,
-        );
-        uploaded = true;
+      return await this.databaseService.transactionWithPlatformAdminContext(
+        async (client) => {
+          const uploadResult = await this.storageService.uploadTemplateFile(
+            templateId,
+            version.version,
+            version.file,
+            version.fileName,
+            version.mimeType,
+            version.createdBy,
+          );
+          uploaded = true;
 
-        const record = await this.templateVersionsService.createVersion(
-          templateId,
-          version.version,
-          version.fields,
-          uploadResult.url,
-          version.changelog,
-          version.createdBy,
-          client,
-        );
-        await this.templateRepository.update(
-          templateId,
-          { current_version: version.version, file_url: uploadResult.url },
-          { client },
-        );
-        return record;
-      });
+          const record = await this.templateVersionsService.createVersion(
+            templateId,
+            version.version,
+            version.fields,
+            uploadResult.url,
+            version.changelog,
+            version.createdBy,
+            client,
+          );
+          await this.templateRepository.update(
+            templateId,
+            { current_version: version.version, file_url: uploadResult.url },
+            { client },
+          );
+          return record;
+        },
+      );
     } catch (error) {
       if (uploaded) {
         const fileKey = `templates/${templateId}/${version.version}/template.docx`;

@@ -1,3 +1,4 @@
+import { DatabaseService } from '@lib/database';
 import { OffsetPaginationOptions, OffsetPaginationResult } from '@lib/database';
 import {
   ConflictException,
@@ -20,6 +21,7 @@ export class CategoriesService {
   private readonly logger = new Logger(CategoriesService.name);
 
   constructor(
+    private readonly databaseService: DatabaseService,
     private readonly categoryRepository: CategoryRepository,
     private readonly i18n: I18nService,
   ) {}
@@ -39,13 +41,20 @@ export class CategoriesService {
         );
       }
 
-      const category = await this.categoryRepository.create({
-        code: createCategoryDto.code,
-        name: createCategoryDto.name,
-        description: createCategoryDto.description ?? null,
-        parent_id: createCategoryDto.parentId ?? null,
-        is_active: createCategoryDto.isActive,
-      });
+      const category =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.categoryRepository.create(
+              {
+                code: createCategoryDto.code,
+                name: createCategoryDto.name,
+                description: createCategoryDto.description ?? null,
+                parent_id: createCategoryDto.parentId ?? null,
+                is_active: createCategoryDto.isActive,
+              },
+              { client },
+            ),
+        );
 
       this.logger.log(`Created category: ${category.code}`);
       return category;
@@ -137,13 +146,21 @@ export class CategoriesService {
       await this.findById(id);
 
       // Unset fields stay undefined, and the repository leaves those columns alone
-      const category = await this.categoryRepository.update(id, {
-        name: updateCategoryDto.name,
-        description: updateCategoryDto.description,
-        parent_id: updateCategoryDto.parentId,
-        is_active: updateCategoryDto.isActive,
-        updated_at: new Date(),
-      });
+      const category =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.categoryRepository.update(
+              id,
+              {
+                name: updateCategoryDto.name,
+                description: updateCategoryDto.description,
+                parent_id: updateCategoryDto.parentId,
+                is_active: updateCategoryDto.isActive,
+                updated_at: new Date(),
+              },
+              { client },
+            ),
+        );
 
       this.logger.log(`Updated category: ${id}`);
       return category;
@@ -158,7 +175,10 @@ export class CategoriesService {
 
   async deactivate(id: string): Promise<void> {
     try {
-      const result = await this.categoryRepository.deactivate(id);
+      const result =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) => this.categoryRepository.deactivate(id, { client }),
+        );
       if (!result) {
         throw new NotFoundException(
           this.i18n.t(CategoriesI18n.errors.CATEGORY_NOT_FOUND_BY_ID, {

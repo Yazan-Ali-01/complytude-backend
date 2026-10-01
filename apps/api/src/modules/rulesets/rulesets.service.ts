@@ -74,39 +74,42 @@ export class RulesetsService {
         await this.validateAuthorityExists(dto.authority_id);
       }
 
-      const result = await this.databaseService.transaction(async (client) => {
-        const ruleset = await this.rulesetRepository.create(
-          {
-            key: dto.key,
-            name: dto.name,
-            description: dto.description ?? null,
-            authority_id: dto.authority_id ?? null,
-            jurisdictions: dto.jurisdictions ?? [],
-            document_types: dto.document_types ?? [],
-            created_by: createdBy,
+      const result =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            const ruleset = await this.rulesetRepository.create(
+              {
+                key: dto.key,
+                name: dto.name,
+                description: dto.description ?? null,
+                authority_id: dto.authority_id ?? null,
+                jurisdictions: dto.jurisdictions ?? [],
+                document_types: dto.document_types ?? [],
+                created_by: createdBy,
+              },
+              { client },
+            );
+
+            const version = await this.rulesetVersionRepository.create(
+              {
+                ruleset_id: ruleset.id,
+                version: '1.0.0',
+                clauses: JSON.stringify(dto.clauses ?? []),
+                changelog: 'Initial version',
+                // Activated once ingested (and reviewed, where required)
+                is_active: false,
+                created_by: createdBy,
+              },
+              { client },
+            );
+
+            this.logger.log(
+              `Created ruleset "${dto.key}" with initial version 1.0.0`,
+            );
+
+            return { ruleset, createdVersion: version };
           },
-          { client },
         );
-
-        const version = await this.rulesetVersionRepository.create(
-          {
-            ruleset_id: ruleset.id,
-            version: '1.0.0',
-            clauses: JSON.stringify(dto.clauses ?? []),
-            changelog: 'Initial version',
-            // Activated once ingested (and reviewed, where required)
-            is_active: false,
-            created_by: createdBy,
-          },
-          { client },
-        );
-
-        this.logger.log(
-          `Created ruleset "${dto.key}" with initial version 1.0.0`,
-        );
-
-        return { ruleset, createdVersion: version };
-      });
 
       const ingestionJob = await this.enqueueIngestion(
         result.ruleset.id,
@@ -190,7 +193,12 @@ export class RulesetsService {
       const updated =
         Object.keys(updateData).length === 0
           ? ruleset
-          : await this.rulesetRepository.update(ruleset.id, updateData);
+          : await this.databaseService.transactionWithPlatformAdminContext(
+              (client) =>
+                this.rulesetRepository.update(ruleset.id, updateData, {
+                  client,
+                }),
+            );
 
       const activeVersion =
         await this.rulesetVersionRepository.findActiveByRulesetId(updated.id);
@@ -204,7 +212,10 @@ export class RulesetsService {
 
   async deactivate(key: string): Promise<void> {
     try {
-      const result = await this.rulesetRepository.deactivateByKey(key);
+      const result =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) => this.rulesetRepository.deactivateByKey(key, { client }),
+        );
       if (!result) {
         throw new NotFoundException(
           this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
@@ -241,14 +252,21 @@ export class RulesetsService {
       }
 
       // The active version keeps serving until this one is ingested and activated
-      const version = await this.rulesetVersionRepository.create({
-        ruleset_id: ruleset.id,
-        version: dto.version,
-        clauses: JSON.stringify(dto.clauses ?? []),
-        changelog: dto.changelog ?? null,
-        is_active: false,
-        created_by: createdBy,
-      });
+      const version =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.rulesetVersionRepository.create(
+              {
+                ruleset_id: ruleset.id,
+                version: dto.version,
+                clauses: JSON.stringify(dto.clauses ?? []),
+                changelog: dto.changelog ?? null,
+                is_active: false,
+                created_by: createdBy,
+              },
+              { client },
+            ),
+        );
 
       this.logger.log(`Created version "${dto.version}" for ruleset "${key}"`);
 
@@ -350,15 +368,23 @@ export class RulesetsService {
       }
 
       // A copy like any new version: ingested, then activated
-      const version = await this.rulesetVersionRepository.create({
-        ruleset_id: ruleset.id,
-        version: newVersion,
-        clauses: JSON.stringify(source.clauses),
-        changelog: changelog ?? `Rolled back to version ${sourceVersion}`,
-        rolled_back_from_version: sourceVersion,
-        is_active: false,
-        created_by: createdBy,
-      });
+      const version =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.rulesetVersionRepository.create(
+              {
+                ruleset_id: ruleset.id,
+                version: newVersion,
+                clauses: JSON.stringify(source.clauses),
+                changelog:
+                  changelog ?? `Rolled back to version ${sourceVersion}`,
+                rolled_back_from_version: sourceVersion,
+                is_active: false,
+                created_by: createdBy,
+              },
+              { client },
+            ),
+        );
 
       this.logger.log(
         `Rolled back ruleset "${key}" from v${sourceVersion} → v${newVersion}`,
@@ -450,23 +476,24 @@ export class RulesetsService {
         );
       }
 
-      const activated = await this.databaseService.transaction(
-        async (client) => {
-          const done = await this.rulesetVersionRepository.activate(
-            ruleset.id,
-            target.id,
-            client,
-          );
-          if (done) {
-            await this.rulesetRepository.setCurrentVersion(
+      const activated =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          async (client) => {
+            const done = await this.rulesetVersionRepository.activate(
               ruleset.id,
-              version,
-              { client },
+              target.id,
+              client,
             );
-          }
-          return done;
-        },
-      );
+            if (done) {
+              await this.rulesetRepository.setCurrentVersion(
+                ruleset.id,
+                version,
+                { client },
+              );
+            }
+            return done;
+          },
+        );
       // Its chunks were removed by a later ingestion in the meantime
       if (!activated) {
         throw new ConflictException(
@@ -511,14 +538,19 @@ export class RulesetsService {
           }),
         );
       }
-      const reviewed = await this.rulesetVersionRepository.recordReview(
-        target.id,
-        {
-          reviewedBy: dto.reviewedBy,
-          reviewedAt: dto.reviewedAt,
-          notes: dto.notes ?? null,
-        },
-      );
+      const reviewed =
+        await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.rulesetVersionRepository.recordReview(
+              target.id,
+              {
+                reviewedBy: dto.reviewedBy,
+                reviewedAt: dto.reviewedAt,
+                notes: dto.notes ?? null,
+              },
+              { client },
+            ),
+        );
       if (!reviewed) {
         throw new NotFoundException(
           this.i18n.t(RulesetsI18n.errors.VERSION_NOT_FOUND),
