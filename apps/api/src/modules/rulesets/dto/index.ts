@@ -13,6 +13,7 @@ export * from './rollback-version.dto';
 // Response DTOs
 export * from './ruleset-response.dto';
 export * from './ruleset-list-response.dto';
+export * from './review-ruleset-version.dto';
 export * from './ruleset-version-response.dto';
 export * from './ruleset-versions-list-response.dto';
 

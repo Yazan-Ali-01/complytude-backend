@@ -125,6 +125,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
     answer?: (allowedClauseIds: string[]) => object;
     /** OPENAI_BASE_URL of the chat client. */
     llmBaseUrl?: string;
+    /** Ruleset versions without a recorded legal review (D-9); none by default. */
+    draftVersions?: string[];
   }): DocumentAnalysisService {
     let failuresLeft = options.modelFailures ?? 0;
     const llm = {
@@ -172,6 +174,10 @@ describe('Document analysis: injection, grounding and honest status', () => {
         ({
           hybridSearchBatch: () => Promise.resolve(options.chunks),
           findRequiredClauses: () => Promise.resolve(options.required ?? []),
+          findDraftVersionIds: (ids: string[]) =>
+            Promise.resolve(
+              new Set(ids.filter((id) => options.draftVersions?.includes(id))),
+            ),
           findEmbeddings: () => Promise.resolve(new Map()),
         } as unknown as RulesetChunkSearchRepository),
       new TextChunkerService(tokenCounter),
@@ -282,6 +288,23 @@ describe('Document analysis: injection, grounding and honest status', () => {
     expect(await stored(data.analysisJobId)).toMatchObject({
       status: 'completed_with_warnings',
       result: { findings: [], warnings: ['no_findings'] },
+    });
+  });
+
+  it('says on the result when its rules have no recorded legal review (D-9)', async () => {
+    const data = await job(
+      'The employee works 70 hours a week.\n\n'.repeat(10),
+    );
+    modelAnswer = { findings: [], summary: 'Checked.' };
+
+    await worker({
+      chunks: [chunk(ruleset, 'Art. 17')],
+      draftVersions: [versionOf(ruleset)],
+    }).analyze(data);
+
+    expect(await stored(data.analysisJobId)).toMatchObject({
+      status: 'completed_with_warnings',
+      result: { warnings: expect.arrayContaining(['rules_not_reviewed']) },
     });
   });
 
@@ -690,7 +713,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
         [`labour_${randomUUID().slice(0, 8)}`],
       );
       const { rows: version } = await app.databaseService.query<{ id: string }>(
-        `INSERT INTO public.ruleset_versions (ruleset_id, version) VALUES ($1, '1.0.0') RETURNING id`,
+        `INSERT INTO public.ruleset_versions (ruleset_id, version, ingestion_status) VALUES ($1, '1.0.0', 'ingested') RETURNING id`,
         [rows[0].id],
       );
       const vector = `[${new Array<number>(1536).fill(0.01).join(',')}]`;

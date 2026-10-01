@@ -8,6 +8,8 @@ export const RulesetsI18n = {
     RULESET_NO_ACTIVE_VERSION: 'rulesets.errors.RULESET_NO_ACTIVE_VERSION',
     VERSION_ALREADY_EXISTS: 'rulesets.errors.VERSION_ALREADY_EXISTS',
     VERSION_NOT_FOUND: 'rulesets.errors.VERSION_NOT_FOUND',
+    VERSION_NOT_INGESTED: 'rulesets.errors.VERSION_NOT_INGESTED',
+    VERSION_NOT_REVIEWED: 'rulesets.errors.VERSION_NOT_REVIEWED',
     AUTHORITY_NOT_FOUND: 'rulesets.errors.AUTHORITY_NOT_FOUND',
     OPERATION_FAILED: 'rulesets.errors.OPERATION_FAILED',
   },

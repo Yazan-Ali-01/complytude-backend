@@ -180,7 +180,7 @@ The first step of every analysis (`src/redaction/`). Chunking, embeddings and th
 | Status | When |
 |---|---|
 | `completed` | No section cut, context from every requested ruleset, every supplied clause judged, at least one grounded finding. |
-| `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `rulesets_without_context`, `ungrounded_findings_dropped`, `unverified_evidence_dropped`, `inconsistent_findings_dropped`, `clauses_not_assessed`, `no_findings` (nothing reported is not a compliance verdict). |
+| `completed_with_warnings` | Otherwise; `result.warnings` says why: `rules_not_reviewed` (some clauses come from a ruleset version without a recorded legal review, D-9), `document_truncated`, `rulesets_without_context`, `ungrounded_findings_dropped`, `unverified_evidence_dropped`, `inconsistent_findings_dropped`, `clauses_not_assessed`, `no_findings` (nothing reported is not a compliance verdict). |
 | `failed` | Including when retrieval returned no clauses at all. |
 
 The API refuses (400) unknown or inactive `rulesetKeys` / `rulesetIds` instead of widening the search.

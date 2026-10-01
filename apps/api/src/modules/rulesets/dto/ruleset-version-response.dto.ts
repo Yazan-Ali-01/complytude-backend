@@ -1,9 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ClauseItemDto } from './clause.dto';
 import {
-  INGESTION_STATUSES,
-  type IngestionStatus,
+  INGESTION_JOB_OUTCOMES,
+  type IngestionJobOutcome,
 } from '../constants/ingestion-status.constants';
+import {
+  RULESET_INGESTION_STATES,
+  RULESET_REVIEW_STATUSES,
+  type RulesetIngestionState,
+  type RulesetReviewStatus,
+} from '../entities/ruleset-version.entity';
 
 /**
  * Ruleset version response DTO
@@ -83,9 +89,45 @@ export class RulesetVersionResponseDto {
 
   @ApiProperty({
     description:
+      'pending until its rules are ingested (chunked and embedded); failed with ingestionError if that gave up. Only an ingested version can be activated.',
+    enum: RULESET_INGESTION_STATES,
+  })
+  ingestionStatus: RulesetIngestionState;
+
+  @ApiProperty({ description: 'Chunks stored', nullable: true, type: Number })
+  chunkCount: number | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  ingestionError: string | null;
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  ingestedAt: string | null;
+
+  @ApiProperty({
+    description:
+      'draft until its legal review is recorded (POST …/review). Production activates reviewed versions only; a result made with a draft carries the warning rules_not_reviewed.',
+    enum: RULESET_REVIEW_STATUSES,
+  })
+  reviewStatus: RulesetReviewStatus;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    example: 'Al Tamimi & Company — Jane Doe',
+  })
+  reviewedBy: string | null;
+
+  @ApiProperty({ nullable: true, type: String, example: '2026-11-15' })
+  reviewedAt: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  reviewNotes: string | null;
+
+  @ApiProperty({
+    description:
       'Whether the ingestion job was enqueued. Only present on create/rollback responses that trigger ingestion.',
-    enum: INGESTION_STATUSES,
+    enum: INGESTION_JOB_OUTCOMES,
     required: false,
   })
-  ingestionStatus?: IngestionStatus;
+  ingestionJob?: IngestionJobOutcome;
 }

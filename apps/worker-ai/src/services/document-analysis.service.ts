@@ -697,7 +697,20 @@ export class DocumentAnalysisService {
       (id) => !rulesetIdsWithContext.has(id),
     );
 
+    // D-9: rules not yet reviewed by the law firm are said to be so on every result
+    const draftVersionIds = await this.rulesetChunkSearchRepository
+      .findDraftVersionIds([
+        ...new Set(supplied.map((c) => c.rulesetVersionId)),
+      ])
+      .catch((err: unknown) => {
+        throw new RetryableError(
+          'DB error reading the review status of the rulesets',
+          err instanceof Error ? err : undefined,
+        );
+      });
+
     const warnings: AnalysisWarning[] = [];
+    if (draftVersionIds.size > 0) warnings.push('rules_not_reviewed');
     if (wasDocumentTruncated) warnings.push('document_truncated');
     if (rulesetIdsWithoutContext.length > 0) {
       warnings.push('rulesets_without_context');

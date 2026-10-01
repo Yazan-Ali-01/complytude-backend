@@ -44,6 +44,7 @@ export interface AnalysisFinding {
 
 /**
  * Why a completed analysis should not be read as a clean bill of health.
+ * - rules_not_reviewed: some clauses come from a ruleset version without a recorded legal review (D-9)
  * - document_truncated: only the start of the document fit the model's context
  * - rulesets_without_context: a requested ruleset contributed no clauses
  * - ungrounded_findings_dropped: findings that cited no supplied clause were removed
@@ -53,6 +54,7 @@ export interface AnalysisFinding {
  * - no_findings: nothing was reported; needs a human check, not "compliant"
  */
 export type AnalysisWarning =
+  | 'rules_not_reviewed'
   | 'document_truncated'
   | 'rulesets_without_context'
   | 'ungrounded_findings_dropped'

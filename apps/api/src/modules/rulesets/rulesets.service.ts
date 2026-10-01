@@ -16,6 +16,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import { AuthorityRepository } from '../../repositories/authorities/authority.repository';
 import { RulesetVersionRepository } from '../../repositories/rulesets/ruleset-version.repository';
@@ -24,16 +25,18 @@ import {
   RulesetRepository,
 } from '../../repositories/rulesets/ruleset.repository';
 import { RulesetsI18n } from './constants/i18n.constants';
-import { IngestionStatus } from './constants/ingestion-status.constants';
+import { IngestionJobOutcome } from './constants/ingestion-status.constants';
 import { CreateRulesetVersionDto } from './dto/create-ruleset-version.dto';
 import { CreateRulesetDto } from './dto/create-ruleset.dto';
+import { ReviewRulesetVersionDto } from './dto/review-ruleset-version.dto';
 import { UpdateRulesetDto } from './dto/update-ruleset.dto';
 import { RulesetVersion } from './entities/ruleset-version.entity';
 import { Ruleset } from './entities/ruleset.entity';
 
 export interface RulesetWithVersion {
   ruleset: Ruleset;
-  currentVersionData: RulesetVersion;
+  /** The active version; null until a version is ingested and activated. */
+  currentVersionData: RulesetVersion | null;
 }
 
 @Injectable()
@@ -47,12 +50,18 @@ export class RulesetsService {
     private readonly authorityRepository: AuthorityRepository,
     private readonly queueProducerService: QueueProducerService,
     private readonly i18n: I18nService,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(
     dto: CreateRulesetDto,
     createdBy: string,
-  ): Promise<RulesetWithVersion & { ingestionStatus: IngestionStatus }> {
+  ): Promise<
+    RulesetWithVersion & {
+      createdVersion: RulesetVersion;
+      ingestionJob: IngestionJobOutcome;
+    }
+  > {
     try {
       const existing = await this.rulesetRepository.findByKey(dto.key);
       if (existing) {
@@ -85,7 +94,8 @@ export class RulesetsService {
             version: '1.0.0',
             clauses: JSON.stringify(dto.clauses ?? []),
             changelog: 'Initial version',
-            is_active: true,
+            // Activated once ingested (and reviewed, where required)
+            is_active: false,
             created_by: createdBy,
           },
           { client },
@@ -95,17 +105,17 @@ export class RulesetsService {
           `Created ruleset "${dto.key}" with initial version 1.0.0`,
         );
 
-        return { ruleset, currentVersionData: version };
+        return { ruleset, createdVersion: version };
       });
 
-      const ingestionStatus = await this.enqueueIngestion(
+      const ingestionJob = await this.enqueueIngestion(
         result.ruleset.id,
-        result.currentVersionData.id,
+        result.createdVersion.id,
         dto.key,
         '1.0.0',
       );
 
-      return { ...result, ingestionStatus };
+      return { ...result, currentVersionData: null, ingestionJob };
     } catch (error) {
       this.handleError(error, `create ruleset "${dto.key}"`);
     }
@@ -133,12 +143,6 @@ export class RulesetsService {
 
       const activeVersion =
         await this.rulesetVersionRepository.findActiveByRulesetId(ruleset.id);
-      if (!activeVersion) {
-        throw new InternalServerErrorException(
-          this.i18n.t(RulesetsI18n.errors.RULESET_NO_ACTIVE_VERSION),
-        );
-      }
-
       return { ruleset, currentVersionData: activeVersion };
     } catch (error) {
       this.handleError(error, `find ruleset "${key}"`);
@@ -190,11 +194,6 @@ export class RulesetsService {
 
       const activeVersion =
         await this.rulesetVersionRepository.findActiveByRulesetId(updated.id);
-      if (!activeVersion) {
-        throw new InternalServerErrorException(
-          this.i18n.t(RulesetsI18n.errors.RULESET_NO_ACTIVE_VERSION),
-        );
-      }
 
       this.logger.log(`Updated ruleset "${key}"`);
       return { ruleset: updated, currentVersionData: activeVersion };
@@ -221,7 +220,7 @@ export class RulesetsService {
     key: string,
     dto: CreateRulesetVersionDto,
     createdBy: string,
-  ): Promise<RulesetVersion & { ingestionStatus: IngestionStatus }> {
+  ): Promise<RulesetVersion & { ingestionJob: IngestionJobOutcome }> {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
@@ -241,25 +240,26 @@ export class RulesetsService {
         );
       }
 
-      const version = await this.publishVersion(ruleset.id, {
+      // The active version keeps serving until this one is ingested and activated
+      const version = await this.rulesetVersionRepository.create({
         ruleset_id: ruleset.id,
         version: dto.version,
         clauses: JSON.stringify(dto.clauses ?? []),
         changelog: dto.changelog ?? null,
-        is_active: true,
+        is_active: false,
         created_by: createdBy,
       });
 
       this.logger.log(`Created version "${dto.version}" for ruleset "${key}"`);
 
-      const ingestionStatus = await this.enqueueIngestion(
+      const ingestionJob = await this.enqueueIngestion(
         ruleset.id,
         version.id,
         key,
         dto.version,
       );
 
-      return { ...version, ingestionStatus };
+      return { ...version, ingestionJob };
     } catch (error) {
       this.handleError(error, `create version for ruleset "${key}"`);
     }
@@ -318,7 +318,7 @@ export class RulesetsService {
     newVersion: string,
     changelog: string | undefined,
     createdBy: string,
-  ): Promise<RulesetVersion & { ingestionStatus: IngestionStatus }> {
+  ): Promise<RulesetVersion & { ingestionJob: IngestionJobOutcome }> {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
       if (!ruleset) {
@@ -349,13 +349,14 @@ export class RulesetsService {
         );
       }
 
-      const version = await this.publishVersion(ruleset.id, {
+      // A copy like any new version: ingested, then activated
+      const version = await this.rulesetVersionRepository.create({
         ruleset_id: ruleset.id,
         version: newVersion,
         clauses: JSON.stringify(source.clauses),
         changelog: changelog ?? `Rolled back to version ${sourceVersion}`,
         rolled_back_from_version: sourceVersion,
-        is_active: true,
+        is_active: false,
         created_by: createdBy,
       });
 
@@ -363,14 +364,14 @@ export class RulesetsService {
         `Rolled back ruleset "${key}" from v${sourceVersion} → v${newVersion}`,
       );
 
-      const ingestionStatus = await this.enqueueIngestion(
+      const ingestionJob = await this.enqueueIngestion(
         ruleset.id,
         version.id,
         key,
         newVersion,
       );
 
-      return { ...version, ingestionStatus };
+      return { ...version, ingestionJob };
     } catch (error) {
       this.handleError(
         error,
@@ -379,8 +380,10 @@ export class RulesetsService {
     }
   }
 
+  /** Ingests `version` again, or the active version when none is given. */
   async enqueueIngestionForActiveVersion(
     key: string,
+    version?: string,
   ): Promise<{ jobId: string | undefined; versionId: string }> {
     try {
       const ruleset = await this.rulesetRepository.findByKey(key);
@@ -390,8 +393,9 @@ export class RulesetsService {
         );
       }
 
-      const activeVersion =
-        await this.rulesetVersionRepository.findActiveByRulesetId(ruleset.id);
+      const activeVersion = version
+        ? (await this.findVersionOf(key, version)).target
+        : await this.rulesetVersionRepository.findActiveByRulesetId(ruleset.id);
       if (!activeVersion) {
         throw new ConflictException(
           this.i18n.t(RulesetsI18n.errors.RULESET_NO_ACTIVE_VERSION),
@@ -422,24 +426,116 @@ export class RulesetsService {
    * Creates a version as the ruleset's only active one: retrieval reads only the active version,
    * so the previous one stops being cited as soon as this commits.
    */
-  private async publishVersion(
-    rulesetId: string,
-    row: Parameters<RulesetVersionRepository['create']>[0],
-  ): Promise<RulesetVersion> {
-    return this.databaseService.transaction(async (client) => {
-      const created = await this.rulesetVersionRepository.create(row, {
-        client,
-      });
-      await this.rulesetVersionRepository.deactivateOthers(
-        rulesetId,
-        created.id,
-        { client },
+  /**
+   * Makes a version the ruleset's active one: only once its rules are ingested, and, where review
+   * is required (always in production, D-9), once its legal review is recorded.
+   */
+  async activateVersion(key: string, version: string): Promise<RulesetVersion> {
+    try {
+      const { ruleset, target } = await this.findVersionOf(key, version);
+      if (target.isActive) return target;
+
+      if (target.ingestionStatus !== 'ingested') {
+        throw new ConflictException(
+          this.i18n.t(RulesetsI18n.errors.VERSION_NOT_INGESTED, {
+            args: { version, status: target.ingestionStatus },
+          }),
+        );
+      }
+      if (this.reviewRequired() && target.reviewStatus !== 'reviewed') {
+        throw new ConflictException(
+          this.i18n.t(RulesetsI18n.errors.VERSION_NOT_REVIEWED, {
+            args: { version },
+          }),
+        );
+      }
+
+      const activated = await this.databaseService.transaction(
+        async (client) => {
+          const done = await this.rulesetVersionRepository.activate(
+            ruleset.id,
+            target.id,
+            client,
+          );
+          if (done) {
+            await this.rulesetRepository.setCurrentVersion(
+              ruleset.id,
+              version,
+              { client },
+            );
+          }
+          return done;
+        },
       );
-      await this.rulesetRepository.setCurrentVersion(rulesetId, row.version, {
-        client,
-      });
-      return created;
-    });
+      // Its chunks were removed by a later ingestion in the meantime
+      if (!activated) {
+        throw new ConflictException(
+          this.i18n.t(RulesetsI18n.errors.VERSION_NOT_INGESTED, {
+            args: { version, status: 'pending' },
+          }),
+        );
+      }
+
+      this.logger.log(`Activated ruleset "${key}" v${version}`);
+      return { ...target, isActive: true };
+    } catch (error) {
+      this.handleError(error, `activate ruleset "${key}" v${version}`);
+    }
+  }
+
+  /** Records the legal review of a version (D-9): who reviewed it and when. */
+  async reviewVersion(
+    key: string,
+    version: string,
+    dto: ReviewRulesetVersionDto,
+  ): Promise<RulesetVersion> {
+    try {
+      const { target } = await this.findVersionOf(key, version);
+      const reviewed = await this.rulesetVersionRepository.recordReview(
+        target.id,
+        {
+          reviewedBy: dto.reviewedBy,
+          reviewedAt: dto.reviewedAt,
+          notes: dto.notes ?? null,
+        },
+      );
+      if (!reviewed) {
+        throw new NotFoundException(
+          this.i18n.t(RulesetsI18n.errors.VERSION_NOT_FOUND),
+        );
+      }
+      this.logger.log(`Recorded the review of ruleset "${key}" v${version}`);
+      return reviewed;
+    } catch (error) {
+      this.handleError(error, `review ruleset "${key}" v${version}`);
+    }
+  }
+
+  private async findVersionOf(
+    key: string,
+    version: string,
+  ): Promise<{ ruleset: Ruleset; target: RulesetVersion }> {
+    const ruleset = await this.rulesetRepository.findByKey(key);
+    if (!ruleset) {
+      throw new NotFoundException(
+        this.i18n.t(RulesetsI18n.errors.RULESET_NOT_FOUND),
+      );
+    }
+    const target =
+      await this.rulesetVersionRepository.findByRulesetIdAndVersion(
+        ruleset.id,
+        version,
+      );
+    if (!target) {
+      throw new NotFoundException(
+        this.i18n.t(RulesetsI18n.errors.VERSION_NOT_FOUND),
+      );
+    }
+    return { ruleset, target };
+  }
+
+  private reviewRequired(): boolean {
+    return this.configService.get<boolean>('RULESETS_REQUIRE_REVIEW') ?? false;
   }
 
   private async enqueueIngestion(
@@ -447,7 +543,7 @@ export class RulesetsService {
     versionId: string,
     key: string,
     version: string,
-  ): Promise<IngestionStatus> {
+  ): Promise<IngestionJobOutcome> {
     try {
       await this.queueProducerService.enqueue(
         QUEUE_NAMES.DATA_INGESTION,

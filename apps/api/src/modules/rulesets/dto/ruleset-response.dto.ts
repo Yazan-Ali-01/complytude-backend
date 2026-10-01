@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  INGESTION_STATUSES,
-  type IngestionStatus,
+  INGESTION_JOB_OUTCOMES,
+  type IngestionJobOutcome,
 } from '../constants/ingestion-status.constants';
 import { RulesetVersionResponseDto } from './ruleset-version-response.dto';
 
@@ -57,10 +57,13 @@ export class RulesetSummaryResponseDto {
   documentTypes: string[];
 
   @ApiProperty({
-    description: 'Current version number',
+    description:
+      'The active version number; null until a version is ingested and activated',
     example: '1.0.0',
+    nullable: true,
+    type: String,
   })
-  currentVersion: string;
+  currentVersion: string | null;
 
   @ApiProperty({
     description: 'Ruleset status',
@@ -99,16 +102,26 @@ export class RulesetSummaryResponseDto {
  */
 export class RulesetResponseDto extends RulesetSummaryResponseDto {
   @ApiProperty({
-    description: 'Current version data including clauses',
+    description:
+      'The active version, with its clauses; null until a version is ingested and activated',
     type: RulesetVersionResponseDto,
+    nullable: true,
   })
-  currentVersionData: RulesetVersionResponseDto;
+  currentVersionData: RulesetVersionResponseDto | null;
 
   @ApiProperty({
     description:
-      'Whether the ingestion job was enqueued. Only present on create/update responses that trigger ingestion.',
-    enum: INGESTION_STATUSES,
+      'On create only: the first version, inactive until it is ingested and activated (POST /rulesets/:key/versions/:version/activate)',
+    type: RulesetVersionResponseDto,
     required: false,
   })
-  ingestionStatus?: IngestionStatus;
+  createdVersion?: RulesetVersionResponseDto;
+
+  @ApiProperty({
+    description:
+      'Whether the ingestion job was enqueued. Only present on create responses that trigger ingestion.',
+    enum: INGESTION_JOB_OUTCOMES,
+    required: false,
+  })
+  ingestionJob?: IngestionJobOutcome;
 }

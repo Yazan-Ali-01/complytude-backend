@@ -41,7 +41,8 @@
     "VARIABLE_NOT_AN_OPTION": "يجب أن تكون القيمة إحدى الخيارات: {options}",
     "VARIABLE_INVALID_EMAIL": "تنسيق البريد الإلكتروني غير صالح",
     "VARIABLE_INVALID_PHONE": "تنسيق رقم الهاتف غير صالح",
-    "PREVIEW_DAILY_LIMIT": "بلغت مؤسستك الحد اليومي للمعاينات ({limit}). حاول مرة أخرى غدًا."
+    "PREVIEW_DAILY_LIMIT": "بلغت مؤسستك الحد اليومي للمعاينات ({limit}). حاول مرة أخرى غدًا.",
+    "RULESET_NOT_READY": "لا يمكن استخدام مجموعات القواعد هذه بعد، لأن قواعدها لم تُستوعب: {rulesets}."
   },
   "messages": {
     "UPLOAD_CONFIRMED": "تم تأكيد الرفع. تم وضع استخراج النص في قائمة الانتظار.",

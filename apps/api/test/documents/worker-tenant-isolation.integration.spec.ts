@@ -124,6 +124,7 @@ describe('Workers act only inside the job payload tenant', () => {
         {
           hybridSearchBatch: () => Promise.resolve([]),
           findRequiredClauses: () => Promise.resolve([]),
+          findDraftVersionIds: () => Promise.resolve(new Set<string>()),
           findEmbeddings: () => Promise.resolve(new Map()),
         } as unknown as RulesetChunkSearchRepository,
         new TextChunkerService(tokenCounter),

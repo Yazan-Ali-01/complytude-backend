@@ -20,8 +20,9 @@ The Data Ingestion Worker is a standalone NestJS application that consumes jobs 
 3. Maps clauses to structured `ClauseInput` objects (with validation)
 4. Chunks clauses using `ClauseChunkerService` (clause-level chunking with token-aware splitting)
 5. Generates embeddings for all chunks (OpenAI `text-embedding-3-large` at 1536 dimensions) and records the model on each chunk (`embedding_model`)
-6. Atomic replace: deletes old chunks for the version, inserts new ones in a single transaction
+6. Atomic replace: deletes old chunks for the version, inserts new ones in a single transaction, removes the chunks of the ruleset's other inactive versions (resetting them to `pending`), and marks the version `ingested` with its `chunk_count` (migration 040): from then on the API can activate it
 7. Stores chunks with rich metadata (clause ID, title, order, whether it's required, severity, article, section, source, authority name, ruleset key and name, version)
+8. On a permanent failure or exhausted retries, records `ingestion_error` and marks the version `failed` (a version that was already ingested keeps its chunks and stays `ingested`)
 
 ### Document Ingestion (`DOCUMENT_INGESTION`)
 

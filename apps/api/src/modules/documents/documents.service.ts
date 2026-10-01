@@ -911,6 +911,21 @@ export class DocumentsService {
         scope.rulesetIds,
         scope.rulesetKeys,
       );
+      // Rules that aren't ingested would leave the analysis nothing to check against
+      const ready = await this.rulesetRepository.findReadyIds(rulesetIds);
+      const notReady = rulesetIds.filter((id) => !ready.has(id));
+      if (notReady.length > 0) {
+        throw new BadRequestException(
+          this.i18n.t(DocumentsI18n.errors.RULESET_NOT_READY, {
+            args: {
+              rulesets: [
+                ...(scope.rulesetKeys ?? []),
+                ...(scope.rulesetIds ?? []),
+              ].join(', '),
+            },
+          }),
+        );
+      }
       return { rulesetIds, ...context };
     }
     if (!scope.jurisdiction || !scope.documentType) {
@@ -918,10 +933,15 @@ export class DocumentsService {
         this.i18n.t(DocumentsI18n.errors.ANALYSIS_SCOPE_REQUIRED),
       );
     }
-    const applicable = await this.rulesetRepository.findApplicable(
+    const tagged = await this.rulesetRepository.findApplicable(
       scope.jurisdiction,
       scope.documentType,
     );
+    // Only those whose active version is ingested: a new or failed one isn't usable yet
+    const ready = await this.rulesetRepository.findReadyIds(
+      tagged.map((r) => r.id),
+    );
+    const applicable = tagged.filter((r) => ready.has(r.id));
     if (applicable.length === 0) {
       throw new BadRequestException(
         this.i18n.t(DocumentsI18n.errors.NO_APPLICABLE_RULESETS, {

@@ -7,7 +7,8 @@ export interface Ruleset {
   /** Jurisdiction codes (ANALYSIS_JURISDICTIONS) and document types it applies to. */
   jurisdictions: string[];
   documentTypes: string[];
-  currentVersion: string;
+  /** The active version's number; null until a version is ingested and activated. */
+  currentVersion: string | null;
   status: RulesetStatus;
   createdBy: string | null;
   createdAt: Date;

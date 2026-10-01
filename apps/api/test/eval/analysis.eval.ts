@@ -55,6 +55,7 @@ import {
   PromptBuilderService,
 } from '../../../worker-ai/src/services/prompt-builder.service';
 import { RulesetChunksRepository } from '../../../worker-ingestion/src/repositories/ruleset-chunks.repository';
+import { RulesetVersionStatusRepository } from '../../../worker-ingestion/src/repositories/ruleset-version-status.repository';
 import { RulesetVersionReadRepository } from '../../../worker-ingestion/src/repositories/ruleset-version-read.repository';
 import { RulesetIngestionService } from '../../../worker-ingestion/src/services/ruleset-ingestion.service';
 import { createTestTenant } from '../factories';
@@ -236,6 +237,7 @@ describeEval('AI evaluation', () => {
       db,
       new RulesetVersionReadRepository(db),
       new RulesetChunksRepository(db),
+      new RulesetVersionStatusRepository(db),
       new ClauseChunkerService(
         tokenCounter,
         new TextChunkerService(tokenCounter),

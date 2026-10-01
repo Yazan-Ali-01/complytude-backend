@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { RulesetsService } from 'src/modules/rulesets/rulesets.service';
 import { RulesetChunkSearchRepository } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
@@ -55,7 +56,7 @@ describe('Ruleset retrieval', () => {
       [key],
     );
     const { rows: v } = await app.databaseService.query<{ id: string }>(
-      `INSERT INTO public.ruleset_versions (ruleset_id, version) VALUES ($1, '1.0.0') RETURNING id`,
+      `INSERT INTO public.ruleset_versions (ruleset_id, version, ingestion_status) VALUES ($1, '1.0.0', 'ingested') RETURNING id`,
       [rows[0].id],
     );
     return { id: rows[0].id, key, versionId: v[0].id };
@@ -114,7 +115,7 @@ describe('Ruleset retrieval', () => {
     expect(await retrieve(1)).toContain('Other: data protection');
   });
 
-  it('a new version replaces the old one in results at once, before its re-ingestion clears it', async () => {
+  it('a new version replaces the old one only when it is ingested and activated', async () => {
     const labour = await ruleset();
     await chunk(labour.id, labour.versionId, 'v1: 60 hours a week', 1);
     jest
@@ -127,8 +128,22 @@ describe('Ruleset retrieval', () => {
       { version: '2.0.0', clauses: [] } as never,
       author.id,
     );
-    await chunk(labour.id, v2.id, 'v2: 48 hours a week', 1);
+    // Not ingested: the old version keeps serving, and activating the new one is refused
+    expect(v2).toMatchObject({ isActive: false, ingestionStatus: 'pending' });
+    expect(await retrieve(1)).toEqual(['v1: 60 hours a week']);
+    await expect(rulesets.activateVersion(labour.key, '2.0.0')).rejects.toThrow(
+      ConflictException,
+    );
 
+    // What the ingestion worker does: store the chunks and mark the version ingested
+    await chunk(labour.id, v2.id, 'v2: 48 hours a week', 1);
+    await app.databaseService.query(
+      `UPDATE public.ruleset_versions SET ingestion_status = 'ingested', chunk_count = 1 WHERE id = $1`,
+      [v2.id],
+    );
+    expect(await retrieve(1)).toEqual(['v1: 60 hours a week']);
+
+    await rulesets.activateVersion(labour.key, '2.0.0');
     expect(await retrieve(1)).toEqual(['v2: 48 hours a week']);
     const { rows } = await app.databaseService.query<{ version: string }>(
       'SELECT version FROM public.ruleset_versions WHERE ruleset_id = $1 AND is_active',

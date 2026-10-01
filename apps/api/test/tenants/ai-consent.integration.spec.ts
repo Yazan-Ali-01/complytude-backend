@@ -61,7 +61,7 @@ describe('AI processing consent', () => {
       [`labour_${randomUUID().slice(0, 8)}`],
     );
     const { rows: version } = await app.databaseService.query<{ id: string }>(
-      `INSERT INTO public.ruleset_versions (ruleset_id, version) VALUES ($1, '1.0.0') RETURNING id`,
+      `INSERT INTO public.ruleset_versions (ruleset_id, version, ingestion_status) VALUES ($1, '1.0.0', 'ingested') RETURNING id`,
       [rows[0].id],
     );
     await app.databaseService.query(

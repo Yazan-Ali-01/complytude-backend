@@ -34,18 +34,20 @@ export class RulesetChunksRepository {
   }
 
   /**
-   * Removes the chunks of a ruleset's inactive (superseded) versions, so only the active
-   * version stays searchable.
+   * Removes the chunks of a ruleset's inactive (superseded) versions other than `keepVersionId`,
+   * the version just ingested: it may be waiting for its activation.
    */
   async deleteInactiveVersionChunks(
     rulesetId: string,
+    keepVersionId: string,
     client: PoolClient,
   ): Promise<number> {
     const result = await client.query(
       `DELETE FROM public.ruleset_chunks c
        USING public.ruleset_versions v
-       WHERE c.ruleset_version_id = v.id AND c.ruleset_id = $1 AND NOT v.is_active`,
-      [rulesetId],
+       WHERE c.ruleset_version_id = v.id AND c.ruleset_id = $1 AND NOT v.is_active
+         AND v.id <> $2`,
+      [rulesetId, keepVersionId],
     );
     return result.rowCount ?? 0;
   }

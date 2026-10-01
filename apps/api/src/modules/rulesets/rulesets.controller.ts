@@ -38,11 +38,13 @@ import { AuthOptions } from 'src/modules/auth/decorators/auth-options.decorator'
 import { CurrentUserIdentity } from 'src/modules/auth/decorators/current-user.decorator';
 import type { AuthenticatedIdentityUser } from 'src/modules/auth/strategies';
 import { Audit } from '../../common/decorators/audit.decorator';
-import { IngestionStatus } from './constants/ingestion-status.constants';
+import { IngestionJobOutcome } from './constants/ingestion-status.constants';
 import {
   CreateRulesetDto,
   CreateRulesetVersionDto,
+  IngestRulesetQueryDto,
   ListRulesetsQueryDto,
+  ReviewRulesetVersionDto,
   RollbackRulesetVersionDto,
   RulesetKeyParamDto,
   RulesetListResponseDto,
@@ -211,7 +213,11 @@ export class RulesetsController {
     @CurrentUserIdentity() identity: AuthenticatedIdentityUser,
   ): Promise<RulesetResponseDto> {
     const result = await this.rulesetsService.create(dto, identity.userId);
-    return this.mapRulesetWithVersionToResponse(result, result.ingestionStatus);
+    return {
+      ...this.mapRulesetWithVersionToResponse(result),
+      createdVersion: this.mapVersionToResponse(result.createdVersion),
+      ingestionJob: result.ingestionJob,
+    };
   }
 
   @Patch(':key')
@@ -295,7 +301,60 @@ export class RulesetsController {
       dto,
       identity.userId,
     );
-    return this.mapVersionToResponse(version, version.ingestionStatus);
+    return this.mapVersionToResponse(version, version.ingestionJob);
+  }
+
+  @Post(':key/versions/:version/activate')
+  @HttpCode(HttpStatus.OK)
+  @Audit('RULESET_VERSION_ACTIVATED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+  })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
+  @ApiOperation({
+    summary: 'Activate a ruleset version',
+    description:
+      'Makes the version the one analyses check against, replacing the active one. Refused (409) until its rules are ingested, and, where review is required (always in production), until its legal review is recorded. Activating the active version changes nothing.',
+  })
+  @ApiParam({ name: 'key', example: 'dmcc_employment_rules_v1' })
+  @ApiParam({ name: 'version', example: '1.1.0' })
+  @ApiResponse({ status: 200, type: RulesetVersionResponseDto })
+  @ApiConflictError(
+    'Not ingested yet, or not reviewed where review is required',
+  )
+  async activate(
+    @Param() params: RulesetVersionParamDto,
+  ): Promise<RulesetVersionResponseDto> {
+    return this.mapVersionToResponse(
+      await this.rulesetsService.activateVersion(params.key, params.version),
+    );
+  }
+
+  @Post(':key/versions/:version/review')
+  @HttpCode(HttpStatus.OK)
+  @Audit('RULESET_VERSION_REVIEWED', {
+    resourceIdParam: 'key',
+    resourceType: 'rulesets',
+    includeBody: true,
+  })
+  @UseGuards(PlatformPermissionsGuard)
+  @RequireAnyPlatformPermission('rulesets:manage')
+  @ApiOperation({
+    summary: 'Record the legal review of a ruleset version',
+    description:
+      'Records who reviewed the version (the law firm and lawyer) and when, so it can be activated where review is required. A reviewed version is no longer a draft: results made with it carry no rules_not_reviewed warning.',
+  })
+  @ApiParam({ name: 'key', example: 'dmcc_employment_rules_v1' })
+  @ApiParam({ name: 'version', example: '1.1.0' })
+  @ApiResponse({ status: 200, type: RulesetVersionResponseDto })
+  async review(
+    @Param() params: RulesetVersionParamDto,
+    @Body() dto: ReviewRulesetVersionDto,
+  ): Promise<RulesetVersionResponseDto> {
+    return this.mapVersionToResponse(
+      await this.rulesetsService.reviewVersion(params.key, params.version, dto),
+    );
   }
 
   @Post(':key/versions/:version/rollback')
@@ -337,7 +396,7 @@ export class RulesetsController {
       dto.changelog,
       identity.userId,
     );
-    return this.mapVersionToResponse(version, version.ingestionStatus);
+    return this.mapVersionToResponse(version, version.ingestionJob);
   }
 
   @Post(':key/ingest')
@@ -351,7 +410,7 @@ export class RulesetsController {
   @ApiOperation({
     summary: 'Manually trigger ruleset ingestion',
     description:
-      'Enqueue a re-ingestion job for the active version of a ruleset. Useful for demo/backfill scenarios. Restricted to platform administrators.',
+      'Enqueue a (re-)ingestion job for the active version of a ruleset, or for `?version=` (e.g. a new version whose ingestion failed). Restricted to platform administrators.',
   })
   @ApiParam({
     name: 'key',
@@ -370,13 +429,17 @@ export class RulesetsController {
       },
     },
   })
-  async ingest(@Param() params: RulesetKeyParamDto): Promise<{
+  async ingest(
+    @Param() params: RulesetKeyParamDto,
+    @Query() query: IngestRulesetQueryDto,
+  ): Promise<{
     message: string;
     jobId: string | undefined;
     versionId: string;
   }> {
     const result = await this.rulesetsService.enqueueIngestionForActiveVersion(
       params.key,
+      query.version,
     );
     return {
       message: `Ingestion job enqueued for ruleset "${params.key}"`,
@@ -406,18 +469,18 @@ export class RulesetsController {
 
   private mapRulesetWithVersionToResponse(
     result: RulesetWithVersion,
-    ingestionStatus?: IngestionStatus,
   ): RulesetResponseDto {
     return {
       ...this.mapRulesetToSummary(result.ruleset),
-      currentVersionData: this.mapVersionToResponse(result.currentVersionData),
-      ...(ingestionStatus !== undefined && { ingestionStatus }),
+      currentVersionData: result.currentVersionData
+        ? this.mapVersionToResponse(result.currentVersionData)
+        : null,
     };
   }
 
   private mapVersionToResponse(
     version: RulesetVersion,
-    ingestionStatus?: IngestionStatus,
+    ingestionJob?: IngestionJobOutcome,
   ): RulesetVersionResponseDto {
     return {
       id: version.id,
@@ -429,7 +492,15 @@ export class RulesetsController {
       isActive: version.isActive,
       createdBy: version.createdBy,
       createdAt: version.createdAt.toISOString(),
-      ...(ingestionStatus !== undefined && { ingestionStatus }),
+      ingestionStatus: version.ingestionStatus,
+      chunkCount: version.chunkCount,
+      ingestionError: version.ingestionError,
+      ingestedAt: version.ingestedAt?.toISOString() ?? null,
+      reviewStatus: version.reviewStatus,
+      reviewedBy: version.reviewedBy,
+      reviewedAt: version.reviewedAt,
+      reviewNotes: version.reviewNotes,
+      ...(ingestionJob !== undefined && { ingestionJob }),
     };
   }
 }

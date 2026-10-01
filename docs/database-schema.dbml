@@ -482,9 +482,17 @@ Table ruleset_versions {
   clauses jsonb [not null, default: '[]']
   changelog text
   rolled_back_from_version varchar(50) [note: 'Prior version string when this row was created via rollback']
-  is_active boolean [not null, default: true]
+  is_active boolean [not null, default: true, note: 'The API creates versions inactive; activation requires ingested (and reviewed in production)']
   created_by uuid [null, ref: > users.id]
   created_at timestamptz [not null, default: `now()`]
+  ingestion_status varchar(20) [not null, default: 'pending', note: 'pending | ingested | failed (migration 040)']
+  chunk_count integer [null]
+  ingestion_error text [null]
+  ingested_at timestamptz [null]
+  review_status varchar(20) [not null, default: 'draft', note: 'draft | reviewed (D-9)']
+  reviewed_by varchar(255) [null, note: 'Law firm and reviewer']
+  reviewed_at date [null]
+  review_notes text [null]
 
   indexes {
     ruleset_id

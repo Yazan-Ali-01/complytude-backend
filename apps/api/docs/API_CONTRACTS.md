@@ -1309,7 +1309,7 @@ What a frontend calls to upload, analyse and generate documents. Uploads and ana
 - `findings[]`: `clauseId`, `citation` (the regulation, built from the ruleset, never by the model), `riskLevel` (`high`/`medium`/`low`), `evidence` (the contract passage, verbatim; empty only when a required clause is missing) and `evidenceOffset` (where it starts in the document text, for highlighting; null when it can't be placed), `title`, `description`, `suggestion`.
 - `clauseVerdicts[]`: one per clause checked, `status` `violated` / `compliant` / `not_applicable` / `unclear` / `unassessed`, with a one-line `reason`.
 - `summary`, `scope` (`jurisdiction`, `documentType`), `requiredClausesChecked`, `documentExcerpted`.
-- `warnings[]`: show them. `completed_with_warnings` means the result is partial or uncertain (`document_truncated`, `rulesets_without_context`, `unverified_evidence_dropped`, `clauses_not_assessed`, …); `no_findings` means nothing was reported, which is **not** a statement that the contract complies.
+- `warnings[]`: show them. `completed_with_warnings` means the result is partial or uncertain (`rules_not_reviewed`: the rules haven't had their legal review yet; `document_truncated`, `rulesets_without_context`, `unverified_evidence_dropped`, `clauses_not_assessed`, …); `no_findings` means nothing was reported, which is **not** a statement that the contract complies.
 - `provenance.processors`: every third party that received this document's data, in pipeline order: `{ processor, purpose, region, model? }` (`openai` embeddings and analysis with the region of its host, `azure-document-intelligence` OCR with the `pages` it read at upload). `region` is null when the code can't tell (the OCR resource's region; see `docs/SUBPROCESSORS.md`).
 - `riskAnalysisLevel` and `hiddenFindings`: present when the plan shows only part of a review. `critical_only` (Navigator, Shield) returns the high-risk findings; `none` returns no findings. `hiddenFindings` counts the rest, and the `reason` of a clause whose findings are all hidden is empty (its `status` stays). Show the count with an upgrade prompt, not "no issues". An upgrade shows past reviews in full.
 
@@ -1353,11 +1353,19 @@ Generating a document, a contract review (`analyze`, `trigger-analysis`) and a d
 |---|---|
 | `jurisdiction` | `MAINLAND`, `DMCC`, `IFZA`, `RAKEZ`, `SHAMS`, `DAFZA`, `JAFZA`, `DIFC`, `ADGM` |
 | `documentType` | `employment`, `shareholders_agreement`, `services`, `data_processing`, `commercial` |
-| `rulesetIds` / `rulesetKeys` | Pick the rulesets explicitly; unknown or inactive ones are refused |
+| `rulesetIds` / `rulesetKeys` | Pick the rulesets explicitly; unknown or inactive ones are refused, and so are ones whose rules aren't ingested yet (400 `RULESET_NOT_READY`) |
 
 - Explicit rulesets decide alone (the jurisdiction and document type, if given, are still told to the model).
 - Otherwise `jurisdiction` **and** `documentType` are required and resolve to the active rulesets tagged with both (`rulesets.jurisdictions`, `rulesets.document_types`, set with `POST /rulesets` or `PATCH /rulesets/:key` as `jurisdictions` / `document_types`).
-- 400 `ANALYSIS_SCOPE_REQUIRED` without either; 400 `NO_APPLICABLE_RULESETS` when nothing applies. There is no global, all-rulesets analysis.
+- 400 `ANALYSIS_SCOPE_REQUIRED` without either; 400 `NO_APPLICABLE_RULESETS` when nothing applies (a ruleset whose active version isn't ingested doesn't count). There is no global, all-rulesets analysis.
+
+### Managing rulesets (platform admins, `rulesets:manage`)
+
+A version (a new ruleset's first one, `POST /rulesets/:key/versions`, or a rollback copy) is created **inactive** and is ingested in the background; the ruleset keeps its active version (`currentVersionData`, null for a new ruleset) until another is activated. Each version reports `ingestionStatus` (`pending` / `ingested` / `failed` with `ingestionError`), `chunkCount`, `reviewStatus` (`draft` / `reviewed`), `reviewedBy`, `reviewedAt`, `reviewNotes`; create responses add `ingestionJob` (`enqueued` / `failed`).
+
+- `POST /rulesets/:key/versions/:version/review` `{ reviewedBy, reviewedAt: 'YYYY-MM-DD', notes? }` records the legal review (D-9).
+- `POST /rulesets/:key/versions/:version/activate` makes it the active version: 409 until it's ingested, and, where review is required (always in production, `RULESETS_REQUIRE_REVIEW`), until it's reviewed.
+- `POST /rulesets/:key/ingest?version=` re-ingests a version (default: the active one), e.g. after a failed ingestion.
 - The result (`GET /analysis-jobs/:id`) carries `scope`, and `clauseVerdicts`: one entry per clause the model was given (`violated`, `compliant`, `not_applicable`, `unclear`, or `unassessed`), with its citation. Only violated or unclear clauses produce findings.
 
 

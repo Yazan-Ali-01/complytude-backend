@@ -1,6 +1,6 @@
 /**
- * Ingestion job status for ruleset create/version/rollback responses.
- * Used for Swagger enum and type derivation.
+ * Whether the ingestion job was enqueued, on ruleset create/version/rollback responses (the
+ * version's own state is its `ingestionStatus`). Used for Swagger enum and type derivation.
  */
-export const INGESTION_STATUSES = ['enqueued', 'failed'] as const;
-export type IngestionStatus = (typeof INGESTION_STATUSES)[number];
+export const INGESTION_JOB_OUTCOMES = ['enqueued', 'failed'] as const;
+export type IngestionJobOutcome = (typeof INGESTION_JOB_OUTCOMES)[number];

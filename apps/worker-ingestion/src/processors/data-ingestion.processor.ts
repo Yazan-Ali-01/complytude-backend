@@ -60,6 +60,13 @@ export class DataIngestionProcessor extends AbstractProcessor<unknown, void> {
         error.message,
       );
     }
+    if (job.name === INGESTION_JOB_NAMES.RULESET_INGESTION) {
+      const data = job.data as RulesetIngestionJobData;
+      await this.rulesetIngestionService.markFailed(
+        data.versionId,
+        error.message,
+      );
+    }
   }
 
   protected override onDeadLetter(job: Job<unknown>, error: Error): void {
@@ -77,6 +84,17 @@ export class DataIngestionProcessor extends AbstractProcessor<unknown, void> {
         .catch((markError: unknown) => {
           this.logger.error(
             `markFailed failed for document ${data.documentId}: ${markError instanceof Error ? markError.message : String(markError)}`,
+          );
+        });
+    }
+    if (job.name === INGESTION_JOB_NAMES.RULESET_INGESTION) {
+      const data = job.data as RulesetIngestionJobData;
+      // onDeadLetter is synchronous; markFailed logs its own errors, this catch is the backstop
+      this.rulesetIngestionService
+        .markFailed(data.versionId, `Exhausted all retries: ${error.message}`)
+        .catch((markError: unknown) => {
+          this.logger.error(
+            `markFailed failed for ruleset version ${data.versionId}: ${markError instanceof Error ? markError.message : String(markError)}`,
           );
         });
     }

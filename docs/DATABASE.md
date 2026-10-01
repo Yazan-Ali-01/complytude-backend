@@ -721,6 +721,15 @@ Version history for rulesets. `clauses` stores the clause array (JSONB). `rolled
 
 Similar structure to `template_versions` for versioning, but clauses are authoritative content.
 
+A version is created inactive (migration 040) and becomes the ruleset's active one only through `POST /rulesets/:key/versions/:version/activate`, which requires:
+
+| Column | Meaning |
+|---|---|
+| `ingestion_status` | `pending` until worker-ingestion stores its chunks (`ingested`, with `chunk_count`, `ingested_at`) or gives up (`failed`, with `ingestion_error`). Only an ingested version can be activated; a failed re-ingestion of an ingested version keeps it ingested (the chunk replace is atomic) and records the error. |
+| `review_status` | `draft` until a platform admin records the legal review (`reviewed_by`, `reviewed_at` DATE, `review_notes`; a CHECK requires both when reviewed). Where `RULESETS_REQUIRE_REVIEW` is on (always in production, D-9), only a reviewed version can be activated; a result made with a draft carries the warning `rules_not_reviewed`. |
+
+`rulesets.current_version` is NULL until the first version is activated. Analyses use a ruleset only when its active version is ingested.
+
 ---
 
 ## Tenant-Scoped Tables

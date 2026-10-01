@@ -45,7 +45,7 @@ type RulesetRow = {
   authority_id: string | null;
   jurisdictions: string[];
   document_types: string[];
-  current_version: string;
+  current_version: string | null;
   status: RulesetStatus;
   created_by: string | null;
   created_at: Date;
@@ -164,6 +164,24 @@ export class RulesetRepository extends BaseRepository<
       options,
     );
     return result.rows.map((row) => this.mapRow(row));
+  }
+
+  /**
+   * Which of the given rulesets an analysis can use: their active version is ingested (its
+   * chunks are stored). A new ruleset, or one whose first ingestion failed, has none yet.
+   */
+  async findReadyIds(
+    ids: string[],
+    options?: QueryOptions,
+  ): Promise<Set<string>> {
+    if (!ids.length) return new Set();
+    const result = await this.executeQuery<{ ruleset_id: string }>(
+      `SELECT DISTINCT ruleset_id FROM public.ruleset_versions
+       WHERE ruleset_id = ANY($1::uuid[]) AND is_active AND ingestion_status = 'ingested'`,
+      [ids],
+      options,
+    );
+    return new Set(result.rows.map((row) => row.ruleset_id));
   }
 
   /** Active rulesets tagged with both the jurisdiction and the document type. */

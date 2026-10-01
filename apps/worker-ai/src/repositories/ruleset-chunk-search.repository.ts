@@ -55,6 +55,17 @@ export class RulesetChunkSearchRepository {
     }));
   }
 
+  /** Which of the given ruleset versions are drafts: no legal review recorded (D-9). */
+  async findDraftVersionIds(versionIds: string[]): Promise<Set<string>> {
+    if (versionIds.length === 0) return new Set();
+    const { rows } = await this.databaseService.query<{ id: string }>(
+      `SELECT id FROM public.ruleset_versions
+       WHERE id = ANY($1::uuid[]) AND review_status <> 'reviewed'`,
+      [versionIds],
+    );
+    return new Set(rows.map((row) => row.id));
+  }
+
   /**
    * The stored embeddings of the given chunks, to find the document sections each is about. Only
    * those made with `embeddingModel`: another model's vector says nothing about the document's.

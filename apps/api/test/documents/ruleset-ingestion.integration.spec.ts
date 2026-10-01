@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { RulesetReingestService } from 'src/cli/rulesets/ruleset-reingest.service';
 import { RulesetVersionRepository } from 'src/repositories/rulesets/ruleset-version.repository';
 import { RulesetChunksRepository } from '../../../worker-ingestion/src/repositories/ruleset-chunks.repository';
+import { RulesetVersionStatusRepository } from '../../../worker-ingestion/src/repositories/ruleset-version-status.repository';
 import { RulesetVersionReadRepository } from '../../../worker-ingestion/src/repositories/ruleset-version-read.repository';
 import { RulesetIngestionService } from '../../../worker-ingestion/src/services/ruleset-ingestion.service';
 import { resetTestState } from '../helpers/redis-flush.helper';
@@ -95,6 +96,7 @@ describe('Ruleset ingestion metadata and re-ingestion', () => {
       app.databaseService,
       new RulesetVersionReadRepository(app.databaseService),
       new RulesetChunksRepository(app.databaseService),
+      new RulesetVersionStatusRepository(app.databaseService),
       new ClauseChunkerService(
         tokenCounter,
         new TextChunkerService(tokenCounter),

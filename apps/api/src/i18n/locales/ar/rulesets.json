@@ -6,7 +6,9 @@
     "VERSION_ALREADY_EXISTS": "النسخة موجودة بالفعل لمجموعة القواعس هذه",
     "VERSION_NOT_FOUND": "لم يتم العثور على النسخة",
     "AUTHORITY_NOT_FOUND": "لم يتم العثور على السلطة",
-    "OPERATION_FAILED": "فشلت عملية مجموعة القواعد. حاول مرة أخرى."
+    "OPERATION_FAILED": "فشلت عملية مجموعة القواعد. حاول مرة أخرى.",
+    "VERSION_NOT_INGESTED": "لا يمكن تفعيل الإصدار {version} قبل استيعاب قواعده (حالة الاستيعاب: {status}).",
+    "VERSION_NOT_REVIEWED": "لا يمكن تفعيل الإصدار {version} قبل تسجيل مراجعته القانونية."
   },
   "messages": {}
 }

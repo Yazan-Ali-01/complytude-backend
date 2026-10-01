@@ -19,6 +19,7 @@ import { DataIngestionProcessor } from './processors/data-ingestion.processor';
 import { DocumentWriteRepository } from './repositories/document-write.repository';
 import { RulesetChunksRepository } from './repositories/ruleset-chunks.repository';
 import { RulesetVersionReadRepository } from './repositories/ruleset-version-read.repository';
+import { RulesetVersionStatusRepository } from './repositories/ruleset-version-status.repository';
 import { DocumentIngestionService } from './services/document-ingestion.service';
 import { S3PromotionService } from './services/s3-promotion.service';
 import { RulesetIngestionService } from './services/ruleset-ingestion.service';
@@ -63,6 +64,7 @@ import { WorkerIngestionService } from './worker-ingestion.service';
     RulesetIngestionService,
     RulesetChunksRepository,
     RulesetVersionReadRepository,
+    RulesetVersionStatusRepository,
     DocumentIngestionService,
     DocumentWriteRepository,
     {

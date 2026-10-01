@@ -162,6 +162,17 @@ export const validationSchema = Joi.object({
   SIGNED_URL_EXPIRES_IN: Joi.number().default(900), // 15 minutes
   // Most PDF pages an upload may have (OCR bills per page); keep equal to worker-ingestion's
   DOCUMENT_MAX_PAGES: Joi.number().integer().min(1).default(50),
+
+  // A ruleset version is activated only once its legal review is recorded (D-9): always in
+  // production; elsewhere drafts may be activated (each result then says the rules are unreviewed)
+  RULESETS_REQUIRE_REVIEW: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.boolean().valid(true).default(true).messages({
+      'any.only':
+        'RULESETS_REQUIRE_REVIEW must be true when NODE_ENV=production',
+    }),
+    otherwise: Joi.boolean().default(false),
+  }),
   // Previews a tenant may request per day (UTC); each is a document conversion
   PREVIEW_DAILY_LIMIT: Joi.number().integer().min(1).default(50),
 

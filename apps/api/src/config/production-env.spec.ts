@@ -100,6 +100,20 @@ describe('production environment validation', () => {
     });
   });
 
+  describe('api: ruleset review (D-9)', () => {
+    it('requires a recorded legal review before activation in production', () => {
+      expect(
+        errors(api, { ...PRODUCTION, RULESETS_REQUIRE_REVIEW: 'false' }),
+      ).toEqual([
+        'RULESETS_REQUIRE_REVIEW must be true when NODE_ENV=production',
+      ]);
+      const { value } = api.validate(PRODUCTION, { allowUnknown: true }) as {
+        value: Record<string, unknown>;
+      };
+      expect(value.RULESETS_REQUIRE_REVIEW).toBe(true);
+    });
+  });
+
   describe('worker-ingestion', () => {
     it('refuses to boot without an https Document Intelligence endpoint', () => {
       expect(

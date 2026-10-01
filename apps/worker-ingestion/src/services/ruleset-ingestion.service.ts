@@ -10,6 +10,7 @@ import {
   RulesetChunksRepository,
 } from '../repositories/ruleset-chunks.repository';
 import { RulesetVersionReadRepository } from '../repositories/ruleset-version-read.repository';
+import { RulesetVersionStatusRepository } from '../repositories/ruleset-version-status.repository';
 
 @Injectable()
 export class RulesetIngestionService {
@@ -20,6 +21,7 @@ export class RulesetIngestionService {
     private readonly databaseService: DatabaseService,
     private readonly rulesetVersionReadRepository: RulesetVersionReadRepository,
     private readonly rulesetChunksRepository: RulesetChunksRepository,
+    private readonly rulesetVersionStatusRepository: RulesetVersionStatusRepository,
     private readonly clauseChunkerService: ClauseChunkerService,
     private readonly embeddingService: EmbeddingService,
     configService: ConfigService,
@@ -141,6 +143,18 @@ export class RulesetIngestionService {
         );
         await this.rulesetChunksRepository.deleteInactiveVersionChunks(
           rulesetId,
+          versionId,
+          client,
+        );
+        await this.rulesetVersionStatusRepository.resetEmptied(
+          rulesetId,
+          versionId,
+          client,
+        );
+        // Usable from now on: the API activates only an ingested version
+        await this.rulesetVersionStatusRepository.markIngested(
+          versionId,
+          rows.length,
           client,
         );
         return deleted;
@@ -156,6 +170,17 @@ export class RulesetIngestionService {
       `Ingestion complete: ruleset "${ruleset.key}" v${version.version} — ` +
         `${clauseInputs.length} clauses → ${chunks.length} chunks stored`,
     );
+  }
+
+  /** Ingestion gave up on the version (permanent error or retries exhausted). Never throws. */
+  async markFailed(versionId: string, error: string): Promise<void> {
+    await this.rulesetVersionStatusRepository
+      .markFailed(versionId, error)
+      .catch((err: unknown) => {
+        this.logger.error(
+          `Could not record the failed ingestion of ruleset version ${versionId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 
   private mapClauses(clauses: unknown[]): ClauseInput[] {

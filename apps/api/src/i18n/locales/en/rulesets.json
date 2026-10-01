@@ -6,7 +6,9 @@
     "VERSION_ALREADY_EXISTS": "Version already exists for this ruleset",
     "VERSION_NOT_FOUND": "Version not found",
     "AUTHORITY_NOT_FOUND": "Authority not found",
-    "OPERATION_FAILED": "The ruleset operation failed. Try again."
+    "OPERATION_FAILED": "The ruleset operation failed. Try again.",
+    "VERSION_NOT_INGESTED": "Version {version} can't be activated until its rules are ingested (ingestion: {status}).",
+    "VERSION_NOT_REVIEWED": "Version {version} can't be activated until its legal review is recorded."
   },
   "messages": {}
 }
