@@ -41,10 +41,11 @@ export default registerAs('workerAi', () => ({
     10,
   ),
 
-  // Cohere re-ranking configuration
-  cohereApiKey: process.env.COHERE_API_KEY!,
-  cohereRerankModel: process.env.COHERE_RERANK_MODEL || 'rerank-v3.5',
-  rerankTopN: parseInt(process.env.RERANK_TOP_N || '25', 10),
+  // Most clauses taken by similarity after the required ones
+  ragOptionalClauseLimit: parseInt(
+    process.env.RAG_OPTIONAL_CLAUSE_LIMIT || '25',
+    10,
+  ),
 
   // RAG retrieval tuning
   ragTopKPerQuery: parseInt(process.env.RAG_TOP_K_PER_QUERY || '5', 10),

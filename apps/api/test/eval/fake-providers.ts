@@ -4,11 +4,9 @@ import type {
   ChatCompletionOptions,
   ChatCompletionResult,
 } from '../../../worker-ai/src/services/llm.service';
-import type { RulesetChunkMatch } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
-import type { RerankResult } from '../../../worker-ai/src/services/reranker.service';
 
 /**
- * Stand-ins for OpenAI and Cohere so `EVAL_PROVIDERS=fake pnpm eval:ai` can run the whole harness
+ * Stand-ins for OpenAI so `EVAL_PROVIDERS=fake pnpm eval:ai` can run the whole harness
  * without keys or cost. They check the plumbing only: their scores measure nothing.
  */
 const DIMENSIONS = 1536;
@@ -57,24 +55,6 @@ export class FakeEmbeddingService {
         tokenCount: 0,
       })),
     );
-  }
-}
-
-export class FakeRerankerService {
-  getModel(): string {
-    return 'fake-passthrough';
-  }
-
-  getTopN(): number {
-    return 25;
-  }
-
-  rerank(_query: string, chunks: RulesetChunkMatch[]): Promise<RerankResult> {
-    return Promise.resolve({
-      chunks: chunks.slice(0, 25),
-      reranked: true,
-      providerCalled: false,
-    });
   }
 }
 

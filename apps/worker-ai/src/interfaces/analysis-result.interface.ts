@@ -45,7 +45,6 @@ export interface AnalysisFinding {
 /**
  * Why a completed analysis should not be read as a clean bill of health.
  * - document_truncated: only the start of the document fit the model's context
- * - not_reranked: reranking failed, so the clauses used may not be the most relevant
  * - rulesets_without_context: a requested ruleset contributed no clauses
  * - ungrounded_findings_dropped: findings that cited no supplied clause were removed
  * - unverified_evidence_dropped: findings whose quote isn't in the document were removed
@@ -55,7 +54,6 @@ export interface AnalysisFinding {
  */
 export type AnalysisWarning =
   | 'document_truncated'
-  | 'not_reranked'
   | 'rulesets_without_context'
   | 'ungrounded_findings_dropped'
   | 'unverified_evidence_dropped'
@@ -65,8 +63,8 @@ export type AnalysisWarning =
 
 /** A third-party processor an analysis sent document data to (listed in docs/SUBPROCESSORS.md). */
 export interface ProcessorUse {
-  processor: 'openai' | 'cohere' | 'azure-document-intelligence';
-  purpose: 'embeddings' | 'analysis' | 'rerank' | 'ocr';
+  processor: 'openai' | 'azure-document-intelligence';
+  purpose: 'embeddings' | 'analysis' | 'ocr';
   /**
    * Where the data was processed: the provider's data-residency region, `global`, or null when
    * the code can't tell (the OCR resource's region is set in Azure; the register lists it).
@@ -95,8 +93,8 @@ export interface AnalysisProvenance {
     vectorLimit: number;
     bm25Limit: number;
     maxHybridResults: number;
-    rerankModel: string;
-    rerankTopN: number;
+    /** Most clauses taken by similarity, in search order, after the required ones. */
+    optionalClauseLimit: number;
   };
   judging: {
     batchSize: number;
@@ -126,7 +124,6 @@ export interface AnalysisResult {
   rulesetIdsSearched: string[];
   /** Requested ruleset IDs that contributed no clause. */
   rulesetIdsWithoutContext: string[];
-  reranked: boolean;
   /** A single document section didn't fit the budget and was cut. */
   truncated: boolean;
   /** Some clauses were judged against the document's most relevant sections, not all of it. */

@@ -14,13 +14,13 @@ A user uploads a contract. The system chunks it, searches for relevant regulator
 │ (enqueue)│     │ ai-processing │     │ (RAG pipeline)│
 └──────────┘     └──────────────┘     └───────┬───────┘
                                               │
-                              ┌───────────────┼───────────────┐
-                              ▼               ▼               ▼
-                        ┌──────────┐   ┌──────────┐   ┌──────────┐
-                        │  Hybrid  │   │  Cohere  │   │  OpenAI  │
-                        │  Search  │   │ Re-rank  │   │   LLM    │
-                        │(PG+BM25) │   │          │   │(json_schema)│
-                        └──────────┘   └──────────┘   └──────────┘
+                              ┌───────────────┴───────────────┐
+                              ▼                               ▼
+                        ┌──────────┐                   ┌──────────┐
+                        │  Hybrid  │                   │  OpenAI  │
+                        │  Search  │                   │   LLM    │
+                        │(PG+BM25) │                   │(json_schema)│
+                        └──────────┘                   └──────────┘
 ```
 
 ---
@@ -34,7 +34,7 @@ Consumes `DOCUMENT_ANALYSIS` jobs. Runs the full RAG pipeline:
 1. **Chunk** the document text (token-aware splitting)
 2. **Embed** chunks via OpenAI (`text-embedding-3-small`, 1536 dimensions)
 3. **Hybrid search** against `ruleset_chunks` — vector similarity + BM25 full-text, merged via Reciprocal Rank Fusion
-4. **Re-rank** candidates using Cohere (`rerank-v3.5`) — falls back gracefully if unavailable
+4. **Keep** the candidates in search order, up to `RAG_OPTIONAL_CLAUSE_LIMIT` (no reranking)
 5. **Add the checklist:** every required clause of the job's rulesets, whatever the search found
 6. **Judge in batches:** the clauses (required first) go to the model a batch per call, a few calls at a time, up to a call budget; each call sees the whole document, or the sections most relevant to its clauses when the document doesn't fit
 7. **LLM call** per batch with structured output enforcement (OpenAI `json_schema`, not `json_object`), restricted to that batch's clause IDs
@@ -74,15 +74,13 @@ Results are merged using **Reciprocal Rank Fusion** (RRF, k=60). RRF uses rank p
 - **Filtered vector search:** the version (and optional ruleset scope) filter runs inside the HNSW scan with `SET LOCAL hnsw.iterative_scan = relaxed_order` (pgvector ≥ 0.8), so a narrow scope still returns K rows.
 - **BM25 query:** the whole document, reduced to its 64 most frequent stems (English stems of Latin text, Arabic stems of Arabic text) OR-ed together; `content_tsv` holds both English and Arabic stems (migration 027), so Arabic contracts match Arabic regulations by stem.
 
-### Stage 2: Re-ranking
+### Stage 2: No reranking
 
-The merged candidates are re-ranked by **Cohere's cross-encoder model** (`rerank-v3.5`), which reads the full query-document pairs to produce a relevance score; any set of two or more is reranked, even when all of it fits in `RERANK_TOP_N`. The query is the title plus up to 8 chunks sampled evenly across the document (4,000 characters), not just its opening. This is more accurate than embedding similarity alone but too expensive to run on all chunks — hence the two-stage approach.
-
-If Cohere is unavailable, the pipeline continues with the hybrid search ordering. The `reranked` field in results indicates whether re-ranking was applied.
+The merged candidates are kept in RRF order, up to `RAG_OPTIONAL_CLAUSE_LIMIT` (25). A Cohere cross-encoder used to reorder them against a query sampled from the contract; with every required clause checked anyway (stage 3), the evaluation scored the analysis no worse without it (`data/eval/HISTORY.md`, rerank `none`), so it was removed: no contract text goes to a reranking provider. A self-hosted multilingual reranker can come back if a later evaluation shows it helps.
 
 ### Stage 3: Required clauses
 
-Search finds clauses that resemble the contract, so it misses the ones a contract leaves out. Every chunk marked `isRequired` in the job's rulesets is added to the reranked clauses, so each required clause gets a verdict (`result.requiredClausesChecked`).
+Search finds clauses that resemble the contract, so it misses the ones a contract leaves out. Every chunk marked `isRequired` in the job's rulesets is added to the clauses found by search, so each required clause gets a verdict (`result.requiredClausesChecked`).
 
 ### Stage 4: Clause-by-clause judging
 
@@ -123,7 +121,7 @@ Tracks the lifecycle of each analysis request.
 | Column | Type | Purpose |
 |--------|------|---------|
 | `status` | ENUM | `queued` → `processing` → `completed` / `failed` |
-| `result` | JSONB | Findings, summary, model, chunk counts, `reranked` flag |
+| `result` | JSONB | Findings, summary, model, chunk counts, warnings, provenance |
 | `error` | TEXT | Error message if failed |
 
 ---
@@ -149,8 +147,7 @@ Tracks the lifecycle of each analysis request.
   "model": "gpt-4o-mini",
   "documentChunks": 4,
   "rulesetChunksMatched": 10,
-  "rulesetsConsulted": ["dmcc_employment_regulations_v1", "uae_labour_law_employment_v1"],
-  "reranked": true
+  "rulesetsConsulted": ["dmcc_employment_regulations_v1", "uae_labour_law_employment_v1"]
 }
 ```
 
@@ -161,7 +158,6 @@ Tracks the lifecycle of each analysis request.
 | Scenario | Error Type | Behavior |
 |----------|-----------|----------|
 | DB timeout, embedding API failure | `RetryableError` | BullMQ retries with exponential backoff |
-| Cohere API failure | Graceful degradation | Logs warning, skips re-ranking, pipeline continues |
 | LLM API error | `RetryableError` | BullMQ retries |
 | LLM refusal or truncation | `Error` | Thrown, caught by pipeline, job marked failed |
 | Job/document not found | `PermanentError` | No retries, job marked failed immediately |
@@ -173,12 +169,10 @@ Tracks the lifecycle of each analysis request.
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `OPENAI_API_KEY` | Yes | — | Embeddings + LLM |
-| `COHERE_API_KEY` | Yes | — | Re-ranking |
 | `OPENAI_BASE_URL` | No | `https://api.openai.com/v1` | OpenAI host for embeddings and chat; only the global API or a data-residency host (`us`/`eu`/`ae`) |
 | `OPENAI_CHAT_MODEL` | No | `gpt-4o-mini` | LLM model (must support structured outputs) |
 | `OPENAI_CHAT_CONTEXT_WINDOW` | For a model outside the known table | — | Context window in tokens (`apps/worker-ai/src/config/chat-model.ts`) |
-| `COHERE_RERANK_MODEL` | No | `rerank-v3.5` | Cohere model |
-| `RERANK_TOP_N` | No | `10` | Chunks to keep after re-ranking |
+| `RAG_OPTIONAL_CLAUSE_LIMIT` | No | `25` | Clauses kept from the search (search order) after the required ones |
 | `RAG_JUDGE_BATCH_SIZE` | No | `8` | Clauses judged per model call |
 | `RAG_JUDGE_CONCURRENCY` | No | `3` | Model calls in flight per analysis |
 | `RAG_MAX_JUDGE_CALLS` | No | `10` | Model calls per analysis at most |

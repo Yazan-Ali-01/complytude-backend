@@ -38,7 +38,7 @@ isProject: false
 
 Your full pipeline is already built and operational:
 
-- **Rulesets**: `POST /rulesets` with clauses -> auto-enqueues ingestion -> `worker-ingestion` chunks + embeds via OpenAI -> stored in `ruleset_chunks` -> hybrid search (pgvector + BM25 + RRF) -> Cohere rerank -> GPT-4o-mini analysis
+- **Rulesets**: `POST /rulesets` with clauses -> auto-enqueues ingestion -> `worker-ingestion` chunks + embeds via OpenAI -> stored in `ruleset_chunks` -> hybrid search (pgvector + BM25 + RRF) -> GPT-4o-mini analysis
 - **Templates**: `POST /templates` (multipart with DOCX file) -> stored in S3 -> `worker-generation` renders variables into DOCX -> Gotenberg converts to PDF
 - **5 synthetic rulesets** exist as seed data; **5 synthetic templates** with no real DOCX files
 - **10 authorities** already seeded (including DMCC, DIFC, ADGM)

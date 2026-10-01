@@ -16,7 +16,7 @@ The AI Worker is a standalone NestJS application that consumes jobs from the `ai
 2. Fetches the document content from PostgreSQL
 3. Chunks the document text and generates embeddings (OpenAI)
 4. Performs **hybrid search** — vector similarity (pgvector HNSW) + BM25 full-text search (tsvector GIN) merged via Reciprocal Rank Fusion (RRF)
-5. **Re-ranks** retrieved chunks using Cohere's rerank model (graceful fallback if unavailable)
+5. Keeps the clauses found by similarity in search order, up to `RAG_OPTIONAL_CLAUSE_LIMIT` (no reranking: the evaluation found the search order no worse than Cohere's rerank)
 6. Adds **every required clause** of the applicable rulesets, whatever the search found
 7. **Judges the clauses in batches** (a few calls at a time), each call with the whole document or, when it doesn't fit, the sections most relevant to its clauses
 8. Calls the LLM (OpenAI GPT) with **structured output** enforcement (JSON Schema)
@@ -25,7 +25,7 @@ The AI Worker is a standalone NestJS application that consumes jobs from the `ai
 ### RAG Pipeline
 
 ```
-Document → Redact → Chunk → Embed → Required clauses + Hybrid Search (Vector + BM25 / RRF) → Cohere Re-rank
+Document → Redact → Chunk → Embed → Required clauses + Hybrid Search (Vector + BM25 / RRF, top RAG_OPTIONAL_CLAUSE_LIMIT)
          → Batches of clauses → Prompt per batch → LLM (Structured Output), a few at a time → Merge → Store Result
 ```
 
@@ -47,7 +47,6 @@ Document → Redact → Chunk → Embed → Required clauses + Hybrid Search (Ve
 | Provider | Usage |
 |----------|-------|
 | **OpenAI** | Embeddings (`text-embedding-3-small`) + LLM chat completions (`gpt-4o-mini`, structured output with `json_schema`) |
-| **Cohere** | Re-ranking retrieved chunks (`rerank-v3.5`) — optional, graceful degradation on failure |
 
 ### Source Structure
 
@@ -64,8 +63,7 @@ apps/worker-ai/src/
 ├── services/
 │   ├── document-analysis.service.ts # RAG pipeline orchestration
 │   ├── llm.service.ts               # OpenAI chat completions (structured output, json_schema)
-│   ├── prompt-builder.service.ts    # System prompt + context window management
-│   └── reranker.service.ts          # Cohere rerank integration (graceful fallback)
+│   └── prompt-builder.service.ts    # System prompt + context window management
 ├── eval/
 │   ├── eval-case.ts                 # Evaluation case and run types (data/eval/cases)
 │   ├── scorer.ts                    # Scores runs against the labels (pure, unit-tested)
@@ -92,9 +90,9 @@ DocumentAnalysisService pipeline:
   2. Fetch document content
   3. Chunk document text (TextChunkerService)
   4. Embed all chunks (EmbeddingService → OpenAI)
-  5. Hybrid search (vector HNSW + BM25 tsvector, merged via RRF, top 20)
-  6. Cohere re-rank (top 10, graceful fallback to original ranking)
-     No clauses left → the job fails ("nothing was checked"); the model is not called
+  5. Required clauses of the rulesets, then hybrid search (vector HNSW + BM25 tsvector, merged
+     via RRF) in its order, up to RAG_OPTIONAL_CLAUSE_LIMIT (25)
+  6. No clauses left → the job fails ("nothing was checked"); the model is not called
   7. Build prompt: clauses (C1…Cn) in the system message, the document in a nonce-delimited
      untrusted block in the user message (context-window aware)
   8. LLM call (OpenAI, structured output; clauseId limited to the supplied IDs)
@@ -109,7 +107,7 @@ The worker uses a **hybrid retrieval** approach combining two complementary sear
 - **Vector search (semantic):** pgvector HNSW index with cosine distance. Finds chunks that are semantically similar to document content, even when different wording is used.
 - **BM25 full-text search (lexical):** PostgreSQL tsvector/GIN index. Catches exact keyword matches (e.g., specific regulation numbers like "Article 14.3") that embeddings may miss.
 - **Reciprocal Rank Fusion (RRF):** Combines results from both methods using rank position (not raw scores), with `k=60`. This avoids the problem of incomparable score scales between cosine distance and BM25 ts_rank.
-- **Cohere re-ranking:** The merged candidates are re-ranked by a dedicated cross-encoder model for final relevance ordering, against a query sampled across the whole document.
+- **No reranking:** the merged candidates are used in RRF order. A Cohere rerank (a query sampled from the document) used to reorder them; the evaluation scored the analysis no worse without it (`data/eval/HISTORY.md`, rerank `none`), so no document text goes to a reranking provider.
 - **Scope:** only active rulesets and their active version are searched; a scoped search uses pgvector iterative scan so it still returns K rows; BM25 covers English and Arabic stems. See `docs/RAG_PIPELINE.md`.
 
 ### Clause by clause
@@ -117,7 +115,7 @@ The worker uses a **hybrid retrieval** approach combining two complementary sear
 Similarity decides which optional clauses the model sees, but it can't be trusted to surface an omission: a contract that leaves out a required clause has no text similar to it. So the checklist comes first:
 
 - **Required clauses:** every chunk marked `isRequired` of the job's rulesets (active rulesets, active version) is supplied, whatever the search returned. `result.requiredClausesChecked` counts them.
-- **Optional clauses:** the hybrid search and rerank results, minus the required ones.
+- **Optional clauses:** the hybrid search results, minus the required ones, in search order up to `RAG_OPTIONAL_CLAUSE_LIMIT`.
 - **Batches:** the supplied clauses (required first) are judged `RAG_JUDGE_BATCH_SIZE` per call, `RAG_JUDGE_CONCURRENCY` calls at a time, at most `RAG_MAX_JUDGE_CALLS` calls. Each call's schema allows only its own clause IDs, and a finding that cites another batch's clause is dropped as ungrounded. Clauses beyond the call budget are `unassessed` (warning `clauses_not_assessed`), never silently compliant.
 - **Long documents:** a call gets the whole document when it fits the context budget. Otherwise it gets the sections (the embedded chunks) most similar to its clauses, each clause's `RAG_SECTIONS_PER_CLAUSE` nearest pooled, as many as fit, in document order and labelled `[Part i of n]`; the model is told that a requirement it can't see met is `unclear`, not `violated`. `result.documentExcerpted` says whether any call saw excerpts. Text is cut only when a single section doesn't fit (`truncated`, warning `document_truncated`).
 - **Cost:** `result.usage` records the model calls and the prompt, completion and embedding tokens of the analysis; the judging settings are in `provenance.judging`.
@@ -126,9 +124,8 @@ Similarity decides which optional clauses the model sees, but it can't be truste
 
 | Error Type | Behavior |
 |-----------|----------|
-| `RetryableError` | DB timeouts, embedding API failures, LLM API errors, Cohere API errors → BullMQ retries with exponential backoff |
+| `RetryableError` | DB timeouts, embedding API failures, LLM API errors → BullMQ retries with exponential backoff |
 | `PermanentError` | Job/document not found, terminal job state → moves to failed, no retries |
-| Cohere failure | Graceful degradation: falls back to original hybrid ranking, logs warning, pipeline continues |
 | Pipeline failure | `markFailed(jobId, errorMessage)` only for a `PermanentError` or the last attempt; otherwise the job stays `processing` for BullMQ's next attempt. A job marked failed gives the tenant its contract review back: a `USAGE_REFUND` job on `entitlement-processing` (job id `usage-refund-review-<analysisJobId>`, so a repeated failure refunds once) |
 
 ### Prompt injection and grounding
@@ -147,7 +144,7 @@ Every finding quotes the contract passage it is about (`evidence`, at most about
 
 ### Redaction
 
-The first step of every analysis (`src/redaction/`). Chunking, embeddings, the rerank query and the prompt only ever see the redacted text; a failure fails the attempt (retryable) before any provider is called.
+The first step of every analysis (`src/redaction/`). Chunking, embeddings and the prompt only ever see the redacted text; a failure fails the attempt (retryable) before any provider is called.
 
 - **Detected** (`detectors.ts`): Emirates IDs (check digit validated; the `784-XXXX-XXXXXXX-X` shape also when partly masked), IBANs (mod-97), passport numbers (after "passport" / "جواز"), UAE phone numbers, emails, P.O. boxes, villa/flat/building/street addresses, the **parties the preamble defines** (`Name, … ("Employer")`), names after an honorific (Mr, Ms, Dr, Sheikh, السيد, الشيخ, …) or a `Name:` / `الاسم:` label, and names from the name-recognition service when configured.
 - **Placeholders** (`redactor.ts`): a party keeps its contractual role (`[EMPLOYER]`, `[FIRST_SHAREHOLDER]`), others are numbered (`[PERSON_1]`, `[EMIRATES_ID_1]`); the same value always gets the same placeholder, and a known name is replaced wherever it appears (a surname after an honorific gets `[EMPLOYEE_SURNAME]`). A company's legal form stays (`[COMPANY] DMCC`) because it tells the jurisdiction.
@@ -158,7 +155,7 @@ The first step of every analysis (`src/redaction/`). Chunking, embeddings, the r
 
 ### What leaves the worker
 
-- **OpenAI embeddings:** the document's chunks. **Cohere rerank:** chunks sampled across the document. **OpenAI chat:** per batch of clauses, the document (or its sections most relevant to the batch) and the batch's clauses.
+- **OpenAI embeddings:** the document's chunks. **OpenAI chat:** per batch of clauses, the document (or its sections most relevant to the batch) and the batch's clauses.
 - **Never sent:** the document title. Upload titles are filenames and often name a party; they add nothing to the review. (The BM25 query that uses it runs in our own Postgres.)
 - **Logs** identify a document by its ID only. `libs/logger/src/no-secrets-in-logs.spec.ts` fails the build if a log call interpolates a title, content or generation variables.
 - **Personal data** in the text is replaced with placeholders first (below): the providers see `[EMPLOYEE]`, `[EMIRATES_ID_1]`, never the values.
@@ -167,8 +164,8 @@ The first step of every analysis (`src/redaction/`). Chunking, embeddings, the r
 
 | Status | When |
 |---|---|
-| `completed` | No section cut, reranked context from every requested ruleset, every supplied clause judged, at least one grounded finding. |
-| `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `not_reranked`, `rulesets_without_context`, `ungrounded_findings_dropped`, `unverified_evidence_dropped`, `inconsistent_findings_dropped`, `clauses_not_assessed`, `no_findings` (nothing reported is not a compliance verdict). |
+| `completed` | No section cut, context from every requested ruleset, every supplied clause judged, at least one grounded finding. |
+| `completed_with_warnings` | Otherwise; `result.warnings` says why: `document_truncated`, `rulesets_without_context`, `ungrounded_findings_dropped`, `unverified_evidence_dropped`, `inconsistent_findings_dropped`, `clauses_not_assessed`, `no_findings` (nothing reported is not a compliance verdict). |
 | `failed` | Including when retrieval returned no clauses at all. |
 
 The API refuses (400) unknown or inactive `rulesetKeys` / `rulesetIds` instead of widening the search.
@@ -206,13 +203,12 @@ interface AnalysisResult {
   summary: string;         // What was checked and found (2-4 sentences)
   model: string;           // LLM model used (e.g., "gpt-4o-mini")
   documentChunks: number;  // Number of document chunks processed
-  rulesetChunksMatched: number; // Clauses supplied: required + reranked optional
+  rulesetChunksMatched: number; // Clauses supplied: required + optional (search order)
   requiredClausesChecked: number; // Required clauses of the rulesets, supplied whatever the search found
   rulesetsConsulted: string[];  // Ruleset keys of the clauses supplied
   rulesetsCited: string[];      // Ruleset keys at least one finding cites
   rulesetIdsSearched: string[]; // Requested scope; empty = all rulesets
   rulesetIdsWithoutContext: string[]; // Requested rulesets that contributed no clause
-  reranked: boolean;       // Whether Cohere re-ranking was applied
   truncated: boolean;      // A single section didn't fit a call and was cut
   documentExcerpted: boolean; // Some call saw the most relevant sections, not the whole document
   usage: { modelCalls: number; promptTokens: number; completionTokens: number; embeddingTokens: number };
@@ -222,10 +218,10 @@ interface AnalysisResult {
   warnings: string[];      // See "Job status"
   provenance: {            // What produced this result, to reproduce and compare runs
     // Every third party that received this document's data (docs/SUBPROCESSORS.md), in order:
-    // OCR at upload (its pages), OpenAI embeddings, Cohere rerank when called, OpenAI analysis.
+    // OCR at upload (its pages), OpenAI embeddings, OpenAI analysis.
     // region: the OpenAI host's data-residency region or 'global'; null for OCR (set in Azure)
-    processors: Array<{ processor: 'openai' | 'cohere' | 'azure-document-intelligence';
-                        purpose: 'embeddings' | 'analysis' | 'rerank' | 'ocr';
+    processors: Array<{ processor: 'openai' | 'azure-document-intelligence';
+                        purpose: 'embeddings' | 'analysis' | 'ocr';
                         region: string | null; model?: string; pages?: number[] }>;
     promptVersion: number;       // PROMPT_VERSION in prompt-builder.service.ts
     redaction: { enabled: boolean; valuesMasked: number };
@@ -234,7 +230,7 @@ interface AnalysisResult {
     suppliedChunkIds: string[];  // The chunks behind C1, C2, … in order
     judging: { batchSize: number; concurrency: number; maxCalls: number; sectionsPerClause: number };
     retrieval: { topKPerQuery: number; vectorLimit: number; bm25Limit: number;
-                 maxHybridResults: number; rerankModel: string; rerankTopN: number };
+                 maxHybridResults: number; optionalClauseLimit: number };
   };
 }
 ```
@@ -243,10 +239,10 @@ interface AnalysisResult {
 
 ## Evaluation
 
-`pnpm eval:ai` measures whether the analysis is **right**, which the unit and integration tests (fake model) can't. It runs this worker's real pipeline (retrieval, rerank, prompt, model, grounding) with the real providers over the labelled contracts in `data/eval/`, on a fresh migrated database (testcontainers, Docker required), and scores every finding against the labels.
+`pnpm eval:ai` measures whether the analysis is **right**, which the unit and integration tests (fake model) can't. It runs this worker's real pipeline (retrieval, prompt, model, grounding) with the real providers over the labelled contracts in `data/eval/`, on a fresh migrated database (testcontainers, Docker required), and scores every finding against the labels.
 
 ```bash
-pnpm eval:ai                                  # 3 runs per contract; needs OPENAI_API_KEY and COHERE_API_KEY
+pnpm eval:ai                                  # 3 runs per contract; needs OPENAI_API_KEY
 EVAL_RUNS=5 EVAL_CASES=mainland-employment pnpm eval:ai
 EVAL_PROVIDERS=fake pnpm eval:ai              # no keys, no cost: checks the harness only
 ```
@@ -266,7 +262,7 @@ Each run writes `data/eval/results/<timestamp>-<commit>.md` and `.json` (per-run
 | Citations | Findings whose stored citation is the one their clause's ruleset data gives. |
 | Evidence | The model's findings whose quote holds up: stored quotes re-checked against the contract, findings the worker dropped for a quote not in it counted as failures. |
 | Agreement | Mean pairwise overlap (Jaccard) of the clauses flagged by repeated runs of the same contract. |
-| Redaction | For cases with a `pii` list: the personal-data values that never appeared in anything sent to a provider (the runner records every embedding input, rerank query and prompt). `EVAL_REDACTION=off` runs without redaction, to compare the analysis scores with and without it. |
+| Redaction | For cases with a `pii` list: the personal-data values that never appeared in anything sent to a provider (the runner records every embedding input and prompt). `EVAL_REDACTION=off` runs without redaction, to compare the analysis scores with and without it. |
 
 The report also lists, per contract, the expected clauses missed, the must-not-flag hits, and the unlabelled findings (candidates for new labels).
 
@@ -316,13 +312,11 @@ cp apps/worker-ai/.env.example apps/worker-ai/.env
 | `OPENAI_CHAT_TEMPERATURE` | known models: `0.1`; others: not sent | LLM temperature. Leave it unset for reasoning models, which reject one. |
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
 | `OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Embedding vector dimensions |
-| `COHERE_API_KEY` | (required) | Cohere API key for re-ranking |
 | `REDACTION_ENABLED` | `true` | Mask personal data before any provider call. Only development may set `false`. |
 | `REDACTION_NER_URL` | (unset) | Self-hosted name-recognition service (Presidio analyzer API), e.g. a sidecar on `http://localhost:5002` |
 | `REDACTION_NER_LANGUAGES` | `en` | Comma-separated languages to ask it for (e.g. `en,ar` with an Arabic model loaded) |
 | `REDACTION_NER_TIMEOUT_MS` | `10000` | Per-request timeout; a timeout fails the attempt |
-| `COHERE_RERANK_MODEL` | `rerank-v3.5` | Cohere rerank model |
-| `RERANK_TOP_N` | `10` | Number of chunks to keep after re-ranking |
+| `RAG_OPTIONAL_CLAUSE_LIMIT` | `25` | Most clauses taken by similarity (search order) after the rulesets' required ones |
 | `RAG_JUDGE_BATCH_SIZE` | `8` | Clauses judged per model call (1–40) |
 | `RAG_JUDGE_CONCURRENCY` | `3` | Model calls in flight per analysis (1–10) |
 | `RAG_MAX_JUDGE_CALLS` | `10` | Model calls per analysis at most (1–50); clauses beyond `batch size × calls` are `unassessed` |

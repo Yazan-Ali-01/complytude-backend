@@ -11,10 +11,9 @@ Contract analysis sends contract text to these processors only after the organiz
 | Processor | Service | Purpose | Data sent | Region | Retention at the processor | Used for training | Agreement | Zero data retention |
 |---|---|---|---|---|---|---|---|---|
 | OpenAI | API: embeddings and chat completions | Finding the regulations that apply to each part of a contract, and judging compliance | Masked contract text; regulation text | Set by `OPENAI_BASE_URL`: `api.openai.com` (global, United States) by default; `ae.api.openai.com` (UAE data residency) once approved for the project | Up to 30 days for abuse monitoring by default; none under zero data retention | No (API data is not used for training by default) | DPA not signed | Not yet approved (to apply for, with UAE data residency) |
-| Cohere | Rerank API | Ordering candidate regulations by relevance | A query of up to 4,000 characters sampled from the masked contract text; regulation text | Global (`api.cohere.com`) | Cohere's default API terms | Not reviewed | None | None |
 | Microsoft | Azure AI Document Intelligence (`prebuilt-layout`) | Reading scanned pages (OCR) | Only the pages of an uploaded PDF without usable text (scans), as a PDF of those pages. They are not masked: OCR has to see the page. Pages with a text layer are read on our own servers and never sent | UAE North | Deleted by us as soon as the text is read; otherwise kept by the service for at most 24 hours | No | Microsoft Products and Services Data Protection Addendum (part of the Azure subscription terms); date to record | Not applicable (deleted after reading) |
 
-**Being removed:** Cohere (the rerank step is being replaced so that no document text leaves for a provider without a UAE region or an agreement).
+**Removed:** Cohere (rerank) no longer receives anything: the analysis uses the search order, which the evaluation scored no worse.
 
 **Self-hosted, not sub-processors:** the name-recognition service used for masking (`REDACTION_NER_URL`) and the document converter (Gotenberg) run inside our own infrastructure.
 

@@ -12,7 +12,6 @@ import { RedactionService } from '../../../worker-ai/src/redaction/redaction.ser
 import { DocumentAnalysisService } from '../../../worker-ai/src/services/document-analysis.service';
 import type { LlmService } from '../../../worker-ai/src/services/llm.service';
 import { PromptBuilderService } from '../../../worker-ai/src/services/prompt-builder.service';
-import type { RerankerService } from '../../../worker-ai/src/services/reranker.service';
 import type { IS3PromotionService } from '../../../worker-ingestion/src/interfaces/s3-promotion.interface';
 import type { IOcrService } from '../../../worker-ingestion/src/interfaces/ocr.interface';
 import { DocumentWriteRepository } from '../../../worker-ingestion/src/repositories/document-write.repository';
@@ -134,7 +133,6 @@ describe('Workers act only inside the job payload tenant', () => {
         } as unknown as EmbeddingService,
         new PromptBuilderService(tokenCounter, llm),
         llm,
-        { rerank: () => Promise.resolve([]) } as unknown as RerankerService,
         new RedactionService({
           get: (_key: string, fallback: unknown) => fallback,
         } as ConfigService),

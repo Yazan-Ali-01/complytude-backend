@@ -23,7 +23,6 @@ import {
   PROMPT_VERSION,
   PromptBuilderService,
 } from '../../../worker-ai/src/services/prompt-builder.service';
-import type { RerankerService } from '../../../worker-ai/src/services/reranker.service';
 import {
   createTestSubscription,
   grantAiConsent,
@@ -48,7 +47,7 @@ interface ModelCall {
 
 /**
  * The analysis worker (retrieval, prompt, model and grounding) against the real schema, with the
- * search, reranker, embeddings and model faked. Injected instructions stay inside the untrusted
+ * search, embeddings and model faked. Injected instructions stay inside the untrusted
  * document block, findings must cite a supplied clause, and a result with missing, partial or no
  * findings is never stored as a plain "completed".
  */
@@ -57,7 +56,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
   let calls: ModelCall[];
   /** USAGE_REFUND jobs the worker enqueued. */
   let refunds: Array<{ name: string; data: Record<string, unknown> }>;
-  let rerankQueries: string[];
   let embeddedTexts: string[];
   let modelAnswer: {
     verdicts?: object[];
@@ -73,7 +71,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
     await resetTestState(app.databaseService, app.redisClient);
     calls = [];
     refunds = [];
-    rerankQueries = [];
     embeddedTexts = [];
   }, 15000);
 
@@ -113,7 +110,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
 
   function worker(options: {
     chunks: RulesetChunkMatch[];
-    reranked?: boolean;
     contextWindow?: number;
     /** The model call fails (like a rate limit) this many times before answering. */
     modelFailures?: number;
@@ -189,18 +185,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
       } as unknown as EmbeddingService,
       new PromptBuilderService(tokenCounter, llm),
       llm,
-      {
-        getModel: () => 'rerank-v3.5',
-        getTopN: () => 25,
-        rerank: (query: string, chunks: RulesetChunkMatch[]) => {
-          rerankQueries.push(query);
-          return Promise.resolve({
-            chunks,
-            reranked: options.reranked ?? true,
-            providerCalled: chunks.length > 1,
-          });
-        },
-      } as unknown as RerankerService,
       options.redaction ??
         new RedactionService({
           get: (_key: string, fallback: unknown) => fallback,
@@ -333,12 +317,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
         model: 'text-embedding-3-small',
       },
       {
-        processor: 'cohere',
-        purpose: 'rerank',
-        region: 'global',
-        model: 'rerank-v3.5',
-      },
-      {
         processor: 'openai',
         purpose: 'analysis',
         region: 'ae',
@@ -362,18 +340,15 @@ describe('Document analysis: injection, grounding and honest status', () => {
     const outbound = [
       calls[0].systemPrompt,
       calls[0].userMessage,
-      ...rerankQueries,
       ...embeddedTexts,
     ];
     expect(calls).toHaveLength(1);
-    expect(rerankQueries).toHaveLength(1);
     expect(embeddedTexts.length).toBeGreaterThan(0);
     for (const part of ['Omar Al Rashid', 'N1234567', title]) {
       expect(outbound.filter((payload) => payload.includes(part))).toEqual([]);
     }
-    // The document text itself still goes to the model and the reranker
+    // The document text itself still goes to the model
     expect(calls[0].userMessage).toContain('70 hours a week');
-    expect(rerankQueries[0]).toContain('70 hours a week');
   });
 
   it('takes the citation and baseline risk from the clause, whatever the model says', async () => {
@@ -579,7 +554,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
 
       const outbound = [
         ...embeddedTexts,
-        ...rerankQueries,
         calls[0].systemPrompt,
         calls[0].userMessage,
       ];
@@ -627,7 +601,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
       ).rejects.toThrow('Redaction failed');
 
       expect(embeddedTexts).toEqual([]);
-      expect(rerankQueries).toEqual([]);
       expect(calls).toEqual([]);
       expect(await stored(data.analysisJobId)).toMatchObject({
         status: 'failed',
@@ -946,7 +919,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
 
     expect(await stored(data.analysisJobId)).toMatchObject({
       status: 'completed',
-      result: { warnings: [], truncated: false, reranked: true },
+      result: { warnings: [], truncated: false },
     });
   });
 
@@ -962,7 +935,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
     expect(result?.provenance).toEqual({
       processors: [
         expect.objectContaining({ processor: 'openai', purpose: 'embeddings' }),
-        expect.objectContaining({ processor: 'cohere', purpose: 'rerank' }),
         expect.objectContaining({ processor: 'openai', purpose: 'analysis' }),
       ],
       promptVersion: PROMPT_VERSION,
@@ -975,8 +947,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
         vectorLimit: 30,
         bm25Limit: 30,
         maxHybridResults: 40,
-        rerankModel: 'rerank-v3.5',
-        rerankTopN: 25,
+        optionalClauseLimit: 25,
       },
       judging: {
         batchSize: 8,
@@ -1001,7 +972,30 @@ describe('Document analysis: injection, grounding and honest status', () => {
     });
   });
 
-  it('warns on partial context: truncated document, no rerank, a requested ruleset with no clauses', async () => {
+  it('takes the clauses found by similarity in search order, up to the limit, after the required ones', async () => {
+    const data = await job('The employee works 70 hours a week.', [ruleset]);
+    const required = chunk(ruleset, 'Art. 1');
+    const found = ['Art. 17', 'Art. 18', 'Art. 19'].map((a) =>
+      chunk(ruleset, a),
+    );
+    modelAnswer = { summary: 'Checked.', findings: [] };
+
+    await worker({
+      chunks: [found[0], required, found[1], found[2]],
+      required: [required],
+      config: { 'workerAi.ragOptionalClauseLimit': 2 },
+    }).analyze(data);
+
+    const { result } = await stored(data.analysisJobId);
+    // No reranking: the search's own order, cut at the limit; a required clause isn't repeated
+    expect(result?.provenance.suppliedChunkIds).toEqual([
+      required.id,
+      found[0].id,
+      found[1].id,
+    ]);
+  });
+
+  it('warns on partial context: truncated document, a requested ruleset with no clauses', async () => {
     const empty = randomUUID();
     const data = await job('word '.repeat(20_000), [ruleset, empty]);
     modelAnswer = {
@@ -1020,7 +1014,6 @@ describe('Document analysis: injection, grounding and honest status', () => {
 
     await worker({
       chunks: [chunk(ruleset, 'Art. 17')],
-      reranked: false,
       // Too small for even one 512-token part: the only case where text is cut
       contextWindow: 5_000,
     }).analyze(data);
@@ -1029,14 +1022,9 @@ describe('Document analysis: injection, grounding and honest status', () => {
       status: 'completed_with_warnings',
       result: {
         truncated: true,
-        reranked: false,
         rulesetIdsSearched: [ruleset, empty],
         rulesetIdsWithoutContext: [empty],
-        warnings: [
-          'document_truncated',
-          'not_reranked',
-          'rulesets_without_context',
-        ],
+        warnings: ['document_truncated', 'rulesets_without_context'],
       },
     });
   });

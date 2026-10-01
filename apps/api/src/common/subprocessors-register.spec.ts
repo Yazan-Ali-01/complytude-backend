@@ -7,14 +7,12 @@ const REGISTER = join(ROOT, 'docs', 'SUBPROCESSORS.md');
 /** The AI clients the code constructs, and the processor each one sends data to. */
 const AI_CLIENTS: Record<string, string> = {
   OpenAI: 'OpenAI',
-  CohereClient: 'Cohere',
   DocumentIntelligenceClient: 'Microsoft',
 };
 
 /** Packages of AI providers, and the processor behind each; anything else AI-shaped fails. */
 const AI_PACKAGES: Record<string, string> = {
   openai: 'OpenAI',
-  'cohere-ai': 'Cohere',
 };
 const AI_PACKAGE_IMPORT =
   /from '((?:openai|cohere-ai|@anthropic-ai\/[^']+|@mistralai\/[^']+|groq-sdk|@google\/genai|@google-cloud\/[^']+|@azure\/[^']*|@azure-rest\/[^']*|@aws-sdk\/client-(?:bedrock[^']*|textract|comprehend[^']*|rekognition|translate|transcribe)))(?:\/[^']*)?'/g;

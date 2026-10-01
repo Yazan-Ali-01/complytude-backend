@@ -46,7 +46,6 @@ import {
   PROMPT_VERSION,
   PromptBuilderService,
 } from './prompt-builder.service';
-import { RerankerService } from './reranker.service';
 
 /** The model's output; clauseId can only be one of the IDs we supplied (C1, C2, …). */
 function analysisResultSchema(
@@ -123,10 +122,6 @@ interface ModelFinding {
   evidence: string;
 }
 
-/** Document chunks sampled for the rerank query, and its size in characters. */
-const RERANK_QUERY_SAMPLES = 8;
-const RERANK_QUERY_MAX_CHARS = 4000;
-
 @Injectable()
 export class DocumentAnalysisService {
   private readonly logger = new Logger(DocumentAnalysisService.name);
@@ -139,6 +134,7 @@ export class DocumentAnalysisService {
   private readonly judgeConcurrency: number;
   private readonly maxJudgeCalls: number;
   private readonly sectionsPerClause: number;
+  private readonly optionalClauseLimit: number;
 
   constructor(
     private readonly analysisJobWriteRepository: AnalysisJobWriteRepository,
@@ -148,7 +144,6 @@ export class DocumentAnalysisService {
     private readonly embeddingService: EmbeddingService,
     private readonly promptBuilderService: PromptBuilderService,
     private readonly llmService: LlmService,
-    private readonly rerankerService: RerankerService,
     private readonly redactionService: RedactionService,
     configService: ConfigService,
     private readonly queueProducer: QueueProducerService,
@@ -178,6 +173,10 @@ export class DocumentAnalysisService {
     this.sectionsPerClause = configService.get<number>(
       'workerAi.ragSectionsPerClause',
       4,
+    );
+    this.optionalClauseLimit = configService.get<number>(
+      'workerAi.ragOptionalClauseLimit',
+      25,
     );
   }
 
@@ -288,12 +287,9 @@ export class DocumentAnalysisService {
    */
   /**
    * The processors this document's data went to, and where: OCR at ingestion for its
-   * scanned pages, OpenAI for embeddings and the analysis, Cohere when it reranked.
+   * scanned pages, OpenAI for embeddings and the analysis.
    */
-  private processorsUsed(
-    ocrPages: number[] | null,
-    rerankCalled: boolean,
-  ): ProcessorUse[] {
+  private processorsUsed(ocrPages: number[] | null): ProcessorUse[] {
     return [
       ...(ocrPages && ocrPages.length > 0
         ? [
@@ -311,16 +307,6 @@ export class DocumentAnalysisService {
         region: openAiRegion(this.embeddingService.getBaseUrl()),
         model: this.embeddingService.getModel(),
       },
-      ...(rerankCalled
-        ? [
-            {
-              processor: 'cohere' as const,
-              purpose: 'rerank' as const,
-              region: 'global',
-              model: this.rerankerService.getModel(),
-            },
-          ]
-        : []),
       {
         processor: 'openai',
         purpose: 'analysis',
@@ -401,8 +387,8 @@ export class DocumentAnalysisService {
       ? this.buildStructuredContent(document.content_structured!)
       : document.content;
 
-    // Personal data is masked before anything leaves: chunking, embeddings, the rerank query and
-    // the prompt only ever see the redacted text. No redaction, no provider call.
+    // Personal data is masked before anything leaves: chunking, embeddings and the prompt only
+    // ever see the redacted text. No redaction, no provider call.
     const redaction = await this.redactionService
       .redact(analysedOriginal)
       .catch((err: unknown) => {
@@ -446,7 +432,7 @@ export class DocumentAnalysisService {
           })
       : [];
 
-    // The rest by similarity: hybrid search (vector + BM25, merged via RRF), then rerank.
+    // The rest by similarity: hybrid search (vector + BM25, merged via RRF), in its order.
     // The whole document: the search ORs its most frequent terms (see hybridSearchBatch)
     const bm25Query = `${document.title}\n${contentForAnalysis}`;
     const topChunks = await this.rulesetChunkSearchRepository
@@ -468,21 +454,12 @@ export class DocumentAnalysisService {
     const requiredIds = new Set(required.map((c) => c.id));
     const optional = topChunks.filter((c) => !requiredIds.has(c.id));
 
-    // Re-rank via Cohere; the query is document text only, never the title
-    const {
-      chunks: rerankedOptional,
-      reranked,
-      providerCalled: rerankCalled,
-    } = optional.length > 0
-      ? await this.rerankerService.rerank(
-          this.buildRerankQuery(chunkTexts),
-          optional,
-        )
-      : { chunks: [], reranked: true, providerCalled: false };
+    // No reranking: the evaluation scored the search order no worse than a reranker's
+    const similar = optional.slice(0, this.optionalClauseLimit);
 
-    const supplied = [...required, ...rerankedOptional];
+    const supplied = [...required, ...similar];
     this.logger.log(
-      `Clauses for job=${analysisJobId}: ${required.length} required, ${rerankedOptional.length} by similarity (reranked=${reranked})`,
+      `Clauses for job=${analysisJobId}: ${required.length} required, ${similar.length} by similarity`,
     );
 
     // With nothing to check against, any answer would be an unfounded "compliant"
@@ -717,7 +694,6 @@ export class DocumentAnalysisService {
 
     const warnings: AnalysisWarning[] = [];
     if (wasDocumentTruncated) warnings.push('document_truncated');
-    if (!reranked) warnings.push('not_reranked');
     if (rulesetIdsWithoutContext.length > 0) {
       warnings.push('rulesets_without_context');
     }
@@ -757,7 +733,6 @@ export class DocumentAnalysisService {
       ],
       rulesetIdsSearched,
       rulesetIdsWithoutContext,
-      reranked,
       truncated: wasDocumentTruncated,
       documentExcerpted,
       usage,
@@ -766,7 +741,7 @@ export class DocumentAnalysisService {
       inconsistentFindingsDropped,
       warnings,
       provenance: {
-        processors: this.processorsUsed(document.ocr_pages, rerankCalled),
+        processors: this.processorsUsed(document.ocr_pages),
         promptVersion: PROMPT_VERSION,
         redaction: {
           enabled: this.redactionService.isEnabled(),
@@ -788,8 +763,7 @@ export class DocumentAnalysisService {
           vectorLimit: this.vectorLimit,
           bm25Limit: this.bm25Limit,
           maxHybridResults: this.maxHybridResults,
-          rerankModel: this.rerankerService.getModel(),
-          rerankTopN: this.rerankerService.getTopN(),
+          optionalClauseLimit: this.optionalClauseLimit,
         },
       },
     };
@@ -822,24 +796,6 @@ export class DocumentAnalysisService {
       .map((s) => (s.heading ? `## ${s.heading}\n\n${s.content}` : s.content))
       .filter(Boolean)
       .join('\n\n');
-  }
-
-  /**
-   * The rerank query: chunks sampled evenly across the whole document (not just its opening,
-   * which is mostly preamble and party details), within the reranker's query budget.
-   */
-  private buildRerankQuery(chunkTexts: string[]): string {
-    const samples = Math.min(RERANK_QUERY_SAMPLES, chunkTexts.length);
-    const step = chunkTexts.length / Math.max(samples, 1);
-    const sampled = Array.from(
-      { length: samples },
-      (_, i) => chunkTexts[Math.floor(i * step)],
-    );
-    const perSample = Math.floor(RERANK_QUERY_MAX_CHARS / Math.max(samples, 1));
-    return sampled
-      .map((text) => text.slice(0, perSample))
-      .join('\n')
-      .slice(0, RERANK_QUERY_MAX_CHARS);
   }
 
   private extractRulesetsConsulted(chunks: RulesetChunkMatch[]): string[] {

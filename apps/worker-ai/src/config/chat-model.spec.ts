@@ -11,7 +11,6 @@ const BASE: Record<string, string> = {
   REDIS_HOST: 'localhost',
   REDIS_PORT: '6379',
   OPENAI_API_KEY: 'sk-proj-0123456789abcdefghijklmn',
-  COHERE_API_KEY: 'co-0123456789abcdefghijklmnop',
 };
 
 function errors(env: Record<string, string>): string[] {

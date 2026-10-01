@@ -56,12 +56,9 @@ export const validationSchema = Joi.object({
     .default('en'),
   REDACTION_NER_TIMEOUT_MS: Joi.number().integer().min(100).default(10000),
 
-  // Cohere Re-ranking
-  COHERE_API_KEY: secretEnv('COHERE_API_KEY', { min: 20 }),
-  COHERE_RERANK_MODEL: Joi.string().default('rerank-v3.5'),
-  RERANK_TOP_N: Joi.number().default(25),
-
   // RAG Retrieval Tuning
+  // Most clauses taken by similarity (in search order) after each ruleset's required ones
+  RAG_OPTIONAL_CLAUSE_LIMIT: Joi.number().integer().min(0).default(25),
   RAG_TOP_K_PER_QUERY: Joi.number().default(5),
   RAG_VECTOR_LIMIT: Joi.number().default(30),
   RAG_BM25_LIMIT: Joi.number().default(30),

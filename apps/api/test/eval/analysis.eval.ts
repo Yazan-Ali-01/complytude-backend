@@ -43,10 +43,7 @@ import type { AnalysisResult } from '../../../worker-ai/src/interfaces/analysis-
 import { RedactionService } from '../../../worker-ai/src/redaction/redaction.service';
 import { AnalysisJobWriteRepository } from '../../../worker-ai/src/repositories/analysis-job-write.repository';
 import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
-import {
-  type RulesetChunkMatch,
-  RulesetChunkSearchRepository,
-} from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
+import { RulesetChunkSearchRepository } from '../../../worker-ai/src/repositories/ruleset-chunk-search.repository';
 import { citationOf } from '../../../worker-ai/src/services/citation';
 import { DocumentAnalysisService } from '../../../worker-ai/src/services/document-analysis.service';
 import {
@@ -57,24 +54,19 @@ import {
   PROMPT_VERSION,
   PromptBuilderService,
 } from '../../../worker-ai/src/services/prompt-builder.service';
-import { RerankerService } from '../../../worker-ai/src/services/reranker.service';
 import { RulesetChunksRepository } from '../../../worker-ingestion/src/repositories/ruleset-chunks.repository';
 import { RulesetVersionReadRepository } from '../../../worker-ingestion/src/repositories/ruleset-version-read.repository';
 import { RulesetIngestionService } from '../../../worker-ingestion/src/services/ruleset-ingestion.service';
 import { createTestTenant } from '../factories';
 import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
-import {
-  FakeEmbeddingService,
-  FakeLlmService,
-  FakeRerankerService,
-} from './fake-providers';
+import { FakeEmbeddingService, FakeLlmService } from './fake-providers';
 
 /**
  * `pnpm eval:ai`: runs the real analysis worker over the labelled contracts in data/eval on a
  * fresh database, scores the findings and writes a report (see apps/worker-ai/docs/README.md).
  *
- * EVAL_PROVIDERS=fake  deterministic stand-ins for OpenAI and Cohere (checks the harness only)
+ * EVAL_PROVIDERS=fake  deterministic stand-ins for OpenAI (checks the harness only)
  * EVAL_RUNS=3          runs per contract
  * EVAL_CASES=a,b       only these case IDs
  */
@@ -92,7 +84,6 @@ const REDACTION = process.env.EVAL_REDACTION !== 'off';
 
 interface Providers {
   embeddings: EmbeddingService;
-  reranker: RerankerService;
   llm: LlmService;
 }
 
@@ -107,7 +98,7 @@ interface RulesetFixture {
 }
 
 function realProviders(): Providers {
-  const missing = ['OPENAI_API_KEY', 'COHERE_API_KEY'].filter((name) => {
+  const missing = ['OPENAI_API_KEY'].filter((name) => {
     const value = process.env[name];
     return !value || /your-|placeholder/i.test(value);
   });
@@ -123,7 +114,7 @@ function realProviders(): Providers {
     abortEarly: false,
   });
   const invalid = (error?.details ?? []).filter((detail) =>
-    /^(OPENAI|COHERE|RERANK|RAG|EMBEDDING)_/.test(String(detail.context?.key)),
+    /^(OPENAI|RAG|EMBEDDING)_/.test(String(detail.context?.key)),
   );
   if (invalid.length > 0) {
     throw new Error(invalid.map((detail) => detail.message).join('; '));
@@ -138,7 +129,6 @@ function realProviders(): Providers {
       embeddingConfig(),
       new TokenCounterService(),
     ),
-    reranker: new RerankerService(config),
     llm: new LlmService(config),
   };
 }
@@ -146,7 +136,6 @@ function realProviders(): Providers {
 function fakeProviders(): Providers {
   return {
     embeddings: new FakeEmbeddingService() as unknown as EmbeddingService,
-    reranker: new FakeRerankerService() as unknown as RerankerService,
     llm: new FakeLlmService() as unknown as LlmService,
   };
 }
@@ -177,18 +166,11 @@ function recorded<T extends object>(
 
 /** The same providers, recording every text sent to them, to check no personal data leaves. */
 function capturing(providers: Providers, sent: string[]): Providers {
-  const { embeddings, reranker, llm } = providers;
+  const { embeddings, llm } = providers;
   return {
     embeddings: recorded(embeddings, {
       generateEmbedding: (text) => sent.push(text as string),
       generateEmbeddings: (texts) => sent.push(...(texts as string[])),
-    }),
-    reranker: recorded(reranker, {
-      rerank: (query, chunks) =>
-        sent.push(
-          query as string,
-          ...(chunks as RulesetChunkMatch[]).map((c) => c.content),
-        ),
     }),
     llm: recorded(llm, {
       chatCompletion: (options) => {
@@ -447,7 +429,6 @@ describeEval('AI evaluation', () => {
         outbound.embeddings,
         new PromptBuilderService(tokenCounter, outbound.llm),
         outbound.llm,
-        outbound.reranker,
         new RedactionService(
           new ConfigService({
             workerAi: {
@@ -479,7 +460,7 @@ describeEval('AI evaluation', () => {
         providers: PROVIDERS,
         chatModel: providers.llm.getModel(),
         embeddingModel: providers.embeddings.getModel(),
-        rerankModel: providers.reranker.getModel(),
+        rerankModel: 'none',
         promptVersion: PROMPT_VERSION,
         runsPerCase: RUNS,
         labelledBy: [...new Set(cases.map((c) => c.labelledBy))],

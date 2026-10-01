@@ -120,7 +120,6 @@
     "bullmq": "^5.69.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
-    "cohere-ai": "^7.21.0",
     "concurrently": "^9.2.1",
     "docx": "^9.8.1",
     "docxtemplater": "^3.71.0",

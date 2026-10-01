@@ -6,7 +6,7 @@ import { identityRedaction, redact, type Redaction } from './redactor';
 export class RedactionError extends Error {}
 
 /**
- * Masks personal data in a contract before chunking, embeddings, rerank or the prompt see it.
+ * Masks personal data in a contract before chunking, embeddings or the prompt see it.
  * Any failure throws: the pipeline must not send unredacted text instead.
  */
 @Injectable()

@@ -28,7 +28,7 @@
 - **Tenancy**: PostgreSQL RLS, tenant context middleware, platform vs tenant RBAC
 - **Entitlements**: plan-based feature flags, quota enforcement, usage ledger, credit system, **trial flow**
 - **Billing**: Stripe customers + subscriptions + webhooks, entitlement projection on subscription events
-- **RAG analysis**: hybrid search (vector + BM25 + RRF), Cohere re-ranking, scoped-by-ruleset retrieval
+- **RAG analysis**: hybrid search (vector + BM25 + RRF), every required clause checked, scoped-by-ruleset retrieval
 - **Document generation**: docxtemplater + Gotenberg PDF, async job + polling
 - **Audit + observability**: opt-in `@Audit()` decorator, Pino structured logs, trace IDs
 - **Infrastructure**: Terraform modules, ECS Fargate, RDS, ElastiCache, S3, deployed staging
@@ -119,7 +119,7 @@ Scope it tight: shadcn/ui + Next.js App Router + Tailwind, plug into your existi
 
 - [ ] Ingest `data/rulesets/dmcc_company_regulations.json` into staging DB via the existing ingestion worker. Verify it shows up in `rulesets` and `ruleset_chunks`.
 - [ ] Run RAG retrieval against the test contract `data/test-documents/dmcc_test_shareholders_agreement.docx`. Manually validate the top 5 retrieved chunks are actually relevant (this is your sanity check that the pipeline is working with real content).
-- [ ] Tune `RAG_TOP_K_PER_QUERY`, `RERANK_TOP_N` for DMCC content quality. Document chosen values.
+- [ ] Tune `RAG_TOP_K_PER_QUERY`, `RAG_OPTIONAL_CLAUSE_LIMIT` for DMCC content quality. Document chosen values.
 - [ ] Pick the **3 most-requested templates for DMCC tenants** (lawyer feedback, gut call, or just: Employment Contract, MOA, Board Resolution). Create real DOCX templates with proper variables.
 - [ ] Seed those 3 templates in staging via existing template-seed scripts.
 - [ ] Generate one real DMCC employment contract end-to-end on staging. Have a UAE lawyer eyeball the output.
@@ -157,7 +157,7 @@ Scope it tight: shadcn/ui + Next.js App Router + Tailwind, plug into your existi
   - Document upload: 30/hour
   - Analysis: per plan quota (already enforced; double up at HTTP layer)
 - [ ] Add security headers via Fastify hooks: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy.
-- [ ] Document a secret rotation runbook in `docs/RUNBOOKS/SECRET_ROTATION.md` (DB password, JWT secret, OpenAI key, Cohere key, Stripe key, S3 keys).
+- [ ] Document a secret rotation runbook in `docs/RUNBOOKS/SECRET_ROTATION.md` (DB password, JWT secret, OpenAI key, Stripe key, S3 keys).
 - [ ] Run `npm audit --production` on all apps; resolve high/critical only.
 
 ### Done when

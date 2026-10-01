@@ -30,7 +30,6 @@ const PRODUCTION: Record<string, string> = {
   FROM_EMAIL: 'noreply@example.com',
   SUPPORT_EMAIL: 'support@example.com',
   OPENAI_API_KEY: 'sk-proj-0123456789abcdefghijklmn',
-  COHERE_API_KEY: 'co-0123456789abcdefghijklmnop',
   GOTENBERG_URL: 'http://gotenberg.internal:3000',
   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
     'https://complytude-docintel.cognitiveservices.azure.com/',
@@ -51,11 +50,7 @@ const APPS: Array<[string, ObjectSchema, string[]]> = [
       'STRIPE_WEBHOOK_SECRET',
     ],
   ],
-  [
-    'worker-ai',
-    workerAi,
-    ['DB_APP_PASSWORD', 'OPENAI_API_KEY', 'COHERE_API_KEY'],
-  ],
+  ['worker-ai', workerAi, ['DB_APP_PASSWORD', 'OPENAI_API_KEY']],
   [
     'worker-ingestion',
     workerIngestion,

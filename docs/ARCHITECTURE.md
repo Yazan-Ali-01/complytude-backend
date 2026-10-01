@@ -115,7 +115,7 @@ Complytude is a **multi-tenant SaaS platform** for UAE legal document generation
 - **OpenAI API** - Document analysis, embedding generation
 - **tiktoken** - Token counting for chunking
 - **pgvector** - Vector similarity search for semantic retrieval
-- **Redaction** (`apps/worker-ai/src/redaction/`) - Personal data in a contract (names, Emirates IDs, passports, IBANs, phones, emails, addresses) is replaced with placeholders before any text goes to OpenAI or Cohere, and put back in the stored result; a failure stops the job before any provider call. Names outside the preamble come from an optional self-hosted name-recognition service (Presidio analyzer API, `REDACTION_NER_URL`). See `apps/worker-ai/docs/README.md` → Redaction.
+- **Redaction** (`apps/worker-ai/src/redaction/`) - Personal data in a contract (names, Emirates IDs, passports, IBANs, phones, emails, addresses) is replaced with placeholders before any text goes to OpenAI, and put back in the stored result; a failure stops the job before any provider call. Names outside the preamble come from an optional self-hosted name-recognition service (Presidio analyzer API, `REDACTION_NER_URL`). See `apps/worker-ai/docs/README.md` → Redaction.
 - **Sub-processors and consent** - Every third party that receives customer data, what it gets, where and on what terms, is listed in [`docs/SUBPROCESSORS.md`](./SUBPROCESSORS.md) (a unit test fails when the code constructs an AI client it doesn't list). An organization accepts a numbered version of the AI processing disclosure once (`AI_DISCLOSURE_VERSION`: a checkbox at setup, or a tenant admin later; `tenant_ai_consents`); until it has accepted the current version, analysis and uploads answer 403 `ai_consent_required`. Each analysis records the processors and regions it used in `result.provenance.processors`.
 
 ### Authentication & Security
@@ -965,7 +965,7 @@ Interactive API docs, served only when `NODE_ENV` is not `production` (local dev
 6. **Rate Limiting:** AWS WAF on the ALB (managed rule sets, per-IP rate rules), then the API's
    Redis-backed limiter (`common/rate-limit/`): 300 requests/min per IP on every route, tighter
    `@RateLimit(...)` rules on the public auth routes (per IP and per email) and on routes that spend
-   on OpenAI, Cohere, OCR or Gotenberg (per tenant). Exceeding a limit returns 429 with
+   on OpenAI, OCR or Gotenberg (per tenant). Exceeding a limit returns 429 with
    `Retry-After`. Five failed logins for an account lock it for 15 minutes, doubling on each later
    lock the same day (up to 24 hours).
 
@@ -998,7 +998,7 @@ FRONTEND_URL=https://app.complytude.com
 
 **Never commit secrets to version control.**
 
-**Production fails fast.** Each app (API and the three workers) validates its environment with its own Joi schema at boot. With `NODE_ENV=production`, every secret it needs (`secretEnv()` in `@lib/database`: DB password, JWT secrets, Stripe secret and webhook secret, OpenAI and Cohere keys, the Document Intelligence key, set SSO client secrets) must be present, long enough and not a placeholder (`change-this`, `your-…-key`, `placeholder`, `postgres`, …); the four JWT secrets must all differ; `FRONTEND_URL` must be an https URL; and `AUTH_ECHO_TOKENS` (tokens in signup / forgot-password responses, tests only) must be off. The app refuses to start with a message naming the variable.
+**Production fails fast.** Each app (API and the three workers) validates its environment with its own Joi schema at boot. With `NODE_ENV=production`, every secret it needs (`secretEnv()` in `@lib/database`: DB password, JWT secrets, Stripe secret and webhook secret, the OpenAI key, the Document Intelligence key, set SSO client secrets) must be present, long enough and not a placeholder (`change-this`, `your-…-key`, `placeholder`, `postgres`, …); the four JWT secrets must all differ; `FRONTEND_URL` must be an https URL; and `AUTH_ECHO_TOKENS` (tokens in signup / forgot-password responses, tests only) must be off. The app refuses to start with a message naming the variable.
 
 ---
 
