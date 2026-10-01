@@ -13,3 +13,4 @@ One row per real `pnpm eval:ai` run (`apps/worker-ai/docs/README.md` → Evaluat
 | 2026-10-01 | `0d37c89` | gpt-5.6-luna | text-embedding-3-small | none | v5 | 9×3 | 99% | 96% | 75% | 12 | 92% | 0% | 97% | 100% | [report](results/2026-10-01-00-45-14-0d37c89.md) |
 | 2026-10-01 | `0d37c89` | gpt-5.5-2026-04-23 | text-embedding-3-small | none | v5 | 9×1 | 100% | 89% | 68% | 15 | 92% | 50% | n/a | 100% | [report](results/2026-10-01-00-50-30-0d37c89.md) |
 | 2026-10-01 | `0d37c89` | gpt-5.2-2025-12-11 | text-embedding-3-small | none | v5 | 9×1 | 95% | 95% | 71% | 5 | 91% | 50% | n/a | 100% | [report](results/2026-10-01-00-54-14-0d37c89.md) |
+| 2026-10-01 | `573dce0` | gpt-5.6-luna | text-embedding-3-large | none | v5 | 9×3 | 95% | 95% | 75% | 14 | 91% | 0% | 91% | 100% | [report](results/2026-10-01-01-14-10-573dce0.md) |
