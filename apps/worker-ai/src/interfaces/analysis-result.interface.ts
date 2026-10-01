@@ -12,6 +12,8 @@ export interface ClauseVerdict {
   clauseId: string;
   chunkId: string;
   citation: string;
+  /** Where the clause's official text is published; null when the ruleset doesn't record it. */
+  sourceUrl: string | null;
   status: ClauseStatus;
   reason: string;
 }
@@ -21,6 +23,8 @@ export interface AnalysisFinding {
   clauseId: string;
   /** Built from the clause's ruleset data (authority, ruleset, version, article), not by the model. */
   citation: string;
+  /** Where the clause's official text is published; null when the ruleset doesn't record it. */
+  sourceUrl: string | null;
   /** The clause's own severity, or the model's level when it raised it (with riskReason). */
   riskLevel: RiskLevel;
   /** From the clause's severity (critical/high → high); null when the ruleset gives none. */

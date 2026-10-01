@@ -10,6 +10,7 @@ export const RulesetsI18n = {
     VERSION_NOT_FOUND: 'rulesets.errors.VERSION_NOT_FOUND',
     VERSION_NOT_INGESTED: 'rulesets.errors.VERSION_NOT_INGESTED',
     VERSION_NOT_REVIEWED: 'rulesets.errors.VERSION_NOT_REVIEWED',
+    VERSION_NOT_SOURCED: 'rulesets.errors.VERSION_NOT_SOURCED',
     AUTHORITY_NOT_FOUND: 'rulesets.errors.AUTHORITY_NOT_FOUND',
     OPERATION_FAILED: 'rulesets.errors.OPERATION_FAILED',
   },

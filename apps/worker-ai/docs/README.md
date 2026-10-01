@@ -151,7 +151,9 @@ Contracts are untrusted: the counterparty drafts them. The system message holds 
 
 The model never writes a citation. Each clause in the prompt is headed with the citation built from its ruleset data (`citation.ts`: authority, ruleset name, version, article or section, title), and the finding stores that same citation. A finding's `riskLevel` starts from the clause's own `severity` (critical/high → high, medium → medium, low → low); the model can only raise it, and its `riskReason` is kept when it does. Clauses without a severity take the model's level.
 
-This needs the clause facts on every chunk (`isRequired`, `severity`, `article`, `section`, `source`, `rulesetName`, written by worker-ingestion). Chunks ingested before those fields existed cite only the ruleset and title: re-ingest them with `pnpm rulesets:reingest` (see `docs/DEPLOYMENT.md`).
+A clause's `guidance` (a plain-language paraphrase, optional) follows its text in the prompt on a `Guidance:` line; when any clause has one, the system prompt says the text is the rule and governs where the two differ. Guidance never reaches a citation. Findings and clause verdicts also carry the clause's `sourceUrl` (its official published text), or null.
+
+This needs the clause facts on every chunk (`isRequired`, `severity`, `article`, `section`, `source`, `sourceUrl`, `guidance`, `rulesetName`, written by worker-ingestion). Chunks ingested before those fields existed cite only the ruleset and title: re-ingest them with `pnpm rulesets:reingest` (see `docs/DEPLOYMENT.md`).
 
 ### Evidence
 
@@ -196,7 +198,7 @@ The model gives every supplied clause a verdict: `violated`, `compliant`, `not_a
 ```typescript
 interface AnalysisResult {
   clauseVerdicts: Array<{  // One per supplied clause
-    clauseId: string; chunkId: string; citation: string; reason: string;
+    clauseId: string; chunkId: string; citation: string; sourceUrl: string | null; reason: string;
     status: 'violated' | 'compliant' | 'not_applicable' | 'unclear' | 'unassessed';
   }>;
   scope: { jurisdiction: string | null; documentType: string | null };
@@ -204,6 +206,7 @@ interface AnalysisResult {
     clauseId: string;      // The supplied clause cited (C1, C2, …)
     citation: string;      // Built from the clause's ruleset data, never by the model:
                            // "<authority> — <ruleset> v<version>, <article>: <title>"
+    sourceUrl: string | null; // The clause's official published text, from the ruleset
     riskLevel: 'high' | 'medium' | 'low';          // The clause's own severity, or higher if the model raised it
     baselineRiskLevel: 'high' | 'medium' | 'low' | null; // From the clause's severity (critical/high → high)
     riskReason?: string;   // The model's one-line reason, kept only when it raised the level

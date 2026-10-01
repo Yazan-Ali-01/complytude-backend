@@ -22,8 +22,8 @@ import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
 
 /**
- * Ruleset ingestion keeps each clause's own facts (mandatory, severity, article) on its chunks,
- * which citations and baseline severity are built from; and the re-ingest command queues every
+ * Ruleset ingestion keeps each clause's own facts (mandatory, severity, article, source) on its
+ * chunks, which citations and baseline severity are built from; and the re-ingest command queues every
  * active version so existing chunks can be rebuilt.
  */
 describe('Ruleset ingestion metadata and re-ingestion', () => {
@@ -53,18 +53,22 @@ describe('Ruleset ingestion metadata and re-ingestion', () => {
       content: 'Every employment relationship must be documented in writing.',
       order: 1,
       is_required: true,
-      metadata: { article: 'Art. 8', severity: 'critical' },
+      article: 'Art. 8',
+      severity: 'critical',
+      source_title: 'Federal Decree-Law No. 33 of 2021',
+      source_url: 'https://uaelegislation.gov.ae/en',
+      effective_date: '2022-02-02',
+      guidance: 'A written contract is needed for every employee.',
+      metadata: { tags: ['contract'] },
     },
     {
       id: 'lab_65',
       title: 'Housing Allowance',
       content: 'Employers are encouraged to state any housing allowance.',
       order: 2,
-      metadata: {
-        section: 'Section 4',
-        severity: 'medium',
-        source_document: 'Guide',
-      },
+      section: 'Section 4',
+      severity: 'medium',
+      source_title: 'Guide',
     },
   ];
 
@@ -90,7 +94,7 @@ describe('Ruleset ingestion metadata and re-ingestion', () => {
     return { rulesetId: rows[0].id, versionId: version[0].id };
   }
 
-  it('stores whether a clause is required, its severity, article, section and source on every chunk', async () => {
+  it('stores whether a clause is required, its severity, article, section, source and guidance on every chunk', async () => {
     const { rulesetId, versionId } = await ruleset();
     const ingestion = new RulesetIngestionService(
       app.databaseService,
@@ -136,7 +140,10 @@ describe('Ruleset ingestion metadata and re-ingestion', () => {
         severity: 'critical',
         article: 'Art. 8',
         section: null,
-        source: null,
+        source: 'Federal Decree-Law No. 33 of 2021',
+        sourceUrl: 'https://uaelegislation.gov.ae/en',
+        effectiveDate: '2022-02-02',
+        guidance: 'A written contract is needed for every employee.',
         rulesetName: 'UAE Labour Law',
         authorityName: 'Ministry of Human Resources and Emiratisation',
         version: '1.0.0',
@@ -148,6 +155,9 @@ describe('Ruleset ingestion metadata and re-ingestion', () => {
         article: null,
         section: 'Section 4',
         source: 'Guide',
+        sourceUrl: null,
+        effectiveDate: null,
+        guidance: null,
       }),
     ]);
   });

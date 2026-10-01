@@ -717,7 +717,7 @@ Similar structure to `templates` with version control.
 
 ### ruleset_versions
 
-Version history for rulesets. `clauses` stores the clause array (JSONB). `rolled_back_from_version` is nullable; when set, this row was created as a rollback copy of that semantic version string (audit).
+Version history for rulesets. `clauses` stores the clause array (JSONB): each clause is one article or sub-article in its source's words (`content`), with `id`, `title`, `order`, `is_required` and, optionally, `article`, `section`, `severity` (`critical`/`high`/`medium`/`low`), `source_title`, `source_url`, `effective_date` and `guidance` (a paraphrase the model reads but no finding cites); see `ClauseItemDto`. A version can be marked reviewed only when every clause has a source URL, an effective date and an article or section. `rolled_back_from_version` is nullable; when set, this row was created as a rollback copy of that semantic version string (audit).
 
 Similar structure to `template_versions` for versioning, but clauses are authoritative content.
 

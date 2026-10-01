@@ -135,6 +135,7 @@ Tracks the lifecycle of each analysis request.
     {
       "clauseId": "C3",
       "citation": "Dubai Multi Commodities Centre — DMCC Employment Regulations v1.0.0, Art. 4: DMCC Working Hours",
+      "sourceUrl": null,
       "riskLevel": "high",
       "baselineRiskLevel": "high",
       "evidence": "The Employee shall work from 8:00 AM to 6:00 PM, Sunday through Thursday, totaling fifty (50) hours per week.",

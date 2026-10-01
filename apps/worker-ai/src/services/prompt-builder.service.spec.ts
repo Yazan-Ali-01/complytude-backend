@@ -46,6 +46,46 @@ describe('PromptBuilderService', () => {
     return new PromptBuilderService(tokenCounter, llm);
   }
 
+  it("shows a clause's guidance after its text, as an explanation the text overrides", () => {
+    const model = {
+      contextWindow: 50_000,
+      maxOutputTokens: 1_000,
+      encoding: 'o200k_base' as const,
+    };
+    const guided = new Map([
+      [
+        'C1',
+        {
+          ...CLAUSE,
+          metadata: {
+            ...CLAUSE.metadata,
+            guidance: 'The contract has to be in Arabic, or bilingual.',
+          },
+        },
+      ],
+    ]);
+
+    const withGuidance = builder(model).buildPrompt(
+      'doc-1',
+      whole('Contract.'),
+      guided,
+    );
+    const without = builder(model).buildPrompt(
+      'doc-1',
+      whole('Contract.'),
+      clauses,
+    );
+
+    expect(withGuidance.systemPrompt).toContain(
+      'Every employment contract must be written in Arabic.\nGuidance: The contract has to be in Arabic, or bilingual.',
+    );
+    expect(withGuidance.systemPrompt).toContain(
+      'judge the document against the text, and where the two differ, the text governs',
+    );
+    // Rulesets without guidance get the same prompt as before
+    expect(without.systemPrompt).not.toContain('Guidance');
+  });
+
   it('counts Arabic with the chat model tokenizer, not the embedding one', () => {
     expect(tokenCounter.countTokens(ARABIC, 'cl100k_base')).toBe(4_320);
     expect(tokenCounter.countTokens(ARABIC, 'o200k_base')).toBe(1_681);

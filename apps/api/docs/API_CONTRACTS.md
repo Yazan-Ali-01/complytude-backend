@@ -1306,7 +1306,7 @@ What a frontend calls to upload, analyse and generate documents. Uploads and ana
 
 `result` (full schema: `apps/worker-ai/docs/README.md` → Analysis Result Schema):
 
-- `findings[]`: `clauseId`, `citation` (the regulation, built from the ruleset, never by the model), `riskLevel` (`high`/`medium`/`low`), `evidence` (the contract passage, verbatim; empty only when a required clause is missing) and `evidenceOffset` (where it starts in the document text, for highlighting; null when it can't be placed), `title`, `description`, `suggestion`.
+- `findings[]`: `clauseId`, `citation` (the regulation, built from the ruleset, never by the model), `sourceUrl` (where the regulation's official text is published; null when the ruleset doesn't record it), `riskLevel` (`high`/`medium`/`low`), `evidence` (the contract passage, verbatim; empty only when a required clause is missing) and `evidenceOffset` (where it starts in the document text, for highlighting; null when it can't be placed), `title`, `description`, `suggestion`.
 - `clauseVerdicts[]`: one per clause checked, `status` `violated` / `compliant` / `not_applicable` / `unclear` / `unassessed`, with a one-line `reason`.
 - `summary`, `scope` (`jurisdiction`, `documentType`), `requiredClausesChecked`, `documentExcerpted`.
 - `warnings[]`: show them. `completed_with_warnings` means the result is partial or uncertain (`rules_not_reviewed`: the rules haven't had their legal review yet; `document_truncated`, `rulesets_without_context`, `unverified_evidence_dropped`, `clauses_not_assessed`, …); `no_findings` means nothing was reported, which is **not** a statement that the contract complies.
@@ -1363,10 +1363,22 @@ Generating a document, a contract review (`analyze`, `trigger-analysis`) and a d
 
 A version (a new ruleset's first one, `POST /rulesets/:key/versions`, or a rollback copy) is created **inactive** and is ingested in the background; the ruleset keeps its active version (`currentVersionData`, null for a new ruleset) until another is activated. Each version reports `ingestionStatus` (`pending` / `ingested` / `failed` with `ingestionError`), `chunkCount`, `reviewStatus` (`draft` / `reviewed`), `reviewedBy`, `reviewedAt`, `reviewNotes`; create responses add `ingestionJob` (`enqueued` / `failed`).
 
-- `POST /rulesets/:key/versions/:version/review` `{ reviewedBy, reviewedAt: 'YYYY-MM-DD', notes? }` records the legal review (D-9).
+Each clause (`clauses[]` in `POST /rulesets` and `POST /rulesets/:key/versions`) is one article or sub-article, in its source's words:
+
+| Field | |
+|---|---|
+| `id`, `title`, `order`, `is_required` | Required |
+| `content` | Required: the published text, verbatim |
+| `article`, `section` | What the citation names (e.g. `Art. 8`) |
+| `severity` | `critical` / `high` / `medium` / `low`: a breach's baseline risk (the model may raise it, never lower it) |
+| `source_title`, `source_url` (https), `effective_date` (`YYYY-MM-DD`) | Where the text comes from; findings carry `source_url` as `sourceUrl` |
+| `guidance` | Optional plain-language explanation: the model reads it beside the text, and no finding cites it |
+| `metadata` | Anything else |
+
+- `POST /rulesets/:key/versions/:version/review` `{ reviewedBy, reviewedAt: 'YYYY-MM-DD', notes? }` records the legal review (D-9). 409 when a clause lacks `source_url`, `effective_date`, or both `article` and `section`.
 - `POST /rulesets/:key/versions/:version/activate` makes it the active version: 409 until it's ingested, and, where review is required (always in production, `RULESETS_REQUIRE_REVIEW`), until it's reviewed.
 - `POST /rulesets/:key/ingest?version=` re-ingests a version (default: the active one), e.g. after a failed ingestion.
-- The result (`GET /analysis-jobs/:id`) carries `scope`, and `clauseVerdicts`: one entry per clause the model was given (`violated`, `compliant`, `not_applicable`, `unclear`, or `unassessed`), with its citation. Only violated or unclear clauses produce findings.
+- The result (`GET /analysis-jobs/:id`) carries `scope`, and `clauseVerdicts`: one entry per clause the model was given (`violated`, `compliant`, `not_applicable`, `unclear`, or `unassessed`), with its citation and `sourceUrl`. Only violated or unclear clauses produce findings.
 
 
 ## Notification Emails

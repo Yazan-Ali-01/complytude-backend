@@ -10,12 +10,10 @@
       "content": "The DMCC Free Zone recognises two types of entities: Companies (limited by shares registered under these Regulations) and Branches. A Non-DMCC Entity will be recognised as a Company upon its transfer to the DMCC Free Zone in accordance with Article 18. A company limited by guarantee may be formed under the Companies Limited by Guarantee Regulations 2024.\n\nA Company has a separate legal personality from its Shareholders. Subject to Articles 15.2 and 170.1, the liability of a Shareholder of a Company is limited to the amount, if any, unpaid on the shares held by that Shareholder in the Company. A Company may conduct any lawful business subject to the terms of its Licence. A Company has UAE nationality, but this does not necessarily result in the Company being entitled to those privileges which are reserved for UAE nationals.",
       "order": 1,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 4-5",
-        "severity": "critical",
-        "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 4-5",
+      "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_02",
@@ -23,12 +21,10 @@
       "content": "Any one or more persons may apply for the registration of a Company by signing and filing with the Registrar an application for registration. The application must be signed by the Initial Shareholder(s) and must include: (a) the proposed name of the Company which must comply with the DMCC Entity Name Requirements; (b) the nature of the business to be conducted; (c) the amount of the Share Capital to be paid up upon registration, which must be denominated in UAE Dirhams or such other currency approved by the Registrar, sufficient for the activities permitted under the Licence, and at least equal to any minimum Share Capital required by the Registrar; (d) the full name, passport number (for individuals) or registration number (for corporates) and nationality of each Initial Shareholder together with details of their shareholdings; (e) the full name, address and nationality of each Director; (f) the full name, address and nationality of the Secretary; (g) the full name, address and nationality of the Manager; (h) the proposed Articles of the Company; and (i) any other document or information the Registrar may require.\n\nThe application must be accompanied by payment of the relevant fee. No Company may be registered without the approval of the Registrar. On registration, the Registrar must issue a Certificate of Registration, register the Articles, assign a DMCC Entity Number, and enter the name in the Register of DMCC Entities.",
       "order": 2,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 6-7",
-        "severity": "critical",
-        "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 6-7",
+      "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_03",
@@ -36,12 +32,10 @@
       "content": "The Articles of a Company must be in the English language or any other language approved by the Registrar. The Articles must contain: (a) the information set out in Articles 6.2(a), (c) and (d) (being the company name, share capital, and shareholder details); and (b) such other matters as the Shareholders wish to include, provided that the Articles may not contain a provision which is contrary to or inconsistent with these Regulations.\n\nDMCCA may prescribe model articles known as the Standard Articles. If the Standard Articles are not adopted, a Company may adopt its own Articles if it provides to the Registrar a legal opinion and/or a declaration from the proposed Shareholder(s) or Director(s) that its Articles do not contain a provision contrary to these Regulations. If the Registrar notifies a Company that its Articles contain a provision contrary to these Regulations, that Company must amend its Articles within twenty Business Days.\n\nThe Articles are legally binding on a Company and its Shareholders as if they had been signed by the Company and each Shareholder. A Company may adopt new Articles by Special Resolution, which takes effect on registration by the Registrar. New Articles must be deposited with the Registrar within fifteen Business Days of the Special Resolution. A Shareholder is not bound by Articles adopted after becoming a Shareholder to the extent the provision requires taking more shares, increases liability to contribute to Share Capital, or requires payment to the Company, unless the Shareholder agrees in writing.",
       "order": 3,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 8-11",
-        "severity": "critical",
-        "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 8-11",
+      "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_04",
@@ -49,12 +43,10 @@
       "content": "A person is only permitted to conduct business operations in or from the DMCC Free Zone if the Registrar has issued to that person: (a) a Certificate of Registration (for a Company) or Certificate of Establishment (for a Branch); and (b) a Licence (unless the person is an Exempt Entity).\n\nEach Company or Branch must, unless exempted by DMCCA, at all times maintain a valid Licence and comply with the terms and requirements as set out in the Licensing Rules. In respect of the period prior to a Company obtaining its first Licence, any liabilities or commitments of such Company shall be treated as the liabilities or commitments of the Shareholders. In the event of suspension or termination of the Licence, any liabilities or commitments entered into during such period shall be treated as the liabilities or commitments of the Shareholders. All liabilities and commitments of a Branch are the liabilities and commitments of the Branch Parent.\n\nIf a Company or Branch has not obtained a Licence within twenty-four weeks of the date of registration or establishment, the Registrar may Strike Off the Company or Branch and, in the case of a Company, upon such Striking Off, the Company shall be automatically Dissolved. A Company or Branch may only conduct the activities that are permitted under its Licence. DMCCA may vary the terms or conditions of the Licence at any time.",
       "order": 4,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 12, 15",
-        "severity": "critical",
-        "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 12, 15",
+      "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_05",
@@ -62,12 +54,10 @@
       "content": "Any eligible entity may apply to establish a Branch in the DMCC Free Zone by signing and filing an application form with the Registrar. The application must be accompanied by: (a) a copy of the memorandum and articles of association (or equivalent constitutional documentation) of the relevant entity; (b) the full name, address and nationality of the directors; (c) the proposed name of the Branch which shall comply with the DMCC Entity Name Requirements; (d) details of the Manager; (e) details of the Secretary, if any; and (f) such other document or information as the Registrar may require. No Branch may be established without the approval of the Registrar.\n\nA Branch must: (a) have a place of business in the DMCC Free Zone; (b) file with the Registrar notice of persons authorised to accept Service, address of principal place of business, details of the Branch Parent's shareholders, details of the Branch's Manager and Secretary, and details of the directors of the Branch Parent; (c) appoint and retain at all times at least one person authorised to accept Service; (d) submit to the Registrar annually a copy of any annual return filed in the jurisdiction of formation of the Branch Parent; (e) file a copy of the accounts and auditor's report of its Branch Parent; and (f) comply with any other requirements of the Registrar.\n\nSubject to compliance with applicable rules, a Branch may request to be Removed. The request must include written confirmation from the Branch Parent that all liabilities remain with the Branch Parent, a resolution of the directors of the Branch Parent, evidence that leases have been terminated, evidence that bank accounts have been closed, and customs clearance where applicable.",
       "order": 5,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 13-14",
-        "severity": "high",
-        "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 13-14",
+      "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_06",
@@ -75,12 +65,10 @@
       "content": "A Company may, by Special Resolution, change its name, provided that the new name is acceptable to the Registrar. A Company must file the Special Resolution with the Registrar within seven Business Days. If the name of a Branch Parent has changed, the Branch must notify the Registrar within fourteen Business Days. The Registrar shall publish the proposed change of name. A change of name does not affect any rights or obligations of the Company or Branch, nor any legal proceedings.\n\nThe Registrar may direct a Company or Branch to change its name if: (a) the name is misleading or undesirable; (b) is contrary to the interests of the DMCC Free Zone, or the reputation of the Government of Dubai, the Emirate of Dubai or the UAE; (c) infringes or potentially infringes on the intellectual property rights of a third party; and/or (d) does not comply with the DMCC Entity Name Requirements. The Company or Branch must comply with the direction within thirty Business Days or such longer period as the Registrar may allow.",
       "order": 6,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 16-17",
-        "severity": "medium",
-        "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 16-17",
+      "section": "Section 3 – Company Registration, Branch Establishment and Licensing",
+      "severity": "medium",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_07",
@@ -88,12 +76,10 @@
       "content": "A Non-DMCC Entity may, if authorised by the laws of the jurisdiction in which it was incorporated, make a Continuation Application to be continued as a Company. The application must: be signed as a statutory declaration; be authorised by persons holding 75% or more of the voting interests (or the directors if the entity has corporate shareholders); be accompanied by proposed articles of association with a legal opinion if not Standard Articles; be accompanied by the relevant fee; be accompanied by a letter of no objection from the appropriate authority in the originating jurisdiction.\n\nThe Registrar may reject the application if: conditions are not fulfilled; false or misleading information was provided; the entity is insolvent or subject to insolvency proceedings; or acceptance may be prejudicial to the reputation of DMCCA, the DMCC Free Zone, the Government of Dubai, or the UAE.\n\nWith effect from the Certificate of Continuation, the entity becomes a Company under these Regulations. The Company continues to have all property, rights, privileges, liabilities and debts it had before continuation, and remains a party to any legal proceedings.\n\nA Company may transfer out of the DMCC Free Zone by Special Resolution and with Registrar approval, provided the laws of the other jurisdiction ensure continuity of rights, liabilities and legal proceedings. A Company ceases to be a DMCC Company when continued as a Non-DMCC Entity and a certificate of continuation from the other jurisdiction is filed with the Registrar.",
       "order": 7,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 18-23",
-        "severity": "high",
-        "section": "Section 4 – Transferring To and From the DMCC Free Zone",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 18-23",
+      "section": "Section 4 – Transferring To and From the DMCC Free Zone",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_08",
@@ -101,12 +87,10 @@
       "content": "A Company has the capacity and rights and privileges of a natural person. The capacity of a Company is not limited by anything in its Articles or by any act of its Shareholders. No Company or Branch may carry out any business for which it is not licensed or registered.\n\nA person acting under the express or implied authority of a Company may make, vary or discharge a contract or sign an instrument on behalf of the Company in the same manner as if the contract were made by a natural person.\n\nIf a transaction purports to be entered into by or on behalf of a Company before it has been registered, the transaction has the effect as if entered into by the person purporting to act for the Company. That person is personally bound by the transaction and entitled to its benefits. A Company may, within the period specified in the transaction terms (or a reasonable time after registration), adopt any such transaction. From that time, the Company is bound by the transaction and the person who purported to enter into it ceases to be so bound.",
       "order": 8,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 24",
-        "severity": "critical",
-        "section": "Section 5 – Corporate Capacity and Transactions",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 24",
+      "section": "Section 5 – Corporate Capacity and Transactions",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_09",
@@ -114,12 +98,10 @@
       "content": "Upon the issue of a Certificate of Registration, the Initial Shareholders are treated as having agreed to become Shareholders and must be entered in the Shareholder Register. A Company shall at all times have one or more Shareholders. A person becomes a holder of a share upon: (a) its agreement to become a Shareholder; (b) acquisition of a share; and (c) its name being entered in the Shareholder Register.\n\nThe Share Capital must be divided into shares denominated in UAE Dirhams or such other currency approved by the Registrar. The Registrar may specify a minimum amount of Share Capital. A share must be paid up in full by a Shareholder when Allotted. Subject to the Articles, each share will: (a) carry the right to vote at a meeting of the Company; (b) represent a proportionate interest in the Company; and (c) rank equally with each other share of the same type or class.\n\nA Company may issue different types or classes of shares, provided that the rights of each type or class must be stipulated in the Articles. A Company may also acquire Treasury Shares.",
       "order": 9,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 25-27",
-        "severity": "high",
-        "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 25-27",
+      "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_10",
@@ -127,12 +109,10 @@
       "content": "A Company may, by Special Resolution: (a) increase its Share Capital by creating new shares; (b) consolidate all or any of its shares into shares of a larger amount; and (c) sub-divide all or any of its shares into shares of a smaller amount. A Company may make a bonus issue of shares provided they are paid out of retained earnings or the share premium account.\n\nA Company, if authorised by its Articles and a Special Resolution, may reduce its Share Capital by: extinguishing or reducing liability on shares; cancelling Paid Up Share Capital that is lost; reducing the number of shares; paying off excess Paid Up Share Capital; or reducing its share premium account or other reserves.\n\nTo reduce Share Capital, the Company must: (1) between fifteen and thirty Business Days before the effective date, publish a Registrar-approved notice stating the pre-reduction capital, nominal share value, post-reduction amount (not below minimum per Art. 26.2), and effective date; and (2) on the effective date, have at least one Director sign a certificate declaring either the Company is solvent or all Creditors have consented. No Director may issue this certificate without reasonable grounds. Shares cancelled for capital reduction must be acquired at the lowest price obtainable in the reasonable opinion of Directors.\n\nIf a non-consenting Creditor has a debt and the Company is unable to pay as a result of the reduction, every person who was a Shareholder at the date of the certificate is liable to contribute for the payment of that debt.",
       "order": 10,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 28-31",
-        "severity": "high",
-        "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 28-31",
+      "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_11",
@@ -140,12 +120,10 @@
       "content": "A Company may not issue bearer shares.\n\nA Company may purchase its own shares. Unless the Company is a wholly owned Subsidiary, the purchase must be authorised by Special Resolution. The shares may only be purchased pursuant to a contract approved in advance by Special Resolution, and shares being purchased do not carry the right to vote on that Special Resolution (unless via a tender offer open to all Shareholders). A Company may only purchase its own shares from: (a) Paid Up Share Capital, share premium and other reserves (for nominal value); and (b) realised or unrealised profits, share premium or other reserves (for any premium). Unless held as Treasury Shares, purchased shares are automatically cancelled. A Company may not purchase its own shares if there would no longer be a Shareholder.\n\nA Company may, if authorised by its Articles, issue redeemable shares. The terms, conditions and manner of redemption must be stated before the shares are Allotted. A Company may only redeem shares if they are fully paid. Upon redemption, shares are cancelled and Share Capital is reduced accordingly. Notice of cancellation must be given to the Registrar within twenty Business Days.",
       "order": 11,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 32-34",
-        "severity": "high",
-        "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 32-34",
+      "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_12",
@@ -153,12 +131,10 @@
       "content": "Rights attached to a class of a Company's shares may only be varied: (a) in accordance with provision in the Company's Articles; or (b) where the Articles contain no such provision, with consent in writing of holders of at least 75% of the nominal value of the shares of that class, or by Special Resolution at a separate general meeting of the holders of that class.\n\nIf a Company purchases shares, it may hold them as Treasury Shares or deal with them. If held as Treasury Shares, the Company must be entered in the Shareholder Register. The Company must not exercise any right in respect of Treasury Shares (including voting rights). No dividend or distribution may be made to the Company in respect of Treasury Shares.\n\nTreasury Shares may at any time be: (a) sold; (b) transferred for purposes of an employees' share scheme; or (c) cancelled (with Share Capital reduced accordingly). Proceeds of sale equal to or less than the purchase price are treated as realised profit. Excess proceeds must be transferred to the Company's share premium account.",
       "order": 12,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 35-38",
-        "severity": "medium",
-        "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 35-38",
+      "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
+      "severity": "medium",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_13",
@@ -166,12 +142,10 @@
       "content": "A corporate entity (Company A) is a Subsidiary of another corporate entity (Company B) only if: (a) it is controlled by Company B (or by Company B and one or more entities each controlled by Company B); or (b) Company A is a Subsidiary of another entity which is itself a Subsidiary of Company B. A corporate entity is the Holding Company of another if that entity is its Subsidiary.\n\nControl exists where: (a) Company F controls the board of directors of Company E; or (b) Company F holds shares representing 50% of the votes for the appointment of Company E's directors, and such votes are sufficient to elect a majority of the board.\n\nExcept as provided, a Subsidiary cannot own shares in its Holding Company and an Allotment from a Company to its Subsidiary is void. If a Subsidiary was already a Shareholder when it became a Subsidiary, it may continue to hold shares but: (a) has no voting right at meetings; (b) may not acquire further shares except on a capitalisation issue; and (c) must within twelve months dispose of all shares in the Holding Company. These restrictions also apply to nominees of Subsidiaries, but do not apply where the Subsidiary is a Trustee.",
       "order": 13,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 39-40",
-        "severity": "high",
-        "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 39-40",
+      "section": "Section 6 – Share Capital, Shareholders and Reduction of Share Capital",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_14",
@@ -179,12 +153,10 @@
       "content": "A Company must have: (a) a Shareholder Register; (b) an Officer Register; (c) a Security Register; and (d) a Minutes Register, in a legible form capable of being reproduced within a reasonable time. A Branch must have an Officer Register. The Registrar will maintain the Shareholder Register, Officer Register, and Security Register for each Company, and the Officer Register for each Branch. The Company must maintain the Minutes Register and take reasonable precautions to prevent loss, destruction, or falsification.\n\nA Company must provide the Registrar with share transfer documents and any other required information for the Shareholder Register. Subject to Articles and applicable law, a Shareholder may grant security over its shares. The Company must provide security interest details to the Registrar within five Business Days. A security interest is only perfected upon entry into the Security Register. A Shareholder must report creation, modification or discharge of a security interest within five Business Days.\n\nThe Shareholder Register, Officer Register and Security Register must be open to inspection by Shareholders during business hours. The Registrar may rectify Registers on application. A Shareholder may apply for rectification if names or share numbers are incorrectly entered, omitted, or if the Security Register is inaccurate.\n\nThe Registrar may only register a transfer of shares where a share transfer document has been signed by or on behalf of both the transferee and transferor and delivered to both the Registrar and the Company. A Trustee of a deceased Shareholder must be treated as a Shareholder only for the purpose of executing the share transfer document.",
       "order": 14,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 41-47",
-        "severity": "high",
-        "section": "Section 7 – Registers",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 41-47",
+      "section": "Section 7 – Registers",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_15",
@@ -192,12 +164,10 @@
       "content": "A Company may, by Ordinary Resolution, declare a dividend or resolve to make a distribution at any time. However, a Company may only declare a dividend or make a distribution if the Directors have resolved by simple majority, on reasonable grounds, that the Company will immediately after the distribution be able to pay its debts as they fall due in the normal course of business.\n\nA Company may only make a distribution out of its accumulated, realised profits, less its accumulated, realised losses. Whether a distribution may be made is determined by reference to: (a) profits, losses, assets and liabilities; (b) provisions of any kind; and (c) Share Capital and reserves (including undistributable reserves). Distribution means every distribution of a Company's assets to Shareholders except: issue of bonus shares; redemption or purchase of own shares out of Share Capital or unrealised profits; reduction of Share Capital; and distribution of assets on winding-up.\n\nUndistributable reserves include: share premium account; capital redemption reserve; accumulated unrealised profits exceeding accumulated unrealised losses; and any other reserve the Company is prohibited from distributing.\n\nWhere a distribution is made in contravention and the Shareholder knows or has reasonable grounds for believing it is unlawful, the Shareholder is liable to repay it to the Company. For distributions otherwise than in cash, the Shareholder must pay the Company an amount equal to the value of the distribution.",
       "order": 15,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 48-50",
-        "severity": "critical",
-        "section": "Section 8 – Dividends and Distributions",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 48-50",
+      "section": "Section 8 – Dividends and Distributions",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_16",
@@ -205,12 +175,10 @@
       "content": "Subject to any limitations in the Articles, the business and affairs of a Company must be managed by one or more Directors. The Directors may exercise all powers of a Company except any powers that these Regulations or the Articles require the Company to exercise in a General Meeting.\n\nNo person may be a Director who: (a) is under 18 years of age; (b) has been convicted of a criminal offence involving dishonesty in any jurisdiction in the past ten years; (c) has been judged disqualified by DMCCA or by any UAE Governmental Authority or any other competent regulatory authority or court; (d) does not qualify based on criteria in the Articles or Officer Rules; (e) is an undischarged bankrupt; (f) is not a natural person, unless otherwise approved by the Registrar; or (g) in the Registrar's opinion, is not a suitable person.\n\nThe first Directors must be appointed by the Initial Shareholders. Subsequent Directors must be appointed by Shareholders. Each Director holds position until incapacitation or death, resignation, or removal by Ordinary Resolution (or higher threshold per Articles). The minimum number of Directors is one. Any change to Directors must be notified to the Registrar within fourteen Business Days.\n\nA Director may appoint an alternate who need not be a Director but must meet the qualification criteria. The alternate is entitled to attend meetings and vote in the Director's absence. If a Director ceases to fulfil the qualification criteria, the Shareholders must remove such Director within ten Business Days.",
       "order": 16,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 51-52",
-        "severity": "critical",
-        "section": "Section 9 – Directors and Corporate Governance",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 51-52",
+      "section": "Section 9 – Directors and Corporate Governance",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_17",
@@ -218,12 +186,10 @@
       "content": "A Director, in exercising powers and discharging duties, must act in accordance with the Officer Rules, including acting honestly, in good faith and lawfully, and in the best interests of the Company. The duties of Directors are set out in the Officer Rules and are owed to the Company.\n\nA person who ceases to be a Director continues to be subject to: (a) any duty as regards the exploitation of any property, information or opportunity of which the Director became aware when serving as a Director; and (b) any duty as regards things done or omitted to be done before the Director ceased to serve.\n\nA Company must not provide financial assistance to a Director.\n\nThe acts of a Director are valid even if a defect is subsequently found in that Director's appointment or qualification.",
       "order": 17,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 53-55",
-        "severity": "critical",
-        "section": "Section 9 – Directors and Corporate Governance",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 53-55",
+      "section": "Section 9 – Directors and Corporate Governance",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_18",
@@ -231,12 +197,10 @@
       "content": "Every Company must have a Secretary. A Branch may have a Secretary. This requirement does not apply to an SPV. The Secretary must be appointed by resolution of the Directors (for a Company) or the directors of the Branch Parent (for a Branch).\n\nA person cannot be a Secretary who: (a) is a natural person under 18 years of age; (b) has been convicted of a criminal offence involving dishonesty in any jurisdiction in the past ten years; (c) has been judged disqualified by DMCCA or any competent authority; (d) does not qualify based on the Articles or Officer Rules; or (e) in the Registrar's opinion is not suitable. The Secretary need not be a natural person.\n\nThe Secretary holds position until incapacitation or death (if natural person) or winding-up/dissolution (if not), resignation, or removal by resolution of the Directors or Branch Parent directors. If a Secretary ceases to fulfil the qualification criteria, the Directors must remove them within ten Business Days and appoint a new Secretary. Any change must be notified to the Registrar within fourteen Business Days.\n\nThe Secretary is primarily responsible for filing all documents required to be filed with the Registrar. A Secretary must act in accordance with the Officer Rules. The duties of a Secretary are owed to the Company or Branch.",
       "order": 18,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 56",
-        "severity": "high",
-        "section": "Section 9 – Directors and Corporate Governance",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 56",
+      "section": "Section 9 – Directors and Corporate Governance",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_19",
@@ -244,12 +208,10 @@
       "content": "Every Company or Branch must have a Manager. The Manager must be appointed by resolution of the Directors (for a Company) or the directors of the Branch Parent (for a Branch). A Secretary, Director or Shareholder of a Company may also be appointed as the Manager if they are a natural person. The Manager is responsible for the day-to-day operations of the Company or Branch.\n\nA person cannot be a Manager who: (a) is under 18 years of age; (b) has been convicted of a criminal offence involving dishonesty in any jurisdiction in the past ten years; (c) has been judged disqualified by DMCCA or any competent authority; (d) is not a natural person; (e) does not qualify based on the Articles or Officer Rules; or (f) in the Registrar's opinion is not suitable.\n\nA Manager holds position until incapacitation or death, resignation, or removal by the Directors or Branch Parent directors. If a Manager ceases to fulfil the qualification criteria, the Directors must remove them within ten Business Days and appoint a new Manager. Any change must be notified to the Registrar within fourteen Business Days.\n\nIf a Manager resigns, is removed, dies or is incapacitated, the Company or Branch must notify the Registrar within five Business Days, and the Directors shall automatically assume the Manager's responsibilities until a new Manager is appointed within ten Business Days.\n\nA Manager must act in accordance with the Officer Rules. The duties of a Manager are owed to the Company or Branch.",
       "order": 19,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 57",
-        "severity": "high",
-        "section": "Section 9 – Directors and Corporate Governance",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 57",
+      "section": "Section 9 – Directors and Corporate Governance",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_20",
@@ -257,12 +219,10 @@
       "content": "A person dealing with a Company or Branch is entitled to assume that anyone who appears from publicly available information to be an Officer has been duly appointed and has the authority to exercise the customary powers. A Company or Branch cannot assert in proceedings that such assumption is incorrect. However, a person is not entitled to make this assumption if they knew or suspected it was incorrect.\n\nWhere these Regulations require a filing or notification, the Officers (for a Company) or the Secretary and Manager (for a Branch) must procure compliance within the relevant time limit.\n\nIf the Registrar has concerns about a person's suitability as an Officer, has evidence of a breach of duties, is aware of a criminal conviction involving fraud or dishonesty, or believes an Officer has acted detrimentally to the DMCC Free Zone's reputation, the Registrar may apply to DMCCA for a disqualification order and Sanctions. DMCCA may issue an order if satisfied the person's conduct makes them unfit to be an Officer. The order may last up to fifteen years.\n\nIf a Director, Secretary or Manager is disqualified, the Shareholders (for Directors) or Directors/Branch Parent directors (for Secretary/Manager) must remove them within ten Business Days of the disqualification order.",
       "order": 20,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 58-59",
-        "severity": "critical",
-        "section": "Section 9 – Directors and Corporate Governance",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 58-59",
+      "section": "Section 9 – Directors and Corporate Governance",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_21",
@@ -270,12 +230,10 @@
       "content": "Unless a shorter duration is provided in the Articles, a Company must hold a General Meeting as its annual General Meeting within eighteen months from registration and once every twelve months thereafter. This requirement does not apply to an SPV. A meeting other than the annual General Meeting is an extraordinary General Meeting.\n\nShareholders holding 10% or more of Share Capital may request an extraordinary General Meeting. The Directors or Secretary must call the meeting to be held within sixty Business Days. If the Directors or Secretary do not issue a notice within ten Business Days, the requesting Shareholders may call the meeting.\n\nAny meeting (other than adjourned) may be called by giving ten Business Days' notice in writing. Shorter notice is valid if agreed by Shareholders holding not less than 95% of total voting rights. A notice must set out time, place and date, the nature of business, the intention to propose any Ordinary or Special Resolution and its contents, and include any relevant accounts and auditor's reports.\n\nUnless the Articles provide otherwise: a quorum requires attendance of persons holding more than 50% of total voting rights (or one person present for an adjourned meeting); on a show of hands each Shareholder has one vote, on a poll each Shareholder has one vote per share; resolutions are passed by Ordinary Resolution unless otherwise specified.\n\nWritten resolutions signed by all entitled Shareholders have the same effect as resolutions passed at a General Meeting. A sole Shareholder may pass resolutions by issuing a written decision.\n\nEvery Company must maintain a Minutes Register at its registered office containing minutes of all meetings and names of persons present. Minutes must be open to inspection by Shareholders during business hours.",
       "order": 21,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 60-71",
-        "severity": "high",
-        "section": "Section 10 – General Meetings",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 60-71",
+      "section": "Section 10 – General Meetings",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_22",
@@ -283,12 +241,10 @@
       "content": "The Directors of every Company must procure the preparation of accounts for each financial year. The accounts must: (a) be prepared in accordance with International Financial Reporting Standards (IFRS); (b) show a true and fair view of the profit and loss and the state of affairs; and (c) be approved by the Directors and signed on their behalf by at least one Director. If the Company is a Holding Company, group accounts must also be prepared.\n\nA Company is exempt from preparing accounts if it has been dormant throughout the whole financial year. Shareholders holding 10% or more of issued share capital may require a dormant Company to prepare accounts.\n\nWithin six months (or such other period prescribed by DMCCA) after the end of the financial year, the accounts must be: (a) prepared and approved by the Directors; (b) examined and reported on by an auditor approved by DMCCA; and (c) laid before a General Meeting for approval together with the auditor's report. A copy must be filed with the Registrar within five Business Days of the General Meeting.\n\nEvery Company must keep accounting records sufficient to disclose with reasonable accuracy its financial position at any time and to enable Directors to ensure compliance with these Regulations. Accounting records must be kept at the registered office, be open to inspection by Officers and auditors, and be preserved for at least five years (or fifteen years for records relating to real estate).\n\nThe first financial year starts on the day of registration and must be at least six months and not longer than eighteen months. Subsequent financial years are twelve months (with up to five Business Days flexibility). A Company may apply to the Registrar to extend or shorten its financial year.",
       "order": 22,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 72-77",
-        "severity": "critical",
-        "section": "Section 11 – Accounts and Audit",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 72-77",
+      "section": "Section 11 – Accounts and Audit",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_23",
@@ -296,12 +252,10 @@
       "content": "A Company must appoint a firm of auditors to examine and report on the accounts. The auditor must be appointed at a General Meeting. The auditor must: (a) have been registered by DMCCA as an approved auditor; (b) have consented in writing to the appointment; and (c) not have any matter known to the Company that should preclude consent. A Company may remove an auditor by Ordinary Resolution at any time. DMCCA may also order termination of an auditor's appointment.\n\nThe auditor's report must state: (a) whether accounts have been properly prepared in accordance with IFRS; (b) that accounts give a true and fair view of profit or loss; (c) that accounts give a true and fair view of the Company's affairs; (d) that the Company is only undertaking activities permitted under its Licence; and (e) any other matter required by DMCCA.\n\nThe auditor must investigate whether: proper accounting records have been kept; proper returns have been received from unvisited offices; accounts are in agreement with records and returns; and accounts comply with IFRS. The auditor has right of access at all reasonable times to the Company's records and is entitled to require information and explanations from Officers.\n\nA Company, its Officers, or Representatives must not: (a) provide false, misleading or deceptive statements to the auditor; (b) destroy or conceal documents; (c) coerce, manipulate, mislead, or influence the auditor; (d) fail to provide access to information or documents; or (e) fail to give information or explanations the person is able to give.\n\nWhen an auditor ceases to hold office, they must deposit a statement at the Company's registered office about any circumstances that should be brought to Shareholders' or Creditors' attention. A Company exempt from audit requirements during dormancy may be required to obtain an audit by Shareholders holding 10% or more of issued share capital.\n\nEach Branch must file a copy of the accounts and auditor's report of its Branch Parent with the Registrar within five Business Days of the relevant shareholder meeting.",
       "order": 23,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 78-84",
-        "severity": "critical",
-        "section": "Section 11 – Accounts and Audit",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 78-84",
+      "section": "Section 11 – Accounts and Audit",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_24",
@@ -309,12 +263,10 @@
       "content": "DMCCA may, if satisfied there is good reason, appoint one or more inspectors to investigate the affairs of a Company or Branch. An inspector may: perform on-site inspections; require prompt attendance by employees or Officers; require documentation; report to DMCCA; make recommendations regarding the status; seek information from third-party regulatory authorities; and apply or enforce Sanctions. DMCCA may require the applicant requesting an inspection to give security for the estimated costs.\n\nIf an inspector investigating Entity A thinks it necessary to also investigate the affairs of Entity A's Subsidiary, Holding Company, or a Subsidiary of Entity A's Holding Company, they may do so with DMCCA approval. An inspector may require any person to produce records, attend before the inspector, and give assistance. A Director must produce records relating to any bank accounts connected with misconduct.\n\nIf a Company, Branch, Officer or Representative fails to comply with these Regulations or a requirement of the Registrar, the Registrar may issue a direction to make good the failure within a specified time. If the direction is not complied with, the Registrar may apply to DMCCA for orders directing compliance, requiring payment of costs, or any other appropriate order.",
       "order": 24,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 85-90",
-        "severity": "high",
-        "section": "Section 12 – Inspection and Remedies",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 85-90",
+      "section": "Section 12 – Inspection and Remedies",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_25",
@@ -322,12 +274,10 @@
       "content": "Two or more Companies may, subject to the consent of the Registrar, amalgamate and continue as one Company, and any existing Licence shall continue for the surviving Company.\n\nOne or more Companies and one or more Non-DMCC Entities may apply to amalgamate and continue as a Company within the DMCC Free Zone. The application must include documentary proof that the Non-DMCC Entity has obtained all necessary authorisations.\n\nOne or more Companies and one or more Non-DMCC Entities may also apply to amalgamate and continue as a Non-DMCC Entity outside the DMCC Free Zone. The application must include: a certified copy of a resolution of the shareholders (or directors if authorised) of each amalgamating entity approving the amalgamation; a declaration by an Officer of each entity that: the amalgamating entity is and the surviving entity will be able to pay its liabilities as they become due; the realisable value of the surviving entity's assets will not be less than the aggregate of its liabilities and issued capital; and either no creditor will be prejudiced or adequate notice has been given to all known creditors.\n\nWhere the Registrar refuses consent to an amalgamation, it is not bound to assign any reason and the decision is not subject to appeal or review.",
       "order": 25,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 91-94",
-        "severity": "medium",
-        "section": "Section 13 – Amalgamation",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 91-94",
+      "section": "Section 13 – Amalgamation",
+      "severity": "medium",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_26",
@@ -335,12 +285,10 @@
       "content": "The winding-up of a Company may be: (a) a solvent winding-up; (b) a summary winding-up; (c) an insolvent winding-up; or (d) an involuntary winding-up by the competent court. The provisions of Federal Law No. 9 of 2016 relating to bankruptcy of companies shall be applicable.\n\nPre-insolvency reporting requirements: If (a) the purpose of the Company has expired or it has no further business; (b) total liabilities exceed total assets; or (c) employees have not been paid for three consecutive months, the Directors must within ten Business Days submit to the Registrar a report summarising the Company's status and proposed action.\n\nIf the losses of a Company reach 75% or more of the Company's Share Capital, the Company must within twenty-one days of becoming aware, notify its Shareholder(s).\n\nA Company may be wound up voluntarily: (a) in circumstances provided for in the Articles; (b) by unanimous resolution at a General Meeting; or (c) where losses reach 75% of Share Capital. From the commencement of winding-up, the Company ceases to carry on business except as required for winding-up. The status and powers of the Company continue until Dissolved. Any transfer of shares after commencement of voluntary winding-up is void (unless made with the liquidator's sanction).",
       "order": 26,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 95-107",
-        "severity": "critical",
-        "section": "Sections 14-16 – Winding-Up General and Pre-Insolvency",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 95-107",
+      "section": "Sections 14-16 – Winding-Up General and Pre-Insolvency",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_27",
@@ -348,12 +296,10 @@
       "content": "For a solvent winding-up, a declaration of solvency must be signed by the Directors (or majority) stating that having made full inquiry: the Company has no assets and no liabilities; or it has assets and no liabilities; or it has liabilities and will discharge them in full within twelve months. The declaration must be made within twenty Business Days before the winding-up resolution or on the same date before passing it. The Company at a General Meeting appoints the liquidator(s). Notice of appointment, the declaration, and meeting minutes must be sent to the Registrar within fifteen Business Days.\n\nFor a summary winding-up, the declaration of solvency must state: no assets and no liabilities; or assets and no liabilities; and the affairs are capable of being finally wound up within six months. If not completed within six months, the summary winding-up converts to a solvent winding-up. If at any time the liquidator concludes the Company cannot pay its debts in full, it converts to an insolvent winding-up.\n\nOn appointment of a liquidator, all powers of the Directors cease (except as sanctioned by the General Meeting or liquidator). If the winding-up continues for more than twelve months, the liquidator must prepare annual progress reports for Shareholders and the Registrar. Before dissolution, the liquidator must prepare a final summary showing how the winding-up was conducted and how property was disposed of, call a final General Meeting with at least fifteen Business Days' notice, and submit the summary and minutes to the Registrar within five Business Days.",
       "order": 27,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 108-122",
-        "severity": "high",
-        "section": "Sections 17-18 – Solvent and Summary Winding-Up",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 108-122",
+      "section": "Sections 17-18 – Solvent and Summary Winding-Up",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_28",
@@ -361,12 +307,10 @@
       "content": "For an insolvent voluntary winding-up, the Company must: call a General Meeting for the winding-up resolution; call a meeting of Creditors within ten Business Days; distribute notices to Creditors by reputable courier at least eight Business Days before the meeting; appoint a chairman for the Creditors' meeting; and propose one or more liquidators. The Directors must produce a statement of affairs signed by at least one Director and present it at the Creditors' meeting. The Creditors appoint the liquidator by simple majority by value of claims.\n\nCreditors may appoint a Liquidation Committee of three to five members to assist the liquidator. The liquidator must report to the Committee on matters of material concern and call Committee meetings at least once every six months. Committee members must have submitted a proof of debt that has not been wholly disallowed. If the winding-up continues for more than twelve months, the liquidator must prepare annual progress reports and call annual meetings of the Company and Creditors.\n\nA Company may be wound up involuntarily by the Court on a petition by the Registrar if: the Company has been Struck Off; or it has committed a serious or repeated contravention of these Regulations. On making a winding-up order, the Court shall identify the liquidator. Commencement is deemed from the date of the petition.\n\nGeneral winding-up provisions: Every document issued by a Company in winding-up must contain a statement that the Company is in liquidation. A liquidator must be an individual, a member in good standing of a professional body recognised by the Registrar. The Registrar may prescribe additional guidelines for liquidators.",
       "order": 28,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 123-147",
-        "severity": "high",
-        "section": "Sections 19-21 – Insolvent, Involuntary, and General Winding-Up",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 123-147",
+      "section": "Sections 19-21 – Insolvent, Involuntary, and General Winding-Up",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_29",
@@ -374,12 +318,10 @@
       "content": "A liquidator may exercise powers including: paying Creditors; making compromises; bringing or defending legal proceedings; calling General Meetings; carrying on business for beneficial winding-up; selling property; executing documents; drawing bills of exchange; raising money on security of assets; and appointing agents.\n\nThe expenses of winding-up are payable from available assets in the following order of priority: (a) expenses and costs of the liquidator including legal and professional costs; (b) remuneration of the liquidator; (c) amounts payable to secured Creditors to the extent of their security; (d) unpaid employee amounts as at commencement date (capped at three months' salary per person); (e) amounts payable to DMCCA or any government authority (DMCCA or DMCC Free Zone may set-off amounts held); and (f) amounts payable to general unsecured creditors.\n\nSubject to this priority, the Company's property shall be realised and applied pari passu in satisfaction of liabilities. Remaining property shall be distributed among Shareholders according to their rights and interests.\n\nAn Official of a Company (current or former Officer, employee involved in management, or liquidator) must comply with reasonable requests of the liquidator, comply with reasonable directions, and not take any action to hinder or obstruct the liquidator.\n\nThe Company shall be Dissolved upon confirmation from the Registrar. Remaining property and records shall be disposed of: in a solvent/summary winding-up, per Shareholders' resolution; in an insolvent winding-up, per the Liquidation Committee or Creditors' directions. After ten years from dissolution, no responsibility rests on anyone for records not being forthcoming.",
       "order": 29,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 148-164",
-        "severity": "high",
-        "section": "Section 21 – General Winding-Up Provisions",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 148-164",
+      "section": "Section 21 – General Winding-Up Provisions",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_30",
@@ -387,12 +329,10 @@
       "content": "A person who commits a contravention of these Regulations or any other regulation, rule, policy or decision administered by DMCCA will, at the absolute discretion of DMCCA, be subject to a Sanction. A Sanction means one or all of the following: (a) restriction or suspension of services; (b) a fine or penalty as specified by DMCCA; (c) suspension of a Licence; (d) termination of a Licence; (e) a Company or Branch being Struck Off; and/or (f) such other sanction as DMCCA may deem appropriate.\n\nWhere DMCCA considers that a person has committed a contravention, DMCCA may impose a fine or penalty up to the amount specified by DMCCA from time to time. DMCCA may prescribe applicable procedures for imposition, publication, collection and recovery of fines or penalties.",
       "order": 30,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 165-166",
-        "severity": "critical",
-        "section": "Section 22 – Sanctions",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 165-166",
+      "section": "Section 22 – Sanctions",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_31",
@@ -400,12 +340,10 @@
       "content": "DMCCA may suspend a Licence where: (a) a Company or Branch has ceased to carry out business for more than three months (other than in dormancy); (b) has failed to comply with these Regulations; (c) has acted in breach of restrictions on activities; (d) has failed to pay any fine, penalty, fee or charge within ten Business Days of the due date; or (e) it is necessary to protect the reputation of the DMCC Free Zone, the Emirate of Dubai or the UAE. DMCCA may also suspend the Licence of any related Company or Branch. During suspension, the Company or Branch must not carry out any activities except meeting obligations to Creditors.\n\nDMCCA may terminate a Licence where: (a) business has ceased for more than three months; (b) failure to comply with Regulations; (c) carrying out unlicensed business; (d) failure to comply with a Sanction within thirty Business Days; (e) an Officer has been convicted of fraud/dishonesty and not removed within ten Business Days; (f) an Officer has been disqualified and not removed within ten Business Days; (g) a disqualified Director is also the sole Shareholder; (h) failure to comply with DMCCA/Registrar directions; (i) provision of false, incorrect or misleading information; (j) failure to pay employees for forty-five Business Days without reasonable cause; (k) amounts due to DMCC Free Zone/DMCCA remain unpaid for thirty Business Days beyond due date; (l) infringement of DMCCA intellectual property; (m) operations endangering health, safety or security; or (n) it is necessary to protect the reputation of the DMCC Free Zone, Emirate of Dubai or UAE. Upon receiving a Termination Notice, the Company or Branch must immediately cease operations and close premises.\n\nFollowing a Termination Notice, DMCCA may send a Strike Off Notice asking for reasons why the entity should not be Struck Off. If no satisfactory response is received within twenty Business Days, a Second Strike Off Notice may be sent with a sixty Business Day period. A Public Notice is published on the DMCCA website. On Striking Off of a Company, the liability of every Officer and Shareholder continues. If a Struck Off Company purports to enter into obligations, the person purporting to bind the Company is personally liable. Shareholders must immediately commence winding-up proceedings.",
       "order": 31,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 167-170",
-        "severity": "critical",
-        "section": "Section 22 – Sanctions",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 167-170",
+      "section": "Section 22 – Sanctions",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_32",
@@ -413,12 +351,10 @@
       "content": "A person who: (a) does an act prohibited by these Regulations; (b) does not do an act required by these Regulations; or (c) otherwise contravenes these Regulations commits a contravention. This does not include DMCCA or the Registrar.\n\nIf a person is knowingly concerned in a contravention, that person also commits a contravention. If the person is an Officeholder of a corporate entity, both the Officeholder and the entity commit a contravention. A person is knowingly concerned if they have: aided, abetted, counselled or procured the contravention; induced it by threat or promise; been knowingly involved or party to it; conspired with others; or done, attempted or planned concealing the existence or extent of a contravention or obstructing competent authorities from detecting, investigating or prosecuting a contravention.\n\nIf a Company's affairs are being conducted in a manner unfairly prejudicial to one or more Shareholders, the Court may on application of the Shareholder(s) make orders including: regulating the Company's future conduct; requiring or restraining any person's acts; authorising proceedings in the Company's name; providing for purchase of Shareholder rights; or any other order. If the Court orders the Company not to make specified alterations in its Articles, the Company must not do so without leave of the Court.",
       "order": 32,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 171-173",
-        "severity": "high",
-        "section": "Section 22 – Sanctions",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 171-173",
+      "section": "Section 22 – Sanctions",
+      "severity": "high",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_33",
@@ -426,12 +362,10 @@
       "content": "Subject to compliance with any rules issued by the Registrar or DMCCA, a Company (other than an Exempt Entity) may request, following approval by Ordinary Resolution, the Registrar to suspend its Licence for a period of up to twelve months or such longer period as approved by the Registrar.\n\nWith effect from the suspension, the Company must not trade in or from the DMCC Free Zone pursuant to that Licence until such time as the Registrar has reactivated the Licence.\n\nThe Registrar or DMCCA may from time to time issue additional rules in respect of dormant Companies that have voluntarily suspended their Licence.",
       "order": 33,
       "is_required": false,
-      "metadata": {
-        "article": "Art. 174-175",
-        "severity": "medium",
-        "section": "Section 23 – Dormancy",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 174-175",
+      "section": "Section 23 – Dormancy",
+      "severity": "medium",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     },
     {
       "id": "dmcc_comp_34",
@@ -439,12 +373,10 @@
       "content": "A Company or Branch or its auditor must disclose to the Registrar any matter which reasonably tends to show: (a) a contravention or likely contravention of these Regulations; (b) a failure or likely failure to comply with any obligation; or (c) any other matter as DMCCA may prescribe, attributable to the conduct of the Company or Branch or its Officers and/or Representatives. This obligation does not apply to the extent it would disclose a Privileged Communication (i.e., legal professional privilege or lawyer-client privilege, but not a general duty of confidentiality).\n\nA Company or Branch must establish and implement appropriate systems and internal procedures to enable compliance with disclosure obligations. Any provision in an agreement that purports to hinder compliance with disclosure obligations is void. No person may be subjected to detriment merely by reason of giving information or producing documents to DMCCA or the Registrar in good faith.\n\nA person must not: (a) provide information which is false, misleading or deceptive to DMCCA or the Registrar; or (b) conceal information where the concealment is likely to mislead or deceive DMCCA or the Registrar.\n\nWhere DMCCA or the Registrar makes an order, issues a direction or makes a requirement pursuant to these Regulations, the person must comply. The Registrar may require communications to be conducted in English or Arabic.",
       "order": 34,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 176-183",
-        "severity": "critical",
-        "section": "Section 24 – Miscellaneous Provisions",
-        "source_document": "DMCCA Company Regulations 2024 [Amended]"
-      }
+      "article": "Art. 176-183",
+      "section": "Section 24 – Miscellaneous Provisions",
+      "severity": "critical",
+      "source_title": "DMCCA Company Regulations 2024 [Amended]"
     }
   ],
   "metadata": {
@@ -453,6 +385,18 @@
     "last_updated": "2025-01-02",
     "total_articles": 186,
     "total_sections": 25,
-    "tags": ["company", "dmcc", "free-zone", "governance", "corporate", "registration", "licensing", "directors", "shares", "winding-up", "sanctions"]
+    "tags": [
+      "company",
+      "dmcc",
+      "free-zone",
+      "governance",
+      "corporate",
+      "registration",
+      "licensing",
+      "directors",
+      "shares",
+      "winding-up",
+      "sanctions"
+    ]
   }
 }

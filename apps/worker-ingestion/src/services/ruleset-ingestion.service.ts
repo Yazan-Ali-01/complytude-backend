@@ -98,8 +98,9 @@ export class RulesetIngestionService {
         );
       });
 
-    // 5. Build rows for insert. The clause's own facts (mandatory, severity, article) travel with
-    // every chunk: citations and baseline severity are built from them, never by the model.
+    // 5. Build rows for insert. The clause's own facts (mandatory, severity, article, source) travel
+    // with every chunk: citations and baseline severity are built from them, never by the model.
+    // Its guidance is a paraphrase the model reads beside the text, and is never cited.
     const rows: RulesetChunkInsertRow[] = chunks.map((chunk, i) => ({
       rulesetId,
       rulesetVersionId: versionId,
@@ -115,7 +116,10 @@ export class RulesetIngestionService {
         severity: stringOrNull(chunk.metadata?.severity),
         article: stringOrNull(chunk.metadata?.article),
         section: stringOrNull(chunk.metadata?.section),
-        source: stringOrNull(chunk.metadata?.source_document),
+        source: stringOrNull(chunk.metadata?.source_title),
+        sourceUrl: stringOrNull(chunk.metadata?.source_url),
+        effectiveDate: stringOrNull(chunk.metadata?.effective_date),
+        guidance: stringOrNull(chunk.metadata?.guidance),
         isPartial: chunk.isPartial,
         ...(chunk.isPartial && {
           partIndex: chunk.partIndex,
@@ -198,10 +202,15 @@ export class RulesetIngestionService {
         content: typeof c.content === 'string' ? c.content : '',
         order: typeof c.order === 'number' ? c.order : 0,
         isRequired: c.is_required === true,
-        metadata:
-          typeof c.metadata === 'object' && c.metadata !== null
-            ? (c.metadata as Record<string, unknown>)
-            : null,
+        metadata: {
+          severity: c.severity,
+          article: c.article,
+          section: c.section,
+          source_title: c.source_title,
+          source_url: c.source_url,
+          effective_date: c.effective_date,
+          guidance: c.guidance,
+        },
       }));
 
     const valid = mapped.filter((c) => c.id && c.content.trim().length > 0);

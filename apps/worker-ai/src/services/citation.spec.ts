@@ -1,4 +1,10 @@
-import { baselineRiskOf, citationOf, finalRisk } from './citation';
+import {
+  baselineRiskOf,
+  citationOf,
+  finalRisk,
+  guidanceOf,
+  sourceUrlOf,
+} from './citation';
 
 describe('citations and baseline risk from ruleset data', () => {
   it('cites the authority, ruleset, version, article and title', () => {
@@ -26,6 +32,26 @@ describe('citations and baseline risk from ruleset data', () => {
       }),
     ).toBe('uae_labour_law, Section 3');
     expect(citationOf({})).toBe('Unknown ruleset');
+  });
+
+  it("never cites a clause's guidance, and links to its published source", () => {
+    const metadata = {
+      rulesetName: 'UAE Labour Law',
+      version: '1.0.0',
+      article: 'Art. 8',
+      clauseTitle: 'Employment contract',
+      sourceUrl: 'https://uaelegislation.gov.ae/en',
+      guidance: 'Every employee needs a written contract.',
+    };
+    expect(citationOf(metadata)).toBe(
+      'UAE Labour Law v1.0.0, Art. 8: Employment contract',
+    );
+    expect(sourceUrlOf(metadata)).toBe('https://uaelegislation.gov.ae/en');
+    expect(guidanceOf(metadata)).toBe(
+      'Every employee needs a written contract.',
+    );
+    expect(sourceUrlOf({})).toBeNull();
+    expect(guidanceOf({ guidance: ' ' })).toBeNull();
   });
 
   it('maps the clause severity to a baseline risk level', () => {

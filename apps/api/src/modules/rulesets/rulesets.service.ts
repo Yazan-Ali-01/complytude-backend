@@ -491,6 +491,26 @@ export class RulesetsService {
   ): Promise<RulesetVersion> {
     try {
       const { target } = await this.findVersionOf(key, version);
+      // A reviewed version is the published text with its sources, which production analyses cite
+      const unsourced = target.clauses
+        .filter(
+          (clause) =>
+            !clause.source_url ||
+            !clause.effective_date ||
+            !(clause.article || clause.section),
+        )
+        .map((clause) => clause.id);
+      if (unsourced.length > 0) {
+        throw new ConflictException(
+          this.i18n.t(RulesetsI18n.errors.VERSION_NOT_SOURCED, {
+            args: {
+              version,
+              clauses: unsourced.slice(0, 10).join(', '),
+              count: unsourced.length,
+            },
+          }),
+        );
+      }
       const reviewed = await this.rulesetVersionRepository.recordReview(
         target.id,
         {

@@ -20,10 +20,8 @@
       "content": "All employment contracts for DMCC free zone companies must be registered with the DMCC Authority within fourteen (14) days of execution. The registered contract must include the DMCC company license number, the employee DMCC access card number, and confirmation that the contract complies with DMCC employment rules. Failure to register the contract may result in fines and visa processing delays.",
       "order": 1,
       "is_required": true,
-      "metadata": {
-        "section": "DMCC-HR-01",
-        "severity": "critical"
-      }
+      "section": "DMCC-HR-01",
+      "severity": "critical"
     },
     {
       "id": "dmcc_emp_02",
@@ -31,10 +29,8 @@
       "content": "Every DMCC employer must provide comprehensive medical insurance coverage for all employees from the first day of employment. The medical insurance plan must meet or exceed the minimum coverage requirements set by the Dubai Health Authority (DHA), including in-patient and out-patient coverage with a minimum annual limit of AED 150,000. The employer must provide proof of insurance to DMCC within thirty (30) days of the employee start date.",
       "order": 2,
       "is_required": true,
-      "metadata": {
-        "section": "DMCC-HR-02",
-        "severity": "critical"
-      }
+      "section": "DMCC-HR-02",
+      "severity": "critical"
     },
     {
       "id": "dmcc_emp_03",
@@ -42,10 +38,8 @@
       "content": "DMCC companies must sponsor the employment visa for all employees working in the DMCC free zone. The visa application must be filed within sixty (60) days of the employment start date. The employer is responsible for all visa-related costs including medical fitness, Emirates ID, and visa stamping fees. The employer must maintain valid visa status for all employees throughout the employment period.",
       "order": 3,
       "is_required": true,
-      "metadata": {
-        "section": "DMCC-HR-03",
-        "severity": "critical"
-      }
+      "section": "DMCC-HR-03",
+      "severity": "critical"
     },
     {
       "id": "dmcc_emp_04",
@@ -53,10 +47,8 @@
       "content": "Standard working hours for DMCC free zone employees are eight (8) hours per day, five (5) days per week, totaling forty (40) hours per week. Friday and Saturday are the standard weekend. Employers may adopt a flexible working arrangement subject to written agreement, but total weekly hours must not exceed forty-eight (48) hours including overtime. During Ramadan, working hours are reduced to six (6) hours per day.",
       "order": 4,
       "is_required": true,
-      "metadata": {
-        "section": "DMCC-HR-04",
-        "severity": "high"
-      }
+      "section": "DMCC-HR-04",
+      "severity": "high"
     },
     {
       "id": "dmcc_emp_05",
@@ -64,10 +56,8 @@
       "content": "For DMCC employment contracts, the minimum notice period is thirty (30) days for employees with less than five years of service, and ninety (90) days for employees with five or more years of service. The notice must be in writing and delivered to the DMCC Authority for records. During the notice period, the employer must allow the employee reasonable time for job searching (minimum one day per week). Visa cancellation must be initiated within thirty (30) days of the last working day.",
       "order": 5,
       "is_required": true,
-      "metadata": {
-        "section": "DMCC-HR-05",
-        "severity": "high"
-      }
+      "section": "DMCC-HR-05",
+      "severity": "high"
     },
     {
       "id": "dmcc_emp_06",
@@ -75,10 +65,8 @@
       "content": "Upon termination of employment, the DMCC employer is obligated to bear the cost of repatriating the employee to their home country or last country of residence, unless the employee secures new employment within the UAE within thirty (30) days. Repatriation costs include a one-way economy class air ticket. This obligation cannot be waived or transferred to the employee through any contractual arrangement.",
       "order": 6,
       "is_required": true,
-      "metadata": {
-        "section": "DMCC-HR-06",
-        "severity": "high"
-      }
+      "section": "DMCC-HR-06",
+      "severity": "high"
     },
     {
       "id": "dmcc_emp_07",
@@ -86,10 +74,8 @@
       "content": "DMCC employers are encouraged to provide housing allowance or accommodation to employees. If accommodation is provided as part of the employment package, it must meet minimum standards set by the Dubai Municipality for worker accommodation. The accommodation benefit must be clearly stated in the employment contract with specific monetary value or description of provided housing.",
       "order": 7,
       "is_required": false,
-      "metadata": {
-        "section": "DMCC-HR-07",
-        "severity": "medium"
-      }
+      "section": "DMCC-HR-07",
+      "severity": "medium"
     },
     {
       "id": "dmcc_emp_08",
@@ -97,10 +83,8 @@
       "content": "End-of-service gratuity for DMCC employees follows UAE Federal Labour Law provisions. The employer must calculate and pay gratuity within fourteen (14) days of the last working day. DMCC companies may establish a savings scheme or DEWS (DIFC Employee Workplace Savings) equivalent as an alternative to gratuity, subject to DMCC Authority approval. Any alternative arrangement must provide benefits at least equal to the statutory gratuity.",
       "order": 8,
       "is_required": true,
-      "metadata": {
-        "section": "DMCC-HR-08",
-        "severity": "critical"
-      }
+      "section": "DMCC-HR-08",
+      "severity": "critical"
     }
   ]
 }

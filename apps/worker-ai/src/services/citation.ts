@@ -27,6 +27,16 @@ export function citationOf(metadata: Record<string, unknown>): string {
   return authority ? `${authority} — ${cited}` : cited;
 }
 
+/** Where the clause's official text is published, for a reviewer to open; null when not recorded. */
+export function sourceUrlOf(metadata: Record<string, unknown>): string | null {
+  return text(metadata, 'sourceUrl');
+}
+
+/** The clause's plain-language guidance: shown to the model beside the text, never cited. */
+export function guidanceOf(metadata: Record<string, unknown>): string | null {
+  return text(metadata, 'guidance');
+}
+
 const RISK_RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
 
 /** The clause's own severity as a risk level (critical and high → high), or null when unknown. */

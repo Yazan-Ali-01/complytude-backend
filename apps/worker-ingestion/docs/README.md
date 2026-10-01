@@ -153,6 +153,9 @@ Each `ruleset_chunks` row includes metadata for traceability:
   "article": "Art. 12",
   "section": null,
   "source": null,
+  "sourceUrl": null,
+  "effectiveDate": null,
+  "guidance": null,
   "isPartial": false,
   "tokenCount": 380,
   "authorityName": "Dubai Multi Commodities Centre",
@@ -162,7 +165,7 @@ Each `ruleset_chunks` row includes metadata for traceability:
 }
 ```
 
-`isRequired` comes from the clause's `is_required`; `severity`, `article`, `section` and `source` (`source_document`) from its `metadata`, `null` when absent. worker-ai builds each finding's citation and baseline severity from them.
+`isRequired` comes from the clause's `is_required`; `severity`, `article`, `section`, `source` (`source_title`), `sourceUrl` (`source_url`), `effectiveDate` (`effective_date`) and `guidance` from the clause's fields of those names, `null` when absent. worker-ai builds each finding's citation, source link and baseline severity from them; `guidance` (a paraphrase) is shown to the model after the clause text and never cited. The chunk's `content`, which is embedded and searched, is the clause's verbatim text only.
 
 For clauses that exceed the token limit and are split:
 

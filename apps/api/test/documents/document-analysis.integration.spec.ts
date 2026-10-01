@@ -376,7 +376,11 @@ describe('Document analysis: injection, grounding and honest status', () => {
 
   it('takes the citation and baseline risk from the clause, whatever the model says', async () => {
     const data = await job('The employee works 70 hours a week.');
-    const hours = chunk(ruleset, 'Art. 17', { severity: 'critical' });
+    const hours = chunk(ruleset, 'Art. 17', {
+      severity: 'critical',
+      sourceUrl: 'https://uaelegislation.gov.ae/en',
+      guidance: 'At most 48 hours a week.',
+    });
     const leave = chunk(ruleset, 'Art. 29', {
       severity: 'medium',
       clauseTitle: 'Annual leave',
@@ -413,10 +417,15 @@ describe('Document analysis: injection, grounding and honest status', () => {
     const { result } = await stored(data.analysisJobId);
     const [first, second] = result!.findings;
     // A critical clause stays high even though the model said low, and its reason is dropped
+    // The guidance is shown to the model, and cited nowhere
+    expect(calls[0].systemPrompt).toContain(
+      'Guidance: At most 48 hours a week.',
+    );
     expect(first).toEqual({
       clauseId: 'C1',
       citation:
         'MOHRE — UAE Labour Law v1.0.0, Art. 17: Working time and wages',
+      sourceUrl: 'https://uaelegislation.gov.ae/en',
       riskLevel: 'high',
       baselineRiskLevel: 'high',
       title: 'Hours over the limit',
@@ -430,6 +439,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
     // The model may raise a medium clause, and its reason is kept
     expect(second).toMatchObject({
       citation: 'MOHRE — UAE Labour Law v1.0.0, Art. 29: Annual leave',
+      sourceUrl: null,
       riskLevel: 'high',
       baselineRiskLevel: 'medium',
       riskReason: 'Leave is removed for every employee.',
@@ -694,6 +704,7 @@ describe('Document analysis: injection, grounding and honest status', () => {
           reason: 'Over 48 hours.',
           citation:
             'MOHRE — UAE Labour Law v1.0.0, Art. 17: Working time and wages',
+          sourceUrl: null,
         },
         { clauseId: 'C2', chunkId: leave.id, status: 'not_applicable' },
         { clauseId: 'C3', chunkId: gratuity.id, status: 'unassessed' },

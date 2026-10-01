@@ -36,6 +36,12 @@ const CLAUSES = [
     content: 'Working hours are at most 48 a week.',
     order: 1,
     is_required: true,
+    article: 'Art. 17',
+    severity: 'high',
+    source_title: 'Federal Decree-Law No. 33 of 2021',
+    source_url: 'https://uaelegislation.gov.ae/en',
+    effective_date: '2022-02-02',
+    guidance: 'No more than 48 hours a week.',
   },
 ];
 
@@ -92,12 +98,14 @@ describe('Ruleset versions: ingestion, review and activation', () => {
     });
   }
 
-  async function createRuleset(): Promise<{ key: string; versionId: string }> {
+  async function createRuleset(
+    clauses: object[] = CLAUSES,
+  ): Promise<{ key: string; versionId: string }> {
     const key = `labour_${randomUUID().slice(0, 8)}`;
     const created = await api('POST', '', {
       key,
       name: 'Labour',
-      clauses: CLAUSES,
+      clauses,
       jurisdictions: ['MAINLAND'],
       document_types: ['employment'],
     });
@@ -219,6 +227,37 @@ describe('Ruleset versions: ingestion, review and activation', () => {
     expect(
       (await api('POST', `/${key}/versions/1.0.0/activate`)).statusCode,
     ).toBe(200);
+  });
+
+  it('records a review only for a version whose every clause gives its source, effective date and article', async () => {
+    const { key } = await createRuleset([
+      CLAUSES[0],
+      // Sent without a source URL
+      { ...CLAUSES[0], id: 'rest', order: 2, source_url: undefined },
+    ]);
+
+    // The clause's source and guidance are kept as given
+    expect((await api('GET', `/${key}/versions/1.0.0`)).json()).toMatchObject({
+      clauses: [CLAUSES[0], { id: 'rest' }],
+    });
+    const refused = await api('POST', `/${key}/versions/1.0.0/review`, {
+      reviewedBy: 'Example Law Firm — A. Lawyer',
+      reviewedAt: '2026-11-15',
+    });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json<{ message: string }>().message).toMatch(
+      /1 clauses \(rest\) lack a source URL/,
+    );
+    expect((await api('GET', `/${key}/versions/1.0.0`)).json()).toMatchObject({
+      reviewStatus: 'draft',
+    });
+
+    // Fields are checked on the way in
+    const bad = await api('POST', `/${key}/versions`, {
+      version: '1.1.0',
+      clauses: [{ ...CLAUSES[0], severity: 'urgent' }],
+    });
+    expect(bad.statusCode).toBe(400);
   });
 
   it('records a failed ingestion on the version, which then stays unusable', async () => {

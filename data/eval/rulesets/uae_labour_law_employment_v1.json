@@ -26,10 +26,8 @@
       "content": "Every employment relationship must be documented in a written employment contract in duplicate, with one copy retained by the employer and one by the employee. The contract must be in Arabic or bilingual (Arabic plus another language). The contract must specify: (a) employer name and address, (b) employee name, nationality, date of birth, and Emirates ID number, (c) job title, description, and category, (d) date of commencement, (e) contract duration for fixed-term contracts, (f) workplace location, (g) working hours, rest days, and leave entitlements, (h) remuneration including basic salary and any allowances, (i) probation period if applicable, and (j) notice period for termination.",
       "order": 1,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 8",
-        "severity": "critical"
-      }
+      "article": "Art. 8",
+      "severity": "critical"
     },
     {
       "id": "uae_lab_02",
@@ -37,10 +35,8 @@
       "content": "The probation period shall not exceed six (6) months from the date of commencement. The employer may terminate the employee during probation with fourteen (14) days written notice. An employee terminated during probation is not entitled to end-of-service gratuity. If the employee successfully completes probation, the probation period is counted towards the period of service for all entitlements.",
       "order": 2,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 9",
-        "severity": "high"
-      }
+      "article": "Art. 9",
+      "severity": "high"
     },
     {
       "id": "uae_lab_03",
@@ -48,10 +44,8 @@
       "content": "The ordinary working hours for adult employees shall not exceed eight (8) hours per day or forty-eight (48) hours per week. Working hours may be increased to nine (9) hours per day for commercial establishments, hotels, restaurants, and security services. During the Holy Month of Ramadan, working hours are reduced by two (2) hours per day. Employees shall not work more than five (5) consecutive hours without a break of at least one hour for rest, meals, and prayer.",
       "order": 3,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 17-18",
-        "severity": "high"
-      }
+      "article": "Art. 17-18",
+      "severity": "high"
     },
     {
       "id": "uae_lab_04",
@@ -59,10 +53,8 @@
       "content": "If an employee works beyond normal working hours, the excess time is considered overtime. Overtime pay shall be the normal hourly wage plus at least twenty-five percent (25%). If overtime occurs between 10:00 PM and 4:00 AM, the employee is entitled to the normal hourly wage plus at least fifty percent (50%). Total working hours including overtime shall not exceed two (2) additional hours per day, unless the work is necessary to prevent a substantial loss or serious accident.",
       "order": 4,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 19",
-        "severity": "high"
-      }
+      "article": "Art. 19",
+      "severity": "high"
     },
     {
       "id": "uae_lab_05",
@@ -70,10 +62,8 @@
       "content": "An employee who has completed one year of service is entitled to annual leave of not less than thirty (30) calendar days. An employee who has completed six months but less than one year of service is entitled to two (2) days of leave per month. Leave salary must be paid in advance before the employee takes leave. The employer may determine the timing of annual leave based on work requirements, but the employee must use at least half of the annual leave in the year it is accrued.",
       "order": 5,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 29",
-        "severity": "high"
-      }
+      "article": "Art. 29",
+      "severity": "high"
     },
     {
       "id": "uae_lab_06",
@@ -81,10 +71,8 @@
       "content": "An employee who has completed the probation period is entitled to sick leave of up to ninety (90) days per year, consecutive or intermittent. Sick leave pay is calculated as follows: (a) first fifteen (15) days at full pay, (b) next thirty (30) days at half pay, and (c) remaining period without pay. The employee must notify the employer within three (3) working days and provide a medical certificate from an authorized medical entity.",
       "order": 6,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 31",
-        "severity": "medium"
-      }
+      "article": "Art. 31",
+      "severity": "medium"
     },
     {
       "id": "uae_lab_07",
@@ -92,10 +80,8 @@
       "content": "An employee who has completed one or more years of continuous service is entitled to end-of-service gratuity calculated as follows: (a) twenty-one (21) days of basic salary for each year of the first five years of service, and (b) thirty (30) days of basic salary for each additional year beyond five years. The total gratuity shall not exceed the equivalent of two (2) years total remuneration. For employees on unlimited contracts who resign, the gratuity is reduced if service is between one and three years (one-third), three to five years (two-thirds), or paid in full after five years.",
       "order": 7,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 51",
-        "severity": "critical"
-      }
+      "article": "Art. 51",
+      "severity": "critical"
     },
     {
       "id": "uae_lab_08",
@@ -103,10 +89,8 @@
       "content": "Either party may terminate a fixed-term or unlimited-term employment contract by providing written notice of not less than thirty (30) calendar days and not more than ninety (90) calendar days. The notice period must be specified in the employment contract. During the notice period, the employee is entitled to full remuneration and must continue to perform duties. The employer must grant the employee at least one unpaid day per week during the notice period for job searching.",
       "order": 8,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 43",
-        "severity": "critical"
-      }
+      "article": "Art. 43",
+      "severity": "critical"
     },
     {
       "id": "uae_lab_09",
@@ -114,10 +98,8 @@
       "content": "A non-compete clause must be reasonable in scope, duration, and geographic area. The non-compete period shall not exceed two (2) years from the date of contract termination. The clause is void if the employer terminates the contract unlawfully or if the employee terminates the contract due to employer breach. The non-compete must be limited to work that is genuinely competitive with the employer business.",
       "order": 9,
       "is_required": false,
-      "metadata": {
-        "article": "Art. 10",
-        "severity": "medium"
-      }
+      "article": "Art. 10",
+      "severity": "medium"
     },
     {
       "id": "uae_lab_10",
@@ -125,10 +107,8 @@
       "content": "Wages must be paid in UAE Dirhams (AED) through approved financial institutions (WPS – Wage Protection System). Payment must be made no later than ten (10) days from the due date. The employer may not deduct more than half of the employee monthly wage for debt repayment. Wage deductions require written employee consent, except for legally mandated deductions.",
       "order": 10,
       "is_required": true,
-      "metadata": {
-        "article": "Art. 22-26",
-        "severity": "critical"
-      }
+      "article": "Art. 22-26",
+      "severity": "critical"
     }
   ]
 }

@@ -37,7 +37,7 @@ import {
   RulesetChunkMatch,
   RulesetChunkSearchRepository,
 } from '../repositories/ruleset-chunk-search.repository';
-import { baselineRiskOf, citationOf, finalRisk } from './citation';
+import { baselineRiskOf, citationOf, finalRisk, sourceUrlOf } from './citation';
 import { createQuoteLocator } from './evidence';
 import { batches, relevantSections, runLimited } from './judging';
 import { LlmService } from './llm.service';
@@ -628,6 +628,7 @@ export class DocumentAnalysisService {
         findings.push({
           clauseId: finding.clauseId,
           citation: citationOf(chunk.metadata),
+          sourceUrl: sourceUrlOf(chunk.metadata),
           riskLevel,
           baselineRiskLevel,
           ...(raised &&
@@ -670,6 +671,7 @@ export class DocumentAnalysisService {
           clauseId,
           chunkId: chunk.id,
           citation: citationOf(chunk.metadata),
+          sourceUrl: sourceUrlOf(chunk.metadata),
           status,
           reason: verdict ? redaction.rehydrate(verdict.reason) : '',
         };

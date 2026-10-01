@@ -8,7 +8,8 @@
     "AUTHORITY_NOT_FOUND": "لم يتم العثور على السلطة",
     "OPERATION_FAILED": "فشلت عملية مجموعة القواعد. حاول مرة أخرى.",
     "VERSION_NOT_INGESTED": "لا يمكن تفعيل الإصدار {version} قبل استيعاب قواعده (حالة الاستيعاب: {status}).",
-    "VERSION_NOT_REVIEWED": "لا يمكن تفعيل الإصدار {version} قبل تسجيل مراجعته القانونية."
+    "VERSION_NOT_REVIEWED": "لا يمكن تفعيل الإصدار {version} قبل تسجيل مراجعته القانونية.",
+    "VERSION_NOT_SOURCED": "لا يمكن تسجيل مراجعة الإصدار {version}: ينقص {count} من البنود ({clauses}) رابطُ المصدر أو تاريخُ النفاذ أو رقمُ المادة أو القسم."
   },
   "messages": {}
 }
