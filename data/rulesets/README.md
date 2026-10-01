@@ -50,6 +50,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 | `uae_federal_labour_law.json` | Mainland, DMCC, IFZA, RAKEZ, SHAMS, DAFZA, JAFZA | employment | 72 (10 required) | Draft, drafted 2026-10-01 |
 | `uae_labour_law_implementing_regulation.json` | Mainland, DMCC, IFZA, RAKEZ, SHAMS, DAFZA, JAFZA | employment | 28 (1 required) | Draft, drafted 2026-10-01 |
 | `difc_employment_law.json` | DIFC | employment | 56 (4 required) | Draft, drafted 2026-10-01 |
+| `adgm_employment_regulations.json` | ADGM | employment | 58 (5 required) | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | — | — | 34 | Summarised, not verbatim, old file shape; to be replaced by a verbatim draft |
 
 ## uae_federal_labour_law.json
@@ -181,3 +182,42 @@ premises rules, proceedings, fines and Schedules 1–2 (definitions and fines).
 - **Defined terms.** Capitalised terms (Wage, Basic Wage, Work Day, Qualifying Scheme, …) are defined
   in Schedule 1, which isn't carried. Consider adding the definitions a contract review needs.
 - **Employment Regulations.** The DIFC Employment Regulations (made under Art. 9) aren't drafted yet.
+
+## adgm_employment_regulations.json
+
+ADGM Employment Regulations 2024, enacted by the ADGM Board, published 3 January 2025, in force
+1 April 2025 (s. 75(4)), as amended. ADGM legislation is enacted in English, so the text is the
+regulations themselves.
+
+**Source:** the consolidated version in the ADGM Rulebook (the PDF the Rulebook page,
+https://en.adgm.thomsonreuters.com/rulebook/employment-regulations-2024, links as current; retrieved
+2026-10-01):
+https://en.adgm.thomsonreuters.com/sites/default/files/net_file_store/ADGM1547_27534_VER20251028.pdf,
+SHA-256 `b6654f3ff5f0286c895789cde6f084a0d0b24a82a19fd92cf7364053cba68095`.
+
+**Method.** `pdftotext` (layout mode) parsed by section, subsection and item; a subsection label
+counts only at the label column, in sequence and followed by a capital (so a wrapped "(3) from any
+payments" stays text). Every clause line was checked against two other extractions of the same file;
+the only differences are theirs (page numbers inside paragraphs, words joined at line ends). Footnote
+markers on amended section headings were removed from the titles.
+
+**Effective dates.** 1 April 2025, except the sections the consolidation footnotes as "Amended 28
+October 2025" (ss. 2–5, 7, 9, 15–17, 48, 51, 58, 59, 63, 74, 75), dated 28 October 2025: the
+footnote's date, to be confirmed as the date the amendment came into force.
+
+**Scope.** Waiver and settlement agreements, false representations, children, visas and permits, the
+written contract and what it must include, amendments, pay statements, probation, remote employees,
+pay period, deductions, final payment, working time, Ramadan, rest and breaks, vacation leave and pay
+in lieu, national holidays, special and bereavement leave, sick leave and pay, maternity and
+paternity, health insurance, discrimination and victimisation, notice, termination for cause,
+reasons, pensions for UAE and GCC nationals, gratuity, repatriation flight. Left out: records,
+part-time pro-rating, ante-natal time off, health and safety premises rules, employee duties,
+whistleblowing, the Registrar's procedures, fees, and the definitions (s. 74).
+
+**Gaps.**
+
+- **Defined terms** (s. 74: Wages, Basic Wage, Working Day, …) aren't carried.
+- **Application.** The Regulations don't apply to employers holding a dual licence whose employees
+  are governed by the UAE Labour Law, nor to employers the Board exempts (s. 75(3)); such an ADGM
+  contract needs the federal rulesets instead. Jurisdiction tagging can't express that yet.
+- **Rules made by the Board** under the Regulations (s. 70) aren't drafted.
