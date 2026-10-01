@@ -8,8 +8,11 @@ import {
 import {
   getSubscriptionPeriod,
   ENDED_STRIPE_STATUSES,
+  findPlanItem,
+  itemPriceId,
   mapStripeStatusToInternal,
   PROVISIONABLE_STRIPE_STATUSES,
+  scheduleIdOf,
 } from '../../stripe.utils';
 import { DatabaseService } from '@lib/database';
 import { CreditLedgerService } from 'src/modules/entitlements/services/credit-ledger.service';
@@ -484,18 +487,21 @@ export class StripeEventHandlersService {
     }
 
     // customer.subscription.created or customer.subscription.updated
-    const firstItem = stripeSub.items.data[0];
-    if (!firstItem) {
+    if (stripeSub.items.data.length === 0) {
       this.logger.warn(
         `${event.type}: stripe subscription ${stripeSub.id} has no items (event=${event.id})`,
       );
       return;
     }
 
-    const currentPriceId =
-      typeof firstItem.price === 'string'
-        ? firstItem.price
-        : firstItem.price.id;
+    // The plan's item, wherever add-on items put it (a price no plan has leaves the plan as is)
+    const planItem =
+      (
+        await findPlanItem(stripeSub.items.data, (priceId) =>
+          this.plansRepository.findByStripePriceId(priceId),
+        )
+      )?.item ?? stripeSub.items.data[0];
+    const currentPriceId = itemPriceId(planItem);
 
     const period = getSubscriptionPeriod(stripeSub);
 
@@ -524,7 +530,8 @@ export class StripeEventHandlersService {
                   stripe_current_period_end: period.end,
                 }
               : {}),
-            stripe_schedule_id: null,
+            // A scheduled plan change stays recorded until Stripe releases its schedule
+            stripe_schedule_id: scheduleIdOf(stripeSub),
             ...statusMetadata(subscription.metadata, newStatus),
           },
           { client },

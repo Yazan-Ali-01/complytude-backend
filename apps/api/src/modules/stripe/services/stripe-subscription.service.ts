@@ -9,7 +9,11 @@ import {
   PlanKey,
   TenantSubscription,
 } from 'src/common/types/entitlement.types';
-import { mapStripeStatusToInternal } from '../stripe.utils';
+import {
+  findPlanItem,
+  itemPriceId,
+  mapStripeStatusToInternal,
+} from '../stripe.utils';
 import { DatabaseService } from '@lib/database';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { PlansRepository } from 'src/repositories/plans/plans.repository';
@@ -93,8 +97,12 @@ export class StripeSubscriptionService {
       );
     }
 
-    // Resolve current plan to check for same-plan changes
-    const currentItem = stripeSubscription.items.data[0];
+    // Resolve current plan to check for same-plan changes (add-on items may come first)
+    const currentItem = (
+      await findPlanItem(stripeSubscription.items.data, (priceId) =>
+        this.plansRepository.findByStripePriceId(priceId),
+      )
+    )?.item;
     if (!currentItem) {
       throw new BadRequestException(
         this.i18n.t(BillingI18n.errors.STRIPE_SUBSCRIPTION_UNREADABLE),
@@ -160,23 +168,33 @@ export class StripeSubscriptionService {
         ? stripeSubscription.schedule
         : stripeSubscription.schedule?.id);
 
+    // A phase's items are the subscription's whole item set: add-on items are carried into both
+    // phases, or Stripe would drop them at the change
+    const addonItems = stripeSubscription.items.data
+      .filter((item) => item.id !== currentItem.id)
+      .map((item) => ({
+        price: itemPriceId(item),
+        quantity: item.quantity ?? 1,
+      }));
+    const phases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [
+      {
+        items: [
+          { price: currentPriceId, quantity: currentItem.quantity ?? 1 },
+          ...addonItems,
+        ],
+        start_date: periodStart,
+        end_date: periodEnd,
+      },
+      {
+        items: [{ price: newPriceId, quantity: 1 }, ...addonItems],
+        start_date: periodEnd,
+      },
+    ];
+
     if (existingScheduleId) {
       schedule = await this.stripeService.client.subscriptionSchedules.update(
         existingScheduleId,
-        {
-          end_behavior: 'release',
-          phases: [
-            {
-              items: [{ price: currentPriceId, quantity: 1 }],
-              start_date: periodStart,
-              end_date: periodEnd,
-            },
-            {
-              items: [{ price: newPriceId, quantity: 1 }],
-              start_date: periodEnd,
-            },
-          ],
-        },
+        { end_behavior: 'release', phases },
       );
     } else {
       // Create a schedule from the existing subscription, then add the change phase
@@ -187,20 +205,7 @@ export class StripeSubscriptionService {
 
       schedule = await this.stripeService.client.subscriptionSchedules.update(
         initialSchedule.id,
-        {
-          end_behavior: 'release',
-          phases: [
-            {
-              items: [{ price: currentPriceId, quantity: 1 }],
-              start_date: periodStart,
-              end_date: periodEnd,
-            },
-            {
-              items: [{ price: newPriceId, quantity: 1 }],
-              start_date: periodEnd,
-            },
-          ],
-        },
+        { end_behavior: 'release', phases },
       );
     }
 

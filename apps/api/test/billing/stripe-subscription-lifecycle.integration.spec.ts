@@ -4,6 +4,7 @@ import type Stripe from 'stripe';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { StripeReconciliationService } from 'src/modules/stripe/services/stripe-reconciliation.service';
 import { StripeService } from 'src/modules/stripe/stripe.service';
+import { StripeWebhookService } from 'src/modules/stripe/webhook/stripe-webhook.service';
 import { SubscriptionsRepository } from 'src/repositories/subscriptions/subscriptions.repository';
 import {
   createTestSubscription,
@@ -28,15 +29,24 @@ interface FakeItem {
 
 interface FakeSubscription {
   id: string;
+  object: 'subscription';
   status: Stripe.Subscription.Status;
   cancel_at_period_end: boolean;
   items: { data: FakeItem[] };
+  /** The schedule attached to it (a scheduled plan change), as Stripe reports it. */
+  schedule: string | null;
+}
+
+interface FakePhase {
+  items: { price: string; quantity?: number }[];
+  start_date: number;
 }
 
 interface FakeSchedule {
   id: string;
   status: 'active' | 'released';
-  phases: { items: { price: string }[]; start_date: number }[];
+  subscription: string;
+  phases: FakePhase[];
 }
 
 /** An in-memory stand-in for the Stripe client calls the subscription services make. */
@@ -49,11 +59,13 @@ class FakeStripe {
   addSubscription(id: string, extraItems: FakeItem[] = []): void {
     this.subscriptions.set(id, {
       id,
+      object: 'subscription',
       status: 'active',
       cancel_at_period_end: false,
       items: {
         data: [this.item(`si_plan_${id}`, SHIELD_PRICE, 1), ...extraItems],
       },
+      schedule: null,
     });
   }
 
@@ -92,20 +104,20 @@ class FakeStripe {
       create: (params: {
         from_subscription: string;
       }): Promise<FakeSchedule> => {
-        this.subscription(params.from_subscription);
+        const subscription = this.subscription(params.from_subscription);
         const schedule: FakeSchedule = {
           id: `sub_sched_${randomUUID()}`,
           status: 'active',
+          subscription: subscription.id,
           phases: [],
         };
         this.schedules.set(schedule.id, schedule);
+        subscription.schedule = schedule.id;
         return Promise.resolve(schedule);
       },
       update: (
         id: string,
-        params: {
-          phases: { items: { price: string }[]; start_date: number }[];
-        },
+        params: { phases: FakePhase[] },
       ): Promise<FakeSchedule> => {
         const schedule = this.schedules.get(id)!;
         schedule.phases = params.phases;
@@ -116,6 +128,7 @@ class FakeStripe {
       release: (id: string): Promise<FakeSchedule> => {
         const schedule = this.schedules.get(id)!;
         schedule.status = 'released';
+        this.subscription(schedule.subscription).schedule = null;
         return Promise.resolve(schedule);
       },
     },
@@ -188,6 +201,24 @@ describe('Stripe subscription lifecycle (app role, RLS enforced)', () => {
     );
     expect(result.rows).toHaveLength(1);
     return result.rows[0];
+  }
+
+  async function createAddon(stripePriceId: string): Promise<string> {
+    const addon = await app.databaseService.query<{ id: string }>(
+      `INSERT INTO public.addons (key, name, stripe_price_id) VALUES ($1, 'Reconciliation add-on', $2)
+       RETURNING id`,
+      [`recon-${randomUUID()}`, stripePriceId],
+    );
+    return addon.rows[0].id;
+  }
+
+  async function activeAddonItems(tenantId: string): Promise<string[]> {
+    const result = await app.databaseService.query<{ item: string }>(
+      `SELECT stripe_subscription_item_id AS item FROM public.tenant_addons
+       WHERE tenant_id = $1 AND status = 'active' ORDER BY 1`,
+      [tenantId],
+    );
+    return result.rows.map((row) => row.item);
   }
 
   /** A tenant on Shield, billed through a (fake) Stripe subscription, with an admin. */
@@ -286,6 +317,67 @@ describe('Stripe subscription lifecycle (app role, RLS enforced)', () => {
     expect(stripe.schedules.get(stripeScheduleId)?.status).toBe('released');
   });
 
+  it('a scheduled plan change keeps the add-on items, and survives the update Stripe sends for it', async () => {
+    // The add-on item comes first: the plan item is found by its price, not its position
+    const addon = stripe.item(`si_addon_${randomUUID()}`, ADDON_PRICE, 2);
+    const { tenantId, stripeSubscriptionId, adminEmail } =
+      await stripeBackedTenant();
+    stripe.subscriptions.get(stripeSubscriptionId)!.items.data.unshift(addon);
+    await app.databaseService.query(
+      `INSERT INTO public.tenant_addons (tenant_id, addon_id, quantity, status, stripe_subscription_item_id)
+       VALUES ($1, $2, 2, 'active', $3)`,
+      [tenantId, await createAddon(ADDON_PRICE), addon.id],
+    );
+    const cookie = await tenantAdminCookie(adminEmail, tenantId);
+
+    const scheduled = await server.inject({
+      method: 'POST',
+      url: '/api/v1/billing/plan/change',
+      headers: { cookie },
+      payload: { planKey: 'infrastructure' },
+    });
+
+    expect(scheduled.statusCode).toBe(200);
+    const { stripeScheduleId } = scheduled.json<{ stripeScheduleId: string }>();
+    expect(
+      stripe.schedules
+        .get(stripeScheduleId)!
+        .phases.map((phase) => phase.items),
+    ).toEqual([
+      [
+        { price: SHIELD_PRICE, quantity: 1 },
+        { price: ADDON_PRICE, quantity: 2 },
+      ],
+      [
+        { price: INFRASTRUCTURE_PRICE, quantity: 1 },
+        { price: ADDON_PRICE, quantity: 2 },
+      ],
+    ]);
+
+    // Attaching the schedule makes Stripe send customer.subscription.updated
+    await app.module.get(StripeWebhookService).processEvent({
+      id: `evt_${randomUUID().replace(/-/g, '')}`,
+      object: 'event',
+      type: 'customer.subscription.updated',
+      created: Math.floor(Date.now() / 1000),
+      data: { object: stripe.subscriptions.get(stripeSubscriptionId)! },
+    } as unknown as Stripe.Event);
+
+    expect((await subscriptionOf(tenantId)).stripe_schedule_id).toBe(
+      stripeScheduleId,
+    );
+    const pending = await server.inject({
+      method: 'GET',
+      url: '/api/v1/billing/plan/pending-change',
+      headers: { cookie },
+    });
+    expect(pending.json()).toMatchObject({
+      hasPendingChange: true,
+      newPlanKey: 'infrastructure',
+    });
+    expect(await activeAddonItems(tenantId)).toEqual([addon.id]);
+  });
+
   it('cancels at period end, then reactivates', async () => {
     const { tenantId, stripeSubscriptionId, adminEmail } =
       await stripeBackedTenant();
@@ -325,24 +417,6 @@ describe('Stripe subscription lifecycle (app role, RLS enforced)', () => {
   });
 
   describe('reconciliation', () => {
-    async function createAddon(stripePriceId: string): Promise<string> {
-      const addon = await app.databaseService.query<{ id: string }>(
-        `INSERT INTO public.addons (key, name, stripe_price_id) VALUES ($1, 'Reconciliation add-on', $2)
-         RETURNING id`,
-        [`recon-${randomUUID()}`, stripePriceId],
-      );
-      return addon.rows[0].id;
-    }
-
-    async function activeAddonItems(tenantId: string): Promise<string[]> {
-      const result = await app.databaseService.query<{ item: string }>(
-        `SELECT stripe_subscription_item_id AS item FROM public.tenant_addons
-         WHERE tenant_id = $1 AND status = 'active' ORDER BY 1`,
-        [tenantId],
-      );
-      return result.rows.map((row) => row.item);
-    }
-
     it('repairs subscription drift for every Stripe-backed tenant', async () => {
       const a = await stripeBackedTenant();
       const b = await stripeBackedTenant();

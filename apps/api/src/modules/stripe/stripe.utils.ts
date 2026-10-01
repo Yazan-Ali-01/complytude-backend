@@ -19,6 +19,32 @@ export function getSubscriptionPeriod(stripeSub: Stripe.Subscription): {
   };
 }
 
+/** The price ID a subscription item bills. */
+export function itemPriceId(item: Stripe.SubscriptionItem): string {
+  return typeof item.price === 'string' ? item.price : item.price.id;
+}
+
+/** The subscription schedule attached to a subscription (a scheduled plan change), if any. */
+export function scheduleIdOf(stripeSub: Stripe.Subscription): string | null {
+  const schedule = stripeSub.schedule;
+  return typeof schedule === 'string' ? schedule : (schedule?.id ?? null);
+}
+
+/**
+ * The item that bills the plan: the first whose price is a plan's. Add-on items share the
+ * subscription and can come first, so position says nothing. Null when no item is a plan's.
+ */
+export async function findPlanItem<TPlan>(
+  items: Stripe.SubscriptionItem[],
+  planOfPrice: (priceId: string) => Promise<TPlan | null>,
+): Promise<{ item: Stripe.SubscriptionItem; plan: TPlan } | null> {
+  for (const item of items) {
+    const plan = await planOfPrice(itemPriceId(item));
+    if (plan) return { item, plan };
+  }
+  return null;
+}
+
 /**
  * Stripe statuses that mean the subscription is over: its local row is cancelled and the tenant
  * falls back (webhook handlers downgrade them like a cancellation).

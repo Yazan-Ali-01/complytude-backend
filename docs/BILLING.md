@@ -66,7 +66,7 @@ Plans, add-ons, and credit packages are defined in code constants and synced to 
 | **Product**                               | Sellable product             | `plans.stripe_product_id`, `addons.stripe_product_id`, `credit_packages` (product id)                    | Navigator may have no Stripe product                                                 |
 | **Price** (`price_*`)                     | Recurring or one-time amount | `plans.stripe_price_id_monthly` / `_annual`, `addons.stripe_price_id`, `credit_packages.stripe_price_id` | Checkout resolves price by plan + interval or package key                            |
 | **Subscription** (`sub_*`)                | Recurring billing            | `tenant_subscriptions.stripe_subscription_id`                                                            | Null for free Navigator-only tenants                                                 |
-| **Subscription Schedule** (`sub_sched_*`) | Scheduled plan changes       | `tenant_subscriptions.stripe_schedule_id`                                                                | Cleared after change applies                                                         |
+| **Subscription Schedule** (`sub_sched_*`) | Scheduled plan changes       | `tenant_subscriptions.stripe_schedule_id`                                                                | Taken from Stripe's `subscription.schedule` on every subscription webhook, so it clears when Stripe releases the schedule after the change applies |
 | **Checkout Session** (`cs_*`)             | Hosted checkout              | Not stored long-term; drives webhook handling                                                            | Metadata: `complytude_tenant_id`, `plan_key` or credit package fields                |
 | **Invoice** (`in_*`)                      | Payment attempt / receipt    | Not a first-class table; fields embedded in subscription metadata or event processing                    | `invoice.paid` / `invoice.payment_failed` drive renewal and dunning                  |
 
@@ -129,7 +129,7 @@ The rule lives in `pastDueAccess()` (`modules/entitlements/utils/past-due-access
 - **One Stripe customer per tenant:** `customers.create` uses `idempotencyKey = 'customer:' + tenantId` with parameters derived only from the tenant, runs outside any DB transaction, and the first ID stored on `tenants.stripe_customer_id` wins. The signup job, checkout and the portal all go through the same path.
 - **Checkout:** see the diagram above. Stripe replays a key's original response for 24 h, so a replayed session is re-read and, if it has completed or expired since, a new one is opened.
 - **Add-on items:** `idempotencyKey = 'addon-item:' + subscription + addon + previous adds`, so a double click creates one item and a re-add after removal a new one.
-- **Plan-change schedules:** a schedule Stripe already attached to the subscription is reused rather than created again.
+- **Plan-change schedules:** a schedule Stripe already attached to the subscription is reused rather than created again. Both phases list every item of the subscription (a phase's items replace the subscription's), so add-on items carry over the change with their quantities; only the plan item's price changes. The plan item is the one whose price is a plan's, wherever add-on items put it.
 - The Stripe client retries network failures twice (`maxNetworkRetries: 2`, 30 s timeout); the SDK adds an idempotency key to every retried request.
 
 ### Redirects and the Customer Portal
