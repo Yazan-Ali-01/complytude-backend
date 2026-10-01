@@ -125,11 +125,12 @@ Fully declared in Terraform under [`infra/`](infra) — no console-clicked resou
 `s3` · `ecr` · `bastion` · `secrets` (Secrets Manager) · `ses` (transactional email) ·
 `developers` (IAM access for engineers) · `monitoring` (CloudWatch alarms, SNS)
 
-**Environments:** [`infra/environments/staging`](infra/environments/staging) (deployed) ·
+**Environments:** [`infra/environments/staging`](infra/environments/staging) (taken down on 2026-09-29; this Terraform rebuilds it) ·
 [`infra/environments/production`](infra/environments/production) (provider scaffold only; never built out)
 
 **Pipeline** ([`.github/workflows/deploy-staging.yml`](.github/workflows/deploy-staging.yml)):
-lint and type-check → run migrations through a bastion-tunnelled job with
+the full CI workflow (lint, type-check, unit and integration tests, migration checks, production
+image smoke tests, dependency audit) → run migrations through a bastion-tunnelled job with
 dynamically scoped security-group rules → build and push to ECR → deploy to ECS.
 
 → [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
@@ -152,21 +153,30 @@ pnpm test:integration  # integration (requires Docker)
 pnpm test:coverage
 ```
 
-**What's covered:** 9 integration suites (62 tests) — session lifecycle, session security and
-session endpoints (the dual-token flow), the entitlement projection pipeline plus a latency
-benchmark, the audit repository, document upload confirmation, the test factories, and the
-harness smoke test — alongside 20 unit spec files (279 tests).
+**What's covered:** 67 integration suites (over 480 tests) and 69 unit suites (over 660 tests),
+all run by CI on every pull request. The integration suites run the API as its non-superuser
+database login, so row-level security applies as it does in production: one suite checks every
+RLS policy, that no tenant can read or write another tenant's rows, and that the database roles
+hold only the privileges the code uses; another checks that `docs/DATABASE.md` and the DBML match
+the migrations. Billing (Stripe webhooks replayed, duplicated and out of order; refunds and
+disputes; credits and their expiry; plan changes), the document pipeline (upload, extraction,
+analysis, generation, the trash and erasure), the auth flows and the audit trail each have suites.
+The AI analysis has its own evaluation against labelled contracts (`pnpm eval:ai`,
+[`data/eval/HISTORY.md`](data/eval/HISTORY.md)).
 
-**What's missing, stated plainly:** tenant isolation is barely tested. The API under test
-connects as a Postgres superuser, which bypasses row-level security. RLS is exercised only
-where a test switches role through the `withTenantContext` helper, and just one test checks
-that one tenant cannot read another's rows. Billing, Stripe webhooks and the document
-pipeline have no tests. The suites also drifted after development stopped:
-`apps/api/.env.test` lacks two Stripe variables the config now requires, and 4 unit and 4
-integration tests fail on stale expectations. CI runs lint and type-check but does not run
-tests, which is why none of this was caught.
+**What's missing, stated plainly:**
 
-This is the repository's most significant gap and it is not hidden here.
+- **Legal review of the rulesets.** [`data/rulesets/`](data/rulesets) holds 12 rulesets drafted
+  from the official texts (UAE, DIFC, ADGM and DMCC), not yet reviewed by a lawyer. Production
+  refuses to activate a ruleset version without a recorded review. The mainland federal laws other
+  than the labour law (data protection, commercial companies, civil transactions) aren't drafted
+  yet.
+- **A running environment.** Production has never been deployed, and staging was taken down.
+  The code has moved on since: the infrastructure needs updating (for example the API's second
+  database login, [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) → Secrets) before the next deploy.
+- **Closing an organization** (data export, then erasure) isn't built yet.
+- **The frontend** lives in a separate repository.
+
 
 ---
 

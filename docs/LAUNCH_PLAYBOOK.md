@@ -19,7 +19,13 @@
 
 ---
 
-## Current state snapshot (2026-04-30)
+## State snapshot (2026-04-30, historical)
+
+> Written on 2026-04-30 and kept as it was. Some of it was wrong even then, and much has changed
+> since. Document generation was listed as working but was broken then, and the templates API was a
+> stub; both are fixed. Rulesets have since been drafted from the official texts (pending legal
+> review), and contract text is masked before it reaches the AI models. Staging was taken down on
+> 2026-09-29. The current state is in `README.md` → Testing → *What's missing*.
 
 ### What is shipped and works
 

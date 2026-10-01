@@ -8,7 +8,7 @@
 
 ## Overview
 
-The AI Worker is a standalone NestJS application that consumes jobs from the `ai-processing` BullMQ queue. It performs AI-powered compliance analysis on documents using a RAG (Retrieval-Augmented Generation) pipeline with hybrid search and re-ranking.
+The AI Worker is a standalone NestJS application that consumes jobs from the `ai-processing` BullMQ queue. It performs AI-powered compliance analysis on documents using a RAG (Retrieval-Augmented Generation) pipeline with hybrid search (vector and full-text, merged by RRF) and every required clause checked.
 
 ### What It Does
 
