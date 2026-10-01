@@ -43,6 +43,14 @@ rulesets), with the authority named by code instead of `authority_id`:
 - `apps/api/test/documents/ruleset-files.integration.spec.ts` loads every file here through the API
   and ingests it.
 
+## Loading
+
+`pnpm rulesets:load` (with the database, Redis and worker-ingestion running) loads every file here:
+new rulesets get version 1.0.0, a file whose clauses changed gets a new minor version, and each new
+version is queued for ingestion. Versions stay inactive until activated with
+`POST /rulesets/:key/versions/:version/activate`, which needs them ingested and, where review is
+required (production), reviewed. See `docs/DEPLOYMENT.md` → Load Rulesets.
+
 ## Status
 
 | File | Jurisdictions | Document types | Clauses | Status |

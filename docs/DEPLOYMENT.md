@@ -499,6 +499,16 @@ When ingestion starts storing something new on ruleset chunks (as it did for eac
 pnpm rulesets:reingest   # or, as a one-off ECS task: ["node","dist/apps/api/main.js","reingest-rulesets"]
 ```
 
+### Load Rulesets
+
+The rule texts in `data/rulesets/` (see its README) are loaded with:
+
+```bash
+pnpm rulesets:load                 # or --dir <directory>; as a one-off ECS task: ["node","dist/apps/api/main.js","load-rulesets"]
+```
+
+It validates every file first (nothing is written if one is invalid), creates the authorities it names, creates each new ruleset with version 1.0.0, adds a new minor version to a ruleset whose clauses changed, leaves unchanged ones alone, and queues ingestion of each new version. New versions are inactive: once ingested (and, in production, reviewed), activate them with `POST /rulesets/:key/versions/:version/activate`. Loading staging and production with the reviewed rulesets isn't done yet.
+
 ### Close the Tunnel
 
 Stop the `aws ssm start-session` command (Ctrl-C).

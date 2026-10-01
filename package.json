@@ -46,6 +46,7 @@
     "db:generate-chunk-seed": "ts-node scripts/generate-chunk-seed.ts",
     "admin:grant": "nest build api && node dist/apps/api/main.js grant-platform-admin",
     "rulesets:reingest": "nest build api && node dist/apps/api/main.js reingest-rulesets",
+    "rulesets:load": "nest build api && node dist/apps/api/main.js load-rulesets",
     "db:setup": "pnpm services:up && pnpm db:wait && pnpm db:setup:roles && pnpm db:migrate",
     "db:setup:full": "bash scripts/setup-database.sh",
     "db:wait": "bash scripts/wait-for-db.sh",
