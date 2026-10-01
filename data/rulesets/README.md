@@ -64,6 +64,7 @@ required (production), reviewed. See `docs/DEPLOYMENT.md` → Load Rulesets.
 | `adgm_data_protection_regulations.json` | ADGM | data_processing | 23 (2 required) | Draft, drafted 2026-10-01 |
 | `adgm_companies_regulations.json` | ADGM | shareholders_agreement | 31 (3 required) | Draft, drafted 2026-10-01 |
 | `difc_companies_law.json` | DIFC | shareholders_agreement | 31 (3 required) | Draft, drafted 2026-10-01 |
+| `difc_companies_regulations.json` | DIFC | shareholders_agreement | 4 | Draft, drafted 2026-10-01 |
 | `difc_data_protection_regulations.json` | DIFC | data_processing | 7 | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | DMCC | shareholders_agreement | 34 (2 required) | Draft, drafted 2026-10-01 (replaces an earlier summary) |
 
@@ -438,8 +439,7 @@ buy-out rights, and unfair prejudice.
 **Gaps.**
 
 - **Defined terms** (Schedule 1) aren't carried.
-- **Companies Regulations** made under the Law aren't drafted:
-  https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_regulations_2018.pdf
+- **Companies Regulations** made under the Law: see `difc_companies_regulations.json`.
 
 ## difc_data_protection_regulations.json
 
@@ -471,3 +471,24 @@ complaints, fines, inadvertently obtained data, digital communications consent, 
 - **The standard contractual clauses** themselves (published separately by the Commissioner) aren't
   carried.
 - **DIFC's guidance** on Regulation 10 could serve as these clauses' `guidance`; it isn't used.
+
+## difc_companies_regulations.json
+
+The Companies Regulations made under the DIFC Companies Law, in force 12 November 2018 (as their
+cover states). Applies with `difc_companies_law.json`.
+
+**Source:** https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_regulations_2018.pdf
+(linked from DIFC's Companies Law page; retrieved 2026-10-01), SHA-256
+`3bd9a5c8f08f2f5658d178c92c48866b15b3f1f985d9b793a0530e8c064a4be9`.
+
+**Method.** As for the DIFC Data Protection Regulations (regulation, numbered rule, item; stopping at
+the appendices); every clause line checked against a raw-mode extraction.
+
+**Effective dates.** 12 November 2018 for every clause. The file was produced in February 2022 and
+states no later amendment; to be confirmed.
+
+**Scope.** What Articles that aren't the Standard Articles must provide for (Reg. 2.3), and the
+notices to the Registrar within thirty days of an allotment (3.1), a share transfer (3.2) and a change
+of director or secretary (4.2). The rest is procedure that doesn't bear on a shareholders' agreement.
+
+**Gaps.** The Standard Articles (Appendix 2) aren't carried.

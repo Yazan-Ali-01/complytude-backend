@@ -1,0 +1,69 @@
+{
+  "key": "difc_companies_regulations",
+  "name": "DIFC Companies Regulations",
+  "description": "The Companies Regulations made under the DIFC Companies Law (in force 12 November 2018): what non-standard Articles must provide for, and the Registrar filings for allotments, share transfers and changes of directors. Use with the DIFC Companies Law ruleset. DRAFT: not yet legally reviewed.",
+  "authority": {
+    "code": "DIFC",
+    "name": "Dubai International Financial Centre"
+  },
+  "jurisdictions": [
+    "DIFC"
+  ],
+  "document_types": [
+    "shareholders_agreement"
+  ],
+  "clauses": [
+    {
+      "id": "difc_coreg_2_3",
+      "title": "Articles of Association",
+      "content": "2.3.1 The Incorporators of a proposed Company shall upon incorporation, adopt Articles of Association which comply with Article 11 of the Law. The Articles of Association so adopted shall:\n(a) be the Standard Articles as set out in Appendix 2;\n(b) be the Standard Articles with modifications; or\n(c) not be based on the Standard Articles.\n2.3.2 If Regulations 2.3.1(b) or 2.3.1(c) applies:\n(a) the Articles of Association proposed to be adopted upon incorporation of the Company shall, at least provide for:\n(i) the names of the Incorporators;\n(ii) the purpose for which the Company is being formed;\n(iii) the authorised share capital of the Company, the number of Shares and the nominal value of each Share;\n(iv) the number of Shares issued and allotted to the Incorporators;\n(v) the creation of classes of Shares where the Company considers that it may seek to create classes of Shares;\n(vi) alteration of share capital;\n(vii) the rights attaching to Shares or classes of Shares;\n(viii) the transfer of Shares;\n(ix) the holding of Annual General Meetings;\n(x) the requisition by shareholders of General Meetings;\n(xi) the proceedings including voting at General Meetings;\n(xii) accounts and other information to be provided to shareholders before every annual general meeting;\n(xiii) the maximum number of Directors;\n(xiv) the appointment, retirement, disqualification and removal of Directors and other Officers;\n(xv) the remuneration of Directors;\n(xvi) the powers of Directors;\n(xvii) proceedings of Directors;\n(xviii) appointment of the Secretary, where the Company is a Public Company or where a Private Company elects to appoint a Secretary; and\n(xix) the keeping of minutes of meetings of Shareholders or Directors; and\n(b) the Incorporators shall submit a statement to the Registrar that the proposed Articles of Association comply with the requirements of the Law and any other applicable DIFC Laws.\n2.3.3 The Articles of Association proposed to be adopted upon incorporation shall be signed by or on behalf of each Incorporator and shall come into effect upon incorporation of the Company and may be amended by a Special Resolution.",
+      "order": 1,
+      "is_required": false,
+      "article": "Reg. 2.3",
+      "section": "2. Company Formation And Incorporation",
+      "severity": "medium",
+      "source_title": "Companies Regulations, DIFC (in force on 12 November 2018)",
+      "source_url": "https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_regulations_2018.pdf",
+      "effective_date": "2018-11-12"
+    },
+    {
+      "id": "difc_coreg_3_1",
+      "title": "Allotment of shares",
+      "content": "A Company shall file with the Registrar a notice of allotment of Shares using the applicable form prescribed by the Registrar, for any subsequent allotment of shares after the initial allotment, within thirty (30) days of such allotment.",
+      "order": 2,
+      "is_required": false,
+      "article": "Reg. 3.1",
+      "section": "3. Private Companies And Public Companies",
+      "severity": "medium",
+      "source_title": "Companies Regulations, DIFC (in force on 12 November 2018)",
+      "source_url": "https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_regulations_2018.pdf",
+      "effective_date": "2018-11-12"
+    },
+    {
+      "id": "difc_coreg_3_2",
+      "title": "Transfer of shares",
+      "content": "A transfer of shares:\n(a) in the case of a Public Company whose Shares are admitted to an Official List of Securities in the DIFC or a similar list in a jurisdiction outside the DIFC, must take place in accordance with the rules of the relevant exchange and clearing house; and\n(b) in the case of all other Companies, must take place in accordance with the requirements in the Law and the Articles of Association and the Company shall file a notice of transfer of shares with the Registrar within thirty (30) days of the transfer, using the form prescribed by the Registrar.",
+      "order": 3,
+      "is_required": false,
+      "article": "Reg. 3.2",
+      "section": "3. Private Companies And Public Companies",
+      "severity": "medium",
+      "source_title": "Companies Regulations, DIFC (in force on 12 November 2018)",
+      "source_url": "https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_regulations_2018.pdf",
+      "effective_date": "2018-11-12"
+    },
+    {
+      "id": "difc_coreg_4_2",
+      "title": "Change of officeholders",
+      "content": "4.2.1 Whenever:\n(a) a Director or Secretary is appointed to a Company after initial incorporation/registration of the Company; or\n(b) a Director or Secretary retires, is removed or for any other reason ceases to act; the Company shall file a notice of change of Director or Secretary with the Registrar within thirty (30) days of the change of Director, or Secretary, using the form prescribed by the Registrar.\n4.2.2 Whenever there is any change in the name or address of a Director or Secretary of a Company, the Company shall file with the Registrar a notice of change of name or address using the form prescribed by the Registrar.",
+      "order": 4,
+      "is_required": false,
+      "article": "Reg. 4.2",
+      "section": "4. Directors And Secretaries",
+      "severity": "low",
+      "source_title": "Companies Regulations, DIFC (in force on 12 November 2018)",
+      "source_url": "https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_regulations_2018.pdf",
+      "effective_date": "2018-11-12"
+    }
+  ]
+}
