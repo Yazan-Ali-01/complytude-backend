@@ -48,6 +48,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 | File | Jurisdictions | Document types | Clauses | Status |
 |---|---|---|---|---|
 | `uae_federal_labour_law.json` | Mainland, DMCC, IFZA, RAKEZ, SHAMS, DAFZA, JAFZA | employment | 72 (10 required) | Draft, drafted 2026-10-01 |
+| `uae_labour_law_implementing_regulation.json` | Mainland, DMCC, IFZA, RAKEZ, SHAMS, DAFZA, JAFZA | employment | 28 (1 required) | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | — | — | 34 | Summarised, not verbatim, old file shape; to be replaced by a verbatim draft |
 
 ## uae_federal_labour_law.json
@@ -99,3 +100,34 @@ For the reviewer to confirm.
 - **Later amendments.** Federal Decree-Law No. (20) of 2023 and No. (9) of 2024 amended Art. 54
   (disputes) and Art. 60 (penalties), neither of which is included. Check for amendments after
   October 2025.
+
+## uae_labour_law_implementing_regulation.json
+
+Cabinet Resolution No. (1) of 2022 on the Implementation of Federal Decree-Law No. (33) of 2021, in
+force from 2 February 2022 (Art. 39). It applies alongside `uae_federal_labour_law.json`, with the
+same jurisdictions.
+
+**Source:** the October 2025 MOHRE consolidated publication listed above (the Resolution follows the
+decree-law in the same file; SHA-256 `db64033d…833b6`). MOHRE's February 2022 standalone PDF
+(https://www.mohre.gov.ae/assets/download/6bd9158/Cabinet%20Resolution%20_Executive%20Regulations%20Decree-Law%20No.%2033.pdf.aspx)
+is marked "Not an official translation" and is an earlier, different translation (the 2025 text is
+revised, e.g. gender-neutral wording), so it wasn't used for the text.
+
+**Method.** As for the decree-law. The articles used extract cleanly (Arts. 9 and 22, whose text
+layer is doubled, aren't used); a check for glued or garbled words (anything outside an English
+dictionary and the 2022 translation) found none in them. A line-break hyphen left in the text layer was closed up ("Decree- Law" → "Decree-Law",
+Arts. 21(4) and 29(2)).
+
+**Scope.** What the contract must state (Art. 10(1), required), contract forms and work types,
+non-competition rules and exemptions, reassignment, working hours (Ramadan, overtime, exempt
+categories), wage payment through WPS, leave (part-time, carrying forward, cash in lieu, combining),
+disciplinary procedure, transfer, end-of-service deductions and part-time gratuity. Left out:
+classification, work permits, recruitment agencies, safety, injuries, disputes, inspection and
+penalties.
+
+**Gaps.**
+
+- **Amendments.** The October 2025 publication marks none for the Resolution; amendments by later
+  Cabinet resolutions weren't searched for. Confirm the text is current.
+- **Arabic**, as for the decree-law.
+
