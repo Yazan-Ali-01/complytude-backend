@@ -372,7 +372,7 @@ After a significant change, suggest the doc updates it needs, and ask before mak
 | Changed | Update |
 |---|---|
 | Architecture, modules, design decisions | `docs/ARCHITECTURE.md` |
-| Schema, RLS | `docs/DATABASE.md`, `docs/database-schema.dbml` |
+| Schema, RLS | `docs/DATABASE.md` (its Table Inventory too), `docs/database-schema.dbml`; `apps/api/test/docs/schema-docs.integration.spec.ts` fails until they match the migrations |
 | Permissions, roles | `docs/RBAC.md` |
 | Plans, features, enforcement | `docs/ENTITLEMENTS.md` |
 | Endpoints, auth flows | `apps/api/docs/API_CONTRACTS.md` |

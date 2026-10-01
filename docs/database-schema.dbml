@@ -63,6 +63,7 @@ Enum credit_transaction_type {
   deduction
   expiry
   refund
+  reversal [note: 'Credits taken back when their payment is refunded or disputed (migration 048)']
 }
 
 Enum usage_source {
@@ -83,6 +84,24 @@ Enum analysis_job_status {
 Enum document_source_type {
   text_input
   file_upload
+  generated
+}
+
+Enum template_tier {
+  essential
+  full
+}
+
+Enum generation_job_type {
+  preview
+  generate
+}
+
+Enum generation_job_status {
+  queued
+  processing
+  completed
+  failed
 }
 
 Enum document_extraction_status {
@@ -120,11 +139,15 @@ Table tenants {
   is_active boolean [not null, default: true]
   parent_tenant_id uuid [ref: > tenants.id, note: 'Agency/Partner hierarchy (MVP+)']
   onboarding_completed_at timestamptz
-  onboarding_metadata jsonb [default: '{}']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
   deactivated_at timestamptz
   deactivation_reason text
+  onboarding_current_step varchar(30) [not null, default: 'invite_team']
+  onboarding_team_invite_skipped boolean [not null, default: false]
+  onboarding_first_action_type varchar(30) [null]
+  onboarding_first_action_completed_at timestamptz [null]
+  stripe_customer_id varchar(255) [null]
 
   indexes {
     slug
@@ -251,10 +274,10 @@ Table invitations {
   rejected_at timestamptz [null]
   revoked_at timestamptz [null]
   revoked_by uuid [null, ref: > users.id]
-  role varchar(50) [not null, default: 'member']
   status invitation_status [not null, default: 'PENDING']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+  role_id uuid [not null, ref: > tenant_roles.id, note: 'Role to assign on acceptance']
 
   indexes {
     token_hash
@@ -393,7 +416,6 @@ Table platform_role_permissions {
 Table audit_logs {
   id uuid [pk, default: `gen_random_uuid()`]
   tenant_id uuid [ref: > tenants.id, note: 'NULL for system-level actions']
-  user_id uuid [ref: > users.id]
   user_role varchar(50) [note: 'Role key at time of action (historical record)']
   action varchar(100) [not null, note: 'e.g., documents:create, settings:change_jurisdiction']
   resource_type varchar(50)
@@ -403,10 +425,13 @@ Table audit_logs {
   ip_address varchar(45)
   user_agent text
   created_at timestamptz [not null, default: `now()`]
+  actor_id uuid [null, ref: > users.id, note: 'NULL for system or anonymous actors']
+  actor_type varchar(50) [not null, default: 'user', note: 'user | system | api_key | anonymous']
+  trace_id varchar(64) [null]
 
   indexes {
     tenant_id
-    user_id
+    actor_id
     action
     resource_type
     created_at
@@ -526,6 +551,7 @@ Table templates {
   created_by uuid [null, ref: > users.id]
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+  tier template_tier [not null, default: 'essential']
 
   indexes {
     key
@@ -618,6 +644,9 @@ Table plans {
   sort_order integer [not null, default: 0]
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+  stripe_product_id varchar(255) [null]
+  stripe_price_id_monthly varchar(255) [null]
+  stripe_price_id_annual varchar(255) [null]
 
   indexes {
     key
@@ -656,6 +685,8 @@ Table addons {
   is_active boolean [not null, default: true]
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+  stripe_price_id varchar(255) [null]
+  stripe_product_id varchar(255) [null]
 
   indexes {
     key
@@ -701,6 +732,14 @@ Table tenant_subscriptions {
   metadata jsonb [default: '{}']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+  billing_interval varchar(10) [null]
+  cancel_at_period_end boolean [not null, default: false]
+  downgraded_from_stripe boolean [not null, default: false]
+  stripe_subscription_id varchar(255) [null]
+  stripe_schedule_id varchar(255) [null]
+  stripe_current_period_end timestamptz [null]
+  stripe_status varchar(50) [null]
+  trial_reminder_sent_at timestamptz [null]
 
   indexes {
     tenant_id
@@ -726,6 +765,7 @@ Table tenant_addons {
   expires_at timestamptz
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+  stripe_subscription_item_id varchar(255) [null]
 
   indexes {
     tenant_id
@@ -778,6 +818,7 @@ Table usage_ledger {
   idempotency_key varchar(255)
   recorded_at timestamptz [not null, default: `now()`]
   projected_at timestamptz [null, note: 'CAS idempotency guard for async projection. NULL = not yet projected.']
+  voided_at timestamptz [null]
 
   indexes {
     tenant_id
@@ -828,6 +869,7 @@ Table credit_ledger {
   metadata jsonb [default: '{}', note: 'credit_cost_per_unit, units_consumed for deductions']
   idempotency_key varchar(255)
   recorded_at timestamptz [not null, default: `now()`]
+  stripe_payment_intent_id varchar(255) [null]
 
   indexes {
     tenant_id
@@ -857,7 +899,6 @@ Table aggregated_usage {
   addon_units integer [not null, default: 0]
   credit_units integer [not null, default: 0]
   override_units integer [not null, default: 0]
-  last_event_id uuid [ref: > usage_ledger.id]
   last_updated_at timestamptz [not null, default: `now()`]
 
   indexes {
@@ -946,6 +987,10 @@ Table documents {
   deleted_at timestamptz [null, note: 'When deleted (NULL = active); with erased_at NULL it is in the 30-day trash']
   deleted_by uuid [null, ref: > users.id]
   erased_at timestamptz [null, note: 'When the retention sweep erased its text, variables, job results and file (30 days after deletion)']
+  content_structured jsonb [null]
+  generation_variables jsonb [null]
+  template_id uuid [null, ref: > templates.id]
+  template_version_id uuid [null, ref: > template_versions.id]
 
   indexes {
     tenant_id [note: 'Critical for RLS performance']
@@ -978,6 +1023,7 @@ Table ruleset_chunks {
   embedding_model varchar(100) [not null, note: 'Model behind embedding; retrieval compares only the same model (migration 039)']
   metadata jsonb [default: '{}']
   created_at timestamptz [not null, default: `now()`]
+  content_tsv tsvector [null, note: 'Generated from content (english) for full-text search']
 
   indexes {
     ruleset_version_id
@@ -1120,4 +1166,56 @@ TableGroup "Tenant-Scoped Data (RLS)" {
 TableGroup "Vector / AI (pgvector)" {
   ruleset_chunks
   analysis_jobs
+}
+
+Table credit_packages {
+  id uuid [pk, default: `gen_random_uuid()`]
+  key varchar(100) [not null, unique]
+  name varchar(255) [not null]
+  credits integer [not null]
+  price numeric [not null, note: 'AED']
+  stripe_product_id varchar(255) [null]
+  stripe_price_id varchar(255) [null]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: 'Credit packs sold through Stripe Checkout; synced from code constants'
+}
+
+Table generation_jobs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  template_id uuid [not null, ref: > templates.id]
+  template_version_id uuid [not null, ref: > template_versions.id]
+  document_id uuid [null, ref: > documents.id, note: 'The generated document (generate jobs)']
+  job_type generation_job_type [not null]
+  status generation_job_status [not null, default: 'queued']
+  variables jsonb [not null, note: 'Cleared when the document is erased']
+  result jsonb [null, note: 'previewUrl (preview) or documentId (generate)']
+  error text [null]
+  created_by uuid [not null, ref: > users.id]
+  started_at timestamptz [null]
+  completed_at timestamptz [null]
+  failed_at timestamptz [null]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: 'DOCX/PDF previews and generations, processed by worker-generation (RLS)'
+}
+
+Table stripe_webhook_events {
+  id uuid [pk, default: `gen_random_uuid()`]
+  stripe_event_id varchar(255) [not null, unique, note: 'Idempotency: one row per Stripe event']
+  event_type varchar(100) [not null]
+  stripe_api_version varchar(50) [null]
+  data jsonb [not null, note: 'The full Stripe event']
+  processing_status varchar(20) [not null, default: 'pending', note: 'pending | processing | completed | failed']
+  processing_error text [null]
+  attempts integer [not null, default: 0]
+  deliveries integer [not null, default: 1]
+  processing_started_at timestamptz [null]
+  next_retry_at timestamptz [null, note: 'When the re-drive job picks a failed event up again']
+  processed_at timestamptz [null]
+  created_at timestamptz [not null, default: `now()`]
 }

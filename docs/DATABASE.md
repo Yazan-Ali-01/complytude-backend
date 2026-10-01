@@ -29,10 +29,57 @@ Complytude uses a **PostgreSQL 16** database with a multi-tenant architecture fe
 - **UUID primary keys** for all tables
 - **JSONB fields** for flexible metadata and features
 
-### Key Statistics
+### Table Inventory
 
-| Metric               | Count |
-| -------------------- | ----- |
+43 tables (plus `schema_migrations`, the migration runner's record), 19 of them with row-level security, all forced. Every table is listed here; `apps/api/test/docs/schema-docs.integration.spec.ts` fails when this list, `database-schema.dbml` or an index named in this file disagrees with the migrated schema.
+
+| Table | RLS |
+| --- | --- |
+| `addon_entitlements` | — |
+| `addons` | — |
+| `aggregated_usage` | yes |
+| `analysis_finding_feedback` | yes |
+| `analysis_jobs` | yes |
+| `audit_logs` | yes |
+| `authorities` | — |
+| `categories` | — |
+| `credit_ledger` | yes |
+| `credit_packages` | — |
+| `documents` | yes |
+| `domain_events` | yes |
+| `email_verifications` | — |
+| `entitlement_snapshots` | yes |
+| `features` | — |
+| `generation_jobs` | yes |
+| `invitations` | yes |
+| `password_resets` | — |
+| `plan_entitlements` | — |
+| `plans` | — |
+| `platform_permissions` | — |
+| `platform_role_permissions` | — |
+| `platform_roles` | — |
+| `ruleset_chunks` | — |
+| `ruleset_versions` | — |
+| `rulesets` | — |
+| `stripe_webhook_events` | — |
+| `template_rulesets` | — |
+| `template_version_ruleset_versions` | — |
+| `template_versions` | — |
+| `templates` | — |
+| `tenant_addons` | yes |
+| `tenant_ai_consents` | yes |
+| `tenant_overrides` | yes |
+| `tenant_permissions` | — |
+| `tenant_role_permissions` | — |
+| `tenant_roles` | yes |
+| `tenant_subscriptions` | yes |
+| `tenants` | yes |
+| `usage_allocations` | yes |
+| `usage_ledger` | yes |
+| `user_tenants` | yes |
+| `users` | — |
+
+-------------------- | ----- |
 | Total Tables         | 38    |
 | Core Tables          | 3     |
 | Tenant RBAC Tables   | 3     |
@@ -190,7 +237,7 @@ Production-grade entitlement engine with usage tracking and credit system:
 - `usage_ledger` - Usage event store (source of truth)
   - Metadata includes `credit_cost_per_unit` and `total_credits_deducted` when credits are used
 - `usage_allocations` - Source attribution for each usage event (plan/addon/credit/override). RLS (migration 042): it has no `tenant_id`, so a row is visible and insertable only where its `usage_ledger` row is (that row's tenant, or platform context); no UPDATE or DELETE for the app role
-- `credit_ledger` - Credit transaction ledger (purchase, grant, deduction, refund)
+- `credit_ledger` - Credit transaction ledger (purchase, grant, deduction, refund, expiry, reversal)
   - Metadata includes `credit_cost_per_unit` and `units_consumed` for deduction transactions
 
 **Projections & Snapshots (Performance Cache):**
@@ -236,14 +283,26 @@ Many-to-many relationships:
 
 - `template_rulesets` - Templates ↔ Rulesets
 - `template_version_ruleset_versions` - Version-level associations
-- `role_permissions` - Tenant Roles ↔ Tenant Permissions
+- `tenant_role_permissions` - Tenant Roles ↔ Tenant Permissions
 - `platform_role_permissions` - Platform Roles ↔ Platform Permissions
 
-### 6. Tenant-Scoped Data (RLS)
+### 6. Billing (Stripe)
 
-Tables with tenant isolation:
+- `credit_packages` - Credit packs sold through Stripe Checkout (no RLS, catalog)
+- `stripe_webhook_events` - One row per Stripe event: idempotency, processing status and re-drive (no RLS, platform only)
 
-- `documents` - Generated documents (tenant-specific)
+### 7. Tenant-Scoped Data (RLS)
+
+Tables with tenant isolation (the full list, with every table's RLS status, is the Table Inventory above):
+
+- `documents` - Uploaded, pasted and generated documents
+- `analysis_jobs` - Compliance analyses of documents, with their results
+- `analysis_finding_feedback` - Users' accept or dismiss decisions on findings
+- `generation_jobs` - Document previews and generations
+- `tenant_ai_consents` - Which AI processing disclosure each organization accepted
+- `tenant_roles` - Custom roles (system roles have no tenant)
+- `audit_logs` - The audit trail (rows with no tenant are platform-only)
+- `ruleset_chunks` and `ruleset_versions` are global (no RLS); ruleset text is shared reference data
 
 ---
 
@@ -278,7 +337,11 @@ Organizations using the platform. Plan assignment is managed via `tenant_subscri
 | `is_active`               | BOOLEAN      | Soft delete flag                                  |
 | `parent_tenant_id`        | UUID         | FK to tenants (agency/partner hierarchy, MVP+)    |
 | `onboarding_completed_at` | TIMESTAMPTZ  | When onboarding was completed                     |
-| `onboarding_metadata`     | JSONB        | Onboarding progress metadata                      |
+| `onboarding_current_step` | VARCHAR(30)  | Onboarding step (`invite_team`, `first_action`, …) |
+| `onboarding_team_invite_skipped` | BOOLEAN | The admin skipped inviting the team           |
+| `onboarding_first_action_type` | VARCHAR(30) | What the first action was                     |
+| `onboarding_first_action_completed_at` | TIMESTAMPTZ | When the first action was done        |
+| `stripe_customer_id`      | VARCHAR(255) | The tenant's Stripe customer                      |
 | `deactivated_at`          | TIMESTAMPTZ  | When tenant was deactivated                       |
 | `deactivation_reason`     | TEXT         | Reason for deactivation                           |
 | `created_at`              | TIMESTAMPTZ  | Creation timestamp                                |
@@ -350,9 +413,9 @@ Many-to-many relationship: users belong to tenants with role assignments.
 
 **Indexes:**
 
-- `idx_user_tenants_user_id`
 - `idx_user_tenants_tenant_id`
-- `idx_user_tenants_tenant_active` - Optimizes RLS queries
+- `idx_user_tenants_user_active` - A user's active memberships (partial)
+- `idx_user_tenants_user_tenant_active` - Membership checks (partial)
 
 **System Roles:**
 
@@ -547,7 +610,6 @@ Platform-level permissions for system-wide RBAC.
 
 - Unique constraint on `key`
 - `idx_platform_permissions_resource` - Filter by resource
-- `idx_platform_permissions_resource_action` - Composite index
 
 **Available Permissions (synced from code):**
 
@@ -628,20 +690,20 @@ RLS (migration 044): the inviting tenant reads and writes its own invitations in
 | `rejected_at` | TIMESTAMPTZ  | When invitation was rejected (NULL if not rejected)             |
 | `revoked_at`  | TIMESTAMPTZ  | When invitation was revoked by admin (NULL if active)           |
 | `revoked_by`  | UUID         | FK to users (who revoked the invitation)                        |
-| `role`        | VARCHAR(50)  | Role key to assign (e.g., `member`, `legal_counsel`)            |
+| `role_id`     | UUID         | FK to tenant_roles: the role to assign on acceptance            |
 | `status`      | ENUM         | Status: `pending`, `accepted`, `rejected`, `revoked`, `expired` |
 | `created_at`  | TIMESTAMPTZ  | Creation timestamp                                              |
 | `updated_at`  | TIMESTAMPTZ  | Last update timestamp                                           |
 
 **Indexes:**
 
-- `idx_invitations_token_hash` - Fast token lookup
-- `idx_invitations_email` - Filter by email
+- `token_hash` (unique)
+- `idx_invitations_token_pending` - Token lookup of pending invitations
+- `idx_invitations_email_pending` - An invitee's pending invitations
+- `idx_invitations_email_tenant_status` - By invitee and tenant
 - `idx_invitations_tenant_id` - Filter by tenant
 - `idx_invitations_invited_by` - Track who invited
-- `idx_invitations_status` - Filter by status
-- `idx_invitations_email_status` - Composite for queries
-- `idx_invitations_email_tenant_pending` - Unique constraint (one pending invitation per email per tenant)
+- `idx_invitations_email_tenant_pending` - Unique: one pending invitation per email per tenant
 
 **Business Rules:**
 
@@ -697,8 +759,12 @@ Template metadata and version control.
 | `current_version` | VARCHAR(50)  | Current active version                      |
 | `status`          | ENUM         | `active`, `inactive`, `draft`, `deprecated` |
 | `file_url`        | TEXT         | S3 URL to DOCX file                         |
-| `metadata`        | JSONB        | Additional metadata                         |
+| `description`     | TEXT         | Description                                 |
+| `thumbnail_url`   | TEXT         | Preview image                               |
+| `tier`            | ENUM         | `essential` or `full` (the plan tier needed) |
 | `created_by`      | UUID         | FK to users                                 |
+| `created_at`      | TIMESTAMPTZ  | Creation timestamp                          |
+| `updated_at`      | TIMESTAMPTZ  | Last update timestamp                       |
 
 **Automatic Version Sync:**
 When a new `template_version` is created with `is_active = true`, a trigger automatically updates `templates.current_version` and `templates.file_url`.
@@ -759,7 +825,10 @@ Tenant-specific documents. Supports both text-input (pasted content) and file-up
 | `tenant_id`         | UUID                              | **RLS isolation key** (FK to tenants)                                                     |
 | `title`             | VARCHAR(255)                      | Document title                                                                            |
 | `content`           | TEXT                              | Document content (required for text-input; populated after extraction for file-upload)    |
-| `metadata`          | JSONB                             | Tags, custom fields, etc.                                                                 |
+| `content_structured` | JSONB                            | Sections and headings read from the document (extraction or generation)                   |
+| `template_id`       | UUID                              | FK to templates (generated documents)                                                     |
+| `template_version_id` | UUID                            | FK to template_versions (generated documents)                                             |
+| `generation_variables` | JSONB                          | The contract variables a generated document was built from (`{}` once erased)             |
 | `created_by`        | UUID                              | FK to users                                                                               |
 | `created_at`        | TIMESTAMPTZ                       | Creation timestamp                                                                        |
 | `updated_at`        | TIMESTAMPTZ                       | Last update timestamp                                                                     |
@@ -943,9 +1012,13 @@ ON documents(tenant_id, created_at DESC);
 #### User-Tenant Relationships
 
 ```sql
--- Optimizes RLS policy checks
-CREATE INDEX idx_user_tenants_tenant_active
-ON user_tenants(tenant_id, is_active)
+-- A user's active memberships, and membership checks
+CREATE INDEX idx_user_tenants_user_active
+ON user_tenants(user_id, is_active)
+WHERE is_active = true;
+
+CREATE INDEX idx_user_tenants_user_tenant_active
+ON user_tenants(user_id, tenant_id, is_active)
 WHERE is_active = true;
 ```
 
