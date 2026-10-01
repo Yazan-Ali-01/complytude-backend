@@ -745,6 +745,8 @@ export interface RecordTransactionInput {
   metadata?: Record<string, unknown>;
   idempotencyKey?: string;
   stripePaymentIntentId?: string | null;
+  /** Only for reversals: the balance may go below zero (spending is then refused). */
+  allowNegative?: boolean;
 }
 
 // === Usage Projection / Repository Inputs ===

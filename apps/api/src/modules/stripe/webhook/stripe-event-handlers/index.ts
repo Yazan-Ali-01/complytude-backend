@@ -16,6 +16,7 @@ import { CreditLedgerService } from 'src/modules/entitlements/services/credit-le
 import { DomainEventsService } from 'src/modules/entitlements/services/domain-events.service';
 import { EntitlementCacheService } from 'src/modules/entitlements/services/entitlement-cache.service';
 import { StripeService } from 'src/modules/stripe/stripe.service';
+import { CreditLedgerRepository } from 'src/repositories/credits/credit-ledger.repository';
 import { AddonsRepository } from 'src/repositories/entitlements/addons.repository';
 import { EntitlementSnapshotsRepository } from 'src/repositories/entitlements/entitlement-snapshots.repository';
 import { TenantAddonsRepository } from 'src/repositories/entitlements/tenant-addons.repository';
@@ -43,6 +44,13 @@ function statusMetadata(
   return updated ? { metadata: JSON.stringify(updated) } : {};
 }
 
+/** Dispute outcomes that leave the payment with us: the credits stay (or come back). */
+const DISPUTE_SETTLED_FOR_US: ReadonlySet<Stripe.Dispute.Status> = new Set([
+  'won',
+  'warning_closed',
+  'prevented',
+]);
+
 @Injectable()
 export class StripeEventHandlersService {
   private readonly logger = new Logger(StripeEventHandlersService.name);
@@ -62,6 +70,7 @@ export class StripeEventHandlersService {
     private readonly queueProducer: QueueProducerService,
     private readonly addonSyncEngine: AddonSyncEngine,
     private readonly entitlementCache: EntitlementCacheService,
+    private readonly creditLedgerRepository: CreditLedgerRepository,
   ) {}
 
   async handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
@@ -246,6 +255,84 @@ export class StripeEventHandlersService {
     this.logger.log(
       `Credits purchased via checkout: tenant=${tenantId}, package=${packageKey}, credits=${creditsAmount}, session=${session.id}`,
     );
+  }
+
+  /**
+   * A refund or dispute of a payment. When it paid a credit purchase, the credits follow the money:
+   * all of them are taken back while a dispute is open or lost (inquiries included), the refunded
+   * share (rounded up) otherwise, and they come back when a dispute is won. Other payments are
+   * logged and left alone.
+   */
+  async handleChargeReversal(event: Stripe.Event): Promise<void> {
+    const object = event.data.object as Stripe.Charge | Stripe.Dispute;
+    const chargeId =
+      object.object === 'charge'
+        ? object.id
+        : typeof object.charge === 'string'
+          ? object.charge
+          : object.charge.id;
+    // Events can arrive late, twice or out of order: apply the charge's current state in Stripe
+    const charge = await this.stripeService.client.charges.retrieve(chargeId);
+    const paymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : (charge.payment_intent?.id ?? null);
+    const purchase = paymentIntentId
+      ? await this.databaseService.transactionWithPlatformAdminContext(
+          (client) =>
+            this.creditLedgerRepository.findPurchaseByPaymentIntent(
+              paymentIntentId,
+              { client },
+            ),
+        )
+      : null;
+    if (!paymentIntentId || !purchase) {
+      this.logger.log(
+        `${event.type} for a payment that bought no credits — charge=${chargeId}, event=${event.id}`,
+      );
+      return;
+    }
+
+    const disputes = charge.disputed
+      ? (
+          await this.stripeService.client.disputes.list({
+            charge: chargeId,
+            limit: 100,
+          })
+        ).data
+      : [];
+    const disputed = disputes.some(
+      (dispute) => !DISPUTE_SETTLED_FOR_US.has(dispute.status),
+    );
+    const refundedShare =
+      charge.amount > 0
+        ? Math.ceil((purchase.amount * charge.amount_refunded) / charge.amount)
+        : 0;
+    const target = disputed
+      ? purchase.amount
+      : Math.min(purchase.amount, refundedShare);
+
+    const reversed = await this.creditLedgerService.reconcilePurchaseReversal({
+      tenantId: purchase.tenantId,
+      stripePaymentIntentId: paymentIntentId,
+      target,
+      reason: disputed
+        ? 'Payment disputed'
+        : charge.amount_refunded > 0
+          ? 'Payment refunded'
+          : 'Dispute resolved',
+      metadata: {
+        stripe_charge_id: chargeId,
+        stripe_event_id: event.id,
+        amount_refunded: charge.amount_refunded,
+        disputed,
+      },
+    });
+    if (reversed !== 0) {
+      this.logger.log(
+        `Credits ${reversed > 0 ? 'taken back' : 'returned'} after ${event.type}: tenant=${purchase.tenantId}, credits=${Math.abs(reversed)}, charge=${chargeId}`,
+      );
+    }
   }
 
   async handleSubscriptionChange(event: Stripe.Event): Promise<void> {

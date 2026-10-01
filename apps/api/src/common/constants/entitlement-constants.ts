@@ -27,5 +27,6 @@ export const CREDIT_TRANSACTION_TYPES = [
   'deduction',
   'expiry',
   'refund',
+  'reversal',
 ] as const;
 export type CreditTransactionType = (typeof CREDIT_TRANSACTION_TYPES)[number];

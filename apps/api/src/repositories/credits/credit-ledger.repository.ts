@@ -109,6 +109,41 @@ export class CreditLedgerRepository extends BaseRepository<
     return typeof balance === 'string' ? parseFloat(balance) : balance;
   }
 
+  /** The credit purchase paid by a Stripe payment intent (platform context). */
+  async findPurchaseByPaymentIntent(
+    stripePaymentIntentId: string,
+    options?: QueryOptions,
+  ): Promise<{ tenantId: string; amount: number } | null> {
+    const result = await this.executeQuery<{
+      tenant_id: string;
+      amount: number;
+    }>(
+      `SELECT tenant_id, amount FROM ${this.tableName}
+       WHERE transaction_type = 'purchase' AND stripe_payment_intent_id = $1
+       LIMIT 1`,
+      [stripePaymentIntentId],
+      options,
+    );
+    const row = result.rows[0];
+    return row ? { tenantId: row.tenant_id, amount: row.amount } : null;
+  }
+
+  /** Credits taken back so far for a purchase's payment (net of any returned). */
+  async sumReversedForPaymentIntent(
+    tenantId: string,
+    stripePaymentIntentId: string,
+    options?: QueryOptions,
+  ): Promise<number> {
+    const result = await this.executeQuery<{ reversed: string | null }>(
+      `SELECT -COALESCE(SUM(amount), 0) AS reversed FROM ${this.tableName}
+       WHERE tenant_id = $1 AND transaction_type = 'reversal'
+         AND stripe_payment_intent_id = $2`,
+      [tenantId, stripePaymentIntentId],
+      options,
+    );
+    return Number(result.rows[0]?.reversed ?? 0);
+  }
+
   /** A tenant's ledger in the order it happened, for the expiry replay. */
   async findReplayRows(
     tenantId: string,
@@ -186,6 +221,7 @@ export class CreditLedgerRepository extends BaseRepository<
       deduction: 0,
       refund: 0,
       expiry: 0,
+      reversal: 0,
     };
 
     for (const row of result.rows) {

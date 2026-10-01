@@ -18,6 +18,14 @@ export const STRIPE_WEBHOOK_EVENTS = {
   INVOICE_PAYMENT_ACTION_REQUIRED: 'invoice.payment_action_required',
   INVOICE_UPCOMING: 'invoice.upcoming',
 
+  // Charge (refunds and disputes of credit purchases)
+  CHARGE_REFUNDED: 'charge.refunded',
+  CHARGE_DISPUTE_CREATED: 'charge.dispute.created',
+  CHARGE_DISPUTE_UPDATED: 'charge.dispute.updated',
+  CHARGE_DISPUTE_CLOSED: 'charge.dispute.closed',
+  CHARGE_DISPUTE_FUNDS_WITHDRAWN: 'charge.dispute.funds_withdrawn',
+  CHARGE_DISPUTE_FUNDS_REINSTATED: 'charge.dispute.funds_reinstated',
+
   // Payment Intent
   PAYMENT_INTENT_SUCCEEDED: 'payment_intent.succeeded',
   PAYMENT_INTENT_PAYMENT_FAILED: 'payment_intent.payment_failed',

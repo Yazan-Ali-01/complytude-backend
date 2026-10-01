@@ -299,6 +299,51 @@ export class CreditLedgerService {
   }
 
   /**
+   * Brings the credits reversed for a purchase (found by its Stripe payment intent) to `target`:
+   * all of them while its payment is disputed, the refunded share otherwise. The difference is
+   * written as one `reversal` row: negative to take credits back, which may take the balance
+   * below zero and so blocks spending, or positive to return them (a dispute won). Idempotent: a
+   * repeat finds nothing to change. Returns the credits reversed by this call (negative when
+   * returned).
+   */
+  async reconcilePurchaseReversal(input: {
+    tenantId: string;
+    stripePaymentIntentId: string;
+    target: number;
+    reason: string;
+    metadata: Record<string, unknown>;
+  }): Promise<number> {
+    const { tenantId, stripePaymentIntentId, target, reason, metadata } = input;
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      async (client) => {
+        await this.lockCreditsForTenant(tenantId, client);
+        const reversed =
+          await this.creditLedgerRepository.sumReversedForPaymentIntent(
+            tenantId,
+            stripePaymentIntentId,
+            { client },
+          );
+        const delta = target - reversed;
+        if (delta === 0) return 0;
+        await this.recordTransaction(
+          {
+            tenantId,
+            transactionType: 'reversal',
+            amount: -delta,
+            reason,
+            metadata,
+            stripePaymentIntentId,
+            allowNegative: true,
+          },
+          { client },
+        );
+        return delta;
+      },
+    );
+  }
+
+  /**
    * Get current credit balance
    *
    * Delegates to repository.
@@ -376,6 +421,7 @@ export class CreditLedgerService {
       metadata,
       idempotencyKey,
       stripePaymentIntentId,
+      allowNegative,
     } = input;
 
     const execute = async (client: PoolClient) => {
@@ -387,7 +433,7 @@ export class CreditLedgerService {
 
       const newBalance = currentBalance + amount;
 
-      if (newBalance < 0) {
+      if (newBalance < 0 && !allowNegative) {
         throw new BadRequestException(
           this.i18n.t(EntitlementsI18n.errors.INSUFFICIENT_CREDITS, {
             args: {
@@ -485,6 +531,7 @@ export class CreditLedgerService {
       deduction: 'credit.deducted',
       refund: 'credit.refunded',
       expiry: 'credit.expired',
+      reversal: 'credit.reversed',
     };
 
     // Parse transaction metadata to include in event payload

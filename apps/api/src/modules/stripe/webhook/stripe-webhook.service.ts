@@ -90,6 +90,14 @@ export class StripeWebhookService {
       case STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_ACTION_REQUIRED:
         return this.handlers.handlePaymentActionRequired(event);
 
+      case STRIPE_WEBHOOK_EVENTS.CHARGE_REFUNDED:
+      case STRIPE_WEBHOOK_EVENTS.CHARGE_DISPUTE_CREATED:
+      case STRIPE_WEBHOOK_EVENTS.CHARGE_DISPUTE_UPDATED:
+      case STRIPE_WEBHOOK_EVENTS.CHARGE_DISPUTE_CLOSED:
+      case STRIPE_WEBHOOK_EVENTS.CHARGE_DISPUTE_FUNDS_WITHDRAWN:
+      case STRIPE_WEBHOOK_EVENTS.CHARGE_DISPUTE_FUNDS_REINSTATED:
+        return this.handlers.handleChargeReversal(event);
+
       default:
         this.logger.log(
           `Unhandled Stripe event type: ${event.type} (id: ${event.id})`,

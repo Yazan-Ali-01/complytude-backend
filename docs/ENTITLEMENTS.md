@@ -140,7 +140,7 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 **Credit Ledger:**
 
 - Append-only transaction log
-- Tracks purchases, grants, deductions, refunds and expiries
+- Tracks purchases, grants, deductions, refunds (credits given back for a failed operation), expiries and reversals (credits taken back because the payment that bought them was refunded or disputed in Stripe, or returned when a dispute is won; see `docs/BILLING.md`). A reversal may take the balance below zero, which blocks spending until it is positive again
 - The balance is the plain `SUM(amount)` of the tenant's rows. A grant with `expires_at` doesn't leave it by a filter (that would also take out what it had already funded, and with it purchased credits): the hourly `CREDIT_EXPIRY_CHECK` job writes an `expiry` row for the part still unspent when it lapsed. That part is found by replaying the ledger in time order, every debit spending the credits that expire soonest first (non-expiring credits last). The row's idempotency key is `credit-expiry:<grant id>`; a fully spent grant gets a row of 0, which settles it. Until the job runs (at most an hour), a lapsed grant's remainder still counts.
 - Deduction events include `credit_cost_per_unit` and `units_consumed` for audit trail
 - Writes are serialised per tenant: `CreditLedgerService.lockCreditsForTenant()` takes a transaction-scoped advisory lock (`credits:<tenantId>`) before the balance read that decides a write, both in every ledger transaction and in the enforcement credit fallback. Without it, concurrent deductions could all see the same SUM and overspend.
