@@ -385,6 +385,8 @@ Tables for **Tenant RBAC** and **Platform RBAC** with permission-based authoriza
 
 ### tenant_roles
 
+RLS (migration 043): system roles (`tenant_id` NULL) are readable in any context and written only in platform context (the startup sync); a tenant's custom role is readable in its tenant's context, the auth flow and platform context, and written only in its tenant's context. The app role has no DELETE.
+
 Tenant roles with support for custom roles (MVP+).
 
 | Column        | Type         | Description                                             |

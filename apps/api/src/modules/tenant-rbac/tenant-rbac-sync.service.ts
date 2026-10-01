@@ -98,17 +98,19 @@ export class TenantRbacSyncService implements OnModuleInit {
    * Never touches custom tenant roles (tenant_id IS NOT NULL)
    */
   private async syncSystemRoles(): Promise<void> {
-    await this.databaseService.transaction(async (client) => {
-      const systemRoles = this.getSystemRolesData();
+    // System roles (tenant_id NULL) are written only in platform context (RLS, migration 043)
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const systemRoles = this.getSystemRolesData();
 
-      this.logger.log(
-        `Syncing ${systemRoles.length} system roles to database...`,
-      );
+        this.logger.log(
+          `Syncing ${systemRoles.length} system roles to database...`,
+        );
 
-      // Upsert each system role
-      for (const role of systemRoles) {
-        await client.query(
-          `
+        // Upsert each system role
+        for (const role of systemRoles) {
+          await client.query(
+            `
           INSERT INTO public.tenant_roles (key, name, description, tenant_id, is_system, is_active)
           VALUES ($1, $2, $3, NULL, true, true)
           ON CONFLICT (key) WHERE tenant_id IS NULL DO UPDATE SET
@@ -116,75 +118,76 @@ export class TenantRbacSyncService implements OnModuleInit {
             description = EXCLUDED.description,
             is_active = EXCLUDED.is_active
         `,
-          [role.key, role.name, role.description],
-        );
-      }
-
-      // Sync role-permission mappings for each system role
-      for (const role of systemRoles) {
-        // Get role ID
-        const roleResult = await client.query(
-          `SELECT id FROM public.tenant_roles WHERE key = $1 AND is_system = true`,
-          [role.key],
-        );
-
-        if (roleResult.rows.length === 0) {
-          this.logger.error(`System role not found: ${role.key}`);
-          continue;
-        }
-
-        const roleId = roleResult.rows[0].id;
-
-        // Get permission IDs for this role's permissions
-        const permissionKeys = Array.from(role.permissions);
-
-        // Delete existing mappings for this role first
-        await client.query(
-          `DELETE FROM public.tenant_role_permissions WHERE role_id = $1`,
-          [roleId],
-        );
-
-        // Bug fix: Handle empty permissionKeys to avoid SQL syntax error
-        if (permissionKeys.length === 0) {
-          this.logger.log(
-            `Role ${role.key} has no permissions - skipping permission mapping`,
+            [role.key, role.name, role.description],
           );
-          continue;
         }
 
-        // Get permission IDs for this role's permissions
-        const permissionsResult = await client.query(
-          `
+        // Sync role-permission mappings for each system role
+        for (const role of systemRoles) {
+          // Get role ID
+          const roleResult = await client.query(
+            `SELECT id FROM public.tenant_roles WHERE key = $1 AND is_system = true`,
+            [role.key],
+          );
+
+          if (roleResult.rows.length === 0) {
+            this.logger.error(`System role not found: ${role.key}`);
+            continue;
+          }
+
+          const roleId = roleResult.rows[0].id;
+
+          // Get permission IDs for this role's permissions
+          const permissionKeys = Array.from(role.permissions);
+
+          // Delete existing mappings for this role first
+          await client.query(
+            `DELETE FROM public.tenant_role_permissions WHERE role_id = $1`,
+            [roleId],
+          );
+
+          // Bug fix: Handle empty permissionKeys to avoid SQL syntax error
+          if (permissionKeys.length === 0) {
+            this.logger.log(
+              `Role ${role.key} has no permissions - skipping permission mapping`,
+            );
+            continue;
+          }
+
+          // Get permission IDs for this role's permissions
+          const permissionsResult = await client.query(
+            `
           SELECT id, key FROM public.tenant_permissions
           WHERE key IN (${permissionKeys.map((_, i) => `$${i + 1}`).join(', ')})
         `,
-          permissionKeys,
-        );
+            permissionKeys,
+          );
 
-        const permissionIds = permissionsResult.rows.map((r) => r.id);
+          const permissionIds = permissionsResult.rows.map((r) => r.id);
 
-        // Insert new mappings
-        if (permissionIds.length > 0) {
-          const values = permissionIds
-            .map((permId, i) => `($1, $${i + 2})`)
-            .join(', ');
-          await client.query(
-            `
+          // Insert new mappings
+          if (permissionIds.length > 0) {
+            const values = permissionIds
+              .map((permId, i) => `($1, $${i + 2})`)
+              .join(', ');
+            await client.query(
+              `
             INSERT INTO public.tenant_role_permissions (role_id, permission_id)
             VALUES ${values}
             ON CONFLICT (role_id, permission_id) DO NOTHING
           `,
-            [roleId, ...permissionIds],
+              [roleId, ...permissionIds],
+            );
+          }
+
+          this.logger.log(
+            `Synced ${permissionIds.length} permissions for role: ${role.key}`,
           );
         }
 
-        this.logger.log(
-          `Synced ${permissionIds.length} permissions for role: ${role.key}`,
-        );
-      }
-
-      this.logger.log('System roles synced successfully');
-    });
+        this.logger.log('System roles synced successfully');
+      },
+    );
   }
 
   /**

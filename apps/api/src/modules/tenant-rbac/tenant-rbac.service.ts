@@ -52,49 +52,6 @@ export class TenantRbacService {
     }
   }
 
-  /**
-   * Get all system roles
-   */
-  async getSystemRoles() {
-    this.logger.debug('Fetching tenant system roles');
-    try {
-      return await this.tenantRolesRepository.findSystemRoles();
-    } catch (error) {
-      this.logger.warn(
-        `System roles lookup failed - ${error instanceof Error ? error.message : String(error)}`,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Get a role by key
-   * @param roleKey - Role key
-   * @param tenantId - Optional tenant ID for custom roles
-   */
-  async getRoleByKey(roleKey: string, tenantId?: string) {
-    this.logger.debug(
-      `Role lookup: roleKey=${roleKey} tenantId=${tenantId ?? 'none'}`,
-    );
-    try {
-      const role = await this.tenantRolesRepository.findByKey(
-        roleKey,
-        tenantId,
-      );
-      if (!role) {
-        this.logger.warn(
-          `Role not found: roleKey=${roleKey} tenantId=${tenantId ?? 'none'}`,
-        );
-      }
-      return role;
-    } catch (error) {
-      this.logger.warn(
-        `Role lookup failed: roleKey=${roleKey} tenantId=${tenantId ?? 'none'} - ${error instanceof Error ? error.message : String(error)}`,
-      );
-      throw error;
-    }
-  }
-
   // TODO: AI Model Selection Gate
   // Restrict high-cost AI models (Jais-70B, Claude 3.5 Sonnet) to legal_counsel+ roles
   // Implementation:

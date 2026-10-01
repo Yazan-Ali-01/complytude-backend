@@ -15,6 +15,7 @@ export const RLS_TABLES: ReadonlySet<string> = new Set([
   'tenant_addons',
   'tenant_ai_consents',
   'tenant_overrides',
+  'tenant_roles',
   'tenant_subscriptions',
   'tenants',
   'usage_allocations',

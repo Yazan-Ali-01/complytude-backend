@@ -35,40 +35,6 @@ export class TenantRolesRepository extends BaseRepository<
   }
 
   /**
-   * Find a role by its key
-   * @param key - Role key (e.g., 'tenant_admin', 'legal_counsel')
-   * @param tenantId - Optional tenant ID for custom roles
-   */
-  async findByKey(key: string, tenantId?: string): Promise<Role | null> {
-    const query = `
-      SELECT ${this.getSelectColumns()}
-      FROM ${this.tableName}
-      WHERE key = $1
-        AND (tenant_id = $2 OR (tenant_id IS NULL AND $2 IS NULL))
-      LIMIT 1
-    `;
-
-    const result = await this.executeQuery(query, [key, tenantId || null]);
-    return result.rows[0] ? this.mapRow(result.rows[0]) : null;
-  }
-
-  /**
-   * Get all system (base) roles
-   */
-  async findSystemRoles(): Promise<Role[]> {
-    const query = `
-      SELECT ${this.getSelectColumns()}
-      FROM ${this.tableName}
-      WHERE is_system = true
-        AND is_active = true
-      ORDER BY key
-    `;
-
-    const result = await this.executeQuery(query);
-    return result.rows.map((row) => this.mapRow(row));
-  }
-
-  /**
    * Get all permission keys for a role
    * Supports both system roles and custom tenant roles
    *
@@ -98,24 +64,10 @@ export class TenantRolesRepository extends BaseRepository<
       ORDER BY p.key
     `;
 
-    const result = await this.executeQuery(query, [roleKey, tenantId]);
+    // A custom role is visible only in its tenant's context (RLS)
+    const result = await this.executeQuery(query, [roleKey, tenantId], {
+      tenant: { tenantId, schema: 'public' },
+    });
     return result.rows.map((row) => row.key as string);
-  }
-
-  /**
-   * Find roles by tenant ID (for custom roles - MVP+)
-   * @param tenantId - Tenant ID
-   */
-  async findByTenantId(tenantId: string): Promise<Role[]> {
-    const query = `
-      SELECT ${this.getSelectColumns()}
-      FROM ${this.tableName}
-      WHERE tenant_id = $1
-        AND is_active = true
-      ORDER BY name
-    `;
-
-    const result = await this.executeQuery(query, [tenantId]);
-    return result.rows.map((row) => this.mapRow(row));
   }
 }

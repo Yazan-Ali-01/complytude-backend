@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseError, type PoolClient } from 'pg';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { DocumentRepository } from 'src/repositories/documents/document.repository';
+import { TenantRolesRepository } from 'src/repositories/tenant-rbac/tenant-roles.repository';
 import { createTestTenant, createTestUserInTenant } from '../factories';
 import { cookieHeaderFromSetCookie } from '../helpers/http-cookie.helper';
 import { resetTestState } from '../helpers/redis-flush.helper';
@@ -38,6 +39,8 @@ interface TenantRows {
   overrideId: string;
   usageId: string;
   allocationId: string;
+  /** A custom role of the tenant's own (system roles have no tenant_id). */
+  roleId: string;
   aggregatedUsageId: string;
   aiConsentId: string;
 }
@@ -178,6 +181,11 @@ const INSERT_FOR: Record<string, (t: TenantRows, w: World) => Op> = {
       `INSERT INTO public.usage_ledger (tenant_id, feature_id, billing_period) VALUES ($1, $2, '2026-10')`,
       [t.tenantId, w.docsFeatureId],
     ),
+  tenant_roles: (t) =>
+    inserts(
+      `INSERT INTO public.tenant_roles (key, name, tenant_id) VALUES ($1, 'RLS insert', $2)`,
+      [`custom_${randomUUID().slice(0, 8)}`, t.tenantId],
+    ),
   // rolled back before the deferred units-sum check runs
   usage_allocations: (t) =>
     inserts(
@@ -211,7 +219,7 @@ const membershipOf =
   async (c, w) =>
     (await rowCount(c, sql, [tenant(w).userId, tenant(w).tenantId])) === 1;
 
-/** One case per RLS policy (46): the operation the policy allows, in the context it allows it. */
+/** One case per RLS policy (49): the operation the policy allows, in the context it allows it. */
 const POLICY_CASES: PolicyCase[] = [
   // tenant_ai_consents (append-only; who may accept is tenant RBAC's call)
   {
@@ -478,6 +486,29 @@ const POLICY_CASES: PolicyCase[] = [
     context: TENANT,
     run: updatesById('tenants', updateSet('tenants'), (w) => w.a.tenantId),
   },
+  // tenant_roles: a tenant's custom roles (system roles, tenant_id NULL, are written in platform context)
+  {
+    policy: 'tenant_roles_select',
+    table: 'tenant_roles',
+    context: TENANT,
+    run: selectsById('tenant_roles', (w) => w.a.roleId),
+  },
+  {
+    policy: 'tenant_roles_insert',
+    table: 'tenant_roles',
+    context: TENANT,
+    run: insertsForA('tenant_roles'),
+  },
+  {
+    policy: 'tenant_roles_update',
+    table: 'tenant_roles',
+    context: TENANT,
+    run: updatesById(
+      'tenant_roles',
+      updateSet('tenant_roles'),
+      (w) => w.a.roleId,
+    ),
+  },
   // usage_allocations: visible and insertable with its usage_ledger row (no tenant_id of its own)
   {
     policy: 'usage_allocations_select',
@@ -572,6 +603,7 @@ const TENANT_TABLES: Record<string, (t: TenantRows) => string> = {
   tenant_ai_consents: (t) => t.aiConsentId,
   usage_ledger: (t) => t.usageId,
   usage_allocations: (t) => t.allocationId,
+  tenant_roles: (t) => t.roleId,
 };
 
 /** Maps an operation's result or error to an Outcome; any other error is a test bug and is rethrown. */
@@ -700,6 +732,10 @@ describe('Tenant isolation (RLS) as the app role', () => {
         allocationId: await one(
           `INSERT INTO public.usage_allocations (usage_ledger_id, source, units) VALUES ($1, 'plan', 1) RETURNING id`,
           [usageId],
+        ),
+        roleId: await one(
+          `INSERT INTO public.tenant_roles (key, name, tenant_id) VALUES ($1, 'RLS fixture', $2) RETURNING id`,
+          [`custom_${randomUUID().slice(0, 8)}`, tenantId],
         ),
         aggregatedUsageId: await one(
           `INSERT INTO public.aggregated_usage (tenant_id, subscription_id, feature_id, billing_period) VALUES ($1, $2, $3, '2026-09') RETURNING id`,
@@ -884,6 +920,41 @@ describe('Tenant isolation (RLS) as the app role', () => {
         removeMember: 'no effect',
         addMember: 'rls violation',
       });
+    });
+
+    it('system roles: readable in any context, written only in platform context', async () => {
+      const systemRoles = await appDb.query(
+        'SELECT 1 FROM public.tenant_roles WHERE tenant_id IS NULL',
+      );
+      expect(systemRoles.rowCount).toBeGreaterThan(0);
+      const addSystemRole: Op = async (c) =>
+        (await rowCount(
+          c,
+          `INSERT INTO public.tenant_roles (key, name, tenant_id, is_system) VALUES ($1, 'Fake system role', NULL, true)`,
+          [`fake_${randomUUID().slice(0, 8)}`],
+        )) === 1;
+      expect(await viaApp(TENANT, addSystemRole)).toBe('rls violation');
+      expect(await viaApp(PLATFORM_ADMIN, addSystemRole)).toBe('allowed');
+    });
+
+    it("resolves a custom role's permissions for its own tenant only", async () => {
+      await admin.query(
+        `INSERT INTO public.tenant_role_permissions (role_id, permission_id)
+         SELECT $1, id FROM public.tenant_permissions WHERE key = 'documents:read'`,
+        [world.a.roleId],
+      );
+      const { rows } = await admin.query<{ key: string }>(
+        'SELECT key FROM public.tenant_roles WHERE id = $1',
+        [world.a.roleId],
+      );
+      const roles = new TenantRolesRepository(appDb);
+
+      expect(
+        await roles.getPermissionsForRole(rows[0].key, world.a.tenantId),
+      ).toEqual(['documents:read']);
+      expect(
+        await roles.getPermissionsForRole(rows[0].key, world.b.tenantId),
+      ).toEqual([]);
     });
 
     it('sees no tenant rows with no context at all (fail closed)', async () => {
