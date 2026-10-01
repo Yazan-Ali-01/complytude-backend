@@ -49,6 +49,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 |---|---|---|---|---|
 | `uae_federal_labour_law.json` | Mainland, DMCC, IFZA, RAKEZ, SHAMS, DAFZA, JAFZA | employment | 72 (10 required) | Draft, drafted 2026-10-01 |
 | `uae_labour_law_implementing_regulation.json` | Mainland, DMCC, IFZA, RAKEZ, SHAMS, DAFZA, JAFZA | employment | 28 (1 required) | Draft, drafted 2026-10-01 |
+| `difc_employment_law.json` | DIFC | employment | 56 (4 required) | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | — | — | 34 | Summarised, not verbatim, old file shape; to be replaced by a verbatim draft |
 
 ## uae_federal_labour_law.json
@@ -131,3 +132,52 @@ penalties.
   Cabinet resolutions weren't searched for. Confirm the text is current.
 - **Arabic**, as for the decree-law.
 
+
+## difc_employment_law.json
+
+Employment Law, DIFC Law No. 2 of 2019, as amended by DIFC Laws No. 4 of 2020, No. 4 of 2021,
+No. 2 of 2022, No. 1 of 2024 and No. 1 of 2025. DIFC legislation is enacted in English, so the
+text is the law itself, not a translation.
+
+**Sources** (DIFC, retrieved 2026-10-01):
+
+| Publication | URL | SHA-256 | Used for |
+|---|---|---|---|
+| Consolidated Version No. 5 (July 2025) | https://edge.sitecorecloud.io/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/employment-law.pdf | `e305ebc7bbe7907859fa7989845dbe6cd3690844f34ad7f8d6e77783aeb8aaeb` | The text |
+| Consolidated Version No. 4 (March 2024) | https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/employment_law_no_2_of_2019_updated_2024.pdf | `2ebc89e3bfd3b305e24990b279d9eb9b5d3ddb162bbbf570591ce233a26990eb` | Dating 2025 changes |
+| Consolidated Version No. 2 (September 2021) | https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/past-laws/employment_law_2_of_2019_consolidated_sep_2021_2.pdf | `4d2bd1e4d04b022670c08e0c4733913d0afe7298649e4a05374563c1c4762032` | Dating 2024 changes |
+| Employment Law Amendment Law, DIFC Law No. 4 of 2021 | https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/employment_law_amendment_law_difc_law_no_4_of_2021.pdf | `6e65bdad5ac60690e565ce63c59628a404084d69ba6189a1567b5ff267682a98` | Finding the provisions amended in 2021 |
+
+**Method.** `pdftotext` (layout mode), parsed by article, sub-article and item from the
+indentation; every line of every clause was checked against a second, raw-mode extraction of the same
+file. The July 2025 and March 2024 consolidations agree word for word except Arts. 65(3) and 66(7)(c)
+(the 2025 amendment).
+
+**Effective dates**, per clause, from which versions its words differ in:
+
+- unchanged since enactment: 28 August 2019 (enacted 30 May 2019, in force ninety days later, Art. 6);
+- changed by DIFC Law No. 1 of 2025: 15 July 2025, the fifth business day after enactment on 8 July
+  2025 (the enactment notice's rule), computed, not published;
+- changed by DIFC Law No. 1 of 2024: 8 March 2024 (same rule from 1 March 2024; matches published
+  commentary). No selected clause was last changed by it;
+- changed by the 2020 or 2021 amendment laws: **left empty**, because the enactment notices for those
+  laws weren't found. Affected: Arts. 14(2), 20(1), 21(3), 27(3), 32(3), 40(2), 59(1), 60, 63(3),
+  66(1), 66(13). Their effective dates must be supplied before the version can be marked reviewed.
+  The 2021 amendment law reprints the whole law with changes marked by underline and strike-through,
+  which text extraction can't see; a provision counts as changed in 2021 if the amendment law's words
+  for it differ from the September 2021 consolidation's, so a few may be flagged that weren't changed.
+
+**Scope.** Waiver, false representations, children, the written contract and its contents, pay
+statements, paydays, final payments, deductions, recruitment costs, working time, Ramadan, rest and
+breaks, vacation leave, public holidays, special, sick, maternity and paternity leave, return to work,
+health insurance, visas and passports, discrimination and victimisation, notice, termination for
+cause, reasons, pensions for UAE and GCC nationals, gratuity and qualifying scheme (DEWS)
+contributions. Left out: administration, payroll records, part-time calculations, health and safety
+premises rules, proceedings, fines and Schedules 1–2 (definitions and fines).
+
+**Gaps.**
+
+- The effective dates above.
+- **Defined terms.** Capitalised terms (Wage, Basic Wage, Work Day, Qualifying Scheme, …) are defined
+  in Schedule 1, which isn't carried. Consider adding the definitions a contract review needs.
+- **Employment Regulations.** The DIFC Employment Regulations (made under Art. 9) aren't drafted yet.
