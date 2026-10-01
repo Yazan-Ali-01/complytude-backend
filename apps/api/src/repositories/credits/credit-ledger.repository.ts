@@ -4,6 +4,7 @@ import {
   CreateCreditLedgerRow,
   CreditLedgerTransaction,
 } from 'src/common/types/entitlement.types';
+import type { CreditReplayRow } from 'src/common/utils/credit-expiry.util';
 
 type CreditLedgerRow = {
   id: string;
@@ -92,12 +93,12 @@ export class CreditLedgerRepository extends BaseRepository<
     return Number(result.rows[0]?.total ?? 0);
   }
 
+  /** The sum of the ledger: a lapsed grant is taken out by its `expiry` row, not by a filter. */
   async getBalance(tenantId: string, options?: QueryOptions): Promise<number> {
     const result = await this.executeQuery<{ balance: string | number }>(
       `SELECT COALESCE(SUM(amount), 0) as balance
        FROM ${this.tableName}
-       WHERE tenant_id = $1
-       AND (expires_at IS NULL OR expires_at > now())`,
+       WHERE tenant_id = $1`,
       [tenantId],
       options,
     );
@@ -106,6 +107,57 @@ export class CreditLedgerRepository extends BaseRepository<
     // Convert to number for JavaScript arithmetic operations
     const balance = result.rows[0]?.balance ?? 0;
     return typeof balance === 'string' ? parseFloat(balance) : balance;
+  }
+
+  /** A tenant's ledger in the order it happened, for the expiry replay. */
+  async findReplayRows(
+    tenantId: string,
+    options?: QueryOptions,
+  ): Promise<CreditReplayRow[]> {
+    const result = await this.executeQuery<{
+      id: string;
+      transaction_type: string;
+      amount: number;
+      expires_at: Date | null;
+      recorded_at: Date;
+      expired_transaction_id: string | null;
+    }>(
+      `SELECT id, transaction_type, amount, expires_at, recorded_at,
+              metadata->>'expired_transaction_id' AS expired_transaction_id
+       FROM ${this.tableName}
+       WHERE tenant_id = $1
+       ORDER BY recorded_at, id`,
+      [tenantId],
+      options,
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      transactionType: row.transaction_type,
+      amount: row.amount,
+      expiresAt: row.expires_at,
+      recordedAt: row.recorded_at,
+      expiredTransactionId: row.expired_transaction_id,
+    }));
+  }
+
+  /** Tenants holding a grant that has lapsed and has no `expiry` row yet (platform context). */
+  async findTenantsWithLapsedGrants(
+    limit: number,
+    options?: QueryOptions,
+  ): Promise<string[]> {
+    const result = await this.executeQuery<{ tenant_id: string }>(
+      `SELECT DISTINCT g.tenant_id
+       FROM ${this.tableName} g
+       WHERE g.amount > 0 AND g.expires_at IS NOT NULL AND g.expires_at <= now()
+         AND NOT EXISTS (
+           SELECT 1 FROM ${this.tableName} e
+           WHERE e.idempotency_key = 'credit-expiry:' || g.id
+         )
+       LIMIT $1`,
+      [limit],
+      options,
+    );
+    return result.rows.map((row) => row.tenant_id);
   }
 
   /**
@@ -123,7 +175,6 @@ export class CreditLedgerRepository extends BaseRepository<
       `SELECT transaction_type, COALESCE(SUM(amount), 0) as total
        FROM ${this.tableName}
        WHERE tenant_id = $1
-       AND (expires_at IS NULL OR expires_at > now())
        GROUP BY transaction_type`,
       [tenantId],
       options,

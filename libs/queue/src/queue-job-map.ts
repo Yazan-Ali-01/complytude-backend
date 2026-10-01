@@ -32,6 +32,7 @@ import {
   EntitlementSnapshotRebuildJobData,
   EntitlementSubscriptionRenewalJobData,
   EntitlementTrialExpiryCheckJobData,
+  EntitlementCreditExpiryCheckJobData,
   EntitlementTrialReminderCheckJobData,
   EntitlementUsageRefundJobData,
 } from './interfaces/entitlement-processing.jobs';
@@ -71,6 +72,7 @@ export interface QueueJobMap {
     [ENTITLEMENT_JOB_NAMES.CREDIT_NOTIFICATION]: EntitlementCreditNotificationJobData;
     [ENTITLEMENT_JOB_NAMES.QUOTA_EXCEEDED]: EntitlementQuotaExceededJobData;
     [ENTITLEMENT_JOB_NAMES.TRIAL_EXPIRY_CHECK]: EntitlementTrialExpiryCheckJobData;
+    [ENTITLEMENT_JOB_NAMES.CREDIT_EXPIRY_CHECK]: EntitlementCreditExpiryCheckJobData;
     [ENTITLEMENT_JOB_NAMES.TRIAL_REMINDER_CHECK]: EntitlementTrialReminderCheckJobData;
     [ENTITLEMENT_JOB_NAMES.USAGE_REFUND]: EntitlementUsageRefundJobData;
   };

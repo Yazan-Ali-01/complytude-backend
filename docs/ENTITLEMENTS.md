@@ -140,8 +140,8 @@ Every time a tenant uses a feature, a **usage event** is recorded:
 **Credit Ledger:**
 
 - Append-only transaction log
-- Tracks purchases, grants, deductions, refunds
-- Running balance computed from ledger
+- Tracks purchases, grants, deductions, refunds and expiries
+- The balance is the plain `SUM(amount)` of the tenant's rows. A grant with `expires_at` doesn't leave it by a filter (that would also take out what it had already funded, and with it purchased credits): the hourly `CREDIT_EXPIRY_CHECK` job writes an `expiry` row for the part still unspent when it lapsed. That part is found by replaying the ledger in time order, every debit spending the credits that expire soonest first (non-expiring credits last). The row's idempotency key is `credit-expiry:<grant id>`; a fully spent grant gets a row of 0, which settles it. Until the job runs (at most an hour), a lapsed grant's remainder still counts.
 - Deduction events include `credit_cost_per_unit` and `units_consumed` for audit trail
 - Writes are serialised per tenant: `CreditLedgerService.lockCreditsForTenant()` takes a transaction-scoped advisory lock (`credits:<tenantId>`) before the balance read that decides a write, both in every ledger transaction and in the enforcement credit fallback. Without it, concurrent deductions could all see the same SUM and overspend.
 - Credit purchases from Stripe checkout are idempotent (`idempotency_key = 'checkout:' + session id`).
@@ -426,6 +426,8 @@ await this.subscriptionsService.createTrialSubscription(tenant.id, userId, {
 **Trial Reminder (T-3 days):** The `TRIAL_REMINDER_CHECK` repeatable job runs every hour on the `ENTITLEMENT_PROCESSING` queue. It queries trials whose `trial_ends_at` falls in a 2–4 day window with `trial_reminder_sent_at IS NULL`, sends a "trial ending soon" email to the tenant_admin user and `tenants.billing_email` (when set, deduplicated), then marks `trial_reminder_sent_at = NOW()`. The wide window absorbs missed cron ticks; the flag prevents duplicates. Recipients see a CTA to `${FRONTEND_URL}/billing/upgrade` for self-serve Stripe Checkout.
 
 **Trial Expiry:** The `TRIAL_EXPIRY_CHECK` job (also hourly, so an ended trial keeps its access for at most an hour) downgrades expired trials to Navigator (free), invalidates the entitlement snapshot, and emits `trial.expired`.
+
+**Credit Expiry:** The `CREDIT_EXPIRY_CHECK` job (hourly) writes the `expiry` rows for lapsed credit grants (see Credit Ledger above) and emits `credit.expired`.
 
 **Important:** Without an active subscription, `EntitlementResolverService.resolveForTenant()` will throw `NotFoundException`. The trial subscription is created within the same transaction as the tenant to ensure atomicity.
 

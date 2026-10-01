@@ -6,16 +6,16 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
 
 /**
- * Schedules trial-related repeatable cron jobs on the ENTITLEMENT_PROCESSING
- * queue:
+ * Schedules the hourly repeatable cron jobs on the ENTITLEMENT_PROCESSING queue:
  *
  * - `TRIAL_EXPIRY_CHECK`: downgrades trials whose `trial_ends_at` has passed.
  * - `TRIAL_REMINDER_CHECK`: sends a "trial ending soon" email ~3 days before
  *   expiry. The handler uses a wide 2–4 day window + a `trial_reminder_sent_at`
  *   flag, so a missed tick still picks up the row on the next run without
  *   double-sending.
+ * - `CREDIT_EXPIRY_CHECK`: writes `expiry` rows for credit grants that lapsed.
  *
- * Both run every hour. Existing repeatable jobs with the same name are
+ * All run every hour. Existing repeatable jobs with the same name are
  * pruned and re-registered on boot to keep the schedule authoritative.
  */
 @Injectable()
@@ -38,6 +38,10 @@ export class TrialExpirySchedulerService implements OnModuleInit {
     await this.registerRepeatable(
       ENTITLEMENT_JOB_NAMES.TRIAL_REMINDER_CHECK,
       'Trial reminder check',
+    );
+    await this.registerRepeatable(
+      ENTITLEMENT_JOB_NAMES.CREDIT_EXPIRY_CHECK,
+      'Credit expiry check',
     );
   }
 

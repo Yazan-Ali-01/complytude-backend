@@ -16,6 +16,7 @@ import {
   CreditTransactionType,
   RecordTransactionInput,
 } from '../../../common/types/entitlement.types';
+import { computeCreditExpiries } from '../../../common/utils/credit-expiry.util';
 import { CreditLedgerRepository } from '../../../repositories/credits/credit-ledger.repository';
 import { FeaturesRepository } from '../../../repositories/features/features.repository';
 import { EntitlementsI18n } from '../constants/i18n.constants';
@@ -245,13 +246,66 @@ export class CreditLedgerService {
   }
 
   /**
+   * Writes an `expiry` row for each of the tenant's grants that lapsed by `now`, for the part still
+   * unspent when it lapsed (the ledger is replayed, spending the soonest-expiring credits first),
+   * so a lapsing grant takes nothing else with it. Capped by the balance, which never goes
+   * negative; a fully spent grant still gets a row of 0, which settles it. Idempotent per grant.
+   * Returns how many rows were written.
+   */
+  async expireLapsedGrants(
+    tenantId: string,
+    now: Date = new Date(),
+  ): Promise<number> {
+    return this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      async (client) => {
+        await this.lockCreditsForTenant(tenantId, client);
+        const rows = await this.creditLedgerRepository.findReplayRows(
+          tenantId,
+          { client },
+        );
+        const settled = new Set(
+          rows
+            .filter((row) => row.transactionType === 'expiry')
+            .map((row) => row.expiredTransactionId),
+        );
+        let balance = await this.creditLedgerRepository.getBalance(tenantId, {
+          client,
+        });
+        let written = 0;
+        for (const expiry of computeCreditExpiries(rows, now)) {
+          if (settled.has(expiry.transactionId)) continue;
+          const amount = Math.min(expiry.remaining, Math.max(balance, 0));
+          await this.recordTransaction(
+            {
+              tenantId,
+              transactionType: 'expiry',
+              amount: -amount,
+              reason: 'Credits expired',
+              idempotencyKey: `credit-expiry:${expiry.transactionId}`,
+              metadata: {
+                expired_transaction_id: expiry.transactionId,
+                expired_at: expiry.expiredAt.toISOString(),
+              },
+            },
+            { client },
+          );
+          balance -= amount;
+          written++;
+        }
+        return written;
+      },
+    );
+  }
+
+  /**
    * Get current credit balance
    *
    * Delegates to repository.
    *
    * @param tenantId - Tenant ID
    * @param options - Query options
-   * @returns Current balance (excludes expired credits)
+   * @returns Current balance (lapsed grants leave it through their `expiry` rows)
    */
   async getBalance(tenantId: string, options?: QueryOptions): Promise<number> {
     return this.creditLedgerRepository.getBalance(tenantId, options);
