@@ -54,7 +54,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 | `dmcc_employment_rules.json` | DMCC | employment | 23 (2 required) | Draft, drafted 2026-10-01 |
 | `difc_data_protection_law.json` | DIFC | data_processing | 22 (2 required) | Draft, drafted 2026-10-01 |
 | `adgm_data_protection_regulations.json` | ADGM | data_processing | 23 (2 required) | Draft, drafted 2026-10-01 |
-| `dmcc_company_regulations.json` | — | — | 34 | Summarised, not verbatim, old file shape; to be replaced by a verbatim draft |
+| `dmcc_company_regulations.json` | DMCC | shareholders_agreement | 34 (2 required) | Draft, drafted 2026-10-01 (replaces an earlier summary) |
 
 ## uae_federal_labour_law.json
 
@@ -329,3 +329,38 @@ codes and certification, the Commissioner, remedies and definitions (s. 62).
 - The 11 February 2022 date above.
 - **Defined terms** (s. 62) aren't carried.
 - **Standard contractual clauses** adopted by the Commissioner (ss. 26(6), 42(2)) aren't carried.
+
+## dmcc_company_regulations.json
+
+DMCCA Company Regulations 2024 [Amended], issued on 10 October 2024 and updated on 2 January 2025.
+This file used to hold a paraphrased summary of the same Regulations (still used, frozen, by the
+evaluation set); it is now the Regulations' own text.
+
+**Source:** the PDF linked from DMCC's Compliance and regulations page (retrieved 2026-10-01):
+https://dmcc.ae/hubfs/Compliance%20Documents%202024/DMCCA%20Company%20Regulations%20-%202024%20%5BAmended%5D.pdf,
+SHA-256 `96748cccb799efffb84d89492cee342faf52eaac39bbe45d997eb8db656e45d1`.
+
+**Method.** `pdftotext` (layout mode) parsed by article (headings accepted only in sequence, since
+later Sections reuse numbered lists), numbered regulation ("47.1") and item; the running footer and
+page numbers removed; every clause line checked against two other extractions of the same file (one
+difference: a page break). One clause per article, since the articles are short; the regulation
+numbers stay in the text.
+
+**Effective date.** 2 January 2025, the update date on every page. The Regulations don't mark which
+articles changed on that date, so articles unchanged since 10 October 2024 carry the later date too.
+To be confirmed (DMCC publishes a summary of changes:
+https://dmcc.ae/hubfs/Compliance%20Documents%202024/DMCC%20Comprehensive%20Summary%20of%20Changes-%20Final.pdf).
+
+**Scope.** For a shareholders' agreement in a DMCC company: the Articles and their binding effect,
+shareholders, shares and their classes, alteration and reduction of capital, non-cash consideration,
+bearer shares, buy-backs and redeemable shares, variation of class rights, the shareholder register
+and share transfers (required with the nature of shares), dividends and distributions, directors and
+their duties, secretary and manager, general meetings, written resolutions, proxies and minutes. Left
+out: the Registrar, branches, continuation, registers other than shareholders', accounts and audit,
+inspection, amalgamation, winding-up and the general provisions.
+
+**Gaps.**
+
+- **Defined terms** (Article 1: Ordinary Resolution, Special Resolution, Articles, …) aren't carried;
+  the resolution thresholds they set matter for shareholders' agreements.
+- **Other contract types.** Tagged for shareholders' agreements only.

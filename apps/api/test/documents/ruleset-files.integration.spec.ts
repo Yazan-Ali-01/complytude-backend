@@ -21,8 +21,6 @@ import { createTestApp, TestApp } from '../setup/test-app.factory';
 type Headers = Record<string, string | string[] | undefined>;
 
 const RULESETS = resolve(__dirname, '../../../../data/rulesets');
-/** Summarised text in the old file shape, kept until its verbatim draft replaces it. */
-const NOT_VERBATIM = ['dmcc_company_regulations.json'];
 
 interface RulesetFile {
   key: string;
@@ -37,9 +35,7 @@ interface RulesetFile {
   [field: string]: unknown;
 }
 
-const files = readdirSync(RULESETS).filter(
-  (file) => file.endsWith('.json') && !NOT_VERBATIM.includes(file),
-);
+const files = readdirSync(RULESETS).filter((file) => file.endsWith('.json'));
 
 /**
  * The drafted rulesets in data/rulesets (verbatim text with its sources) are POST /rulesets
@@ -74,7 +70,7 @@ describe('Ruleset files in data/rulesets', () => {
     if (app) await app.cleanup();
   }, 30000);
 
-  it('has at least one verbatim draft', () => {
+  it('has the drafted rulesets', () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
