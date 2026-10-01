@@ -68,9 +68,20 @@ export class InvitationsService {
   /**
    * Set transaction-local auth flow context
    * MUST be called within a transaction
+   *
+   * RLS shows the auth flow only the invitation whose token hash it presents and the invitations
+   * sent to the invitee's own (verified) address.
    */
-  private async setAuthFlowContext(client: PoolClient): Promise<void> {
-    await client.query(`SELECT set_config('app.is_auth_flow', 'true', true)`);
+  private async setAuthFlowContext(
+    client: PoolClient,
+    invitee: { tokenHash?: string; email?: string },
+  ): Promise<void> {
+    await client.query(
+      `SELECT set_config('app.is_auth_flow', 'true', true),
+              set_config('app.invitation_token_hash', $1, true),
+              set_config('app.invitee_email', $2, true)`,
+      [invitee.tokenHash ?? '', invitee.email?.toLowerCase() ?? ''],
+    );
   }
 
   /**
@@ -107,11 +118,9 @@ export class InvitationsService {
     token: string,
   ): Promise<ResolveInvitationResponseDto> {
     return this.databaseService.transaction(async (client) => {
-      // Set auth flow context
-      await this.setAuthFlowContext(client);
-
-      // Hash token and lookup
       const tokenHash = this.hashToken(token);
+      await this.setAuthFlowContext(client, { tokenHash });
+
       const invitation = await this.invitationRepository.findByToken(
         tokenHash,
         { client },
@@ -192,8 +201,10 @@ export class InvitationsService {
     email: string,
   ): Promise<{ message: string }> {
     return this.databaseService.transaction(async (client) => {
-      // Set auth flow context
-      await this.setAuthFlowContext(client);
+      await this.setAuthFlowContext(client, {
+        tokenHash: this.hashToken(token),
+        email,
+      });
 
       // Get invitation
       const invitation = await this.invitationRepository.findById(
@@ -321,8 +332,7 @@ export class InvitationsService {
     email: string,
   ): Promise<{ message: string }> {
     return this.databaseService.transaction(async (client) => {
-      // Set auth flow context
-      await this.setAuthFlowContext(client);
+      await this.setAuthFlowContext(client, { email });
 
       // Get invitation
       const invitation = await this.invitationRepository.findById(
@@ -355,7 +365,9 @@ export class InvitationsService {
         );
       }
 
-      // Mark invitation as rejected
+      // Verified invitee: the rejection is written in the inviting tenant's context (the auth
+      // flow only reads invitations)
+      await this.setTenantContext(invitation.tenantId, client);
       await this.invitationRepository.markRejected(invitationId, { client });
 
       this.logger.log(`User ${userId} rejected invitation ${invitationId}`);
@@ -371,8 +383,7 @@ export class InvitationsService {
    */
   async listUserInvitations(email: string): Promise<InvitationListResponseDto> {
     return this.databaseService.transaction(async (client) => {
-      // Set auth flow context
-      await this.setAuthFlowContext(client);
+      await this.setAuthFlowContext(client, { email });
 
       // Query invitations with tenant and inviter info
       const result = await client.query<{
@@ -434,8 +445,7 @@ export class InvitationsService {
    */
   async countUserInvitations(email: string): Promise<number> {
     return this.databaseService.transaction(async (client) => {
-      // Set auth flow context
-      await this.setAuthFlowContext(client);
+      await this.setAuthFlowContext(client, { email });
 
       const result = await client.query<{ count: string }>(
         `SELECT COUNT(*) as count
@@ -455,16 +465,17 @@ export class InvitationsService {
     roleKey: string,
     tenantId: string,
   ): Promise<{ id: string; name: string } | null> {
-    const result = await this.databaseService.query<{
-      id: string;
-      name: string;
-    }>(
-      `SELECT id, name
-       FROM public.tenant_roles
-       WHERE key = $1 AND (tenant_id = $2 OR is_system = true)
-       ORDER BY is_system DESC
-       LIMIT 1`,
-      [roleKey, tenantId],
+    const result = await this.databaseService.transactionWithTenantContext(
+      { tenantId },
+      (client) =>
+        client.query<{ id: string; name: string }>(
+          `SELECT id, name
+           FROM public.tenant_roles
+           WHERE key = $1 AND (tenant_id = $2 OR is_system = true)
+           ORDER BY is_system DESC
+           LIMIT 1`,
+          [roleKey, tenantId],
+        ),
     );
 
     return result.rows[0] || null;

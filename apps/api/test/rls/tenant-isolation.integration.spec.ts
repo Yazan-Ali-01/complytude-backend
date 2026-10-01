@@ -41,6 +41,7 @@ interface TenantRows {
   allocationId: string;
   /** A custom role of the tenant's own (system roles have no tenant_id). */
   roleId: string;
+  invitationId: string;
   aggregatedUsageId: string;
   aiConsentId: string;
 }
@@ -186,6 +187,12 @@ const INSERT_FOR: Record<string, (t: TenantRows, w: World) => Op> = {
       `INSERT INTO public.tenant_roles (key, name, tenant_id) VALUES ($1, 'RLS insert', $2)`,
       [`custom_${randomUUID().slice(0, 8)}`, t.tenantId],
     ),
+  invitations: (t) =>
+    inserts(
+      `INSERT INTO public.invitations (email, tenant_id, token_hash, invited_by, expires_at, role_id)
+       VALUES ($1, $2, $3, $4, now() + interval '1 day', (SELECT id FROM public.tenant_roles WHERE key = 'member' AND tenant_id IS NULL))`,
+      [`insert-${randomUUID()}@test.com`, t.tenantId, randomUUID(), t.userId],
+    ),
   // rolled back before the deferred units-sum check runs
   usage_allocations: (t) =>
     inserts(
@@ -219,7 +226,7 @@ const membershipOf =
   async (c, w) =>
     (await rowCount(c, sql, [tenant(w).userId, tenant(w).tenantId])) === 1;
 
-/** One case per RLS policy (49): the operation the policy allows, in the context it allows it. */
+/** One case per RLS policy (53): the operation the policy allows, in the context it allows it. */
 const POLICY_CASES: PolicyCase[] = [
   // tenant_ai_consents (append-only; who may accept is tenant RBAC's call)
   {
@@ -509,6 +516,35 @@ const POLICY_CASES: PolicyCase[] = [
       (w) => w.a.roleId,
     ),
   },
+  // invitations: the inviting tenant's; the auth flow's narrower read is tested separately
+  {
+    policy: 'invitations_select',
+    table: 'invitations',
+    context: TENANT,
+    run: selectsById('invitations', (w) => w.a.invitationId),
+  },
+  {
+    policy: 'invitations_insert',
+    table: 'invitations',
+    context: TENANT,
+    run: insertsForA('invitations'),
+  },
+  {
+    policy: 'invitations_update',
+    table: 'invitations',
+    context: TENANT,
+    run: updatesById(
+      'invitations',
+      updateSet('invitations'),
+      (w) => w.a.invitationId,
+    ),
+  },
+  {
+    policy: 'invitations_delete',
+    table: 'invitations',
+    context: TENANT,
+    run: deletesById('invitations', (w) => w.a.invitationId),
+  },
   // usage_allocations: visible and insertable with its usage_ledger row (no tenant_id of its own)
   {
     policy: 'usage_allocations_select',
@@ -604,6 +640,7 @@ const TENANT_TABLES: Record<string, (t: TenantRows) => string> = {
   usage_ledger: (t) => t.usageId,
   usage_allocations: (t) => t.allocationId,
   tenant_roles: (t) => t.roleId,
+  invitations: (t) => t.invitationId,
 };
 
 /** Maps an operation's result or error to an Outcome; any other error is a test bug and is rethrown. */
@@ -736,6 +773,12 @@ describe('Tenant isolation (RLS) as the app role', () => {
         roleId: await one(
           `INSERT INTO public.tenant_roles (key, name, tenant_id) VALUES ($1, 'RLS fixture', $2) RETURNING id`,
           [`custom_${randomUUID().slice(0, 8)}`, tenantId],
+        ),
+        invitationId: await one(
+          `INSERT INTO public.invitations (email, tenant_id, token_hash, invited_by, expires_at, role_id)
+           VALUES ($1, $2, $3, $4, now() + interval '1 day', (SELECT id FROM public.tenant_roles WHERE key = 'member' AND tenant_id IS NULL))
+           RETURNING id`,
+          [`invitee-${randomUUID()}@test.com`, tenantId, randomUUID(), userId],
         ),
         aggregatedUsageId: await one(
           `INSERT INTO public.aggregated_usage (tenant_id, subscription_id, feature_id, billing_period) VALUES ($1, $2, $3, '2026-09') RETURNING id`,
@@ -955,6 +998,75 @@ describe('Tenant isolation (RLS) as the app role', () => {
       expect(
         await roles.getPermissionsForRole(rows[0].key, world.b.tenantId),
       ).toEqual([]);
+    });
+
+    it('the auth flow sees only the invitation whose token it presents, or those sent to its own address', async () => {
+      const invitation = async (
+        id: string,
+      ): Promise<{ email: string; token_hash: string }> =>
+        (
+          await admin.query<{ email: string; token_hash: string }>(
+            'SELECT email, token_hash FROM public.invitations WHERE id = $1',
+            [id],
+          )
+        ).rows[0];
+      const a = await invitation(world.a.invitationId);
+      const b = await invitation(world.b.invitationId);
+      const inAuthFlow = <T>(
+        settings: Record<string, string>,
+        run: (client: PoolClient) => Promise<T>,
+      ): Promise<T> =>
+        appDb.transaction(async (client) => {
+          await client.query(
+            `SELECT set_config('app.is_auth_flow', 'true', true)`,
+          );
+          for (const [name, value] of Object.entries(settings)) {
+            await client.query('SELECT set_config($1, $2, true)', [
+              name,
+              value,
+            ]);
+          }
+          return run(client);
+        });
+      const visibleIn = (settings: Record<string, string>): Promise<string[]> =>
+        inAuthFlow(settings, async (client) =>
+          (
+            await client.query<{ id: string }>(
+              'SELECT id FROM public.invitations WHERE id = ANY($1) ORDER BY id',
+              [[world.a.invitationId, world.b.invitationId]],
+            )
+          ).rows.map((row) => row.id),
+        );
+
+      expect(await visibleIn({})).toEqual([]);
+      expect(await visibleIn({ 'app.invitee_email': a.email })).toEqual([
+        world.a.invitationId,
+      ]);
+      expect(
+        await visibleIn({ 'app.invitation_token_hash': b.token_hash }),
+      ).toEqual([world.b.invitationId]);
+      // The address alone, without the auth flow, shows nothing
+      expect(
+        (
+          await appDb.transaction(async (client) => {
+            await client.query(
+              `SELECT set_config('app.invitee_email', $1, true)`,
+              [a.email],
+            );
+            return client.query('SELECT 1 FROM public.invitations');
+          })
+        ).rowCount,
+      ).toBe(0);
+      // Visible to its invitee, but not writable in the auth flow
+      expect(
+        await inAuthFlow({ 'app.invitee_email': a.email }, (client) =>
+          rowCount(
+            client,
+            `UPDATE public.invitations SET status = 'REJECTED' WHERE id = $1`,
+            [world.a.invitationId],
+          ),
+        ),
+      ).toBe(0);
     });
 
     it('sees no tenant rows with no context at all (fail closed)', async () => {

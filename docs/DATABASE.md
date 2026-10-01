@@ -204,7 +204,7 @@ Tables for JWT-based authentication and user onboarding:
 
 - `email_verifications` - Email verification flow
 - `password_resets` - Password reset flow
-- `invitations` - Tenant invitation management
+- `invitations` - Tenant invitation management (RLS, migration 044)
 
 **Note:** The application uses a **dual-token authentication flow** with **Redis-backed sessions** (identity + tenant session keys). Refresh JWTs are stateless and validated against live sessions in Redis (`sessionId` in JWT); there is **no** `refresh_tokens` PostgreSQL table.
 
@@ -603,6 +603,8 @@ Password reset tokens for forgot-password flow.
 ### invitations
 
 Tenant invitations for inviting users to join organizations.
+
+RLS (migration 044): the inviting tenant reads and writes its own invitations in its context, and the platform context reads and writes all of them (the daily expiry sweep). The auth flow, where the invitee is not a member yet, reads only the invitation whose token hash it sets in `app.invitation_token_hash` (resolving a link, accepting) or those sent to the invitee's verified address in `app.invitee_email` (listing, accepting, rejecting). It writes nothing: `InvitationsService` switches to the inviting tenant's context to record an acceptance or rejection once the invitee is checked.
 
 | Column        | Type         | Description                                                     |
 | ------------- | ------------ | --------------------------------------------------------------- |
