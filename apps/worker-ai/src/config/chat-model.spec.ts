@@ -1,4 +1,8 @@
-import { DEFAULT_CHAT_TEMPERATURE, resolveChatModel } from './chat-model';
+import {
+  DEFAULT_CHAT_TEMPERATURE,
+  DEFAULT_REASONING_MAX_OUTPUT_TOKENS,
+  resolveChatModel,
+} from './chat-model';
 import { validationSchema } from './env.schema';
 
 const BASE: Record<string, string> = {
@@ -31,8 +35,13 @@ describe('chat model configuration', () => {
       expect(errors({ OPENAI_CHAT_MODEL: 'gpt-4o-2024-08-06' })).toEqual([]);
     });
 
+    it("needs no context window for D-8's models", () => {
+      expect(errors({ OPENAI_CHAT_MODEL: 'gpt-5.6-luna' })).toEqual([]);
+      expect(errors({ OPENAI_CHAT_MODEL: 'gpt-5.2-2025-12-11' })).toEqual([]);
+    });
+
     it('refuses an unknown model without a context window', () => {
-      expect(errors({ OPENAI_CHAT_MODEL: 'gpt-5.2-2025-12-11' })).toEqual([
+      expect(errors({ OPENAI_CHAT_MODEL: 'gpt-6-luna-2026-09-01' })).toEqual([
         expect.stringContaining('"OPENAI_CHAT_CONTEXT_WINDOW" is required'),
       ]);
     });
@@ -40,7 +49,7 @@ describe('chat model configuration', () => {
     it('accepts an unknown model with a context window', () => {
       expect(
         errors({
-          OPENAI_CHAT_MODEL: 'gpt-5.2-2025-12-11',
+          OPENAI_CHAT_MODEL: 'gpt-6-luna-2026-09-01',
           OPENAI_CHAT_CONTEXT_WINDOW: '400000',
         }),
       ).toEqual([]);
@@ -65,6 +74,7 @@ describe('chat model configuration', () => {
         contextWindow: 128_000,
         encoding: 'o200k_base',
         temperature: DEFAULT_CHAT_TEMPERATURE,
+        maxOutputTokens: 4096,
       });
     });
 
@@ -73,21 +83,39 @@ describe('chat model configuration', () => {
     });
 
     it('throws for an unknown model without a context window', () => {
-      expect(() => resolveChatModel('gpt-5.6-luna', {})).toThrow(
+      expect(() => resolveChatModel('gpt-6-luna', {})).toThrow(
         'OPENAI_CHAT_CONTEXT_WINDOW',
       );
     });
 
+    it("knows D-8's reasoning models: never a temperature, a larger output budget", () => {
+      expect(resolveChatModel('gpt-5.6-luna', { temperature: 0.1 })).toEqual({
+        contextWindow: 1_050_000,
+        encoding: 'o200k_base',
+        temperature: undefined,
+        maxOutputTokens: DEFAULT_REASONING_MAX_OUTPUT_TOKENS,
+      });
+      expect(resolveChatModel('gpt-5.2-2025-12-11', {})).toMatchObject({
+        contextWindow: 400_000,
+        temperature: undefined,
+      });
+      expect(
+        resolveChatModel('gpt-5.5-2026-04-23', { maxOutputTokens: 64_000 })
+          .maxOutputTokens,
+      ).toBe(64_000);
+    });
+
     it('sends no temperature to an unknown model unless one is configured', () => {
       expect(
-        resolveChatModel('gpt-5.6-luna', { contextWindow: 400_000 }),
+        resolveChatModel('gpt-6-luna', { contextWindow: 400_000 }),
       ).toEqual({
         contextWindow: 400_000,
         encoding: 'o200k_base',
         temperature: undefined,
+        maxOutputTokens: 4096,
       });
       expect(
-        resolveChatModel('gpt-5.6-luna', {
+        resolveChatModel('gpt-6-luna', {
           contextWindow: 400_000,
           temperature: 0,
         }).temperature,

@@ -80,13 +80,14 @@ describe('LlmService', () => {
     });
   }
 
-  it('sends to OPENAI_BASE_URL, with max_completion_tokens and no temperature for an unknown model', async () => {
+  it('sends to OPENAI_BASE_URL, with max_completion_tokens and no temperature for a reasoning model', async () => {
     await expect(
       call({
         'workerAi.llmBaseUrl': 'https://ae.api.openai.com/v1',
         'workerAi.llmModel': 'gpt-5.2-2025-12-11',
-        'workerAi.llmContextWindow': 400_000,
         'workerAi.llmMaxTokens': 16_000,
+        // Ignored: the API rejects a temperature for a reasoning model
+        'workerAi.llmTemperature': 0.1,
       }),
     ).resolves.toEqual({
       data: { summary: 'ok' },
@@ -116,13 +117,23 @@ describe('LlmService', () => {
     });
   });
 
+  it("gives D-8's reasoning models a larger output budget by default", async () => {
+    await call({ 'workerAi.llmModel': 'gpt-5.6-luna' });
+
+    expect(requests[0].body).toMatchObject({
+      model: 'gpt-5.6-luna',
+      max_completion_tokens: 32_000,
+    });
+    expect(requests[0].body).not.toHaveProperty('temperature');
+  });
+
   it('refuses to start with an unknown model and no context window', () => {
     expect(
       () =>
         new LlmService(
           config({
             'workerAi.llmApiKey': 'sk-test-key',
-            'workerAi.llmModel': 'gpt-5.6-luna',
+            'workerAi.llmModel': 'gpt-6-luna',
           }),
         ),
     ).toThrow('OPENAI_CHAT_CONTEXT_WINDOW');

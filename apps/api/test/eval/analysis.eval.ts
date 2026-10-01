@@ -383,6 +383,7 @@ describeEval('AI evaluation', () => {
         summary: result?.summary ?? '',
         unverifiedFindingsDropped: result?.unverifiedFindingsDropped ?? 0,
         ...(leakedPii && { leakedPii }),
+        ...(result?.usage && { usage: result.usage }),
         findings: (result?.findings ?? []).map((f): RunFinding => {
           const metadata = chunks.get(f.chunkId) ?? {};
           return {

@@ -73,5 +73,12 @@ export interface EvalRun {
   unverifiedFindingsDropped?: number;
   /** The case's `pii` values found in anything sent to a provider during the run. */
   leakedPii?: string[];
+  /** Model calls and tokens of the analysis, for its cost. */
+  usage?: {
+    modelCalls: number;
+    promptTokens: number;
+    completionTokens: number;
+    embeddingTokens: number;
+  };
   error?: string;
 }

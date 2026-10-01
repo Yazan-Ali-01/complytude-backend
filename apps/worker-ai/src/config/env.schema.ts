@@ -37,9 +37,9 @@ export const validationSchema = Joi.object({
       'any.required':
         '"OPENAI_CHAT_CONTEXT_WINDOW" is required when OPENAI_CHAT_MODEL is not a known model (apps/worker-ai/src/config/chat-model.ts)',
     }),
-  // Output tokens, reasoning tokens included for reasoning models
-  OPENAI_CHAT_MAX_TOKENS: Joi.number().integer().min(1).default(4096),
-  // Unset: 0.1 for a known model, none sent for any other (reasoning models reject it)
+  // Output tokens, reasoning tokens included; unset: 4096, or 32000 for a known reasoning model
+  OPENAI_CHAT_MAX_TOKENS: Joi.number().integer().min(1),
+  // Unset: 0.1 for a known non-reasoning model, none sent otherwise; never sent to a known reasoning model
   OPENAI_CHAT_TEMPERATURE: Joi.number().min(0).max(2),
   OPENAI_CHAT_TIMEOUT: Joi.number().default(120000),
 

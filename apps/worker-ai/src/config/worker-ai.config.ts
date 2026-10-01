@@ -24,7 +24,9 @@ export default registerAs('workerAi', () => ({
   llmContextWindow: process.env.OPENAI_CHAT_CONTEXT_WINDOW
     ? parseInt(process.env.OPENAI_CHAT_CONTEXT_WINDOW, 10)
     : undefined,
-  llmMaxTokens: parseInt(process.env.OPENAI_CHAT_MAX_TOKENS || '4096', 10),
+  llmMaxTokens: process.env.OPENAI_CHAT_MAX_TOKENS
+    ? parseInt(process.env.OPENAI_CHAT_MAX_TOKENS, 10)
+    : undefined,
   llmTemperature: process.env.OPENAI_CHAT_TEMPERATURE
     ? parseFloat(process.env.OPENAI_CHAT_TEMPERATURE)
     : undefined,

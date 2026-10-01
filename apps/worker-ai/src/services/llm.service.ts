@@ -44,11 +44,9 @@ export class LlmService {
         'workerAi.llmContextWindow',
       ),
       temperature: this.configService.get<number>('workerAi.llmTemperature'),
+      maxOutputTokens: this.configService.get<number>('workerAi.llmMaxTokens'),
     });
-    this.maxTokens = this.configService.get<number>(
-      'workerAi.llmMaxTokens',
-      4096,
-    );
+    this.maxTokens = this.settings.maxOutputTokens;
     this.timeout = this.configService.get<number>(
       'workerAi.llmTimeout',
       120000,
