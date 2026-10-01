@@ -221,7 +221,7 @@ export class DocumentDownloadUrlResponseDto {
 export class DeleteDocumentResponseDto {
   @ApiProperty({
     description: 'Success message',
-    example: 'Document deleted successfully',
+    example: 'Document moved to the trash. It can be restored for 30 days.',
   })
   message: string;
 
@@ -238,4 +238,13 @@ export class DeleteDocumentResponseDto {
     format: 'date-time',
   })
   deletedAt: string;
+
+  @ApiProperty({
+    description:
+      'Until when it can be restored from the trash; after this it is erased (text, results and file)',
+    example: '2026-02-20T11:00:00.000Z',
+    type: 'string',
+    format: 'date-time',
+  })
+  restorableUntil: string;
 }

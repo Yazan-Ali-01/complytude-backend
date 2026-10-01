@@ -86,13 +86,20 @@ export interface DocumentFilters {
   search?: string;
   sourceType?: DocumentSourceType;
   extractionStatus?: ExtractionStatus;
+  /** List the trash (documents deleted within this many days) instead of live documents. */
+  trashDays?: number;
 }
 
 const ALLOWED_SORT_COLUMNS: Record<string, string> = {
   createdAt: 'created_at',
   title: 'title',
   updatedAt: 'updated_at',
+  deletedAt: 'deleted_at',
 };
+
+/** In the trash: deleted, not yet erased, and deleted within the window (`days` is a parameter). */
+const TRASH_CONDITION = (days: string): string =>
+  `deleted_at IS NOT NULL AND erased_at IS NULL AND deleted_at > NOW() - make_interval(days => ${days})`;
 
 type DocumentRow = {
   id: string;
@@ -180,32 +187,20 @@ export class DocumentRepository extends BaseRepository<
       : null;
   }
 
-  async softDelete(
+  /**
+   * Moves a document to the trash: it disappears from every list and endpoint, but keeps its
+   * content, results and file until the retention sweep erases them (or it is restored).
+   */
+  async moveToTrash(
     id: string,
     deletedBy: string,
     options?: QueryOptions,
   ): Promise<Document> {
-    // Deleting erases what the document says: its text, structure and contract variables, and
-    // the results and variables of its analysis and generation jobs (the constraints need an
-    // empty value, not NULL, for text-input content and generated variables). The row stays as
-    // the record that something was deleted, by whom and when.
     const result = await this.executeQuery<DocumentRow>(
-      `WITH deleted AS (
-         UPDATE ${this.tableName}
-         SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW(),
-             content = CASE WHEN source_type = 'text_input' THEN '' END,
-             content_structured = NULL,
-             generation_variables = CASE WHEN source_type = 'generated' THEN '{}'::jsonb END
-         WHERE id = $1 AND deleted_at IS NULL
-         RETURNING ${this.getSelectColumns()}
-       ), analyses AS (
-         UPDATE public.analysis_jobs SET result = NULL, updated_at = NOW()
-         WHERE document_id IN (SELECT id FROM deleted)
-       ), generations AS (
-         UPDATE public.generation_jobs SET variables = '{}'::jsonb, updated_at = NOW()
-         WHERE document_id IN (SELECT id FROM deleted)
-       )
-       SELECT * FROM deleted`,
+      `UPDATE ${this.tableName}
+       SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING ${this.getSelectColumns()}`,
       [id, deletedBy],
       options,
     );
@@ -213,6 +208,24 @@ export class DocumentRepository extends BaseRepository<
       throw new Error(`Document ${id} not found or already deleted`);
     }
     return this.mapRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  /** Brings a document back from the trash; null unless it is there and still restorable. */
+  async restoreFromTrash(
+    id: string,
+    trashDays: number,
+    options?: QueryOptions,
+  ): Promise<Document | null> {
+    const result = await this.executeQuery<DocumentRow>(
+      `UPDATE ${this.tableName}
+       SET deleted_at = NULL, deleted_by = NULL, updated_at = NOW()
+       WHERE id = $1 AND ${TRASH_CONDITION('$2')}
+       RETURNING ${this.getSelectColumns()}`,
+      [id, trashDays],
+      options,
+    );
+    const row = result.rows[0];
+    return row ? this.mapRow(row as Record<string, unknown>) : null;
   }
 
   /**
@@ -245,8 +258,15 @@ export class DocumentRepository extends BaseRepository<
     pagination: OffsetPaginationOptions = { page: 1, limit: 20 },
     options?: QueryOptions,
   ): Promise<OffsetPaginationResult<Document>> {
-    const conditions: string[] = ['deleted_at IS NULL'];
+    const conditions: string[] = [];
     const params: unknown[] = [];
+
+    if (filters.trashDays !== undefined) {
+      params.push(filters.trashDays);
+      conditions.push(TRASH_CONDITION(`$${params.length}`));
+    } else {
+      conditions.push('deleted_at IS NULL');
+    }
 
     if (filters.search) {
       params.push(`%${filters.search}%`);

@@ -936,6 +936,9 @@ Table documents {
   extracted_at timestamptz [null, note: 'When text extraction completed']
   ocr_operation_id text [null, note: 'Document Intelligence analysis of the scanned pages, resumed by ingestion retries']
   ocr_pages integer[] [null, note: 'Pages whose text came from OCR (scans); {} = text layer only']
+  deleted_at timestamptz [null, note: 'When deleted (NULL = active); with erased_at NULL it is in the 30-day trash']
+  deleted_by uuid [null, ref: > users.id]
+  erased_at timestamptz [null, note: 'When the retention sweep erased its text, variables, job results and file (30 days after deletion)']
 
   indexes {
     tenant_id [note: 'Critical for RLS performance']
@@ -943,6 +946,7 @@ Table documents {
     (tenant_id, created_at)
     extraction_status [where: 'extraction_status IS NOT NULL']
     s3_key [where: 's3_key IS NOT NULL']
+    (tenant_id, deleted_at) [where: 'deleted_at IS NOT NULL AND erased_at IS NULL', note: 'The trash']
   }
 
   Note: '''

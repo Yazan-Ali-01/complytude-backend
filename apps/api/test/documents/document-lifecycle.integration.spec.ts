@@ -1,20 +1,28 @@
 import { NotFoundException } from '@nestjs/common';
+import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { DocumentsService } from 'src/modules/documents/documents.service';
+import { StorageService } from 'src/modules/storage/storage.service';
 import { DataRetentionSweepHandler } from 'src/modules/tenant-processing/handlers/data-retention-sweep.handler';
 import type { AuthenticatedTenantUser } from 'src/modules/auth/strategies';
 import { TenantRepository } from 'src/repositories/tenants/tenant.repository';
 import { DocumentReadRepository } from '../../../worker-ai/src/repositories/document-read.repository';
 import { DocumentWriteRepository } from '../../../worker-ingestion/src/repositories/document-write.repository';
-import { createTestTenant, createTestUserInTenant } from '../factories';
+import {
+  createTestSubscription,
+  createTestTenant,
+  createTestUserInTenant,
+} from '../factories';
+import { cookieHeaderFromSetCookie } from '../helpers/http-cookie.helper';
 import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
 
 /**
- * Deleting a document erases what it says (text, structure, contract variables, job results and
- * variables) and hides it everywhere, workers included; the daily retention sweep removes expired
- * tokens and invitations and abandoned uploads, and nothing else.
+ * Deleting a document moves it to a 30-day trash: hidden everywhere, workers included, but kept and
+ * restorable. The daily retention sweep then erases what it says (text, structure, contract
+ * variables, job results and variables) and its file; it also removes expired tokens and
+ * invitations and abandoned uploads, and nothing else.
  */
 describe('Document deletion and data retention', () => {
   let app: TestApp;
@@ -32,6 +40,49 @@ describe('Document deletion and data retention', () => {
   }, 30000);
 
   const db = (): TestApp['databaseService'] => app.databaseService;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  /** What a document and its jobs say, without ids or timestamps. */
+  async function contentOf(documentId: string): Promise<{
+    erased_at: Date | null;
+    content: string | null;
+    content_structured: unknown;
+    generation_variables: unknown;
+    result: unknown;
+    variables: unknown;
+  }> {
+    const { rows } = await db().query<{
+      erased_at: Date | null;
+      content: string | null;
+      content_structured: unknown;
+      generation_variables: unknown;
+      result: unknown;
+      variables: unknown;
+    }>(
+      `SELECT d.erased_at, d.content, d.content_structured, d.generation_variables,
+              a.result, g.variables
+       FROM public.documents d
+       JOIN public.analysis_jobs a ON a.document_id = d.id
+       JOIN public.generation_jobs g ON g.document_id = d.id
+       WHERE d.id = $1`,
+      [documentId],
+    );
+    return rows[0];
+  }
+
+  async function deletedDaysAgo(
+    documentId: string,
+    days: number,
+  ): Promise<void> {
+    await db().query(
+      `UPDATE public.documents SET deleted_at = now() - make_interval(days => $2) WHERE id = $1`,
+      [documentId, days],
+    );
+  }
 
   async function tenantAdmin(): Promise<{
     tenantId: string;
@@ -105,47 +156,34 @@ describe('Document deletion and data retention', () => {
     };
   }
 
-  it('deleting a document erases its text, variables and job results, and hides it', async () => {
+  it('deleting moves a document to the trash: hidden everywhere, kept, and restorable', async () => {
     const { tenantId, user } = await tenantAdmin();
     const own = await contract(tenantId, user.userId);
     const documents = app.module.get(DocumentsService);
-    expect(
-      await app.module.get(TenantRepository).getDocumentCount(tenantId, {
+    const count = (): Promise<number> =>
+      app.module.get(TenantRepository).getDocumentCount(tenantId, {
         tenant: { tenantId, schema: 'public' },
-      }),
-    ).toBe(1);
+      });
+    expect(await count()).toBe(1);
 
-    await documents.remove(own.documentId, user);
+    const deleted = await documents.remove(own.documentId, user);
 
-    const { rows } = await db().query<Record<string, unknown>>(
-      `SELECT d.deleted_at, d.deleted_by, d.content, d.content_structured, d.generation_variables,
-              a.result, g.variables
-       FROM public.documents d
-       JOIN public.analysis_jobs a ON a.document_id = d.id
-       JOIN public.generation_jobs g ON g.document_id = d.id
-       WHERE d.id = $1`,
-      [own.documentId],
-    );
-    expect(rows[0]).toMatchObject({
-      deleted_by: user.userId,
-      content: null,
-      content_structured: null,
-      generation_variables: {},
-      result: null,
-      variables: {},
-    });
-    expect(rows[0].deleted_at).not.toBeNull();
-    expect(JSON.stringify(rows[0])).not.toContain('40');
+    expect(
+      Date.parse(deleted.restorableUntil) - Date.parse(deleted.deletedAt),
+    ).toBe(30 * DAY_MS);
+    // Nothing is erased yet: a restore brings everything back
+    const kept = await contentOf(own.documentId);
+    expect(kept.erased_at).toBeNull();
+    expect(JSON.stringify(kept)).toContain('40,000');
 
     // The API, the count and both workers no longer see it
     await expect(
+      documents.findOne(own.documentId, user),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
       documents.getAnalysisJobById(own.analysisJobId, user),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(
-      await app.module.get(TenantRepository).getDocumentCount(tenantId, {
-        tenant: { tenantId, schema: 'public' },
-      }),
-    ).toBe(0);
+    expect(await count()).toBe(0);
     expect(
       await new DocumentReadRepository(app.appDatabaseService).findContentById(
         tenantId,
@@ -158,9 +196,157 @@ describe('Document deletion and data retention', () => {
         own.documentId,
       ),
     ).toBeNull();
+
+    // The trash lists it; another organization neither sees nor restores it
+    const trash = await documents.listTrash({}, user);
+    expect(trash.data.map((d) => d.id)).toEqual([own.documentId]);
+    expect(trash.data[0]).toMatchObject({
+      title: 'NDA with Acme',
+      deletedBy: user.userId,
+      restorableUntil: deleted.restorableUntil,
+    });
+    const other = await tenantAdmin();
+    expect((await documents.listTrash({}, other.user)).data).toEqual([]);
+    await expect(
+      documents.restore(own.documentId, other.user),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    const restored = await documents.restore(own.documentId, user);
+
+    expect(restored.id).toBe(own.documentId);
+    expect((await documents.findOne(own.documentId, user)).content).toBe(
+      'Salary AED 40,000',
+    );
+    expect(
+      await new DocumentReadRepository(app.appDatabaseService).findContentById(
+        tenantId,
+        own.documentId,
+      ),
+    ).not.toBeNull();
+    expect(await count()).toBe(1);
+    expect((await documents.listTrash({}, user)).data).toEqual([]);
+    await expect(
+      documents.restore(own.documentId, user),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('a text-input document keeps a valid (empty) body once deleted', async () => {
+  it('after 30 days in the trash the sweep erases it and its file, and it can no longer be restored', async () => {
+    const { tenantId, user } = await tenantAdmin();
+    const documents = app.module.get(DocumentsService);
+    const expired = await contract(tenantId, user.userId);
+    const recent = await contract(tenantId, user.userId);
+    await documents.remove(expired.documentId, user);
+    await documents.remove(recent.documentId, user);
+    await deletedDaysAgo(expired.documentId, 31);
+    await deletedDaysAgo(recent.documentId, 29);
+    const deleteFile = jest.spyOn(
+      app.module.get(StorageService),
+      'deleteObjectFromBucket',
+    );
+
+    await app.module.get(DataRetentionSweepHandler).execute();
+
+    const erased = await contentOf(expired.documentId);
+    expect(erased).toMatchObject({
+      content: null,
+      content_structured: null,
+      generation_variables: {},
+      result: null,
+      variables: {},
+    });
+    expect(erased.erased_at).not.toBeNull();
+    const { erased_at: _erasedAt, ...said } = erased;
+    expect(JSON.stringify(said)).not.toContain('40');
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    expect(deleteFile).toHaveBeenCalledWith('b', 'k');
+    await expect(
+      documents.restore(expired.documentId, user),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    // 29 days in: untouched, still listed and restorable
+    expect((await contentOf(recent.documentId)).erased_at).toBeNull();
+    expect((await documents.listTrash({}, user)).data.map((d) => d.id)).toEqual(
+      [recent.documentId],
+    );
+    await documents.restore(recent.documentId, user);
+    expect((await documents.findOne(recent.documentId, user)).content).toBe(
+      'Salary AED 40,000',
+    );
+  });
+
+  it('over HTTP: delete, list the trash, restore (needs documents:delete)', async () => {
+    const server = app.app.getHttpAdapter().getInstance() as FastifyInstance;
+    const tenant = await createTestTenant(app.module);
+    await createTestSubscription(app.module, tenant.id, { planKey: 'shield' });
+    const signIn = async (role: SystemTenantRole): Promise<string> => {
+      const { user } = await createTestUserInTenant(app.module, tenant.id, {
+        role,
+      });
+      const login = await server.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email: user.email, password: 'Test123!@#' },
+      });
+      const switched = await server.inject({
+        method: 'POST',
+        url: '/api/v1/auth/tenant-switch',
+        headers: {
+          cookie: cookieHeaderFromSetCookie(
+            login.headers as Record<string, string | string[] | undefined>,
+          ),
+        },
+        payload: { tenantId: tenant.id },
+      });
+      expect(switched.statusCode).toBe(200);
+      return cookieHeaderFromSetCookie(
+        switched.headers as Record<string, string | string[] | undefined>,
+      );
+    };
+    const admin = await signIn(SystemTenantRole.TENANT_ADMIN);
+    const viewer = await signIn(SystemTenantRole.VIEWER);
+    const {
+      rows: [document],
+    } = await db().query<{ id: string }>(
+      `INSERT INTO public.documents (tenant_id, title, source_type, content, created_by)
+       VALUES ($1, 'Pasted clause', 'text_input', 'Clause text', (SELECT user_id FROM public.user_tenants WHERE tenant_id = $1 LIMIT 1))
+       RETURNING id`,
+      [tenant.id],
+    );
+    const call = (
+      cookie: string,
+      method: 'GET' | 'POST' | 'DELETE',
+      url: string,
+    ): ReturnType<FastifyInstance['inject']> =>
+      server.inject({
+        method,
+        url: `/api/v1/documents${url}`,
+        headers: { cookie },
+      });
+
+    const deleted = await call(admin, 'DELETE', `/${document.id}`);
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json<{ message: string }>().message).toContain('30');
+
+    const trash = await call(viewer, 'GET', '/trash');
+    expect(trash.statusCode).toBe(200);
+    expect(trash.json<{ data: { id: string }[] }>().data).toEqual([
+      expect.objectContaining({ id: document.id }),
+    ]);
+    expect((await call(admin, 'GET', `/${document.id}`)).statusCode).toBe(404);
+
+    expect(
+      (await call(viewer, 'POST', `/${document.id}/restore`)).statusCode,
+    ).toBe(403);
+    const restored = await call(admin, 'POST', `/${document.id}/restore`);
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json<{ id: string }>().id).toBe(document.id);
+    expect((await call(admin, 'GET', `/${document.id}`)).statusCode).toBe(200);
+    expect(
+      (await call(admin, 'POST', `/${document.id}/restore`)).statusCode,
+    ).toBe(404);
+  });
+
+  it('a text-input document keeps a valid (empty) body once erased', async () => {
     const { tenantId, user } = await tenantAdmin();
     const {
       rows: [document],
@@ -171,12 +357,17 @@ describe('Document deletion and data retention', () => {
     );
 
     await app.module.get(DocumentsService).remove(document.id, user);
+    await deletedDaysAgo(document.id, 31);
+    await app.module.get(DataRetentionSweepHandler).execute();
 
-    const { rows } = await db().query<{ content: string }>(
-      'SELECT content FROM public.documents WHERE id = $1',
-      [document.id],
-    );
+    const { rows } = await db().query<{
+      content: string;
+      erased_at: Date | null;
+    }>('SELECT content, erased_at FROM public.documents WHERE id = $1', [
+      document.id,
+    ]);
     expect(rows[0].content).toBe('');
+    expect(rows[0].erased_at).not.toBeNull();
   });
 
   describe('daily retention sweep', () => {
@@ -243,15 +434,29 @@ describe('Document deletion and data retention', () => {
         ).rows[0].status;
       expect(await status(expiredInvite.id)).toBe('EXPIRED');
       expect(await status(liveInvite.id)).toBe('PENDING');
-      const deletedAt = async (id: string): Promise<Date | null> =>
+      const state = async (
+        id: string,
+      ): Promise<{ deleted_at: Date | null; erased_at: Date | null }> =>
         (
-          await db().query<{ deleted_at: Date | null }>(
-            'SELECT deleted_at FROM public.documents WHERE id = $1',
+          await db().query<{
+            deleted_at: Date | null;
+            erased_at: Date | null;
+          }>(
+            'SELECT deleted_at, erased_at FROM public.documents WHERE id = $1',
             [id],
           )
-        ).rows[0].deleted_at;
-      expect(await deletedAt(abandoned)).not.toBeNull();
-      expect(await deletedAt(recent)).toBeNull();
+        ).rows[0];
+      // An abandoned upload has nothing to restore: erased at once, never in the trash
+      const removed = await state(abandoned);
+      expect(removed.deleted_at).not.toBeNull();
+      expect(removed.erased_at).not.toBeNull();
+      expect(await state(recent)).toEqual({
+        deleted_at: null,
+        erased_at: null,
+      });
+      expect(
+        (await app.module.get(DocumentsService).listTrash({}, user)).data,
+      ).toEqual([]);
     });
   });
 });

@@ -767,6 +767,9 @@ Tenant-specific documents. Supports both text-input (pasted content) and file-up
 | `extracted_at`      | TIMESTAMPTZ                       | When text extraction completed                                                            |
 | `ocr_operation_id`  | TEXT                              | Document Intelligence analysis (result ID) of the scanned pages; ingestion retries resume it instead of starting another (migration 036; was `textract_job_id`) |
 | `ocr_pages`         | INTEGER[]                         | Pages (1-based) whose text came from OCR (scans); `{}` = read from the PDF's text layer only; NULL = not extracted yet, or before migration 034 |
+| `deleted_at`        | TIMESTAMPTZ                       | When it was deleted (NULL = active); with `erased_at` NULL it is in the 30-day trash and can be restored |
+| `deleted_by`        | UUID                              | Who deleted it (FK to users)                                                              |
+| `erased_at`         | TIMESTAMPTZ                       | When the retention sweep erased its text, structure, variables, job results and file, 30 days after deletion (migration 046) |
 
 **Enums:**
 
@@ -983,16 +986,23 @@ pnpm db:migrate
 
 ### Deletion and retention
 
-- **Deleting a document** (`DELETE /documents/:id`) is a soft delete that erases content at once:
-  `content`, `content_structured` and `generation_variables` are cleared, and so are the
-  document's `analysis_jobs.result` and `generation_jobs.variables`. The row stays (who deleted it,
-  when) and is hidden from the API, counts and both workers.
+- **Deleting a document** (`DELETE /documents/:id`) moves it to a **30-day trash** (decision D-7):
+  `deleted_at`/`deleted_by` are set and it is hidden from the API, counts and both workers, but its
+  content, results and file are kept. `GET /documents/trash` lists it and
+  `POST /documents/:id/restore` brings it back until 30 days after deletion.
+- **Erasure** (the daily sweep, 30 days after deletion): `content`, `content_structured` and
+  `generation_variables` are cleared, and so are the document's `analysis_jobs.result` and
+  `generation_jobs.variables`; `erased_at` is set and the file is deleted from S3. The row stays as
+  the record of who deleted what and when. Uploads never confirmed are erased at once (nothing to
+  restore).
 - **Daily retention sweep** (`data-retention-sweep` job, 03:15 UTC): deletes email-verification and
   password-reset tokens expired over 7 days (`cleanup_expired_tokens()`), marks expired invitations
-  (`mark_expired_invitations()`), and removes uploads never confirmed within 2 days.
+  (`mark_expired_invitations()`), removes uploads never confirmed within 2 days, and erases
+  documents deleted 30 or more days ago (above).
 - **S3:** quarantine objects expire after 2 days, `previews/` after 1 day, previous versions after 30.
-- **Not yet decided:** how long deleted documents, audit rows and Stripe payloads are kept before a
-  hard delete, and tenant/user offboarding. These wait on a retention policy.
+- **Decided, not built yet (D-7):** tenant closure (export, then erasure 30 days after), anonymizing
+  removed users and deleted accounts after 30 days, the audit log's 2-year retention with IP address
+  and user agent blanked after 90 days, Stripe event payloads kept 1 year.
 
 ### Migration Tracking
 

@@ -1,6 +1,13 @@
 import { DatabaseService } from '@lib/database';
 import { Injectable } from '@nestjs/common';
 
+/** A document the sweep erased, and its file (if it had one) to remove from storage. */
+export interface ErasedDocument {
+  id: string;
+  s3Bucket: string | null;
+  s3Key: string | null;
+}
+
 /**
  * Housekeeping across tenants for the daily retention sweep, so every query uses the platform-admin
  * context.
@@ -29,8 +36,43 @@ export class RetentionRepository {
   }
 
   /**
-   * Uploads whose file was never confirmed within `days`: soft-deleted, the same way a user delete
-   * is (their quarantine objects expire by the S3 lifecycle rule). Returns their ids.
+   * Documents deleted more than `days` ago leave the trash: their text, structure and contract
+   * variables, and their analysis results and generation variables, are erased (text-input content
+   * and generated variables become empty values, which their constraints need). The row stays as
+   * the record of who deleted what and when. Returns the files to remove from storage.
+   */
+  eraseTrashedDocuments(days: number): Promise<ErasedDocument[]> {
+    return this.databaseService.transactionWithPlatformAdminContext(
+      async (client) =>
+        (
+          await client.query<ErasedDocument>(
+            `WITH erased AS (
+               UPDATE public.documents
+               SET erased_at = now(), updated_at = now(),
+                   content = CASE WHEN source_type = 'text_input' THEN '' END,
+                   content_structured = NULL,
+                   generation_variables = CASE WHEN source_type = 'generated' THEN '{}'::jsonb END
+               WHERE deleted_at IS NOT NULL
+                 AND erased_at IS NULL
+                 AND deleted_at <= now() - make_interval(days => $1)
+               RETURNING id, s3_bucket, s3_key
+             ), analyses AS (
+               UPDATE public.analysis_jobs SET result = NULL, updated_at = now()
+               WHERE document_id IN (SELECT id FROM erased)
+             ), generations AS (
+               UPDATE public.generation_jobs SET variables = '{}'::jsonb, updated_at = now()
+               WHERE document_id IN (SELECT id FROM erased)
+             )
+             SELECT id, s3_bucket AS "s3Bucket", s3_key AS "s3Key" FROM erased`,
+            [days],
+          )
+        ).rows,
+    );
+  }
+
+  /**
+   * Uploads whose file was never confirmed within `days`: deleted and erased at once, with nothing
+   * to restore (their quarantine objects expire by the S3 lifecycle rule). Returns their ids.
    */
   deleteAbandonedUploads(days: number): Promise<string[]> {
     return this.databaseService.transactionWithPlatformAdminContext(
@@ -38,7 +80,8 @@ export class RetentionRepository {
         (
           await client.query<{ id: string }>(
             `UPDATE public.documents
-             SET deleted_at = now(), updated_at = now(), content_structured = NULL
+             SET deleted_at = now(), erased_at = now(), updated_at = now(),
+                 content_structured = NULL
              WHERE source_type = 'file_upload'
                AND extraction_status = 'pending'
                AND deleted_at IS NULL

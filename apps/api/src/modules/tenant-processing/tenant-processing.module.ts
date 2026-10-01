@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StorageModule } from '../storage/storage.module';
 import { StuckWorkRepository } from '../../repositories/maintenance/stuck-work.repository';
 import { TenantRepository } from '../../repositories/tenants/tenant.repository';
 import { RetentionRepository } from '../../repositories/maintenance/retention.repository';
@@ -18,6 +19,7 @@ import { TenantQueueProcessor } from './tenant-queue.processor';
  * so no Stripe import is needed here.
  */
 @Module({
+  imports: [StorageModule],
   providers: [
     TenantQueueProcessor,
     StripeCustomerCreationHandler,

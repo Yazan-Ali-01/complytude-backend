@@ -1322,6 +1322,14 @@ What a frontend calls to upload, analyse and generate documents. Uploads and ana
 
 Invalid variables answer 400 with `errors[]`, one per field: `{ field, code, params?, message }`. `message` is in the request's language; `code` is stable (`unknown_field`, `required`, `pattern`, `min_length`, `max_length`, `not_a_number`, `min_value`, `max_value`, `invalid_date`, `not_boolean`, `not_an_option`, `invalid_email`, `invalid_phone`) and `params` carries the values it refers to (`min`, `max`, `options`, `value`, `field`), for clients that render their own text.
 
+### Delete, trash and restore
+
+1. `DELETE /documents/:documentId` (`documents:delete`) → `{ id, message, deletedAt, restorableUntil }`. The document moves to the trash: it leaves every list and endpoint, but nothing is erased yet.
+2. `GET /documents/trash` (`documents:read`; `page`, `limit`, `search`) lists documents deleted in the last 30 days, most recent first, each with `deletedAt`, `deletedBy` and `restorableUntil`. The frontend's trash screen.
+3. `POST /documents/:documentId/restore` (`documents:delete`) → 200 with the document's summary, back with its content, analysis results and file. 404 when it isn't in the trash (never deleted, or more than 30 days ago).
+
+30 days after deletion the daily retention sweep erases the document's text, contract variables, analysis results and file, and it leaves the trash. Restoring doesn't use any allowance: `documents_per_month` counts documents created.
+
 ### Metered operations
 
 Generating a document, a contract review (`analyze`, `trigger-analysis`) and a document scan (`confirm-upload`) each count against the plan's allowance for the billing period; past it, each unit is paid from credits (5 per document, 10 per review, 5 per scan). When neither covers it the request creates nothing and answers 402:

@@ -1218,6 +1218,16 @@ describe('Tenant isolation (RLS) as the app role', () => {
     expect(rows.map((row) => row.relname)).toEqual([...RLS_TABLES].sort());
   });
 
+  it('every table with row-level security also forces it on its owner', async () => {
+    // A migration that lifts FORCE (e.g. for a backfill) must put it back
+    const { rows } = await admin.query<{ relname: string }>(
+      `SELECT relname FROM pg_class
+       WHERE relrowsecurity AND NOT relforcerowsecurity
+         AND relnamespace = 'public'::regnamespace`,
+    );
+    expect(rows).toEqual([]);
+  });
+
   it('every RLS policy is load-bearing: dropping it makes its case fail', async () => {
     const { rows: policies } = await admin.query<{
       tablename: string;

@@ -20,6 +20,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import type { PoolClient } from 'pg';
+import { DOCUMENT_TRASH_DAYS } from 'src/common/constants/retention.constant';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import {
   Document,
@@ -55,11 +56,23 @@ import type {
   DocumentListResponseDto,
   DocumentResponseDto,
   DocumentSummaryDto,
+  DocumentTrashListResponseDto,
   GenerationContextResponseDto,
   ListDocumentsQueryDto,
+  ListTrashQueryDto,
+  TrashedDocumentDto,
   UploadUrlDto,
   UploadUrlResponseDto,
 } from './dto';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** When a document deleted at `deletedAt` leaves the trash and is erased. */
+function restorableUntil(deletedAt: Date): string {
+  return new Date(
+    deletedAt.getTime() + DOCUMENT_TRASH_DAYS * DAY_MS,
+  ).toISOString();
+}
 
 type GenerationContext = {
   user: User;
@@ -823,17 +836,17 @@ export class DocumentsService {
       );
     }
 
-    let deletedAt: string;
+    let deletedAt: Date;
     try {
-      const deleted = await this.documentRepository.softDelete(
+      const deleted = await this.documentRepository.moveToTrash(
         id,
         user.userId,
         { tenant: tenantContext },
       );
-      deletedAt = deleted.deleted_at!.toISOString();
+      deletedAt = deleted.deleted_at!;
     } catch (error) {
       this.logger.error(
-        `remove soft-delete failed: documentId=${id} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        `remove failed: documentId=${id} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
       );
       throw new InternalServerErrorException(
@@ -841,26 +854,90 @@ export class DocumentsService {
       );
     }
 
-    if (document.s3_key && document.s3_bucket) {
-      void this.storageService
-        .deleteObjectFromBucket(document.s3_bucket, document.s3_key)
-        .catch((error: unknown) => {
-          this.logger.error(
-            `S3 cleanup failed (document soft-deleted): documentId=${id} bucket=${document.s3_bucket} key=${document.s3_key} - ${error instanceof Error ? error.message : String(error)}`,
-            error instanceof Error ? error.stack : undefined,
-          );
-        });
-    }
-
+    // Content, results and file stay until the retention sweep erases them, so it can be restored
     this.logger.log(
-      `Document soft-deleted: documentId=${id} tenantId=${user.tenantId} userId=${user.userId}`,
+      `Document moved to trash: documentId=${id} tenantId=${user.tenantId} userId=${user.userId}`,
     );
 
     return {
       id,
-      message: this.i18n.t(DocumentsI18n.messages.DOCUMENT_DELETED),
-      deletedAt,
+      message: this.i18n.t(DocumentsI18n.messages.DOCUMENT_DELETED, {
+        args: { days: DOCUMENT_TRASH_DAYS },
+      }),
+      deletedAt: deletedAt.toISOString(),
+      restorableUntil: restorableUntil(deletedAt),
     };
+  }
+
+  async listTrash(
+    query: ListTrashQueryDto,
+    user: AuthenticatedTenantUser,
+  ): Promise<DocumentTrashListResponseDto> {
+    try {
+      const result = await this.documentRepository.findMany(
+        { search: query.search, trashDays: DOCUMENT_TRASH_DAYS },
+        {
+          page: query.page ?? 1,
+          limit: query.limit ?? 20,
+          sortBy: 'deletedAt',
+          sortOrder: 'desc',
+        },
+        { tenant: { tenantId: user.tenantId, schema: 'public' } },
+      );
+
+      return {
+        data: result.data.map((doc) => this.mapToTrashed(doc)),
+        meta: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+          hasNextPage: result.hasNextPage,
+          hasPreviousPage: result.hasPreviousPage,
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `listTrash failed: tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_LIST_FAILED),
+      );
+    }
+  }
+
+  async restore(
+    id: string,
+    user: AuthenticatedTenantUser,
+  ): Promise<DocumentSummaryDto> {
+    let restored: Document | null;
+    try {
+      restored = await this.documentRepository.restoreFromTrash(
+        id,
+        DOCUMENT_TRASH_DAYS,
+        { tenant: { tenantId: user.tenantId, schema: 'public' } },
+      );
+    } catch (error) {
+      this.logger.error(
+        `restore failed: documentId=${id} tenantId=${user.tenantId} - ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_RESTORE_FAILED),
+      );
+    }
+
+    if (!restored) {
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.DOCUMENT_NOT_IN_TRASH),
+      );
+    }
+
+    this.logger.log(
+      `Document restored from trash: documentId=${id} tenantId=${user.tenantId} userId=${user.userId}`,
+    );
+    return this.mapToSummary(restored);
   }
 
   /** Why an uploaded PDF can't be extracted (too many pages, unreadable), or null if it can. */
@@ -999,6 +1076,15 @@ export class DocumentsService {
       createdBy: doc.created_by,
       createdAt: doc.created_at.toISOString(),
       updatedAt: doc.updated_at.toISOString(),
+    };
+  }
+
+  private mapToTrashed(doc: Document): TrashedDocumentDto {
+    return {
+      ...this.mapToSummary(doc),
+      deletedAt: doc.deleted_at!.toISOString(),
+      deletedBy: doc.deleted_by,
+      restorableUntil: restorableUntil(doc.deleted_at!),
     };
   }
 

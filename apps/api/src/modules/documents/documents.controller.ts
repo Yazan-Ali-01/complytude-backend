@@ -41,10 +41,13 @@ import {
   DocumentDownloadUrlResponseDto,
   DocumentListResponseDto,
   DocumentResponseDto,
+  DocumentSummaryDto,
+  DocumentTrashListResponseDto,
   GenerateDocumentDto,
   GenerateDocumentResponseDto,
   GenerationContextResponseDto,
   ListDocumentsQueryDto,
+  ListTrashQueryDto,
   PreviewDocumentDto,
   PreviewDocumentResponseDto,
   UploadUrlDto,
@@ -129,6 +132,26 @@ export class DocumentsController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<GenerationContextResponseDto> {
     return this.documentsService.getGenerationContext(user);
+  }
+
+  @Get('trash')
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:read')
+  @ApiOperation({
+    summary: 'List the trash',
+    description:
+      'Documents deleted in the last 30 days, most recently deleted first, each with the date until ' +
+      'which it can be restored. After that a document is erased (text, analysis results, ' +
+      'contract variables and file) and leaves the trash. Supports search by title and pagination.',
+  })
+  @ApiListResponses(DocumentTrashListResponseDto, 'Documents in the trash')
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to read documents')
+  listTrash(
+    @Query() query: ListTrashQueryDto,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<DocumentTrashListResponseDto> {
+    return this.documentsService.listTrash(query, user);
   }
 
   @Post('preview')
@@ -266,7 +289,7 @@ export class DocumentsController {
   @ApiOperation({
     summary: 'Delete a document',
     description:
-      'Deletes a document: its text, structure and contract variables, and its analysis results and generation variables, are erased at once and its S3 objects removed; the document disappears from every list and endpoint. A record that it existed (who deleted it, and when) is kept. This action cannot be undone.',
+      'Moves a document to the trash: it disappears from every list and endpoint (workers included) but can be restored for 30 days (`POST /documents/:documentId/restore`). After that the daily retention sweep erases its text, structure and contract variables, its analysis results and generation variables, and its file; a record that it existed (who deleted it, and when) is kept.',
   })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   @ApiResponse({
@@ -282,6 +305,34 @@ export class DocumentsController {
     @CurrentUserTenant() user: AuthenticatedTenantUser,
   ): Promise<DeleteDocumentResponseDto> {
     return this.documentsService.remove(documentId, user);
+  }
+
+  @Post(':documentId/restore')
+  @HttpCode(HttpStatus.OK)
+  @Audit('DOCUMENT_RESTORED', { resourceIdParam: 'documentId' })
+  @UseGuards(TenantPermissionsGuard)
+  @RequireAnyTenantPermission('documents:delete')
+  @ApiOperation({
+    summary: 'Restore a document from the trash',
+    description:
+      'Brings back a document deleted in the last 30 days, with its content, analysis results and ' +
+      'file. 404 when it is not in the trash (never deleted, already erased, or deleted more than ' +
+      '30 days ago).',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document restored',
+    type: DocumentSummaryDto,
+  })
+  @ApiNotFoundError('Document in the trash')
+  @ApiAuthErrors()
+  @ApiForbiddenError('Insufficient permissions to delete documents')
+  restore(
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUserTenant() user: AuthenticatedTenantUser,
+  ): Promise<DocumentSummaryDto> {
+    return this.documentsService.restore(documentId, user);
   }
 
   @Get(':documentId/analysis')
