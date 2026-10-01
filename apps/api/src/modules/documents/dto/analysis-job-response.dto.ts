@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { FindingFeedbackDto } from './finding-feedback.dto';
 
 /**
  * Analysis job status values
@@ -48,7 +49,7 @@ export class AnalysisJobResponseDto {
 
   @ApiPropertyOptional({
     description:
-      'Full analysis result when status is completed: findings (each with a citation built from the ruleset clause, never by the model, a risk level that starts from the clause severity, and the contract passage it is about with its offset), summary, warnings, and provenance (prompt version, embedding model, ruleset versions and chunks given to the model, retrieval settings)',
+      'Full analysis result when status is completed: findings (each with a stable id, a citation built from the ruleset clause, never by the model, a risk level that starts from the clause severity, and the contract passage it is about with its offset), summary, warnings, and provenance (prompt version, embedding model, ruleset versions and chunks given to the model, retrieval settings)',
   })
   result?: Record<string, unknown> | null;
 
@@ -56,4 +57,11 @@ export class AnalysisJobResponseDto {
     description: 'Error message when status is failed',
   })
   error?: string | null;
+
+  @ApiProperty({
+    description:
+      "Users' decisions on the findings (accepted or dismissed), by finding id; empty when none were reviewed",
+    type: [FindingFeedbackDto],
+  })
+  findingFeedback: FindingFeedbackDto[];
 }

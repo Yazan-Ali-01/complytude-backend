@@ -1,3 +1,4 @@
+import { AnalysisFindingFeedbackRepository } from 'src/repositories/analysis-jobs/analysis-finding-feedback.repository';
 import { Module } from '@nestjs/common';
 import { AiConsentModule } from '../ai-consent/ai-consent.module';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
@@ -27,6 +28,7 @@ import { VariableValidationService } from './services/variable-validation.servic
     DocumentPreviewService,
     DocumentRepository,
     AnalysisJobRepository,
+    AnalysisFindingFeedbackRepository,
     GenerationJobRepository,
     RulesetRepository,
     VariableValidationService,

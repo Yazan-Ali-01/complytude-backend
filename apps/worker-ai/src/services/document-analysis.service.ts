@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   EmbeddingService,
   openAiRegion,
@@ -626,6 +627,7 @@ export class DocumentAnalysisService {
             ? finding.riskReason.trim()
             : '';
         findings.push({
+          id: randomUUID(),
           clauseId: finding.clauseId,
           citation: citationOf(chunk.metadata),
           sourceUrl: sourceUrlOf(chunk.metadata),

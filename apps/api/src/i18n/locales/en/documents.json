@@ -2,6 +2,7 @@
   "errors": {
     "DOCUMENT_NOT_FOUND": "Document not found",
     "ANALYSIS_JOB_NOT_FOUND": "Analysis job not found",
+    "FINDING_NOT_FOUND": "Finding not found in this analysis",
     "NO_ANALYSIS_JOB_FOR_DOCUMENT": "No analysis job found for this document",
     "FILE_SIZE_EXCEEDS_LIMIT": "File size exceeds the maximum allowed limit",
     "UPLOAD_URL_GENERATION_FAILED": "Failed to generate upload URL. Please try again.",

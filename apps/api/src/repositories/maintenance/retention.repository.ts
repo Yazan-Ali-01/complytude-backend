@@ -37,7 +37,8 @@ export class RetentionRepository {
 
   /**
    * Documents deleted more than `days` ago leave the trash: their text, structure and contract
-   * variables, and their analysis results and generation variables, are erased (text-input content
+   * variables, their analysis results, the reasons given for findings, and generation variables are
+   * erased (text-input content
    * and generated variables become empty values, which their constraints need). The row stays as
    * the record of who deleted what and when. Returns the files to remove from storage.
    */
@@ -59,6 +60,12 @@ export class RetentionRepository {
              ), analyses AS (
                UPDATE public.analysis_jobs SET result = NULL, updated_at = now()
                WHERE document_id IN (SELECT id FROM erased)
+             ), feedback AS (
+               -- Reasons may quote the contract; decisions and provenance stay for the statistics
+               UPDATE public.analysis_finding_feedback SET reason = NULL
+               WHERE reason IS NOT NULL AND analysis_job_id IN (
+                 SELECT id FROM public.analysis_jobs WHERE document_id IN (SELECT id FROM erased)
+               )
              ), generations AS (
                UPDATE public.generation_jobs SET variables = '{}'::jsonb, updated_at = now()
                WHERE document_id IN (SELECT id FROM erased)

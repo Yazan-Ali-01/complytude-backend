@@ -422,6 +422,9 @@ describe('Document analysis: injection, grounding and honest status', () => {
       'Guidance: At most 48 hours a week.',
     );
     expect(first).toEqual({
+      id: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      ),
       clauseId: 'C1',
       citation:
         'MOHRE — UAE Labour Law v1.0.0, Art. 17: Working time and wages',

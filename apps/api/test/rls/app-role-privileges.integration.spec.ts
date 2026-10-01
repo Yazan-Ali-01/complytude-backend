@@ -12,6 +12,7 @@ const PRIVILEGES: Record<string, string> = {
   addon_entitlements: 'SELECT',
   addons: 'SELECT,UPDATE',
   aggregated_usage: 'DELETE,INSERT,SELECT,UPDATE',
+  analysis_finding_feedback: 'INSERT,SELECT,UPDATE',
   analysis_jobs: 'INSERT,SELECT,UPDATE',
   audit_logs: 'INSERT,SELECT',
   authorities: 'DELETE,INSERT,SELECT,UPDATE',

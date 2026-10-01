@@ -1307,12 +1307,17 @@ What a frontend calls to upload, analyse and generate documents. Uploads and ana
 
 `result` (full schema: `apps/worker-ai/docs/README.md` → Analysis Result Schema):
 
-- `findings[]`: `clauseId`, `citation` (the regulation, built from the ruleset, never by the model), `sourceUrl` (where the regulation's official text is published; null when the ruleset doesn't record it), `riskLevel` (`high`/`medium`/`low`), `evidence` (the contract passage, verbatim; empty only when a required clause is missing) and `evidenceOffset` (where it starts in the document text, for highlighting; null when it can't be placed), `title`, `description`, `suggestion`.
+- `findings[]`: `id` (stable, for feedback), `clauseId`, `citation` (the regulation, built from the ruleset, never by the model), `sourceUrl` (where the regulation's official text is published; null when the ruleset doesn't record it), `riskLevel` (`high`/`medium`/`low`), `evidence` (the contract passage, verbatim; empty only when a required clause is missing) and `evidenceOffset` (where it starts in the document text, for highlighting; null when it can't be placed), `title`, `description`, `suggestion`.
 - `clauseVerdicts[]`: one per clause checked, `status` `violated` / `compliant` / `not_applicable` / `unclear` / `unassessed`, with a one-line `reason`.
 - `summary`, `scope` (`jurisdiction`, `documentType`), `requiredClausesChecked`, `documentExcerpted`.
 - `warnings[]`: show them. `completed_with_warnings` means the result is partial or uncertain (`rules_not_reviewed`: the rules haven't had their legal review yet; `document_truncated`, `rulesets_without_context`, `unverified_evidence_dropped`, `clauses_not_assessed`, …); `no_findings` means nothing was reported, which is **not** a statement that the contract complies.
 - `provenance.processors`: every third party that received this document's data, in pipeline order: `{ processor, purpose, region, model? }` (`openai` embeddings and analysis with the region of its host, `azure-document-intelligence` OCR with the `pages` it read at upload). `region` is null when the code can't tell (the OCR resource's region; see `docs/SUBPROCESSORS.md`).
+- `findingFeedback[]` (beside `result`): the users' decisions on the findings, `{ findingId, decision, reason, decidedBy, decidedAt }`.
 - `riskAnalysisLevel` and `hiddenFindings`: present when the plan shows only part of a review. `critical_only` (Navigator, Shield) returns the high-risk findings; `none` returns no findings. `hiddenFindings` counts the rest, and the `reason` of a clause whose findings are all hidden is empty (its `status` stays). Show the count with an upgrade prompt, not "no issues". An upgrade shows past reviews in full.
+
+### Accepting or dismissing a finding
+
+`PATCH /analysis-jobs/:analysisJobId/findings/:findingId` (`documents:create`, so members but not viewers; audited `ANALYSIS_FINDING_REVIEWED`) with `{ decision: 'accepted' | 'dismissed', reason? }` (reason up to 1000 characters) → `{ findingId, decision, reason, decidedBy, decidedAt }`. `findingId` is the finding's `id` in `result.findings`. A later decision on the same finding replaces the earlier one. 404 when the analysis, its document or the finding isn't there (a deleted document's analyses go with it). Each decision is stored with the analysis's model and prompt version to measure how often findings are dismissed (`data/eval/README.md` → Production feedback).
 
 ### Generate a document from a template
 

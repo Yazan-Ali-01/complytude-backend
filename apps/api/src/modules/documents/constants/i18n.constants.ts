@@ -5,6 +5,7 @@ export const DocumentsI18n = {
   errors: {
     DOCUMENT_NOT_FOUND: 'documents.errors.DOCUMENT_NOT_FOUND',
     ANALYSIS_JOB_NOT_FOUND: 'documents.errors.ANALYSIS_JOB_NOT_FOUND',
+    FINDING_NOT_FOUND: 'documents.errors.FINDING_NOT_FOUND',
     NO_ANALYSIS_JOB_FOR_DOCUMENT:
       'documents.errors.NO_ANALYSIS_JOB_FOR_DOCUMENT',
     FILE_SIZE_EXCEEDS_LIMIT: 'documents.errors.FILE_SIZE_EXCEEDS_LIMIT',

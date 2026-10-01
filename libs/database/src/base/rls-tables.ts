@@ -5,6 +5,7 @@
  */
 export const RLS_TABLES: ReadonlySet<string> = new Set([
   'aggregated_usage',
+  'analysis_finding_feedback',
   'analysis_jobs',
   'audit_logs',
   'credit_ledger',

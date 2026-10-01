@@ -203,6 +203,7 @@ interface AnalysisResult {
   }>;
   scope: { jurisdiction: string | null; documentType: string | null };
   findings: Array<{
+    id: string;            // Stable UUID within the result (users accept or dismiss findings by it)
     clauseId: string;      // The supplied clause cited (C1, C2, …)
     citation: string;      // Built from the clause's ruleset data, never by the model:
                            // "<authority> — <ruleset> v<version>, <article>: <title>"

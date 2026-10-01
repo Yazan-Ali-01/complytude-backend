@@ -19,6 +19,8 @@ export interface ClauseVerdict {
 }
 
 export interface AnalysisFinding {
+  /** Stable ID of the finding within its result (users accept or dismiss findings by it). */
+  id: string;
   /** The supplied clause the finding rests on (C1, C2, … in the prompt); always one we gave it. */
   clauseId: string;
   /** Built from the clause's ruleset data (authority, ruleset, version, article), not by the model. */

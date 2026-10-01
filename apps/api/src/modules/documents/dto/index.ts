@@ -18,6 +18,7 @@ export * from './analysis-job-response.dto';
 export * from './document-response.dto';
 export * from './document-list-response.dto';
 export * from './document-trash.dto';
+export * from './finding-feedback.dto';
 export * from './generation-context-response.dto';
 export * from './generation-job-response.dto';
 export * from './generate-document.dto';

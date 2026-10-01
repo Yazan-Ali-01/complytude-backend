@@ -31,6 +31,7 @@ interface TenantRows {
   subscriptionId: string;
   documentId: string;
   analysisJobId: string;
+  feedbackId: string;
   auditLogId: string;
   /** An audit row 3 years old, past both retention windows. */
   oldAuditLogId: string;
@@ -120,6 +121,12 @@ const INSERT_FOR: Record<string, (t: TenantRows, w: World) => Op> = {
     inserts(
       `INSERT INTO public.aggregated_usage (tenant_id, subscription_id, feature_id, billing_period) VALUES ($1, $2, $3, '2026-10')`,
       [t.tenantId, t.subscriptionId, w.docsFeatureId],
+    ),
+  analysis_finding_feedback: (t) =>
+    inserts(
+      `INSERT INTO public.analysis_finding_feedback (tenant_id, analysis_job_id, finding_id, decision)
+       VALUES ($1, $2, $3, 'accepted')`,
+      [t.tenantId, t.analysisJobId, randomUUID()],
     ),
   analysis_jobs: (t) =>
     inserts(
@@ -229,7 +236,7 @@ const membershipOf =
   async (c, w) =>
     (await rowCount(c, sql, [tenant(w).userId, tenant(w).tenantId])) === 1;
 
-/** One case per RLS policy (55): the operation the policy allows, in the context it allows it. */
+/** One case per RLS policy (58): the operation the policy allows, in the context it allows it. */
 const POLICY_CASES: PolicyCase[] = [
   // tenant_ai_consents (append-only; who may accept is tenant RBAC's call)
   {
@@ -519,6 +526,29 @@ const POLICY_CASES: PolicyCase[] = [
       (w) => w.a.roleId,
     ),
   },
+  // analysis_finding_feedback: the tenant's own decisions on its analyses' findings
+  {
+    policy: 'analysis_finding_feedback_select',
+    table: 'analysis_finding_feedback',
+    context: TENANT,
+    run: selectsById('analysis_finding_feedback', (w) => w.a.feedbackId),
+  },
+  {
+    policy: 'analysis_finding_feedback_insert',
+    table: 'analysis_finding_feedback',
+    context: TENANT,
+    run: insertsForA('analysis_finding_feedback'),
+  },
+  {
+    policy: 'analysis_finding_feedback_update',
+    table: 'analysis_finding_feedback',
+    context: TENANT,
+    run: updatesById(
+      'analysis_finding_feedback',
+      updateSet('analysis_finding_feedback'),
+      (w) => w.a.feedbackId,
+    ),
+  },
   // audit_logs retention: only the platform login, only rows past each window (migration 049)
   {
     policy: 'audit_logs_blank_client',
@@ -646,6 +676,7 @@ const POLICY_CASES: PolicyCase[] = [
 /** Tenant-scoped tables and the id of each tenant's fixture row. */
 const TENANT_TABLES: Record<string, (t: TenantRows) => string> = {
   aggregated_usage: (t) => t.aggregatedUsageId,
+  analysis_finding_feedback: (t) => t.feedbackId,
   analysis_jobs: (t) => t.analysisJobId,
   audit_logs: (t) => t.auditLogId,
   credit_ledger: (t) => t.creditLedgerId,
@@ -748,14 +779,20 @@ describe('Tenant isolation (RLS) as the app role', () => {
         `INSERT INTO public.usage_ledger (tenant_id, feature_id, billing_period) VALUES ($1, $2, '2026-09') RETURNING id`,
         [tenantId, seatsFeatureId],
       );
+      const analysisJobId = await one(
+        'INSERT INTO public.analysis_jobs (tenant_id, document_id) VALUES ($1, $2) RETURNING id',
+        [tenantId, documentId],
+      );
       return {
         tenantId,
         userId,
         subscriptionId,
         documentId,
-        analysisJobId: await one(
-          'INSERT INTO public.analysis_jobs (tenant_id, document_id) VALUES ($1, $2) RETURNING id',
-          [tenantId, documentId],
+        analysisJobId,
+        feedbackId: await one(
+          `INSERT INTO public.analysis_finding_feedback (tenant_id, analysis_job_id, finding_id, decision)
+           VALUES ($1, $2, 'fixture-finding', 'dismissed') RETURNING id`,
+          [tenantId, analysisJobId],
         ),
         auditLogId: await one(
           `INSERT INTO public.audit_logs (tenant_id, action, resource_type) VALUES ($1, 'RLS_FIXTURE', 'test') RETURNING id`,

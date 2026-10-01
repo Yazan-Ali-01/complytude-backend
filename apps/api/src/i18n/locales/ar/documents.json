@@ -2,6 +2,7 @@
   "errors": {
     "DOCUMENT_NOT_FOUND": "المستند غير موجود",
     "ANALYSIS_JOB_NOT_FOUND": "مهمة التحليل غير موجودة",
+    "FINDING_NOT_FOUND": "الملاحظة غير موجودة في هذا التحليل",
     "NO_ANALYSIS_JOB_FOR_DOCUMENT": "لا توجد مهمة تحليل لهذا المستند",
     "FILE_SIZE_EXCEEDS_LIMIT": "حجم الملف يتجاوز الحد الأقصى المسموح به",
     "UPLOAD_URL_GENERATION_FAILED": "فشل في إنشاء رابط الرفع. يرجى المحاولة مرة أخرى.",

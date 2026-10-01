@@ -21,6 +21,10 @@ import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import type { PoolClient } from 'pg';
 import { DOCUMENT_TRASH_DAYS } from 'src/common/constants/retention.constant';
+import {
+  AnalysisFindingFeedbackRepository,
+  FindingFeedback,
+} from 'src/repositories/analysis-jobs/analysis-finding-feedback.repository';
 import { AnalysisJobRepository } from 'src/repositories/analysis-jobs/analysis-job.repository';
 import {
   Document,
@@ -57,9 +61,11 @@ import type {
   DocumentResponseDto,
   DocumentSummaryDto,
   DocumentTrashListResponseDto,
+  FindingFeedbackDto,
   GenerationContextResponseDto,
   ListDocumentsQueryDto,
   ListTrashQueryDto,
+  ReviewFindingDto,
   TrashedDocumentDto,
   UploadUrlDto,
   UploadUrlResponseDto,
@@ -112,6 +118,7 @@ export class DocumentsService {
     private readonly databaseService: DatabaseService,
     private readonly documentRepository: DocumentRepository,
     private readonly analysisJobRepository: AnalysisJobRepository,
+    private readonly findingFeedbackRepository: AnalysisFindingFeedbackRepository,
     private readonly queueProducerService: QueueProducerService,
     private readonly storageService: StorageService,
     private readonly configService: ConfigService,
@@ -678,6 +685,10 @@ export class DocumentsService {
         'risk_analysis_level',
       )
     )?.value_text as RiskAnalysisLevel | undefined;
+    const feedback = await this.findingFeedbackRepository.findByAnalysisJob(
+      job.id,
+      { tenant: { tenantId, schema: 'public' } },
+    );
     return {
       id: job.id,
       status: job.status as AnalysisJobResponseDto['status'],
@@ -686,6 +697,83 @@ export class DocumentsService {
       completedAt: job.completed_at?.toISOString() ?? null,
       result: resultForRiskLevel(job.result ?? null, level),
       error: job.error ?? null,
+      findingFeedback: feedback.map((item) => this.mapFindingFeedback(item)),
+    };
+  }
+
+  /**
+   * Records a user's decision on one finding of a live document's analysis, with the result's
+   * model and prompt version and the finding's ruleset and clause chunk (for evaluation). A later
+   * decision on the same finding replaces it.
+   */
+  async reviewFinding(
+    analysisJobId: string,
+    findingId: string,
+    dto: ReviewFindingDto,
+    user: AuthenticatedTenantUser,
+  ): Promise<FindingFeedbackDto> {
+    const tenant = { tenantId: user.tenantId, schema: 'public' as const };
+    const job = await this.analysisJobRepository.findById(analysisJobId, {
+      tenant,
+    });
+    const document =
+      job &&
+      (await this.documentRepository.findActiveById(job.document_id, {
+        tenant,
+      }));
+    if (!job || !document) {
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.ANALYSIS_JOB_NOT_FOUND),
+      );
+    }
+
+    const result = job.result as {
+      model?: unknown;
+      provenance?: { promptVersion?: unknown };
+      findings?: Array<{
+        id?: unknown;
+        rulesetKey?: unknown;
+        chunkId?: unknown;
+      }>;
+    } | null;
+    const finding = Array.isArray(result?.findings)
+      ? result.findings.find((f) => f.id === findingId)
+      : undefined;
+    if (!finding) {
+      throw new NotFoundException(
+        this.i18n.t(DocumentsI18n.errors.FINDING_NOT_FOUND),
+      );
+    }
+
+    const feedback = await this.findingFeedbackRepository.record(
+      {
+        tenantId: user.tenantId,
+        analysisJobId,
+        findingId,
+        decision: dto.decision,
+        reason: dto.reason?.trim() || null,
+        model: typeof result?.model === 'string' ? result.model : null,
+        promptVersion:
+          typeof result?.provenance?.promptVersion === 'number'
+            ? result.provenance.promptVersion
+            : null,
+        rulesetKey:
+          typeof finding.rulesetKey === 'string' ? finding.rulesetKey : null,
+        chunkId: typeof finding.chunkId === 'string' ? finding.chunkId : null,
+        decidedBy: user.userId,
+      },
+      { tenant },
+    );
+    return this.mapFindingFeedback(feedback);
+  }
+
+  private mapFindingFeedback(feedback: FindingFeedback): FindingFeedbackDto {
+    return {
+      findingId: feedback.findingId,
+      decision: feedback.decision,
+      reason: feedback.reason,
+      decidedBy: feedback.decidedBy,
+      decidedAt: feedback.decidedAt.toISOString(),
     };
   }
 

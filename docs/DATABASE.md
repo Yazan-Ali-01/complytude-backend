@@ -826,6 +826,10 @@ WITH CHECK (tenant_id = current_tenant_id_or_null() OR is_platform_admin());
   enforces this); global tables (templates, rulesets) have no RLS
 - No cross-tenant data access is possible for regular users
 
+### analysis_finding_feedback
+
+Users' decisions on analysis findings (migration 050): one row per finding of an analysis (`analysis_job_id`, `finding_id` = the finding's `id` in `result.findings`), `decision` `accepted` or `dismissed`, an optional `reason` (≤ 1000 characters), and the provenance to evaluate by: the result's `model` and `prompt_version`, the finding's `ruleset_key` and `chunk_id`, `decided_by`, `decided_at`. A later decision on the same finding replaces the row. RLS: the tenant's own rows in its context, all in platform context; `app_user` has `SELECT, INSERT, UPDATE`. When the document is erased, `reason` is cleared and the rest kept for the statistics. Queries: `data/eval/README.md` → Production feedback.
+
 ---
 
 ## Row-Level Security (RLS)
@@ -998,7 +1002,8 @@ pnpm db:migrate
   content, results and file are kept. `GET /documents/trash` lists it and
   `POST /documents/:id/restore` brings it back until 30 days after deletion.
 - **Erasure** (the daily sweep, 30 days after deletion): `content`, `content_structured` and
-  `generation_variables` are cleared, and so are the document's `analysis_jobs.result` and
+  `generation_variables` are cleared, and so are the document's `analysis_jobs.result`, the
+  reasons given for its findings (`analysis_finding_feedback.reason`) and
   `generation_jobs.variables`; `erased_at` is set and the file is deleted from S3. The row stays as
   the record of who deleted what and when. Uploads never confirmed are erased at once (nothing to
   restore).

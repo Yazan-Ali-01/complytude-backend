@@ -1014,6 +1014,27 @@ Table analysis_jobs {
     (tenant_id, status)
     (tenant_id, created_at)
   }
+}
+
+Table analysis_finding_feedback {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tenant_id uuid [not null, ref: > tenants.id, note: 'RLS isolation key']
+  analysis_job_id uuid [not null, ref: > analysis_jobs.id]
+  finding_id text [not null, note: 'The finding id in analysis_jobs.result.findings']
+  decision varchar(20) [not null, note: 'accepted | dismissed']
+  reason text [null, note: 'Up to 1000 characters; cleared when the document is erased']
+  model varchar(100) [null, note: 'result.model']
+  prompt_version integer [null, note: 'result.provenance.promptVersion']
+  ruleset_key varchar(255) [null]
+  chunk_id text [null, note: 'The ruleset chunk behind the finding']
+  decided_by uuid [null, ref: > users.id]
+  decided_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (analysis_job_id, finding_id) [unique]
+    tenant_id
+    (prompt_version, ruleset_key)
+  }
 
   Note: 'Compliance analysis job lifecycle (tenant-scoped, RLS)'
 }
