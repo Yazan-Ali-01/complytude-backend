@@ -55,6 +55,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 | `difc_data_protection_law.json` | DIFC | data_processing | 22 (2 required) | Draft, drafted 2026-10-01 |
 | `adgm_data_protection_regulations.json` | ADGM | data_processing | 23 (2 required) | Draft, drafted 2026-10-01 |
 | `adgm_companies_regulations.json` | ADGM | shareholders_agreement | 31 (3 required) | Draft, drafted 2026-10-01 |
+| `difc_companies_law.json` | DIFC | shareholders_agreement | 31 (3 required) | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | DMCC | shareholders_agreement | 34 (2 required) | Draft, drafted 2026-10-01 (replaces an earlier summary) |
 
 ## uae_federal_labour_law.json
@@ -402,3 +403,33 @@ out of profits, and the unfair-prejudice petition. One clause per section.
   aren't carried.
 - **Other Parts** that can bear on shareholders' agreements (acquisition of own shares, Part 17;
   arrangements and reconstructions, Part 25; mergers and divisions, Part 26) aren't covered.
+
+## difc_companies_law.json
+
+Companies Law, DIFC Law No. 5 of 2018, enacted 5 November 2018 and in force 12 November 2018 (DIFC
+legal database), as amended by DIFC Laws Amendment Law No. 2 of 2022, which changed only its Schedule
+1 rules of interpretation (the meaning of "day"). The 2024 and 2025 amendment laws don't amend it.
+English is the language of DIFC legislation.
+
+**Source:** the PDF DIFC's Companies Law page links (retrieved 2026-10-01), Consolidated Version
+(March 2022):
+https://edge.sitecorecloud.io/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_law.pdf,
+SHA-256 `e4025e807af4c7f81cce763c02531e4c74628446d3a9fa2480a1a9b526cd9e7c`.
+
+**Method.** As for the other DIFC laws, with chapter headings skipped; every clause line checked
+against a raw-mode extraction. One clause per article.
+
+**Effective dates.** 12 November 2018 for every clause.
+
+**Scope.** For a shareholders' agreement in a DIFC company: the Articles, their effect and
+alteration, filing of resolutions and agreements, variation of class rights (required) and the right
+to object, shareholders and shares, alteration of capital, bearer shares, pre-emption (required) and
+its exceptions, the register, transfers (required), buy-backs, financial assistance, distributions,
+directors (election, removal, duties, interests, loans), meetings and written resolutions, minority
+buy-out rights, and unfair prejudice.
+
+**Gaps.**
+
+- **Defined terms** (Schedule 1) aren't carried.
+- **Companies Regulations** made under the Law aren't drafted:
+  https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_regulations_2018.pdf
