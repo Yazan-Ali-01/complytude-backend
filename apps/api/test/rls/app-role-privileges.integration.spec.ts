@@ -124,6 +124,27 @@ describe('The runtime database role has only the privileges the code uses', () =
     ]);
   });
 
+  it('app_platform holds only the audit retention privileges, beyond what it inherits from app_user', async () => {
+    const { rows } = await admin.query<{ grant: string }>(
+      `SELECT table_name || ':' || privilege_type AS grant
+       FROM information_schema.role_table_grants
+       WHERE grantee = 'app_platform' AND table_schema = 'public'
+       UNION
+       SELECT table_name || '.' || column_name || ':' || privilege_type
+       FROM information_schema.column_privileges
+       WHERE grantee = 'app_platform' AND table_schema = 'public'
+         AND (table_name, privilege_type) NOT IN (
+           SELECT table_name, privilege_type FROM information_schema.role_table_grants
+           WHERE grantee = 'app_platform' AND table_schema = 'public')
+       ORDER BY 1`,
+    );
+    expect(rows.map((r) => r.grant)).toEqual([
+      'audit_logs.ip_address:UPDATE',
+      'audit_logs.user_agent:UPDATE',
+      'audit_logs:DELETE',
+    ]);
+  });
+
   it('is refused a catalog write no code path makes', async () => {
     // WHERE false: the privilege check fails before any row is considered
     expect(await asApp('DELETE FROM public.plans WHERE false')).toBe('42501');

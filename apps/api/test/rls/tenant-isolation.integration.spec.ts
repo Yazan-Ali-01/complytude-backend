@@ -32,6 +32,8 @@ interface TenantRows {
   documentId: string;
   analysisJobId: string;
   auditLogId: string;
+  /** An audit row 3 years old, past both retention windows. */
+  oldAuditLogId: string;
   creditLedgerId: string;
   domainEventId: string;
   snapshotId: string;
@@ -227,7 +229,7 @@ const membershipOf =
   async (c, w) =>
     (await rowCount(c, sql, [tenant(w).userId, tenant(w).tenantId])) === 1;
 
-/** One case per RLS policy (53): the operation the policy allows, in the context it allows it. */
+/** One case per RLS policy (55): the operation the policy allows, in the context it allows it. */
 const POLICY_CASES: PolicyCase[] = [
   // tenant_ai_consents (append-only; who may accept is tenant RBAC's call)
   {
@@ -517,6 +519,23 @@ const POLICY_CASES: PolicyCase[] = [
       (w) => w.a.roleId,
     ),
   },
+  // audit_logs retention: only the platform login, only rows past each window (migration 049)
+  {
+    policy: 'audit_logs_blank_client',
+    table: 'audit_logs',
+    context: PLATFORM_ADMIN,
+    run: updatesById(
+      'audit_logs',
+      'ip_address = NULL, user_agent = NULL',
+      (w) => w.a.oldAuditLogId,
+    ),
+  },
+  {
+    policy: 'audit_logs_expire',
+    table: 'audit_logs',
+    context: PLATFORM_ADMIN,
+    run: deletesById('audit_logs', (w) => w.a.oldAuditLogId),
+  },
   // invitations: the inviting tenant's; the auth flow's narrower read is tested separately
   {
     policy: 'invitations_select',
@@ -740,6 +759,11 @@ describe('Tenant isolation (RLS) as the app role', () => {
         ),
         auditLogId: await one(
           `INSERT INTO public.audit_logs (tenant_id, action, resource_type) VALUES ($1, 'RLS_FIXTURE', 'test') RETURNING id`,
+          [tenantId],
+        ),
+        oldAuditLogId: await one(
+          `INSERT INTO public.audit_logs (tenant_id, action, resource_type, ip_address, user_agent, created_at)
+           VALUES ($1, 'RLS_FIXTURE', 'test', '10.0.0.1', 'fixture', now() - interval '3 years') RETURNING id`,
           [tenantId],
         ),
         creditLedgerId: await one(
@@ -1128,6 +1152,46 @@ describe('Tenant isolation (RLS) as the app role', () => {
             ).rowCount,
         ),
       ).toBe(1);
+    });
+
+    it('audit retention touches only rows past its windows, as the platform login, and only to blank or delete', async () => {
+      const blank = (id: (w: World) => string): Op =>
+        updatesById('audit_logs', 'ip_address = NULL, user_agent = NULL', id);
+      const outcomes = {
+        blankRecent: await viaApp(
+          PLATFORM_ADMIN,
+          blank((w) => w.a.auditLogId),
+        ),
+        deleteRecent: await viaApp(
+          PLATFORM_ADMIN,
+          deletesById('audit_logs', (w) => w.a.auditLogId),
+        ),
+        rewriteOldIp: await viaApp(
+          PLATFORM_ADMIN,
+          updatesById(
+            'audit_logs',
+            `ip_address = '203.0.113.9'`,
+            (w) => w.a.oldAuditLogId,
+          ),
+        ),
+        tenantBlanksOld: await viaApp(
+          TENANT,
+          blank((w) => w.a.oldAuditLogId),
+        ),
+        tenantDeletesOld: await viaApp(
+          TENANT,
+          deletesById('audit_logs', (w) => w.a.oldAuditLogId),
+        ),
+      };
+
+      expect(outcomes).toEqual({
+        blankRecent: 'no effect',
+        deleteRecent: 'no effect',
+        rewriteOldIp: 'rls violation',
+        // The login serving tenant requests stays append-only
+        tenantBlanksOld: 'permission denied',
+        tenantDeletesOld: 'permission denied',
+      });
     });
 
     it('sees no tenant rows with no context at all (fail closed)', async () => {

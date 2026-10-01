@@ -371,6 +371,39 @@ describe('Document deletion and data retention', () => {
   });
 
   describe('daily retention sweep', () => {
+    it("blanks audit rows' IP address and user agent after 90 days and deletes them after 2 years", async () => {
+      const { tenantId } = await tenantAdmin();
+      const auditRow = async (age: string): Promise<string> =>
+        (
+          await db().query<{ id: string }>(
+            `INSERT INTO public.audit_logs
+               (tenant_id, action, resource_type, ip_address, user_agent, created_at)
+             VALUES ($1, 'RETENTION_TEST', 'test', '198.51.100.7', 'Mozilla/5.0', now() - $2::interval)
+             RETURNING id`,
+            [tenantId, age],
+          )
+        ).rows[0].id;
+      const recent = await auditRow('30 days');
+      const older = await auditRow('100 days');
+      const expired = await auditRow('3 years');
+
+      await app.module.get(DataRetentionSweepHandler).execute();
+
+      const { rows } = await db().query<{
+        id: string;
+        ip_address: string | null;
+        user_agent: string | null;
+      }>(
+        `SELECT id, ip_address, user_agent FROM public.audit_logs
+         WHERE id = ANY($1) ORDER BY created_at DESC`,
+        [[recent, older, expired]],
+      );
+      expect(rows).toEqual([
+        { id: recent, ip_address: '198.51.100.7', user_agent: 'Mozilla/5.0' },
+        { id: older, ip_address: null, user_agent: null },
+      ]);
+    });
+
     it('removes expired tokens and invitations and abandoned uploads, and leaves the rest', async () => {
       const { tenantId, user } = await tenantAdmin();
       const token = (): string => randomUUID();

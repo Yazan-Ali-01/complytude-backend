@@ -137,7 +137,11 @@ context. `AuditLogsRepository` picks the context from each row's `tenant_id`. `a
 `SELECT, INSERT` on it, so the application can't change or delete history. `actor_type` is
 `user`, `system`, `api_key` or `anonymous` (migration 032: a caller who is not signed in; `actor_id`
 is then the account concerned when known, and an email that matches no account is kept only as
-a SHA-256 hash in `details.emailHash`). Retention of audit rows is not decided yet.
+a SHA-256 hash in `details.emailHash`). Retention (D-7, migration 049): the daily sweep blanks
+`ip_address` and `user_agent` on rows older than 90 days and deletes rows older than 2 years. Only
+`app_platform` (the platform login) may do either: `UPDATE (ip_address, user_agent)` and `DELETE`,
+through policies that allow nothing on a younger row and no value other than NULL; `app_user`
+stays append-only.
 
 `BaseRepository` refuses to run a query on a table with RLS unless it gets `{ client }` from one of the context transactions above or `{ tenant }`: it throws rather than let the query return no rows. The tables are listed in `RLS_TABLES` (`libs/database/src/base/rls-tables.ts`); the RLS suite fails if that list and the database disagree, so update it when you enable RLS on a table.
 
@@ -1008,9 +1012,10 @@ pnpm db:migrate
   (`mark_expired_invitations()`), removes uploads never confirmed within 2 days, erases documents
   deleted 30 or more days ago, and anonymizes accounts deleted 30 or more days ago (above).
 - **S3:** quarantine objects expire after 2 days, `previews/` after 1 day, previous versions after 30.
+- **Audit rows:** IP address and user agent blanked after 90 days, rows deleted after 2 years
+  (above).
 - **Decided, not built yet (D-7):** tenant closure (export, then erasure 30 days after), what
-  happens to a user removed from an organization, the audit log's 2-year retention with IP address
-  and user agent blanked after 90 days, Stripe event payloads kept 1 year.
+  happens to a user removed from an organization, Stripe event payloads kept 1 year.
 
 ### Migration Tracking
 

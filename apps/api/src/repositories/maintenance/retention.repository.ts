@@ -71,6 +71,36 @@ export class RetentionRepository {
   }
 
   /**
+   * Audit rows: the IP address and user agent of rows older than `clientDetailsDays` are blanked,
+   * and rows older than `retentionYears` deleted. Runs as the platform login, the only one allowed
+   * to (migration 049). Returns how many rows each step changed.
+   */
+  async applyAuditLogRetention(
+    clientDetailsDays: number,
+    retentionYears: number,
+  ): Promise<{ blanked: number; deleted: number }> {
+    return this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const blanked = await client.query(
+          `UPDATE public.audit_logs SET ip_address = NULL, user_agent = NULL
+           WHERE created_at < now() - make_interval(days => $1)
+             AND (ip_address IS NOT NULL OR user_agent IS NOT NULL)`,
+          [clientDetailsDays],
+        );
+        const deleted = await client.query(
+          `DELETE FROM public.audit_logs
+           WHERE created_at < now() - make_interval(years => $1)`,
+          [retentionYears],
+        );
+        return {
+          blanked: blanked.rowCount ?? 0,
+          deleted: deleted.rowCount ?? 0,
+        };
+      },
+    );
+  }
+
+  /**
    * Accounts their users deleted more than `days` ago are anonymized: names and the kept email are
    * erased (the login email is already a tombstone). The row and id stay, so past actions remain
    * attributed to an anonymous id. Returns how many.
