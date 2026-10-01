@@ -23,7 +23,8 @@ export const validationSchema = Joi.object({
   WORKER_AI_MAX_PROCESSING_TIME: Joi.number().default(300000),
 
   // LLM (OpenAI Chat)
-  OPENAI_CHAT_MODEL: Joi.string().default('gpt-4o-mini'),
+  // Chosen by the evaluation (data/eval/HISTORY.md, 2026-10-01); offered on OpenAI's UAE residency route
+  OPENAI_CHAT_MODEL: Joi.string().default('gpt-5.6-luna'),
   // Required for a model outside the known table in chat-model.ts
   OPENAI_CHAT_CONTEXT_WINDOW: Joi.number()
     .integer()

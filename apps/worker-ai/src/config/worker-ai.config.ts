@@ -20,7 +20,7 @@ export default registerAs('workerAi', () => ({
   // LLM (OpenAI Chat) configuration
   llmApiKey: process.env.OPENAI_API_KEY!,
   llmBaseUrl: process.env.OPENAI_BASE_URL || DEFAULT_OPENAI_BASE_URL,
-  llmModel: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+  llmModel: process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna',
   llmContextWindow: process.env.OPENAI_CHAT_CONTEXT_WINDOW
     ? parseInt(process.env.OPENAI_CHAT_CONTEXT_WINDOW, 10)
     : undefined,

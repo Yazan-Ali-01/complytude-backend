@@ -46,7 +46,22 @@ Document → Redact → Chunk → Embed → Required clauses + Hybrid Search (Ve
 
 | Provider | Usage |
 |----------|-------|
-| **OpenAI** | Embeddings (`text-embedding-3-small`) + LLM chat completions (`gpt-4o-mini`, structured output with `json_schema`) |
+| **OpenAI** | Embeddings (`text-embedding-3-small`) + LLM chat completions (`gpt-5.6-luna`, structured output with `json_schema`) |
+
+### Model choice
+
+Picked on the evaluation (`data/eval/HISTORY.md`, 2026-10-01, same commit and settings; cost per analysis at list prices from the runs' recorded tokens, about 7,600 prompt tokens and 2.6 calls per analysis):
+
+| Chat model | Runs | Recall | Precision | Strict | Must-not-flag hits | Agreement | Cost per analysis |
+|---|---|---|---|---|---|---|---|
+| **gpt-5.6-luna** (chosen) | 9×3 | 99% | 96% | 75% | 12 in 27 | 97% | ~$0.007 ($0.20/$1.20 per 1M; +10% on the UAE route) |
+| gpt-4o-mini (previous) | 9×3 | 96% | 97% | 76% | 9 in 27 | 96% | ~$0.002 (estimated: its runs predate token recording; not offered on the UAE route) |
+| gpt-5.2-2025-12-11 (fallback) | 9×1 | 95% | 95% | 71% | 5 in 9 | – | ~$0.07 |
+| gpt-5.5-2026-04-23 (frontier) | 9×1 | 100% | 89% | 68% | 15 in 9 | – | ~$0.24 |
+
+gpt-5.6-luna finds the most of the cheap models, agrees with itself run to run (97%, so no second pass is needed), and is on OpenAI's UAE data-residency list; the frontier model finds no more and flags far more that it shouldn't, at 35× the cost. Known gap: it doesn't mention a steering attempt in the contract (the injection cases' "Mentions" score is 0%), though the attempt doesn't change its verdicts.
+
+**Region and retention:** requests go to `OPENAI_BASE_URL`: the global API until OpenAI approves the project for UAE data residency, then `https://ae.api.openai.com/v1` (which also needs `text-embedding-3-large` for embeddings). OpenAI keeps API data up to 30 days for abuse monitoring unless zero data retention is approved; see `docs/SUBPROCESSORS.md`.
 
 ### Source Structure
 
@@ -201,7 +216,7 @@ interface AnalysisResult {
     rulesetKey: string | null;
   }>;
   summary: string;         // What was checked and found (2-4 sentences)
-  model: string;           // LLM model used (e.g., "gpt-4o-mini")
+  model: string;           // LLM model used (e.g., "gpt-5.6-luna")
   documentChunks: number;  // Number of document chunks processed
   rulesetChunksMatched: number; // Clauses supplied: required + optional (search order)
   requiredClausesChecked: number; // Required clauses of the rulesets, supplied whatever the search found
@@ -306,10 +321,10 @@ cp apps/worker-ai/.env.example apps/worker-ai/.env
 | `WORKER_AI_PORT` | `3001` | HTTP port for health checks |
 | `OPENAI_API_KEY` | (required) | OpenAI API key (shared for embeddings + LLM) |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI host for embeddings and chat. Only the global API or a data-residency host (`https://us.api.openai.com/v1`, `https://eu.api.openai.com/v1`, `https://ae.api.openai.com/v1`) is accepted, so document text can't be sent anywhere else. Must match worker-ingestion's. |
-| `OPENAI_CHAT_MODEL` | `gpt-4o-mini` | LLM model for analysis (must support structured outputs). Known models (and their dated snapshots) are listed in `src/config/chat-model.ts`. |
+| `OPENAI_CHAT_MODEL` | `gpt-5.6-luna` | LLM model for analysis (must support structured outputs); see Model choice. Known models (and their dated snapshots) are listed in `src/config/chat-model.ts`. |
 | `OPENAI_CHAT_CONTEXT_WINDOW` | known models: from the table | Context window in tokens. **Required** for a model outside the table: the worker refuses to start without it rather than guess. |
-| `OPENAI_CHAT_MAX_TOKENS` | `4096` | Max output tokens, sent as `max_completion_tokens`. Reasoning models count their reasoning tokens against it. The prompt budget reserves this many tokens. |
-| `OPENAI_CHAT_TEMPERATURE` | known models: `0.1`; others: not sent | LLM temperature. Leave it unset for reasoning models, which reject one. |
+| `OPENAI_CHAT_MAX_TOKENS` | `32000` for a known reasoning model, else `4096` | Max output tokens, sent as `max_completion_tokens`. Reasoning models count their reasoning tokens against it. The prompt budget reserves this many tokens. |
+| `OPENAI_CHAT_TEMPERATURE` | known non-reasoning models: `0.1`; others: not sent | LLM temperature. Never sent to a known reasoning model (gpt-5.x), which rejects one. |
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
 | `OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Embedding vector dimensions |
 | `REDACTION_ENABLED` | `true` | Mask personal data before any provider call. Only development may set `false`. |

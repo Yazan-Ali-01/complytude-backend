@@ -106,10 +106,20 @@ describe('LlmService', () => {
     expect(requests[0].body).not.toHaveProperty('temperature');
   });
 
-  it('keeps the default endpoint and a low temperature for the default model', async () => {
+  it('keeps the default endpoint and the chosen model, with no temperature', async () => {
     await call({});
 
     expect(requests[0].url).toBe('https://api.openai.com/v1/chat/completions');
+    expect(requests[0].body).toMatchObject({
+      model: 'gpt-5.6-luna',
+      max_completion_tokens: 32_000,
+    });
+    expect(requests[0].body).not.toHaveProperty('temperature');
+  });
+
+  it('sends a known non-reasoning model a low temperature and 4096 output tokens', async () => {
+    await call({ 'workerAi.llmModel': 'gpt-4o-mini' });
+
     expect(requests[0].body).toMatchObject({
       model: 'gpt-4o-mini',
       temperature: 0.1,

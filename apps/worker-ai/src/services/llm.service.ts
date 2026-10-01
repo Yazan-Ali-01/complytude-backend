@@ -37,7 +37,7 @@ export class LlmService {
 
     this.model = this.configService.get<string>(
       'workerAi.llmModel',
-      'gpt-4o-mini',
+      'gpt-5.6-luna',
     );
     this.settings = resolveChatModel(this.model, {
       contextWindow: this.configService.get<number>(

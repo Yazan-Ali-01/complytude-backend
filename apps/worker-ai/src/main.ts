@@ -28,7 +28,8 @@ async function bootstrap() {
   const port = configService.get<number>('workerAi.port') || 3001;
   const environment =
     configService.get<string>('workerAi.environment') || 'development';
-  const model = configService.get<string>('workerAi.llmModel') || 'gpt-4o-mini';
+  const model =
+    configService.get<string>('workerAi.llmModel') || 'gpt-5.6-luna';
 
   app.enableShutdownHooks();
   await app.listen(port, '0.0.0.0');

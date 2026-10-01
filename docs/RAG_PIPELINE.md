@@ -144,7 +144,7 @@ Tracks the lifecycle of each analysis request.
     }
   ],
   "summary": "The contract contains 3 high-risk violations...",
-  "model": "gpt-4o-mini",
+  "model": "gpt-5.6-luna",
   "documentChunks": 4,
   "rulesetChunksMatched": 10,
   "rulesetsConsulted": ["dmcc_employment_regulations_v1", "uae_labour_law_employment_v1"]
@@ -170,7 +170,7 @@ Tracks the lifecycle of each analysis request.
 |----------|----------|---------|---------|
 | `OPENAI_API_KEY` | Yes | — | Embeddings + LLM |
 | `OPENAI_BASE_URL` | No | `https://api.openai.com/v1` | OpenAI host for embeddings and chat; only the global API or a data-residency host (`us`/`eu`/`ae`) |
-| `OPENAI_CHAT_MODEL` | No | `gpt-4o-mini` | LLM model (must support structured outputs) |
+| `OPENAI_CHAT_MODEL` | No | `gpt-5.6-luna` | LLM model (must support structured outputs); chosen on the evaluation, see `apps/worker-ai/docs/README.md` → Model choice |
 | `OPENAI_CHAT_CONTEXT_WINDOW` | For a model outside the known table | — | Context window in tokens (`apps/worker-ai/src/config/chat-model.ts`) |
 | `RAG_OPTIONAL_CLAUSE_LIMIT` | No | `25` | Clauses kept from the search (search order) after the required ones |
 | `RAG_JUDGE_BATCH_SIZE` | No | `8` | Clauses judged per model call |

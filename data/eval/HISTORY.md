@@ -10,3 +10,6 @@ One row per real `pnpm eval:ai` run (`apps/worker-ai/docs/README.md` → Evaluat
 | 2026-10-01 | `845ab6a` | gpt-4o-mini | text-embedding-3-small | rerank-v3.5 | v5 | 9×3 | 85% | 96% | 76% | 9 | 92% | 50% | 91% | 0% | [report](results/2026-10-01-00-01-22-845ab6a.md) |
 | 2026-10-01 | `afca3a1` | gpt-4o-mini | text-embedding-3-small | none | v5 | 9×3 | 79% | 96% | 74% | 9 | 92% | 50% | 86% | 100% | [report](results/2026-10-01-00-21-07-afca3a1.md) |
 | 2026-10-01 | `e2a22ba` | gpt-4o-mini | text-embedding-3-small | none | v5 | 9×3 | 96% | 97% | 76% | 9 | 92% | 50% | 96% | 100% | [report](results/2026-10-01-00-31-07-e2a22ba.md) |
+| 2026-10-01 | `0d37c89` | gpt-5.6-luna | text-embedding-3-small | none | v5 | 9×3 | 99% | 96% | 75% | 12 | 92% | 0% | 97% | 100% | [report](results/2026-10-01-00-45-14-0d37c89.md) |
+| 2026-10-01 | `0d37c89` | gpt-5.5-2026-04-23 | text-embedding-3-small | none | v5 | 9×1 | 100% | 89% | 68% | 15 | 92% | 50% | n/a | 100% | [report](results/2026-10-01-00-50-30-0d37c89.md) |
+| 2026-10-01 | `0d37c89` | gpt-5.2-2025-12-11 | text-embedding-3-small | none | v5 | 9×1 | 95% | 95% | 71% | 5 | 91% | 50% | n/a | 100% | [report](results/2026-10-01-00-54-14-0d37c89.md) |
