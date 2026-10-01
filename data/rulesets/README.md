@@ -54,6 +54,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 | `dmcc_employment_rules.json` | DMCC | employment | 23 (2 required) | Draft, drafted 2026-10-01 |
 | `difc_data_protection_law.json` | DIFC | data_processing | 22 (2 required) | Draft, drafted 2026-10-01 |
 | `adgm_data_protection_regulations.json` | ADGM | data_processing | 23 (2 required) | Draft, drafted 2026-10-01 |
+| `adgm_companies_regulations.json` | ADGM | shareholders_agreement | 31 (3 required) | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | DMCC | shareholders_agreement | 34 (2 required) | Draft, drafted 2026-10-01 (replaces an earlier summary) |
 
 ## uae_federal_labour_law.json
@@ -364,3 +365,40 @@ inspection, amalgamation, winding-up and the general provisions.
 - **Defined terms** (Article 1: Ordinary Resolution, Special Resolution, Articles, …) aren't carried;
   the resolution thresholds they set matter for shareholders' agreements.
 - **Other contract types.** Tagged for shareholders' agreements only.
+
+## adgm_companies_regulations.json
+
+ADGM Companies Regulations 2020, enacted 29 April 2020 and in force on publication (s. 1071(3)), as
+amended (consolidated version June 2026). English is the language of ADGM legislation.
+
+**Source:** the consolidated PDF that the ADGM Rulebook page
+(https://en.adgm.thomsonreuters.com/rulebook/companies-regulations-2020) links as current (retrieved
+2026-10-01):
+https://en.adgm.thomsonreuters.com/sites/default/files/net_file_store/ADGM1547_20963_VER20260626.pdf,
+SHA-256 `8aae2ffcfa9cdc927894ad82e41e08e3eba235092c63d4a64a3349e0268249f0`.
+
+**Method.** `pdftotext` (layout mode) parsed by section, subsection and item. The 633-page text has
+243 amendment footnotes (a number, then one or more "Amended <date>" lines) whose markers are glued
+to a word in the heading or text; footnotes are numbered in order, so each marker was found as the
+next number glued to a word after the previous one, and dated the heading or subsection it sits in
+(five markers weren't found, all in sections not used here). The Parts are taken from the table of
+contents, since most Part headings aren't in the text layer. Every clause line was checked against a
+raw-mode extraction; the only differences are page numbers.
+
+**Effective dates.** A section's latest footnoted amendment (s. 27: 24 April 2026; s. 508: 28 October
+2025; s. 858: 9 September 2024); otherwise 29 April 2020, the enactment date, taken as the publication
+date on which the Regulations came into force. To be confirmed.
+
+**Scope.** For a shareholders' agreement in an ADGM company: articles, their amendment and entrenched
+provisions, resolutions and agreements affecting the constitution and their filing, removal of
+directors (required), directors' general duty and conflicts, resolutions (ordinary, special, written)
+and meetings, transferability and registration of transfers, allotment, pre-emption (required) and
+its exclusion and disapplication, classes and variation of class rights (required), distributions
+out of profits, and the unfair-prejudice petition. One clause per section.
+
+**Gaps.**
+
+- **Defined terms** (Part 34 and Schedule 3) and the **model articles** that apply by default (s. 18)
+  aren't carried.
+- **Other Parts** that can bear on shareholders' agreements (acquisition of own shares, Part 17;
+  arrangements and reconstructions, Part 25; mergers and divisions, Part 26) aren't covered.
