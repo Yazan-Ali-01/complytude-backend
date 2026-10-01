@@ -8,12 +8,16 @@
 --   DB_APP_USER     - Application role name (e.g., app_login)
 --   DB_APP_PASSWORD - Password for app_login role
 --   DB_NAME         - Target database name
+-- For the API's platform login (a separate role; the platform context needs it, migration 045):
+--   DB_PLATFORM_USER     - Platform login name (e.g., app_platform_login)
+--   DB_PLATFORM_PASSWORD - Its password
 -- 
 -- Usage (values unquoted; psql quotes them, so any character in the password is safe):
 --   PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U postgres \
 --     -v app_user="$DB_APP_USER" \
 --     -v app_password="$DB_APP_PASSWORD" \
 --     -v db_name="$DB_NAME" \
+--     [-v platform_user="$DB_PLATFORM_USER" -v platform_password="$DB_PLATFORM_PASSWORD"] \
 --     [-v reset_password=1] \
 --     -f scripts/setup-app-user-role.sql
 -- ============================================================================
@@ -43,6 +47,14 @@
   \q
 \endif
 
+\if :{?platform_user}
+  \if :{?platform_password}
+  \else
+    \echo 'ERROR: Variable platform_password is not set (platform_user is)'
+    \q
+  \endif
+\endif
+
 \set QUIET off
 
 -- ============================================================================
@@ -55,6 +67,10 @@ SELECT set_config('app.temp_user', :'app_user', false) AS ignored \gset
 SELECT set_config('app.temp_password', :'app_password', false) AS ignored \gset
 \if :{?reset_password}
 SELECT set_config('app.reset_password', 'on', false) AS ignored \gset
+\endif
+\if :{?platform_user}
+SELECT set_config('app.temp_platform_user', :'platform_user', false) AS ignored \gset
+SELECT set_config('app.temp_platform_password', :'platform_password', false) AS ignored \gset
 \endif
 
 DO $$
@@ -86,7 +102,43 @@ BEGIN
     END IF;
 END $$;
 
+-- The platform context (is_platform_admin()) requires membership of app_platform, which has no
+-- privileges of its own. Only the platform login is a member; the login above must never be.
+DO $$
+DECLARE
+    v_app_user TEXT := current_setting('app.temp_user');
+    v_platform_user TEXT := NULLIF(current_setting('app.temp_platform_user', true), '');
+    v_platform_password TEXT := current_setting('app.temp_platform_password', true);
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_platform') THEN
+        CREATE ROLE app_platform NOLOGIN;
+        RAISE NOTICE '[OK] Created role: app_platform';
+    END IF;
+
+    IF v_platform_user IS NULL THEN
+        RAISE NOTICE '[INFO] No platform_user given: platform login not created';
+        RETURN;
+    END IF;
+    IF v_platform_user = v_app_user THEN
+        RAISE EXCEPTION 'platform_user must be a different login from app_user';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_platform_user) THEN
+        EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L IN ROLE app_user, app_platform',
+                       v_platform_user, v_platform_password);
+        RAISE NOTICE '[OK] Created role: %', v_platform_user;
+    ELSE
+        RAISE NOTICE '[INFO] Role % already exists', v_platform_user;
+        EXECUTE format('GRANT app_user, app_platform TO %I', v_platform_user);
+        IF current_setting('app.reset_password', true) = 'on' THEN
+            EXECUTE format('ALTER ROLE %I PASSWORD %L', v_platform_user, v_platform_password);
+            RAISE NOTICE '[OK] Updated password for %', v_platform_user;
+        END IF;
+    END IF;
+END $$;
+
 SELECT set_config('app.temp_password', '', false) AS ignored \gset
+SELECT set_config('app.temp_platform_password', '', false) AS ignored \gset
 
 -- ============================================================================
 -- 2. Grant Database Privileges
@@ -122,7 +174,7 @@ SELECT
     rolconnlimit as "Connection Limit",
     CASE WHEN rolvaliduntil IS NULL THEN 'Never' ELSE rolvaliduntil::text END as "Password Expires"
 FROM pg_roles 
-WHERE rolname IN ('app_user', 'app_login')
+WHERE rolname IN ('app_user', 'app_platform', :'app_user')
 ORDER BY rolname;
 
 -- Check role membership
@@ -134,7 +186,7 @@ SELECT
 FROM pg_roles r
 JOIN pg_auth_members ON r.oid = pg_auth_members.roleid
 JOIN pg_roles m ON m.oid = pg_auth_members.member
-WHERE r.rolname = 'app_user';
+WHERE r.rolname IN ('app_user', 'app_platform');
 
 -- Check database privileges
 \echo ''

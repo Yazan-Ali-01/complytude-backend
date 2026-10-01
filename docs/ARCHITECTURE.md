@@ -379,10 +379,10 @@ Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
      },
    );
 
-   // For system-wide operations (bypasses tenant RLS):
+   // For system-wide operations (bypasses tenant RLS), on the platform login's own pool:
    await this.databaseService.transactionWithPlatformAdminContext(
      async (client) => {
-       // app.platform_role = 'true' → is_platform_admin() returns true
+       // app.platform_role = 'true' and a member of app_platform → is_platform_admin() returns true
        const result = await client.query('SELECT * FROM tenants');
        return result.rows;
      },
@@ -415,7 +415,7 @@ Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
 | ----------------------------- | ------------------------------------- | ----------------------------- | ---------------------------------- |
 | `app.tenant_id`               | `transactionWithTenantContext`        | `current_tenant_id_or_null()` | Current tenant for RLS filtering   |
 | `app.allow_cross_tenant_read` | `transactionWithTenantContext`        | `allow_cross_tenant_read()`   | Cross-tenant SELECT (slug checks)  |
-| `app.platform_role`           | `transactionWithPlatformAdminContext` | `is_platform_admin()`         | System admin bypasses tenant RLS   |
+| `app.platform_role`           | `transactionWithPlatformAdminContext` | `is_platform_admin()`         | System admin bypasses tenant RLS; only on the platform login (member of `app_platform`) |
 | `app.is_auth_flow`            | Set manually in auth flows            | `is_auth_flow()`              | Allow INSERT during signup/login   |
 
 ### Tenant Context Flow
@@ -472,7 +472,7 @@ this.queueProducer.enqueue(
 
 **Key Points:**
 
-- **Platform Admin Context:** Runs with `app.platform_role = 'true'` to bypass RLS policies
+- **Platform Admin Context:** Runs as the platform login with `app.platform_role = 'true'` to bypass RLS policies
 - **Atomic Transaction:** All operations succeed or fail together
 - **Subscription Required:** Every tenant must have an active subscription for entitlement resolution
 - **Default = 14-day trial of General Counsel** (full features). Trials downgrade to Navigator (free) on expiry via the `TRIAL_EXPIRY_CHECK` cron.

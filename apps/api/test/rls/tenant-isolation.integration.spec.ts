@@ -8,6 +8,7 @@ import { TenantRolesRepository } from 'src/repositories/tenant-rbac/tenant-roles
 import { createTestTenant, createTestUserInTenant } from '../factories';
 import { cookieHeaderFromSetCookie } from '../helpers/http-cookie.helper';
 import { resetTestState } from '../helpers/redis-flush.helper';
+import { PLATFORM_LOGIN_USER } from '../helpers/test-config';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
 
 /**
@@ -833,7 +834,7 @@ describe('Tenant isolation (RLS) as the app role', () => {
     throw new Error('unreachable: the check always rolls back');
   }
 
-  /** The context settings DatabaseService applies, for a client that has SET ROLE app_user. */
+  /** The context settings DatabaseService applies, for a client that has SET ROLE to its login. */
   async function applyContext(
     client: PoolClient,
     context: Context,
@@ -849,7 +850,10 @@ describe('Tenant isolation (RLS) as the app role', () => {
     }
   }
 
-  /** Runs a case as app_user inside a superuser transaction, optionally with its policy dropped. */
+  /**
+   * Runs a case as the app's role inside a superuser transaction, optionally with its policy
+   * dropped: platform cases as the platform login, the others as app_user.
+   */
   async function runCase(
     testCase: PolicyCase,
     dropPolicy: boolean,
@@ -862,7 +866,11 @@ describe('Tenant isolation (RLS) as the app role', () => {
           `DROP POLICY "${testCase.policy}" ON public."${testCase.table}"`,
         );
       }
-      await client.query('SET LOCAL ROLE app_user');
+      await client.query(
+        testCase.context.kind === 'platformAdmin'
+          ? `SET LOCAL ROLE ${PLATFORM_LOGIN_USER}`
+          : 'SET LOCAL ROLE app_user',
+      );
       await applyContext(client, testCase.context);
       return toOutcome(await testCase.run(client, world));
     } catch (error) {
@@ -1069,6 +1077,59 @@ describe('Tenant isolation (RLS) as the app role', () => {
       ).toBe(0);
     });
 
+    it('setting the platform flag on the tenant-request login unlocks nothing', async () => {
+      const asTenantLoginWithFlag = <T>(
+        run: (client: PoolClient) => Promise<T>,
+      ): Promise<T> =>
+        appDb.transaction(async (client) => {
+          await client.query(
+            `SELECT set_config('app.platform_role', 'true', true)`,
+          );
+          return run(client);
+        });
+      const visible: string[] = [];
+      await asTenantLoginWithFlag(async (client) => {
+        for (const [table, rowId] of Object.entries(TENANT_TABLES)) {
+          const result = await client.query(
+            `SELECT 1 FROM public.${table} WHERE id = $1`,
+            [rowId(world.b)],
+          );
+          if (result.rowCount) visible.push(table);
+        }
+      });
+      expect(visible).toEqual([]);
+
+      let insertError: unknown;
+      try {
+        await asTenantLoginWithFlag((client) =>
+          INSERT_FOR.documents(world.b, world)(client, world),
+        );
+      } catch (error) {
+        insertError = error;
+      }
+      expect(toOutcome(insertError)).toBe('rls violation');
+
+      // Nor can that login become the platform login, or take its role
+      for (const role of ['app_platform', PLATFORM_LOGIN_USER]) {
+        await expect(
+          appDb.transaction((client) => client.query(`SET ROLE ${role}`)),
+        ).rejects.toThrow('permission denied to set role');
+      }
+
+      // The platform context itself still sees tenant B's rows
+      expect(
+        await appDb.transactionWithPlatformAdminContext(
+          async (client) =>
+            (
+              await client.query(
+                'SELECT 1 FROM public.documents WHERE id = $1',
+                [world.b.documentId],
+              )
+            ).rowCount,
+        ),
+      ).toBe(1);
+    });
+
     it('sees no tenant rows with no context at all (fail closed)', async () => {
       const visible: string[] = [];
       for (const [table, rowId] of Object.entries(TENANT_TABLES)) {
@@ -1125,6 +1186,21 @@ describe('Tenant isolation (RLS) as the app role', () => {
       tenant: tenantId,
       platform: false,
     });
+    // The flag alone is not the platform context: the tenant-request login is no member of app_platform
+    expect(await evaluate({ 'app.platform_role': 'true' })).toEqual({
+      tenant: null,
+      platform: false,
+    });
+    expect(
+      await appDb.transactionWithPlatformAdminContext(
+        async (client) =>
+          (
+            await client.query<{ platform: boolean }>(
+              'SELECT is_platform_admin() AS platform',
+            )
+          ).rows[0].platform,
+      ),
+    ).toBe(true);
     // A malformed id is no tenant (no error, no match); only the exact string 'true' counts
     expect(
       await evaluate({

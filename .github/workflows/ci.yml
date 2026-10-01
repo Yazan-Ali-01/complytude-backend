@@ -45,6 +45,8 @@ jobs:
       DB_PASSWORD: postgres
       DB_APP_USER: app_login
       DB_APP_PASSWORD: ci-only-app-password
+      DB_PLATFORM_USER: app_platform_login
+      DB_PLATFORM_PASSWORD: ci-only-platform-password
     steps:
       - uses: actions/checkout@v4
         with:

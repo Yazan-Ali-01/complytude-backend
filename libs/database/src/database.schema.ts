@@ -39,3 +39,21 @@ export const databaseEnvSchema = {
     }),
   DB_SSL_CA_PATH: Joi.string().optional(),
 };
+
+/**
+ * The platform login, a separate role (member of app_user and app_platform) that the platform
+ * context runs as: is_platform_admin() is false for any other login. Only the API holds it.
+ */
+export const databasePlatformEnvSchema = {
+  // The same login for both would give tenant requests the platform context
+  DB_PLATFORM_USER: Joi.string()
+    .required()
+    .invalid(Joi.ref('DB_APP_USER'))
+    .messages({
+      'any.invalid':
+        'DB_PLATFORM_USER must be a different login from DB_APP_USER',
+    }),
+  DB_PLATFORM_PASSWORD: secretEnv('DB_PLATFORM_PASSWORD', { min: 16 }),
+  // Per API task, on top of DB_MAX_CONNECTIONS
+  DB_PLATFORM_MAX_CONNECTIONS: Joi.number().integer().min(1).default(5),
+};

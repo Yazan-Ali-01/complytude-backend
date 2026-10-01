@@ -1,4 +1,8 @@
-import { databaseEnvSchema, secretEnv } from '@lib/database';
+import {
+  databaseEnvSchema,
+  databasePlatformEnvSchema,
+  secretEnv,
+} from '@lib/database';
 import { loggerEnvSchema } from '@lib/logger';
 import { redisEnvSchema } from '@lib/redis';
 import * as Joi from 'joi';
@@ -102,6 +106,7 @@ export const validationSchema = Joi.object({
 
   // Database
   ...databaseEnvSchema,
+  ...databasePlatformEnvSchema,
 
   // JWT
   // Four distinct secrets (checked below), each at least 32 characters in production

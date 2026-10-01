@@ -1,4 +1,4 @@
-import { DATABASE_POOL } from '@lib/database';
+import { DATABASE_PLATFORM_POOL, DATABASE_POOL } from '@lib/database';
 import { RequestMethod } from '@nestjs/common';
 import {
   GUARDS_METADATA,
@@ -118,6 +118,17 @@ async function bootApp(env: Record<string, string>): Promise<BootedApp> {
               database: process.env.DB_NAME,
               user: process.env.DB_APP_USER,
               password: process.env.DB_APP_PASSWORD,
+            }),
+        },
+        {
+          provide: DATABASE_PLATFORM_POOL,
+          useFactory: () =>
+            new Pool({
+              host: process.env.DB_HOST,
+              port: Number(process.env.DB_PORT),
+              database: process.env.DB_NAME,
+              user: process.env.DB_PLATFORM_USER,
+              password: process.env.DB_PLATFORM_PASSWORD,
             }),
         },
       ],

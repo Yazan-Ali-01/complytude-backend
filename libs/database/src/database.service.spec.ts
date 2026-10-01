@@ -12,8 +12,13 @@ describe('DatabaseService transaction helpers', () => {
       query: jest.fn().mockResolvedValue({ rows: [] }),
       release: jest.fn(),
     };
+    // Both pools hand out the same mock client; which pool is used is tested below
     const pool = { connect: jest.fn().mockResolvedValue(client) };
-    service = new DatabaseService(pool as unknown as Pool);
+    const platformPool = { connect: jest.fn().mockResolvedValue(client) };
+    service = new DatabaseService(
+      pool as unknown as Pool,
+      platformPool as unknown as Pool,
+    );
   });
 
   afterEach(() => {
@@ -76,6 +81,40 @@ describe('DatabaseService transaction helpers', () => {
 
       // A truthy argument makes pg destroy the client instead of pooling it
       expect(client.release).toHaveBeenCalledWith(rollbackFailure);
+    });
+  });
+
+  describe('platform context', () => {
+    it('runs on the platform login, never on the tenant-request pool', async () => {
+      const pool = { connect: jest.fn() };
+      const platformPool = { connect: jest.fn().mockResolvedValue(client) };
+      const withBoth = new DatabaseService(
+        pool as unknown as Pool,
+        platformPool as unknown as Pool,
+      );
+
+      await withBoth.transactionWithPlatformAdminContext(() =>
+        Promise.resolve(),
+      );
+
+      expect(platformPool.connect).toHaveBeenCalledTimes(1);
+      expect(pool.connect).not.toHaveBeenCalled();
+      expect(client.query).toHaveBeenCalledWith(
+        'SELECT set_config($1, $2, true)',
+        ['app.platform_role', 'true'],
+      );
+    });
+
+    it('is refused in a process without the platform login', async () => {
+      const pool = { connect: jest.fn().mockResolvedValue(client) };
+      const withoutPlatform = new DatabaseService(pool as unknown as Pool);
+      const callback = jest.fn();
+
+      await expect(
+        withoutPlatform.transactionWithPlatformAdminContext(callback),
+      ).rejects.toThrow('DB_PLATFORM_USER');
+      expect(pool.connect).not.toHaveBeenCalled();
+      expect(callback).not.toHaveBeenCalled();
     });
   });
 });

@@ -119,8 +119,11 @@ SELECT set_config('app.allow_cross_tenant_read', 'true/false', true); -- For cro
 **`transactionWithPlatformAdminContext()`:**
 
 ```sql
+-- On the platform login's connection (DB_PLATFORM_USER), never app_login's
 SELECT set_config('app.platform_role', 'true', true);  -- Bypasses tenant RLS
 ```
+
+`is_platform_admin()` is true only when `app.platform_role` is `'true'` **and** the current role is a member of `app_platform` (migration 045). `app_platform` has no privileges of its own; only the platform login (`app_platform_login`, a member of `app_user` and `app_platform`) has it, and the API keeps that login in a separate pool used by nothing but this method. The login serving tenant requests (`app_login`) can set the flag but gains nothing from it, and cannot `SET ROLE` to either role, so an injected `set_config` no longer lifts tenant isolation. The workers hold no platform login. `scripts/setup-app-user-role.sql` creates both logins.
 
 All variables are transaction-scoped (`is_local=true`) — they clear on COMMIT/ROLLBACK. RLS policies use helper functions to read these variables.
 
@@ -144,7 +147,7 @@ If `ROLLBACK` fails after an error in a transaction helper, the helper logs it, 
 
 ### Runtime role privileges
 
-The application connects as `app_login`, a member of `app_user`. `app_user` may not create objects in `public` (migration 028) and has, per table, only the operations the code performs (migration 038): catalogs the app never writes (`addon_entitlements`, `template_version_ruleset_versions`) are read-only, `addons` only takes updates (Stripe catalog sync), nothing deletes plans, features, rulesets, templates' versions or Stripe events, and link tables filled with `ON CONFLICT DO NOTHING` have no `UPDATE`. `apps/api/test/rls/app-role-privileges.integration.spec.ts` pins the full map: when a feature needs a new privilege, grant it in a new migration and update the map there. The API still writes most catalogs itself (startup syncs, platform-admin endpoints); moving those writes to a separate role is not done yet.
+The application connects as `app_login`, a member of `app_user`, and its platform context as `app_platform_login` (a member of `app_user` and `app_platform`, so the same privileges). `app_user` may not create objects in `public` (migration 028) and has, per table, only the operations the code performs (migration 038): catalogs the app never writes (`addon_entitlements`, `template_version_ruleset_versions`) are read-only, `addons` only takes updates (Stripe catalog sync), nothing deletes plans, features, rulesets, templates' versions or Stripe events, and link tables filled with `ON CONFLICT DO NOTHING` have no `UPDATE`. `apps/api/test/rls/app-role-privileges.integration.spec.ts` pins the full map: when a feature needs a new privilege, grant it in a new migration and update the map there. The API still writes most catalogs itself (startup syncs, platform-admin endpoints); moving those writes to a separate role is not done yet.
 
 ---
 
@@ -864,7 +867,7 @@ CREATE FUNCTION is_auth_flow() RETURNS BOOLEAN;
 
 -- Check if current user has platform admin role
 CREATE FUNCTION is_platform_admin() RETURNS BOOLEAN;
--- Reads: app.platform_role
+-- Reads: app.platform_role, and requires membership of app_platform (migration 045)
 
 -- Check if cross-tenant read is allowed (slug uniqueness checks)
 CREATE FUNCTION allow_cross_tenant_read() RETURNS BOOLEAN;

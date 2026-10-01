@@ -4,6 +4,8 @@ import { config } from 'dotenv';
 import {
   APP_LOGIN_PASSWORD,
   APP_LOGIN_USER,
+  PLATFORM_LOGIN_PASSWORD,
+  PLATFORM_LOGIN_USER,
   TEST_CONFIG_PATH,
   TestContainerConfig,
 } from '../helpers/test-config';
@@ -30,6 +32,8 @@ process.env.DB_PORT = String(testConfig.postgres.port);
 // The superuser (testConfig.postgres.user) is only used by createTestApp's admin connection.
 process.env.DB_APP_USER = APP_LOGIN_USER;
 process.env.DB_APP_PASSWORD = APP_LOGIN_PASSWORD;
+process.env.DB_PLATFORM_USER = PLATFORM_LOGIN_USER;
+process.env.DB_PLATFORM_PASSWORD = PLATFORM_LOGIN_PASSWORD;
 process.env.DB_NAME = `test_w${workerId}`;
 
 process.env.REDIS_HOST = testConfig.redis.host;

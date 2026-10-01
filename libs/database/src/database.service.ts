@@ -4,9 +4,10 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
-import { DATABASE_POOL } from './database.constants';
+import { DATABASE_PLATFORM_POOL, DATABASE_POOL } from './database.constants';
 
 /**
  * DatabaseService
@@ -37,7 +38,9 @@ import { DATABASE_POOL } from './database.constants';
  * - Session context variables are transaction-scoped (cleared on COMMIT/ROLLBACK)
  * - Always pass { client } to repository methods within the transaction
  * - Use transactionWithTenantContext for tenant-scoped operations
- * - Use transactionWithPlatformAdminContext for system/admin/webhook operations
+ * - Use transactionWithPlatformAdminContext for system/admin/webhook operations. It runs on the
+ *   platform login's own pool: is_platform_admin() also requires membership of app_platform, which
+ *   the login serving tenant requests lacks, so setting app.platform_role there unlocks nothing
  * - Use transaction() for operations on tables without RLS (catalog tables, RBAC sync)
  * - The bare query() method runs WITHOUT any RLS context — only safe for non-RLS tables
  *
@@ -53,28 +56,39 @@ import { DATABASE_POOL } from './database.constants';
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
 
-  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DATABASE_POOL) private readonly pool: Pool,
+    @Optional()
+    @Inject(DATABASE_PLATFORM_POOL)
+    private readonly platformPool: Pool | null = null,
+  ) {}
 
   async onModuleInit() {
-    try {
-      const client = await this.pool.connect();
-      this.logger.log('Database connection established successfully');
-      client.release();
-    } catch (error) {
-      this.logger.error('Failed to connect to database', error);
-      throw error;
-    }
+    for (const pool of this.pools()) {
+      try {
+        const client = await pool.connect();
+        client.release();
+      } catch (error) {
+        this.logger.error('Failed to connect to database', error);
+        throw error;
+      }
 
-    this.pool.on('error', (err) => {
-      this.logger.error('Unexpected error on idle client', err);
-    });
+      pool.on('error', (err) => {
+        this.logger.error('Unexpected error on idle client', err);
+      });
+    }
+    this.logger.log('Database connection established successfully');
   }
 
   async onModuleDestroy() {
-    if (this.pool) {
-      await this.pool.end();
-      this.logger.log('Database connection pool closed');
+    for (const pool of this.pools()) {
+      await pool.end();
     }
+    this.logger.log('Database connection pool closed');
+  }
+
+  private pools(): Pool[] {
+    return this.platformPool ? [this.pool, this.platformPool] : [this.pool];
   }
 
   /**
@@ -230,12 +244,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Execute a transaction with platform admin context for RLS.
-   * Sets app.platform_role to 'true' so is_platform_admin() returns true.
+   * Runs as the platform login and sets app.platform_role to 'true': is_platform_admin() needs both.
    */
   async transactionWithPlatformAdminContext<T>(
     callback: (client: PoolClient) => Promise<T>,
   ): Promise<T> {
-    const client = await this.getClient();
+    if (!this.platformPool) {
+      throw new Error(
+        'Platform context needs the platform database login (DB_PLATFORM_USER), which this process does not have',
+      );
+    }
+    const client = await this.platformPool.connect();
     let broken: Error | undefined;
     try {
       await client.query('BEGIN');

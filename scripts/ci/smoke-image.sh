@@ -65,8 +65,10 @@ for _ in $(seq 1 60); do
 done
 
 app_password=$(openssl rand -hex 16)
+platform_password=$(openssl rand -hex 16)
 psql -h 127.0.0.1 -p "$db_port" -U postgres -d postgres -v ON_ERROR_STOP=1 -q \
   -v app_user=app_login -v app_password="$app_password" -v db_name=complytude \
+  -v platform_user=app_platform_login -v platform_password="$platform_password" \
   -f scripts/setup-app-user-role.sql >/dev/null
 DB_HOST=127.0.0.1 DB_PORT=$db_port DB_NAME=complytude DB_USER=postgres DB_PASSWORD=postgres \
   pnpm exec ts-node --transpile-only scripts/migrate.ts >/dev/null
@@ -102,6 +104,13 @@ AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://smoke.cognitiveservices.azure.com/
 AZURE_DOCUMENT_INTELLIGENCE_KEY=$(secret)
 GOTENBERG_URL=http://gotenberg.invalid:3000
 EOF
+# Only the API holds the platform login
+if [ "$app" = api ]; then
+  cat >> "$work/app.env" <<EOF
+DB_PLATFORM_USER=app_platform_login
+DB_PLATFORM_PASSWORD=$platform_password
+EOF
+fi
 docker run -d --name "$name-app" --network "$name" -p "127.0.0.1::$port" \
   -v "$work/ca.crt:/smoke/ca.crt:ro" --env-file "$work/app.env" "$image" >/dev/null
 app_port=$(docker port "$name-app" "$port/tcp" | head -1 | sed 's/.*://')

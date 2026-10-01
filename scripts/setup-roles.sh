@@ -3,9 +3,10 @@
 # ============================================================================
 # Database Role Setup Script
 # ============================================================================
-# Sets up app_user and app_login roles with password from environment
+# Sets up app_user and app_login roles, and the API's platform login (app_platform_login, a member
+# of app_user and app_platform), with passwords from environment
 # Must be run with admin/superuser privileges BEFORE the first migration (bootstrap).
-# An existing app_login keeps its password; set RESET_APP_PASSWORD=1 to rotate it.
+# An existing login keeps its password; set RESET_APP_PASSWORD=1 to rotate both.
 # ============================================================================
 
 set -e
@@ -51,6 +52,15 @@ if [ -z "$DB_APP_PASSWORD" ]; then
     exit 1
 fi
 
+if [ -z "$DB_PLATFORM_PASSWORD" ]; then
+    echo -e "${RED}❌ DB_PLATFORM_PASSWORD not set in .env${NC}"
+    echo ""
+    echo "Please add to your apps/api/.env file:"
+    echo "  DB_PLATFORM_USER=app_platform_login"
+    echo "  DB_PLATFORM_PASSWORD=another_secure_password_here"
+    exit 1
+fi
+
 echo "📡 Checking database connection..."
 if ! PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres -c '\q' 2>/dev/null; then
     echo -e "${RED}❌ Cannot connect to PostgreSQL as admin user${NC}"
@@ -77,6 +87,8 @@ PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres \
     -v app_user="$DB_APP_USER" \
     -v app_password="$DB_APP_PASSWORD" \
     -v db_name="$DB_NAME" \
+    -v platform_user="${DB_PLATFORM_USER:-app_platform_login}" \
+    -v platform_password="$DB_PLATFORM_PASSWORD" \
     ${RESET_APP_PASSWORD:+-v reset_password=1} \
     -f scripts/setup-app-user-role.sql
 

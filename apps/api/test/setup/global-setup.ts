@@ -4,6 +4,8 @@ import { GenericContainer } from 'testcontainers';
 import {
   APP_LOGIN_PASSWORD,
   APP_LOGIN_USER,
+  PLATFORM_LOGIN_PASSWORD,
+  PLATFORM_LOGIN_USER,
   TEST_CONFIG_PATH,
 } from '../helpers/test-config';
 
@@ -34,11 +36,16 @@ export default async function globalSetup(): Promise<void> {
   // Roles are cluster-wide in PostgreSQL — creating in 'postgres' makes it available in all worker DBs.
   // app_user (NOLOGIN) is what the grant migrations and RLS policies target. The app connects as
   // app_login, a LOGIN member of app_user: the same shape as scripts/setup-app-user-role.sql creates
-  // in deployed environments, so the app runs under RLS. The superuser is kept for migrations,
-  // truncation and fixtures.
+  // in deployed environments, so the app runs under RLS. Its platform context runs as a second
+  // login that is also a member of app_platform (migration 045). The superuser is kept for
+  // migrations, truncation and fixtures.
   const createRoleSql = `DO $$ BEGIN
     BEGIN CREATE ROLE app_user NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN CREATE ROLE app_platform NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END;
     BEGIN CREATE ROLE ${APP_LOGIN_USER} LOGIN PASSWORD '${APP_LOGIN_PASSWORD}' IN ROLE app_user;
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN CREATE ROLE ${PLATFORM_LOGIN_USER} LOGIN PASSWORD '${PLATFORM_LOGIN_PASSWORD}'
+      IN ROLE app_user, app_platform;
     EXCEPTION WHEN duplicate_object THEN NULL; END;
   END $$;`;
   const execResult = await startedPg.exec([

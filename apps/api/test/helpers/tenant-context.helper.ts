@@ -1,5 +1,6 @@
 import { DatabaseService } from '@lib/database';
 import { PoolClient } from 'pg';
+import { PLATFORM_LOGIN_USER } from './test-config';
 
 /**
  * Execute a callback within a tenant RLS context.
@@ -39,8 +40,9 @@ export async function withTenantContext<T>(
 /**
  * Execute a callback within a platform admin RLS context.
  *
- * Uses `SET LOCAL ROLE app_user` so that RLS policies are enforced even when the
- * test pool connects as a superuser. Use for testing platform-scoped queries
+ * Uses `SET LOCAL ROLE` to the platform login, as the app's platform context runs as it:
+ * is_platform_admin() needs membership of app_platform as well as the flag. RLS still applies
+ * even when the test pool connects as a superuser. Use for testing platform-scoped queries
  * (global templates, tenant management, etc.).
  */
 export async function withPlatformAdminContext<T>(
@@ -50,7 +52,7 @@ export async function withPlatformAdminContext<T>(
   const client = await databaseService.getClient();
   try {
     await client.query('BEGIN');
-    await client.query('SET LOCAL ROLE app_user');
+    await client.query(`SET LOCAL ROLE ${PLATFORM_LOGIN_USER}`);
     await client.query('SELECT set_config($1, $2, true)', [
       'app.platform_role',
       'true',

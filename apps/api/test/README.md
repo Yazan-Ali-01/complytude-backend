@@ -63,14 +63,16 @@ Integration tests boot the **full NestJS application** against real, ephemeral d
 ```
 globalSetup (once)
   ├── Start PostgreSQL container (pgvector/pgvector:pg16)
-  ├── Create the app_user (NOLOGIN) and app_login (LOGIN, IN ROLE app_user) roles
+  ├── Create the app_user and app_platform (NOLOGIN) roles, app_login (LOGIN, IN ROLE app_user)
+  │   and app_platform_login (LOGIN, IN ROLE app_user, app_platform)
   ├── Start Redis container (redis:7-alpine)
   └── Write connection config to temp file
 
 Per Jest Worker (parallel)
   ├── jest.setup.ts
   │   ├── Load .env.test
-  │   └── Override DB_*/REDIS_* with testcontainer config (the app connects as app_login)
+  │   └── Override DB_*/REDIS_* with testcontainer config (the app connects as app_login, its
+  │       platform context as app_platform_login)
   └── worker-database.setup.ts (called from createTestApp)
       ├── Create worker-specific database (test_w{workerId})
       └── Run pending SQL migrations with the real runner (scripts/migrate.ts): applied ones are
@@ -110,7 +112,7 @@ turns it on with `app.module.get(RateLimitService).enabled = true` (see
 
 The app connects as `app_login`, a `LOGIN` role that inherits `app_user`, the same shape as deployed environments (`scripts/setup-app-user-role.sql`). Row-level security therefore applies to every query the app runs in tests, exactly as in production:
 
-- **`app.appDatabaseService`** is the app's own `DatabaseService` (`app_login`). App code and the RLS suite use it.
+- **`app.appDatabaseService`** is the app's own `DatabaseService` (`app_login`; its `transactionWithPlatformAdminContext` runs as `app_platform_login`, the only login `is_platform_admin()` accepts). App code and the RLS suite use it.
 - **`app.databaseService`** is a separate superuser connection (`TEST_ADMIN_DATABASE`, `setup/admin-database.ts`) that bypasses RLS. Use it for fixtures, truncation and raw assertions only.
 
 Fixtures written through a repository with no tenant context are rejected by RLS, so pass the superuser's client, as the factories do:
@@ -324,7 +326,7 @@ Executes a callback inside a transaction with RLS tenant context set (`SET LOCAL
 
 ### `withPlatformAdminContext(databaseService, callback)`
 
-Executes a callback inside a transaction with platform admin RLS context.
+Executes a callback inside a transaction with platform admin RLS context (`SET LOCAL ROLE app_platform_login` + `app.platform_role`): the flag counts only for a member of `app_platform`. Pass `app.databaseService`.
 
 ### `waitForQueueIdle(queue, timeout?)`
 

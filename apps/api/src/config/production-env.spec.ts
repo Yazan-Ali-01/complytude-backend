@@ -12,6 +12,8 @@ const PRODUCTION: Record<string, string> = {
   DB_NAME: 'complytude',
   DB_APP_USER: 'app_login',
   DB_APP_PASSWORD: 'Vq3r8KxZp2Lm9Wt4Ys6N',
+  DB_PLATFORM_USER: 'app_platform_login',
+  DB_PLATFORM_PASSWORD: 'Hn7t2QwRk5Xc8Bv3Jd9M',
   DB_SSL_ENABLED: 'true',
   REDIS_HOST: 'redis.internal',
   REDIS_PORT: '6379',
@@ -42,6 +44,7 @@ const APPS: Array<[string, ObjectSchema, string[]]> = [
     api,
     [
       'DB_APP_PASSWORD',
+      'DB_PLATFORM_PASSWORD',
       'JWT_ACCESS_SECRET',
       'JWT_REFRESH_SECRET',
       'JWT_IDENTITY_SECRET',
@@ -97,6 +100,27 @@ describe('production environment validation', () => {
       ).toEqual([
         `${key} is a placeholder value; set a real secret when NODE_ENV=production`,
       ]);
+    });
+  });
+
+  describe('api: platform database login', () => {
+    it('requires its own login, distinct from the one serving tenant requests', () => {
+      expect(errors(api, without('DB_PLATFORM_USER'))).toEqual([
+        '"DB_PLATFORM_USER" is required',
+      ]);
+      expect(
+        errors(api, { ...PRODUCTION, DB_PLATFORM_USER: 'app_login' }),
+      ).toEqual([
+        'DB_PLATFORM_USER must be a different login from DB_APP_USER',
+      ]);
+    });
+
+    it('is not asked of the workers', () => {
+      const env = without('DB_PLATFORM_USER');
+      delete env.DB_PLATFORM_PASSWORD;
+      expect(errors(workerAi, env)).toEqual([]);
+      expect(errors(workerIngestion, env)).toEqual([]);
+      expect(errors(workerGeneration, env)).toEqual([]);
     });
   });
 
