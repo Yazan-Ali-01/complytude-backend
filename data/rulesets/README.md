@@ -64,6 +64,7 @@ required (production), reviewed. See `docs/DEPLOYMENT.md` → Load Rulesets.
 | `adgm_data_protection_regulations.json` | ADGM | data_processing | 23 (2 required) | Draft, drafted 2026-10-01 |
 | `adgm_companies_regulations.json` | ADGM | shareholders_agreement | 31 (3 required) | Draft, drafted 2026-10-01 |
 | `difc_companies_law.json` | DIFC | shareholders_agreement | 31 (3 required) | Draft, drafted 2026-10-01 |
+| `difc_data_protection_regulations.json` | DIFC | data_processing | 7 | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | DMCC | shareholders_agreement | 34 (2 required) | Draft, drafted 2026-10-01 (replaces an earlier summary) |
 
 ## uae_federal_labour_law.json
@@ -301,9 +302,7 @@ Schedules (definitions and fines).
 **Gaps.**
 
 - **Defined terms** (Schedule 1: Controller, Processor, Personal Data Breach, …) aren't carried.
-- **Data Protection Regulations** made under the Law (Consolidated Version No. 2, in force
-  1 September 2023) aren't drafted:
-  https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/data-protection-regulation.pdf
+- **Data Protection Regulations** made under the Law: see `difc_data_protection_regulations.json`.
 
 ## adgm_data_protection_regulations.json
 
@@ -441,3 +440,34 @@ buy-out rights, and unfair prejudice.
 - **Defined terms** (Schedule 1) aren't carried.
 - **Companies Regulations** made under the Law aren't drafted:
   https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/companies_regulations_2018.pdf
+
+## difc_data_protection_regulations.json
+
+The Data Protection Regulations made under the DIFC Data Protection Law, Consolidated Version No. 2,
+in force 1 September 2023. Applies with `difc_data_protection_law.json`.
+
+**Source:** https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/data-protection-regulation.pdf
+(linked from DIFC's legal database pages; retrieved 2026-10-01), SHA-256
+`1b9d02b30f95951016f04a174261a31945e711ab97f76cb1b4982f29119996b6`.
+
+**Method.** `pdftotext` (layout mode) parsed by regulation ("10.2") and its numbered rules
+("10.2.1"), stopping at the appendices. Regulation 10 carries twelve footnotes of DIFC guidance
+("Guidance on Regulation 10.1: …"); they are commentary, not rules, so they're left out, and their
+markers were removed by their exact context (e.g. "Systems1", "System. 4", "concepts: 9"), each
+checked to occur once. Every clause line was checked against a raw-mode extraction; the differences
+are the raw mode's (dropped hyphens, guidance paragraphs interleaved).
+
+**Effective dates.** 1 September 2023, the date this consolidated version came into force, for every
+clause; provisions unchanged since earlier versions carry it too. To be confirmed.
+
+**Scope.** Records of processing (Reg. 2.1), transfers out of the DIFC with the Commissioner's standard
+contractual clauses (Reg. 5), breach reporting (Regs. 8.1, 8.2), and processing through autonomous and
+semi-autonomous systems: definitions, deployers' and operators' obligations, and general requirements
+(Regs. 10.1–10.3). None is a required contract term. Left out: notifications and fees, supervision,
+complaints, fines, inadvertently obtained data, digital communications consent, and the appendices.
+
+**Gaps.**
+
+- **The standard contractual clauses** themselves (published separately by the Commissioner) aren't
+  carried.
+- **DIFC's guidance** on Regulation 10 could serve as these clauses' `guidance`; it isn't used.
