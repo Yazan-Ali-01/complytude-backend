@@ -17,6 +17,7 @@ export const RLS_TABLES: ReadonlySet<string> = new Set([
   'tenant_overrides',
   'tenant_subscriptions',
   'tenants',
+  'usage_allocations',
   'usage_ledger',
   'user_tenants',
 ]);

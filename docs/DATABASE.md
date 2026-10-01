@@ -182,7 +182,7 @@ Production-grade entitlement engine with usage tracking and credit system:
 
 - `usage_ledger` - Usage event store (source of truth)
   - Metadata includes `credit_cost_per_unit` and `total_credits_deducted` when credits are used
-- `usage_allocations` - Source attribution for each usage event (plan/addon/credit/override)
+- `usage_allocations` - Source attribution for each usage event (plan/addon/credit/override). RLS (migration 042): it has no `tenant_id`, so a row is visible and insertable only where its `usage_ledger` row is (that row's tenant, or platform context); no UPDATE or DELETE for the app role
 - `credit_ledger` - Credit transaction ledger (purchase, grant, deduction, refund)
   - Metadata includes `credit_cost_per_unit` and `units_consumed` for deduction transactions
 

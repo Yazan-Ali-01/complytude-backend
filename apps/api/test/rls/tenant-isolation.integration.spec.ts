@@ -37,6 +37,7 @@ interface TenantRows {
   tenantAddonId: string;
   overrideId: string;
   usageId: string;
+  allocationId: string;
   aggregatedUsageId: string;
   aiConsentId: string;
 }
@@ -177,6 +178,12 @@ const INSERT_FOR: Record<string, (t: TenantRows, w: World) => Op> = {
       `INSERT INTO public.usage_ledger (tenant_id, feature_id, billing_period) VALUES ($1, $2, '2026-10')`,
       [t.tenantId, w.docsFeatureId],
     ),
+  // rolled back before the deferred units-sum check runs
+  usage_allocations: (t) =>
+    inserts(
+      `INSERT INTO public.usage_allocations (usage_ledger_id, source, units) VALUES ($1, 'plan', 1)`,
+      [t.usageId],
+    ),
   user_tenants: (t, w) =>
     inserts(
       `INSERT INTO public.user_tenants (user_id, tenant_id, role_key) VALUES ($1, $2, 'member')`,
@@ -193,6 +200,8 @@ const UPDATE_SET: Record<string, string> = {
   documents: 'title = title',
   tenants: 'name = name',
   usage_ledger: 'projected_at = now()',
+  // no tenant_id; app_user has no UPDATE here, so this is refused by the grant
+  usage_allocations: 'units = units',
 };
 const updateSet = (table: string): string =>
   UPDATE_SET[table] ?? 'tenant_id = tenant_id';
@@ -202,7 +211,7 @@ const membershipOf =
   async (c, w) =>
     (await rowCount(c, sql, [tenant(w).userId, tenant(w).tenantId])) === 1;
 
-/** One case per RLS policy (44): the operation the policy allows, in the context it allows it. */
+/** One case per RLS policy (46): the operation the policy allows, in the context it allows it. */
 const POLICY_CASES: PolicyCase[] = [
   // tenant_ai_consents (append-only; who may accept is tenant RBAC's call)
   {
@@ -469,6 +478,19 @@ const POLICY_CASES: PolicyCase[] = [
     context: TENANT,
     run: updatesById('tenants', updateSet('tenants'), (w) => w.a.tenantId),
   },
+  // usage_allocations: visible and insertable with its usage_ledger row (no tenant_id of its own)
+  {
+    policy: 'usage_allocations_select',
+    table: 'usage_allocations',
+    context: TENANT,
+    run: selectsById('usage_allocations', (w) => w.a.allocationId),
+  },
+  {
+    policy: 'usage_allocations_insert',
+    table: 'usage_allocations',
+    context: TENANT,
+    run: insertsForA('usage_allocations'),
+  },
   // usage_ledger (append-only apart from projected_at / voided_at)
   {
     policy: 'usage_ledger_select',
@@ -549,6 +571,7 @@ const TENANT_TABLES: Record<string, (t: TenantRows) => string> = {
   tenant_subscriptions: (t) => t.subscriptionId,
   tenant_ai_consents: (t) => t.aiConsentId,
   usage_ledger: (t) => t.usageId,
+  usage_allocations: (t) => t.allocationId,
 };
 
 /** Maps an operation's result or error to an Outcome; any other error is a test bug and is rethrown. */
@@ -632,6 +655,10 @@ describe('Tenant isolation (RLS) as the app role', () => {
         `INSERT INTO public.documents (tenant_id, title, created_by, content) VALUES ($1, 'rls fixture', $2, 'text') RETURNING id`,
         [tenantId, userId],
       );
+      const usageId = await one(
+        `INSERT INTO public.usage_ledger (tenant_id, feature_id, billing_period) VALUES ($1, $2, '2026-09') RETURNING id`,
+        [tenantId, seatsFeatureId],
+      );
       return {
         tenantId,
         userId,
@@ -669,9 +696,10 @@ describe('Tenant isolation (RLS) as the app role', () => {
           `INSERT INTO public.tenant_overrides (tenant_id, feature_id, reason, applied_by, value_int) VALUES ($1, $2, 'rls fixture', $3, 1) RETURNING id`,
           [tenantId, seatsFeatureId, userId],
         ),
-        usageId: await one(
-          `INSERT INTO public.usage_ledger (tenant_id, feature_id, billing_period) VALUES ($1, $2, '2026-09') RETURNING id`,
-          [tenantId, seatsFeatureId],
+        usageId,
+        allocationId: await one(
+          `INSERT INTO public.usage_allocations (usage_ledger_id, source, units) VALUES ($1, 'plan', 1) RETURNING id`,
+          [usageId],
         ),
         aggregatedUsageId: await one(
           `INSERT INTO public.aggregated_usage (tenant_id, subscription_id, feature_id, billing_period) VALUES ($1, $2, $3, '2026-09') RETURNING id`,
