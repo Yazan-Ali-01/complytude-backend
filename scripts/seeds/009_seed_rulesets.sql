@@ -17,12 +17,14 @@ BEGIN;
 DO $$
 DECLARE
     v_ded_id   UUID;
+    v_mohre_id UUID;
     v_dmcc_id  UUID;
     v_difc_id  UUID;
     v_sysadmin UUID := '99999999-9999-4999-9999-999999999999';
 BEGIN
 
 SELECT id INTO v_ded_id  FROM public.authorities WHERE code = 'DED'  LIMIT 1;
+SELECT id INTO v_mohre_id FROM public.authorities WHERE code = 'MOHRE' LIMIT 1;
 SELECT id INTO v_dmcc_id FROM public.authorities WHERE code = 'DMCC' LIMIT 1;
 SELECT id INTO v_difc_id FROM public.authorities WHERE code = 'DIFC' LIMIT 1;
 
@@ -36,7 +38,7 @@ VALUES (
     'uae_labour_law_employment_v1',
     'UAE Federal Labour Law – Employment Terms',
     'Core employment requirements under UAE Federal Decree-Law No. 33 of 2021 (Private Sector Labour Law). Covers probation, notice periods, working hours, leave, end-of-service gratuity, and termination.',
-    v_ded_id, '1.0.0', 'active',
+    v_mohre_id, '1.0.0', 'active',
     v_sysadmin
 ) ON CONFLICT (id) DO NOTHING;
 

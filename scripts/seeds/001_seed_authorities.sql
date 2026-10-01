@@ -17,7 +17,8 @@ INSERT INTO public.authorities (code, name, description, country, is_active) VAL
     ('SHAMS', 'Sharjah Media City (Shams)', 'Sharjah free zone for media and creative industries', 'UAE', true),
     ('DAFZA', 'Dubai Airport Free Zone Authority', 'Free zone authority located at Dubai International Airport', 'UAE', true),
     ('JAFZA', 'Jebel Ali Free Zone', 'One of the largest free zones in Dubai, located at Jebel Ali Port', 'UAE', true),
-    ('ADCCI', 'Abu Dhabi Chamber of Commerce and Industry', 'Abu Dhabi mainland business authority and chamber of commerce', 'UAE', true)
+    ('ADCCI', 'Abu Dhabi Chamber of Commerce and Industry', 'Abu Dhabi mainland business authority and chamber of commerce', 'UAE', true),
+    ('MOHRE', 'Ministry of Human Resources and Emiratisation', 'Federal ministry regulating private-sector employment under the UAE Labour Law', 'UAE', true)
 ON CONFLICT (code) DO NOTHING;
 
 COMMIT;

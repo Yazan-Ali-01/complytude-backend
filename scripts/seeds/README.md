@@ -6,7 +6,7 @@ Seed scripts populate data after the schema migrations have run. They are idempo
 
 | File | Kind | Loaded in |
 | --- | --- | --- |
-| `001_seed_authorities.sql` | Reference: 10 UAE authorities (DMCC, IFZA, DED, RAKEZ, ADGM, DIFC, SHAMS, DAFZA, JAFZA, ADCCI) | every environment |
+| `001_seed_authorities.sql` | Reference: 11 UAE authorities (DMCC, IFZA, DED, RAKEZ, ADGM, DIFC, SHAMS, DAFZA, JAFZA, ADCCI, MOHRE) | every environment |
 | `002_seed_categories.sql` | Reference: template categories | every environment |
 | `003_seed_test_tenants_users.sql` | Fixture: 3 test tenants, 7 test users with the **published password** `Test123!@#`, including a `system_admin` | development / test only |
 | `004_seed_templates.sql` | Fixture: sample templates, `created_by` = test users | development / test only |

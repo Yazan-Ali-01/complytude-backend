@@ -10,7 +10,7 @@ function text(metadata: Record<string, unknown>, key: string): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-/** e.g. "Department of Economic Development — UAE Federal Labour Law – Employment Terms v1.0.0, Art. 8: Written Employment Contract" */
+/** e.g. "Ministry of Human Resources and Emiratisation — UAE Federal Labour Law (Federal Decree-Law No. 33 of 2021) v1.0.0, Art. 8(1): Employment Contract: written contract in two copies" */
 export function citationOf(metadata: Record<string, unknown>): string {
   const ruleset =
     text(metadata, 'rulesetName') ??
