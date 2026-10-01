@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { SystemTenantRole } from 'src/common/types/tenant.types';
 import { DocumentsService } from 'src/modules/documents/documents.service';
@@ -316,7 +316,7 @@ describe('Document deletion and data retention', () => {
       cookie: string,
       method: 'GET' | 'POST' | 'DELETE',
       url: string,
-    ): ReturnType<FastifyInstance['inject']> =>
+    ): Promise<LightMyRequestResponse> =>
       server.inject({
         method,
         url: `/api/v1/documents${url}`,
