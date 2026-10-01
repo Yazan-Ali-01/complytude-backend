@@ -52,6 +52,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 | `difc_employment_law.json` | DIFC | employment | 56 (4 required) | Draft, drafted 2026-10-01 |
 | `adgm_employment_regulations.json` | ADGM | employment | 58 (5 required) | Draft, drafted 2026-10-01 |
 | `dmcc_employment_rules.json` | DMCC | employment | 23 (2 required) | Draft, drafted 2026-10-01 |
+| `difc_data_protection_law.json` | DIFC | data_processing | 22 (2 required) | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | — | — | 34 | Summarised, not verbatim, old file shape; to be replaced by a verbatim draft |
 
 ## uae_federal_labour_law.json
@@ -255,3 +256,40 @@ words), pointers to DMCC guides, dispute resolution and definitions.
   reviewer should read the references as being to the current law, or check for a newer version.
 - **DMCC guides** referred to by the Rules (Ramadan, flexible work, family-friendly leave,
   disciplinary procedures, limited-term contracts, visa cancellation) aren't carried.
+
+## difc_data_protection_law.json
+
+Data Protection Law, DIFC Law No. 5 of 2020, in force 1 July 2020 (Art. 4), as amended by DIFC Laws
+Amendment Law No. 2 of 2022 and DIFC Laws Amendment Law No. 1 of 2025. English is the language of
+DIFC legislation.
+
+**Sources** (DIFC, retrieved 2026-10-01):
+
+| Publication | URL | SHA-256 | Used for |
+|---|---|---|---|
+| Consolidated Version (July 2025) | https://edge.sitecorecloud.io/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/data-protection-law.pdf | `48b5e3a4ee96dcfea7393c157e08709e032b4bfff347a8544e9a10ca87e564f0` | The text |
+| DIFC Laws Amendment Law No. 2 of 2022 | https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/difc_laws_amendment_law_for_enactment_final_styled_by_lexis_004_4.pdf | `1a0be482288ccfc0d1b16041262ab5b7d90ac58093e0079eaab8c427fa6d18e7` | Which provisions changed in 2022 |
+| DIFC Laws Amendment Law No. 1 of 2025 | https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/amendment-law-no-1-of-2025.pdf | `4fc881a234e1a0750c89034f2a22fd1205bbd090e1ea2e842b666ef425ba9ba9` | Which provisions changed in 2025 |
+
+**Method.** As for the DIFC Employment Law (layout parsing by article, sub-article and item,
+including (A)/(B) sub-items; every clause line checked against a raw-mode extraction; the only
+differences are a page break and the raw mode dropping the hyphen in "Sub-processor").
+
+**Effective dates.** 1 July 2020, except sub-articles an amendment law reprints (each prints only the
+provisions it amends, with the rest elided): Art. 9(1), amended by the 2022 law, dated 7 March 2022,
+and Art. 28(1), amended by the 2025 law, dated 15 July 2025. Both dates are the fifth business day
+after the enactment notices (28 February 2022, 8 July 2025), computed, not published.
+
+**Scope.** For a data processing agreement: the processing principles, lawful bases, special
+categories, security and organisational measures, records, joint controllers, processors and
+sub-processors (the written agreement and what it must contain, required), confidentiality,
+transfers out of the DIFC, data sharing on request, and breach notification. Left out: DPO and
+impact-assessment detail, information notices, data subject rights, the Commissioner, remedies and
+Schedules (definitions and fines).
+
+**Gaps.**
+
+- **Defined terms** (Schedule 1: Controller, Processor, Personal Data Breach, …) aren't carried.
+- **Data Protection Regulations** made under the Law (Consolidated Version No. 2, in force
+  1 September 2023) aren't drafted:
+  https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/data-protection-regulation.pdf
