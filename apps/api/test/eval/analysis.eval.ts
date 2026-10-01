@@ -215,9 +215,11 @@ function commit(): string {
     const sha = execSync('git rev-parse --short HEAD', { cwd: REPO })
       .toString()
       .trim();
-    const dirty = execSync('git status --porcelain -- apps libs data/eval', {
-      cwd: REPO,
-    })
+    // The inputs that shape a run; earlier runs' reports and history rows don't
+    const dirty = execSync(
+      "git status --porcelain -- apps libs data/eval ':!data/eval/results' ':!data/eval/HISTORY.md'",
+      { cwd: REPO },
+    )
       .toString()
       .trim();
     return dirty ? `${sha}-dirty` : sha;
