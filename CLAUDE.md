@@ -135,7 +135,7 @@ await this.databaseService.transactionWithPlatformAdminContext(async (client) =>
 |---|---|
 | `query(text, params)` | None. Only for global, non-tenant tables. |
 | `transaction(callback)` | None. |
-| `transactionWithTenantContext({ tenantId, isTenantAdmin?, allowCrossTenantRead? }, callback)` | Sets `app.tenant_id`, `app.is_tenant_admin`, `app.allow_cross_tenant_read`. Pass `isTenantAdmin: true` for update/delete policies that require it, and `allowCrossTenantRead: true` only for deliberate cross-tenant reads such as slug-uniqueness checks. |
+| `transactionWithTenantContext({ tenantId, allowCrossTenantRead? }, callback)` | Sets `app.tenant_id` and `app.allow_cross_tenant_read`. Pass `allowCrossTenantRead: true` only for deliberate cross-tenant reads such as slug-uniqueness checks. Policies isolate tenants; who may do what inside a tenant is decided by tenant RBAC (the permission guards), not by the database. |
 | `transactionWithPlatformAdminContext(callback)` | Sets `app.platform_role`. |
 
 Context is set with `set_config(..., true)`, so it is transaction-scoped and never leaks between pooled connections. Policies read it through `current_tenant_id_or_null()` and fail closed: with no context, a read silently returns 0 rows (it does not error) and a write is rejected. So `BaseRepository` refuses to query a table with RLS (`RLS_TABLES` in `@lib/database`) unless it gets `{ client }` from a context transaction or `{ tenant }`, and throws instead. A bare `databaseService.query` still returns nothing silently: if a tenant-scoped query unexpectedly returns nothing, check that it runs inside `transactionWithTenantContext`. When you enable RLS on a table, add it to `RLS_TABLES` (the RLS integration suite checks the list).

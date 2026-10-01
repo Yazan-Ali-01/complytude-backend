@@ -70,7 +70,7 @@ export class TenantAddonsService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: false },
+      { tenantId },
       (client) =>
         this.tenantAddonsRepository.findActiveByTenantWithEntitlements(
           tenantId,
@@ -104,7 +104,7 @@ export class TenantAddonsService {
 
     // TODO: Replace with transactionWithPurchaseContext when purchase RLS is implemented
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: true },
+      { tenantId },
       (client) => this.executeAddAddon(tenantId, addonKey, quantity, client),
     );
   }
@@ -195,7 +195,7 @@ export class TenantAddonsService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: true },
+      { tenantId },
       (client) =>
         this.executeUpdateAddon(tenantId, tenantAddonId, updates, client),
     );
@@ -274,7 +274,7 @@ export class TenantAddonsService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: true },
+      { tenantId },
       (client) => this.executeRemoveAddon(tenantId, tenantAddonId, client),
     );
   }

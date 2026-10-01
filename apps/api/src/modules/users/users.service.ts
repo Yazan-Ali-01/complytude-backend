@@ -191,7 +191,7 @@ export class UsersService {
 
     const { previous, updated } =
       await this.databaseService.transactionWithTenantContext(
-        { tenantId: actor.tenantId, isTenantAdmin: true },
+        { tenantId: actor.tenantId },
         async (client) => {
           const previous = await this.requireMember(
             client,
@@ -282,7 +282,7 @@ export class UsersService {
     }
 
     await this.databaseService.transactionWithTenantContext(
-      { tenantId: actor.tenantId, isTenantAdmin: true },
+      { tenantId: actor.tenantId },
       async (client) => {
         const member = await this.requireMember(
           client,

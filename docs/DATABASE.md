@@ -109,11 +109,10 @@ Complytude implements **Row-Level Security (RLS)** for tenant isolation:
 
 The application uses `DatabaseService` transaction methods which automatically set session variables:
 
-**`transactionWithTenantContext({ tenantId, isTenantAdmin?, allowCrossTenantRead? })`:**
+**`transactionWithTenantContext({ tenantId, allowCrossTenantRead? })`:**
 
 ```sql
 SELECT set_config('app.tenant_id', 'tenant-uuid', true);        -- Always set
-SELECT set_config('app.is_tenant_admin', 'true/false', true);   -- For update/delete policies
 SELECT set_config('app.allow_cross_tenant_read', 'true/false', true); -- For cross-tenant reads
 ```
 
@@ -289,7 +288,7 @@ Organizations using the platform. Plan assignment is managed via `tenant_subscri
 
 ### tenant_ai_consents
 
-Which version of the AI processing disclosure each organization accepted, who accepted it and when (migration 037). Analysis and uploads are refused until the current version (`AI_DISCLOSURE_VERSION`) is accepted; see `docs/SUBPROCESSORS.md`. Append-only: the app role may `SELECT` and `INSERT`, never update or delete. RLS: read in the tenant's context; insert by a tenant admin in it, or in platform context (organization setup).
+Which version of the AI processing disclosure each organization accepted, who accepted it and when (migration 037). Analysis and uploads are refused until the current version (`AI_DISCLOSURE_VERSION`) is accepted; see `docs/SUBPROCESSORS.md`. Append-only: the app role may `SELECT` and `INSERT`, never update or delete. RLS: read and insert in the tenant's context (who may accept is tenant RBAC's `settings:manage`), or insert in platform context (organization setup).
 
 | Column               | Type        | Description                                                        |
 | -------------------- | ----------- | ------------------------------------------------------------------ |
@@ -854,10 +853,6 @@ CREATE FUNCTION current_tenant_id() RETURNS UUID;
 
 -- Get current tenant ID (permissive — returns NULL if not set, used in RLS policies)
 CREATE FUNCTION current_tenant_id_or_null() RETURNS UUID;
-
--- Check if current user is tenant admin
-CREATE FUNCTION is_tenant_admin() RETURNS BOOLEAN;
--- Reads: app.is_tenant_admin
 
 -- Check if current operation is an auth flow (signup, login, etc.)
 CREATE FUNCTION is_auth_flow() RETURNS BOOLEAN;

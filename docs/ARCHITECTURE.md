@@ -369,11 +369,10 @@ Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
    ```typescript
    // DatabaseService handles context setup automatically
    await this.databaseService.transactionWithTenantContext(
-     { tenantId, isTenantAdmin: true },
+     { tenantId },
      async (client) => {
        // All queries within this callback have RLS context set:
        //   app.tenant_id = tenantId
-       //   app.is_tenant_admin = 'true'
        //   app.allow_cross_tenant_read = 'false'
        const result = await client.query('SELECT * FROM documents');
        return result.rows;
@@ -408,14 +407,13 @@ Complytude uses PostgreSQL's Row-Level Security for tenant isolation:
    );
    ```
 
-3. **Result:** Users only see their tenant's data; platform admins see all
+3. **Result:** Users only see their tenant's data; platform admins see all. RLS isolates tenants; what a user may do inside their tenant (change settings, manage members) is decided by tenant RBAC in the API (migration 041 removed the `is_tenant_admin` flag, which the app always set to true).
 
 ### Session Context Variables
 
 | Variable                      | Set By                                | SQL Helper                    | Purpose                            |
 | ----------------------------- | ------------------------------------- | ----------------------------- | ---------------------------------- |
 | `app.tenant_id`               | `transactionWithTenantContext`        | `current_tenant_id_or_null()` | Current tenant for RLS filtering   |
-| `app.is_tenant_admin`         | `transactionWithTenantContext`        | `is_tenant_admin()`           | Allow UPDATE/DELETE on tenant data |
 | `app.allow_cross_tenant_read` | `transactionWithTenantContext`        | `allow_cross_tenant_read()`   | Cross-tenant SELECT (slug checks)  |
 | `app.platform_role`           | `transactionWithPlatformAdminContext` | `is_platform_admin()`         | System admin bypasses tenant RLS   |
 | `app.is_auth_flow`            | Set manually in auth flows            | `is_auth_flow()`              | Allow INSERT during signup/login   |

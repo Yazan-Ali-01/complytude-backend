@@ -5,14 +5,13 @@ import { PoolClient } from 'pg';
  * Execute a callback within a tenant RLS context.
  *
  * Uses `SET LOCAL ROLE app_user` so that RLS policies are enforced even when the
- * test pool connects as a superuser. Defaults to non-admin — set isTenantAdmin: true
- * explicitly when testing admin paths.
+ * test pool connects as a superuser.
  */
 export async function withTenantContext<T>(
   databaseService: DatabaseService,
   tenantId: string,
   callback: (client: PoolClient) => Promise<T>,
-  options?: { isTenantAdmin?: boolean; allowCrossTenantRead?: boolean },
+  options?: { allowCrossTenantRead?: boolean },
 ): Promise<T> {
   const client = await databaseService.getClient();
   try {
@@ -21,10 +20,6 @@ export async function withTenantContext<T>(
     await client.query('SELECT set_config($1, $2, true)', [
       'app.tenant_id',
       tenantId,
-    ]);
-    await client.query('SELECT set_config($1, $2, true)', [
-      'app.is_tenant_admin',
-      (options?.isTenantAdmin ?? false).toString(),
     ]);
     await client.query('SELECT set_config($1, $2, true)', [
       'app.allow_cross_tenant_read',

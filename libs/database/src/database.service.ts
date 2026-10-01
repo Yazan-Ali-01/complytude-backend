@@ -162,14 +162,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Execute a transaction within a specific tenant context with RLS
-   * @param params Object with tenantId, isTenantAdmin (for update policies), allowCrossTenantRead (for SELECT policy)
+   * Policies isolate tenants; who may do what within a tenant is the API's tenant RBAC.
+   * @param params Object with tenantId and allowCrossTenantRead (for SELECT policy)
    * @param callback Transaction callback
    * @returns Transaction result
    */
   async transactionWithTenantContext<T>(
     params: {
       tenantId: string;
-      isTenantAdmin?: boolean;
       allowCrossTenantRead?: boolean;
     },
     callback: (client: PoolClient) => Promise<T>,
@@ -204,7 +204,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private async setTenantContext(
     params: {
       tenantId: string;
-      isTenantAdmin?: boolean;
       allowCrossTenantRead?: boolean;
     },
     client: PoolClient,
@@ -212,10 +211,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     await client.query('SELECT set_config($1, $2, true)', [
       'app.tenant_id',
       params?.tenantId,
-    ]);
-    await client.query('SELECT set_config($1, $2, true)', [
-      'app.is_tenant_admin',
-      params?.isTenantAdmin ? 'true' : 'false',
     ]);
     await client.query('SELECT set_config($1, $2, true)', [
       'app.allow_cross_tenant_read',

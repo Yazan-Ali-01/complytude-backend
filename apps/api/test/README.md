@@ -320,7 +320,7 @@ Turns `Set-Cookie` response headers into a `Cookie` request header the way a bro
 
 ### `withTenantContext(databaseService, tenantId, callback, options?)`
 
-Executes a callback inside a transaction with RLS tenant context set (`SET LOCAL ROLE app_user` + `app.tenant_id`). Pass `app.databaseService`: the superuser can switch to `app_user`. Options: `isTenantAdmin`, `allowCrossTenantRead`.
+Executes a callback inside a transaction with RLS tenant context set (`SET LOCAL ROLE app_user` + `app.tenant_id`). Pass `app.databaseService`: the superuser can switch to `app_user`. Option: `allowCrossTenantRead`.
 
 ### `withPlatformAdminContext(databaseService, callback)`
 

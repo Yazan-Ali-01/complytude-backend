@@ -60,7 +60,7 @@ export class AiConsentService {
   ): Promise<AiConsentStatusDto> {
     this.assertCurrentVersion(version);
     const recorded = await this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: true },
+      { tenantId },
       (client) =>
         this.repository.accept(
           {

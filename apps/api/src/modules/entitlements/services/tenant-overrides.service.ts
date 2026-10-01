@@ -64,7 +64,7 @@ export class TenantOverridesService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: true },
+      { tenantId },
       (client) =>
         this.tenantOverridesRepository.findActiveByTenant(tenantId, { client }),
     );
@@ -97,7 +97,7 @@ export class TenantOverridesService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: true },
+      { tenantId },
       (client) => this.executeApplyOverride(tenantId, dto, appliedBy, client),
     );
   }
@@ -189,7 +189,7 @@ export class TenantOverridesService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: true },
+      { tenantId },
       (client) => this.executeUpdateOverride(tenantId, overrideId, dto, client),
     );
   }
@@ -291,7 +291,7 @@ export class TenantOverridesService {
     }
 
     return this.databaseService.transactionWithTenantContext(
-      { tenantId, isTenantAdmin: true },
+      { tenantId },
       (client) => this.executeRevokeOverride(tenantId, overrideId, client),
     );
   }

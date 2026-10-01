@@ -229,41 +229,6 @@ describe('Test Data Factories', () => {
 
       expect(rows).toHaveLength(0);
     });
-
-    it('isTenantAdmin defaults to false (least privilege)', async () => {
-      const tenant = await createTestTenant(app.module);
-
-      const isTenantAdmin = await withTenantContext(
-        app.databaseService,
-        tenant.id,
-        async (client) => {
-          const result = await client.query<{ v: boolean }>(
-            'SELECT is_tenant_admin() as v',
-          );
-          return result.rows[0]?.v;
-        },
-      );
-
-      expect(isTenantAdmin).toBe(false);
-    });
-
-    it('isTenantAdmin: true is respected', async () => {
-      const tenant = await createTestTenant(app.module);
-
-      const isTenantAdmin = await withTenantContext(
-        app.databaseService,
-        tenant.id,
-        async (client) => {
-          const result = await client.query<{ v: boolean }>(
-            'SELECT is_tenant_admin() as v',
-          );
-          return result.rows[0]?.v;
-        },
-        { isTenantAdmin: true },
-      );
-
-      expect(isTenantAdmin).toBe(true);
-    });
   });
 
   describe('withPlatformAdminContext — cross-tenant visibility', () => {

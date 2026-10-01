@@ -137,7 +137,6 @@ export class TenantService {
       return await this.databaseService.transactionWithTenantContext(
         {
           tenantId,
-          isTenantAdmin: true,
           allowCrossTenantRead: options?.allowCrossTenantRead,
         },
         callback,

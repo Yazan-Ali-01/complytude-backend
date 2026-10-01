@@ -19,7 +19,7 @@ import { createTestApp, TestApp } from '../setup/test-app.factory';
  */
 
 type Context =
-  | { kind: 'tenant'; admin?: boolean } // tenant A, as transactionWithTenantContext sets it
+  | { kind: 'tenant' } // tenant A, as transactionWithTenantContext sets it
   | { kind: 'platformAdmin' }
   | { kind: 'authFlow' };
 
@@ -74,7 +74,6 @@ interface PolicyCase {
 }
 
 const TENANT: Context = { kind: 'tenant' };
-const TENANT_ADMIN: Context = { kind: 'tenant', admin: true };
 const PLATFORM_ADMIN: Context = { kind: 'platformAdmin' };
 const AUTH_FLOW: Context = { kind: 'authFlow' };
 
@@ -205,7 +204,7 @@ const membershipOf =
 
 /** One case per RLS policy (44): the operation the policy allows, in the context it allows it. */
 const POLICY_CASES: PolicyCase[] = [
-  // tenant_ai_consents (append-only; a tenant admin accepts)
+  // tenant_ai_consents (append-only; who may accept is tenant RBAC's call)
   {
     policy: 'tenant_ai_consents_select',
     table: 'tenant_ai_consents',
@@ -215,7 +214,7 @@ const POLICY_CASES: PolicyCase[] = [
   {
     policy: 'tenant_ai_consents_insert',
     table: 'tenant_ai_consents',
-    context: TENANT_ADMIN,
+    context: TENANT,
     run: insertsForA('tenant_ai_consents'),
   },
   // aggregated_usage
@@ -322,7 +321,7 @@ const POLICY_CASES: PolicyCase[] = [
   {
     policy: 'documents_delete',
     table: 'documents',
-    context: TENANT_ADMIN,
+    context: TENANT,
     run: deletesById('documents', (w) => w.a.documentId),
     blockedByGrant:
       'documents are soft-deleted (deleted_at); app_user has no DELETE on documents',
@@ -376,7 +375,7 @@ const POLICY_CASES: PolicyCase[] = [
     context: TENANT,
     run: selectsById('generation_jobs', (w) => w.a.generationJobId),
   },
-  // tenant_addons: writes need a tenant admin
+  // tenant_addons: a tenant writes its own
   {
     policy: 'tenant_addons_select',
     table: 'tenant_addons',
@@ -386,13 +385,13 @@ const POLICY_CASES: PolicyCase[] = [
   {
     policy: 'tenant_addons_insert',
     table: 'tenant_addons',
-    context: TENANT_ADMIN,
+    context: TENANT,
     run: insertsForA('tenant_addons'),
   },
   {
     policy: 'tenant_addons_update',
     table: 'tenant_addons',
-    context: TENANT_ADMIN,
+    context: TENANT,
     run: updatesById(
       'tenant_addons',
       updateSet('tenant_addons'),
@@ -467,7 +466,7 @@ const POLICY_CASES: PolicyCase[] = [
   {
     policy: 'tenant_update',
     table: 'tenants',
-    context: TENANT_ADMIN,
+    context: TENANT,
     run: updatesById('tenants', updateSet('tenants'), (w) => w.a.tenantId),
   },
   // usage_ledger (append-only apart from projected_at / voided_at)
@@ -506,7 +505,7 @@ const POLICY_CASES: PolicyCase[] = [
   {
     policy: 'user_tenants_admin_insert',
     table: 'user_tenants',
-    context: TENANT_ADMIN,
+    context: TENANT,
     run: insertsForA('user_tenants'),
   },
   {
@@ -518,7 +517,7 @@ const POLICY_CASES: PolicyCase[] = [
   {
     policy: 'user_tenants_admin_update',
     table: 'user_tenants',
-    context: TENANT_ADMIN,
+    context: TENANT,
     run: membershipOf(
       'UPDATE public.user_tenants SET role_key = role_key WHERE user_id = $1 AND tenant_id = $2',
       (w) => w.a,
@@ -527,7 +526,7 @@ const POLICY_CASES: PolicyCase[] = [
   {
     policy: 'user_tenants_admin_delete',
     table: 'user_tenants',
-    context: TENANT_ADMIN,
+    context: TENANT,
     run: membershipOf(
       'DELETE FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
       (w) => w.a,
@@ -707,7 +706,7 @@ describe('Tenant isolation (RLS) as the app role', () => {
     try {
       if (context.kind === 'tenant') {
         await appDb.transactionWithTenantContext(
-          { tenantId: world.a.tenantId, isTenantAdmin: context.admin ?? false },
+          { tenantId: world.a.tenantId },
           check,
         );
       } else if (context.kind === 'platformAdmin') {
@@ -736,7 +735,6 @@ describe('Tenant isolation (RLS) as the app role', () => {
       client.query('SELECT set_config($1, $2, true)', [key, value]);
     if (context.kind === 'tenant') {
       await set('app.tenant_id', world.a.tenantId);
-      await set('app.is_tenant_admin', String(context.admin ?? false));
     } else if (context.kind === 'platformAdmin') {
       await set('app.platform_role', 'true');
     } else {
@@ -780,23 +778,23 @@ describe('Tenant isolation (RLS) as the app role', () => {
     );
   });
 
-  describe("tenant A (as tenant admin) cannot touch tenant B's rows", () => {
+  describe("tenant A cannot touch tenant B's rows", () => {
     it.each(Object.keys(TENANT_TABLES))('%s', async (table) => {
       const bId = TENANT_TABLES[table](world.b);
       const outcomes = {
         read: await viaApp(
-          TENANT_ADMIN,
+          TENANT,
           selectsById(table, () => bId),
         ),
         update: await viaApp(
-          TENANT_ADMIN,
+          TENANT,
           updatesById(table, updateSet(table), () => bId),
         ),
         delete: await viaApp(
-          TENANT_ADMIN,
+          TENANT,
           deletesById(table, () => bId),
         ),
-        insertAsB: await viaApp(TENANT_ADMIN, (c, w) =>
+        insertAsB: await viaApp(TENANT, (c, w) =>
           INSERT_FOR[table](w.b, w)(c, w),
         ),
       };
@@ -817,35 +815,35 @@ describe('Tenant isolation (RLS) as the app role', () => {
     it('tenants and user_tenants', async () => {
       const outcomes = {
         readTenant: await viaApp(
-          TENANT_ADMIN,
+          TENANT,
           selectsById('tenants', (w) => w.b.tenantId),
         ),
         updateTenant: await viaApp(
-          TENANT_ADMIN,
+          TENANT,
           updatesById('tenants', updateSet('tenants'), (w) => w.b.tenantId),
         ),
         readMembership: await viaApp(
-          TENANT_ADMIN,
+          TENANT,
           membershipOf(
             'SELECT 1 FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
             (w) => w.b,
           ),
         ),
         updateMembership: await viaApp(
-          TENANT_ADMIN,
+          TENANT,
           membershipOf(
             'UPDATE public.user_tenants SET role_key = role_key WHERE user_id = $1 AND tenant_id = $2',
             (w) => w.b,
           ),
         ),
         removeMember: await viaApp(
-          TENANT_ADMIN,
+          TENANT,
           membershipOf(
             'DELETE FROM public.user_tenants WHERE user_id = $1 AND tenant_id = $2',
             (w) => w.b,
           ),
         ),
-        addMember: await viaApp(TENANT_ADMIN, (c, w) =>
+        addMember: await viaApp(TENANT, (c, w) =>
           INSERT_FOR.user_tenants(w.b, w)(c, w),
         ),
       };
@@ -881,7 +879,6 @@ describe('Tenant isolation (RLS) as the app role', () => {
   it('the helpers every policy calls are plain SQL, and keep their meaning', async () => {
     const helpers = [
       'current_tenant_id_or_null',
-      'is_tenant_admin',
       'is_auth_flow',
       'is_platform_admin',
       'allow_cross_tenant_read',
@@ -905,33 +902,25 @@ describe('Tenant isolation (RLS) as the app role', () => {
         }
         const { rows } = await client.query<{
           tenant: string | null;
-          admin: boolean;
           platform: boolean;
         }>(
-          `SELECT current_tenant_id_or_null() AS tenant, is_tenant_admin() AS admin,
-                  is_platform_admin() AS platform`,
+          `SELECT current_tenant_id_or_null() AS tenant, is_platform_admin() AS platform`,
         );
         return rows[0];
       });
 
-    expect(await evaluate({})).toEqual({
-      tenant: null,
-      admin: false,
+    expect(await evaluate({})).toEqual({ tenant: null, platform: false });
+    expect(await evaluate({ 'app.tenant_id': tenantId })).toEqual({
+      tenant: tenantId,
       platform: false,
     });
-    expect(
-      await evaluate({
-        'app.tenant_id': tenantId,
-        'app.is_tenant_admin': 'true',
-      }),
-    ).toEqual({ tenant: tenantId, admin: true, platform: false });
     // A malformed id is no tenant (no error, no match); only the exact string 'true' counts
     expect(
       await evaluate({
         'app.tenant_id': "x' OR '1'='1",
         'app.platform_role': 'TRUE',
       }),
-    ).toEqual({ tenant: null, admin: false, platform: false });
+    ).toEqual({ tenant: null, platform: false });
   });
 
   it("BaseRepository's RLS_TABLES lists exactly the tables with row-level security", async () => {
