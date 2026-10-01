@@ -53,6 +53,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 | `adgm_employment_regulations.json` | ADGM | employment | 58 (5 required) | Draft, drafted 2026-10-01 |
 | `dmcc_employment_rules.json` | DMCC | employment | 23 (2 required) | Draft, drafted 2026-10-01 |
 | `difc_data_protection_law.json` | DIFC | data_processing | 22 (2 required) | Draft, drafted 2026-10-01 |
+| `adgm_data_protection_regulations.json` | ADGM | data_processing | 23 (2 required) | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | — | — | 34 | Summarised, not verbatim, old file shape; to be replaced by a verbatim draft |
 
 ## uae_federal_labour_law.json
@@ -293,3 +294,38 @@ Schedules (definitions and fines).
 - **Data Protection Regulations** made under the Law (Consolidated Version No. 2, in force
   1 September 2023) aren't drafted:
   https://assets.difc.com/v1/media/edge/images/dubaiintern0078-difcexperie96c5-production-3253/media/project/difcexperiences/difc/difcwebsite/documents/laws--regulations/data-protection-regulation.pdf
+
+## adgm_data_protection_regulations.json
+
+ADGM Data Protection Regulations 2021, enacted 11 February 2021, as amended (consolidated version
+August 2025). English is the language of ADGM legislation.
+
+**Source:** the consolidated PDF that the ADGM Rulebook page
+(https://en.adgm.thomsonreuters.com/rulebook/data-protection-regulations-2021) links as current
+(retrieved 2026-10-01):
+https://en.adgm.thomsonreuters.com/sites/default/files/net_file_store/ADGM1547_23167_VER992025.pdf,
+SHA-256 `b63a20bd9be6aa4c3277f5adc730ee335e776de5233d54001ea921e747f59fa7`.
+
+**Method.** As for the ADGM Employment Regulations; Parts here are headed "PART I" with the title on
+the next line. Footnote markers were removed from section headings and, once, from inside the text
+("ADGM’s Board3", s. 15(3)(a), not used here). Every clause line was checked against two other
+extractions of the same file.
+
+**Effective dates.** The Regulations replaced the Data Protection Regulations 2015, which s. 63(1)
+repealed 6 months after publication for establishments set up after publication and 12 months after
+it for those already established. Unamended provisions are dated **11 February 2022**: 12 months after
+the enactment date, taken as the publication date. That's when they bound every establishment; to be
+confirmed. Sections the consolidation footnotes as amended carry the footnote's date (s. 7: 9 September
+2025).
+
+**Scope.** For a data processing agreement: principles and accountability, lawful bases, special
+categories, controller measures, joint controllers, processors (the written contract and what it must
+contain, required), sub-processors, processing under authority, records, security, breach
+notification, and transfers out of ADGM. Left out: data subject rights, DPO and impact assessments,
+codes and certification, the Commissioner, remedies and definitions (s. 62).
+
+**Gaps.**
+
+- The 11 February 2022 date above.
+- **Defined terms** (s. 62) aren't carried.
+- **Standard contractual clauses** adopted by the Commissioner (ss. 26(6), 42(2)) aren't carried.
