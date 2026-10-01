@@ -51,6 +51,7 @@ rulesets), with the authority named by code instead of `authority_id`:
 | `uae_labour_law_implementing_regulation.json` | Mainland, DMCC, IFZA, RAKEZ, SHAMS, DAFZA, JAFZA | employment | 28 (1 required) | Draft, drafted 2026-10-01 |
 | `difc_employment_law.json` | DIFC | employment | 56 (4 required) | Draft, drafted 2026-10-01 |
 | `adgm_employment_regulations.json` | ADGM | employment | 58 (5 required) | Draft, drafted 2026-10-01 |
+| `dmcc_employment_rules.json` | DMCC | employment | 23 (2 required) | Draft, drafted 2026-10-01 |
 | `dmcc_company_regulations.json` | — | — | 34 | Summarised, not verbatim, old file shape; to be replaced by a verbatim draft |
 
 ## uae_federal_labour_law.json
@@ -221,3 +222,36 @@ whistleblowing, the Registrar's procedures, fees, and the definitions (s. 74).
   are governed by the UAE Labour Law, nor to employers the Board exempts (s. 75(3)); such an ADGM
   contract needs the federal rulesets instead. Jurisdiction tagging can't express that yet.
 - **Rules made by the Board** under the Regulations (s. 70) aren't drafted.
+
+## dmcc_employment_rules.json
+
+The DMCC Authority's Employment Rules, Version 3 (updated 12 December 2022). They apply to DMCC
+licensees and their employees **on top of** the UAE Labour Law (Rule 2.1), so a DMCC employment
+analysis uses this ruleset together with `uae_federal_labour_law.json` and
+`uae_labour_law_implementing_regulation.json` (both tagged DMCC).
+
+**Source:** the PDF linked from DMCC's Compliance and regulations page
+(https://dmcc.ae/members/support/knowledge-bank/compliance-and-regulations; retrieved 2026-10-01):
+https://dmcc.ae/hubfs/o2-Website%202023%20Assets/o2-Website%202023-PDF%20Updates%20(Nov%2023)/Support/Rules%20and%20Regulations/Employment_Rules_V3_-_Done.pdf,
+SHA-256 `5d267017ed5b134e5445b5fa424ca6cb6dd2104b5d521742046319874b5430ea`.
+
+**Method.** `pdftotext` (layout mode) parsed by section and numbered rule; every clause line checked
+against two other extractions of the same file. `article` is the rule number ("Rule 9.3").
+
+**Effective date.** 12 December 2022, the version's update date on its cover: the Rules state no
+commencement date. To be confirmed.
+
+**Scope.** DMCC's own requirements: no contracting out of the Labour Law, work outside the free zone,
+charges and sanctions, recruitment costs, passports, the written limited-term contract, insurance,
+accommodation, harassment, notice and termination formalities, final payment, repatriation flight,
+visa cancellation. Left out: administrative rules (sponsorship, entry permits, approvals), Rule 11.1
+(a summary of the Labour Law's leave entitlements, which the federal rulesets carry in the law's own
+words), pointers to DMCC guides, dispute resolution and definitions.
+
+**Gaps.**
+
+- **Outdated definition.** The Rules define "UAE Labour Law" as Federal Law No. 8 of 1980, which
+  Federal Decree-Law No. 33 of 2021 repealed, while Rule 16.3 cites Article 44 of the new law. The
+  reviewer should read the references as being to the current law, or check for a newer version.
+- **DMCC guides** referred to by the Rules (Ramadan, flexible work, family-friendly leave,
+  disciplinary procedures, limited-term contracts, visa cancellation) aren't carried.
