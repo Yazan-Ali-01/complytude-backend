@@ -2,7 +2,7 @@ import * as Joi from 'joi';
 import { TokenCounterService } from './chunking/token-counter.service';
 import { openAiRegion } from './embedding.constants';
 import { embeddingEnvSchema } from './embedding.schema';
-import { EmbeddingService } from './embedding.service';
+import { EmbeddingService, embeddingBatches } from './embedding.service';
 
 /** The SDK asks for base64 embeddings and decodes them: 4-byte little-endian floats. */
 function base64Floats(values: number[]): string {
@@ -125,5 +125,30 @@ describe('openAiRegion', () => {
     expect(openAiRegion('https://ae.api.openai.com/v1')).toBe('ae');
     expect(openAiRegion('https://eu.api.openai.com/v1')).toBe('eu');
     expect(openAiRegion('https://us.api.openai.com/v1')).toBe('us');
+  });
+});
+
+describe('embeddingBatches', () => {
+  it('keeps a batch under the token cap as well as the input cap', () => {
+    // 4 inputs of 120k tokens: two fit under 300k, the third would not
+    expect(embeddingBatches([120_000, 120_000, 120_000, 120_000])).toEqual([
+      { start: 0, end: 2 },
+      { start: 2, end: 4 },
+    ]);
+  });
+
+  it('caps the number of inputs per batch', () => {
+    expect(embeddingBatches([1, 1, 1, 1, 1], 2, 300_000)).toEqual([
+      { start: 0, end: 2 },
+      { start: 2, end: 4 },
+      { start: 4, end: 5 },
+    ]);
+  });
+
+  it('never splits an input or makes an empty batch', () => {
+    expect(embeddingBatches([8_000], 2048, 5_000)).toEqual([
+      { start: 0, end: 1 },
+    ]);
+    expect(embeddingBatches([])).toEqual([]);
   });
 });

@@ -8,10 +8,39 @@ import {
   DEFAULT_MODEL,
   EMBEDDING_MODULE_OPTIONS,
   MAX_BATCH_SIZE,
+  MAX_BATCH_TOKENS,
   MAX_INPUT_TOKENS,
 } from './embedding.constants';
 import type { EmbeddingResult } from './interfaces/chunking.interface';
 import type { EmbeddingModuleConfig } from './interfaces/embedding-config.interface';
+
+/**
+ * Splits inputs into consecutive request batches of at most `maxItems` inputs and `maxTokens`
+ * tokens summed (a single input is never split; each is at most MAX_INPUT_TOKENS).
+ */
+export function embeddingBatches(
+  tokenCounts: number[],
+  maxItems: number = MAX_BATCH_SIZE,
+  maxTokens: number = MAX_BATCH_TOKENS,
+): Array<{ start: number; end: number }> {
+  const batches: Array<{ start: number; end: number }> = [];
+  let start = 0;
+  let tokens = 0;
+  for (let i = 0; i < tokenCounts.length; i++) {
+    if (
+      i > start &&
+      (i - start >= maxItems || tokens + tokenCounts[i] > maxTokens)
+    ) {
+      batches.push({ start, end: i });
+      start = i;
+      tokens = 0;
+    }
+    tokens += tokenCounts[i];
+  }
+  if (tokenCounts.length > start)
+    batches.push({ start, end: tokenCounts.length });
+  return batches;
+}
 
 @Injectable()
 export class EmbeddingService {
@@ -82,12 +111,9 @@ export class EmbeddingService {
 
     const results: EmbeddingResult[] = new Array(texts.length);
 
-    for (
-      let batchStart = 0;
-      batchStart < texts.length;
-      batchStart += MAX_BATCH_SIZE
-    ) {
-      const batchEnd = Math.min(batchStart + MAX_BATCH_SIZE, texts.length);
+    for (const { start: batchStart, end: batchEnd } of embeddingBatches(
+      tokenCounts,
+    )) {
       const batch = texts.slice(batchStart, batchEnd);
 
       this.logger.debug(

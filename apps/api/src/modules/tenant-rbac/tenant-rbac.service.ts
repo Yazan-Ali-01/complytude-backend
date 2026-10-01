@@ -7,10 +7,8 @@ import { TenantRolesRepository } from '../../repositories/tenant-rbac/tenant-rol
 export class TenantRbacService {
   private readonly logger = new Logger(TenantRbacService.name);
 
-  // System roles use in-memory permission sets (TENANT_SYSTEM_ROLE_PERMISSIONS)
-  // Custom tenant roles (MVP+) will query the database
-  // TODO: Implement caching for custom tenant roles - load role-permissions
-  // No caching needed for system roles - O(1) in-memory lookup
+  // System roles use in-memory permission sets (TENANT_SYSTEM_ROLE_PERMISSIONS); custom tenant
+  // roles are read from the database (not cached; see docs/RBAC.md → Not built yet)
 
   constructor(private readonly tenantRolesRepository: TenantRolesRepository) {}
 
@@ -51,12 +49,4 @@ export class TenantRbacService {
       throw error;
     }
   }
-
-  // TODO: AI Model Selection Gate
-  // Restrict high-cost AI models (Jais-70B, Claude 3.5 Sonnet) to legal_counsel+ roles
-  // Implementation:
-  // 1. Create a model-tier mapping (e.g., { 'claude-3.5-sonnet': 'premium', 'gpt-4': 'premium', 'gpt-3.5': 'standard' })
-  // 2. Add permission: 'ai:use_premium_models' granted only to tenant_admin and legal_counsel
-  // 3. Check permission before allowing model selection in AI generation endpoints
-  // 4. Use getRolePermissions() + in-memory check (same pattern as TenantPermissionsGuard)
 }

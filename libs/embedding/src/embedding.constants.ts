@@ -8,7 +8,9 @@ export const DEFAULT_CHUNK_SIZE = 512;
 export const DEFAULT_CHUNK_OVERLAP = 50;
 
 export const MAX_INPUT_TOKENS = 8191;
+/** OpenAI's limits per embeddings request: inputs, and tokens summed across them. */
 export const MAX_BATCH_SIZE = 2048;
+export const MAX_BATCH_TOKENS = 300_000;
 
 export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 /** OpenAI's global API or one of its data-residency hosts: no other endpoint may receive document text. */

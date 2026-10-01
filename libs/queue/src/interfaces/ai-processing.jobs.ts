@@ -1,23 +1,8 @@
 export const AI_JOB_NAMES = {
-  TEMPLATE_ANALYSIS: 'template-analysis',
-  ARABIC_TRANSLATION: 'arabic-translation',
   DOCUMENT_ANALYSIS: 'document-analysis',
 } as const;
 
 export type AiJobName = (typeof AI_JOB_NAMES)[keyof typeof AI_JOB_NAMES];
-
-export interface TemplateAnalysisJobData {
-  tenantId: string;
-  templateId: string;
-  templateVersionId: string;
-  s3Key: string;
-}
-
-export interface ArabicTranslationJobData {
-  tenantId: string;
-  documentId: string;
-  changedBlockIds: string[];
-}
 
 /**
  * Where a contract is governed: which rules apply depends on it (federal labour law and the

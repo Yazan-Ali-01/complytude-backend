@@ -1,4 +1,6 @@
-import { attachmentDisposition } from './storage.service';
+import type { ConfigService } from '@nestjs/config';
+import type { I18nService } from 'nestjs-i18n';
+import { attachmentDisposition, StorageService } from './storage.service';
 
 describe('attachmentDisposition', () => {
   it('keeps an ASCII name as it is', () => {
@@ -25,5 +27,51 @@ describe('attachmentDisposition', () => {
         'attachment; filename="a_; filename=_evil.html__X: y";',
       ),
     ).toBe(true);
+  });
+});
+
+describe('StorageService bucket creation', () => {
+  function storage(nodeEnv: string): {
+    service: StorageService;
+    send: jest.Mock;
+  } {
+    const values: Record<string, unknown> = {
+      'storage.s3': { region: 'me-central-1', forcePathStyle: false },
+      NODE_ENV: nodeEnv,
+    };
+    const config = { get: (key: string) => values[key] };
+    const service = new StorageService(
+      config as unknown as ConfigService,
+      {} as I18nService,
+    );
+    const send = jest.fn().mockRejectedValue({ name: 'NotFound' });
+    (service as unknown as { s3Client: { send: jest.Mock } }).s3Client.send =
+      send;
+    return { service, send };
+  }
+
+  it('never creates (or even looks for) a bucket in production: Terraform owns them', async () => {
+    const { service, send } = storage('production');
+
+    await service.initializeQuarantineBucket();
+    await service.initializeTenantFilesBucket();
+
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('creates a missing bucket elsewhere (local S3 emulators)', async () => {
+    const { service, send } = storage('development');
+    send
+      .mockRejectedValueOnce({
+        name: 'NotFound',
+        $metadata: { httpStatusCode: 404 },
+      })
+      .mockResolvedValueOnce({});
+
+    await service.initializeQuarantineBucket();
+
+    expect(
+      send.mock.calls.map(([command]) => command.constructor.name),
+    ).toEqual(['HeadBucketCommand', 'CreateBucketCommand']);
   });
 });

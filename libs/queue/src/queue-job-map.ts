@@ -1,8 +1,6 @@
 import {
   AI_JOB_NAMES,
-  ArabicTranslationJobData,
   DocumentAnalysisJobData,
-  TemplateAnalysisJobData,
 } from './interfaces/ai-processing.jobs';
 import {
   BILLING_JOB_NAMES,
@@ -47,8 +45,6 @@ import { QUEUE_NAMES } from './queue.constants';
 
 export interface QueueJobMap {
   [QUEUE_NAMES.AI_PROCESSING]: {
-    [AI_JOB_NAMES.TEMPLATE_ANALYSIS]: TemplateAnalysisJobData;
-    [AI_JOB_NAMES.ARABIC_TRANSLATION]: ArabicTranslationJobData;
     [AI_JOB_NAMES.DOCUMENT_ANALYSIS]: DocumentAnalysisJobData;
   };
   [QUEUE_NAMES.BILLING_PROCESSING]: {

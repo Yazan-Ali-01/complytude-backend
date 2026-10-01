@@ -82,6 +82,12 @@ export class StorageService {
   private readonly tenantFilesBucket: string;
   private readonly quarantineBucket: string;
   private quarantineBucketInitialized = false;
+  /**
+   * Missing buckets are created only outside production (local S3 emulators). Deployed buckets
+   * are Terraform's, with encryption, a public-access block and lifecycle rules: a bucket created
+   * here would have none of them.
+   */
+  private readonly createsMissingBuckets: boolean;
 
   /**
    * AWS S3 metadata key constants
@@ -111,6 +117,8 @@ export class StorageService {
       'complytude-quarantine';
     this.signedUrlExpiresIn =
       this.configService.get('storage.signedUrl.expiresIn') || 900;
+    this.createsMissingBuckets =
+      this.configService.get<string>('NODE_ENV') !== 'production';
 
     const explicitCreds =
       s3Config.accessKeyId?.trim() && s3Config.secretAccessKey?.trim()
@@ -516,7 +524,7 @@ export class StorageService {
   }
 
   async initializeQuarantineBucket(): Promise<void> {
-    if (this.quarantineBucketInitialized) return;
+    if (this.quarantineBucketInitialized || !this.createsMissingBuckets) return;
 
     const exists = await this.bucketExists(this.quarantineBucket);
     if (!exists) {
@@ -740,6 +748,7 @@ export class StorageService {
   }
 
   async initializeTenantFilesBucket(): Promise<void> {
+    if (!this.createsMissingBuckets) return;
     const bucketExists = await this.bucketExists(this.tenantFilesBucket);
 
     if (bucketExists) {

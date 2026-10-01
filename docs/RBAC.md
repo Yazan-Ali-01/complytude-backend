@@ -227,6 +227,11 @@ Request → JWT Guard (Tenant Token)
 
 ---
 
+### Not built yet
+
+- **Custom tenant roles.** The schema, RLS and permission lookup support them, but no API creates them. When one does, cache `(tenantId, roleKey) → permissions` (Redis, invalidated when the role is edited): today every request with a custom role reads the database.
+- **Gating AI models by role.** Callers can't choose a model, so there is nothing to gate. If model choice ships, add a permission (for example `ai:use_premium_models`) for the roles allowed the expensive ones and check it where the model is chosen.
+
 ## Platform RBAC
 
 **Scope:** Controls access to platform-wide operations  
