@@ -29,16 +29,17 @@ export class PlatformRbacSyncService implements OnModuleInit {
   }
 
   private async syncPermissions(): Promise<void> {
-    await this.databaseService.transaction(async (client) => {
-      const permissionsToSync = this.parsePermissions();
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const permissionsToSync = this.parsePermissions();
 
-      this.logger.log(
-        `Syncing ${permissionsToSync.length} platform permissions to database...`,
-      );
+        this.logger.log(
+          `Syncing ${permissionsToSync.length} platform permissions to database...`,
+        );
 
-      for (const perm of permissionsToSync) {
-        await client.query(
-          `
+        for (const perm of permissionsToSync) {
+          await client.query(
+            `
           INSERT INTO public.platform_permissions (key, name, resource, action, description)
           VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (key) DO UPDATE SET
@@ -47,49 +48,51 @@ export class PlatformRbacSyncService implements OnModuleInit {
             action = EXCLUDED.action,
             description = EXCLUDED.description
         `,
-          [perm.key, perm.name, perm.resource, perm.action, perm.description],
-        );
-      }
+            [perm.key, perm.name, perm.resource, perm.action, perm.description],
+          );
+        }
 
-      const permissionKeys = permissionsToSync.map((p) => p.key);
+        const permissionKeys = permissionsToSync.map((p) => p.key);
 
-      if (permissionKeys.length === 0) {
-        this.logger.error(
-          'CRITICAL: ALL_PLATFORM_PERMISSIONS is empty! Aborting sync.',
-        );
-        throw new Error('Cannot sync platform permissions: array is empty.');
-      }
+        if (permissionKeys.length === 0) {
+          this.logger.error(
+            'CRITICAL: ALL_PLATFORM_PERMISSIONS is empty! Aborting sync.',
+          );
+          throw new Error('Cannot sync platform permissions: array is empty.');
+        }
 
-      const deleteResult = await client.query(
-        `
+        const deleteResult = await client.query(
+          `
           DELETE FROM public.platform_permissions
           WHERE key NOT IN (${permissionKeys.map((_, i) => `$${i + 1}`).join(', ')})
           RETURNING key
         `,
-        permissionKeys,
-      );
-
-      if (deleteResult.rowCount && deleteResult.rowCount > 0) {
-        this.logger.warn(
-          `Deleted ${deleteResult.rowCount} stale platform permissions`,
+          permissionKeys,
         );
-      }
 
-      this.logger.log('Platform permissions synced successfully');
-    });
+        if (deleteResult.rowCount && deleteResult.rowCount > 0) {
+          this.logger.warn(
+            `Deleted ${deleteResult.rowCount} stale platform permissions`,
+          );
+        }
+
+        this.logger.log('Platform permissions synced successfully');
+      },
+    );
   }
 
   private async syncSystemRoles(): Promise<void> {
-    await this.databaseService.transaction(async (client) => {
-      const systemRoles = this.getSystemRolesData();
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const systemRoles = this.getSystemRolesData();
 
-      this.logger.log(
-        `Syncing ${systemRoles.length} platform system roles to database...`,
-      );
+        this.logger.log(
+          `Syncing ${systemRoles.length} platform system roles to database...`,
+        );
 
-      for (const role of systemRoles) {
-        await client.query(
-          `
+        for (const role of systemRoles) {
+          await client.query(
+            `
           INSERT INTO public.platform_roles (key, name, description, is_system, is_active)
           VALUES ($1, $2, $3, true, true)
           ON CONFLICT (key) DO UPDATE SET
@@ -97,60 +100,61 @@ export class PlatformRbacSyncService implements OnModuleInit {
             description = EXCLUDED.description,
             is_active = EXCLUDED.is_active
         `,
-          [role.key, role.name, role.description],
-        );
-      }
-
-      for (const role of systemRoles) {
-        const roleResult = await client.query(
-          `SELECT id FROM public.platform_roles WHERE key = $1 AND is_system = true`,
-          [role.key],
-        );
-
-        if (roleResult.rows.length === 0) {
-          this.logger.error(`Platform system role not found: ${role.key}`);
-          continue;
+            [role.key, role.name, role.description],
+          );
         }
 
-        const roleId = roleResult.rows[0].id;
-        const permissionKeys = Array.from(role.permissions);
+        for (const role of systemRoles) {
+          const roleResult = await client.query(
+            `SELECT id FROM public.platform_roles WHERE key = $1 AND is_system = true`,
+            [role.key],
+          );
 
-        await client.query(
-          `DELETE FROM public.platform_role_permissions WHERE role_id = $1`,
-          [roleId],
-        );
+          if (roleResult.rows.length === 0) {
+            this.logger.error(`Platform system role not found: ${role.key}`);
+            continue;
+          }
 
-        if (permissionKeys.length === 0) {
-          continue;
-        }
+          const roleId = roleResult.rows[0].id;
+          const permissionKeys = Array.from(role.permissions);
 
-        const permissionsResult = await client.query(
-          `
+          await client.query(
+            `DELETE FROM public.platform_role_permissions WHERE role_id = $1`,
+            [roleId],
+          );
+
+          if (permissionKeys.length === 0) {
+            continue;
+          }
+
+          const permissionsResult = await client.query(
+            `
           SELECT id, key FROM public.platform_permissions
           WHERE key IN (${permissionKeys.map((_, i) => `$${i + 1}`).join(', ')})
         `,
-          permissionKeys,
-        );
+            permissionKeys,
+          );
 
-        const permissionIds = permissionsResult.rows.map((r) => r.id);
+          const permissionIds = permissionsResult.rows.map((r) => r.id);
 
-        if (permissionIds.length > 0) {
-          const values = permissionIds
-            .map((permId, i) => `($1, $${i + 2})`)
-            .join(', ');
-          await client.query(
-            `
+          if (permissionIds.length > 0) {
+            const values = permissionIds
+              .map((permId, i) => `($1, $${i + 2})`)
+              .join(', ');
+            await client.query(
+              `
             INSERT INTO public.platform_role_permissions (role_id, permission_id)
             VALUES ${values}
             ON CONFLICT (role_id, permission_id) DO NOTHING
           `,
-            [roleId, ...permissionIds],
-          );
+              [roleId, ...permissionIds],
+            );
+          }
         }
-      }
 
-      this.logger.log('Platform system roles synced successfully');
-    });
+        this.logger.log('Platform system roles synced successfully');
+      },
+    );
   }
 
   private parsePermissions(): Array<{

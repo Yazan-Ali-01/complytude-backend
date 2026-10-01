@@ -10,7 +10,7 @@ import { createTestApp, TestApp } from '../setup/test-app.factory';
  */
 const PRIVILEGES: Record<string, string> = {
   addon_entitlements: 'SELECT',
-  addons: 'SELECT,UPDATE',
+  addons: 'SELECT',
   aggregated_usage: 'DELETE,INSERT,SELECT,UPDATE',
   analysis_finding_feedback: 'INSERT,SELECT,UPDATE',
   analysis_jobs: 'INSERT,SELECT,UPDATE',
@@ -18,20 +18,20 @@ const PRIVILEGES: Record<string, string> = {
   authorities: 'DELETE,INSERT,SELECT,UPDATE',
   categories: 'INSERT,SELECT,UPDATE',
   credit_ledger: 'INSERT,SELECT',
-  credit_packages: 'INSERT,SELECT,UPDATE',
+  credit_packages: 'SELECT',
   documents: 'INSERT,SELECT,UPDATE',
   domain_events: 'INSERT,SELECT',
   email_verifications: 'DELETE,INSERT,SELECT,UPDATE',
   entitlement_snapshots: 'DELETE,INSERT,SELECT,UPDATE',
-  features: 'INSERT,SELECT,UPDATE',
+  features: 'SELECT',
   generation_jobs: 'DELETE,INSERT,SELECT,UPDATE',
   invitations: 'DELETE,INSERT,SELECT,UPDATE',
   password_resets: 'DELETE,INSERT,SELECT,UPDATE',
-  plan_entitlements: 'DELETE,INSERT,SELECT,UPDATE',
-  plans: 'INSERT,SELECT,UPDATE',
-  platform_permissions: 'DELETE,INSERT,SELECT,UPDATE',
-  platform_role_permissions: 'DELETE,INSERT,SELECT',
-  platform_roles: 'INSERT,SELECT,UPDATE',
+  plan_entitlements: 'SELECT',
+  plans: 'SELECT',
+  platform_permissions: 'SELECT',
+  platform_role_permissions: 'SELECT',
+  platform_roles: 'SELECT',
   ruleset_chunks: 'DELETE,INSERT,SELECT',
   ruleset_versions: 'INSERT,SELECT,UPDATE',
   rulesets: 'INSERT,SELECT,UPDATE',
@@ -44,8 +44,8 @@ const PRIVILEGES: Record<string, string> = {
   tenant_addons: 'INSERT,SELECT,UPDATE',
   tenant_ai_consents: 'INSERT,SELECT',
   tenant_overrides: 'INSERT,SELECT,UPDATE',
-  tenant_permissions: 'DELETE,INSERT,SELECT,UPDATE',
-  tenant_role_permissions: 'DELETE,INSERT,SELECT',
+  tenant_permissions: 'SELECT',
+  tenant_role_permissions: 'SELECT',
   tenant_roles: 'INSERT,SELECT,UPDATE',
   tenant_subscriptions: 'INSERT,SELECT,UPDATE',
   tenants: 'INSERT,SELECT,UPDATE',
@@ -125,7 +125,7 @@ describe('The runtime database role has only the privileges the code uses', () =
     ]);
   });
 
-  it('app_platform holds only the audit retention privileges, beyond what it inherits from app_user', async () => {
+  it('app_platform holds only the platform-only writes, beyond what it inherits from app_user', async () => {
     const { rows } = await admin.query<{ grant: string }>(
       `SELECT table_name || ':' || privilege_type AS grant
        FROM information_schema.role_table_grants
@@ -139,11 +139,36 @@ describe('The runtime database role has only the privileges the code uses', () =
            WHERE grantee = 'app_platform' AND table_schema = 'public')
        ORDER BY 1`,
     );
-    expect(rows.map((r) => r.grant)).toEqual([
-      'audit_logs.ip_address:UPDATE',
-      'audit_logs.user_agent:UPDATE',
-      'audit_logs:DELETE',
-    ]);
+    // Audit retention (migration 049) and the pricing and RBAC catalogs (migration 051)
+    expect(rows.map((r) => r.grant).sort()).toEqual(
+      [
+        'addons:UPDATE',
+        'audit_logs.ip_address:UPDATE',
+        'audit_logs.user_agent:UPDATE',
+        'audit_logs:DELETE',
+        'credit_packages:INSERT',
+        'credit_packages:UPDATE',
+        'features:INSERT',
+        'features:UPDATE',
+        'plan_entitlements:DELETE',
+        'plan_entitlements:INSERT',
+        'plan_entitlements:UPDATE',
+        'plans:INSERT',
+        'plans:UPDATE',
+        'platform_permissions:DELETE',
+        'platform_permissions:INSERT',
+        'platform_permissions:UPDATE',
+        'platform_role_permissions:DELETE',
+        'platform_role_permissions:INSERT',
+        'platform_roles:INSERT',
+        'platform_roles:UPDATE',
+        'tenant_permissions:DELETE',
+        'tenant_permissions:INSERT',
+        'tenant_permissions:UPDATE',
+        'tenant_role_permissions:DELETE',
+        'tenant_role_permissions:INSERT',
+      ].sort(),
+    );
   });
 
   it('is refused a catalog write no code path makes', async () => {
@@ -161,7 +186,31 @@ describe('The runtime database role has only the privileges the code uses', () =
     ).toBe('42501');
     // …while the writes the app makes still work
     expect(
-      await asApp('UPDATE public.plans SET name = name WHERE false'),
+      await asApp(
+        'UPDATE public.ruleset_versions SET is_active = is_active WHERE false',
+      ),
     ).toBeNull();
+  });
+
+  it('writes the pricing and RBAC catalogs only as the platform login', async () => {
+    // The login serving tenant requests may read them, never change them
+    expect(await asApp('SELECT 1 FROM public.plans LIMIT 1')).toBeNull();
+    for (const write of [
+      'UPDATE public.plans SET name = name WHERE false',
+      'UPDATE public.features SET name = name WHERE false',
+      'DELETE FROM public.plan_entitlements WHERE false',
+      'UPDATE public.credit_packages SET name = name WHERE false',
+      'DELETE FROM public.tenant_permissions WHERE false',
+      'DELETE FROM public.platform_role_permissions WHERE false',
+    ]) {
+      expect(await asApp(write)).toBe('42501');
+    }
+
+    // The startup syncs and the Stripe catalog sync run as the platform login
+    await expect(
+      app.appDatabaseService.transactionWithPlatformAdminContext((client) =>
+        client.query('UPDATE public.plans SET name = name WHERE false'),
+      ),
+    ).resolves.toBeDefined();
   });
 });

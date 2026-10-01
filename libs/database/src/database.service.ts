@@ -41,7 +41,8 @@ import { DATABASE_PLATFORM_POOL, DATABASE_POOL } from './database.constants';
  * - Use transactionWithPlatformAdminContext for system/admin/webhook operations. It runs on the
  *   platform login's own pool: is_platform_admin() also requires membership of app_platform, which
  *   the login serving tenant requests lacks, so setting app.platform_role there unlocks nothing
- * - Use transaction() for operations on tables without RLS (catalog tables, RBAC sync)
+ * - Use transaction() for operations on tables without RLS that the runtime role may write; the
+ *   pricing and RBAC catalogs are written only in platform context (the runtime role may only read them)
  * - The bare query() method runs WITHOUT any RLS context — only safe for non-RLS tables
  *
  * Why transactions for reads:
@@ -137,7 +138,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * Execute multiple queries in a transaction.
    *
    * WARNING: This method runs WITHOUT any RLS context. It is only safe for
-   * tables that do not have RLS policies (e.g., catalog sync, RBAC sync).
+   * tables that do not have RLS policies and that the runtime role may write (not the pricing and
+   * RBAC catalogs, which only the platform login writes).
    *
    * For RLS-protected tables, use:
    * - transactionWithTenantContext() for tenant-scoped operations

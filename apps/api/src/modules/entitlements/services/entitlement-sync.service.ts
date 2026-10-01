@@ -52,54 +52,57 @@ export class EntitlementSyncService implements OnModuleInit {
    * Strategy: Add new, update existing, soft-delete removed
    */
   private async syncFeatures(): Promise<void> {
-    await this.databaseService.transaction(async (client) => {
-      this.logger.log(
-        `Syncing ${ALL_FEATURE_KEYS.length} features to database...`,
-      );
-
-      // 1. Upsert each feature from code
-      for (const [featureKey, feature] of Object.entries(FEATURE_CATALOG)) {
-        await this.featuresRepository.upsertByKey(
-          {
-            key: featureKey as FeatureKey, // Safe: Object.entries() returns string, but featureKey is from FEATURE_CATALOG keys
-            name: feature.name,
-            description: feature.description,
-            feature_type: feature.feature_type,
-            unit: 'unit' in feature ? feature.unit : undefined,
-            creditable: 'creditable' in feature ? feature.creditable : false,
-            credit_cost: 'credit_cost' in feature ? feature.credit_cost : null,
-            is_active: true,
-          },
-          { client },
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        this.logger.log(
+          `Syncing ${ALL_FEATURE_KEYS.length} features to database...`,
         );
-      }
 
-      // 2. Soft-delete features removed from code (set is_active = false)
-      const codeKeys = ALL_FEATURE_KEYS;
-      const placeholders = codeKeys.map((_, i) => `$${i + 1}`).join(', ');
+        // 1. Upsert each feature from code
+        for (const [featureKey, feature] of Object.entries(FEATURE_CATALOG)) {
+          await this.featuresRepository.upsertByKey(
+            {
+              key: featureKey as FeatureKey, // Safe: Object.entries() returns string, but featureKey is from FEATURE_CATALOG keys
+              name: feature.name,
+              description: feature.description,
+              feature_type: feature.feature_type,
+              unit: 'unit' in feature ? feature.unit : undefined,
+              creditable: 'creditable' in feature ? feature.creditable : false,
+              credit_cost:
+                'credit_cost' in feature ? feature.credit_cost : null,
+              is_active: true,
+            },
+            { client },
+          );
+        }
 
-      const deactivateResult = await this.databaseService.query(
-        `
+        // 2. Soft-delete features removed from code (set is_active = false)
+        const codeKeys = ALL_FEATURE_KEYS;
+        const placeholders = codeKeys.map((_, i) => `$${i + 1}`).join(', ');
+
+        const deactivateResult = await client.query<{ key: string }>(
+          `
         UPDATE public.features
         SET is_active = false, updated_at = now()
         WHERE key NOT IN (${placeholders})
           AND is_active = true
         RETURNING key
         `,
-        codeKeys,
-      );
-
-      if (deactivateResult.rows.length > 0) {
-        const deactivatedKeys = deactivateResult.rows
-          .map((row) => row.key)
-          .join(', ');
-        this.logger.warn(
-          `Deactivated ${deactivateResult.rows.length} removed features: ${deactivatedKeys}`,
+          codeKeys,
         );
-      }
 
-      this.logger.log('Features synced successfully');
-    });
+        if (deactivateResult.rows.length > 0) {
+          const deactivatedKeys = deactivateResult.rows
+            .map((row) => row.key)
+            .join(', ');
+          this.logger.warn(
+            `Deactivated ${deactivateResult.rows.length} removed features: ${deactivatedKeys}`,
+          );
+        }
+
+        this.logger.log('Features synced successfully');
+      },
+    );
   }
 
   /**
@@ -107,53 +110,55 @@ export class EntitlementSyncService implements OnModuleInit {
    * Strategy: Add new, update existing, soft-delete removed
    */
   private async syncPlans(): Promise<void> {
-    await this.databaseService.transaction(async (client) => {
-      const planEntries = Object.entries(PLAN_CATALOG);
-      this.logger.log(`Syncing ${planEntries.length} plans to database...`);
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const planEntries = Object.entries(PLAN_CATALOG);
+        this.logger.log(`Syncing ${planEntries.length} plans to database...`);
 
-      // 1. Upsert each plan from code
-      for (const [planKey, plan] of planEntries) {
-        await this.plansRepository.upsertByKey(
-          {
-            key: planKey as PlanKey, // Safe: Object.entries() returns string, but planKey is from PLAN_CATALOG keys
-            name: plan.name,
-            description: plan.description,
-            price_monthly: plan.price_monthly,
-            price_currency: plan.price_currency,
-            billing_period: plan.billing_period,
-            is_active: true,
-            sort_order: plan.sort_order,
-          },
-          { client },
-        );
-      }
+        // 1. Upsert each plan from code
+        for (const [planKey, plan] of planEntries) {
+          await this.plansRepository.upsertByKey(
+            {
+              key: planKey as PlanKey, // Safe: Object.entries() returns string, but planKey is from PLAN_CATALOG keys
+              name: plan.name,
+              description: plan.description,
+              price_monthly: plan.price_monthly,
+              price_currency: plan.price_currency,
+              billing_period: plan.billing_period,
+              is_active: true,
+              sort_order: plan.sort_order,
+            },
+            { client },
+          );
+        }
 
-      // 2. Soft-delete plans removed from code (set is_active = false)
-      const codeKeys = ALL_PLAN_KEYS;
-      const placeholders = codeKeys.map((_, i) => `$${i + 1}`).join(', ');
+        // 2. Soft-delete plans removed from code (set is_active = false)
+        const codeKeys = ALL_PLAN_KEYS;
+        const placeholders = codeKeys.map((_, i) => `$${i + 1}`).join(', ');
 
-      const deactivateResult = await this.databaseService.query(
-        `
+        const deactivateResult = await client.query<{ key: string }>(
+          `
         UPDATE public.plans
         SET is_active = false, updated_at = now()
         WHERE key NOT IN (${placeholders})
           AND is_active = true
         RETURNING key
         `,
-        codeKeys,
-      );
-
-      if (deactivateResult.rows.length > 0) {
-        const deactivatedKeys = deactivateResult.rows
-          .map((row) => row.key)
-          .join(', ');
-        this.logger.warn(
-          `Deactivated ${deactivateResult.rows.length} removed plans: ${deactivatedKeys}`,
+          codeKeys,
         );
-      }
 
-      this.logger.log('Plans synced successfully');
-    });
+        if (deactivateResult.rows.length > 0) {
+          const deactivatedKeys = deactivateResult.rows
+            .map((row) => row.key)
+            .join(', ');
+          this.logger.warn(
+            `Deactivated ${deactivateResult.rows.length} removed plans: ${deactivatedKeys}`,
+          );
+        }
+
+        this.logger.log('Plans synced successfully');
+      },
+    );
   }
 
   /**
@@ -161,94 +166,101 @@ export class EntitlementSyncService implements OnModuleInit {
    * Strategy: Sync complete matrix for each plan, remove orphaned entitlements
    */
   private async syncPlanEntitlements(): Promise<void> {
-    await this.databaseService.transaction(async (client) => {
-      const planKeys = Object.keys(PLAN_ENTITLEMENTS) as PlanKey[]; // Safe: Object.keys returns string[], but PLAN_ENTITLEMENTS keys are PlanKey
-      this.logger.log(
-        `Syncing plan entitlements for ${planKeys.length} plans...`,
-      );
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        const planKeys = Object.keys(PLAN_ENTITLEMENTS) as PlanKey[]; // Safe: Object.keys returns string[], but PLAN_ENTITLEMENTS keys are PlanKey
+        this.logger.log(
+          `Syncing plan entitlements for ${planKeys.length} plans...`,
+        );
 
-      const allSyncedEntitlementIds: string[] = [];
+        const allSyncedEntitlementIds: string[] = [];
 
-      for (const planKey of planKeys) {
-        // Get plan ID from database
-        const plan = await this.plansRepository.findByKey(planKey, { client });
-        if (!plan) {
-          this.logger.error(`Plan not found: ${planKey}`);
-          continue;
-        }
-
-        // Get feature IDs for this plan's entitlements
-        const entitlements = PLAN_ENTITLEMENTS[planKey];
-        const featureKeys = Object.keys(entitlements) as Array<
-          keyof typeof entitlements
-        >;
-
-        const entitlementsToSync: Array<{
-          plan_id: string;
-          feature_id: string;
-          value_bool: boolean | null;
-          value_int: number | null;
-          value_text: string | null;
-        }> = [];
-
-        for (const featureKey of featureKeys) {
-          // Get feature ID from database
-          const feature = await this.featuresRepository.findByKey(featureKey, {
+        for (const planKey of planKeys) {
+          // Get plan ID from database
+          const plan = await this.plansRepository.findByKey(planKey, {
             client,
           });
-          if (!feature) {
-            this.logger.error(`Feature not found: ${featureKey}`);
+          if (!plan) {
+            this.logger.error(`Plan not found: ${planKey}`);
             continue;
           }
 
-          const value = entitlements[featureKey];
-          entitlementsToSync.push({
-            plan_id: plan.id,
-            feature_id: feature.id,
-            value_bool: value.value_bool ?? null,
-            value_int: value.value_int ?? null,
-            value_text: value.value_text ?? null,
-          });
-        }
+          // Get feature IDs for this plan's entitlements
+          const entitlements = PLAN_ENTITLEMENTS[planKey];
+          const featureKeys = Object.keys(entitlements) as Array<
+            keyof typeof entitlements
+          >;
 
-        // Bulk upsert entitlements for this plan
-        if (entitlementsToSync.length > 0) {
-          const syncedIds = await this.planEntitlementsRepository.syncForPlan(
-            plan.id,
-            entitlementsToSync,
-            { client },
+          const entitlementsToSync: Array<{
+            plan_id: string;
+            feature_id: string;
+            value_bool: boolean | null;
+            value_int: number | null;
+            value_text: string | null;
+          }> = [];
+
+          for (const featureKey of featureKeys) {
+            // Get feature ID from database
+            const feature = await this.featuresRepository.findByKey(
+              featureKey,
+              {
+                client,
+              },
+            );
+            if (!feature) {
+              this.logger.error(`Feature not found: ${featureKey}`);
+              continue;
+            }
+
+            const value = entitlements[featureKey];
+            entitlementsToSync.push({
+              plan_id: plan.id,
+              feature_id: feature.id,
+              value_bool: value.value_bool ?? null,
+              value_int: value.value_int ?? null,
+              value_text: value.value_text ?? null,
+            });
+          }
+
+          // Bulk upsert entitlements for this plan
+          if (entitlementsToSync.length > 0) {
+            const syncedIds = await this.planEntitlementsRepository.syncForPlan(
+              plan.id,
+              entitlementsToSync,
+              { client },
+            );
+            allSyncedEntitlementIds.push(...syncedIds);
+          }
+
+          this.logger.log(
+            `Synced ${entitlementsToSync.length} entitlements for plan: ${planKey}`,
           );
-          allSyncedEntitlementIds.push(...syncedIds);
         }
 
-        this.logger.log(
-          `Synced ${entitlementsToSync.length} entitlements for plan: ${planKey}`,
-        );
-      }
+        // Remove orphaned entitlements (features or plans that no longer exist in code)
+        if (allSyncedEntitlementIds.length > 0) {
+          const placeholders = allSyncedEntitlementIds
+            .map((_, i) => `$${i + 1}`)
+            .join(', ');
 
-      // Remove orphaned entitlements (features or plans that no longer exist in code)
-      if (allSyncedEntitlementIds.length > 0) {
-        const placeholders = allSyncedEntitlementIds
-          .map((_, i) => `$${i + 1}`)
-          .join(', ');
-
-        const deleteResult = await this.databaseService.query(
-          `
+          const deleteResult = await client.query<{ id: string }>(
+            `
           DELETE FROM public.plan_entitlements
           WHERE id NOT IN (${placeholders})
           RETURNING id
           `,
-          allSyncedEntitlementIds,
-        );
-
-        if (deleteResult.rows.length > 0) {
-          this.logger.warn(
-            `Removed ${deleteResult.rows.length} orphaned plan entitlements`,
+            allSyncedEntitlementIds,
           );
-        }
-      }
 
-      this.logger.log('Plan entitlements synced successfully');
-    });
+          if (deleteResult.rows.length > 0) {
+            this.logger.warn(
+              `Removed ${deleteResult.rows.length} orphaned plan entitlements`,
+            );
+          }
+        }
+
+        this.logger.log('Plan entitlements synced successfully');
+      },
+    );
   }
 }

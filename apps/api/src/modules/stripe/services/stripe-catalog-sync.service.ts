@@ -1,3 +1,5 @@
+import { DatabaseService } from '@lib/database';
+import type { PoolClient } from 'pg';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
@@ -41,6 +43,7 @@ export class StripeCatalogSyncService {
   private readonly logger = new Logger(StripeCatalogSyncService.name);
 
   constructor(
+    private readonly databaseService: DatabaseService,
     private readonly stripeService: StripeService,
     private readonly plansRepository: PlansRepository,
     private readonly addonsRepository: AddonsRepository,
@@ -48,6 +51,16 @@ export class StripeCatalogSyncService {
     private readonly configService: ConfigService,
     private readonly portalConfiguration: StripePortalConfigurationService,
   ) {}
+
+  /**
+   * Catalog rows are written only by the platform login: the role that serves tenant requests may
+   * read the pricing catalogs but not change them.
+   */
+  private inPlatformContext<T>(
+    write: (client: PoolClient) => Promise<T>,
+  ): Promise<T> {
+    return this.databaseService.transactionWithPlatformAdminContext(write);
+  }
 
   /**
    * Manually sync all catalog items to Stripe.
@@ -137,9 +150,10 @@ export class StripeCatalogSyncService {
     });
 
     if (!dbPlan.stripe_product_id) {
-      await this.plansRepository.updateStripeProductId(
-        dbPlan.id,
-        stripeProductId,
+      await this.inPlatformContext((client) =>
+        this.plansRepository.updateStripeProductId(dbPlan.id, stripeProductId, {
+          client,
+        }),
       );
     }
 
@@ -190,10 +204,13 @@ export class StripeCatalogSyncService {
           stripeInterval,
           amountInFils,
         );
-        await this.plansRepository.updateStripePriceId(
-          plan.id,
-          interval,
-          newPrice.id,
+        await this.inPlatformContext((client) =>
+          this.plansRepository.updateStripePriceId(
+            plan.id,
+            interval,
+            newPrice.id,
+            { client },
+          ),
         );
         this.logger.log(
           `Created new ${interval} price for plan "${plan.key}": ${newPrice.id}`,
@@ -213,10 +230,13 @@ export class StripeCatalogSyncService {
       amountInFils,
     );
     if (recovered) {
-      await this.plansRepository.updateStripePriceId(
-        plan.id,
-        interval,
-        recovered.id,
+      await this.inPlatformContext((client) =>
+        this.plansRepository.updateStripePriceId(
+          plan.id,
+          interval,
+          recovered.id,
+          { client },
+        ),
       );
       this.logger.log(
         `Recovered existing ${interval} price for plan "${plan.key}": ${recovered.id}`,
@@ -230,7 +250,11 @@ export class StripeCatalogSyncService {
       stripeInterval,
       amountInFils,
     );
-    await this.plansRepository.updateStripePriceId(plan.id, interval, price.id);
+    await this.inPlatformContext((client) =>
+      this.plansRepository.updateStripePriceId(plan.id, interval, price.id, {
+        client,
+      }),
+    );
     this.logger.log(
       `Created ${interval} price for plan "${plan.key}": ${price.id}`,
     );
@@ -284,9 +308,10 @@ export class StripeCatalogSyncService {
     });
 
     if (!addon.stripe_product_id) {
-      await this.addonsRepository.updateStripeProductId(
-        addon.id,
-        stripeProductId,
+      await this.inPlatformContext((client) =>
+        this.addonsRepository.updateStripeProductId(addon.id, stripeProductId, {
+          client,
+        }),
       );
     }
 
@@ -309,7 +334,11 @@ export class StripeCatalogSyncService {
           active: false,
         });
         const newPrice = await this.createAddonPrice(addon, amountInFils);
-        await this.addonsRepository.updateStripePriceId(addon.id, newPrice.id);
+        await this.inPlatformContext((client) =>
+          this.addonsRepository.updateStripePriceId(addon.id, newPrice.id, {
+            client,
+          }),
+        );
         this.logger.log(
           `Created new price for addon "${addon.key}": ${newPrice.id}`,
         );
@@ -327,7 +356,11 @@ export class StripeCatalogSyncService {
       amountInFils,
     );
     if (recovered) {
-      await this.addonsRepository.updateStripePriceId(addon.id, recovered.id);
+      await this.inPlatformContext((client) =>
+        this.addonsRepository.updateStripePriceId(addon.id, recovered.id, {
+          client,
+        }),
+      );
       this.logger.log(
         `Recovered existing price for addon "${addon.key}": ${recovered.id}`,
       );
@@ -335,7 +368,9 @@ export class StripeCatalogSyncService {
     }
 
     const price = await this.createAddonPrice(addon, amountInFils);
-    await this.addonsRepository.updateStripePriceId(addon.id, price.id);
+    await this.inPlatformContext((client) =>
+      this.addonsRepository.updateStripePriceId(addon.id, price.id, { client }),
+    );
     this.logger.log(`Created price for addon "${addon.key}": ${price.id}`);
   }
 
@@ -377,11 +412,14 @@ export class StripeCatalogSyncService {
   private async syncCreditPackageToStripe(
     pkg: CreditPackageDefinition,
   ): Promise<void> {
-    const dbPkg = await this.creditPackagesRepository.upsertFromConstant(
-      pkg.key,
-      pkg.name,
-      pkg.credits,
-      pkg.price,
+    const dbPkg = await this.inPlatformContext((client) =>
+      this.creditPackagesRepository.upsertFromConstant(
+        pkg.key,
+        pkg.name,
+        pkg.credits,
+        pkg.price,
+        { client },
+      ),
     );
 
     const stripeProductId = await this.resolveOrCreateProduct({
@@ -394,9 +432,12 @@ export class StripeCatalogSyncService {
     });
 
     if (!dbPkg.stripe_product_id) {
-      await this.creditPackagesRepository.updateStripeProductId(
-        dbPkg.id,
-        stripeProductId,
+      await this.inPlatformContext((client) =>
+        this.creditPackagesRepository.updateStripeProductId(
+          dbPkg.id,
+          stripeProductId,
+          { client },
+        ),
       );
     }
 
@@ -430,9 +471,12 @@ export class StripeCatalogSyncService {
           active: false,
         });
         const newPrice = await this.createCreditPackagePrice(pkg, amountInFils);
-        await this.creditPackagesRepository.updateStripePriceId(
-          pkg.id,
-          newPrice.id,
+        await this.inPlatformContext((client) =>
+          this.creditPackagesRepository.updateStripePriceId(
+            pkg.id,
+            newPrice.id,
+            { client },
+          ),
         );
         this.logger.log(
           `Created new price for credit package "${pkg.key}": ${newPrice.id}`,
@@ -450,9 +494,12 @@ export class StripeCatalogSyncService {
       amountInFils,
     );
     if (recovered) {
-      await this.creditPackagesRepository.updateStripePriceId(
-        pkg.id,
-        recovered.id,
+      await this.inPlatformContext((client) =>
+        this.creditPackagesRepository.updateStripePriceId(
+          pkg.id,
+          recovered.id,
+          { client },
+        ),
       );
       this.logger.log(
         `Recovered existing price for credit package "${pkg.key}": ${recovered.id}`,
@@ -461,7 +508,11 @@ export class StripeCatalogSyncService {
     }
 
     const price = await this.createCreditPackagePrice(pkg, amountInFils);
-    await this.creditPackagesRepository.updateStripePriceId(pkg.id, price.id);
+    await this.inPlatformContext((client) =>
+      this.creditPackagesRepository.updateStripePriceId(pkg.id, price.id, {
+        client,
+      }),
+    );
     this.logger.log(
       `Created price for credit package "${pkg.key}": ${price.id}`,
     );

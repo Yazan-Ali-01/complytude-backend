@@ -35,18 +35,19 @@ export class TenantRbacSyncService implements OnModuleInit {
    * Strategy: Add new, update existing, delete removed
    */
   private async syncPermissions(): Promise<void> {
-    await this.databaseService.transaction(async (client) => {
-      // Parse permissions from ALL_TENANT_PERMISSIONS
-      const permissionsToSync = this.parsePermissions();
+    await this.databaseService.transactionWithPlatformAdminContext(
+      async (client) => {
+        // Parse permissions from ALL_TENANT_PERMISSIONS
+        const permissionsToSync = this.parsePermissions();
 
-      this.logger.log(
-        `Syncing ${permissionsToSync.length} permissions to database...`,
-      );
+        this.logger.log(
+          `Syncing ${permissionsToSync.length} permissions to database...`,
+        );
 
-      // Upsert each permission
-      for (const perm of permissionsToSync) {
-        await client.query(
-          `
+        // Upsert each permission
+        for (const perm of permissionsToSync) {
+          await client.query(
+            `
           INSERT INTO public.tenant_permissions (key, name, resource, action, description)
           VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (key) DO UPDATE SET
@@ -55,41 +56,42 @@ export class TenantRbacSyncService implements OnModuleInit {
             action = EXCLUDED.action,
             description = EXCLUDED.description
         `,
-          [perm.key, perm.name, perm.resource, perm.action, perm.description],
-        );
-      }
+            [perm.key, perm.name, perm.resource, perm.action, perm.description],
+          );
+        }
 
-      // Delete permissions that exist in DB but not in code
-      const permissionKeys = permissionsToSync.map((p) => p.key);
+        // Delete permissions that exist in DB but not in code
+        const permissionKeys = permissionsToSync.map((p) => p.key);
 
-      // Safeguard: Never allow empty permissions array (likely a bug)
-      if (permissionKeys.length === 0) {
-        this.logger.error(
-          'CRITICAL: ALL_TENANT_PERMISSIONS is empty! This is likely a bug. Aborting sync to prevent data loss.',
-        );
-        throw new Error(
-          'Cannot sync permissions: ALL_TENANT_PERMISSIONS array is empty. This would delete all permissions from the database.',
-        );
-      }
+        // Safeguard: Never allow empty permissions array (likely a bug)
+        if (permissionKeys.length === 0) {
+          this.logger.error(
+            'CRITICAL: ALL_TENANT_PERMISSIONS is empty! This is likely a bug. Aborting sync to prevent data loss.',
+          );
+          throw new Error(
+            'Cannot sync permissions: ALL_TENANT_PERMISSIONS array is empty. This would delete all permissions from the database.',
+          );
+        }
 
-      // Delete permissions that exist in DB but not in code
-      const deleteResult = await client.query(
-        `
+        // Delete permissions that exist in DB but not in code
+        const deleteResult = await client.query(
+          `
           DELETE FROM public.tenant_permissions
           WHERE key NOT IN (${permissionKeys.map((_, i) => `$${i + 1}`).join(', ')})
           RETURNING key
         `,
-        permissionKeys,
-      );
-
-      if (deleteResult.rowCount && deleteResult.rowCount > 0) {
-        this.logger.warn(
-          `Deleted ${deleteResult.rowCount} stale permissions: ${deleteResult.rows.map((r) => r.key).join(', ')}`,
+          permissionKeys,
         );
-      }
 
-      this.logger.log('Permissions synced successfully');
-    });
+        if (deleteResult.rowCount && deleteResult.rowCount > 0) {
+          this.logger.warn(
+            `Deleted ${deleteResult.rowCount} stale permissions: ${deleteResult.rows.map((r) => r.key).join(', ')}`,
+          );
+        }
+
+        this.logger.log('Permissions synced successfully');
+      },
+    );
   }
 
   /**
