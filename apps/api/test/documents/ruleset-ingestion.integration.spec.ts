@@ -100,6 +100,7 @@ describe('Ruleset ingestion metadata and re-ingestion', () => {
         new TextChunkerService(tokenCounter),
       ),
       {
+        getModel: () => 'text-embedding-3-large',
         generateEmbeddings: (texts: string[]) =>
           Promise.resolve(
             texts.map((_text, index) => ({
@@ -116,10 +117,16 @@ describe('Ruleset ingestion metadata and re-ingestion', () => {
 
     const { rows } = await app.databaseService.query<{
       metadata: Record<string, unknown>;
+      embedding_model: string;
     }>(
-      'SELECT metadata FROM public.ruleset_chunks WHERE ruleset_version_id = $1 ORDER BY chunk_index',
+      'SELECT metadata, embedding_model FROM public.ruleset_chunks WHERE ruleset_version_id = $1 ORDER BY chunk_index',
       [versionId],
     );
+    // Each chunk names the model behind its vector, so retrieval never compares across models
+    expect(rows.map((r) => r.embedding_model)).toEqual([
+      'text-embedding-3-large',
+      'text-embedding-3-large',
+    ]);
     expect(rows.map((r) => r.metadata)).toEqual([
       expect.objectContaining({
         clauseId: 'lab_08',

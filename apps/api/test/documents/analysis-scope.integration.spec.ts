@@ -98,8 +98,8 @@ describe('Analysis scope: jurisdiction and document type', () => {
       [rows[0].id],
     );
     await app.databaseService.query(
-      `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding)
-       VALUES ($1, $2, 0, $3, $4::vector)`,
+      `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding, embedding_model)
+       VALUES ($1, $2, 0, $3, $4::vector, 'text-embedding-3-large')`,
       [rows[0].id, version[0].id, clause, `[${vector(axis).join(',')}]`],
     );
     return { id: rows[0].id, key };
@@ -192,6 +192,7 @@ describe('Analysis scope: jurisdiction and document type', () => {
       30,
       40,
       data.rulesetIds,
+      'text-embedding-3-large',
     );
     expect(matches.map((m) => m.rulesetId)).toEqual([difc.id]);
   });

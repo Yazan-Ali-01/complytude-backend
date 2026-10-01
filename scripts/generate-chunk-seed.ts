@@ -34,6 +34,7 @@ interface ChunkRow {
   embedding: string | null;
   metadata: string;
   created_at: Date | string;
+  embedding_model: string;
 }
 
 async function main(): Promise<void> {
@@ -62,7 +63,8 @@ async function main(): Promise<void> {
       content,
       embedding::text AS embedding,
       metadata::text AS metadata,
-      created_at
+      created_at,
+      embedding_model
     FROM public.ruleset_chunks
     WHERE ruleset_id IN (${ids})
     ORDER BY ruleset_id, chunk_index
@@ -111,7 +113,7 @@ async function main(): Promise<void> {
         : String(row.created_at);
 
     lines.push(
-      `INSERT INTO public.ruleset_chunks (id, ruleset_id, ruleset_version_id, chunk_index, content, embedding, metadata, created_at) VALUES ('${row.id}', '${row.ruleset_id}', '${row.ruleset_version_id}', ${row.chunk_index}, '${content}', '${embedding}', '${metadata}'::jsonb, '${ts}'::timestamptz);`,
+      `INSERT INTO public.ruleset_chunks (id, ruleset_id, ruleset_version_id, chunk_index, content, embedding, metadata, created_at, embedding_model) VALUES ('${row.id}', '${row.ruleset_id}', '${row.ruleset_version_id}', ${row.chunk_index}, '${content}', '${embedding}', '${metadata}'::jsonb, '${ts}'::timestamptz, '${row.embedding_model}');`,
     );
   }
 

@@ -700,8 +700,8 @@ describe('Document analysis: injection, grounding and honest status', () => {
         metadata: object,
       ): Promise<string> => {
         const { rows: chunk } = await app.databaseService.query<{ id: string }>(
-          `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding, metadata)
-           VALUES ($1, $2, $3, $4, $5::vector, $6) RETURNING id`,
+          `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding, embedding_model, metadata)
+           VALUES ($1, $2, $3, $4, $5::vector, 'text-embedding-3-small', $6) RETURNING id`,
           [
             rows[0].id,
             version[0].id,

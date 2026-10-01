@@ -55,15 +55,22 @@ export class RulesetChunkSearchRepository {
     }));
   }
 
-  /** The stored embeddings of the given chunks, to find the document sections each is about. */
-  async findEmbeddings(chunkIds: string[]): Promise<Map<string, number[]>> {
+  /**
+   * The stored embeddings of the given chunks, to find the document sections each is about. Only
+   * those made with `embeddingModel`: another model's vector says nothing about the document's.
+   */
+  async findEmbeddings(
+    chunkIds: string[],
+    embeddingModel: string,
+  ): Promise<Map<string, number[]>> {
     if (chunkIds.length === 0) return new Map();
     const { rows } = await this.databaseService.query<{
       id: string;
       embedding: string;
     }>(
-      `SELECT id, embedding::text AS embedding FROM public.ruleset_chunks WHERE id = ANY($1::uuid[])`,
-      [chunkIds],
+      `SELECT id, embedding::text AS embedding FROM public.ruleset_chunks
+       WHERE id = ANY($1::uuid[]) AND embedding_model = $2`,
+      [chunkIds, embeddingModel],
     );
     return new Map(
       rows.map((row) => [row.id, JSON.parse(row.embedding) as number[]]),
@@ -84,7 +91,9 @@ export class RulesetChunkSearchRepository {
    *    generated content_tsv column (English + Arabic stems).
    * 3. FULL OUTER JOIN + RRF scoring: 1/(k+rank_vector) + 1/(k+rank_bm25)
    *
-   * When `rulesetIds` is provided, both branches are limited to those rulesets.
+   * When `rulesetIds` is provided, both branches are limited to those rulesets. The vector branch
+   * compares only chunks embedded with `embeddingModel`, the model of `embeddings`: vectors of
+   * different models are never compared (a version not yet re-embedded is found by BM25 only).
    * ruleset_chunks has no RLS.
    */
   async hybridSearchBatch(
@@ -94,7 +103,8 @@ export class RulesetChunkSearchRepository {
     vectorLimit: number,
     bm25Limit: number,
     maxResults: number,
-    rulesetIds?: string[],
+    rulesetIds: string[] | undefined,
+    embeddingModel: string,
   ): Promise<RulesetChunkMatch[]> {
     if (embeddings.length === 0) return [];
 
@@ -149,7 +159,7 @@ export class RulesetChunkSearchRepository {
             CROSS JOIN LATERAL (
               SELECT id, ruleset_id, ruleset_version_id, content, metadata, embedding
               FROM public.ruleset_chunks
-              WHERE ruleset_version_id = ANY($7::uuid[])
+              WHERE ruleset_version_id = ANY($7::uuid[]) AND embedding_model = $8
               ORDER BY embedding <=> q.vec::vector
               LIMIT $2
             ) rc
@@ -191,6 +201,7 @@ export class RulesetChunkSearchRepository {
           bm25Limit,
           maxResults,
           active.map((v) => v.id),
+          embeddingModel,
         ],
       );
 

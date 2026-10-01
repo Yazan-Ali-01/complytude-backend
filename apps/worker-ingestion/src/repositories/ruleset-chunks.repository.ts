@@ -8,12 +8,14 @@ export interface RulesetChunkInsertRow {
   chunkIndex: number;
   content: string;
   embedding: number[];
+  /** The model that produced `embedding`; retrieval compares only vectors of the same model. */
+  embeddingModel: string;
   metadata: Record<string, unknown>;
 }
 
-// 6 params per row — keep well under PostgreSQL's 65,535 bind-parameter limit
-const PARAMS_PER_ROW = 6;
-const INSERT_PAGE_SIZE = Math.floor(60_000 / PARAMS_PER_ROW); // 10,000 rows
+// 7 params per row — keep well under PostgreSQL's 65,535 bind-parameter limit
+const PARAMS_PER_ROW = 7;
+const INSERT_PAGE_SIZE = Math.floor(60_000 / PARAMS_PER_ROW); // 8,571 rows
 
 @Injectable()
 export class RulesetChunksRepository {
@@ -75,7 +77,7 @@ export class RulesetChunksRepository {
 
     for (const chunk of chunks) {
       valuePlaceholders.push(
-        `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}::vector, $${paramIndex++})`,
+        `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}::vector, $${paramIndex++}, $${paramIndex++})`,
       );
       params.push(
         chunk.rulesetId,
@@ -83,13 +85,14 @@ export class RulesetChunksRepository {
         chunk.chunkIndex,
         chunk.content,
         `[${chunk.embedding.join(',')}]`,
+        chunk.embeddingModel,
         JSON.stringify(chunk.metadata),
       );
     }
 
     const query = `
       INSERT INTO public.ruleset_chunks
-        (ruleset_id, ruleset_version_id, chunk_index, content, embedding, metadata)
+        (ruleset_id, ruleset_version_id, chunk_index, content, embedding, embedding_model, metadata)
       VALUES ${valuePlaceholders.join(', ')}
     `;
 

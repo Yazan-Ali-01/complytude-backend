@@ -1,6 +1,7 @@
 export const EMBEDDING_MODULE_OPTIONS = 'EMBEDDING_MODULE_OPTIONS';
 
-export const DEFAULT_MODEL = 'text-embedding-3-small';
+/** The UAE data-residency route offers only this model; DEFAULT_DIMENSIONS keeps vector(1536). */
+export const DEFAULT_MODEL = 'text-embedding-3-large';
 export const DEFAULT_DIMENSIONS = 1536;
 export const DEFAULT_MAX_RETRIES = 3;
 export const DEFAULT_CHUNK_SIZE = 512;

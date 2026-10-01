@@ -71,8 +71,8 @@ describe('Paid operations are metered and gated', () => {
       [rows[0].id],
     );
     await app.databaseService.query(
-      `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding)
-       VALUES ($1, $2, 0, 'Working hours are at most 48 a week.', $3::vector)`,
+      `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding, embedding_model)
+       VALUES ($1, $2, 0, 'Working hours are at most 48 a week.', $3::vector, 'text-embedding-3-large')`,
       [rows[0].id, version[0].id, `[${vector.join(',')}]`],
     );
   }

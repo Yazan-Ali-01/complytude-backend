@@ -104,6 +104,7 @@ export class RulesetIngestionService {
       chunkIndex: chunk.index,
       content: chunk.content,
       embedding: embeddings[i].embedding,
+      embeddingModel: this.embeddingService.getModel(),
       metadata: {
         clauseId: chunk.clauseId,
         clauseTitle: chunk.clauseTitle,

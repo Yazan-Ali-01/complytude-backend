@@ -6,6 +6,8 @@ import { resetTestState } from '../helpers/redis-flush.helper';
 import { createTestApp, TestApp } from '../setup/test-app.factory';
 
 const DIMENSIONS = 1536;
+/** The model the analysis embeds with; chunks of any other model are never compared. */
+const MODEL = 'text-embedding-3-large';
 
 /** A unit vector along `axis`: chunks on the same axis as the query are nearest. */
 function vector(axis: number): number[] {
@@ -17,7 +19,8 @@ function vector(axis: number): number[] {
 /**
  * Retrieval reads only active rulesets and their active version (a retired regulation or a
  * superseded version is never cited), finds Arabic clauses lexically, and a scoped search
- * still returns its rulesets' clauses among many others. Real schema and pgvector.
+ * still returns its rulesets' clauses among many others, and compares a document's vectors only
+ * with chunks embedded by the same model. Real schema and pgvector.
  */
 describe('Ruleset retrieval', () => {
   let app: TestApp;
@@ -63,16 +66,18 @@ describe('Ruleset retrieval', () => {
     versionId: string,
     content: string,
     axis: number,
+    embeddingModel = MODEL,
   ): Promise<string> {
     const { rows } = await app.databaseService.query<{ id: string }>(
-      `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding)
-       VALUES ($1, $2, $5, $3, $4::vector) RETURNING id`,
+      `INSERT INTO public.ruleset_chunks (ruleset_id, ruleset_version_id, chunk_index, content, embedding, embedding_model)
+       VALUES ($1, $2, $5, $3, $4::vector, $6) RETURNING id`,
       [
         rulesetId,
         versionId,
         content,
         `[${vector(axis).join(',')}]`,
         nextIndex++,
+        embeddingModel,
       ],
     );
     return rows[0].id;
@@ -91,6 +96,7 @@ describe('Ruleset retrieval', () => {
       30,
       40,
       rulesetIds,
+      MODEL,
     );
     return matches.map((m) => m.content);
   }
@@ -130,6 +136,40 @@ describe('Ruleset retrieval', () => {
     );
     expect(rows).toEqual([{ version: '2.0.0' }]);
     jest.restoreAllMocks();
+  });
+
+  it("never compares a document's vectors with chunks of another embedding model", async () => {
+    const r = await ruleset();
+    // Same vector, but one was made by the old model: equal numbers, unrelated meanings
+    const current = await chunk(
+      r.id,
+      r.versionId,
+      'Working time: 48 hours a week.',
+      3,
+    );
+    const stale = await chunk(
+      r.id,
+      r.versionId,
+      'Annual leave: 30 days.',
+      3,
+      'text-embedding-3-small',
+    );
+
+    // The query's words match neither chunk, so only the vector branch can find them
+    expect(await retrieve(3, 'zzzz')).toEqual([
+      'Working time: 48 hours a week.',
+    ]);
+    const embeddings = await search.findEmbeddings([current, stale], MODEL);
+    expect([...embeddings.keys()]).toEqual([current]);
+    // …while the old model's chunk is still found by its words, and with its own model
+    expect(await retrieve(9, 'annual leave')).toContain(
+      'Annual leave: 30 days.',
+    );
+    expect([
+      ...(
+        await search.findEmbeddings([stale], 'text-embedding-3-small')
+      ).keys(),
+    ]).toEqual([stale]);
   });
 
   it('matches Arabic clauses lexically, by stem', async () => {

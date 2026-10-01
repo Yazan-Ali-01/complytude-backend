@@ -32,7 +32,7 @@ A user uploads a contract. The system chunks it, searches for relevant regulator
 Consumes `DOCUMENT_ANALYSIS` jobs. Runs the full RAG pipeline:
 
 1. **Chunk** the document text (token-aware splitting)
-2. **Embed** chunks via OpenAI (`text-embedding-3-small`, 1536 dimensions)
+2. **Embed** chunks via OpenAI (`text-embedding-3-large`, 1536 dimensions); vector search compares only ruleset chunks embedded by the same model (`ruleset_chunks.embedding_model`)
 3. **Hybrid search** against `ruleset_chunks` — vector similarity + BM25 full-text, merged via Reciprocal Rank Fusion
 4. **Keep** the candidates in search order, up to `RAG_OPTIONAL_CLAUSE_LIMIT` (no reranking)
 5. **Add the checklist:** every required clause of the job's rulesets, whatever the search found
@@ -112,6 +112,7 @@ Stores embedded clause chunks for hybrid search.
 | `content` | TEXT | Raw clause text |
 | `content_tsv` | TSVECTOR (generated) | Auto-maintained BM25 search vector |
 | `embedding` | vector(1536) | OpenAI embedding for similarity search |
+| `embedding_model` | VARCHAR(100) | The model behind `embedding` (migration 039); the vector search and the clause-to-section matching use only chunks of the worker's `OPENAI_EMBEDDING_MODEL`. After changing the model, `pnpm rulesets:reingest` re-embeds the active versions; until then they are found by BM25 only |
 | `metadata` | JSONB | Clause ID, title, authority, ruleset key, version |
 
 ### `analysis_jobs` (tenant-scoped, RLS)

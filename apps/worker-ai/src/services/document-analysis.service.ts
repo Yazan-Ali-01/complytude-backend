@@ -444,6 +444,8 @@ export class DocumentAnalysisService {
         this.bm25Limit,
         this.maxHybridResults,
         rulesetIds,
+        // Only chunks embedded by the same model: vectors of different models aren't comparable
+        this.embeddingService.getModel(),
       )
       .catch((err: unknown) => {
         throw new RetryableError(
@@ -480,7 +482,10 @@ export class DocumentAnalysisService {
       this.judgeBatchSize * this.maxJudgeCalls,
     );
     const clauseEmbeddings = await this.rulesetChunkSearchRepository
-      .findEmbeddings(judged.map(([, chunk]) => chunk.id))
+      .findEmbeddings(
+        judged.map(([, chunk]) => chunk.id),
+        this.embeddingService.getModel(),
+      )
       .catch((err: unknown) => {
         throw new RetryableError(
           'DB error loading clause embeddings',

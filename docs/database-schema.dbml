@@ -955,7 +955,8 @@ Table ruleset_chunks {
   ruleset_version_id uuid [not null, ref: > ruleset_versions.id]
   chunk_index integer [not null]
   content text [not null]
-  embedding "vector(1536)" [not null, note: 'OpenAI text-embedding-3-small']
+  embedding "vector(1536)" [not null, note: 'OpenAI embedding (text-embedding-3-large at 1536 dims)']
+  embedding_model varchar(100) [not null, note: 'Model behind embedding; retrieval compares only the same model (migration 039)']
   metadata jsonb [default: '{}']
   created_at timestamptz [not null, default: `now()`]
 

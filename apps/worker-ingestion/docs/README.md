@@ -19,7 +19,7 @@ The Data Ingestion Worker is a standalone NestJS application that consumes jobs 
 2. Fetches the ruleset version and its JSONB clauses from PostgreSQL
 3. Maps clauses to structured `ClauseInput` objects (with validation)
 4. Chunks clauses using `ClauseChunkerService` (clause-level chunking with token-aware splitting)
-5. Generates embeddings for all chunks (OpenAI `text-embedding-3-small`)
+5. Generates embeddings for all chunks (OpenAI `text-embedding-3-large` at 1536 dimensions) and records the model on each chunk (`embedding_model`)
 6. Atomic replace: deletes old chunks for the version, inserts new ones in a single transaction
 7. Stores chunks with rich metadata (clause ID, title, order, whether it's required, severity, article, section, source, authority name, ruleset key and name, version)
 
@@ -218,7 +218,7 @@ cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
 | `WORKER_INGESTION_PORT`        | `3002`                   | HTTP port for health checks                    |
 | `OPENAI_API_KEY`               | (required)               | OpenAI API key for embeddings                  |
 | `OPENAI_BASE_URL`              | `https://api.openai.com/v1` | OpenAI host: the global API or a data-residency host (`us`/`eu`/`ae`); must match worker-ai's |
-| `OPENAI_EMBEDDING_MODEL`       | `text-embedding-3-small` | Embedding model                                |
+| `OPENAI_EMBEDDING_MODEL`       | `text-embedding-3-large` | Embedding model; must match worker-ai's (a change means `pnpm rulesets:reingest`) |
 | `OPENAI_EMBEDDING_DIMENSIONS`  | `1536`                   | Vector dimensions (must match pgvector column) |
 | `EMBEDDING_CHUNK_SIZE`         | `512`                    | Max tokens per chunk                           |
 | `EMBEDDING_CHUNK_OVERLAP`      | `50`                     | Token overlap between chunks                   |

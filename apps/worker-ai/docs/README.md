@@ -46,7 +46,7 @@ Document → Redact → Chunk → Embed → Required clauses + Hybrid Search (Ve
 
 | Provider | Usage |
 |----------|-------|
-| **OpenAI** | Embeddings (`text-embedding-3-small`) + LLM chat completions (`gpt-5.6-luna`, structured output with `json_schema`) |
+| **OpenAI** | Embeddings (`text-embedding-3-large` at 1536 dimensions) + LLM chat completions (`gpt-5.6-luna`, structured output with `json_schema`) |
 
 ### Model choice
 
@@ -61,7 +61,7 @@ Picked on the evaluation (`data/eval/HISTORY.md`, 2026-10-01, same commit and se
 
 gpt-5.6-luna finds the most of the cheap models, agrees with itself run to run (97%, so no second pass is needed), and is on OpenAI's UAE data-residency list; the frontier model finds no more and flags far more that it shouldn't, at 35× the cost. Known gap: it doesn't mention a steering attempt in the contract (the injection cases' "Mentions" score is 0%), though the attempt doesn't change its verdicts.
 
-**Region and retention:** requests go to `OPENAI_BASE_URL`: the global API until OpenAI approves the project for UAE data residency, then `https://ae.api.openai.com/v1` (which also needs `text-embedding-3-large` for embeddings). OpenAI keeps API data up to 30 days for abuse monitoring unless zero data retention is approved; see `docs/SUBPROCESSORS.md`.
+**Region and retention:** requests go to `OPENAI_BASE_URL`: the global API until OpenAI approves the project for UAE data residency, then `https://ae.api.openai.com/v1`. Embeddings are `text-embedding-3-large` (the route's only embedding model) at 1536 dimensions; each ruleset chunk records its model (`ruleset_chunks.embedding_model`), and retrieval compares a document's vectors only with chunks of the same model, so after a model change re-embed with `pnpm rulesets:reingest` (until then a version is found by its words only). OpenAI keeps API data up to 30 days for abuse monitoring unless zero data retention is approved; see `docs/SUBPROCESSORS.md`.
 
 ### Source Structure
 
@@ -325,7 +325,7 @@ cp apps/worker-ai/.env.example apps/worker-ai/.env
 | `OPENAI_CHAT_CONTEXT_WINDOW` | known models: from the table | Context window in tokens. **Required** for a model outside the table: the worker refuses to start without it rather than guess. |
 | `OPENAI_CHAT_MAX_TOKENS` | `32000` for a known reasoning model, else `4096` | Max output tokens, sent as `max_completion_tokens`. Reasoning models count their reasoning tokens against it. The prompt budget reserves this many tokens. |
 | `OPENAI_CHAT_TEMPERATURE` | known non-reasoning models: `0.1`; others: not sent | LLM temperature. Never sent to a known reasoning model (gpt-5.x), which rejects one. |
-| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-large` | Embedding model (the UAE residency route's only one). Must match worker-ingestion's; retrieval compares a document only with ruleset chunks of this model, so a change means `pnpm rulesets:reingest` |
 | `OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Embedding vector dimensions |
 | `REDACTION_ENABLED` | `true` | Mask personal data before any provider call. Only development may set `false`. |
 | `REDACTION_NER_URL` | (unset) | Self-hosted name-recognition service (Presidio analyzer API), e.g. a sidecar on `http://localhost:5002` |
